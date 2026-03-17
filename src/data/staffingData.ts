@@ -55,6 +55,11 @@ export interface Deal {
 
 // ── Role Definitions ─────────────────────────────────────────────────────────
 export const ROLE_SLOTS: RoleSlot[] = [
+  // Operations
+  { roleKey: "vsd", roleLabel: "VSD", category: "Operations" },
+  { roleKey: "principal_bopm", roleLabel: "Principal BOPM", category: "Operations" },
+  { roleKey: "senior_bopm", roleLabel: "Senior BOPM", category: "Operations" },
+  { roleKey: "bopm", roleLabel: "BOPM", category: "Operations" },
   // Content
   { roleKey: "managing_editor", roleLabel: "Managing Editor", category: "Content" },
   { roleKey: "content_lead", roleLabel: "Content Lead", category: "Content" },
