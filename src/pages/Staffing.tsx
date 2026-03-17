@@ -35,7 +35,13 @@ export default function Staffing() {
   const [search, setSearch] = useState("");
   const [vsdFilter, setVsdFilter] = useState<string>("All");
   const [categoryFilter, setCategoryFilter] = useState<RoleCategory | "All">("All");
+  const [staffingStatusFilter, setStaffingStatusFilter] = useState<string>("All");
+  const [dealTypeFilter, setDealTypeFilter] = useState<string>("All");
   const [peopleCategoryTab, setPeopleCategoryTab] = useState<RoleCategory>(ROLE_CATEGORIES[0]);
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 25;
 
   // Add assignment modal state
   const [addModal, setAddModal] = useState<{ dealId: string; roleKey: string } | null>(null);
@@ -46,14 +52,23 @@ export default function Staffing() {
   const [editingAssignment, setEditingAssignment] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
 
-  const vsds = useMemo(() => ["All", ...Array.from(new Set(deals.map(d => d.vsd)))], [deals]);
+  const vsds = useMemo(() => ["All", ...Array.from(new Set(deals.map(d => d.vsd))).sort()], [deals]);
   const filteredDeals = useMemo(() => {
+    setCurrentPage(1);
     return deals.filter(d => {
       if (vsdFilter !== "All" && d.vsd !== vsdFilter) return false;
+      if (staffingStatusFilter !== "All" && d.staffingStatus !== staffingStatusFilter) return false;
+      if (dealTypeFilter !== "All" && d.dealType !== dealTypeFilter) return false;
       if (search && !d.account.toLowerCase().includes(search.toLowerCase()) && !d.dealName.toLowerCase().includes(search.toLowerCase()) && !d.dealId.includes(search)) return false;
       return true;
     });
-  }, [deals, vsdFilter, search]);
+  }, [deals, vsdFilter, staffingStatusFilter, dealTypeFilter, search]);
+
+  const totalPages = Math.ceil(filteredDeals.length / pageSize);
+  const paginatedDeals = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredDeals.slice(start, start + pageSize);
+  }, [filteredDeals, currentPage]);
 
   const visibleSlots = useMemo(() => {
     if (categoryFilter === "All") return ROLE_SLOTS;
