@@ -98,8 +98,45 @@ export const ROLE_SLOTS: RoleSlot[] = [
 ];
 
 export const ROLE_CATEGORIES: RoleCategory[] = [
-  "Content", "SEO", "Creative Strategy", "Creative Copy", "Creative Art", "Video", "Performance & Growth", "Other"
+  "Operations", "Content", "SEO", "Creative Strategy", "Creative Copy", "Creative Art", "Video", "Performance & Growth", "Other"
 ];
+
+// ── Role-to-People Filter Mapping ───────────────────────────────────────────
+// Maps each roleKey to the compatible roleTitle values for dropdown filtering
+export const ROLE_TO_PEOPLE_FILTER: Record<string, string[]> = {
+  vsd: ["VSD"],
+  principal_bopm: ["Principal BOPM"],
+  senior_bopm: ["Senior BOPM"],
+  bopm: ["BOPM"],
+  managing_editor: ["Managing Editor"],
+  content_lead: ["Content Lead"],
+  senior_editor: ["Senior Editor"],
+  seo_leader: ["SEO Leader"],
+  seo_group_head: ["Group Head"],
+  sr_seo_manager: ["Sr. SEO Manager"],
+  seo_manager: ["SEO Manager"],
+  sr_seo_analyst: ["Sr. SEO Analyst"],
+  seo_analyst: ["SEO Analyst"],
+  strategy_cd: ["Strategy CD"],
+  strategy_acd: ["Strategy ACD"],
+  strategy_sr: ["Sr. Strategist"],
+  cd_copy: ["CD - Copy"],
+  acd_copy: ["ACD - Copy"],
+  sr_copywriter: ["Sr. Copywriter"],
+  jr_copywriter: ["Jr. Copywriter"],
+  sr_cd_art: ["Sr. CD - Art"],
+  acd_art: ["ACD - Art"],
+  art_director: ["Art Director"],
+  sr_designer: ["Sr. Designer"],
+  jr_designer: ["Jr. Designer"],
+  production_head: ["Production Head"],
+  ad_video_pm: ["AD - Video PM"],
+  video_pm: ["Video PM/ACP"],
+  video_editor_1: ["Video Editor 1"],
+  video_editor_2: ["Video Editor 2"],
+  influencer: ["Influencer Team"],
+  perf_growth: ["Performance & Growth"],
+};
 
 // ── Helper ───────────────────────────────────────────────────────────────────
 let _uid = 0;
