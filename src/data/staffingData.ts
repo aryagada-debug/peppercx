@@ -11,6 +11,7 @@ export interface Person {
 }
 
 export type RoleCategory =
+  | "Operations"
   | "Content"
   | "SEO"
   | "Creative Strategy"
