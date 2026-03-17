@@ -337,16 +337,29 @@ export default function Staffing() {
               Deal: {deals.find(d => d.id === addModal.dealId)?.account} • Role: {ROLE_SLOTS.find(s => s.roleKey === addModal.roleKey)?.roleLabel}
             </p>
             <div className="space-y-1">
-              {people.filter(p => !p.leaving).map(p => (
+              {people.filter(p => {
+                if (p.leaving) return false;
+                const allowedTitles = ROLE_TO_PEOPLE_FILTER[addModal.roleKey];
+                if (allowedTitles) {
+                  return allowedTitles.includes(p.roleTitle);
+                }
+                return true;
+              }).map(p => (
                 <button key={p.id} onClick={() => addAssignment(addModal.dealId, addModal.roleKey, p.id)}
                   className="w-full text-left px-3 py-2 rounded-md hover:bg-secondary transition-colors flex items-center justify-between">
                   <div>
                     <span className={cn("text-ui font-medium", p.tbh && "text-warning italic")}>{p.name}</span>
                     <span className="text-caption text-muted-foreground ml-2">{p.roleTitle}</span>
                   </div>
-                  <span className="text-caption text-muted-foreground font-mono">{fmtPct(personUtilization[p.id]?.totalPct || 0)}</span>
+                  <span className={cn("text-caption font-mono tabular-nums",
+                    (personUtilization[p.id]?.totalPct || 0) > 100 ? "text-destructive" :
+                    (personUtilization[p.id]?.totalPct || 0) > 80 ? "text-warning" : "text-muted-foreground"
+                  )}>{fmtPct(personUtilization[p.id]?.totalPct || 0)}</span>
                 </button>
               ))}
+              {people.filter(p => !p.leaving && (ROLE_TO_PEOPLE_FILTER[addModal.roleKey]?.includes(p.roleTitle) ?? true)).length === 0 && (
+                <p className="text-caption text-muted-foreground py-4 text-center">No matching people for this role</p>
+              )}
             </div>
           </div>
         </div>
