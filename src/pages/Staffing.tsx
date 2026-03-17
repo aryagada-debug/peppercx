@@ -3,7 +3,7 @@ import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { Search, Plus, Filter, X, ChevronDown, UserPlus } from "lucide-react";
 import {
-  DEFAULT_DEALS, DEFAULT_PEOPLE, DEFAULT_ASSIGNMENTS, ROLE_SLOTS, ROLE_CATEGORIES,
+  DEFAULT_DEALS, DEFAULT_PEOPLE, DEFAULT_ASSIGNMENTS, ROLE_SLOTS, ROLE_CATEGORIES, ROLE_TO_PEOPLE_FILTER,
   type Deal, type Person, type StaffingAssignment, type RoleCategory, uid
 } from "@/data/staffingData";
 
