@@ -9,7 +9,7 @@ interface MetricCardProps {
   className?: string;
 }
 
-const transition = { duration: 0.2, ease: [0.16, 1, 0.3, 1] };
+const transition = { duration: 0.2, ease: [0.16, 1, 0.3, 1] as const };
 
 export function MetricCard({ label, value, change, suffix, className }: MetricCardProps) {
   return (
