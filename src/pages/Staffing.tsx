@@ -151,10 +151,23 @@ export default function Staffing() {
               <select value={vsdFilter} onChange={e => setVsdFilter(e.target.value)} className="h-9 px-3 rounded-md border border-border bg-card text-ui text-foreground">
                 {vsds.map(v => <option key={v} value={v}>{v === "All" ? "All VSDs" : v}</option>)}
               </select>
+              <select value={staffingStatusFilter} onChange={e => setStaffingStatusFilter(e.target.value)} className="h-9 px-3 rounded-md border border-border bg-card text-ui text-foreground">
+                <option value="All">All Staffing Status</option>
+                <option value="Already Staffed">Already Staffed</option>
+                <option value="Staffing Needed">Staffing Needed</option>
+                <option value="No Staffing Needed">No Staffing Needed</option>
+              </select>
+              <select value={dealTypeFilter} onChange={e => setDealTypeFilter(e.target.value)} className="h-9 px-3 rounded-md border border-border bg-card text-ui text-foreground">
+                <option value="All">All Types</option>
+                <option value="Retainer">Retainer</option>
+                <option value="Non-Retainer">Non-Retainer</option>
+                <option value="Pilot">Pilot</option>
+              </select>
               <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value as any)} className="h-9 px-3 rounded-md border border-border bg-card text-ui text-foreground">
                 <option value="All">All Role Categories</option>
                 {ROLE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
+              <span className="text-caption text-muted-foreground ml-auto">{filteredDeals.length} deals</span>
             </div>
 
             <div className="data-card p-0 overflow-x-auto">
@@ -165,6 +178,7 @@ export default function Staffing() {
                     <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider sticky left-[80px] bg-secondary/30 z-10 min-w-[140px]">Account</th>
                     <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[100px]">VSD</th>
                     <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[80px]">Type</th>
+                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[90px]">Staffing</th>
                     {visibleSlots.map(slot => (
                       <th key={slot.roleKey} className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[160px] whitespace-nowrap">
                         <div>{slot.roleLabel}</div>
@@ -174,12 +188,13 @@ export default function Staffing() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredDeals.map(deal => (
+                  {paginatedDeals.map(deal => (
                     <tr key={deal.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
                       <td className="py-2 px-3 font-mono text-accent font-medium sticky left-0 bg-card z-10">{deal.dealId}</td>
-                      <td className="py-2 px-3 font-medium text-foreground sticky left-[80px] bg-card z-10 truncate max-w-[140px]" title={deal.account}>{deal.account}</td>
+                      <td className="py-2 px-3 font-medium text-foreground sticky left-[80px] bg-card z-10 truncate max-w-[140px]" title={`${deal.account} — ${deal.dealName}`}>{deal.account}</td>
                       <td className="py-2 px-3 text-muted-foreground truncate">{deal.vsd.split(" ")[0]}</td>
-                      <td className="py-2 px-3"><span className={cn("px-1.5 py-0.5 rounded text-caption font-medium", deal.dealType === "Retainer" ? "bg-positive/10 text-positive" : "bg-accent/10 text-accent")}>{deal.dealType}</span></td>
+                      <td className="py-2 px-3"><span className={cn("px-1.5 py-0.5 rounded text-caption font-medium", deal.dealType === "Retainer" ? "bg-positive/10 text-positive" : deal.dealType === "Pilot" ? "bg-warning/10 text-warning" : "bg-accent/10 text-accent")}>{deal.dealType}</span></td>
+                      <td className="py-2 px-3"><span className={cn("px-1.5 py-0.5 rounded text-caption font-medium", deal.staffingStatus === "Already Staffed" ? "bg-positive/10 text-positive" : deal.staffingStatus === "Staffing Needed" ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground")}>{deal.staffingStatus === "Already Staffed" ? "Staffed" : deal.staffingStatus === "Staffing Needed" ? "Needed" : "N/A"}</span></td>
                       {visibleSlots.map(slot => {
                         const slotAssignments = getAssignments(deal.id, slot.roleKey);
                         return (
@@ -213,6 +228,30 @@ export default function Staffing() {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-4">
+                <span className="text-caption text-muted-foreground">Page {currentPage} of {totalPages} ({filteredDeals.length} deals)</span>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
+                    className="h-8 px-3 rounded-md border border-border text-caption font-medium text-muted-foreground hover:text-foreground hover:bg-secondary disabled:opacity-40 transition-colors">Prev</button>
+                  {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                    let page: number;
+                    if (totalPages <= 7) page = i + 1;
+                    else if (currentPage <= 4) page = i + 1;
+                    else if (currentPage >= totalPages - 3) page = totalPages - 6 + i;
+                    else page = currentPage - 3 + i;
+                    return (
+                      <button key={page} onClick={() => setCurrentPage(page)}
+                        className={cn("h-8 w-8 rounded-md text-caption font-medium transition-colors", currentPage === page ? "bg-foreground text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-secondary")}>{page}</button>
+                    );
+                  })}
+                  <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
+                    className="h-8 px-3 rounded-md border border-border text-caption font-medium text-muted-foreground hover:text-foreground hover:bg-secondary disabled:opacity-40 transition-colors">Next</button>
+                </div>
+              </div>
+            )}
           </>
         )}
 
