@@ -11,6 +11,7 @@ export interface Person {
 }
 
 export type RoleCategory =
+  | "Operations"
   | "Content"
   | "SEO"
   | "Creative Strategy"
@@ -54,6 +55,11 @@ export interface Deal {
 
 // ── Role Definitions ─────────────────────────────────────────────────────────
 export const ROLE_SLOTS: RoleSlot[] = [
+  // Operations
+  { roleKey: "vsd", roleLabel: "VSD", category: "Operations" },
+  { roleKey: "principal_bopm", roleLabel: "Principal BOPM", category: "Operations" },
+  { roleKey: "senior_bopm", roleLabel: "Senior BOPM", category: "Operations" },
+  { roleKey: "bopm", roleLabel: "BOPM", category: "Operations" },
   // Content
   { roleKey: "managing_editor", roleLabel: "Managing Editor", category: "Content" },
   { roleKey: "content_lead", roleLabel: "Content Lead", category: "Content" },
@@ -92,8 +98,45 @@ export const ROLE_SLOTS: RoleSlot[] = [
 ];
 
 export const ROLE_CATEGORIES: RoleCategory[] = [
-  "Content", "SEO", "Creative Strategy", "Creative Copy", "Creative Art", "Video", "Performance & Growth", "Other"
+  "Operations", "Content", "SEO", "Creative Strategy", "Creative Copy", "Creative Art", "Video", "Performance & Growth", "Other"
 ];
+
+// ── Role-to-People Filter Mapping ───────────────────────────────────────────
+// Maps each roleKey to the compatible roleTitle values for dropdown filtering
+export const ROLE_TO_PEOPLE_FILTER: Record<string, string[]> = {
+  vsd: ["VSD"],
+  principal_bopm: ["Principal BOPM"],
+  senior_bopm: ["Senior BOPM"],
+  bopm: ["BOPM"],
+  managing_editor: ["Managing Editor"],
+  content_lead: ["Content Lead"],
+  senior_editor: ["Senior Editor"],
+  seo_leader: ["SEO Leader"],
+  seo_group_head: ["Group Head"],
+  sr_seo_manager: ["Sr. SEO Manager"],
+  seo_manager: ["SEO Manager"],
+  sr_seo_analyst: ["Sr. SEO Analyst"],
+  seo_analyst: ["SEO Analyst"],
+  strategy_cd: ["Strategy CD"],
+  strategy_acd: ["Strategy ACD"],
+  strategy_sr: ["Sr. Strategist"],
+  cd_copy: ["CD - Copy"],
+  acd_copy: ["ACD - Copy"],
+  sr_copywriter: ["Sr. Copywriter"],
+  jr_copywriter: ["Jr. Copywriter"],
+  sr_cd_art: ["Sr. CD - Art"],
+  acd_art: ["ACD - Art"],
+  art_director: ["Art Director"],
+  sr_designer: ["Sr. Designer"],
+  jr_designer: ["Jr. Designer"],
+  production_head: ["Production Head"],
+  ad_video_pm: ["AD - Video PM"],
+  video_pm: ["Video PM/ACP"],
+  video_editor_1: ["Video Editor 1"],
+  video_editor_2: ["Video Editor 2"],
+  influencer: ["Influencer Team"],
+  perf_growth: ["Performance & Growth"],
+};
 
 // ── Helper ───────────────────────────────────────────────────────────────────
 let _uid = 0;
@@ -101,7 +144,57 @@ export const uid = () => `id_${++_uid}_${Math.random().toString(36).slice(2, 7)}
 
 // ── People Data (from spreadsheet) ───────────────────────────────────────────
 export const DEFAULT_PEOPLE: Person[] = [
-  // Content
+  // ── Operations: VSDs ──
+  { id: "p_aamir", name: "Aamir Khan", roleCategory: "Operations", roleTitle: "VSD", pod: "Aamir", region: "India", leaving: false, tbh: false },
+  { id: "p_aditya_shaw", name: "Aditya Shaw", roleCategory: "Operations", roleTitle: "VSD", pod: "Aditya", region: "India", leaving: false, tbh: false },
+  { id: "p_neema", name: "Neema Jayadas", roleCategory: "Operations", roleTitle: "VSD", pod: "Neema", region: "US", leaving: false, tbh: false },
+  { id: "p_sneha", name: "Sneha Iyer", roleCategory: "Operations", roleTitle: "VSD", pod: "Sneha", region: "India", leaving: false, tbh: false },
+  { id: "p_sumit", name: "Sumit Shekhawat", roleCategory: "Operations", roleTitle: "VSD", pod: "Sumit", region: "India", leaving: false, tbh: false },
+  // ── Operations: Principal BOPMs ──
+  { id: "p_anita_bopm", name: "Anita Raghav", roleCategory: "Operations", roleTitle: "Principal BOPM", pod: "Neema", region: "US", leaving: false, tbh: false },
+  { id: "p_atharva", name: "Atharva Thorve", roleCategory: "Operations", roleTitle: "Principal BOPM", pod: "Sumit", region: "India", leaving: false, tbh: false },
+  { id: "p_rableen", name: "Rableen Kaur", roleCategory: "Operations", roleTitle: "Principal BOPM", pod: "Aamir", region: "India", leaving: false, tbh: false },
+  { id: "p_harpreet", name: "Harpreet Kapoor", roleCategory: "Operations", roleTitle: "Principal BOPM", pod: "Neema", region: "US", leaving: false, tbh: false },
+  { id: "p_sumitha", name: "Sumitha Shetty", roleCategory: "Operations", roleTitle: "Principal BOPM", pod: "Aditya", region: "India", leaving: false, tbh: false },
+  { id: "p_sushmita_b", name: "Sushmita B.", roleCategory: "Operations", roleTitle: "Principal BOPM", pod: "Sumit", region: "India", leaving: false, tbh: false },
+  { id: "p_tushar", name: "Tushar Walia", roleCategory: "Operations", roleTitle: "Principal BOPM", pod: "Aamir", region: "India", leaving: false, tbh: false },
+  { id: "p_nishtha_bopm", name: "Nishtha Kanal", roleCategory: "Operations", roleTitle: "Principal BOPM", pod: "Neema", region: "US", leaving: false, tbh: false },
+  { id: "p_ritu", name: "Ritu Shinde", roleCategory: "Operations", roleTitle: "Principal BOPM", pod: "Sumit", region: "India", leaving: false, tbh: false },
+  { id: "p_romario", name: "Romario Fernandes", roleCategory: "Operations", roleTitle: "Principal BOPM", pod: "Aditya", region: "India", leaving: false, tbh: false },
+  { id: "p_vrusha", name: "Vrusha Mawani", roleCategory: "Operations", roleTitle: "Principal BOPM", pod: "Neema", region: "US", leaving: false, tbh: false },
+  { id: "p_shreshtha", name: "Shreshtha Phatak", roleCategory: "Operations", roleTitle: "Principal BOPM", pod: "Aamir", region: "India", leaving: false, tbh: false },
+  { id: "p_devanshi", name: "Devanshi Panibhate", roleCategory: "Operations", roleTitle: "Principal BOPM", pod: "Sumit", region: "India", leaving: false, tbh: false },
+  { id: "p_eshika_bopm", name: "Eshika Joshi", roleCategory: "Operations", roleTitle: "Principal BOPM", pod: "Aditya", region: "India", leaving: false, tbh: false },
+  { id: "p_ajitesh_bopm", name: "Ajitesh Pandey", roleCategory: "Operations", roleTitle: "Principal BOPM", pod: "Neema", region: "US", leaving: false, tbh: false },
+  // ── Operations: Senior BOPMs ──
+  { id: "p_anisha", name: "Anisha Jaisinghani", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Aamir", region: "India", leaving: false, tbh: false },
+  { id: "p_ayushi", name: "Ayushi Das", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Neema", region: "US", leaving: false, tbh: false },
+  { id: "p_disha_s", name: "Disha Suratwala", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Sumit", region: "India", leaving: false, tbh: false },
+  { id: "p_janhavi_t", name: "Janhavi Trivedi", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Aditya", region: "India", leaving: false, tbh: false },
+  { id: "p_karna", name: "Karna Shah", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Aamir", region: "India", leaving: false, tbh: false },
+  { id: "p_maleeha_sr", name: "Maleeha Mukhtar", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Neema", region: "US", leaving: false, tbh: false },
+  { id: "p_rahul_s", name: "Rahul Singh", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Sumit", region: "India", leaving: false, tbh: false },
+  { id: "p_rishabh", name: "Rishabh Agarwal", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Aditya", region: "India", leaving: false, tbh: false },
+  { id: "p_tiffany", name: "Tiffany Fernandes", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Neema", region: "US", leaving: false, tbh: false },
+  { id: "p_vanshika", name: "Vanshika Khandelia", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Aamir", region: "India", leaving: false, tbh: false },
+  { id: "p_venkatesh", name: "Venkatesh Durgam", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Sumit", region: "India", leaving: false, tbh: false },
+  { id: "p_vivek_t", name: "Vivek Teotia", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Aditya", region: "India", leaving: false, tbh: false },
+  { id: "p_mitchelle_sr", name: "Mitchelle", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Neema", region: "US", leaving: false, tbh: false },
+  { id: "p_sanchit_sr", name: "Sanchit Arora", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Aamir", region: "India", leaving: false, tbh: false },
+  { id: "p_nivedita", name: "Nivedita Shetty", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Sumit", region: "India", leaving: false, tbh: false },
+  { id: "p_preet", name: "Preet Desai", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Aditya", region: "India", leaving: false, tbh: false },
+  // ── Operations: BOPMs ──
+  { id: "p_aman", name: "Aman Jain", roleCategory: "Operations", roleTitle: "BOPM", pod: "Aamir", region: "India", leaving: false, tbh: false },
+  { id: "p_anshika", name: "Anshika Sharma", roleCategory: "Operations", roleTitle: "BOPM", pod: "Neema", region: "US", leaving: false, tbh: false },
+  { id: "p_chaitanya", name: "Chaitanya Sharma", roleCategory: "Operations", roleTitle: "BOPM", pod: "Sumit", region: "India", leaving: false, tbh: false },
+  { id: "p_disha_b", name: "Disha Bhanushali", roleCategory: "Operations", roleTitle: "BOPM", pod: "Aditya", region: "India", leaving: false, tbh: false },
+  { id: "p_eshika_b", name: "Eshika Joshi", roleCategory: "Operations", roleTitle: "BOPM", pod: "Neema", region: "US", leaving: false, tbh: false },
+  { id: "p_hasan", name: "Hasan Kothawalaa", roleCategory: "Operations", roleTitle: "BOPM", pod: "Aamir", region: "India", leaving: false, tbh: false },
+  { id: "p_jeneel", name: "Jeneel Narodia", roleCategory: "Operations", roleTitle: "BOPM", pod: "Sumit", region: "India", leaving: false, tbh: false },
+  { id: "p_karishma", name: "Karishma Sawlani", roleCategory: "Operations", roleTitle: "BOPM", pod: "Aditya", region: "India", leaving: false, tbh: false },
+  { id: "p_khushi", name: "Khushi Rajpurohit", roleCategory: "Operations", roleTitle: "BOPM", pod: "Neema", region: "US", leaving: false, tbh: false },
+  { id: "p_mansi", name: "Mansi Velani", roleCategory: "Operations", roleTitle: "BOPM", pod: "Aamir", region: "India", leaving: false, tbh: false },
+  // ── Content ──
   { id: "p_pratima", name: "Pratima K", roleCategory: "Content", roleTitle: "Managing Editor", pod: "Aamir", region: "India", leaving: false, tbh: false },
   { id: "p_greesma", name: "Greesma A P", roleCategory: "Content", roleTitle: "Managing Editor", pod: "Neema", region: "US", leaving: false, tbh: false },
   { id: "p_pathik", name: "Pathik Bhowmik", roleCategory: "Content", roleTitle: "Managing Editor", pod: "Sumit", region: "India", leaving: false, tbh: false },
@@ -172,6 +265,33 @@ export const DEFAULT_PEOPLE: Person[] = [
   // Performance & Growth
   { id: "p_sanchit", name: "Sanchit Arora", roleCategory: "Performance & Growth", roleTitle: "Performance & Growth", pod: "Growth", region: "India", leaving: false, tbh: false },
   { id: "p_snigdha", name: "Snigdha Parasrampuria", roleCategory: "Other", roleTitle: "Influencer Team", pod: "Creative", region: "India", leaving: false, tbh: false },
+  // ── Additional SEO people ──
+  { id: "p_vaibhav_s", name: "Vaibhav Sawant", roleCategory: "SEO", roleTitle: "SEO Analyst", pod: "Sumit", region: "India", leaving: false, tbh: false },
+  { id: "p_manav", name: "Manav Shah", roleCategory: "SEO", roleTitle: "SEO Analyst", pod: "Neema", region: "US", leaving: false, tbh: false },
+  { id: "p_sanket", name: "Sanket Mahure", roleCategory: "SEO", roleTitle: "Sr. SEO Analyst", pod: "Sumit", region: "India", leaving: false, tbh: false },
+  { id: "p_vivek_c", name: "Vivek Chaudhary", roleCategory: "SEO", roleTitle: "SEO Manager", pod: "Aamir", region: "India", leaving: false, tbh: false },
+  { id: "p_shahid", name: "Shahid Anwar", roleCategory: "SEO", roleTitle: "Sr. SEO Manager", pod: "Neema", region: "US", leaving: false, tbh: false },
+  { id: "p_nitish", name: "Nitish Singh", roleCategory: "SEO", roleTitle: "SEO Manager", pod: "Sumit", region: "India", leaving: false, tbh: false },
+  { id: "p_pranav", name: "Pranav Jha", roleCategory: "SEO", roleTitle: "SEO Analyst", pod: "Aditya", region: "India", leaving: false, tbh: false },
+  { id: "p_crasto", name: "Crasto Leo Raymant", roleCategory: "SEO", roleTitle: "Sr. SEO Analyst", pod: "Neema", region: "US", leaving: false, tbh: false },
+  // ── Additional Creative people ──
+  { id: "p_zigyasa", name: "Zigyasa Tryoon", roleCategory: "Creative Strategy", roleTitle: "Sr. Strategist", pod: "Creative", region: "India", leaving: false, tbh: false },
+  { id: "p_ansh", name: "Ansh Bhansali", roleCategory: "Creative Copy", roleTitle: "Jr. Copywriter", pod: "Creative", region: "India", leaving: false, tbh: false },
+  { id: "p_barbie", name: "Barbie Duggal", roleCategory: "Creative Copy", roleTitle: "Sr. Copywriter", pod: "Creative", region: "India", leaving: false, tbh: false },
+  { id: "p_pratyush", name: "Pratyush Singh", roleCategory: "Creative Art", roleTitle: "Jr. Designer", pod: "Creative", region: "India", leaving: false, tbh: false },
+  { id: "p_antara", name: "Antara Joshi", roleCategory: "Creative Art", roleTitle: "Sr. Designer", pod: "Creative", region: "India", leaving: false, tbh: false },
+  { id: "p_dhruti", name: "Dhruti Lalan", roleCategory: "Creative Art", roleTitle: "Jr. Designer", pod: "Creative", region: "India", leaving: false, tbh: false },
+  { id: "p_preksha", name: "Preksha Tamra", roleCategory: "Creative Art", roleTitle: "Art Director", pod: "Creative", region: "India", leaving: false, tbh: false },
+  { id: "p_ria", name: "Ria Itagi", roleCategory: "Creative Art", roleTitle: "Sr. Designer", pod: "Creative", region: "India", leaving: false, tbh: false },
+  { id: "p_ananya", name: "Ananya Goradia", roleCategory: "Creative Copy", roleTitle: "Jr. Copywriter", pod: "Creative", region: "India", leaving: false, tbh: false },
+  { id: "p_dhwanai", name: "Dhwanai Lath", roleCategory: "Creative Art", roleTitle: "Jr. Designer", pod: "Creative", region: "India", leaving: false, tbh: false },
+  { id: "p_vinaya_c", name: "Vinaya Chindarkar", roleCategory: "Creative Art", roleTitle: "Sr. Designer", pod: "Creative", region: "India", leaving: false, tbh: false },
+  { id: "p_anjali", name: "Anjali Goel", roleCategory: "Creative Copy", roleTitle: "Sr. Copywriter", pod: "Creative", region: "India", leaving: false, tbh: false },
+  { id: "p_kashish", name: "Kashish Jain", roleCategory: "Creative Art", roleTitle: "Art Director", pod: "Creative", region: "India", leaving: false, tbh: false },
+  { id: "p_nihar", name: "Nihar A Patade", roleCategory: "Creative Art", roleTitle: "Jr. Designer", pod: "Creative", region: "India", leaving: false, tbh: false },
+  { id: "p_jigar", name: "Jigar Somani", roleCategory: "Creative Art", roleTitle: "Sr. Designer", pod: "Creative", region: "India", leaving: false, tbh: false },
+  { id: "p_prasad", name: "Prasad Thete", roleCategory: "Creative Art", roleTitle: "Art Director", pod: "Creative", region: "India", leaving: false, tbh: false },
+  { id: "p_avnish", name: "Avnish Khandelwal", roleCategory: "Creative Art", roleTitle: "Jr. Designer", pod: "Creative", region: "India", leaving: false, tbh: false },
   // TBH
   { id: "tbh_editor", name: "TBH - Senior Editor", roleCategory: "Content", roleTitle: "Senior Editor", pod: "—", region: "—", leaving: false, tbh: true },
   { id: "tbh_seo_analyst", name: "TBH - SEO Analyst", roleCategory: "SEO", roleTitle: "SEO Analyst", pod: "—", region: "—", leaving: false, tbh: true },
