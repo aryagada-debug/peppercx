@@ -101,6 +101,7 @@ export default function Staffing() {
   const [editingCell, setEditingCell] = useState<{ personId: string; field: string } | null>(null);
   const [editingAssignment, setEditingAssignment] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [selectedPeople, setSelectedPeople] = useState<Set<string>>(new Set());
 
   const vsds = useMemo(() => ["All", ...Array.from(new Set(deals.map(d => d.vsd))).sort()], [deals]);
   const allDesignations = useMemo(() => ["All", ...[...new Set(people.map(p => p.designation).filter(Boolean))].sort()], [people]);
