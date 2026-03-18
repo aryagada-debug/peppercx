@@ -292,7 +292,7 @@ export default function Staffing() {
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {ROLE_CATEGORIES.map(cat => {
+              {dealCategories.map(cat => {
                 const catSlots = ROLE_SLOTS.filter(s => s.category === cat);
                 const hasAssignment = catSlots.some(s => getAssignments(deal.id, s.roleKey).length > 0);
                 if (!hasAssignment && cat !== "Operations") return null;
