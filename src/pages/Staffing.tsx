@@ -308,7 +308,6 @@ export default function Staffing() {
               {dealCategories.map(cat => {
                 const catSlots = ROLE_SLOTS.filter(s => s.category === cat);
                 const hasAssignment = catSlots.some(s => getAssignments(deal.id, s.roleKey).length > 0);
-                if (!hasAssignment && cat !== "Operations") return null;
 
                 return (
                   <div key={cat} className="border border-border rounded-lg p-3 bg-card">
