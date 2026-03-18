@@ -1,5 +1,5 @@
 import { AppLayout } from "@/components/layout/AppLayout";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { Search, Plus, X, UserPlus, ChevronDown, ChevronRight, Pencil, Trash2, CheckSquare } from "lucide-react";
 import {
@@ -102,6 +102,8 @@ export default function Staffing() {
   const [editingAssignment, setEditingAssignment] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [selectedPeople, setSelectedPeople] = useState<Set<string>>(new Set());
+  const selectedPeopleRef = useRef<Set<string>>(new Set());
+  selectedPeopleRef.current = selectedPeople;
   const [expandedPeopleNodes, setExpandedPeopleNodes] = useState<Set<string>>(new Set());
 
   const vsds = useMemo(() => ["All", ...Array.from(new Set(deals.map(d => d.vsd))).sort()], [deals]);
@@ -215,9 +217,10 @@ export default function Staffing() {
     setSelectedPeople(prev => { const next = new Set(prev); next.delete(personId); return next; });
   };
 
-  const bulkUpdate = (field: keyof Person, value: string) => {
-    setPeople(prev => prev.map(p => selectedPeople.has(p.id) ? { ...p, [field]: value } : p));
-  };
+  const bulkUpdate = useCallback((field: keyof Person, value: string) => {
+    const currentSelected = selectedPeopleRef.current;
+    setPeople(prev => prev.map(p => currentSelected.has(p.id) ? { ...p, [field]: value } : p));
+  }, []);
 
   // Person utilization
   const personUtilization = useMemo(() => {
@@ -244,7 +247,7 @@ export default function Staffing() {
     return true;
   }), [people, peopleCategoryTab, designationFilter, bandFilter, managerFilter]);
 
-  const FilterBar = () => (
+  const filterBar = (
     <div className="flex items-center gap-2 flex-wrap">
       <select value={designationFilter} onChange={e => setDesignationFilter(e.target.value)} className="h-8 px-2 rounded-md border border-border bg-card text-caption text-foreground">
         <option value="All">All Designations</option>
@@ -443,7 +446,7 @@ export default function Staffing() {
               <span className="text-caption text-muted-foreground ml-auto">{filteredDeals.length} deals</span>
             </div>
             <div className="mb-3">
-              <FilterBar />
+              {filterBar}
             </div>
 
             <div className="data-card p-0 overflow-x-auto">
@@ -590,7 +593,7 @@ export default function Staffing() {
               </div>
             </div>
             <div className="mb-3">
-              <FilterBar />
+              {filterBar}
             </div>
 
             {(() => {
