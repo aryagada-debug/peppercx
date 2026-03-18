@@ -267,7 +267,7 @@ export default function Staffing() {
 
     return (
       <tr key={`${deal.id}-expand`}>
-        <td colSpan={14 + visibleSlots.length} className="p-0">
+        <td colSpan={11} className="p-0">
           <div className="bg-secondary/5 border-t border-b border-accent/20 px-6 py-4">
             <div className="flex items-center justify-between mb-3">
               <div>
@@ -275,11 +275,31 @@ export default function Staffing() {
                 <p className="text-caption text-muted-foreground">{deal.dealId} • {deal.dealType} • {deal.vsd}</p>
               </div>
               <div className="flex items-center gap-3">
-                {/* Revenue cards */}
-                <div className="flex items-center gap-3">
+                {/* Metadata cards moved from main row */}
+                <div className="flex items-center gap-2">
+                  {deal.pcCode && (
+                    <div className="bg-card border border-border rounded-md px-3 py-1.5 text-center">
+                      <p className="text-[9px] text-muted-foreground uppercase">PC Code</p>
+                      <p className="text-caption font-medium text-foreground">{deal.pcCode}</p>
+                    </div>
+                  )}
+                  {deal.duration && (
+                    <div className="bg-card border border-border rounded-md px-3 py-1.5 text-center">
+                      <p className="text-[9px] text-muted-foreground uppercase">Duration</p>
+                      <p className="text-caption font-medium text-foreground">{deal.duration}</p>
+                    </div>
+                  )}
                   <div className="bg-card border border-border rounded-md px-3 py-1.5 text-center">
                     <p className="text-[9px] text-muted-foreground uppercase">MRR</p>
                     <p className="text-ui font-bold font-mono text-foreground">{fmtCurrency(deal.mrr)}</p>
+                  </div>
+                  <div className="bg-card border border-border rounded-md px-3 py-1.5 text-center">
+                    <p className="text-[9px] text-muted-foreground uppercase">Retainer</p>
+                    <p className="text-caption font-mono text-foreground">{fmtCurrency(deal.retainerDealValue)}</p>
+                  </div>
+                  <div className="bg-card border border-border rounded-md px-3 py-1.5 text-center">
+                    <p className="text-[9px] text-muted-foreground uppercase">Non-Ret.</p>
+                    <p className="text-caption font-mono text-foreground">{fmtCurrency(deal.nonRetainerDealValue)}</p>
                   </div>
                   <div className="bg-card border border-border rounded-md px-3 py-1.5 text-center">
                     <p className="text-[9px] text-muted-foreground uppercase">Total DV</p>
