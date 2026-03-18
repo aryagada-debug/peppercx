@@ -239,16 +239,29 @@ export default function Staffing() {
 
     return (
       <tr key={`${deal.id}-expand`}>
-        <td colSpan={9 + visibleSlots.length} className="p-0">
+        <td colSpan={14 + visibleSlots.length} className="p-0">
           <div className="bg-secondary/5 border-t border-b border-accent/20 px-6 py-4">
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h4 className="text-ui font-semibold text-foreground">{deal.account} — {deal.dealName}</h4>
                 <p className="text-caption text-muted-foreground">{deal.dealId} • {deal.dealType} • {deal.vsd}</p>
               </div>
-              <button onClick={() => setExpandedDealId(null)} className="text-muted-foreground hover:text-foreground">
-                <X className="h-4 w-4" />
-              </button>
+              <div className="flex items-center gap-3">
+                {/* Revenue cards */}
+                <div className="flex items-center gap-3">
+                  <div className="bg-card border border-border rounded-md px-3 py-1.5 text-center">
+                    <p className="text-[9px] text-muted-foreground uppercase">MRR</p>
+                    <p className="text-ui font-bold font-mono text-foreground">{fmtCurrency(deal.mrr)}</p>
+                  </div>
+                  <div className="bg-card border border-border rounded-md px-3 py-1.5 text-center">
+                    <p className="text-[9px] text-muted-foreground uppercase">Total DV</p>
+                    <p className="text-ui font-bold font-mono text-foreground">{fmtCurrency(deal.totalDealValue)}</p>
+                  </div>
+                </div>
+                <button onClick={() => setExpandedDealId(null)} className="text-muted-foreground hover:text-foreground">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {ROLE_CATEGORIES.map(cat => {
@@ -262,65 +275,44 @@ export default function Staffing() {
                     <div className="space-y-2">
                       {catSlots.map(slot => {
                         const slotAssigns = getAssignments(deal.id, slot.roleKey);
-                        const isStaffing = inlineStaffRole === `${deal.id}|${slot.roleKey}`;
+                        const roleOpts = people.filter(p => {
+                          const allowedTitles = ROLE_TO_PEOPLE_FILTER[slot.roleKey];
+                          if (allowedTitles) return allowedTitles.includes(p.roleTitle);
+                          return true;
+                        });
 
                         return (
                           <div key={slot.roleKey} className="space-y-1">
                             <div className="flex items-center justify-between">
                               <span className="text-caption text-muted-foreground">{slot.roleLabel}</span>
-                              <button
-                                onClick={() => setInlineStaffRole(isStaffing ? null : `${deal.id}|${slot.roleKey}`)}
-                                className="text-accent hover:text-accent/80 text-caption flex items-center gap-0.5">
-                                <Plus className="h-3 w-3" />
-                              </button>
+                              <span className="text-[10px] text-muted-foreground">{slotAssigns.length} assigned</span>
                             </div>
                             {slotAssigns.map(a => {
-                              const p = getPerson(a.personId);
                               const util = personUtilization[a.personId];
                               const available = 100 - (util?.totalPct || 0);
                               return (
-                                <div key={a.id} className="flex items-center justify-between pl-2 py-0.5">
-                                  <div className="flex items-center gap-1">
-                                    {editingAssignment === a.id ? (
-                                      <input type="number" step="0.25" className="w-14 h-6 px-1 rounded border border-accent text-caption font-mono bg-card text-foreground"
-                                        value={editValue} onChange={e => setEditValue(e.target.value)} autoFocus
-                                        onBlur={() => updateAllocation(a.id, parseFloat(editValue) || 0)}
-                                        onKeyDown={e => { if (e.key === "Enter") updateAllocation(a.id, parseFloat(editValue) || 0); if (e.key === "Escape") setEditingAssignment(null); }} />
-                                    ) : (
-                                      <span onClick={() => { setEditingAssignment(a.id); setEditValue(String(a.allocationPct)); }}
-                                        className="cursor-pointer">
-                                        <PersonBadge person={p} pct={a.allocationPct} onRemove={() => removeAssignment(a.id)} />
-                                      </span>
-                                    )}
+                                <div key={a.id} className="flex items-center gap-1.5 pl-2 py-0.5">
+                                  <PersonSel value={a.personId} opts={roleOpts} onChange={v => {
+                                    if (!v) { removeAssignment(a.id); return; }
+                                    setAssignments(prev => prev.map(x => x.id === a.id ? { ...x, personId: v } : x));
+                                  }} />
+                                  <div className="flex items-center gap-0.5">
+                                    <input type="number" step="1" min="0" max="100"
+                                      className="w-[44px] h-7 px-1 rounded border border-border bg-card text-caption font-mono text-foreground text-right"
+                                      value={a.allocationPct} onChange={e => updateAllocation(a.id, parseFloat(e.target.value) || 0)} />
+                                    <span className="text-muted-foreground text-[10px]">%</span>
                                   </div>
-                                  <span className={cn("text-caption font-mono", available < 0 ? "text-destructive" : available < 20 ? "text-warning" : "text-muted-foreground")}>
+                                  <span className={cn("text-[10px] font-mono", available < 0 ? "text-destructive" : available < 20 ? "text-warning" : "text-muted-foreground")}>
                                     {available.toFixed(0)}% avail
                                   </span>
+                                  <button onClick={() => removeAssignment(a.id)} className="text-muted-foreground hover:text-destructive text-caption">✕</button>
                                 </div>
                               );
                             })}
-                            {isStaffing && (
-                              <div className="pl-2 mt-1 max-h-40 overflow-y-auto border border-border rounded-md bg-card">
-                                {people.filter(p => {
-                                  if (p.leaving) return false;
-                                  const allowedTitles = ROLE_TO_PEOPLE_FILTER[slot.roleKey];
-                                  if (allowedTitles) return allowedTitles.includes(p.roleTitle);
-                                  return true;
-                                }).map(p => {
-                                  const util = personUtilization[p.id];
-                                  const available = 100 - (util?.totalPct || 0);
-                                  return (
-                                    <button key={p.id} onClick={() => addAssignment(deal.id, slot.roleKey, p.id)}
-                                      className="w-full text-left px-2 py-1.5 hover:bg-secondary transition-colors flex items-center justify-between text-caption">
-                                      <span className={cn("font-medium", p.tbh && "text-warning italic")}>{p.name}</span>
-                                      <span className={cn("font-mono", available < 0 ? "text-destructive" : available < 20 ? "text-warning" : "text-muted-foreground")}>
-                                        {available.toFixed(0)}%
-                                      </span>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            )}
+                            <button onClick={() => addAssignment(deal.id, slot.roleKey, "")}
+                              className="text-accent hover:text-accent/80 text-[10px] font-medium flex items-center gap-0.5 pl-2">
+                              <Plus className="h-3 w-3" /> Add
+                            </button>
                           </div>
                         );
                       })}
