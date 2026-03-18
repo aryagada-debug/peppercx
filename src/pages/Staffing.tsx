@@ -1,15 +1,38 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
-import { Search, Plus, Filter, X, ChevronDown, UserPlus, Check } from "lucide-react";
+import { Search, Plus, X, UserPlus, ChevronDown } from "lucide-react";
 import {
-  DEFAULT_DEALS, DEFAULT_PEOPLE, DEFAULT_ASSIGNMENTS, ROLE_SLOTS, ROLE_CATEGORIES, ROLE_TO_PEOPLE_FILTER,
-  DEPARTMENTS, BANDS,
-  type Deal, type Person, type StaffingAssignment, type RoleCategory, uid
+  DEFAULT_DEALS, DEFAULT_PEOPLE, DEFAULT_ASSIGNMENTS, DEFAULT_BW_RULES, DEFAULT_HIRING_NEEDS, DEFAULT_REVENUE_TARGETS,
+  ROLE_SLOTS, ROLE_CATEGORIES, ROLE_TO_PEOPLE_FILTER, DEPARTMENTS, BANDS,
+  type Deal, type Person, type StaffingAssignment, type RoleCategory, type BWRule, type HiringNeed, type RevenueCapacityTarget, uid
 } from "@/data/staffingData";
+import { SummaryTab } from "@/components/staffing/SummaryTab";
+import { BWRulesTab } from "@/components/staffing/BWRulesTab";
+import { CapacityTab } from "@/components/staffing/CapacityTab";
+import { HiringGapTab } from "@/components/staffing/HiringGapTab";
+import { RevenueCapacityTab } from "@/components/staffing/RevenueCapacityTab";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const fmtPct = (n: number) => n === 0 ? "—" : `${n.toFixed(n % 1 === 0 ? 0 : 2)}%`;
+const fmtCurrency = (n: number | undefined) => {
+  if (!n) return "—";
+  if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
+  if (n >= 100000) return `₹${(n / 100000).toFixed(0)}L`;
+  if (n >= 1000) return `₹${(n / 1000).toFixed(0)}K`;
+  return `₹${n}`;
+};
+
+type TabKey = "summary" | "accounts" | "people" | "bw_rules" | "capacity" | "hiring" | "revenue";
+const TABS: { key: TabKey; label: string }[] = [
+  { key: "summary", label: "Summary" },
+  { key: "accounts", label: "Accounts" },
+  { key: "people", label: "People" },
+  { key: "bw_rules", label: "BW Rules" },
+  { key: "capacity", label: "Capacity" },
+  { key: "hiring", label: "Hiring Gap" },
+  { key: "revenue", label: "Revenue Capacity" },
+];
 
 function PersonBadge({ person, pct, onRemove }: { person: Person | undefined; pct: number; onRemove?: () => void }) {
   if (!person) return <span className="text-caption text-muted-foreground">—</span>;
@@ -29,32 +52,40 @@ function PersonBadge({ person, pct, onRemove }: { person: Person | undefined; pc
 
 // ── Main Component ──────────────────────────────────────────────────────────
 export default function Staffing() {
-  const [activeView, setActiveView] = useState<"deals" | "people">("deals");
+  const [activeTab, setActiveTab] = useState<TabKey>("summary");
   const [deals] = useState<Deal[]>(DEFAULT_DEALS);
   const [people, setPeople] = useState<Person[]>(DEFAULT_PEOPLE);
   const [assignments, setAssignments] = useState<StaffingAssignment[]>(DEFAULT_ASSIGNMENTS);
+  const [bwRules, setBwRules] = useState<BWRule[]>(DEFAULT_BW_RULES);
+  const [hiringNeeds, setHiringNeeds] = useState<HiringNeed[]>(DEFAULT_HIRING_NEEDS);
+  const [revenueTargets, setRevenueTargets] = useState<RevenueCapacityTarget[]>(DEFAULT_REVENUE_TARGETS);
+
   const [search, setSearch] = useState("");
   const [vsdFilter, setVsdFilter] = useState<string>("All");
   const [categoryFilter, setCategoryFilter] = useState<RoleCategory | "All">("All");
   const [staffingStatusFilter, setStaffingStatusFilter] = useState<string>("All");
   const [dealTypeFilter, setDealTypeFilter] = useState<string>("All");
-  const [peopleCategoryTab, setPeopleCategoryTab] = useState<RoleCategory>(ROLE_CATEGORIES[0]);
+  // Shared filters for People & Accounts
+  const [designationFilter, setDesignationFilter] = useState<string>("All");
+  const [bandFilter, setBandFilter] = useState<string>("All");
+  const [managerFilter, setManagerFilter] = useState<string>("All");
 
-  // Pagination
+  const [peopleCategoryTab, setPeopleCategoryTab] = useState<RoleCategory>(ROLE_CATEGORIES[0]);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 25;
-
-  // Add assignment modal state
   const [addModal, setAddModal] = useState<{ dealId: string; roleKey: string } | null>(null);
   const [addPersonModal, setAddPersonModal] = useState(false);
   const [newPerson, setNewPerson] = useState({ name: "", roleCategory: "Content" as RoleCategory, roleTitle: "", pod: "", region: "India" });
   const [editingCell, setEditingCell] = useState<{ personId: string; field: string } | null>(null);
-
-  // Edit allocation
   const [editingAssignment, setEditingAssignment] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
 
   const vsds = useMemo(() => ["All", ...Array.from(new Set(deals.map(d => d.vsd))).sort()], [deals]);
+  const allDesignations = useMemo(() => ["All", ...[...new Set(people.map(p => p.designation).filter(Boolean))].sort()], [people]);
+  const allManagers = useMemo(() => ["All", ...[...new Set(people.map(p => p.name))].sort()], [people]);
+  const allBands = ["All", ...BANDS];
+
+  // Accounts filtering — also apply designation/band/manager by checking assigned people
   const filteredDeals = useMemo(() => {
     setCurrentPage(1);
     return deals.filter(d => {
@@ -62,9 +93,17 @@ export default function Staffing() {
       if (staffingStatusFilter !== "All" && d.staffingStatus !== staffingStatusFilter) return false;
       if (dealTypeFilter !== "All" && d.dealType !== dealTypeFilter) return false;
       if (search && !d.account.toLowerCase().includes(search.toLowerCase()) && !d.dealName.toLowerCase().includes(search.toLowerCase()) && !d.dealId.includes(search)) return false;
+      // Filter by assigned people attributes
+      if (designationFilter !== "All" || bandFilter !== "All" || managerFilter !== "All") {
+        const dealAssigns = assignments.filter(a => a.dealId === d.id);
+        const assignedPeople = dealAssigns.map(a => people.find(p => p.id === a.personId)).filter(Boolean) as Person[];
+        if (designationFilter !== "All" && !assignedPeople.some(p => p.designation === designationFilter)) return false;
+        if (bandFilter !== "All" && !assignedPeople.some(p => p.band === bandFilter)) return false;
+        if (managerFilter !== "All" && !assignedPeople.some(p => p.reportingManager === managerFilter)) return false;
+      }
       return true;
     });
-  }, [deals, vsdFilter, staffingStatusFilter, dealTypeFilter, search]);
+  }, [deals, vsdFilter, staffingStatusFilter, dealTypeFilter, search, designationFilter, bandFilter, managerFilter, assignments, people]);
 
   const totalPages = Math.ceil(filteredDeals.length / pageSize);
   const paginatedDeals = useMemo(() => {
@@ -79,33 +118,25 @@ export default function Staffing() {
 
   const getAssignments = (dealId: string, roleKey: string) => assignments.filter(a => a.dealId === dealId && a.roleKey === roleKey);
   const getPerson = (id: string) => people.find(p => p.id === id);
-
   const removeAssignment = (id: string) => setAssignments(prev => prev.filter(a => a.id !== id));
-
   const updateAllocation = (id: string, newPct: number) => {
     setAssignments(prev => prev.map(a => a.id === id ? { ...a, allocationPct: newPct } : a));
     setEditingAssignment(null);
   };
-
   const addAssignment = (dealId: string, roleKey: string, personId: string) => {
     setAssignments(prev => [...prev, { id: uid(), dealId, roleKey, personId, allocationPct: 0 }]);
     setAddModal(null);
   };
-
   const addNewPerson = () => {
     const id = `p_new_${uid()}`;
     setPeople(prev => [...prev, { id, ...newPerson, leaving: false, tbh: false, department: "", designation: "", reportingManager: "", band: "" }]);
     setNewPerson({ name: "", roleCategory: "Content", roleTitle: "", pod: "", region: "India" });
     setAddPersonModal(false);
   };
-
   const updatePerson = (personId: string, field: keyof Person, value: string) => {
     setPeople(prev => prev.map(p => p.id === personId ? { ...p, [field]: value } : p));
     setEditingCell(null);
   };
-
-  const allDesignations = useMemo(() => [...new Set(people.map(p => p.designation).filter(Boolean))].sort(), [people]);
-  const allManagers = useMemo(() => [...new Set(people.map(p => p.name))].sort(), [people]);
 
   // People view: utilization per person
   const personUtilization = useMemo(() => {
@@ -124,7 +155,37 @@ export default function Staffing() {
     return map;
   }, [assignments, people, deals]);
 
-  const filteredPeople = useMemo(() => people.filter(p => p.roleCategory === peopleCategoryTab), [people, peopleCategoryTab]);
+  // People filter with designation/band/manager
+  const filteredPeople = useMemo(() => people.filter(p => {
+    if (p.roleCategory !== peopleCategoryTab) return false;
+    if (designationFilter !== "All" && p.designation !== designationFilter) return false;
+    if (bandFilter !== "All" && p.band !== bandFilter) return false;
+    if (managerFilter !== "All" && p.reportingManager !== managerFilter) return false;
+    return true;
+  }), [people, peopleCategoryTab, designationFilter, bandFilter, managerFilter]);
+
+  // Shared filter bar for People & Accounts
+  const FilterBar = () => (
+    <div className="flex items-center gap-2 flex-wrap">
+      <select value={designationFilter} onChange={e => setDesignationFilter(e.target.value)} className="h-8 px-2 rounded-md border border-border bg-card text-caption text-foreground">
+        <option value="All">All Designations</option>
+        {allDesignations.filter(d => d !== "All").map(d => <option key={d} value={d}>{d}</option>)}
+      </select>
+      <select value={bandFilter} onChange={e => setBandFilter(e.target.value)} className="h-8 px-2 rounded-md border border-border bg-card text-caption text-foreground">
+        {allBands.map(b => <option key={b} value={b}>{b === "All" ? "All Bands" : b}</option>)}
+      </select>
+      <select value={managerFilter} onChange={e => setManagerFilter(e.target.value)} className="h-8 px-2 rounded-md border border-border bg-card text-caption text-foreground">
+        <option value="All">All Managers</option>
+        {allManagers.filter(m => m !== "All").map(m => <option key={m} value={m}>{m}</option>)}
+      </select>
+      {(designationFilter !== "All" || bandFilter !== "All" || managerFilter !== "All") && (
+        <button onClick={() => { setDesignationFilter("All"); setBandFilter("All"); setManagerFilter("All"); }}
+          className="h-8 px-2 text-caption text-muted-foreground hover:text-foreground flex items-center gap-1">
+          <X className="h-3 w-3" /> Clear
+        </button>
+      )}
+    </div>
+  );
 
   return (
     <AppLayout>
@@ -139,18 +200,23 @@ export default function Staffing() {
           </button>
         </div>
 
-        {/* View Toggle */}
-        <div className="flex items-center gap-1 mb-6 border-b border-border">
-          {(["deals", "people"] as const).map(v => (
-            <button key={v} onClick={() => setActiveView(v)} className={cn(
-              "px-4 py-2.5 text-ui font-medium border-b-2 transition-colors capitalize",
-              activeView === v ? "border-foreground text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
-            )}>{v === "deals" ? "Deal-Level Staffing" : "People by Role"}</button>
+        {/* Tab Navigation */}
+        <div className="flex items-center gap-1 mb-6 border-b border-border overflow-x-auto">
+          {TABS.map(t => (
+            <button key={t.key} onClick={() => setActiveTab(t.key)} className={cn(
+              "px-4 py-2.5 text-ui font-medium border-b-2 transition-colors whitespace-nowrap",
+              activeTab === t.key ? "border-foreground text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+            )}>{t.label}</button>
           ))}
         </div>
 
-        {/* ═══════════════ DEALS VIEW ═══════════════ */}
-        {activeView === "deals" && (
+        {/* ═══════════════ SUMMARY ═══════════════ */}
+        {activeTab === "summary" && (
+          <SummaryTab deals={deals} people={people} assignments={assignments} />
+        )}
+
+        {/* ═══════════════ ACCOUNTS ═══════════════ */}
+        {activeTab === "accounts" && (
           <>
             <div className="flex items-center gap-3 mb-4 flex-wrap">
               <div className="relative flex-1 max-w-sm">
@@ -179,6 +245,9 @@ export default function Staffing() {
               </select>
               <span className="text-caption text-muted-foreground ml-auto">{filteredDeals.length} deals</span>
             </div>
+            <div className="mb-3">
+              <FilterBar />
+            </div>
 
             <div className="data-card p-0 overflow-x-auto">
               <table className="text-ui min-w-max">
@@ -186,7 +255,11 @@ export default function Staffing() {
                   <tr className="border-b border-border bg-secondary/30">
                     <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider sticky left-0 bg-secondary/30 z-10 min-w-[80px]">Deal ID</th>
                     <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider sticky left-[80px] bg-secondary/30 z-10 min-w-[140px]">Account</th>
-                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[100px]">VSD</th>
+                    <th className="text-right py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[80px]">MRR</th>
+                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[80px]">Duration</th>
+                    <th className="text-right py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[90px]">Retainer</th>
+                    <th className="text-right py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[90px]">Non-Ret.</th>
+                    <th className="text-right py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[90px]">Total DV</th>
                     <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[80px]">Type</th>
                     <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[90px]">Staffing</th>
                     {visibleSlots.map(slot => (
@@ -202,7 +275,11 @@ export default function Staffing() {
                     <tr key={deal.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
                       <td className="py-2 px-3 font-mono text-accent font-medium sticky left-0 bg-card z-10">{deal.dealId}</td>
                       <td className="py-2 px-3 font-medium text-foreground sticky left-[80px] bg-card z-10 truncate max-w-[140px]" title={`${deal.account} — ${deal.dealName}`}>{deal.account}</td>
-                      <td className="py-2 px-3 text-muted-foreground truncate">{deal.vsd.split(" ")[0]}</td>
+                      <td className="py-2 px-3 text-right font-mono text-foreground">{fmtCurrency(deal.mrr)}</td>
+                      <td className="py-2 px-3 text-muted-foreground text-caption">{deal.duration || "—"}</td>
+                      <td className="py-2 px-3 text-right font-mono text-foreground">{fmtCurrency(deal.retainerDealValue)}</td>
+                      <td className="py-2 px-3 text-right font-mono text-foreground">{fmtCurrency(deal.nonRetainerDealValue)}</td>
+                      <td className="py-2 px-3 text-right font-mono text-foreground font-medium">{fmtCurrency(deal.totalDealValue)}</td>
                       <td className="py-2 px-3"><span className={cn("px-1.5 py-0.5 rounded text-caption font-medium", deal.dealType === "Retainer" ? "bg-positive/10 text-positive" : deal.dealType === "Pilot" ? "bg-warning/10 text-warning" : "bg-accent/10 text-accent")}>{deal.dealType}</span></td>
                       <td className="py-2 px-3"><span className={cn("px-1.5 py-0.5 rounded text-caption font-medium", deal.staffingStatus === "Already Staffed" ? "bg-positive/10 text-positive" : deal.staffingStatus === "Staffing Needed" ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground")}>{deal.staffingStatus === "Already Staffed" ? "Staffed" : deal.staffingStatus === "Staffing Needed" ? "Needed" : "N/A"}</span></td>
                       {visibleSlots.map(slot => {
@@ -213,12 +290,10 @@ export default function Staffing() {
                               {slotAssignments.map(a => (
                                 <div key={a.id} className="flex items-center gap-1">
                                   {editingAssignment === a.id ? (
-                                    <input
-                                      type="number" step="0.25" className="w-14 h-6 px-1 rounded border border-accent text-caption font-mono bg-card text-foreground"
+                                    <input type="number" step="0.25" className="w-14 h-6 px-1 rounded border border-accent text-caption font-mono bg-card text-foreground"
                                       value={editValue} onChange={e => setEditValue(e.target.value)} autoFocus
                                       onBlur={() => updateAllocation(a.id, parseFloat(editValue) || 0)}
-                                      onKeyDown={e => { if (e.key === "Enter") updateAllocation(a.id, parseFloat(editValue) || 0); if (e.key === "Escape") setEditingAssignment(null); }}
-                                    />
+                                      onKeyDown={e => { if (e.key === "Enter") updateAllocation(a.id, parseFloat(editValue) || 0); if (e.key === "Escape") setEditingAssignment(null); }} />
                                   ) : (
                                     <div onClick={() => { setEditingAssignment(a.id); setEditValue(String(a.allocationPct)); }} className="cursor-pointer">
                                       <PersonBadge person={getPerson(a.personId)} pct={a.allocationPct} onRemove={() => removeAssignment(a.id)} />
@@ -265,8 +340,8 @@ export default function Staffing() {
           </>
         )}
 
-        {/* ═══════════════ PEOPLE VIEW ═══════════════ */}
-        {activeView === "people" && (
+        {/* ═══════════════ PEOPLE ═══════════════ */}
+        {activeTab === "people" && (
           <>
             <div className="flex gap-1 mb-4 overflow-x-auto pb-1">
               {ROLE_CATEGORIES.map(cat => (
@@ -275,6 +350,9 @@ export default function Staffing() {
                   peopleCategoryTab === cat ? "bg-foreground text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"
                 )}>{cat}</button>
               ))}
+            </div>
+            <div className="mb-3">
+              <FilterBar />
             </div>
 
             <div className="data-card p-0 overflow-x-auto">
@@ -295,7 +373,6 @@ export default function Staffing() {
                         <td className="py-3 px-4 font-medium text-foreground">
                           <span className={cn(p.leaving && "line-through text-muted-foreground", p.tbh && "text-warning italic")}>{p.name}</span>
                         </td>
-                        {/* Department */}
                         <td className="py-2 px-4">
                           {isEditing("department") ? (
                             <select autoFocus value={p.department || ""} onChange={e => updatePerson(p.id, "department", e.target.value)} onBlur={() => setEditingCell(null)}
@@ -307,31 +384,28 @@ export default function Staffing() {
                             <span onClick={() => setEditingCell({ personId: p.id, field: "department" })} className="cursor-pointer text-muted-foreground hover:text-foreground text-caption truncate block max-w-[160px]" title={p.department}>{p.department || "—"}</span>
                           )}
                         </td>
-                        {/* Designation */}
                         <td className="py-2 px-4">
                           {isEditing("designation") ? (
                             <select autoFocus value={p.designation || ""} onChange={e => updatePerson(p.id, "designation", e.target.value)} onBlur={() => setEditingCell(null)}
                               className="h-8 w-full px-2 rounded border border-accent bg-card text-ui text-foreground">
                               <option value="">—</option>
-                              {allDesignations.map(d => <option key={d} value={d}>{d}</option>)}
+                              {allDesignations.filter(d => d !== "All").map(d => <option key={d} value={d}>{d}</option>)}
                             </select>
                           ) : (
                             <span onClick={() => setEditingCell({ personId: p.id, field: "designation" })} className="cursor-pointer text-muted-foreground hover:text-foreground text-caption truncate block max-w-[180px]" title={p.designation}>{p.designation || "—"}</span>
                           )}
                         </td>
-                        {/* Reporting Manager */}
                         <td className="py-2 px-4">
                           {isEditing("reportingManager") ? (
                             <select autoFocus value={p.reportingManager || ""} onChange={e => updatePerson(p.id, "reportingManager", e.target.value)} onBlur={() => setEditingCell(null)}
                               className="h-8 w-full px-2 rounded border border-accent bg-card text-ui text-foreground">
                               <option value="">—</option>
-                              {allManagers.map(m => <option key={m} value={m}>{m}</option>)}
+                              {allManagers.filter(m => m !== "All").map(m => <option key={m} value={m}>{m}</option>)}
                             </select>
                           ) : (
                             <span onClick={() => setEditingCell({ personId: p.id, field: "reportingManager" })} className="cursor-pointer text-muted-foreground hover:text-foreground text-caption">{p.reportingManager || "—"}</span>
                           )}
                         </td>
-                        {/* Band */}
                         <td className="py-2 px-4">
                           {isEditing("band") ? (
                             <select autoFocus value={p.band || ""} onChange={e => updatePerson(p.id, "band", e.target.value)} onBlur={() => setEditingCell(null)}
@@ -365,6 +439,26 @@ export default function Staffing() {
             </div>
           </>
         )}
+
+        {/* ═══════════════ BW RULES ═══════════════ */}
+        {activeTab === "bw_rules" && (
+          <BWRulesTab rules={bwRules} onUpdateRules={setBwRules} />
+        )}
+
+        {/* ═══════════════ CAPACITY ═══════════════ */}
+        {activeTab === "capacity" && (
+          <CapacityTab deals={deals} people={people} assignments={assignments} />
+        )}
+
+        {/* ═══════════════ HIRING GAP ═══════════════ */}
+        {activeTab === "hiring" && (
+          <HiringGapTab hiringNeeds={hiringNeeds} onUpdateNeeds={setHiringNeeds} />
+        )}
+
+        {/* ═══════════════ REVENUE CAPACITY ═══════════════ */}
+        {activeTab === "revenue" && (
+          <RevenueCapacityTab deals={deals} people={people} assignments={assignments} targets={revenueTargets} onUpdateTargets={setRevenueTargets} />
+        )}
       </div>
 
       {/* ═══════════════ ADD ASSIGNMENT MODAL ═══════════════ */}
@@ -382,9 +476,7 @@ export default function Staffing() {
               {people.filter(p => {
                 if (p.leaving) return false;
                 const allowedTitles = ROLE_TO_PEOPLE_FILTER[addModal.roleKey];
-                if (allowedTitles) {
-                  return allowedTitles.includes(p.roleTitle);
-                }
+                if (allowedTitles) return allowedTitles.includes(p.roleTitle);
                 return true;
               }).map(p => (
                 <button key={p.id} onClick={() => addAssignment(addModal.dealId, addModal.roleKey, p.id)}
