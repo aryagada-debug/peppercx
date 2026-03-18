@@ -446,7 +446,7 @@ export default function Staffing() {
               <span className="text-caption text-muted-foreground ml-auto">{filteredDeals.length} deals</span>
             </div>
             <div className="mb-3">
-              <FilterBar />
+              {filterBar}
             </div>
 
             <div className="data-card p-0 overflow-x-auto">
