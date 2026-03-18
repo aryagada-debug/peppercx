@@ -102,6 +102,7 @@ export default function Staffing() {
   const [editingAssignment, setEditingAssignment] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [selectedPeople, setSelectedPeople] = useState<Set<string>>(new Set());
+  const [expandedPeopleNodes, setExpandedPeopleNodes] = useState<Set<string>>(new Set());
 
   const vsds = useMemo(() => ["All", ...Array.from(new Set(deals.map(d => d.vsd))).sort()], [deals]);
   const allDesignations = useMemo(() => ["All", ...[...new Set(people.map(p => p.designation).filter(Boolean))].sort()], [people]);
