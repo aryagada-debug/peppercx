@@ -1,9 +1,10 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
-import { Search, Plus, Filter, X, ChevronDown, UserPlus } from "lucide-react";
+import { Search, Plus, Filter, X, ChevronDown, UserPlus, Check } from "lucide-react";
 import {
   DEFAULT_DEALS, DEFAULT_PEOPLE, DEFAULT_ASSIGNMENTS, ROLE_SLOTS, ROLE_CATEGORIES, ROLE_TO_PEOPLE_FILTER,
+  DEPARTMENTS, BANDS,
   type Deal, type Person, type StaffingAssignment, type RoleCategory, uid
 } from "@/data/staffingData";
 
@@ -47,6 +48,7 @@ export default function Staffing() {
   const [addModal, setAddModal] = useState<{ dealId: string; roleKey: string } | null>(null);
   const [addPersonModal, setAddPersonModal] = useState(false);
   const [newPerson, setNewPerson] = useState({ name: "", roleCategory: "Content" as RoleCategory, roleTitle: "", pod: "", region: "India" });
+  const [editingCell, setEditingCell] = useState<{ personId: string; field: string } | null>(null);
 
   // Edit allocation
   const [editingAssignment, setEditingAssignment] = useState<string | null>(null);
@@ -92,10 +94,18 @@ export default function Staffing() {
 
   const addNewPerson = () => {
     const id = `p_new_${uid()}`;
-    setPeople(prev => [...prev, { id, ...newPerson, leaving: false, tbh: false }]);
+    setPeople(prev => [...prev, { id, ...newPerson, leaving: false, tbh: false, department: "", designation: "", reportingManager: "", band: "" }]);
     setNewPerson({ name: "", roleCategory: "Content", roleTitle: "", pod: "", region: "India" });
     setAddPersonModal(false);
   };
+
+  const updatePerson = (personId: string, field: keyof Person, value: string) => {
+    setPeople(prev => prev.map(p => p.id === personId ? { ...p, [field]: value } : p));
+    setEditingCell(null);
+  };
+
+  const allDesignations = useMemo(() => [...new Set(people.map(p => p.designation).filter(Boolean))].sort(), [people]);
+  const allManagers = useMemo(() => [...new Set(people.map(p => p.name))].sort(), [people]);
 
   // People view: utilization per person
   const personUtilization = useMemo(() => {
@@ -267,11 +277,11 @@ export default function Staffing() {
               ))}
             </div>
 
-            <div className="data-card p-0 overflow-hidden">
-              <table className="w-full text-ui">
+            <div className="data-card p-0 overflow-x-auto">
+              <table className="w-full text-ui min-w-[1100px]">
                 <thead>
                   <tr className="border-b border-border bg-secondary/30">
-                    {["Name", "Title", "Pod", "Region", "Deals", "Total Alloc.", "Status", "Actions"].map(h => (
+                    {["Name", "Department", "Designation", "Reporting Manager", "Band", "Deals", "Total Alloc.", "Status"].map(h => (
                       <th key={h} className="text-left py-3 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">{h}</th>
                     ))}
                   </tr>
@@ -279,14 +289,60 @@ export default function Staffing() {
                 <tbody>
                   {filteredPeople.map(p => {
                     const util = personUtilization[p.id] || { totalPct: 0, dealCount: 0, deals: [] };
+                    const isEditing = (field: string) => editingCell?.personId === p.id && editingCell?.field === field;
                     return (
                       <tr key={p.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
                         <td className="py-3 px-4 font-medium text-foreground">
                           <span className={cn(p.leaving && "line-through text-muted-foreground", p.tbh && "text-warning italic")}>{p.name}</span>
                         </td>
-                        <td className="py-3 px-4 text-muted-foreground">{p.roleTitle}</td>
-                        <td className="py-3 px-4 text-muted-foreground">{p.pod}</td>
-                        <td className="py-3 px-4 text-muted-foreground">{p.region}</td>
+                        {/* Department */}
+                        <td className="py-2 px-4">
+                          {isEditing("department") ? (
+                            <select autoFocus value={p.department || ""} onChange={e => updatePerson(p.id, "department", e.target.value)} onBlur={() => setEditingCell(null)}
+                              className="h-8 w-full px-2 rounded border border-accent bg-card text-ui text-foreground">
+                              <option value="">—</option>
+                              {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                            </select>
+                          ) : (
+                            <span onClick={() => setEditingCell({ personId: p.id, field: "department" })} className="cursor-pointer text-muted-foreground hover:text-foreground text-caption truncate block max-w-[160px]" title={p.department}>{p.department || "—"}</span>
+                          )}
+                        </td>
+                        {/* Designation */}
+                        <td className="py-2 px-4">
+                          {isEditing("designation") ? (
+                            <select autoFocus value={p.designation || ""} onChange={e => updatePerson(p.id, "designation", e.target.value)} onBlur={() => setEditingCell(null)}
+                              className="h-8 w-full px-2 rounded border border-accent bg-card text-ui text-foreground">
+                              <option value="">—</option>
+                              {allDesignations.map(d => <option key={d} value={d}>{d}</option>)}
+                            </select>
+                          ) : (
+                            <span onClick={() => setEditingCell({ personId: p.id, field: "designation" })} className="cursor-pointer text-muted-foreground hover:text-foreground text-caption truncate block max-w-[180px]" title={p.designation}>{p.designation || "—"}</span>
+                          )}
+                        </td>
+                        {/* Reporting Manager */}
+                        <td className="py-2 px-4">
+                          {isEditing("reportingManager") ? (
+                            <select autoFocus value={p.reportingManager || ""} onChange={e => updatePerson(p.id, "reportingManager", e.target.value)} onBlur={() => setEditingCell(null)}
+                              className="h-8 w-full px-2 rounded border border-accent bg-card text-ui text-foreground">
+                              <option value="">—</option>
+                              {allManagers.map(m => <option key={m} value={m}>{m}</option>)}
+                            </select>
+                          ) : (
+                            <span onClick={() => setEditingCell({ personId: p.id, field: "reportingManager" })} className="cursor-pointer text-muted-foreground hover:text-foreground text-caption">{p.reportingManager || "—"}</span>
+                          )}
+                        </td>
+                        {/* Band */}
+                        <td className="py-2 px-4">
+                          {isEditing("band") ? (
+                            <select autoFocus value={p.band || ""} onChange={e => updatePerson(p.id, "band", e.target.value)} onBlur={() => setEditingCell(null)}
+                              className="h-8 w-20 px-2 rounded border border-accent bg-card text-ui text-foreground">
+                              <option value="">—</option>
+                              {BANDS.map(b => <option key={b} value={b}>{b}</option>)}
+                            </select>
+                          ) : (
+                            <span onClick={() => setEditingCell({ personId: p.id, field: "band" })} className={cn("cursor-pointer font-mono text-caption font-medium px-1.5 py-0.5 rounded", p.band ? "bg-accent/10 text-accent" : "text-muted-foreground")}>{p.band || "—"}</span>
+                          )}
+                        </td>
                         <td className="py-3 px-4 font-mono tabular-nums text-foreground">{util.dealCount}</td>
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2">
@@ -300,20 +356,6 @@ export default function Staffing() {
                           {p.tbh ? <span className="px-1.5 py-0.5 rounded text-caption font-medium bg-warning/10 text-warning">TBH</span>
                             : p.leaving ? <span className="px-1.5 py-0.5 rounded text-caption font-medium bg-destructive/10 text-destructive">Leaving</span>
                             : <span className="px-1.5 py-0.5 rounded text-caption font-medium bg-positive/10 text-positive">Active</span>}
-                        </td>
-                        <td className="py-3 px-4">
-                          <details className="cursor-pointer">
-                            <summary className="text-accent text-caption hover:underline">View deals</summary>
-                            <div className="mt-2 space-y-1">
-                              {util.deals.map((d, i) => (
-                                <div key={i} className="text-caption text-muted-foreground flex justify-between">
-                                  <span>{d.account}</span>
-                                  <span className="font-mono tabular-nums">{fmtPct(d.pct)}</span>
-                                </div>
-                              ))}
-                              {util.deals.length === 0 && <div className="text-caption text-muted-foreground">No assignments</div>}
-                            </div>
-                          </details>
                         </td>
                       </tr>
                     );
