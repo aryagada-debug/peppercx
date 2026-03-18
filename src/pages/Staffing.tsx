@@ -393,6 +393,14 @@ export default function Staffing() {
                 <input type="text" placeholder="Search accounts, deals..." value={search} onChange={e => setSearch(e.target.value)}
                   className="w-full h-9 pl-9 pr-3 rounded-md bg-muted/50 border-0 text-ui text-foreground placeholder:text-muted-foreground focus:bg-card focus:ring-1 focus:ring-accent focus:outline-none transition-colors" />
               </div>
+              <select value={buFilter} onChange={e => setBuFilter(e.target.value)} className="h-9 px-3 rounded-md border border-border bg-card text-ui text-foreground">
+                <option value="All">All Business Units</option>
+                {uniqueBusinessUnits.map(bu => <option key={bu} value={bu}>{bu}</option>)}
+              </select>
+              <select value={capabilityFilter} onChange={e => setCapabilityFilter(e.target.value)} className="h-9 px-3 rounded-md border border-border bg-card text-ui text-foreground">
+                <option value="All">All Capability Lines</option>
+                {uniqueCapabilityLines.map(cl => <option key={cl} value={cl}>{cl}</option>)}
+              </select>
               <select value={vsdFilter} onChange={e => setVsdFilter(e.target.value)} className="h-9 px-3 rounded-md border border-border bg-card text-ui text-foreground">
                 {vsds.map(v => <option key={v} value={v}>{v === "All" ? "All VSDs" : v}</option>)}
               </select>
