@@ -423,81 +423,35 @@ export default function Staffing() {
             </div>
 
             <div className="data-card p-0 overflow-x-auto">
-              <table className="text-ui min-w-max">
+               <table className="w-full text-ui">
                 <thead>
                   <tr className="border-b border-border bg-secondary/30">
-                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider sticky left-0 bg-secondary/30 z-10 min-w-[80px]">Deal ID</th>
-                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[80px]">PC Code</th>
-                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[140px]">Business Unit</th>
-                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[150px]">Capability Line</th>
-                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider sticky left-[80px] bg-secondary/30 z-10 min-w-[140px]">Account</th>
-                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[150px]">Deal Name</th>
-                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[130px]">Deal Status</th>
-                    <th className="text-right py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[80px]">MRR</th>
-                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[80px]">Duration</th>
-                    <th className="text-right py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[90px]">Retainer</th>
-                    <th className="text-right py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[90px]">Non-Ret.</th>
-                    <th className="text-right py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[90px]">Total DV</th>
-                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[80px]">Type</th>
-                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[90px]">Staffing</th>
-                    {visibleSlots.map(slot => (
-                      <th key={slot.roleKey} className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[200px] whitespace-nowrap">
-                        <div>{slot.roleLabel}</div>
-                        <div className="text-[10px] font-normal text-muted-foreground/70 normal-case">{slot.category}</div>
-                      </th>
-                    ))}
+                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider w-[70px]">Deal ID</th>
+                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[120px]">Account</th>
+                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[120px]">BU</th>
+                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[120px]">Capability</th>
+                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[140px]">Deal Name</th>
+                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[110px]">Status</th>
+                    <th className="text-right py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider w-[80px]">MRR</th>
+                    <th className="text-right py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider w-[90px]">Total DV</th>
+                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider w-[70px]">Type</th>
+                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider w-[80px]">Staffing</th>
+                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[220px]">Team</th>
                   </tr>
                 </thead>
                 <tbody>
                   {paginatedDeals.map(deal => {
                     const isExpanded = expandedDealId === deal.id;
+                    const dealAssigns = assignments.filter(a => a.dealId === deal.id);
                     return (
                       <>
                         <tr key={deal.id} className={cn("border-b border-border/50 hover:bg-secondary/20 transition-colors cursor-pointer", isExpanded && "bg-accent/5")}
                           onClick={() => setExpandedDealId(isExpanded ? null : deal.id)}>
-                          <td className="py-2 px-3 font-mono text-accent font-medium sticky left-0 bg-card z-10">{deal.dealId}</td>
-                          {/* PC Code - click to edit */}
-                          <td className="py-2 px-3" onClick={e => e.stopPropagation()}>
-                            {editingCell?.personId === deal.id && editingCell?.field === "pcCode" ? (
-                              <input type="text" className="w-full h-7 px-2 rounded border border-accent bg-card text-caption text-foreground" autoFocus
-                                value={editValue} onChange={e => setEditValue(e.target.value)}
-                                onBlur={() => { updateDeal(deal.id, "pcCode", editValue); setEditingCell(null); }}
-                                onKeyDown={e => { if (e.key === "Enter") { updateDeal(deal.id, "pcCode", editValue); setEditingCell(null); } if (e.key === "Escape") setEditingCell(null); }} />
-                            ) : (
-                              <span onClick={() => { setEditingCell({ personId: deal.id, field: "pcCode" }); setEditValue(deal.pcCode || ""); }}
-                                className="cursor-pointer text-caption text-muted-foreground hover:text-foreground">{deal.pcCode || "—"}</span>
-                            )}
-                          </td>
-                          {/* Business Unit - dropdown */}
-                          <td className="py-2 px-3" onClick={e => e.stopPropagation()}>
-                            <select className="h-7 px-1.5 rounded border border-border bg-card text-caption text-foreground max-w-[140px]"
-                              value={deal.businessUnit || ""} onChange={e => updateDeal(deal.id, "businessUnit", e.target.value)}>
-                              <option value="">—</option>
-                              {uniqueBusinessUnits.map(bu => <option key={bu} value={bu}>{bu}</option>)}
-                            </select>
-                          </td>
-                          {/* Capability Line - dropdown */}
-                          <td className="py-2 px-3" onClick={e => e.stopPropagation()}>
-                            <select className="h-7 px-1.5 rounded border border-border bg-card text-caption text-foreground max-w-[150px]"
-                              value={deal.capabilityLine || ""} onChange={e => updateDeal(deal.id, "capabilityLine", e.target.value)}>
-                              <option value="">—</option>
-                              {uniqueCapabilityLines.map(cl => <option key={cl} value={cl}>{cl}</option>)}
-                            </select>
-                          </td>
-                          <td className="py-2 px-3 font-medium text-foreground sticky left-[80px] bg-card z-10 truncate max-w-[140px]" title={`${deal.account} — ${deal.dealName}`}>{deal.account}</td>
-                          {/* Deal Name - click to edit */}
-                          <td className="py-2 px-3" onClick={e => e.stopPropagation()}>
-                            {editingCell?.personId === deal.id && editingCell?.field === "dealName" ? (
-                              <input type="text" className="w-full h-7 px-2 rounded border border-accent bg-card text-caption text-foreground" autoFocus
-                                value={editValue} onChange={e => setEditValue(e.target.value)}
-                                onBlur={() => { updateDeal(deal.id, "dealName", editValue); setEditingCell(null); }}
-                                onKeyDown={e => { if (e.key === "Enter") { updateDeal(deal.id, "dealName", editValue); setEditingCell(null); } if (e.key === "Escape") setEditingCell(null); }} />
-                            ) : (
-                              <span onClick={() => { setEditingCell({ personId: deal.id, field: "dealName" }); setEditValue(deal.dealName || ""); }}
-                                className="cursor-pointer text-caption text-foreground hover:text-accent truncate block max-w-[150px]" title={deal.dealName}>{deal.dealName || "—"}</span>
-                            )}
-                          </td>
-                          {/* Deal Master Status - dropdown */}
+                          <td className="py-2 px-3 font-mono text-accent font-medium">{deal.dealId}</td>
+                          <td className="py-2 px-3 font-medium text-foreground truncate max-w-[140px]" title={deal.account}>{deal.account}</td>
+                          <td className="py-2 px-3 text-caption text-muted-foreground truncate max-w-[120px]">{deal.businessUnit || "—"}</td>
+                          <td className="py-2 px-3 text-caption text-muted-foreground truncate max-w-[120px]">{deal.capabilityLine || "—"}</td>
+                          <td className="py-2 px-3 text-caption text-foreground truncate max-w-[140px]" title={deal.dealName}>{deal.dealName || "—"}</td>
                           <td className="py-2 px-3" onClick={e => e.stopPropagation()}>
                             <select className="h-7 px-1.5 rounded border border-border bg-card text-caption text-foreground max-w-[130px]"
                               value={deal.dealStatus || ""} onChange={e => updateDeal(deal.id, "dealStatus", e.target.value)}>
@@ -506,50 +460,33 @@ export default function Staffing() {
                             </select>
                           </td>
                           <td className="py-2 px-3 text-right font-mono text-foreground">{fmtCurrency(deal.mrr)}</td>
-                          <td className="py-2 px-3 text-muted-foreground text-caption">{deal.duration || "—"}</td>
-                          <td className="py-2 px-3 text-right font-mono text-foreground">{fmtCurrency(deal.retainerDealValue)}</td>
-                          <td className="py-2 px-3 text-right font-mono text-foreground">{fmtCurrency(deal.nonRetainerDealValue)}</td>
                           <td className="py-2 px-3 text-right font-mono text-foreground font-medium">{fmtCurrency(deal.totalDealValue)}</td>
                           <td className="py-2 px-3"><span className={cn("px-1.5 py-0.5 rounded text-caption font-medium", deal.dealType === "Retainer" ? "bg-positive/10 text-positive" : deal.dealType === "Pilot" ? "bg-warning/10 text-warning" : "bg-accent/10 text-accent")}>{deal.dealType}</span></td>
                           <td className="py-2 px-3"><span className={cn("px-1.5 py-0.5 rounded text-caption font-medium", deal.staffingStatus === "Already Staffed" ? "bg-positive/10 text-positive" : deal.staffingStatus === "Staffing Needed" ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground")}>{deal.staffingStatus === "Already Staffed" ? "Staffed" : deal.staffingStatus === "Staffing Needed" ? "Needed" : "N/A"}</span></td>
-                          {visibleSlots.map(slot => {
-                            const dealCategories = getBUCategories(deal.businessUnit);
-                            const isApplicable = dealCategories.includes(slot.category);
-                            if (!isApplicable) {
-                              return <td key={slot.roleKey} className="py-2 px-3 bg-muted/20"><span className="text-[10px] text-muted-foreground/40">N/A</span></td>;
-                            }
-                            const slotAssignments = getAssignments(deal.id, slot.roleKey);
-                            const roleOpts = people.filter(p => {
-                              const allowedTitles = ROLE_TO_PEOPLE_FILTER[slot.roleKey];
-                              if (allowedTitles) return allowedTitles.includes(p.roleTitle);
-                              return true;
-                            });
-                            return (
-                              <td key={slot.roleKey} className="py-2 px-3" onClick={e => e.stopPropagation()}>
-                                <div className="flex flex-col gap-1.5">
-                                  {slotAssignments.map(a => (
-                                    <div key={a.id} className="flex items-center gap-1.5">
-                                      <PersonSel value={a.personId} opts={roleOpts} onChange={v => {
-                                        if (!v) { removeAssignment(a.id); return; }
-                                        setAssignments(prev => prev.map(x => x.id === a.id ? { ...x, personId: v } : x));
-                                      }} />
-                                      <div className="flex items-center gap-0.5">
-                                        <input type="number" step="1" min="0" max="100"
-                                          className="w-[44px] h-7 px-1 rounded border border-border bg-card text-caption font-mono text-foreground text-right"
-                                          value={a.allocationPct} onChange={e => updateAllocation(a.id, parseFloat(e.target.value) || 0)} />
-                                        <span className="text-muted-foreground text-[10px]">%</span>
-                                      </div>
-                                      <button onClick={() => removeAssignment(a.id)} className="text-muted-foreground hover:text-destructive text-caption">✕</button>
-                                    </div>
-                                  ))}
-                                  <button onClick={() => addAssignment(deal.id, slot.roleKey, "")}
-                                    className="text-accent hover:text-accent/80 text-[10px] font-medium flex items-center gap-0.5 w-fit">
-                                    <Plus className="h-3 w-3" /> Add
-                                  </button>
-                                </div>
-                              </td>
-                            );
-                          })}
+                          {/* Team chips column */}
+                          <td className="py-2 px-3">
+                            {dealAssigns.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {dealAssigns.map(a => {
+                                  const person = getPerson(a.personId);
+                                  const slot = ROLE_SLOTS.find(s => s.roleKey === a.roleKey);
+                                  if (!person) return null;
+                                  return (
+                                    <span key={a.id} className={cn(
+                                      "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium",
+                                      person.tbh ? "bg-warning/10 text-warning" : person.leaving ? "bg-destructive/10 text-destructive" : "bg-secondary text-foreground"
+                                    )}>
+                                      <span className="text-muted-foreground">{slot?.roleLabel || a.roleKey}:</span>
+                                      <span className="truncate max-w-[60px]">{person.name}</span>
+                                      <span className="font-mono text-muted-foreground">{a.allocationPct > 0 ? `${a.allocationPct}%` : ""}</span>
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground italic">No team</span>
+                            )}
+                          </td>
                         </tr>
                         {isExpanded && renderDealExpand(deal)}
                       </>
