@@ -416,10 +416,6 @@ export default function Staffing() {
                 <option value="Non-Retainer">Non-Retainer</option>
                 <option value="Pilot">Pilot</option>
               </select>
-              <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value as any)} className="h-9 px-3 rounded-md border border-border bg-card text-ui text-foreground">
-                <option value="All">All Role Categories</option>
-                {ROLE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
               <span className="text-caption text-muted-foreground ml-auto">{filteredDeals.length} deals</span>
             </div>
             <div className="mb-3">
