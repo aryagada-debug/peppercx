@@ -257,13 +257,6 @@ export default function Staffing() {
   // Inline deal expand: get all role categories and their slots for a deal
   const renderDealExpand = (deal: Deal) => {
     const dealCategories = getBUCategories(deal.businessUnit);
-    const categories = dealCategories.filter(cat => {
-      const catSlots = ROLE_SLOTS.filter(s => s.category === cat);
-      return catSlots.some(s => {
-        const a = getAssignments(deal.id, s.roleKey);
-        return a.length > 0;
-      }) || cat === "Operations"; // Always show Operations
-    });
 
     return (
       <tr key={`${deal.id}-expand`}>
