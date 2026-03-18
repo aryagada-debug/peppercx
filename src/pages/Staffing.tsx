@@ -809,7 +809,7 @@ export default function Staffing() {
                   </select>
                 </div>
               </div>
-              <button onClick={editPersonId ? saveEditPerson : addNewPerson} disabled={!newPerson.name || !newPerson.roleTitle}
+              <button onClick={editPersonId ? saveEditPerson : addNewPerson} disabled={!newPerson.name}
                 className="w-full h-9 rounded-md bg-foreground text-primary-foreground text-ui font-medium hover:opacity-90 disabled:opacity-50 transition-opacity mt-2">
                 {editPersonId ? "Save Changes" : "Add Person"}
               </button>
