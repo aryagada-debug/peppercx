@@ -79,6 +79,8 @@ export default function Staffing() {
   const [categoryFilter, setCategoryFilter] = useState<RoleCategory | "All">("All");
   const [staffingStatusFilter, setStaffingStatusFilter] = useState<string>("All");
   const [dealTypeFilter, setDealTypeFilter] = useState<string>("All");
+  const [buFilter, setBuFilter] = useState<string>("All");
+  const [capabilityFilter, setCapabilityFilter] = useState<string>("All");
   // Shared filters
   const [designationFilter, setDesignationFilter] = useState<string>("All");
   const [bandFilter, setBandFilter] = useState<string>("All");
