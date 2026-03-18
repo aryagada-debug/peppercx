@@ -8,7 +8,19 @@ export interface Person {
   region: string;
   leaving: boolean;
   tbh: boolean;
+  department?: string;
+  designation?: string;
+  reportingManager?: string;
+  band?: string;
 }
+
+export const DEPARTMENTS = [
+  "Delivery Ops", "Capability - SEO Team", "Capability - Quality Team",
+  "Capability - Creative Team", "Creative Strategy Team", "Content Strategy Team",
+  "Capability - Video Production Team", "Marketing - Support"
+] as const;
+
+export const BANDS = ["L0", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8"] as const;
 
 export type RoleCategory =
   | "Operations"
