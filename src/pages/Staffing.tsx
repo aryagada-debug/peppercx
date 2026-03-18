@@ -517,6 +517,11 @@ export default function Staffing() {
                           <td className="py-2 px-3"><span className={cn("px-1.5 py-0.5 rounded text-caption font-medium", deal.dealType === "Retainer" ? "bg-positive/10 text-positive" : deal.dealType === "Pilot" ? "bg-warning/10 text-warning" : "bg-accent/10 text-accent")}>{deal.dealType}</span></td>
                           <td className="py-2 px-3"><span className={cn("px-1.5 py-0.5 rounded text-caption font-medium", deal.staffingStatus === "Already Staffed" ? "bg-positive/10 text-positive" : deal.staffingStatus === "Staffing Needed" ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground")}>{deal.staffingStatus === "Already Staffed" ? "Staffed" : deal.staffingStatus === "Staffing Needed" ? "Needed" : "N/A"}</span></td>
                           {visibleSlots.map(slot => {
+                            const dealCategories = getBUCategories(deal.businessUnit);
+                            const isApplicable = dealCategories.includes(slot.category);
+                            if (!isApplicable) {
+                              return <td key={slot.roleKey} className="py-2 px-3 bg-muted/20"><span className="text-[10px] text-muted-foreground/40">N/A</span></td>;
+                            }
                             const slotAssignments = getAssignments(deal.id, slot.roleKey);
                             const roleOpts = people.filter(p => {
                               const allowedTitles = ROLE_TO_PEOPLE_FILTER[slot.roleKey];
