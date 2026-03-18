@@ -247,7 +247,7 @@ export default function Staffing() {
     return true;
   }), [people, peopleCategoryTab, designationFilter, bandFilter, managerFilter]);
 
-  const FilterBar = () => (
+  const filterBar = (
     <div className="flex items-center gap-2 flex-wrap">
       <select value={designationFilter} onChange={e => setDesignationFilter(e.target.value)} className="h-8 px-2 rounded-md border border-border bg-card text-caption text-foreground">
         <option value="All">All Designations</option>
