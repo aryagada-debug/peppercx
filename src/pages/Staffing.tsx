@@ -1,5 +1,5 @@
 import { AppLayout } from "@/components/layout/AppLayout";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { Search, Plus, X, UserPlus, ChevronDown, ChevronRight, Pencil, Trash2, CheckSquare } from "lucide-react";
 import {
