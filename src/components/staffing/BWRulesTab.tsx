@@ -1,6 +1,15 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { ROLE_SLOTS, type BWRule } from "@/data/staffingData";
+import { ROLE_SLOTS } from "@/data/staffingData";
+
+export interface BWRule {
+  id: string;
+  region: "India" | "US";
+  roleKey: string;
+  mrrMin: number;
+  mrrMax: number;
+  recommendedPct: number;
+}
 
 interface Props {
   rules: BWRule[];
