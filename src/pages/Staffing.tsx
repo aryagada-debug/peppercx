@@ -593,7 +593,7 @@ export default function Staffing() {
               </div>
             </div>
             <div className="mb-3">
-              <FilterBar />
+              {filterBar}
             </div>
 
             {(() => {
