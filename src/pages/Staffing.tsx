@@ -217,9 +217,10 @@ export default function Staffing() {
     setSelectedPeople(prev => { const next = new Set(prev); next.delete(personId); return next; });
   };
 
-  const bulkUpdate = (field: keyof Person, value: string) => {
-    setPeople(prev => prev.map(p => selectedPeople.has(p.id) ? { ...p, [field]: value } : p));
-  };
+  const bulkUpdate = useCallback((field: keyof Person, value: string) => {
+    const currentSelected = selectedPeopleRef.current;
+    setPeople(prev => prev.map(p => currentSelected.has(p.id) ? { ...p, [field]: value } : p));
+  }, []);
 
   // Person utilization
   const personUtilization = useMemo(() => {
