@@ -1,7 +1,7 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
-import { Search, Plus, X, UserPlus, ChevronDown, ChevronRight, Pencil } from "lucide-react";
+import { Search, Plus, X, UserPlus, ChevronDown, ChevronRight, Pencil, Trash2, CheckSquare } from "lucide-react";
 import {
   DEFAULT_DEALS, DEFAULT_PEOPLE, DEFAULT_ASSIGNMENTS, DEFAULT_HIRING_NEEDS, DEFAULT_REVENUE_TARGETS,
   ROLE_SLOTS, ROLE_CATEGORIES, ROLE_TO_PEOPLE_FILTER, DEPARTMENTS, BANDS, BU_ROLE_CATEGORIES, getBUCategories,
@@ -101,6 +101,7 @@ export default function Staffing() {
   const [editingCell, setEditingCell] = useState<{ personId: string; field: string } | null>(null);
   const [editingAssignment, setEditingAssignment] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [selectedPeople, setSelectedPeople] = useState<Set<string>>(new Set());
 
   const vsds = useMemo(() => ["All", ...Array.from(new Set(deals.map(d => d.vsd))).sort()], [deals]);
   const allDesignations = useMemo(() => ["All", ...[...new Set(people.map(p => p.designation).filter(Boolean))].sort()], [people]);
@@ -205,6 +206,16 @@ export default function Staffing() {
   const updatePerson = (personId: string, field: keyof Person, value: string) => {
     setPeople(prev => prev.map(p => p.id === personId ? { ...p, [field]: value } : p));
     setEditingCell(null);
+  };
+
+  const deletePerson = (personId: string) => {
+    setPeople(prev => prev.filter(p => p.id !== personId));
+    setAssignments(prev => prev.filter(a => a.personId !== personId));
+    setSelectedPeople(prev => { const next = new Set(prev); next.delete(personId); return next; });
+  };
+
+  const bulkUpdate = (field: keyof Person, value: string) => {
+    setPeople(prev => prev.map(p => selectedPeople.has(p.id) ? { ...p, [field]: value } : p));
   };
 
   // Person utilization
@@ -536,67 +547,120 @@ export default function Staffing() {
         {/* ═══════════════ PEOPLE ═══════════════ */}
         {activeTab === "people" && (
           <>
-            <div className="flex gap-1 mb-4 overflow-x-auto pb-1">
-              {ROLE_CATEGORIES.map(cat => (
-                <button key={cat} onClick={() => setPeopleCategoryTab(cat)} className={cn(
-                  "px-3 py-1.5 rounded-md text-caption font-medium whitespace-nowrap transition-colors",
-                  peopleCategoryTab === cat ? "bg-foreground text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"
-                )}>{cat}</button>
-              ))}
+            <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
+              <div className="flex gap-1 overflow-x-auto pb-1">
+                {ROLE_CATEGORIES.map(cat => (
+                  <button key={cat} onClick={() => setPeopleCategoryTab(cat)} className={cn(
+                    "px-3 py-1.5 rounded-md text-caption font-medium whitespace-nowrap transition-colors",
+                    peopleCategoryTab === cat ? "bg-foreground text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"
+                  )}>{cat}</button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                {selectedPeople.size > 0 && (
+                  <div className="flex items-center gap-2 bg-accent/10 rounded-md px-3 py-1.5">
+                    <span className="text-caption font-medium text-accent">{selectedPeople.size} selected</span>
+                    <select onChange={e => { if (e.target.value) { bulkUpdate("department", e.target.value); e.target.value = ""; } }}
+                      className="h-7 px-2 rounded border border-border bg-card text-caption text-foreground">
+                      <option value="">Bulk Dept...</option>
+                      {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                    <select onChange={e => { if (e.target.value) { bulkUpdate("reportingManager", e.target.value); e.target.value = ""; } }}
+                      className="h-7 px-2 rounded border border-border bg-card text-caption text-foreground">
+                      <option value="">Bulk Manager...</option>
+                      {allManagers.filter(m => m !== "All").map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                    <select onChange={e => { if (e.target.value) { bulkUpdate("region", e.target.value); e.target.value = ""; } }}
+                      className="h-7 px-2 rounded border border-border bg-card text-caption text-foreground">
+                      <option value="">Bulk Region...</option>
+                      <option value="India">India</option>
+                      <option value="US">US</option>
+                      <option value="Both">Both</option>
+                    </select>
+                    <button onClick={() => setSelectedPeople(new Set())} className="text-muted-foreground hover:text-foreground">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
+                <button onClick={() => { setEditPersonId(null); setNewPerson({ name: "", roleCategory: peopleCategoryTab, roleTitle: "", pod: "", region: "India", department: "", designation: "", reportingManager: "", band: "" }); setAddPersonModal(true); }}
+                  className="h-8 px-3 rounded-md bg-foreground text-primary-foreground text-caption font-medium hover:opacity-90 flex items-center gap-1.5">
+                  <Plus className="h-3.5 w-3.5" /> Add
+                </button>
+              </div>
             </div>
             <div className="mb-3">
               <FilterBar />
             </div>
 
             <div className="data-card p-0 overflow-x-auto">
-              <table className="w-full text-ui min-w-[1200px]">
+              <table className="w-full text-ui">
                 <thead>
                   <tr className="border-b border-border bg-secondary/30">
-                    {["", "Name", "Department", "Designation", "Reporting Manager", "Band", "Deals", "Total Alloc.", "Status"].map(h => (
-                      <th key={h} className="text-left py-3 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">{h}</th>
-                    ))}
+                    <th className="py-2.5 px-3 w-8">
+                      <input type="checkbox" className="rounded border-border"
+                        checked={selectedPeople.size === filteredPeople.length && filteredPeople.length > 0}
+                        onChange={e => {
+                          if (e.target.checked) setSelectedPeople(new Set(filteredPeople.map(p => p.id)));
+                          else setSelectedPeople(new Set());
+                        }} />
+                    </th>
+                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[200px]">Name</th>
+                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider">Department</th>
+                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider">Designation</th>
+                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider">Manager</th>
+                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider w-16">Band</th>
+                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider w-16">Region</th>
+                    <th className="text-center py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider w-16">Deals</th>
+                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[140px]">BW Used</th>
+                    <th className="text-right py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider w-16">Total %</th>
+                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider w-16">Status</th>
+                    <th className="py-2.5 px-3 w-16"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredPeople.map(p => {
                     const util = personUtilization[p.id] || { totalPct: 0, dealCount: 0, deals: [] };
                     const isEditing = (field: string) => editingCell?.personId === p.id && editingCell?.field === field;
+                    const isSelected = selectedPeople.has(p.id);
                     return (
-                      <tr key={p.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
-                        <td className="py-2 px-4 w-10">
-                          <button onClick={() => startEditPerson(p)} className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground">
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
+                      <tr key={p.id} className={cn("border-b border-border/50 hover:bg-secondary/20 transition-colors", isSelected && "bg-accent/5")}>
+                        <td className="py-2 px-3">
+                          <input type="checkbox" className="rounded border-border" checked={isSelected}
+                            onChange={() => {
+                              const next = new Set(selectedPeople);
+                              if (isSelected) next.delete(p.id); else next.add(p.id);
+                              setSelectedPeople(next);
+                            }} />
                         </td>
-                        <td className="py-3 px-4 font-medium text-foreground">
-                          <span className={cn(p.leaving && "line-through text-muted-foreground", p.tbh && "text-warning italic")}>{p.name}</span>
+                        <td className="py-2 px-3">
+                          <span className={cn("font-medium", p.leaving && "line-through text-muted-foreground", p.tbh && "text-warning italic")}>{p.name}</span>
                         </td>
-                        <td className="py-2 px-4">
+                        <td className="py-2 px-3">
                           {isEditing("department") ? (
                             <select autoFocus value={p.department || ""} onChange={e => updatePerson(p.id, "department", e.target.value)} onBlur={() => setEditingCell(null)}
-                              className="h-8 w-full px-2 rounded border border-accent bg-card text-ui text-foreground">
+                              className="h-7 w-full px-2 rounded border border-accent bg-card text-caption text-foreground">
                               <option value="">—</option>
                               {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
                             </select>
                           ) : (
-                            <span onClick={() => setEditingCell({ personId: p.id, field: "department" })} className="cursor-pointer text-muted-foreground hover:text-foreground text-caption truncate block max-w-[160px]" title={p.department}>{p.department || "—"}</span>
+                            <span onClick={() => setEditingCell({ personId: p.id, field: "department" })} className="cursor-pointer text-muted-foreground hover:text-foreground text-caption truncate block max-w-[160px]">{p.department || "—"}</span>
                           )}
                         </td>
-                        <td className="py-2 px-4">
+                        <td className="py-2 px-3">
                           {isEditing("designation") ? (
                             <select autoFocus value={p.designation || ""} onChange={e => updatePerson(p.id, "designation", e.target.value)} onBlur={() => setEditingCell(null)}
-                              className="h-8 w-full px-2 rounded border border-accent bg-card text-ui text-foreground">
+                              className="h-7 w-full px-2 rounded border border-accent bg-card text-caption text-foreground">
                               <option value="">—</option>
                               {allDesignations.filter(d => d !== "All").map(d => <option key={d} value={d}>{d}</option>)}
                             </select>
                           ) : (
-                            <span onClick={() => setEditingCell({ personId: p.id, field: "designation" })} className="cursor-pointer text-muted-foreground hover:text-foreground text-caption truncate block max-w-[180px]" title={p.designation}>{p.designation || "—"}</span>
+                            <span onClick={() => setEditingCell({ personId: p.id, field: "designation" })} className="cursor-pointer text-muted-foreground hover:text-foreground text-caption">{p.designation || "—"}</span>
                           )}
                         </td>
-                        <td className="py-2 px-4">
+                        <td className="py-2 px-3">
                           {isEditing("reportingManager") ? (
                             <select autoFocus value={p.reportingManager || ""} onChange={e => updatePerson(p.id, "reportingManager", e.target.value)} onBlur={() => setEditingCell(null)}
-                              className="h-8 w-full px-2 rounded border border-accent bg-card text-ui text-foreground">
+                              className="h-7 w-full px-2 rounded border border-accent bg-card text-caption text-foreground">
                               <option value="">—</option>
                               {allManagers.filter(m => m !== "All").map(m => <option key={m} value={m}>{m}</option>)}
                             </select>
@@ -604,30 +668,46 @@ export default function Staffing() {
                             <span onClick={() => setEditingCell({ personId: p.id, field: "reportingManager" })} className="cursor-pointer text-muted-foreground hover:text-foreground text-caption">{p.reportingManager || "—"}</span>
                           )}
                         </td>
-                        <td className="py-2 px-4">
-                          {isEditing("band") ? (
-                            <select autoFocus value={p.band || ""} onChange={e => updatePerson(p.id, "band", e.target.value)} onBlur={() => setEditingCell(null)}
-                              className="h-8 w-20 px-2 rounded border border-accent bg-card text-ui text-foreground">
-                              <option value="">—</option>
-                              {BANDS.map(b => <option key={b} value={b}>{b}</option>)}
+                        <td className="py-2 px-3">
+                          <span className={cn("font-mono text-caption font-medium px-1.5 py-0.5 rounded", p.band ? "bg-accent/10 text-accent" : "text-muted-foreground")}>{p.band || "—"}</span>
+                        </td>
+                        <td className="py-2 px-3">
+                          {isEditing("region") ? (
+                            <select autoFocus value={p.region || "India"} onChange={e => updatePerson(p.id, "region", e.target.value)} onBlur={() => setEditingCell(null)}
+                              className="h-7 px-2 rounded border border-accent bg-card text-caption text-foreground">
+                              <option value="India">India</option>
+                              <option value="US">US</option>
+                              <option value="Both">Both</option>
                             </select>
                           ) : (
-                            <span onClick={() => setEditingCell({ personId: p.id, field: "band" })} className={cn("cursor-pointer font-mono text-caption font-medium px-1.5 py-0.5 rounded", p.band ? "bg-accent/10 text-accent" : "text-muted-foreground")}>{p.band || "—"}</span>
+                            <span onClick={() => setEditingCell({ personId: p.id, field: "region" })} className="cursor-pointer text-caption text-muted-foreground hover:text-foreground">{p.region || "—"}</span>
                           )}
                         </td>
-                        <td className="py-3 px-4 font-mono tabular-nums text-foreground">{util.dealCount}</td>
-                        <td className="py-3 px-4">
+                        <td className="py-2 px-3 text-center font-mono tabular-nums text-foreground">{util.dealCount}</td>
+                        <td className="py-2 px-3">
                           <div className="flex items-center gap-2">
-                            <div className="w-20 h-1.5 bg-muted rounded-sm overflow-hidden">
+                            <div className="flex-1 h-1.5 bg-muted rounded-sm overflow-hidden max-w-[100px]">
                               <div className={cn("h-full rounded-sm", util.totalPct > 100 ? "bg-destructive" : util.totalPct > 80 ? "bg-warning" : "bg-positive")} style={{ width: `${Math.min(util.totalPct, 100)}%` }} />
                             </div>
-                            <span className={cn("font-mono tabular-nums text-caption font-medium", util.totalPct > 100 ? "text-destructive" : util.totalPct > 80 ? "text-warning" : "text-positive")}>{fmtPct(util.totalPct)}</span>
                           </div>
                         </td>
-                        <td className="py-3 px-4">
-                          {p.tbh ? <span className="px-1.5 py-0.5 rounded text-caption font-medium bg-warning/10 text-warning">TBH</span>
-                            : p.leaving ? <span className="px-1.5 py-0.5 rounded text-caption font-medium bg-destructive/10 text-destructive">Leaving</span>
-                            : <span className="px-1.5 py-0.5 rounded text-caption font-medium bg-positive/10 text-positive">Active</span>}
+                        <td className="py-2 px-3 text-right">
+                          <span className={cn("font-mono tabular-nums text-caption font-medium", util.totalPct > 100 ? "text-destructive" : util.totalPct > 80 ? "text-warning" : "text-positive")}>{fmtPct(util.totalPct)}</span>
+                        </td>
+                        <td className="py-2 px-3">
+                          {p.tbh ? <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-warning/10 text-warning">TBH</span>
+                            : p.leaving ? <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-destructive/10 text-destructive">Leaving</span>
+                            : <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-positive/10 text-positive">Active</span>}
+                        </td>
+                        <td className="py-2 px-3">
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => startEditPerson(p)} className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground">
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                            <button onClick={() => deletePerson(p.id)} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -677,25 +757,18 @@ export default function Staffing() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-caption text-muted-foreground font-medium">Role Title</label>
-                  <input type="text" value={newPerson.roleTitle} onChange={e => setNewPerson(p => ({ ...p, roleTitle: e.target.value }))}
-                    className="w-full h-9 px-3 rounded-md bg-muted/50 border-0 text-ui text-foreground mt-1 focus:bg-card focus:ring-1 focus:ring-accent focus:outline-none" placeholder="e.g. SEO Manager" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-caption text-muted-foreground font-medium">Department</label>
-                  <select value={newPerson.department} onChange={e => setNewPerson(p => ({ ...p, department: e.target.value }))}
-                    className="w-full h-9 px-3 rounded-md border border-border bg-card text-ui text-foreground mt-1">
-                    <option value="">Select...</option>
-                    {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
-                  </select>
-                </div>
-                <div>
                   <label className="text-caption text-muted-foreground font-medium">Designation</label>
                   <input type="text" value={newPerson.designation} onChange={e => setNewPerson(p => ({ ...p, designation: e.target.value }))}
                     className="w-full h-9 px-3 rounded-md bg-muted/50 border-0 text-ui text-foreground mt-1 focus:bg-card focus:ring-1 focus:ring-accent focus:outline-none" placeholder="e.g. Senior BOPM" />
                 </div>
+              </div>
+              <div>
+                <label className="text-caption text-muted-foreground font-medium">Department</label>
+                <select value={newPerson.department} onChange={e => setNewPerson(p => ({ ...p, department: e.target.value }))}
+                  className="w-full h-9 px-3 rounded-md border border-border bg-card text-ui text-foreground mt-1">
+                  <option value="">Select...</option>
+                  {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -725,11 +798,11 @@ export default function Staffing() {
                   <label className="text-caption text-muted-foreground font-medium">Region</label>
                   <select value={newPerson.region} onChange={e => setNewPerson(p => ({ ...p, region: e.target.value }))}
                     className="w-full h-9 px-3 rounded-md border border-border bg-card text-ui text-foreground mt-1">
-                    <option>India</option><option>US</option><option>UAE</option>
+                    <option>India</option><option>US</option><option>Both</option>
                   </select>
                 </div>
               </div>
-              <button onClick={editPersonId ? saveEditPerson : addNewPerson} disabled={!newPerson.name || !newPerson.roleTitle}
+              <button onClick={editPersonId ? saveEditPerson : addNewPerson} disabled={!newPerson.name}
                 className="w-full h-9 rounded-md bg-foreground text-primary-foreground text-ui font-medium hover:opacity-90 disabled:opacity-50 transition-opacity mt-2">
                 {editPersonId ? "Save Changes" : "Add Person"}
               </button>
