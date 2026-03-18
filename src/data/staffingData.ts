@@ -186,6 +186,19 @@ export const ROLE_CATEGORIES: RoleCategory[] = [
   "Operations", "Content", "Content Strategy", "SEO", "Creative Strategy", "Creative Copy", "Creative Art", "Video", "Performance & Growth", "Other"
 ];
 
+// ── Business Unit → Role Category Mapping ────────────────────────────────────
+export const BU_ROLE_CATEGORIES: Record<string, RoleCategory[]> = {
+  "Pepper Creative": ["Operations", "Creative Strategy", "Creative Copy", "Creative Art", "Video"],
+  "Pepper SEO/GEO + Content": ["Operations", "Content", "SEO"],
+  "Integrated": ROLE_CATEGORIES, // all categories
+  "Content Studios": ["Operations", "Content", "Video"],
+  "Others": ROLE_CATEGORIES, // all by default
+};
+
+export const getBUCategories = (bu: string): RoleCategory[] => {
+  return BU_ROLE_CATEGORIES[bu] || ROLE_CATEGORIES;
+};
+
 // ── Role-to-People Filter Mapping ───────────────────────────────────────────
 export const ROLE_TO_PEOPLE_FILTER: Record<string, string[]> = {
   vsd: ["VSD"],
