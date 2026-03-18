@@ -139,10 +139,33 @@ export default function Staffing() {
     return filteredDeals.slice(start, start + pageSize);
   }, [filteredDeals, currentPage]);
 
+  // Compute visible role columns based on BU filter + category filter
   const visibleSlots = useMemo(() => {
-    if (categoryFilter === "All") return ROLE_SLOTS;
-    return ROLE_SLOTS.filter(s => s.category === categoryFilter);
-  }, [categoryFilter]);
+    // Determine which categories are allowed based on BU filter
+    let allowedCategories: RoleCategory[];
+    if (buFilter !== "All") {
+      allowedCategories = getBUCategories(buFilter);
+    } else {
+      // Union of all BU categories present in filtered deals
+      const buSet = new Set<RoleCategory>();
+      filteredDeals.forEach(d => {
+        getBUCategories(d.businessUnit).forEach(c => buSet.add(c));
+      });
+      allowedCategories = buSet.size > 0 ? Array.from(buSet) : ROLE_CATEGORIES;
+    }
+
+    let slots = ROLE_SLOTS.filter(s => allowedCategories.includes(s.category));
+    if (categoryFilter !== "All") {
+      slots = slots.filter(s => s.category === categoryFilter);
+    }
+    return slots;
+  }, [categoryFilter, buFilter, filteredDeals]);
+
+  // Per-deal: get which slots apply to that deal's BU
+  const getDealVisibleSlots = (deal: Deal) => {
+    const dealCategories = getBUCategories(deal.businessUnit);
+    return visibleSlots.filter(s => dealCategories.includes(s.category));
+  };
 
   const getAssignments = (dealId: string, roleKey: string) => assignments.filter(a => a.dealId === dealId && a.roleKey === roleKey);
   const getPerson = (id: string) => people.find(p => p.id === id);
