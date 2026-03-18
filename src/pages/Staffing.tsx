@@ -805,7 +805,7 @@ export default function Staffing() {
                   <label className="text-caption text-muted-foreground font-medium">Region</label>
                   <select value={newPerson.region} onChange={e => setNewPerson(p => ({ ...p, region: e.target.value }))}
                     className="w-full h-9 px-3 rounded-md border border-border bg-card text-ui text-foreground mt-1">
-                    <option>India</option><option>US</option><option>UAE</option>
+                    <option>India</option><option>US</option><option>Both</option>
                   </select>
                 </div>
               </div>
