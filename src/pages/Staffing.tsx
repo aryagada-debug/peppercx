@@ -1,7 +1,7 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
-import { Search, Plus, X, UserPlus, ChevronDown, ChevronRight, Pencil } from "lucide-react";
+import { Search, Plus, X, UserPlus, ChevronDown, ChevronRight, Pencil, Trash2, CheckSquare } from "lucide-react";
 import {
   DEFAULT_DEALS, DEFAULT_PEOPLE, DEFAULT_ASSIGNMENTS, DEFAULT_HIRING_NEEDS, DEFAULT_REVENUE_TARGETS,
   ROLE_SLOTS, ROLE_CATEGORIES, ROLE_TO_PEOPLE_FILTER, DEPARTMENTS, BANDS, BU_ROLE_CATEGORIES, getBUCategories,
