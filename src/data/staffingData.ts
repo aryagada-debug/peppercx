@@ -71,37 +71,6 @@ export interface Deal {
   totalDealValue?: number;
 }
 
-// ── BW Rules ─────────────────────────────────────────────────────────────────
-export interface BWRule {
-  id: string;
-  region: "India" | "US";
-  mrrMin: number;
-  mrrMax: number;
-  roleKey: string;
-  recommendedPct: number;
-}
-
-export const DEFAULT_BW_RULES: BWRule[] = [
-  { id: "bw1", region: "India", mrrMin: 0, mrrMax: 200000, roleKey: "vsd", recommendedPct: 5 },
-  { id: "bw2", region: "India", mrrMin: 200000, mrrMax: 500000, roleKey: "vsd", recommendedPct: 8 },
-  { id: "bw3", region: "India", mrrMin: 500000, mrrMax: Infinity, roleKey: "vsd", recommendedPct: 10 },
-  { id: "bw4", region: "India", mrrMin: 0, mrrMax: 200000, roleKey: "principal_bopm", recommendedPct: 10 },
-  { id: "bw5", region: "India", mrrMin: 200000, mrrMax: 500000, roleKey: "principal_bopm", recommendedPct: 15 },
-  { id: "bw6", region: "India", mrrMin: 500000, mrrMax: Infinity, roleKey: "principal_bopm", recommendedPct: 20 },
-  { id: "bw7", region: "India", mrrMin: 0, mrrMax: 200000, roleKey: "senior_bopm", recommendedPct: 20 },
-  { id: "bw8", region: "India", mrrMin: 200000, mrrMax: 500000, roleKey: "senior_bopm", recommendedPct: 30 },
-  { id: "bw9", region: "India", mrrMin: 500000, mrrMax: Infinity, roleKey: "senior_bopm", recommendedPct: 40 },
-  { id: "bw10", region: "US", mrrMin: 0, mrrMax: 300000, roleKey: "vsd", recommendedPct: 5 },
-  { id: "bw11", region: "US", mrrMin: 300000, mrrMax: 700000, roleKey: "vsd", recommendedPct: 10 },
-  { id: "bw12", region: "US", mrrMin: 700000, mrrMax: Infinity, roleKey: "vsd", recommendedPct: 15 },
-  { id: "bw13", region: "US", mrrMin: 0, mrrMax: 300000, roleKey: "principal_bopm", recommendedPct: 15 },
-  { id: "bw14", region: "US", mrrMin: 300000, mrrMax: 700000, roleKey: "principal_bopm", recommendedPct: 20 },
-  { id: "bw15", region: "US", mrrMin: 700000, mrrMax: Infinity, roleKey: "principal_bopm", recommendedPct: 25 },
-  { id: "bw16", region: "US", mrrMin: 0, mrrMax: 300000, roleKey: "senior_bopm", recommendedPct: 25 },
-  { id: "bw17", region: "US", mrrMin: 300000, mrrMax: 700000, roleKey: "senior_bopm", recommendedPct: 35 },
-  { id: "bw18", region: "US", mrrMin: 700000, mrrMax: Infinity, roleKey: "senior_bopm", recommendedPct: 50 },
-];
-
 // ── Hiring Plan ──────────────────────────────────────────────────────────────
 export interface HiringNeed {
   id: string;
@@ -122,23 +91,51 @@ export const DEFAULT_HIRING_NEEDS: HiringNeed[] = [
   { id: "h5", role: "BOPM", roleCategory: "Operations", pod: "Sumit", priority: "Critical", targetDate: "2026-04-01", rationale: "Backfill for leaving team member", status: "In Progress" },
 ];
 
-// ── Revenue Capacity Targets ─────────────────────────────────────────────────
+// ── Revenue Capacity Targets (per designation within department) ──────────
 export interface RevenueCapacityTarget {
-  roleCategory: RoleCategory;
+  department: string;
+  designation: string;
   targetDealValuePerPerson: number;
 }
 
 export const DEFAULT_REVENUE_TARGETS: RevenueCapacityTarget[] = [
-  { roleCategory: "Operations", targetDealValuePerPerson: 5000000 },
-  { roleCategory: "SEO", targetDealValuePerPerson: 3000000 },
-  { roleCategory: "Content", targetDealValuePerPerson: 2500000 },
-  { roleCategory: "Content Strategy", targetDealValuePerPerson: 4000000 },
-  { roleCategory: "Creative Strategy", targetDealValuePerPerson: 3500000 },
-  { roleCategory: "Creative Copy", targetDealValuePerPerson: 2000000 },
-  { roleCategory: "Creative Art", targetDealValuePerPerson: 2000000 },
-  { roleCategory: "Video", targetDealValuePerPerson: 2500000 },
-  { roleCategory: "Performance & Growth", targetDealValuePerPerson: 5000000 },
-  { roleCategory: "Other", targetDealValuePerPerson: 2000000 },
+  // Delivery Ops
+  { department: "Delivery Ops", designation: "Vertical Service Delivery Leader", targetDealValuePerPerson: 15000000 },
+  { department: "Delivery Ops", designation: "Group Account Manager", targetDealValuePerPerson: 8000000 },
+  { department: "Delivery Ops", designation: "Principal Account Engagement Lead", targetDealValuePerPerson: 7000000 },
+  { department: "Delivery Ops", designation: "Senior BOPM", targetDealValuePerPerson: 4000000 },
+  { department: "Delivery Ops", designation: "BOPM", targetDealValuePerPerson: 2500000 },
+  { department: "Delivery Ops", designation: "Junior BOPM", targetDealValuePerPerson: 1500000 },
+  { department: "Delivery Ops", designation: "Operations Consultant", targetDealValuePerPerson: 1000000 },
+  // SEO
+  { department: "Capability - SEO Team", designation: "SEO - Practice Head", targetDealValuePerPerson: 10000000 },
+  { department: "Capability - SEO Team", designation: "Group Head - SEO", targetDealValuePerPerson: 5000000 },
+  { department: "Capability - SEO Team", designation: "Senior SEO Manager", targetDealValuePerPerson: 3000000 },
+  { department: "Capability - SEO Team", designation: "SEO Manager", targetDealValuePerPerson: 2000000 },
+  { department: "Capability - SEO Team", designation: "Senior SEO Analyst", targetDealValuePerPerson: 1500000 },
+  // Content
+  { department: "Capability - Quality Team", designation: "Practice Head - Editorial", targetDealValuePerPerson: 10000000 },
+  { department: "Capability - Quality Team", designation: "Associate Director - Editorial", targetDealValuePerPerson: 5000000 },
+  { department: "Capability - Quality Team", designation: "Senior Content Lead", targetDealValuePerPerson: 2500000 },
+  { department: "Capability - Quality Team", designation: "Content Lead", targetDealValuePerPerson: 2000000 },
+  // Content Strategy
+  { department: "Content Strategy Team", designation: "Director of Content Strategy", targetDealValuePerPerson: 8000000 },
+  { department: "Content Strategy Team", designation: "Senior Manager - Content Strategy", targetDealValuePerPerson: 4000000 },
+  { department: "Content Strategy Team", designation: "Manager - Content Strategy", targetDealValuePerPerson: 2500000 },
+  // Creative
+  { department: "Capability - Creative Team", designation: "Senior Creative Director", targetDealValuePerPerson: 8000000 },
+  { department: "Capability - Creative Team", designation: "Associate Creative Director", targetDealValuePerPerson: 5000000 },
+  { department: "Capability - Creative Team", designation: "Art Director", targetDealValuePerPerson: 3000000 },
+  { department: "Capability - Creative Team", designation: "Senior Copywriter", targetDealValuePerPerson: 2000000 },
+  { department: "Capability - Creative Team", designation: "Graphic Designer", targetDealValuePerPerson: 1000000 },
+  // Creative Strategy
+  { department: "Creative Strategy Team", designation: "Creative Director - Strategy and Planning", targetDealValuePerPerson: 8000000 },
+  { department: "Creative Strategy Team", designation: "Senior Creative Strategist", targetDealValuePerPerson: 4000000 },
+  { department: "Creative Strategy Team", designation: "Creative Lead", targetDealValuePerPerson: 3000000 },
+  // Video
+  { department: "Capability - Video Production Team", designation: "Executive Producer", targetDealValuePerPerson: 5000000 },
+  { department: "Capability - Video Production Team", designation: "Creative Producer", targetDealValuePerPerson: 3000000 },
+  { department: "Capability - Video Production Team", designation: "Associate Creative Producer", targetDealValuePerPerson: 2000000 },
 ];
 
 // ── Role Definitions ─────────────────────────────────────────────────────────
@@ -190,7 +187,6 @@ export const ROLE_CATEGORIES: RoleCategory[] = [
 ];
 
 // ── Role-to-People Filter Mapping ───────────────────────────────────────────
-// Maps each roleKey to the compatible roleTitle values for dropdown filtering
 export const ROLE_TO_PEOPLE_FILTER: Record<string, string[]> = {
   vsd: ["VSD"],
   principal_bopm: ["Principal BOPM"],
@@ -378,7 +374,6 @@ export const DEFAULT_PEOPLE: Person[] = [
   { id: "p_dhrishti", name: "Dhrishti Desai", roleCategory: "Other", roleTitle: "Marketing Support", pod: "—", region: "India", leaving: false, tbh: false, department: "Marketing - Support", designation: "Marketing Support", reportingManager: "Ahmed Chabaria", band: "L0" },
 
   // ── Legacy IDs for assignment compatibility ──
-  // These people were in the old data with different IDs; kept here so existing assignments resolve
   { id: "p_ajitesh", name: "Ajitesh Pandey", roleCategory: "SEO", roleTitle: "SEO Leader", pod: "SEO", region: "US", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Leader", reportingManager: "", band: "L4" },
   { id: "p_vedanga", name: "Vedanga Bandyopadhyay", roleCategory: "SEO", roleTitle: "SEO Leader", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Leader", reportingManager: "", band: "L4" },
   { id: "p_prithvi", name: "Prithvi Pujari", roleCategory: "SEO", roleTitle: "Group Head", pod: "SEO", region: "US", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Group Head - SEO", reportingManager: "", band: "L4" },
@@ -426,8 +421,101 @@ export const DEFAULT_PEOPLE: Person[] = [
 import { ALL_DEALS } from "./allDeals";
 export const DEFAULT_DEALS: Deal[] = ALL_DEALS;
 
-// ── Staffing Assignments (from spreadsheet) ─────────────────────────────────
-export const DEFAULT_ASSIGNMENTS: StaffingAssignment[] = [
+// ── Auto-assignment: match deal.vsd to person by name ─────────────────────
+function normalizeName(name: string): string {
+  return name.toLowerCase().trim().replace(/\s+/g, " ");
+}
+
+function findPersonByName(name: string, people: Person[]): Person | undefined {
+  const norm = normalizeName(name);
+  // Exact match
+  let match = people.find(p => normalizeName(p.name) === norm);
+  if (match) return match;
+  // Last name + first name partial
+  match = people.find(p => {
+    const pn = normalizeName(p.name);
+    return pn.includes(norm) || norm.includes(pn);
+  });
+  if (match) return match;
+  // First name match (at least 4 chars)
+  if (norm.length >= 4) {
+    const firstName = norm.split(" ")[0];
+    const matches = people.filter(p => normalizeName(p.name).split(" ")[0] === firstName);
+    if (matches.length === 1) return matches[0];
+  }
+  return undefined;
+}
+
+// Determine best role key for a person based on their roleTitle
+function getRoleKeyForPerson(person: Person): string {
+  const titleToRole: Record<string, string> = {
+    "VSD": "vsd",
+    "Principal BOPM": "principal_bopm",
+    "Senior BOPM": "senior_bopm",
+    "BOPM": "bopm",
+    "Managing Editor": "managing_editor",
+    "Content Lead": "content_lead",
+    "Senior Editor": "senior_editor",
+    "SEO Leader": "seo_leader",
+    "Group Head": "seo_group_head",
+    "Sr. SEO Manager": "sr_seo_manager",
+    "SEO Manager": "seo_manager",
+    "Sr. SEO Analyst": "sr_seo_analyst",
+    "SEO Analyst": "seo_analyst",
+    "Strategy CD": "strategy_cd",
+    "Strategy ACD": "strategy_acd",
+    "Sr. Strategist": "strategy_sr",
+    "Content Strategy Director": "strategy_sr",
+    "Sr. Content Strategist": "strategy_sr",
+    "Content Strategist": "strategy_sr",
+    "CD - Copy": "cd_copy",
+    "ACD - Copy": "acd_copy",
+    "Sr. Copywriter": "sr_copywriter",
+    "Jr. Copywriter": "jr_copywriter",
+    "Sr. CD - Art": "sr_cd_art",
+    "ACD - Art": "acd_art",
+    "Art Director": "art_director",
+    "Sr. Designer": "sr_designer",
+    "Jr. Designer": "jr_designer",
+    "Production Head": "production_head",
+    "AD - Video PM": "ad_video_pm",
+    "Video PM/ACP": "video_pm",
+    "Video Editor 1": "video_editor_1",
+    "Video Editor 2": "video_editor_2",
+    "Influencer Team": "influencer",
+    "Performance & Growth": "perf_growth",
+  };
+  return titleToRole[person.roleTitle] || "bopm";
+}
+
+function generateAutoAssignments(deals: Deal[], people: Person[]): StaffingAssignment[] {
+  const assignments: StaffingAssignment[] = [];
+  const existingDealIds = new Set(MANUAL_ASSIGNMENTS.map(a => a.dealId));
+
+  deals.forEach(deal => {
+    // Skip deals that already have manual assignments
+    if (existingDealIds.has(deal.id)) return;
+    if (!deal.vsd || deal.vsd.trim() === "") return;
+
+    // Match VSD name to a person
+    const vsdPerson = findPersonByName(deal.vsd, people);
+    if (vsdPerson) {
+      const roleKey = getRoleKeyForPerson(vsdPerson);
+      assignments.push({
+        id: uid(),
+        dealId: deal.id,
+        roleKey,
+        personId: vsdPerson.id,
+        allocationPct: 0,
+      });
+    }
+  });
+
+  return assignments;
+}
+
+// ── Manual Staffing Assignments (from spreadsheet) ──────────────────────────
+const MANUAL_ASSIGNMENTS: StaffingAssignment[] = [
   // d1 - ITC Nepal
   { id: uid(), dealId: "d1", roleKey: "managing_editor", personId: "p_pratima", allocationPct: 2.5 },
   { id: uid(), dealId: "d1", roleKey: "senior_editor", personId: "p_varsha", allocationPct: 25.0 },
@@ -572,3 +660,7 @@ export const DEFAULT_ASSIGNMENTS: StaffingAssignment[] = [
   { id: uid(), dealId: "d20", roleKey: "art_director", personId: "p_nishant", allocationPct: 1.25 },
   { id: uid(), dealId: "d20", roleKey: "jr_designer", personId: "p_siddharth", allocationPct: 6.25 },
 ];
+
+// Generate auto-assignments for all deals without manual assignments
+const autoAssignments = generateAutoAssignments(ALL_DEALS, DEFAULT_PEOPLE);
+export const DEFAULT_ASSIGNMENTS: StaffingAssignment[] = [...MANUAL_ASSIGNMENTS, ...autoAssignments];
