@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { Search, Plus, X, UserPlus, ChevronDown, ChevronRight, Pencil } from "lucide-react";
 import {
   DEFAULT_DEALS, DEFAULT_PEOPLE, DEFAULT_ASSIGNMENTS, DEFAULT_HIRING_NEEDS, DEFAULT_REVENUE_TARGETS,
-  ROLE_SLOTS, ROLE_CATEGORIES, ROLE_TO_PEOPLE_FILTER, DEPARTMENTS, BANDS,
+  ROLE_SLOTS, ROLE_CATEGORIES, ROLE_TO_PEOPLE_FILTER, DEPARTMENTS, BANDS, BU_ROLE_CATEGORIES, getBUCategories,
   type Deal, type Person, type StaffingAssignment, type RoleCategory, type HiringNeed, type RevenueCapacityTarget, uid
 } from "@/data/staffingData";
 import { SummaryTab } from "@/components/staffing/SummaryTab";
