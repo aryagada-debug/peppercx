@@ -94,10 +94,18 @@ export default function Staffing() {
 
   const addNewPerson = () => {
     const id = `p_new_${uid()}`;
-    setPeople(prev => [...prev, { id, ...newPerson, leaving: false, tbh: false }]);
+    setPeople(prev => [...prev, { id, ...newPerson, leaving: false, tbh: false, department: "", designation: "", reportingManager: "", band: "" }]);
     setNewPerson({ name: "", roleCategory: "Content", roleTitle: "", pod: "", region: "India" });
     setAddPersonModal(false);
   };
+
+  const updatePerson = (personId: string, field: keyof Person, value: string) => {
+    setPeople(prev => prev.map(p => p.id === personId ? { ...p, [field]: value } : p));
+    setEditingCell(null);
+  };
+
+  const allDesignations = useMemo(() => [...new Set(people.map(p => p.designation).filter(Boolean))].sort(), [people]);
+  const allManagers = useMemo(() => [...new Set(people.map(p => p.name))].sort(), [people]);
 
   // People view: utilization per person
   const personUtilization = useMemo(() => {
