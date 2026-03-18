@@ -208,6 +208,16 @@ export default function Staffing() {
     setEditingCell(null);
   };
 
+  const deletePerson = (personId: string) => {
+    setPeople(prev => prev.filter(p => p.id !== personId));
+    setAssignments(prev => prev.filter(a => a.personId !== personId));
+    setSelectedPeople(prev => { const next = new Set(prev); next.delete(personId); return next; });
+  };
+
+  const bulkUpdate = (field: keyof Person, value: string) => {
+    setPeople(prev => prev.map(p => selectedPeople.has(p.id) ? { ...p, [field]: value } : p));
+  };
+
   // Person utilization
   const personUtilization = useMemo(() => {
     const map: Record<string, { totalPct: number; dealCount: number; deals: { dealId: string; account: string; roleKey: string; pct: number }[] }> = {};
