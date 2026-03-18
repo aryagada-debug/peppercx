@@ -478,22 +478,21 @@ export default function Staffing() {
                           {/* Team chips column */}
                           <td className="py-2 px-3">
                             {dealAssigns.length > 0 ? (
-                              <div className="flex flex-wrap gap-1">
-                                {dealAssigns.map(a => {
+                              <div className="flex items-center gap-1 overflow-hidden max-w-[280px]">
+                                {dealAssigns.slice(0, 4).map(a => {
                                   const person = getPerson(a.personId);
-                                  const slot = ROLE_SLOTS.find(s => s.roleKey === a.roleKey);
                                   if (!person) return null;
                                   return (
                                     <span key={a.id} className={cn(
-                                      "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium",
+                                      "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap shrink-0",
                                       person.tbh ? "bg-warning/10 text-warning" : person.leaving ? "bg-destructive/10 text-destructive" : "bg-secondary text-foreground"
                                     )}>
-                                      <span className="text-muted-foreground">{slot?.roleLabel || a.roleKey}:</span>
-                                      <span className="truncate max-w-[60px]">{person.name}</span>
+                                      <span className="truncate max-w-[50px]">{person.name}</span>
                                       <span className="font-mono text-muted-foreground">{a.allocationPct > 0 ? `${a.allocationPct}%` : ""}</span>
                                     </span>
                                   );
                                 })}
+                                {dealAssigns.length > 4 && <span className="text-[10px] text-muted-foreground whitespace-nowrap">+{dealAssigns.length - 4}</span>}
                               </div>
                             ) : (
                               <span className="text-[10px] text-muted-foreground italic">No team</span>
