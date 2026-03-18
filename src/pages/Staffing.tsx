@@ -32,6 +32,23 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "revenue", label: "Revenue Capacity" },
 ];
 
+const DEAL_MASTER_STATUSES = ["Active Deal", "Deal Completed Successfully", "Deal Churned / Lost", "Deal Disputed", "New Deal in SLA/PO", "New Deal", "Repeat Deal", "Pilot"];
+
+function PersonSel({ value, opts, onChange }: { value: string; opts: Person[]; onChange: (id: string) => void }) {
+  const real = opts.filter(p => !p.leaving && !p.tbh);
+  const leavers = opts.filter(p => p.leaving && !p.tbh);
+  const tbhs = opts.filter(p => p.tbh);
+  return (
+    <select className="h-7 px-1.5 rounded border border-border bg-card text-caption text-foreground max-w-[160px]"
+      value={value || ""} onChange={e => onChange(e.target.value)}>
+      <option value="">— None —</option>
+      {real.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+      {leavers.length > 0 && <optgroup label="⚠ Leaving Soon">{leavers.map(p => <option key={p.id} value={p.id}>⚠ {p.name}</option>)}</optgroup>}
+      {tbhs.length > 0 && <optgroup label="📋 TBH / Open Roles">{tbhs.map(p => <option key={p.id} value={p.id}>📋 TBH – {p.name}</option>)}</optgroup>}
+    </select>
+  );
+}
+
 function PersonBadge({ person, pct, onRemove }: { person: Person | undefined; pct: number; onRemove?: () => void }) {
   if (!person) return <span className="text-caption text-muted-foreground">—</span>;
   return (
