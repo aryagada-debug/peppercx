@@ -64,7 +64,82 @@ export interface Deal {
   vsd: string;
   seoStaffing: boolean;
   creativeStaffing: boolean;
+  mrr?: number;
+  duration?: string;
+  retainerDealValue?: number;
+  nonRetainerDealValue?: number;
+  totalDealValue?: number;
 }
+
+// ── BW Rules ─────────────────────────────────────────────────────────────────
+export interface BWRule {
+  id: string;
+  region: "India" | "US";
+  mrrMin: number;
+  mrrMax: number;
+  roleKey: string;
+  recommendedPct: number;
+}
+
+export const DEFAULT_BW_RULES: BWRule[] = [
+  { id: "bw1", region: "India", mrrMin: 0, mrrMax: 200000, roleKey: "vsd", recommendedPct: 5 },
+  { id: "bw2", region: "India", mrrMin: 200000, mrrMax: 500000, roleKey: "vsd", recommendedPct: 8 },
+  { id: "bw3", region: "India", mrrMin: 500000, mrrMax: Infinity, roleKey: "vsd", recommendedPct: 10 },
+  { id: "bw4", region: "India", mrrMin: 0, mrrMax: 200000, roleKey: "principal_bopm", recommendedPct: 10 },
+  { id: "bw5", region: "India", mrrMin: 200000, mrrMax: 500000, roleKey: "principal_bopm", recommendedPct: 15 },
+  { id: "bw6", region: "India", mrrMin: 500000, mrrMax: Infinity, roleKey: "principal_bopm", recommendedPct: 20 },
+  { id: "bw7", region: "India", mrrMin: 0, mrrMax: 200000, roleKey: "senior_bopm", recommendedPct: 20 },
+  { id: "bw8", region: "India", mrrMin: 200000, mrrMax: 500000, roleKey: "senior_bopm", recommendedPct: 30 },
+  { id: "bw9", region: "India", mrrMin: 500000, mrrMax: Infinity, roleKey: "senior_bopm", recommendedPct: 40 },
+  { id: "bw10", region: "US", mrrMin: 0, mrrMax: 300000, roleKey: "vsd", recommendedPct: 5 },
+  { id: "bw11", region: "US", mrrMin: 300000, mrrMax: 700000, roleKey: "vsd", recommendedPct: 10 },
+  { id: "bw12", region: "US", mrrMin: 700000, mrrMax: Infinity, roleKey: "vsd", recommendedPct: 15 },
+  { id: "bw13", region: "US", mrrMin: 0, mrrMax: 300000, roleKey: "principal_bopm", recommendedPct: 15 },
+  { id: "bw14", region: "US", mrrMin: 300000, mrrMax: 700000, roleKey: "principal_bopm", recommendedPct: 20 },
+  { id: "bw15", region: "US", mrrMin: 700000, mrrMax: Infinity, roleKey: "principal_bopm", recommendedPct: 25 },
+  { id: "bw16", region: "US", mrrMin: 0, mrrMax: 300000, roleKey: "senior_bopm", recommendedPct: 25 },
+  { id: "bw17", region: "US", mrrMin: 300000, mrrMax: 700000, roleKey: "senior_bopm", recommendedPct: 35 },
+  { id: "bw18", region: "US", mrrMin: 700000, mrrMax: Infinity, roleKey: "senior_bopm", recommendedPct: 50 },
+];
+
+// ── Hiring Plan ──────────────────────────────────────────────────────────────
+export interface HiringNeed {
+  id: string;
+  role: string;
+  roleCategory: RoleCategory;
+  pod: string;
+  priority: "Critical" | "High" | "Medium";
+  targetDate: string;
+  rationale: string;
+  status: "Open" | "In Progress" | "Filled";
+}
+
+export const DEFAULT_HIRING_NEEDS: HiringNeed[] = [
+  { id: "h1", role: "Senior BOPM", roleCategory: "Operations", pod: "Neema", priority: "Critical", targetDate: "2026-04-15", rationale: "US pod understaffed - 3 accounts without BOPM", status: "Open" },
+  { id: "h2", role: "SEO Manager", roleCategory: "SEO", pod: "SEO", priority: "High", targetDate: "2026-05-01", rationale: "Growing US account load needs additional SEO manager", status: "In Progress" },
+  { id: "h3", role: "Content Lead", roleCategory: "Content", pod: "Quality", priority: "High", targetDate: "2026-04-30", rationale: "Expanding India content operations", status: "Open" },
+  { id: "h4", role: "Jr. Designer", roleCategory: "Creative Art", pod: "Creative", priority: "Medium", targetDate: "2026-06-01", rationale: "Support growing creative workload", status: "Open" },
+  { id: "h5", role: "BOPM", roleCategory: "Operations", pod: "Sumit", priority: "Critical", targetDate: "2026-04-01", rationale: "Backfill for leaving team member", status: "In Progress" },
+];
+
+// ── Revenue Capacity Targets ─────────────────────────────────────────────────
+export interface RevenueCapacityTarget {
+  roleCategory: RoleCategory;
+  targetDealValuePerPerson: number;
+}
+
+export const DEFAULT_REVENUE_TARGETS: RevenueCapacityTarget[] = [
+  { roleCategory: "Operations", targetDealValuePerPerson: 5000000 },
+  { roleCategory: "SEO", targetDealValuePerPerson: 3000000 },
+  { roleCategory: "Content", targetDealValuePerPerson: 2500000 },
+  { roleCategory: "Content Strategy", targetDealValuePerPerson: 4000000 },
+  { roleCategory: "Creative Strategy", targetDealValuePerPerson: 3500000 },
+  { roleCategory: "Creative Copy", targetDealValuePerPerson: 2000000 },
+  { roleCategory: "Creative Art", targetDealValuePerPerson: 2000000 },
+  { roleCategory: "Video", targetDealValuePerPerson: 2500000 },
+  { roleCategory: "Performance & Growth", targetDealValuePerPerson: 5000000 },
+  { roleCategory: "Other", targetDealValuePerPerson: 2000000 },
+];
 
 // ── Role Definitions ─────────────────────────────────────────────────────────
 export const ROLE_SLOTS: RoleSlot[] = [
