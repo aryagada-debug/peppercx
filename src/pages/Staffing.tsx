@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { Search, Plus, X, UserPlus, ChevronDown, ChevronRight, Pencil } from "lucide-react";
 import {
   DEFAULT_DEALS, DEFAULT_PEOPLE, DEFAULT_ASSIGNMENTS, DEFAULT_HIRING_NEEDS, DEFAULT_REVENUE_TARGETS,
-  ROLE_SLOTS, ROLE_CATEGORIES, ROLE_TO_PEOPLE_FILTER, DEPARTMENTS, BANDS,
+  ROLE_SLOTS, ROLE_CATEGORIES, ROLE_TO_PEOPLE_FILTER, DEPARTMENTS, BANDS, BU_ROLE_CATEGORIES, getBUCategories,
   type Deal, type Person, type StaffingAssignment, type RoleCategory, type HiringNeed, type RevenueCapacityTarget, uid
 } from "@/data/staffingData";
 import { SummaryTab } from "@/components/staffing/SummaryTab";
@@ -79,6 +79,8 @@ export default function Staffing() {
   const [categoryFilter, setCategoryFilter] = useState<RoleCategory | "All">("All");
   const [staffingStatusFilter, setStaffingStatusFilter] = useState<string>("All");
   const [dealTypeFilter, setDealTypeFilter] = useState<string>("All");
+  const [buFilter, setBuFilter] = useState<string>("All");
+  const [capabilityFilter, setCapabilityFilter] = useState<string>("All");
   // Shared filters
   const [designationFilter, setDesignationFilter] = useState<string>("All");
   const [bandFilter, setBandFilter] = useState<string>("All");
@@ -117,6 +119,8 @@ export default function Staffing() {
       if (vsdFilter !== "All" && d.vsd !== vsdFilter) return false;
       if (staffingStatusFilter !== "All" && d.staffingStatus !== staffingStatusFilter) return false;
       if (dealTypeFilter !== "All" && d.dealType !== dealTypeFilter) return false;
+      if (buFilter !== "All" && d.businessUnit !== buFilter) return false;
+      if (capabilityFilter !== "All" && d.capabilityLine !== capabilityFilter) return false;
       if (search && !d.account.toLowerCase().includes(search.toLowerCase()) && !d.dealName.toLowerCase().includes(search.toLowerCase()) && !d.dealId.includes(search)) return false;
       if (designationFilter !== "All" || bandFilter !== "All" || managerFilter !== "All") {
         const dealAssigns = assignments.filter(a => a.dealId === d.id);
@@ -127,7 +131,7 @@ export default function Staffing() {
       }
       return true;
     });
-  }, [deals, vsdFilter, staffingStatusFilter, dealTypeFilter, search, designationFilter, bandFilter, managerFilter, assignments, people]);
+  }, [deals, vsdFilter, staffingStatusFilter, dealTypeFilter, buFilter, capabilityFilter, search, designationFilter, bandFilter, managerFilter, assignments, people]);
 
   const totalPages = Math.ceil(filteredDeals.length / pageSize);
   const paginatedDeals = useMemo(() => {
@@ -135,10 +139,33 @@ export default function Staffing() {
     return filteredDeals.slice(start, start + pageSize);
   }, [filteredDeals, currentPage]);
 
+  // Compute visible role columns based on BU filter + category filter
   const visibleSlots = useMemo(() => {
-    if (categoryFilter === "All") return ROLE_SLOTS;
-    return ROLE_SLOTS.filter(s => s.category === categoryFilter);
-  }, [categoryFilter]);
+    // Determine which categories are allowed based on BU filter
+    let allowedCategories: RoleCategory[];
+    if (buFilter !== "All") {
+      allowedCategories = getBUCategories(buFilter);
+    } else {
+      // Union of all BU categories present in filtered deals
+      const buSet = new Set<RoleCategory>();
+      filteredDeals.forEach(d => {
+        getBUCategories(d.businessUnit).forEach(c => buSet.add(c));
+      });
+      allowedCategories = buSet.size > 0 ? Array.from(buSet) : ROLE_CATEGORIES;
+    }
+
+    let slots = ROLE_SLOTS.filter(s => allowedCategories.includes(s.category));
+    if (categoryFilter !== "All") {
+      slots = slots.filter(s => s.category === categoryFilter);
+    }
+    return slots;
+  }, [categoryFilter, buFilter, filteredDeals]);
+
+  // Per-deal: get which slots apply to that deal's BU
+  const getDealVisibleSlots = (deal: Deal) => {
+    const dealCategories = getBUCategories(deal.businessUnit);
+    return visibleSlots.filter(s => dealCategories.includes(s.category));
+  };
 
   const getAssignments = (dealId: string, roleKey: string) => assignments.filter(a => a.dealId === dealId && a.roleKey === roleKey);
   const getPerson = (id: string) => people.find(p => p.id === id);
@@ -229,11 +256,12 @@ export default function Staffing() {
 
   // Inline deal expand: get all role categories and their slots for a deal
   const renderDealExpand = (deal: Deal) => {
-    const categories = ROLE_CATEGORIES.filter(cat => {
+    const dealCategories = getBUCategories(deal.businessUnit);
+    const categories = dealCategories.filter(cat => {
       const catSlots = ROLE_SLOTS.filter(s => s.category === cat);
       return catSlots.some(s => {
         const a = getAssignments(deal.id, s.roleKey);
-        return a.length > 0 || (cat === "Operations" || (deal.seoStaffing && cat === "SEO") || (deal.creativeStaffing && (cat === "Creative Art" || cat === "Creative Copy" || cat === "Creative Strategy")));
+        return a.length > 0;
       }) || cat === "Operations"; // Always show Operations
     });
 
@@ -264,7 +292,7 @@ export default function Staffing() {
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {ROLE_CATEGORIES.map(cat => {
+              {dealCategories.map(cat => {
                 const catSlots = ROLE_SLOTS.filter(s => s.category === cat);
                 const hasAssignment = catSlots.some(s => getAssignments(deal.id, s.roleKey).length > 0);
                 if (!hasAssignment && cat !== "Operations") return null;
@@ -365,6 +393,14 @@ export default function Staffing() {
                 <input type="text" placeholder="Search accounts, deals..." value={search} onChange={e => setSearch(e.target.value)}
                   className="w-full h-9 pl-9 pr-3 rounded-md bg-muted/50 border-0 text-ui text-foreground placeholder:text-muted-foreground focus:bg-card focus:ring-1 focus:ring-accent focus:outline-none transition-colors" />
               </div>
+              <select value={buFilter} onChange={e => setBuFilter(e.target.value)} className="h-9 px-3 rounded-md border border-border bg-card text-ui text-foreground">
+                <option value="All">All Business Units</option>
+                {uniqueBusinessUnits.map(bu => <option key={bu} value={bu}>{bu}</option>)}
+              </select>
+              <select value={capabilityFilter} onChange={e => setCapabilityFilter(e.target.value)} className="h-9 px-3 rounded-md border border-border bg-card text-ui text-foreground">
+                <option value="All">All Capability Lines</option>
+                {uniqueCapabilityLines.map(cl => <option key={cl} value={cl}>{cl}</option>)}
+              </select>
               <select value={vsdFilter} onChange={e => setVsdFilter(e.target.value)} className="h-9 px-3 rounded-md border border-border bg-card text-ui text-foreground">
                 {vsds.map(v => <option key={v} value={v}>{v === "All" ? "All VSDs" : v}</option>)}
               </select>
@@ -481,6 +517,11 @@ export default function Staffing() {
                           <td className="py-2 px-3"><span className={cn("px-1.5 py-0.5 rounded text-caption font-medium", deal.dealType === "Retainer" ? "bg-positive/10 text-positive" : deal.dealType === "Pilot" ? "bg-warning/10 text-warning" : "bg-accent/10 text-accent")}>{deal.dealType}</span></td>
                           <td className="py-2 px-3"><span className={cn("px-1.5 py-0.5 rounded text-caption font-medium", deal.staffingStatus === "Already Staffed" ? "bg-positive/10 text-positive" : deal.staffingStatus === "Staffing Needed" ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground")}>{deal.staffingStatus === "Already Staffed" ? "Staffed" : deal.staffingStatus === "Staffing Needed" ? "Needed" : "N/A"}</span></td>
                           {visibleSlots.map(slot => {
+                            const dealCategories = getBUCategories(deal.businessUnit);
+                            const isApplicable = dealCategories.includes(slot.category);
+                            if (!isApplicable) {
+                              return <td key={slot.roleKey} className="py-2 px-3 bg-muted/20"><span className="text-[10px] text-muted-foreground/40">N/A</span></td>;
+                            }
                             const slotAssignments = getAssignments(deal.id, slot.roleKey);
                             const roleOpts = people.filter(p => {
                               const allowedTitles = ROLE_TO_PEOPLE_FILTER[slot.roleKey];
