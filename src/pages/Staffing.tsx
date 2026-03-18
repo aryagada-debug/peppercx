@@ -68,7 +68,7 @@ function PersonBadge({ person, pct, onRemove }: { person: Person | undefined; pc
 // ── Main Component ──────────────────────────────────────────────────────────
 export default function Staffing() {
   const [activeTab, setActiveTab] = useState<TabKey>("summary");
-  const [deals] = useState<Deal[]>(DEFAULT_DEALS);
+  const [deals, setDeals] = useState<Deal[]>(DEFAULT_DEALS);
   const [people, setPeople] = useState<Person[]>(DEFAULT_PEOPLE);
   const [assignments, setAssignments] = useState<StaffingAssignment[]>(DEFAULT_ASSIGNMENTS);
   const [hiringNeeds, setHiringNeeds] = useState<HiringNeed[]>(DEFAULT_HIRING_NEEDS);
