@@ -110,7 +110,7 @@ export const ROLE_SLOTS: RoleSlot[] = [
 ];
 
 export const ROLE_CATEGORIES: RoleCategory[] = [
-  "Operations", "Content", "SEO", "Creative Strategy", "Creative Copy", "Creative Art", "Video", "Performance & Growth", "Other"
+  "Operations", "Content", "Content Strategy", "SEO", "Creative Strategy", "Creative Copy", "Creative Art", "Video", "Performance & Growth", "Other"
 ];
 
 // ── Role-to-People Filter Mapping ───────────────────────────────────────────
