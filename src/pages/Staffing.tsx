@@ -119,6 +119,8 @@ export default function Staffing() {
       if (vsdFilter !== "All" && d.vsd !== vsdFilter) return false;
       if (staffingStatusFilter !== "All" && d.staffingStatus !== staffingStatusFilter) return false;
       if (dealTypeFilter !== "All" && d.dealType !== dealTypeFilter) return false;
+      if (buFilter !== "All" && d.businessUnit !== buFilter) return false;
+      if (capabilityFilter !== "All" && d.capabilityLine !== capabilityFilter) return false;
       if (search && !d.account.toLowerCase().includes(search.toLowerCase()) && !d.dealName.toLowerCase().includes(search.toLowerCase()) && !d.dealId.includes(search)) return false;
       if (designationFilter !== "All" || bandFilter !== "All" || managerFilter !== "All") {
         const dealAssigns = assignments.filter(a => a.dealId === d.id);
@@ -129,7 +131,7 @@ export default function Staffing() {
       }
       return true;
     });
-  }, [deals, vsdFilter, staffingStatusFilter, dealTypeFilter, search, designationFilter, bandFilter, managerFilter, assignments, people]);
+  }, [deals, vsdFilter, staffingStatusFilter, dealTypeFilter, buFilter, capabilityFilter, search, designationFilter, bandFilter, managerFilter, assignments, people]);
 
   const totalPages = Math.ceil(filteredDeals.length / pageSize);
   const paginatedDeals = useMemo(() => {
