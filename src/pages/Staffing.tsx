@@ -104,6 +104,12 @@ export default function Staffing() {
   const allDesignations = useMemo(() => ["All", ...[...new Set(people.map(p => p.designation).filter(Boolean))].sort()], [people]);
   const allManagers = useMemo(() => ["All", ...[...new Set(people.map(p => p.name))].sort()], [people]);
   const allBands = ["All", ...BANDS];
+  const uniqueBusinessUnits = useMemo(() => [...new Set(deals.map(d => d.businessUnit).filter(Boolean))].sort(), [deals]);
+  const uniqueCapabilityLines = useMemo(() => [...new Set(deals.map(d => d.capabilityLine).filter(Boolean))].sort(), [deals]);
+
+  const updateDeal = (dealId: string, field: keyof Deal, value: string) => {
+    setDeals(prev => prev.map(d => d.id === dealId ? { ...d, [field]: value } : d));
+  };
 
   const filteredDeals = useMemo(() => {
     setCurrentPage(1);
