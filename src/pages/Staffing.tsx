@@ -762,20 +762,13 @@ export default function Staffing() {
                     className="w-full h-9 px-3 rounded-md bg-muted/50 border-0 text-ui text-foreground mt-1 focus:bg-card focus:ring-1 focus:ring-accent focus:outline-none" placeholder="e.g. Senior BOPM" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-caption text-muted-foreground font-medium">Department</label>
-                  <select value={newPerson.department} onChange={e => setNewPerson(p => ({ ...p, department: e.target.value }))}
-                    className="w-full h-9 px-3 rounded-md border border-border bg-card text-ui text-foreground mt-1">
-                    <option value="">Select...</option>
-                    {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-caption text-muted-foreground font-medium">Designation</label>
-                  <input type="text" value={newPerson.designation} onChange={e => setNewPerson(p => ({ ...p, designation: e.target.value }))}
-                    className="w-full h-9 px-3 rounded-md bg-muted/50 border-0 text-ui text-foreground mt-1 focus:bg-card focus:ring-1 focus:ring-accent focus:outline-none" placeholder="e.g. Senior BOPM" />
-                </div>
+              <div>
+                <label className="text-caption text-muted-foreground font-medium">Department</label>
+                <select value={newPerson.department} onChange={e => setNewPerson(p => ({ ...p, department: e.target.value }))}
+                  className="w-full h-9 px-3 rounded-md border border-border bg-card text-ui text-foreground mt-1">
+                  <option value="">Select...</option>
+                  {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
