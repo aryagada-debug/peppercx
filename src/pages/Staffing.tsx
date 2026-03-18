@@ -48,6 +48,7 @@ export default function Staffing() {
   const [addModal, setAddModal] = useState<{ dealId: string; roleKey: string } | null>(null);
   const [addPersonModal, setAddPersonModal] = useState(false);
   const [newPerson, setNewPerson] = useState({ name: "", roleCategory: "Content" as RoleCategory, roleTitle: "", pod: "", region: "India" });
+  const [editingCell, setEditingCell] = useState<{ personId: string; field: string } | null>(null);
 
   // Edit allocation
   const [editingAssignment, setEditingAssignment] = useState<string | null>(null);
