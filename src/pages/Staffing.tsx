@@ -1,14 +1,13 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
-import { Search, Plus, X, UserPlus, ChevronDown } from "lucide-react";
+import { Search, Plus, X, UserPlus, ChevronDown, ChevronRight, Pencil } from "lucide-react";
 import {
-  DEFAULT_DEALS, DEFAULT_PEOPLE, DEFAULT_ASSIGNMENTS, DEFAULT_BW_RULES, DEFAULT_HIRING_NEEDS, DEFAULT_REVENUE_TARGETS,
+  DEFAULT_DEALS, DEFAULT_PEOPLE, DEFAULT_ASSIGNMENTS, DEFAULT_HIRING_NEEDS, DEFAULT_REVENUE_TARGETS,
   ROLE_SLOTS, ROLE_CATEGORIES, ROLE_TO_PEOPLE_FILTER, DEPARTMENTS, BANDS,
-  type Deal, type Person, type StaffingAssignment, type RoleCategory, type BWRule, type HiringNeed, type RevenueCapacityTarget, uid
+  type Deal, type Person, type StaffingAssignment, type RoleCategory, type HiringNeed, type RevenueCapacityTarget, uid
 } from "@/data/staffingData";
 import { SummaryTab } from "@/components/staffing/SummaryTab";
-import { BWRulesTab } from "@/components/staffing/BWRulesTab";
 import { CapacityTab } from "@/components/staffing/CapacityTab";
 import { HiringGapTab } from "@/components/staffing/HiringGapTab";
 import { RevenueCapacityTab } from "@/components/staffing/RevenueCapacityTab";
@@ -23,12 +22,11 @@ const fmtCurrency = (n: number | undefined) => {
   return `₹${n}`;
 };
 
-type TabKey = "summary" | "accounts" | "people" | "bw_rules" | "capacity" | "hiring" | "revenue";
+type TabKey = "summary" | "accounts" | "people" | "capacity" | "hiring" | "revenue";
 const TABS: { key: TabKey; label: string }[] = [
   { key: "summary", label: "Summary" },
   { key: "accounts", label: "Accounts" },
   { key: "people", label: "People" },
-  { key: "bw_rules", label: "BW Rules" },
   { key: "capacity", label: "Capacity" },
   { key: "hiring", label: "Hiring Gap" },
   { key: "revenue", label: "Revenue Capacity" },
@@ -56,7 +54,6 @@ export default function Staffing() {
   const [deals] = useState<Deal[]>(DEFAULT_DEALS);
   const [people, setPeople] = useState<Person[]>(DEFAULT_PEOPLE);
   const [assignments, setAssignments] = useState<StaffingAssignment[]>(DEFAULT_ASSIGNMENTS);
-  const [bwRules, setBwRules] = useState<BWRule[]>(DEFAULT_BW_RULES);
   const [hiringNeeds, setHiringNeeds] = useState<HiringNeed[]>(DEFAULT_HIRING_NEEDS);
   const [revenueTargets, setRevenueTargets] = useState<RevenueCapacityTarget[]>(DEFAULT_REVENUE_TARGETS);
 
@@ -65,7 +62,7 @@ export default function Staffing() {
   const [categoryFilter, setCategoryFilter] = useState<RoleCategory | "All">("All");
   const [staffingStatusFilter, setStaffingStatusFilter] = useState<string>("All");
   const [dealTypeFilter, setDealTypeFilter] = useState<string>("All");
-  // Shared filters for People & Accounts
+  // Shared filters
   const [designationFilter, setDesignationFilter] = useState<string>("All");
   const [bandFilter, setBandFilter] = useState<string>("All");
   const [managerFilter, setManagerFilter] = useState<string>("All");
@@ -73,9 +70,15 @@ export default function Staffing() {
   const [peopleCategoryTab, setPeopleCategoryTab] = useState<RoleCategory>(ROLE_CATEGORIES[0]);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 25;
-  const [addModal, setAddModal] = useState<{ dealId: string; roleKey: string } | null>(null);
+  // Inline deal expand instead of modal
+  const [expandedDealId, setExpandedDealId] = useState<string | null>(null);
+  const [inlineStaffRole, setInlineStaffRole] = useState<string | null>(null);
   const [addPersonModal, setAddPersonModal] = useState(false);
-  const [newPerson, setNewPerson] = useState({ name: "", roleCategory: "Content" as RoleCategory, roleTitle: "", pod: "", region: "India" });
+  const [editPersonId, setEditPersonId] = useState<string | null>(null);
+  const [newPerson, setNewPerson] = useState<Omit<Person, "id" | "leaving" | "tbh">>({
+    name: "", roleCategory: "Content", roleTitle: "", pod: "", region: "India",
+    department: "", designation: "", reportingManager: "", band: "",
+  });
   const [editingCell, setEditingCell] = useState<{ personId: string; field: string } | null>(null);
   const [editingAssignment, setEditingAssignment] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -85,7 +88,6 @@ export default function Staffing() {
   const allManagers = useMemo(() => ["All", ...[...new Set(people.map(p => p.name))].sort()], [people]);
   const allBands = ["All", ...BANDS];
 
-  // Accounts filtering — also apply designation/band/manager by checking assigned people
   const filteredDeals = useMemo(() => {
     setCurrentPage(1);
     return deals.filter(d => {
@@ -93,7 +95,6 @@ export default function Staffing() {
       if (staffingStatusFilter !== "All" && d.staffingStatus !== staffingStatusFilter) return false;
       if (dealTypeFilter !== "All" && d.dealType !== dealTypeFilter) return false;
       if (search && !d.account.toLowerCase().includes(search.toLowerCase()) && !d.dealName.toLowerCase().includes(search.toLowerCase()) && !d.dealId.includes(search)) return false;
-      // Filter by assigned people attributes
       if (designationFilter !== "All" || bandFilter !== "All" || managerFilter !== "All") {
         const dealAssigns = assignments.filter(a => a.dealId === d.id);
         const assignedPeople = dealAssigns.map(a => people.find(p => p.id === a.personId)).filter(Boolean) as Person[];
@@ -125,20 +126,38 @@ export default function Staffing() {
   };
   const addAssignment = (dealId: string, roleKey: string, personId: string) => {
     setAssignments(prev => [...prev, { id: uid(), dealId, roleKey, personId, allocationPct: 0 }]);
-    setAddModal(null);
+    setInlineStaffRole(null);
   };
+
   const addNewPerson = () => {
     const id = `p_new_${uid()}`;
-    setPeople(prev => [...prev, { id, ...newPerson, leaving: false, tbh: false, department: "", designation: "", reportingManager: "", band: "" }]);
-    setNewPerson({ name: "", roleCategory: "Content", roleTitle: "", pod: "", region: "India" });
+    setPeople(prev => [...prev, { id, ...newPerson, leaving: false, tbh: false }]);
+    setNewPerson({ name: "", roleCategory: "Content", roleTitle: "", pod: "", region: "India", department: "", designation: "", reportingManager: "", band: "" });
     setAddPersonModal(false);
   };
+
+  const saveEditPerson = () => {
+    if (!editPersonId) return;
+    setPeople(prev => prev.map(p => p.id === editPersonId ? { ...p, ...newPerson } : p));
+    setEditPersonId(null);
+    setAddPersonModal(false);
+  };
+
+  const startEditPerson = (p: Person) => {
+    setEditPersonId(p.id);
+    setNewPerson({
+      name: p.name, roleCategory: p.roleCategory, roleTitle: p.roleTitle, pod: p.pod, region: p.region,
+      department: p.department || "", designation: p.designation || "", reportingManager: p.reportingManager || "", band: p.band || "",
+    });
+    setAddPersonModal(true);
+  };
+
   const updatePerson = (personId: string, field: keyof Person, value: string) => {
     setPeople(prev => prev.map(p => p.id === personId ? { ...p, [field]: value } : p));
     setEditingCell(null);
   };
 
-  // People view: utilization per person
+  // Person utilization
   const personUtilization = useMemo(() => {
     const map: Record<string, { totalPct: number; dealCount: number; deals: { dealId: string; account: string; roleKey: string; pct: number }[] }> = {};
     people.forEach(p => { map[p.id] = { totalPct: 0, dealCount: 0, deals: [] }; });
@@ -155,7 +174,6 @@ export default function Staffing() {
     return map;
   }, [assignments, people, deals]);
 
-  // People filter with designation/band/manager
   const filteredPeople = useMemo(() => people.filter(p => {
     if (p.roleCategory !== peopleCategoryTab) return false;
     if (designationFilter !== "All" && p.designation !== designationFilter) return false;
@@ -164,7 +182,6 @@ export default function Staffing() {
     return true;
   }), [people, peopleCategoryTab, designationFilter, bandFilter, managerFilter]);
 
-  // Shared filter bar for People & Accounts
   const FilterBar = () => (
     <div className="flex items-center gap-2 flex-wrap">
       <select value={designationFilter} onChange={e => setDesignationFilter(e.target.value)} className="h-8 px-2 rounded-md border border-border bg-card text-caption text-foreground">
@@ -187,6 +204,114 @@ export default function Staffing() {
     </div>
   );
 
+  // Inline deal expand: get all role categories and their slots for a deal
+  const renderDealExpand = (deal: Deal) => {
+    const categories = ROLE_CATEGORIES.filter(cat => {
+      const catSlots = ROLE_SLOTS.filter(s => s.category === cat);
+      return catSlots.some(s => {
+        const a = getAssignments(deal.id, s.roleKey);
+        return a.length > 0 || (cat === "Operations" || (deal.seoStaffing && cat === "SEO") || (deal.creativeStaffing && (cat === "Creative Art" || cat === "Creative Copy" || cat === "Creative Strategy")));
+      }) || cat === "Operations"; // Always show Operations
+    });
+
+    return (
+      <tr key={`${deal.id}-expand`}>
+        <td colSpan={9 + visibleSlots.length} className="p-0">
+          <div className="bg-secondary/5 border-t border-b border-accent/20 px-6 py-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h4 className="text-ui font-semibold text-foreground">{deal.account} — {deal.dealName}</h4>
+                <p className="text-caption text-muted-foreground">{deal.dealId} • {deal.dealType} • {deal.vsd}</p>
+              </div>
+              <button onClick={() => setExpandedDealId(null)} className="text-muted-foreground hover:text-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {ROLE_CATEGORIES.map(cat => {
+                const catSlots = ROLE_SLOTS.filter(s => s.category === cat);
+                const hasAssignment = catSlots.some(s => getAssignments(deal.id, s.roleKey).length > 0);
+                if (!hasAssignment && cat !== "Operations") return null;
+
+                return (
+                  <div key={cat} className="border border-border rounded-lg p-3 bg-card">
+                    <h5 className="text-caption font-semibold text-muted-foreground uppercase tracking-wider mb-2">{cat}</h5>
+                    <div className="space-y-2">
+                      {catSlots.map(slot => {
+                        const slotAssigns = getAssignments(deal.id, slot.roleKey);
+                        const isStaffing = inlineStaffRole === `${deal.id}|${slot.roleKey}`;
+
+                        return (
+                          <div key={slot.roleKey} className="space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-caption text-muted-foreground">{slot.roleLabel}</span>
+                              <button
+                                onClick={() => setInlineStaffRole(isStaffing ? null : `${deal.id}|${slot.roleKey}`)}
+                                className="text-accent hover:text-accent/80 text-caption flex items-center gap-0.5">
+                                <Plus className="h-3 w-3" />
+                              </button>
+                            </div>
+                            {slotAssigns.map(a => {
+                              const p = getPerson(a.personId);
+                              const util = personUtilization[a.personId];
+                              const available = 100 - (util?.totalPct || 0);
+                              return (
+                                <div key={a.id} className="flex items-center justify-between pl-2 py-0.5">
+                                  <div className="flex items-center gap-1">
+                                    {editingAssignment === a.id ? (
+                                      <input type="number" step="0.25" className="w-14 h-6 px-1 rounded border border-accent text-caption font-mono bg-card text-foreground"
+                                        value={editValue} onChange={e => setEditValue(e.target.value)} autoFocus
+                                        onBlur={() => updateAllocation(a.id, parseFloat(editValue) || 0)}
+                                        onKeyDown={e => { if (e.key === "Enter") updateAllocation(a.id, parseFloat(editValue) || 0); if (e.key === "Escape") setEditingAssignment(null); }} />
+                                    ) : (
+                                      <span onClick={() => { setEditingAssignment(a.id); setEditValue(String(a.allocationPct)); }}
+                                        className="cursor-pointer">
+                                        <PersonBadge person={p} pct={a.allocationPct} onRemove={() => removeAssignment(a.id)} />
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className={cn("text-caption font-mono", available < 0 ? "text-destructive" : available < 20 ? "text-warning" : "text-muted-foreground")}>
+                                    {available.toFixed(0)}% avail
+                                  </span>
+                                </div>
+                              );
+                            })}
+                            {isStaffing && (
+                              <div className="pl-2 mt-1 max-h-40 overflow-y-auto border border-border rounded-md bg-card">
+                                {people.filter(p => {
+                                  if (p.leaving) return false;
+                                  const allowedTitles = ROLE_TO_PEOPLE_FILTER[slot.roleKey];
+                                  if (allowedTitles) return allowedTitles.includes(p.roleTitle);
+                                  return true;
+                                }).map(p => {
+                                  const util = personUtilization[p.id];
+                                  const available = 100 - (util?.totalPct || 0);
+                                  return (
+                                    <button key={p.id} onClick={() => addAssignment(deal.id, slot.roleKey, p.id)}
+                                      className="w-full text-left px-2 py-1.5 hover:bg-secondary transition-colors flex items-center justify-between text-caption">
+                                      <span className={cn("font-medium", p.tbh && "text-warning italic")}>{p.name}</span>
+                                      <span className={cn("font-mono", available < 0 ? "text-destructive" : available < 20 ? "text-warning" : "text-muted-foreground")}>
+                                        {available.toFixed(0)}%
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
   return (
     <AppLayout>
       <div className="p-8">
@@ -195,7 +320,8 @@ export default function Staffing() {
             <h1 className="text-subhead font-semibold tracking-tight text-foreground">Staffing & Capacity</h1>
             <p className="text-ui text-muted-foreground mt-1">{deals.length} deals • {people.filter(p => !p.tbh).length} people • {assignments.length} assignments</p>
           </div>
-          <button onClick={() => setAddPersonModal(true)} className="h-9 px-4 rounded-md bg-foreground text-primary-foreground text-ui font-medium hover:opacity-90 transition-opacity flex items-center gap-2">
+          <button onClick={() => { setEditPersonId(null); setNewPerson({ name: "", roleCategory: "Content", roleTitle: "", pod: "", region: "India", department: "", designation: "", reportingManager: "", band: "" }); setAddPersonModal(true); }}
+            className="h-9 px-4 rounded-md bg-foreground text-primary-foreground text-ui font-medium hover:opacity-90 transition-opacity flex items-center gap-2">
             <UserPlus className="h-4 w-4" /> Add Person
           </button>
         </div>
@@ -271,45 +397,50 @@ export default function Staffing() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedDeals.map(deal => (
-                    <tr key={deal.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
-                      <td className="py-2 px-3 font-mono text-accent font-medium sticky left-0 bg-card z-10">{deal.dealId}</td>
-                      <td className="py-2 px-3 font-medium text-foreground sticky left-[80px] bg-card z-10 truncate max-w-[140px]" title={`${deal.account} — ${deal.dealName}`}>{deal.account}</td>
-                      <td className="py-2 px-3 text-right font-mono text-foreground">{fmtCurrency(deal.mrr)}</td>
-                      <td className="py-2 px-3 text-muted-foreground text-caption">{deal.duration || "—"}</td>
-                      <td className="py-2 px-3 text-right font-mono text-foreground">{fmtCurrency(deal.retainerDealValue)}</td>
-                      <td className="py-2 px-3 text-right font-mono text-foreground">{fmtCurrency(deal.nonRetainerDealValue)}</td>
-                      <td className="py-2 px-3 text-right font-mono text-foreground font-medium">{fmtCurrency(deal.totalDealValue)}</td>
-                      <td className="py-2 px-3"><span className={cn("px-1.5 py-0.5 rounded text-caption font-medium", deal.dealType === "Retainer" ? "bg-positive/10 text-positive" : deal.dealType === "Pilot" ? "bg-warning/10 text-warning" : "bg-accent/10 text-accent")}>{deal.dealType}</span></td>
-                      <td className="py-2 px-3"><span className={cn("px-1.5 py-0.5 rounded text-caption font-medium", deal.staffingStatus === "Already Staffed" ? "bg-positive/10 text-positive" : deal.staffingStatus === "Staffing Needed" ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground")}>{deal.staffingStatus === "Already Staffed" ? "Staffed" : deal.staffingStatus === "Staffing Needed" ? "Needed" : "N/A"}</span></td>
-                      {visibleSlots.map(slot => {
-                        const slotAssignments = getAssignments(deal.id, slot.roleKey);
-                        return (
-                          <td key={slot.roleKey} className="py-2 px-3">
-                            <div className="flex flex-col gap-1">
-                              {slotAssignments.map(a => (
-                                <div key={a.id} className="flex items-center gap-1">
-                                  {editingAssignment === a.id ? (
-                                    <input type="number" step="0.25" className="w-14 h-6 px-1 rounded border border-accent text-caption font-mono bg-card text-foreground"
-                                      value={editValue} onChange={e => setEditValue(e.target.value)} autoFocus
-                                      onBlur={() => updateAllocation(a.id, parseFloat(editValue) || 0)}
-                                      onKeyDown={e => { if (e.key === "Enter") updateAllocation(a.id, parseFloat(editValue) || 0); if (e.key === "Escape") setEditingAssignment(null); }} />
-                                  ) : (
-                                    <div onClick={() => { setEditingAssignment(a.id); setEditValue(String(a.allocationPct)); }} className="cursor-pointer">
-                                      <PersonBadge person={getPerson(a.personId)} pct={a.allocationPct} onRemove={() => removeAssignment(a.id)} />
+                  {paginatedDeals.map(deal => {
+                    const isExpanded = expandedDealId === deal.id;
+                    return (
+                      <>
+                        <tr key={deal.id} className={cn("border-b border-border/50 hover:bg-secondary/20 transition-colors cursor-pointer", isExpanded && "bg-accent/5")}
+                          onClick={() => setExpandedDealId(isExpanded ? null : deal.id)}>
+                          <td className="py-2 px-3 font-mono text-accent font-medium sticky left-0 bg-card z-10">{deal.dealId}</td>
+                          <td className="py-2 px-3 font-medium text-foreground sticky left-[80px] bg-card z-10 truncate max-w-[140px]" title={`${deal.account} — ${deal.dealName}`}>{deal.account}</td>
+                          <td className="py-2 px-3 text-right font-mono text-foreground">{fmtCurrency(deal.mrr)}</td>
+                          <td className="py-2 px-3 text-muted-foreground text-caption">{deal.duration || "—"}</td>
+                          <td className="py-2 px-3 text-right font-mono text-foreground">{fmtCurrency(deal.retainerDealValue)}</td>
+                          <td className="py-2 px-3 text-right font-mono text-foreground">{fmtCurrency(deal.nonRetainerDealValue)}</td>
+                          <td className="py-2 px-3 text-right font-mono text-foreground font-medium">{fmtCurrency(deal.totalDealValue)}</td>
+                          <td className="py-2 px-3"><span className={cn("px-1.5 py-0.5 rounded text-caption font-medium", deal.dealType === "Retainer" ? "bg-positive/10 text-positive" : deal.dealType === "Pilot" ? "bg-warning/10 text-warning" : "bg-accent/10 text-accent")}>{deal.dealType}</span></td>
+                          <td className="py-2 px-3"><span className={cn("px-1.5 py-0.5 rounded text-caption font-medium", deal.staffingStatus === "Already Staffed" ? "bg-positive/10 text-positive" : deal.staffingStatus === "Staffing Needed" ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground")}>{deal.staffingStatus === "Already Staffed" ? "Staffed" : deal.staffingStatus === "Staffing Needed" ? "Needed" : "N/A"}</span></td>
+                          {visibleSlots.map(slot => {
+                            const slotAssignments = getAssignments(deal.id, slot.roleKey);
+                            return (
+                              <td key={slot.roleKey} className="py-2 px-3" onClick={e => e.stopPropagation()}>
+                                <div className="flex flex-col gap-1">
+                                  {slotAssignments.map(a => (
+                                    <div key={a.id} className="flex items-center gap-1">
+                                      {editingAssignment === a.id ? (
+                                        <input type="number" step="0.25" className="w-14 h-6 px-1 rounded border border-accent text-caption font-mono bg-card text-foreground"
+                                          value={editValue} onChange={e => setEditValue(e.target.value)} autoFocus
+                                          onBlur={() => updateAllocation(a.id, parseFloat(editValue) || 0)}
+                                          onKeyDown={e => { if (e.key === "Enter") updateAllocation(a.id, parseFloat(editValue) || 0); if (e.key === "Escape") setEditingAssignment(null); }} />
+                                      ) : (
+                                        <div onClick={() => { setEditingAssignment(a.id); setEditValue(String(a.allocationPct)); }} className="cursor-pointer">
+                                          <PersonBadge person={getPerson(a.personId)} pct={a.allocationPct} onRemove={() => removeAssignment(a.id)} />
+                                        </div>
+                                      )}
                                     </div>
-                                  )}
+                                  ))}
+                                  {slotAssignments.length === 0 && <span className="text-caption text-muted-foreground/50">—</span>}
                                 </div>
-                              ))}
-                              <button onClick={() => setAddModal({ dealId: deal.id, roleKey: slot.roleKey })} className="text-accent hover:text-accent/80 text-caption flex items-center gap-0.5 mt-0.5">
-                                <Plus className="h-3 w-3" /> Staff
-                              </button>
-                            </div>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                        {isExpanded && renderDealExpand(deal)}
+                      </>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -356,10 +487,10 @@ export default function Staffing() {
             </div>
 
             <div className="data-card p-0 overflow-x-auto">
-              <table className="w-full text-ui min-w-[1100px]">
+              <table className="w-full text-ui min-w-[1200px]">
                 <thead>
                   <tr className="border-b border-border bg-secondary/30">
-                    {["Name", "Department", "Designation", "Reporting Manager", "Band", "Deals", "Total Alloc.", "Status"].map(h => (
+                    {["", "Name", "Department", "Designation", "Reporting Manager", "Band", "Deals", "Total Alloc.", "Status"].map(h => (
                       <th key={h} className="text-left py-3 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">{h}</th>
                     ))}
                   </tr>
@@ -370,6 +501,11 @@ export default function Staffing() {
                     const isEditing = (field: string) => editingCell?.personId === p.id && editingCell?.field === field;
                     return (
                       <tr key={p.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
+                        <td className="py-2 px-4 w-10">
+                          <button onClick={() => startEditPerson(p)} className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground">
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        </td>
                         <td className="py-3 px-4 font-medium text-foreground">
                           <span className={cn(p.leaving && "line-through text-muted-foreground", p.tbh && "text-warning italic")}>{p.name}</span>
                         </td>
@@ -440,11 +576,6 @@ export default function Staffing() {
           </>
         )}
 
-        {/* ═══════════════ BW RULES ═══════════════ */}
-        {activeTab === "bw_rules" && (
-          <BWRulesTab rules={bwRules} onUpdateRules={setBwRules} />
-        )}
-
         {/* ═══════════════ CAPACITY ═══════════════ */}
         {activeTab === "capacity" && (
           <CapacityTab deals={deals} people={people} assignments={assignments} />
@@ -461,51 +592,13 @@ export default function Staffing() {
         )}
       </div>
 
-      {/* ═══════════════ ADD ASSIGNMENT MODAL ═══════════════ */}
-      {addModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20" onClick={() => setAddModal(null)}>
-          <div className="bg-card border border-border rounded-lg p-6 w-[400px] max-h-[70vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-ui font-semibold text-foreground">Staff Person</h3>
-              <button onClick={() => setAddModal(null)}><X className="h-4 w-4 text-muted-foreground" /></button>
-            </div>
-            <p className="text-caption text-muted-foreground mb-3">
-              Deal: {deals.find(d => d.id === addModal.dealId)?.account} • Role: {ROLE_SLOTS.find(s => s.roleKey === addModal.roleKey)?.roleLabel}
-            </p>
-            <div className="space-y-1">
-              {people.filter(p => {
-                if (p.leaving) return false;
-                const allowedTitles = ROLE_TO_PEOPLE_FILTER[addModal.roleKey];
-                if (allowedTitles) return allowedTitles.includes(p.roleTitle);
-                return true;
-              }).map(p => (
-                <button key={p.id} onClick={() => addAssignment(addModal.dealId, addModal.roleKey, p.id)}
-                  className="w-full text-left px-3 py-2 rounded-md hover:bg-secondary transition-colors flex items-center justify-between">
-                  <div>
-                    <span className={cn("text-ui font-medium", p.tbh && "text-warning italic")}>{p.name}</span>
-                    <span className="text-caption text-muted-foreground ml-2">{p.roleTitle}</span>
-                  </div>
-                  <span className={cn("text-caption font-mono tabular-nums",
-                    (personUtilization[p.id]?.totalPct || 0) > 100 ? "text-destructive" :
-                    (personUtilization[p.id]?.totalPct || 0) > 80 ? "text-warning" : "text-muted-foreground"
-                  )}>{fmtPct(personUtilization[p.id]?.totalPct || 0)}</span>
-                </button>
-              ))}
-              {people.filter(p => !p.leaving && (ROLE_TO_PEOPLE_FILTER[addModal.roleKey]?.includes(p.roleTitle) ?? true)).length === 0 && (
-                <p className="text-caption text-muted-foreground py-4 text-center">No matching people for this role</p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ═══════════════ ADD PERSON MODAL ═══════════════ */}
+      {/* ═══════════════ ADD / EDIT PERSON MODAL ═══════════════ */}
       {addPersonModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20" onClick={() => setAddPersonModal(false)}>
-          <div className="bg-card border border-border rounded-lg p-6 w-[400px]" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20" onClick={() => { setAddPersonModal(false); setEditPersonId(null); }}>
+          <div className="bg-card border border-border rounded-lg p-6 w-[480px] max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-ui font-semibold text-foreground">Add New Person</h3>
-              <button onClick={() => setAddPersonModal(false)}><X className="h-4 w-4 text-muted-foreground" /></button>
+              <h3 className="text-ui font-semibold text-foreground">{editPersonId ? "Edit Person" : "Add New Person"}</h3>
+              <button onClick={() => { setAddPersonModal(false); setEditPersonId(null); }}><X className="h-4 w-4 text-muted-foreground" /></button>
             </div>
             <div className="space-y-3">
               <div>
@@ -513,17 +606,52 @@ export default function Staffing() {
                 <input type="text" value={newPerson.name} onChange={e => setNewPerson(p => ({ ...p, name: e.target.value }))}
                   className="w-full h-9 px-3 rounded-md bg-muted/50 border-0 text-ui text-foreground mt-1 focus:bg-card focus:ring-1 focus:ring-accent focus:outline-none" placeholder="Full name" />
               </div>
-              <div>
-                <label className="text-caption text-muted-foreground font-medium">Role Category</label>
-                <select value={newPerson.roleCategory} onChange={e => setNewPerson(p => ({ ...p, roleCategory: e.target.value as RoleCategory }))}
-                  className="w-full h-9 px-3 rounded-md border border-border bg-card text-ui text-foreground mt-1">
-                  {ROLE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-caption text-muted-foreground font-medium">Role Category</label>
+                  <select value={newPerson.roleCategory} onChange={e => setNewPerson(p => ({ ...p, roleCategory: e.target.value as RoleCategory }))}
+                    className="w-full h-9 px-3 rounded-md border border-border bg-card text-ui text-foreground mt-1">
+                    {ROLE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-caption text-muted-foreground font-medium">Role Title</label>
+                  <input type="text" value={newPerson.roleTitle} onChange={e => setNewPerson(p => ({ ...p, roleTitle: e.target.value }))}
+                    className="w-full h-9 px-3 rounded-md bg-muted/50 border-0 text-ui text-foreground mt-1 focus:bg-card focus:ring-1 focus:ring-accent focus:outline-none" placeholder="e.g. SEO Manager" />
+                </div>
               </div>
-              <div>
-                <label className="text-caption text-muted-foreground font-medium">Role Title</label>
-                <input type="text" value={newPerson.roleTitle} onChange={e => setNewPerson(p => ({ ...p, roleTitle: e.target.value }))}
-                  className="w-full h-9 px-3 rounded-md bg-muted/50 border-0 text-ui text-foreground mt-1 focus:bg-card focus:ring-1 focus:ring-accent focus:outline-none" placeholder="e.g. SEO Manager" />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-caption text-muted-foreground font-medium">Department</label>
+                  <select value={newPerson.department} onChange={e => setNewPerson(p => ({ ...p, department: e.target.value }))}
+                    className="w-full h-9 px-3 rounded-md border border-border bg-card text-ui text-foreground mt-1">
+                    <option value="">Select...</option>
+                    {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-caption text-muted-foreground font-medium">Designation</label>
+                  <input type="text" value={newPerson.designation} onChange={e => setNewPerson(p => ({ ...p, designation: e.target.value }))}
+                    className="w-full h-9 px-3 rounded-md bg-muted/50 border-0 text-ui text-foreground mt-1 focus:bg-card focus:ring-1 focus:ring-accent focus:outline-none" placeholder="e.g. Senior BOPM" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-caption text-muted-foreground font-medium">Reporting Manager</label>
+                  <select value={newPerson.reportingManager} onChange={e => setNewPerson(p => ({ ...p, reportingManager: e.target.value }))}
+                    className="w-full h-9 px-3 rounded-md border border-border bg-card text-ui text-foreground mt-1">
+                    <option value="">Select...</option>
+                    {allManagers.filter(m => m !== "All").map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-caption text-muted-foreground font-medium">Band</label>
+                  <select value={newPerson.band} onChange={e => setNewPerson(p => ({ ...p, band: e.target.value }))}
+                    className="w-full h-9 px-3 rounded-md border border-border bg-card text-ui text-foreground mt-1">
+                    <option value="">Select...</option>
+                    {BANDS.map(b => <option key={b} value={b}>{b}</option>)}
+                  </select>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -539,9 +667,9 @@ export default function Staffing() {
                   </select>
                 </div>
               </div>
-              <button onClick={addNewPerson} disabled={!newPerson.name || !newPerson.roleTitle}
+              <button onClick={editPersonId ? saveEditPerson : addNewPerson} disabled={!newPerson.name || !newPerson.roleTitle}
                 className="w-full h-9 rounded-md bg-foreground text-primary-foreground text-ui font-medium hover:opacity-90 disabled:opacity-50 transition-opacity mt-2">
-                Add Person
+                {editPersonId ? "Save Changes" : "Add Person"}
               </button>
             </div>
           </div>
