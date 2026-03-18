@@ -102,6 +102,7 @@ export default function Staffing() {
   const [editingAssignment, setEditingAssignment] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [selectedPeople, setSelectedPeople] = useState<Set<string>>(new Set());
+  const [expandedPeopleNodes, setExpandedPeopleNodes] = useState<Set<string>>(new Set());
 
   const vsds = useMemo(() => ["All", ...Array.from(new Set(deals.map(d => d.vsd))).sort()], [deals]);
   const allDesignations = useMemo(() => ["All", ...[...new Set(people.map(p => p.designation).filter(Boolean))].sort()], [people]);
@@ -592,129 +593,167 @@ export default function Staffing() {
               <FilterBar />
             </div>
 
-            <div className="data-card p-0 overflow-x-auto">
-              <table className="w-full text-ui">
-                <thead>
-                  <tr className="border-b border-border bg-secondary/30">
-                    <th className="py-2.5 px-3 w-8">
-                      <input type="checkbox" className="rounded border-border"
-                        checked={selectedPeople.size === filteredPeople.length && filteredPeople.length > 0}
-                        onChange={e => {
-                          if (e.target.checked) setSelectedPeople(new Set(filteredPeople.map(p => p.id)));
-                          else setSelectedPeople(new Set());
+            {(() => {
+              // Build tree for people tab
+              const childrenMap = new Map<string, Person[]>();
+              const hasParent = new Set<string>();
+              filteredPeople.forEach(p => {
+                if (p.reportingManager) {
+                  const mgr = filteredPeople.find(m => m.name === p.reportingManager && m.id !== p.id);
+                  if (mgr) {
+                    hasParent.add(p.id);
+                    if (!childrenMap.has(mgr.id)) childrenMap.set(mgr.id, []);
+                    childrenMap.get(mgr.id)!.push(p);
+                  }
+                }
+              });
+              const roots = filteredPeople.filter(p => !hasParent.has(p.id));
+
+              const renderPersonRow = (p: Person, depth: number): React.ReactNode[] => {
+                const util = personUtilization[p.id] || { totalPct: 0, dealCount: 0, deals: [] };
+                const isEditing = (field: string) => editingCell?.personId === p.id && editingCell?.field === field;
+                const isSelected = selectedPeople.has(p.id);
+                const children = childrenMap.get(p.id) || [];
+                const hasChildren = children.length > 0;
+                const isExpanded = expandedPeopleNodes.has(p.id);
+                const rows: React.ReactNode[] = [];
+
+                rows.push(
+                  <tr key={p.id} className={cn("border-b border-border/50 hover:bg-secondary/20 transition-colors", isSelected && "bg-accent/5")}>
+                    <td className="py-2 px-3">
+                      <input type="checkbox" className="rounded border-border" checked={isSelected}
+                        onChange={() => {
+                          const next = new Set(selectedPeople);
+                          if (isSelected) next.delete(p.id); else next.add(p.id);
+                          setSelectedPeople(next);
                         }} />
-                    </th>
-                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[200px]">Name</th>
-                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider">Department</th>
-                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider">Designation</th>
-                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider">Manager</th>
-                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider w-16">Band</th>
-                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider w-16">Region</th>
-                    <th className="text-center py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider w-16">Deals</th>
-                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[140px]">BW Used</th>
-                    <th className="text-right py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider w-16">Total %</th>
-                    <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider w-16">Status</th>
-                    <th className="py-2.5 px-3 w-16"></th>
+                    </td>
+                    <td className="py-2 px-3" style={{ paddingLeft: `${12 + depth * 20}px` }}>
+                      <div className="flex items-center gap-1">
+                        {hasChildren ? (
+                          <button onClick={() => {
+                            setExpandedPeopleNodes(prev => {
+                              const next = new Set(prev);
+                              if (next.has(p.id)) next.delete(p.id); else next.add(p.id);
+                              return next;
+                            });
+                          }} className="p-0.5 rounded hover:bg-secondary">
+                            {isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+                          </button>
+                        ) : <span className="w-5" />}
+                        <span className={cn("font-medium", p.leaving && "line-through text-muted-foreground", p.tbh && "text-warning italic")}>{p.name}</span>
+                        {hasChildren && <span className="text-[10px] text-muted-foreground ml-1">({children.length})</span>}
+                      </div>
+                    </td>
+                    <td className="py-2 px-3">
+                      {isEditing("department") ? (
+                        <select autoFocus value={p.department || ""} onChange={e => updatePerson(p.id, "department", e.target.value)} onBlur={() => setEditingCell(null)}
+                          className="h-7 w-full px-2 rounded border border-accent bg-card text-caption text-foreground">
+                          <option value="">—</option>
+                          {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                        </select>
+                      ) : (
+                        <span onClick={() => setEditingCell({ personId: p.id, field: "department" })} className="cursor-pointer text-muted-foreground hover:text-foreground text-caption truncate block max-w-[160px]">{p.department || "—"}</span>
+                      )}
+                    </td>
+                    <td className="py-2 px-3">
+                      {isEditing("designation") ? (
+                        <select autoFocus value={p.designation || ""} onChange={e => updatePerson(p.id, "designation", e.target.value)} onBlur={() => setEditingCell(null)}
+                          className="h-7 w-full px-2 rounded border border-accent bg-card text-caption text-foreground">
+                          <option value="">—</option>
+                          {allDesignations.filter(d => d !== "All").map(d => <option key={d} value={d}>{d}</option>)}
+                        </select>
+                      ) : (
+                        <span onClick={() => setEditingCell({ personId: p.id, field: "designation" })} className="cursor-pointer text-muted-foreground hover:text-foreground text-caption">{p.designation || "—"}</span>
+                      )}
+                    </td>
+                    <td className="py-2 px-3 text-caption text-muted-foreground">{p.reportingManager || "—"}</td>
+                    <td className="py-2 px-3">
+                      <span className={cn("font-mono text-caption font-medium px-1.5 py-0.5 rounded", p.band ? "bg-accent/10 text-accent" : "text-muted-foreground")}>{p.band || "—"}</span>
+                    </td>
+                    <td className="py-2 px-3">
+                      {isEditing("region") ? (
+                        <select autoFocus value={p.region || "India"} onChange={e => updatePerson(p.id, "region", e.target.value)} onBlur={() => setEditingCell(null)}
+                          className="h-7 px-2 rounded border border-accent bg-card text-caption text-foreground">
+                          <option value="India">India</option>
+                          <option value="US">US</option>
+                          <option value="Both">Both</option>
+                        </select>
+                      ) : (
+                        <span onClick={() => setEditingCell({ personId: p.id, field: "region" })} className="cursor-pointer text-caption text-muted-foreground hover:text-foreground">{p.region || "—"}</span>
+                      )}
+                    </td>
+                    <td className="py-2 px-3 text-center font-mono tabular-nums text-foreground">{util.dealCount}</td>
+                    <td className="py-2 px-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-1.5 bg-muted rounded-sm overflow-hidden max-w-[100px]">
+                          <div className={cn("h-full rounded-sm", util.totalPct > 100 ? "bg-destructive" : util.totalPct > 80 ? "bg-warning" : "bg-positive")} style={{ width: `${Math.min(util.totalPct, 100)}%` }} />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-2 px-3 text-right">
+                      <span className={cn("font-mono tabular-nums text-caption font-medium", util.totalPct > 100 ? "text-destructive" : util.totalPct > 80 ? "text-warning" : "text-positive")}>{fmtPct(util.totalPct)}</span>
+                    </td>
+                    <td className="py-2 px-3">
+                      {p.tbh ? <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-warning/10 text-warning">TBH</span>
+                        : p.leaving ? <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-destructive/10 text-destructive">Leaving</span>
+                        : <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-positive/10 text-positive">Active</span>}
+                    </td>
+                    <td className="py-2 px-3">
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => startEditPerson(p)} className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground">
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                        <button onClick={() => deletePerson(p.id)} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {filteredPeople.map(p => {
-                    const util = personUtilization[p.id] || { totalPct: 0, dealCount: 0, deals: [] };
-                    const isEditing = (field: string) => editingCell?.personId === p.id && editingCell?.field === field;
-                    const isSelected = selectedPeople.has(p.id);
-                    return (
-                      <tr key={p.id} className={cn("border-b border-border/50 hover:bg-secondary/20 transition-colors", isSelected && "bg-accent/5")}>
-                        <td className="py-2 px-3">
-                          <input type="checkbox" className="rounded border-border" checked={isSelected}
-                            onChange={() => {
-                              const next = new Set(selectedPeople);
-                              if (isSelected) next.delete(p.id); else next.add(p.id);
-                              setSelectedPeople(next);
+                );
+
+                if (isExpanded && hasChildren) {
+                  children.forEach(child => {
+                    rows.push(...renderPersonRow(child, depth + 1));
+                  });
+                }
+
+                return rows;
+              };
+
+              return (
+                <div className="data-card p-0 overflow-x-auto">
+                  <table className="w-full text-ui">
+                    <thead>
+                      <tr className="border-b border-border bg-secondary/30">
+                        <th className="py-2.5 px-3 w-8">
+                          <input type="checkbox" className="rounded border-border"
+                            checked={selectedPeople.size === filteredPeople.length && filteredPeople.length > 0}
+                            onChange={e => {
+                              if (e.target.checked) setSelectedPeople(new Set(filteredPeople.map(p => p.id)));
+                              else setSelectedPeople(new Set());
                             }} />
-                        </td>
-                        <td className="py-2 px-3">
-                          <span className={cn("font-medium", p.leaving && "line-through text-muted-foreground", p.tbh && "text-warning italic")}>{p.name}</span>
-                        </td>
-                        <td className="py-2 px-3">
-                          {isEditing("department") ? (
-                            <select autoFocus value={p.department || ""} onChange={e => updatePerson(p.id, "department", e.target.value)} onBlur={() => setEditingCell(null)}
-                              className="h-7 w-full px-2 rounded border border-accent bg-card text-caption text-foreground">
-                              <option value="">—</option>
-                              {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
-                            </select>
-                          ) : (
-                            <span onClick={() => setEditingCell({ personId: p.id, field: "department" })} className="cursor-pointer text-muted-foreground hover:text-foreground text-caption truncate block max-w-[160px]">{p.department || "—"}</span>
-                          )}
-                        </td>
-                        <td className="py-2 px-3">
-                          {isEditing("designation") ? (
-                            <select autoFocus value={p.designation || ""} onChange={e => updatePerson(p.id, "designation", e.target.value)} onBlur={() => setEditingCell(null)}
-                              className="h-7 w-full px-2 rounded border border-accent bg-card text-caption text-foreground">
-                              <option value="">—</option>
-                              {allDesignations.filter(d => d !== "All").map(d => <option key={d} value={d}>{d}</option>)}
-                            </select>
-                          ) : (
-                            <span onClick={() => setEditingCell({ personId: p.id, field: "designation" })} className="cursor-pointer text-muted-foreground hover:text-foreground text-caption">{p.designation || "—"}</span>
-                          )}
-                        </td>
-                        <td className="py-2 px-3">
-                          {isEditing("reportingManager") ? (
-                            <select autoFocus value={p.reportingManager || ""} onChange={e => updatePerson(p.id, "reportingManager", e.target.value)} onBlur={() => setEditingCell(null)}
-                              className="h-7 w-full px-2 rounded border border-accent bg-card text-caption text-foreground">
-                              <option value="">—</option>
-                              {allManagers.filter(m => m !== "All").map(m => <option key={m} value={m}>{m}</option>)}
-                            </select>
-                          ) : (
-                            <span onClick={() => setEditingCell({ personId: p.id, field: "reportingManager" })} className="cursor-pointer text-muted-foreground hover:text-foreground text-caption">{p.reportingManager || "—"}</span>
-                          )}
-                        </td>
-                        <td className="py-2 px-3">
-                          <span className={cn("font-mono text-caption font-medium px-1.5 py-0.5 rounded", p.band ? "bg-accent/10 text-accent" : "text-muted-foreground")}>{p.band || "—"}</span>
-                        </td>
-                        <td className="py-2 px-3">
-                          {isEditing("region") ? (
-                            <select autoFocus value={p.region || "India"} onChange={e => updatePerson(p.id, "region", e.target.value)} onBlur={() => setEditingCell(null)}
-                              className="h-7 px-2 rounded border border-accent bg-card text-caption text-foreground">
-                              <option value="India">India</option>
-                              <option value="US">US</option>
-                              <option value="Both">Both</option>
-                            </select>
-                          ) : (
-                            <span onClick={() => setEditingCell({ personId: p.id, field: "region" })} className="cursor-pointer text-caption text-muted-foreground hover:text-foreground">{p.region || "—"}</span>
-                          )}
-                        </td>
-                        <td className="py-2 px-3 text-center font-mono tabular-nums text-foreground">{util.dealCount}</td>
-                        <td className="py-2 px-3">
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 h-1.5 bg-muted rounded-sm overflow-hidden max-w-[100px]">
-                              <div className={cn("h-full rounded-sm", util.totalPct > 100 ? "bg-destructive" : util.totalPct > 80 ? "bg-warning" : "bg-positive")} style={{ width: `${Math.min(util.totalPct, 100)}%` }} />
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-2 px-3 text-right">
-                          <span className={cn("font-mono tabular-nums text-caption font-medium", util.totalPct > 100 ? "text-destructive" : util.totalPct > 80 ? "text-warning" : "text-positive")}>{fmtPct(util.totalPct)}</span>
-                        </td>
-                        <td className="py-2 px-3">
-                          {p.tbh ? <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-warning/10 text-warning">TBH</span>
-                            : p.leaving ? <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-destructive/10 text-destructive">Leaving</span>
-                            : <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-positive/10 text-positive">Active</span>}
-                        </td>
-                        <td className="py-2 px-3">
-                          <div className="flex items-center gap-1">
-                            <button onClick={() => startEditPerson(p)} className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground">
-                              <Pencil className="h-3 w-3" />
-                            </button>
-                            <button onClick={() => deletePerson(p.id)} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
-                              <Trash2 className="h-3 w-3" />
-                            </button>
-                          </div>
-                        </td>
+                        </th>
+                        <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[200px]">Name</th>
+                        <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider">Department</th>
+                        <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider">Designation</th>
+                        <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider">Manager</th>
+                        <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider w-16">Band</th>
+                        <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider w-16">Region</th>
+                        <th className="text-center py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider w-16">Deals</th>
+                        <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[140px]">BW Used</th>
+                        <th className="text-right py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider w-16">Total %</th>
+                        <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider w-16">Status</th>
+                        <th className="py-2.5 px-3 w-16"></th>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                    </thead>
+                    <tbody>
+                      {roots.flatMap(p => renderPersonRow(p, 0))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
           </>
         )}
 
