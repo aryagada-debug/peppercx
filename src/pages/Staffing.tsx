@@ -1,12 +1,12 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useState, useMemo, useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { Search, Plus, X, UserPlus, ChevronDown, ChevronRight, Pencil, Trash2, CheckSquare } from "lucide-react";
+import { Search, Plus, X, UserPlus, ChevronDown, ChevronRight, Pencil, Trash2, CheckSquare, Loader2 } from "lucide-react";
 import {
-  DEFAULT_DEALS, DEFAULT_PEOPLE, DEFAULT_ASSIGNMENTS, DEFAULT_HIRING_NEEDS, DEFAULT_REVENUE_TARGETS,
   ROLE_SLOTS, ROLE_CATEGORIES, ROLE_TO_PEOPLE_FILTER, DEPARTMENTS, BANDS, BU_ROLE_CATEGORIES, getBUCategories,
   type Deal, type Person, type StaffingAssignment, type RoleCategory, type HiringNeed, type RevenueCapacityTarget, uid
 } from "@/data/staffingData";
+import { useStaffingData } from "@/hooks/useStaffingData";
 import { SummaryTab } from "@/components/staffing/SummaryTab";
 import { CapacityTab } from "@/components/staffing/CapacityTab";
 import { HiringGapTab } from "@/components/staffing/HiringGapTab";
@@ -68,11 +68,13 @@ function PersonBadge({ person, pct, onRemove }: { person: Person | undefined; pc
 // ── Main Component ──────────────────────────────────────────────────────────
 export default function Staffing() {
   const [activeTab, setActiveTab] = useState<TabKey>("summary");
-  const [deals, setDeals] = useState<Deal[]>(DEFAULT_DEALS);
-  const [people, setPeople] = useState<Person[]>(DEFAULT_PEOPLE);
-  const [assignments, setAssignments] = useState<StaffingAssignment[]>(DEFAULT_ASSIGNMENTS);
-  const [hiringNeeds, setHiringNeeds] = useState<HiringNeed[]>(DEFAULT_HIRING_NEEDS);
-  const [revenueTargets, setRevenueTargets] = useState<RevenueCapacityTarget[]>(DEFAULT_REVENUE_TARGETS);
+  const {
+    people, deals, assignments, hiringNeeds, revenueTargets, loading,
+    addPerson: dbAddPerson, updatePerson: dbUpdatePerson, deletePerson: dbDeletePerson,
+    bulkUpdatePeople, addAssignment: dbAddAssignment, updateAssignment: dbUpdateAssignment,
+    deleteAssignment: dbDeleteAssignment, updateDeal: dbUpdateDeal,
+    setHiringNeeds, setRevenueTargets, setPeople, setAssignments, setDeals,
+  } = useStaffingData();
 
   const [search, setSearch] = useState("");
   const [vsdFilter, setVsdFilter] = useState<string>("All");
@@ -114,7 +116,7 @@ export default function Staffing() {
   const uniqueCapabilityLines = useMemo(() => [...new Set(deals.map(d => d.capabilityLine).filter(Boolean))].sort(), [deals]);
 
   const updateDeal = (dealId: string, field: keyof Deal, value: string) => {
-    setDeals(prev => prev.map(d => d.id === dealId ? { ...d, [field]: value } : d));
+    dbUpdateDeal(dealId, { [field]: value });
   };
 
   const filteredDeals = useMemo(() => {
@@ -145,19 +147,16 @@ export default function Staffing() {
 
   // Compute visible role columns based on BU filter + category filter
   const visibleSlots = useMemo(() => {
-    // Determine which categories are allowed based on BU filter
     let allowedCategories: RoleCategory[];
     if (buFilter !== "All") {
       allowedCategories = getBUCategories(buFilter);
     } else {
-      // Union of all BU categories present in filtered deals
       const buSet = new Set<RoleCategory>();
       filteredDeals.forEach(d => {
         getBUCategories(d.businessUnit).forEach(c => buSet.add(c));
       });
       allowedCategories = buSet.size > 0 ? Array.from(buSet) : ROLE_CATEGORIES;
     }
-
     let slots = ROLE_SLOTS.filter(s => allowedCategories.includes(s.category));
     if (categoryFilter !== "All") {
       slots = slots.filter(s => s.category === categoryFilter);
@@ -165,7 +164,6 @@ export default function Staffing() {
     return slots;
   }, [categoryFilter, buFilter, filteredDeals]);
 
-  // Per-deal: get which slots apply to that deal's BU
   const getDealVisibleSlots = (deal: Deal) => {
     const dealCategories = getBUCategories(deal.businessUnit);
     return visibleSlots.filter(s => dealCategories.includes(s.category));
@@ -173,26 +171,26 @@ export default function Staffing() {
 
   const getAssignments = (dealId: string, roleKey: string) => assignments.filter(a => a.dealId === dealId && a.roleKey === roleKey);
   const getPerson = (id: string) => people.find(p => p.id === id);
-  const removeAssignment = (id: string) => setAssignments(prev => prev.filter(a => a.id !== id));
+  const removeAssignment = (id: string) => dbDeleteAssignment(id);
   const updateAllocation = (id: string, newPct: number) => {
-    setAssignments(prev => prev.map(a => a.id === id ? { ...a, allocationPct: newPct } : a));
+    dbUpdateAssignment(id, { allocationPct: newPct });
     setEditingAssignment(null);
   };
   const addAssignment = (dealId: string, roleKey: string, personId: string) => {
-    setAssignments(prev => [...prev, { id: uid(), dealId, roleKey, personId, allocationPct: 0 }]);
+    dbAddAssignment({ id: uid(), dealId, roleKey, personId, allocationPct: 0 });
     setInlineStaffRole(null);
   };
 
   const addNewPerson = () => {
     const id = `p_new_${uid()}`;
-    setPeople(prev => [...prev, { id, ...newPerson, leaving: false, tbh: false }]);
+    dbAddPerson({ id, ...newPerson, leaving: false, tbh: false });
     setNewPerson({ name: "", roleCategory: "Content", roleTitle: "", pod: "", region: "India", department: "", designation: "", reportingManager: "", band: "" });
     setAddPersonModal(false);
   };
 
   const saveEditPerson = () => {
     if (!editPersonId) return;
-    setPeople(prev => prev.map(p => p.id === editPersonId ? { ...p, ...newPerson } : p));
+    dbUpdatePerson(editPersonId, newPerson);
     setEditPersonId(null);
     setAddPersonModal(false);
   };
@@ -207,19 +205,18 @@ export default function Staffing() {
   };
 
   const updatePerson = (personId: string, field: keyof Person, value: string) => {
-    setPeople(prev => prev.map(p => p.id === personId ? { ...p, [field]: value } : p));
+    dbUpdatePerson(personId, { [field]: value });
     setEditingCell(null);
   };
 
   const deletePerson = (personId: string) => {
-    setPeople(prev => prev.filter(p => p.id !== personId));
-    setAssignments(prev => prev.filter(a => a.personId !== personId));
+    dbDeletePerson(personId);
     setSelectedPeople(prev => { const next = new Set(prev); next.delete(personId); return next; });
   };
 
   const bulkUpdate = useCallback((field: keyof Person, value: string) => {
     const currentSelected = selectedPeopleRef.current;
-    setPeople(prev => prev.map(p => currentSelected.has(p.id) ? { ...p, [field]: value } : p));
+    bulkUpdatePeople(Array.from(currentSelected), field, value);
   }, []);
 
   // Person utilization
@@ -381,6 +378,19 @@ export default function Staffing() {
       </tr>
     );
   };
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="p-8 flex items-center justify-center min-h-[60vh]">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="text-ui text-muted-foreground">Loading staffing data...</p>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
