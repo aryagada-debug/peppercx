@@ -67,6 +67,7 @@ function PersonBadge({ person, pct, onRemove }: { person: Person | undefined; pc
 
 // ── Main Component ──────────────────────────────────────────────────────────
 export default function Staffing() {
+  const [activeTab, setActiveTab] = useState<TabKey>("summary");
   const {
     people, deals, assignments, hiringNeeds, revenueTargets, loading,
     addPerson: dbAddPerson, updatePerson: dbUpdatePerson, deletePerson: dbDeletePerson,
