@@ -116,7 +116,7 @@ export default function Staffing() {
   const uniqueCapabilityLines = useMemo(() => [...new Set(deals.map(d => d.capabilityLine).filter(Boolean))].sort(), [deals]);
 
   const updateDeal = (dealId: string, field: keyof Deal, value: string) => {
-    setDeals(prev => prev.map(d => d.id === dealId ? { ...d, [field]: value } : d));
+    dbUpdateDeal(dealId, { [field]: value });
   };
 
   const filteredDeals = useMemo(() => {
@@ -147,19 +147,16 @@ export default function Staffing() {
 
   // Compute visible role columns based on BU filter + category filter
   const visibleSlots = useMemo(() => {
-    // Determine which categories are allowed based on BU filter
     let allowedCategories: RoleCategory[];
     if (buFilter !== "All") {
       allowedCategories = getBUCategories(buFilter);
     } else {
-      // Union of all BU categories present in filtered deals
       const buSet = new Set<RoleCategory>();
       filteredDeals.forEach(d => {
         getBUCategories(d.businessUnit).forEach(c => buSet.add(c));
       });
       allowedCategories = buSet.size > 0 ? Array.from(buSet) : ROLE_CATEGORIES;
     }
-
     let slots = ROLE_SLOTS.filter(s => allowedCategories.includes(s.category));
     if (categoryFilter !== "All") {
       slots = slots.filter(s => s.category === categoryFilter);
@@ -167,7 +164,6 @@ export default function Staffing() {
     return slots;
   }, [categoryFilter, buFilter, filteredDeals]);
 
-  // Per-deal: get which slots apply to that deal's BU
   const getDealVisibleSlots = (deal: Deal) => {
     const dealCategories = getBUCategories(deal.businessUnit);
     return visibleSlots.filter(s => dealCategories.includes(s.category));
@@ -175,26 +171,26 @@ export default function Staffing() {
 
   const getAssignments = (dealId: string, roleKey: string) => assignments.filter(a => a.dealId === dealId && a.roleKey === roleKey);
   const getPerson = (id: string) => people.find(p => p.id === id);
-  const removeAssignment = (id: string) => setAssignments(prev => prev.filter(a => a.id !== id));
+  const removeAssignment = (id: string) => dbDeleteAssignment(id);
   const updateAllocation = (id: string, newPct: number) => {
-    setAssignments(prev => prev.map(a => a.id === id ? { ...a, allocationPct: newPct } : a));
+    dbUpdateAssignment(id, { allocationPct: newPct });
     setEditingAssignment(null);
   };
   const addAssignment = (dealId: string, roleKey: string, personId: string) => {
-    setAssignments(prev => [...prev, { id: uid(), dealId, roleKey, personId, allocationPct: 0 }]);
+    dbAddAssignment({ id: uid(), dealId, roleKey, personId, allocationPct: 0 });
     setInlineStaffRole(null);
   };
 
   const addNewPerson = () => {
     const id = `p_new_${uid()}`;
-    setPeople(prev => [...prev, { id, ...newPerson, leaving: false, tbh: false }]);
+    dbAddPerson({ id, ...newPerson, leaving: false, tbh: false });
     setNewPerson({ name: "", roleCategory: "Content", roleTitle: "", pod: "", region: "India", department: "", designation: "", reportingManager: "", band: "" });
     setAddPersonModal(false);
   };
 
   const saveEditPerson = () => {
     if (!editPersonId) return;
-    setPeople(prev => prev.map(p => p.id === editPersonId ? { ...p, ...newPerson } : p));
+    dbUpdatePerson(editPersonId, newPerson);
     setEditPersonId(null);
     setAddPersonModal(false);
   };
@@ -209,19 +205,18 @@ export default function Staffing() {
   };
 
   const updatePerson = (personId: string, field: keyof Person, value: string) => {
-    setPeople(prev => prev.map(p => p.id === personId ? { ...p, [field]: value } : p));
+    dbUpdatePerson(personId, { [field]: value });
     setEditingCell(null);
   };
 
   const deletePerson = (personId: string) => {
-    setPeople(prev => prev.filter(p => p.id !== personId));
-    setAssignments(prev => prev.filter(a => a.personId !== personId));
+    dbDeletePerson(personId);
     setSelectedPeople(prev => { const next = new Set(prev); next.delete(personId); return next; });
   };
 
   const bulkUpdate = useCallback((field: keyof Person, value: string) => {
     const currentSelected = selectedPeopleRef.current;
-    setPeople(prev => prev.map(p => currentSelected.has(p.id) ? { ...p, [field]: value } : p));
+    bulkUpdatePeople(Array.from(currentSelected), field, value);
   }, []);
 
   // Person utilization
