@@ -14,7 +14,243 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      staffing_assignments: {
+        Row: {
+          allocation_pct: number
+          created_at: string
+          deal_id: string
+          id: string
+          person_id: string
+          role_key: string
+          updated_at: string
+        }
+        Insert: {
+          allocation_pct?: number
+          created_at?: string
+          deal_id: string
+          id: string
+          person_id: string
+          role_key: string
+          updated_at?: string
+        }
+        Update: {
+          allocation_pct?: number
+          created_at?: string
+          deal_id?: string
+          id?: string
+          person_id?: string
+          role_key?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staffing_assignments_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "staffing_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staffing_assignments_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "staffing_people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staffing_deals: {
+        Row: {
+          account: string
+          business_unit: string
+          capability_line: string
+          created_at: string
+          creative_staffing: boolean
+          deal_id: string
+          deal_name: string
+          deal_status: string
+          deal_status_cx: string
+          deal_type: string
+          duration: string | null
+          id: string
+          mrr: number | null
+          non_retainer_deal_value: number | null
+          pc_code: string
+          retainer_deal_value: number | null
+          seo_staffing: boolean
+          staffing_status: string
+          total_deal_value: number | null
+          updated_at: string
+          validation: string
+          vsd: string
+        }
+        Insert: {
+          account?: string
+          business_unit?: string
+          capability_line?: string
+          created_at?: string
+          creative_staffing?: boolean
+          deal_id?: string
+          deal_name?: string
+          deal_status?: string
+          deal_status_cx?: string
+          deal_type?: string
+          duration?: string | null
+          id: string
+          mrr?: number | null
+          non_retainer_deal_value?: number | null
+          pc_code?: string
+          retainer_deal_value?: number | null
+          seo_staffing?: boolean
+          staffing_status?: string
+          total_deal_value?: number | null
+          updated_at?: string
+          validation?: string
+          vsd?: string
+        }
+        Update: {
+          account?: string
+          business_unit?: string
+          capability_line?: string
+          created_at?: string
+          creative_staffing?: boolean
+          deal_id?: string
+          deal_name?: string
+          deal_status?: string
+          deal_status_cx?: string
+          deal_type?: string
+          duration?: string | null
+          id?: string
+          mrr?: number | null
+          non_retainer_deal_value?: number | null
+          pc_code?: string
+          retainer_deal_value?: number | null
+          seo_staffing?: boolean
+          staffing_status?: string
+          total_deal_value?: number | null
+          updated_at?: string
+          validation?: string
+          vsd?: string
+        }
+        Relationships: []
+      }
+      staffing_hiring_needs: {
+        Row: {
+          created_at: string
+          id: string
+          pod: string
+          priority: string
+          rationale: string
+          role: string
+          role_category: string
+          status: string
+          target_date: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          pod?: string
+          priority?: string
+          rationale?: string
+          role: string
+          role_category: string
+          status?: string
+          target_date?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          pod?: string
+          priority?: string
+          rationale?: string
+          role?: string
+          role_category?: string
+          status?: string
+          target_date?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      staffing_people: {
+        Row: {
+          band: string | null
+          created_at: string
+          department: string | null
+          designation: string | null
+          id: string
+          leaving: boolean
+          name: string
+          pod: string
+          region: string
+          reporting_manager: string | null
+          role_category: string
+          role_title: string
+          tbh: boolean
+          updated_at: string
+        }
+        Insert: {
+          band?: string | null
+          created_at?: string
+          department?: string | null
+          designation?: string | null
+          id: string
+          leaving?: boolean
+          name: string
+          pod?: string
+          region?: string
+          reporting_manager?: string | null
+          role_category: string
+          role_title?: string
+          tbh?: boolean
+          updated_at?: string
+        }
+        Update: {
+          band?: string | null
+          created_at?: string
+          department?: string | null
+          designation?: string | null
+          id?: string
+          leaving?: boolean
+          name?: string
+          pod?: string
+          region?: string
+          reporting_manager?: string | null
+          role_category?: string
+          role_title?: string
+          tbh?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      staffing_revenue_targets: {
+        Row: {
+          created_at: string
+          department: string
+          designation: string
+          id: string
+          target_deal_value_per_person: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          department: string
+          designation: string
+          id?: string
+          target_deal_value_per_person?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          department?: string
+          designation?: string
+          id?: string
+          target_deal_value_per_person?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
