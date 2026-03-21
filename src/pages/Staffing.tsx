@@ -379,6 +379,19 @@ export default function Staffing() {
     );
   };
 
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="p-8 flex items-center justify-center min-h-[60vh]">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="text-ui text-muted-foreground">Loading staffing data...</p>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout>
       <div className="p-8">
