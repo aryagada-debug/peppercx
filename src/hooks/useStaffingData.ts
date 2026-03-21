@@ -73,9 +73,10 @@ function dbToRevTarget(row: any): RevenueCapacityTarget {
 }
 
 // ── Batch insert helper (Supabase limit ~1000 rows per insert) ───────────
-async function batchUpsert(table: string, rows: Record<string, any>[], batchSize = 500) {
+async function batchUpsert(table: "staffing_people" | "staffing_deals" | "staffing_assignments" | "staffing_hiring_needs" | "staffing_revenue_targets", rows: Record<string, any>[], batchSize = 500) {
   for (let i = 0; i < rows.length; i += batchSize) {
     const batch = rows.slice(i, i + batchSize);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase.from(table) as any).upsert(batch, { onConflict: "id" });
     if (error) console.error(`Seed error ${table} batch ${i}:`, error);
   }
