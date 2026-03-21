@@ -67,12 +67,13 @@ function PersonBadge({ person, pct, onRemove }: { person: Person | undefined; pc
 
 // ── Main Component ──────────────────────────────────────────────────────────
 export default function Staffing() {
-  const [activeTab, setActiveTab] = useState<TabKey>("summary");
-  const [deals, setDeals] = useState<Deal[]>(DEFAULT_DEALS);
-  const [people, setPeople] = useState<Person[]>(DEFAULT_PEOPLE);
-  const [assignments, setAssignments] = useState<StaffingAssignment[]>(DEFAULT_ASSIGNMENTS);
-  const [hiringNeeds, setHiringNeeds] = useState<HiringNeed[]>(DEFAULT_HIRING_NEEDS);
-  const [revenueTargets, setRevenueTargets] = useState<RevenueCapacityTarget[]>(DEFAULT_REVENUE_TARGETS);
+  const {
+    people, deals, assignments, hiringNeeds, revenueTargets, loading,
+    addPerson: dbAddPerson, updatePerson: dbUpdatePerson, deletePerson: dbDeletePerson,
+    bulkUpdatePeople, addAssignment: dbAddAssignment, updateAssignment: dbUpdateAssignment,
+    deleteAssignment: dbDeleteAssignment, updateDeal: dbUpdateDeal,
+    setHiringNeeds, setRevenueTargets, setPeople, setAssignments, setDeals,
+  } = useStaffingData();
 
   const [search, setSearch] = useState("");
   const [vsdFilter, setVsdFilter] = useState<string>("All");
