@@ -35,6 +35,11 @@ function dbToDeal(row: any): Deal {
     retainerDealValue: row.retainer_deal_value ? Number(row.retainer_deal_value) : undefined,
     nonRetainerDealValue: row.non_retainer_deal_value ? Number(row.non_retainer_deal_value) : undefined,
     totalDealValue: row.total_deal_value ? Number(row.total_deal_value) : undefined,
+    principalBopm: row.principal_bopm || '', seniorBopm: row.senior_bopm || '',
+    bopm: row.bopm || '', customerStatus: row.customer_status || '',
+    customerType: row.customer_type || '', serviceLineTagging: row.service_line_tagging || '',
+    dealValueLost: row.deal_value_lost ? Number(row.deal_value_lost) : undefined,
+    netDealValue: row.net_deal_value ? Number(row.net_deal_value) : undefined,
   };
 }
 
