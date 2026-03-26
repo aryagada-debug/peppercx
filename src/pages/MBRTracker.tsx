@@ -2,51 +2,52 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
-import { useMBRData, getWeekOptions } from "@/hooks/useMBRData";
-import { Loader2, CheckCircle2, XCircle, Clock, BarChart3 } from "lucide-react";
+import { useMBRData, getWeekOptions, type MBREntry, type MBRDeal, type VSDSummary } from "@/hooks/useMBRData";
+import { MBRInputDrawer } from "@/components/mbr/MBRInputDrawer";
+import { Loader2, CheckCircle2, Clock, BarChart3 } from "lucide-react";
 import { useState } from "react";
 
 // ── VSD Summary Tab ──────────────────────────────────────────────────────────
-function VSDSummaryTab({ vsdSummary, totals }: { vsdSummary: any[]; totals: any }) {
+function VSDSummaryTab({ vsdSummary, totals }: { vsdSummary: VSDSummary[]; totals: any }) {
   const maxAccounts = Math.max(...vsdSummary.map(v => v.retainerAccounts), 1);
+  const totalScheduled = vsdSummary.reduce((a, v) => a + v.scheduledCount, 0);
+  const schedCompliance = totals.retainerAccounts > 0 ? Math.round((totalScheduled / totals.retainerAccounts) * 100) : 0;
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-5 gap-4">
         <MetricCard label="Retainer Accounts" value={String(totals.retainerAccounts)} />
         <MetricCard label="MBRs Done" value={String(totals.done)} />
         <MetricCard label="Not Done" value={String(totals.notDone)} />
         <MetricCard label="Pending to Update" value={String(totals.pending)} />
+        <MetricCard label="Scheduling Compliance" value={`${schedCompliance}%`} />
       </div>
 
-      {/* VSD Summary Table */}
       <div className="data-card p-0 overflow-hidden">
         <table className="w-full text-ui">
           <thead>
             <tr className="border-b border-border bg-secondary/30">
-              {["VSD", "Retainer Accounts", "MBRs Done", "Not Done", "Pending to Update"].map(h => (
-                <th key={h} className="text-left py-3 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">{h}</th>
+              {["VSD", "Accounts", "Done", "Not Done", "Pending", "🟢", "🟡", "🔴", "Scheduled"].map(h => (
+                <th key={h} className="text-left py-3 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {vsdSummary.map(v => (
               <tr key={v.vsd} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
-                <td className="py-3 px-4 font-semibold text-foreground">{v.vsd}</td>
-                <td className="py-3 px-4 font-mono tabular-nums text-foreground">{v.retainerAccounts}</td>
-                <td className="py-3 px-4 font-mono tabular-nums text-positive font-semibold">{v.done}</td>
-                <td className="py-3 px-4 font-mono tabular-nums text-destructive font-semibold">{v.notDone}</td>
-                <td className="py-3 px-4 font-mono tabular-nums text-warning font-semibold">{v.pending}</td>
+                <td className="py-3 px-3 font-semibold text-foreground">{v.vsd}</td>
+                <td className="py-3 px-3 font-mono tabular-nums text-foreground">{v.retainerAccounts}</td>
+                <td className="py-3 px-3 font-mono tabular-nums text-positive font-semibold">{v.done}</td>
+                <td className="py-3 px-3 font-mono tabular-nums text-destructive font-semibold">{v.notDone}</td>
+                <td className="py-3 px-3 font-mono tabular-nums text-warning font-semibold">{v.pending}</td>
+                <td className="py-3 px-3 font-mono tabular-nums text-positive">{v.greenCount}</td>
+                <td className="py-3 px-3 font-mono tabular-nums text-warning">{v.yellowCount}</td>
+                <td className="py-3 px-3 font-mono tabular-nums text-destructive">{v.redCount}</td>
+                <td className="py-3 px-3 font-mono tabular-nums text-foreground">{v.scheduledCount}/{v.retainerAccounts}</td>
               </tr>
             ))}
-            <tr className="bg-secondary/50 font-bold">
-              <td className="py-3 px-4 text-foreground">Total</td>
-              <td className="py-3 px-4 font-mono tabular-nums text-foreground">{totals.retainerAccounts}</td>
-              <td className="py-3 px-4 font-mono tabular-nums text-positive">{totals.done}</td>
-              <td className="py-3 px-4 font-mono tabular-nums text-destructive">{totals.notDone}</td>
-              <td className="py-3 px-4 font-mono tabular-nums text-warning">{totals.pending}</td>
-            </tr>
           </tbody>
         </table>
       </div>
@@ -64,20 +65,10 @@ function VSDSummaryTab({ vsdSummary, totals }: { vsdSummary: any[]; totals: any 
                 <span className="w-36 text-ui text-foreground font-medium truncate">{v.vsd}</span>
                 <div className="flex-1 flex items-center gap-1 h-7">
                   {v.done > 0 && (
-                    <div
-                      className="bg-positive h-full rounded-l flex items-center justify-center text-positive-foreground text-caption font-bold min-w-[24px]"
-                      style={{ width: `${doneW}%` }}
-                    >
-                      {v.done}
-                    </div>
+                    <div className="bg-positive h-full rounded-l flex items-center justify-center text-positive-foreground text-caption font-bold min-w-[24px]" style={{ width: `${doneW}%` }}>{v.done}</div>
                   )}
                   {v.notDone > 0 && (
-                    <div
-                      className="bg-destructive h-full flex items-center justify-center text-destructive-foreground text-caption font-bold min-w-[24px]"
-                      style={{ width: `${notDoneW}%`, borderRadius: v.done === 0 ? '0.25rem 0 0 0.25rem' : '0' }}
-                    >
-                      {v.notDone}
-                    </div>
+                    <div className="bg-destructive h-full flex items-center justify-center text-destructive-foreground text-caption font-bold min-w-[24px]" style={{ width: `${notDoneW}%`, borderRadius: v.done === 0 ? '0.25rem 0 0 0.25rem' : '0' }}>{v.notDone}</div>
                   )}
                   <span className="text-ui font-bold text-foreground ml-1">{v.retainerAccounts}</span>
                 </div>
@@ -95,11 +86,16 @@ function VSDSummaryTab({ vsdSummary, totals }: { vsdSummary: any[]; totals: any 
 }
 
 // ── Deal-Level Tracker Tab ───────────────────────────────────────────────────
-function DealTrackerTab({ deals, entries, upsertEntry }: { deals: any[]; entries: any[]; upsertEntry: any }) {
+function DealTrackerTab({
+  deals, entries, upsertEntry, toggleAnirudhJoining, selectedWeek
+}: {
+  deals: MBRDeal[]; entries: MBREntry[]; upsertEntry: any; toggleAnirudhJoining: any; selectedWeek: string;
+}) {
   const [filterVsd, setFilterVsd] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [drawerDeal, setDrawerDeal] = useState<MBRDeal | null>(null);
 
-  const entryMap = new Map(entries.map((e: any) => [e.dealId, e]));
+  const entryMap = new Map(entries.map((e) => [e.dealId, e]));
   const vsds = [...new Set(deals.map(d => d.vsd))].sort();
 
   const filtered = deals.filter(d => {
@@ -112,14 +108,17 @@ function DealTrackerTab({ deals, entries, upsertEntry }: { deals: any[]; entries
     return true;
   });
 
-  const handleStatusChange = (dealId: string, status: string) => {
-    const existing = entryMap.get(dealId);
-    upsertEntry(dealId, status, existing?.mode || null, existing?.notes || null, "");
+  const handleStatusChange = (deal: MBRDeal, status: string) => {
+    if (status === "Done") {
+      setDrawerDeal(deal);
+    } else {
+      const existing = entryMap.get(deal.id);
+      upsertEntry({ dealId: deal.id, status, mode: existing?.mode || null, notes: existing?.notes || null, updatedBy: "" });
+    }
   };
 
-  const handleModeChange = (dealId: string, mode: string) => {
-    const existing = entryMap.get(dealId);
-    upsertEntry(dealId, existing?.status || "Done", mode, existing?.notes || null, "");
+  const handleDrawerSave = (data: any) => {
+    upsertEntry(data);
   };
 
   const formatCurrency = (v: number | null) => {
@@ -127,6 +126,12 @@ function DealTrackerTab({ deals, entries, upsertEntry }: { deals: any[]; entries
     if (v >= 10000000) return `₹${(v / 10000000).toFixed(1)}Cr`;
     if (v >= 100000) return `₹${(v / 100000).toFixed(1)}L`;
     return `₹${v.toLocaleString("en-IN")}`;
+  };
+
+  const sentimentDot = (s: string | null) => {
+    if (!s) return null;
+    const colors: Record<string, string> = { Green: "bg-positive", Yellow: "bg-warning", Red: "bg-destructive" };
+    return <span className={cn("w-3.5 h-3.5 rounded-full inline-block", colors[s] || "bg-muted")} title={s} />;
   };
 
   return (
@@ -156,7 +161,7 @@ function DealTrackerTab({ deals, entries, upsertEntry }: { deals: any[]; entries
         <table className="w-full text-ui">
           <thead className="sticky top-0 z-10">
             <tr className="border-b border-border bg-secondary/60 backdrop-blur">
-              {["PC Code", "Account", "Deal Name", "VSD", "Sr. BOPM", "MRR", "Status", "Mode"].map(h => (
+              {["PC Code", "Account", "Deal Name", "VSD", "Sr. BOPM", "MRR", "Status", "Sentiment", "Scheduled", "Anirudh Added", "Anirudh Joining"].map(h => (
                 <th key={h} className="text-left py-3 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -168,15 +173,15 @@ function DealTrackerTab({ deals, entries, upsertEntry }: { deals: any[]; entries
               return (
                 <tr key={d.id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
                   <td className="py-2.5 px-3 font-mono text-accent text-caption">{d.pcCode}</td>
-                  <td className="py-2.5 px-3 font-medium text-foreground max-w-[160px] truncate">{d.account}</td>
-                  <td className="py-2.5 px-3 text-muted-foreground max-w-[200px] truncate text-caption">{d.dealName}</td>
+                  <td className="py-2.5 px-3 font-medium text-foreground max-w-[140px] truncate">{d.account}</td>
+                  <td className="py-2.5 px-3 text-muted-foreground max-w-[160px] truncate text-caption">{d.dealName}</td>
                   <td className="py-2.5 px-3 text-foreground whitespace-nowrap">{d.vsd}</td>
                   <td className="py-2.5 px-3 text-muted-foreground whitespace-nowrap">{d.seniorBopm}</td>
                   <td className="py-2.5 px-3 font-mono tabular-nums text-foreground whitespace-nowrap">{formatCurrency(d.mrr)}</td>
                   <td className="py-2.5 px-3">
                     <select
                       value={status}
-                      onChange={(e) => handleStatusChange(d.id, e.target.value)}
+                      onChange={(e) => handleStatusChange(d, e.target.value)}
                       className={cn(
                         "text-caption font-semibold rounded px-2 py-1 border-0 outline-none cursor-pointer",
                         status === "Done" && "bg-positive/15 text-positive",
@@ -191,18 +196,14 @@ function DealTrackerTab({ deals, entries, upsertEntry }: { deals: any[]; entries
                       <option value="Not Required">Not Required</option>
                     </select>
                   </td>
-                  <td className="py-2.5 px-3">
-                    {(status === "Done") && (
-                      <select
-                        value={entry?.mode || ""}
-                        onChange={(e) => handleModeChange(d.id, e.target.value)}
-                        className="text-caption rounded px-2 py-1 bg-secondary text-foreground border-0 outline-none cursor-pointer"
-                      >
-                        <option value="">Select</option>
-                        <option value="In-Person">In-Person</option>
-                        <option value="Virtual">Virtual</option>
-                      </select>
-                    )}
+                  <td className="py-2.5 px-3 text-center">{sentimentDot(entry?.sentiment ?? null)}</td>
+                  <td className="py-2.5 px-3 text-caption text-muted-foreground whitespace-nowrap">{entry?.scheduledDate || "—"}</td>
+                  <td className="py-2.5 px-3 text-center">{entry?.anirudhAdded ? <span className="text-positive font-bold">✓</span> : <span className="text-muted-foreground">✗</span>}</td>
+                  <td className="py-2.5 px-3 text-center">
+                    <Checkbox
+                      checked={entry?.anirudhJoining || false}
+                      onCheckedChange={(v) => toggleAnirudhJoining(d.id, !!v)}
+                    />
                   </td>
                 </tr>
               );
@@ -210,35 +211,41 @@ function DealTrackerTab({ deals, entries, upsertEntry }: { deals: any[]; entries
           </tbody>
         </table>
       </div>
+
+      {drawerDeal && (
+        <MBRInputDrawer
+          open={!!drawerDeal}
+          onClose={() => setDrawerDeal(null)}
+          deal={drawerDeal}
+          existingEntry={entryMap.get(drawerDeal.id) || null}
+          selectedWeek={selectedWeek}
+          onSave={handleDrawerSave}
+        />
+      )}
     </div>
   );
 }
 
 // ── History Tab ──────────────────────────────────────────────────────────────
-function HistoryTab({ deals, selectedWeek }: { deals: any[]; selectedWeek: string }) {
+function HistoryTab({ deals, selectedWeek }: { deals: MBRDeal[]; selectedWeek: string }) {
   const weeks = getWeekOptions().slice(0, 8);
   const [historyData, setHistoryData] = useState<Record<string, any[]>>({});
   const [loaded, setLoaded] = useState(false);
 
-  // Load history on mount
   if (!loaded) {
     import("@/integrations/supabase/client").then(({ supabase }) => {
       const weekValues = weeks.map(w => w.value);
-      supabase
-        .from("mbr_entries")
-        .select("*")
-        .in("week_start", weekValues)
-        .then(({ data }) => {
-          if (data) {
-            const grouped: Record<string, any[]> = {};
-            for (const e of data) {
-              if (!grouped[e.week_start]) grouped[e.week_start] = [];
-              grouped[e.week_start].push(e);
-            }
-            setHistoryData(grouped);
+      supabase.from("mbr_entries").select("*").in("week_start", weekValues).then(({ data }) => {
+        if (data) {
+          const grouped: Record<string, any[]> = {};
+          for (const e of data) {
+            if (!grouped[e.week_start]) grouped[e.week_start] = [];
+            grouped[e.week_start].push(e);
           }
-          setLoaded(true);
-        });
+          setHistoryData(grouped);
+        }
+        setLoaded(true);
+      });
     });
   }
 
@@ -273,7 +280,7 @@ function HistoryTab({ deals, selectedWeek }: { deals: any[]; selectedWeek: strin
 
 // ── Main Component ───────────────────────────────────────────────────────────
 export default function MBRTracker() {
-  const { deals, entries, loading, selectedWeek, setSelectedWeek, upsertEntry, vsdSummary, totals } = useMBRData();
+  const { deals, entries, loading, selectedWeek, setSelectedWeek, upsertEntry, toggleAnirudhJoining, vsdSummary, totals } = useMBRData();
   const weekOptions = getWeekOptions();
 
   if (loading) {
@@ -295,13 +302,9 @@ export default function MBRTracker() {
             <p className="text-ui text-muted-foreground">Weekly Business Review completion tracking</p>
           </div>
           <Select value={selectedWeek} onValueChange={setSelectedWeek}>
-            <SelectTrigger className="w-64">
-              <SelectValue placeholder="Select week" />
-            </SelectTrigger>
+            <SelectTrigger className="w-64"><SelectValue placeholder="Select week" /></SelectTrigger>
             <SelectContent>
-              {weekOptions.map(w => (
-                <SelectItem key={w.value} value={w.value}>{w.label}</SelectItem>
-              ))}
+              {weekOptions.map(w => <SelectItem key={w.value} value={w.value}>{w.label}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -318,7 +321,7 @@ export default function MBRTracker() {
           </TabsContent>
 
           <TabsContent value="deals">
-            <DealTrackerTab deals={deals} entries={entries} upsertEntry={upsertEntry} />
+            <DealTrackerTab deals={deals} entries={entries} upsertEntry={upsertEntry} toggleAnirudhJoining={toggleAnirudhJoining} selectedWeek={selectedWeek} />
           </TabsContent>
 
           <TabsContent value="history">
