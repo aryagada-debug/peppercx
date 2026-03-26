@@ -1,82 +1,81 @@
 
 
-# MBR Tracker — Import Deal Data & Build Holistic Dashboard
+# MBR Tracker — Enhanced Input Drawer, Sentiment, AI Summary, Scheduling & Anirudh Tracking
 
 ## Overview
 
-Import all active Retainer deals from the existing `staffing_deals` database table into the MBR Tracker. Add missing columns (Principal BOPM, Senior BOPM, BOPM, Customer Status, Customer Type, Service Line Tagging, Deal Value Lost, Net Deal Value) to the deals table. Create a new `mbr_entries` table for weekly MBR tracking per deal. Build a 3-tab dashboard matching the screenshot layout.
+When a VSD marks an MBR as "Done", a full-screen drawer opens to capture rich data: sentiment (R/G/Y), Fathom link, transcript, scheduled date, and whether Anirudh was added as optional. An AI summarizer generates actionable to-dos from the transcript. Anirudh gets a separate column to mark deals he wants to join.
 
 ## Database Changes
 
-### 1. Add missing columns to `staffing_deals`
+**Alter `mbr_entries` table** — add columns:
+- `sentiment` (text: Red / Yellow / Green) — post-MBR sentiment tag
+- `fathom_link` (text) — Fathom note-taker URL
+- `transcript` (text) — call transcript paste
+- `ai_summary` (text) — AI-generated summary
+- `action_items` (jsonb, default '[]') — structured to-dos from AI
+- `scheduled_date` (date) — mandatory future MBR date
+- `anirudh_added` (boolean, default false) — VSD confirms Anirudh is optional attendee
+- `anirudh_joining` (boolean, default false) — Anirudh marks he wants to join
+- `input_recorded_at` (timestamptz) — when the drawer was submitted
 
-New columns via migration:
-- `principal_bopm` (text, default '')
-- `senior_bopm` (text, default '')
-- `bopm` (text, default '')
-- `customer_status` (text, default '') — maps to "Customer Status" from sheet
-- `customer_type` (text, default '') — maps to "Customer Type"
-- `service_line_tagging` (text, default '')
-- `deal_value_lost` (numeric, nullable)
-- `net_deal_value` (numeric, nullable)
+## Edge Function: AI Summarizer
 
-### 2. Create `mbr_entries` table
+**New edge function `mbr-summarize`** that takes the transcript text, calls Lovable AI (gemini-3-flash-preview), and returns:
+- A concise meeting summary
+- Actionable to-dos with owners and deadlines
 
-```text
-mbr_entries
-├── id (uuid, PK, default gen_random_uuid())
-├── deal_id (text, FK → staffing_deals.id)
-├── week_start (date) — Monday of MBR week
-├── status (text: Done / Not Done / Not Required)
-├── mode (text: In-Person / Virtual / null)
-├── notes (text, nullable)
-├── updated_by (text) — VSD or BOPM name
-├── created_at, updated_at (timestamps)
-└── UNIQUE(deal_id, week_start)
-```
+Called from the drawer when user clicks "Generate AI Summary" after pasting transcript.
 
-Public RLS policies (matching existing pattern). Enable realtime.
+## Frontend Changes
 
-### 3. Seed deal data from Excel
+### 1. MBR Input Drawer (new component)
 
-Parse the uploaded XLSX "Live Revenue Tracker_Deal level" sheet using pandas, then upsert into `staffing_deals` — mapping the new columns (Principal BOPM, Senior BOPM, BOPM, Customer Status, Customer Type, Service Line Tagging, Deal Value Lost, Net Deal Value) plus updating existing fields (MRR, Duration, Deal Values) where they have data in the sheet.
+When status changes to "Done" in the Deal Tracker tab, instead of inline update, a **full Drawer** opens from the right with:
 
-## Frontend — MBR Tracker Page (3 Tabs)
+- **Deal info header** (Account, Deal Name, VSD — read-only)
+- **Sentiment** — 3 color buttons: 🟢 Green, 🟡 Yellow, 🔴 Red (mandatory)
+- **Fathom Link** — text input for note-taker URL (with view-access note)
+- **Transcript** — large textarea to paste call transcript
+- **"Generate AI Summary" button** — calls edge function, populates:
+  - Summary text area (editable)
+  - Action items list (editable, add/remove)
+- **Scheduled Date for Next MBR** — date picker (mandatory)
+- **Anirudh added as optional?** — checkbox (mandatory)
+- **Mode** — In-Person / Virtual radio
+- **Notes** — textarea
+- **Submit button** — saves all fields, records `input_recorded_at = now()`
 
-### Tab 1: VSD Summary (default) — matches screenshot
+### 2. Deal Tracker Tab Updates
 
-- **Metric cards**: Total Retainer Accounts, MBRs Done, Not Done, Pending to Update
-- **VSD summary table**: columns = VSD, Retainer Accounts, MBRs Done, Not Done, Pending to Update
-- **Stacked horizontal bar chart** per VSD (green = Done, red = Not Done) built with CSS divs
-- **Week selector** (defaults to current week, Monday-based)
+- Add **"Scheduled Date"** column showing next MBR date
+- Add **"Sentiment"** column with colored dot (R/G/Y)
+- Add **"Anirudh Joining"** column — checkbox that only Anirudh toggles
+- Add **"Anirudh Added?"** column showing ✓/✗
+- Clicking "Done" opens the drawer instead of inline dropdown
+- Other statuses (Not Done, Not Required, Pending) remain inline
 
-### Tab 2: Deal-Level Tracker
+### 3. VSD Summary Tab Updates
 
-- Table of all active Retainer deals from `staffing_deals`
-- Columns: PC Code, Deal ID, Account, Deal Name, VSD, Sr. BOPM, BOPM, MRR, Status (dropdown), Mode, Notes
-- Inline status update — upserts into `mbr_entries`
-- Filters: VSD, Business Unit, Status
-
-### Tab 3: History / Trends
-
-- Week-over-week completion rate
-- VSD-level heatmap across weeks
+- Add sentiment distribution per VSD (Green/Yellow/Red counts)
+- Add "Scheduling Compliance" metric — % of deals with future MBR date filled
 
 ## Files to Create/Modify
 
 | File | Action |
 |------|--------|
-| Migration SQL | Add columns to `staffing_deals` + create `mbr_entries` table |
-| Data seed (via exec) | Parse XLSX, upsert deal data with new columns |
-| `src/data/staffingData.ts` | Add new fields to `Deal` interface |
-| `src/hooks/useStaffingData.ts` | Update mappers for new Deal fields |
-| `src/hooks/useMBRData.ts` | New hook: fetch MBR entries, upsert status |
-| `src/pages/MBRTracker.tsx` | Complete rewrite with 3-tab dashboard |
+| Migration SQL | Add 8 new columns to `mbr_entries` |
+| `supabase/functions/mbr-summarize/index.ts` | New edge function for AI summary |
+| `src/components/mbr/MBRInputDrawer.tsx` | New full drawer component |
+| `src/hooks/useMBRData.ts` | Expand MBREntry interface, update upsert to handle new fields |
+| `src/pages/MBRTracker.tsx` | Integrate drawer, add new columns, sentiment display |
 
-## Technical Details
+## Key Technical Details
 
-- MBR entries are per-deal per-week — deals without an entry for the selected week show as "Pending to Update"
-- VSD grouping uses the `vsd` field already on `staffing_deals` (Aamir Khan, Aditya Shaw, Neema Jayadas, Sumit Shekhawat, etc.)
-- The 121 active retainer deals already in the DB will be the base; the Excel import will update their financial fields and add the BOPM hierarchy
-- Week picker auto-generates Mondays; current week is default
+- Drawer uses shadcn Sheet component (side="right", full height)
+- Sentiment stored as text enum, rendered as colored circles
+- AI summary via Lovable AI gateway through edge function — no API key needed from user
+- `input_recorded_at` auto-set on submit to track when data was entered
+- `scheduled_date` is mandatory when status = "Done" — drawer won't submit without it
+- Action items stored as JSONB array: `[{task, owner, deadline, done}]`
 
