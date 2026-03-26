@@ -16,34 +16,61 @@ export type Database = {
     Tables: {
       mbr_entries: {
         Row: {
+          action_items: Json | null
+          ai_summary: string | null
+          anirudh_added: boolean | null
+          anirudh_joining: boolean | null
           created_at: string
           deal_id: string
+          fathom_link: string | null
           id: string
+          input_recorded_at: string | null
           mode: string | null
           notes: string | null
+          scheduled_date: string | null
+          sentiment: string | null
           status: string
+          transcript: string | null
           updated_at: string
           updated_by: string
           week_start: string
         }
         Insert: {
+          action_items?: Json | null
+          ai_summary?: string | null
+          anirudh_added?: boolean | null
+          anirudh_joining?: boolean | null
           created_at?: string
           deal_id: string
+          fathom_link?: string | null
           id?: string
+          input_recorded_at?: string | null
           mode?: string | null
           notes?: string | null
+          scheduled_date?: string | null
+          sentiment?: string | null
           status?: string
+          transcript?: string | null
           updated_at?: string
           updated_by?: string
           week_start: string
         }
         Update: {
+          action_items?: Json | null
+          ai_summary?: string | null
+          anirudh_added?: boolean | null
+          anirudh_joining?: boolean | null
           created_at?: string
           deal_id?: string
+          fathom_link?: string | null
           id?: string
+          input_recorded_at?: string | null
           mode?: string | null
           notes?: string | null
+          scheduled_date?: string | null
+          sentiment?: string | null
           status?: string
+          transcript?: string | null
           updated_at?: string
           updated_by?: string
           week_start?: string
