@@ -6,14 +6,36 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { useMBRData, getWeekOptions, type MBREntry, type MBRDeal, type VSDSummary } from "@/hooks/useMBRData";
 import { MBRInputDrawer } from "@/components/mbr/MBRInputDrawer";
-import { Loader2, CheckCircle2, Clock, BarChart3 } from "lucide-react";
+import { Loader2, CheckCircle2, Clock, BarChart3, ChevronDown, ChevronRight, Eye, Edit2 } from "lucide-react";
 import { useState } from "react";
+import { MBRDetailDialog } from "@/components/mbr/MBRDetailDialog";
 
 // ── VSD Summary Tab ──────────────────────────────────────────────────────────
-function VSDSummaryTab({ vsdSummary, totals }: { vsdSummary: VSDSummary[]; totals: any }) {
+function VSDSummaryTab({
+  vsdSummary, totals, deals, entries
+}: {
+  vsdSummary: VSDSummary[]; totals: any; deals: MBRDeal[]; entries: MBREntry[];
+}) {
   const maxAccounts = Math.max(...vsdSummary.map(v => v.retainerAccounts), 1);
   const totalScheduled = vsdSummary.reduce((a, v) => a + v.scheduledCount, 0);
   const schedCompliance = totals.retainerAccounts > 0 ? Math.round((totalScheduled / totals.retainerAccounts) * 100) : 0;
+
+  const [expandedVsd, setExpandedVsd] = useState<string | null>(null);
+  const [viewDeal, setViewDeal] = useState<{ deal: MBRDeal; entry: MBREntry | null } | null>(null);
+
+  const entryMap = new Map(entries.map(e => [e.dealId, e]));
+
+  const toggleExpand = (vsd: string) => {
+    setExpandedVsd(prev => prev === vsd ? null : vsd);
+  };
+
+  const vsdDeals = expandedVsd ? deals.filter(d => d.vsd === expandedVsd) : [];
+
+  const sentimentDot = (s: string | null) => {
+    if (!s) return <span className="text-muted-foreground text-xs">—</span>;
+    const colors: Record<string, string> = { Green: "bg-positive", Yellow: "bg-warning", Red: "bg-destructive" };
+    return <span className={cn("w-3 h-3 rounded-full inline-block", colors[s] || "bg-muted")} title={s} />;
+  };
 
   return (
     <div className="space-y-6">
@@ -29,6 +51,7 @@ function VSDSummaryTab({ vsdSummary, totals }: { vsdSummary: VSDSummary[]; total
         <table className="w-full text-ui">
           <thead>
             <tr className="border-b border-border bg-secondary/30">
+              <th className="w-8" />
               {["VSD", "Accounts", "Done", "Not Done", "Pending", "🟢", "🟡", "🔴", "Scheduled"].map(h => (
                 <th key={h} className="text-left py-3 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider">{h}</th>
               ))}
@@ -36,17 +59,58 @@ function VSDSummaryTab({ vsdSummary, totals }: { vsdSummary: VSDSummary[]; total
           </thead>
           <tbody>
             {vsdSummary.map(v => (
-              <tr key={v.vsd} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
-                <td className="py-3 px-3 font-semibold text-foreground">{v.vsd}</td>
-                <td className="py-3 px-3 font-mono tabular-nums text-foreground">{v.retainerAccounts}</td>
-                <td className="py-3 px-3 font-mono tabular-nums text-positive font-semibold">{v.done}</td>
-                <td className="py-3 px-3 font-mono tabular-nums text-destructive font-semibold">{v.notDone}</td>
-                <td className="py-3 px-3 font-mono tabular-nums text-warning font-semibold">{v.pending}</td>
-                <td className="py-3 px-3 font-mono tabular-nums text-positive">{v.greenCount}</td>
-                <td className="py-3 px-3 font-mono tabular-nums text-warning">{v.yellowCount}</td>
-                <td className="py-3 px-3 font-mono tabular-nums text-destructive">{v.redCount}</td>
-                <td className="py-3 px-3 font-mono tabular-nums text-foreground">{v.scheduledCount}/{v.retainerAccounts}</td>
-              </tr>
+              <>
+                <tr
+                  key={v.vsd}
+                  className="border-b border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer"
+                  onClick={() => toggleExpand(v.vsd)}
+                >
+                  <td className="py-3 px-2 text-center">
+                    {expandedVsd === v.vsd
+                      ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                  </td>
+                  <td className="py-3 px-3 font-semibold text-foreground">{v.vsd}</td>
+                  <td className="py-3 px-3 font-mono tabular-nums text-foreground">{v.retainerAccounts}</td>
+                  <td className="py-3 px-3 font-mono tabular-nums text-positive font-semibold">{v.done}</td>
+                  <td className="py-3 px-3 font-mono tabular-nums text-destructive font-semibold">{v.notDone}</td>
+                  <td className="py-3 px-3 font-mono tabular-nums text-warning font-semibold">{v.pending}</td>
+                  <td className="py-3 px-3 font-mono tabular-nums text-positive">{v.greenCount}</td>
+                  <td className="py-3 px-3 font-mono tabular-nums text-warning">{v.yellowCount}</td>
+                  <td className="py-3 px-3 font-mono tabular-nums text-destructive">{v.redCount}</td>
+                  <td className="py-3 px-3 font-mono tabular-nums text-foreground">{v.scheduledCount}/{v.retainerAccounts}</td>
+                </tr>
+                {expandedVsd === v.vsd && vsdDeals.map(d => {
+                  const entry = entryMap.get(d.id);
+                  const status = entry?.status || "Pending";
+                  return (
+                    <tr
+                      key={`deal-${d.id}`}
+                      className="border-b border-border/30 bg-secondary/10 hover:bg-secondary/20 transition-colors cursor-pointer"
+                      onClick={() => setViewDeal({ deal: d, entry: entry || null })}
+                    >
+                      <td />
+                      <td className="py-2 px-3 pl-8 text-sm text-muted-foreground">{d.account}</td>
+                      <td className="py-2 px-3 text-xs text-muted-foreground truncate max-w-[120px]">{d.dealName}</td>
+                      <td className="py-2 px-3">
+                        <span className={cn(
+                          "text-xs font-semibold rounded px-1.5 py-0.5",
+                          status === "Done" && "bg-positive/15 text-positive",
+                          status === "Not Done" && "bg-destructive/15 text-destructive",
+                          status === "Pending" && "bg-warning/15 text-warning",
+                          status === "Not Required" && "bg-muted text-muted-foreground",
+                        )}>{status}</span>
+                      </td>
+                      <td />
+                      <td />
+                      <td className="py-2 px-3">{sentimentDot(entry?.sentiment ?? null)}</td>
+                      <td />
+                      <td />
+                      <td className="py-2 px-3 text-xs text-muted-foreground">{entry?.scheduledDate || "—"}</td>
+                    </tr>
+                  );
+                })}
+              </>
             ))}
           </tbody>
         </table>
@@ -81,6 +145,15 @@ function VSDSummaryTab({ vsdSummary, totals }: { vsdSummary: VSDSummary[]; total
           <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-destructive inline-block" /> Not Done</span>
         </div>
       </div>
+
+      {viewDeal && (
+        <MBRDetailDialog
+          open={!!viewDeal}
+          onClose={() => setViewDeal(null)}
+          deal={viewDeal.deal}
+          entry={viewDeal.entry}
+        />
+      )}
     </div>
   );
 }
@@ -94,6 +167,7 @@ function DealTrackerTab({
   const [filterVsd, setFilterVsd] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [drawerDeal, setDrawerDeal] = useState<MBRDeal | null>(null);
+  const [viewDeal, setViewDeal] = useState<{ deal: MBRDeal; entry: MBREntry | null } | null>(null);
 
   const entryMap = new Map(entries.map((e) => [e.dealId, e]));
   const vsds = [...new Set(deals.map(d => d.vsd))].sort();
@@ -119,6 +193,19 @@ function DealTrackerTab({
 
   const handleDrawerSave = (data: any) => {
     upsertEntry(data);
+  };
+
+  const handleRowClick = (deal: MBRDeal, e: React.MouseEvent) => {
+    // Don't open if clicking on interactive elements
+    const target = e.target as HTMLElement;
+    if (target.closest("select") || target.closest("button") || target.closest('[role="checkbox"]')) return;
+    
+    const entry = entryMap.get(deal.id);
+    if (entry && entry.status === "Done") {
+      setViewDeal({ deal, entry });
+    } else {
+      setDrawerDeal(deal);
+    }
   };
 
   const formatCurrency = (v: number | null) => {
@@ -161,7 +248,7 @@ function DealTrackerTab({
         <table className="w-full text-ui">
           <thead className="sticky top-0 z-10">
             <tr className="border-b border-border bg-secondary/60 backdrop-blur">
-              {["PC Code", "Account", "Deal Name", "VSD", "Sr. BOPM", "MRR", "Status", "Sentiment", "Scheduled", "Anirudh Added", "Anirudh Joining"].map(h => (
+              {["PC Code", "Account", "Deal Name", "VSD", "Sr. BOPM", "MRR", "Status", "Sentiment", "Scheduled", "Anirudh Added", "Anirudh Joining", ""].map(h => (
                 <th key={h} className="text-left py-3 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -171,7 +258,11 @@ function DealTrackerTab({
               const entry = entryMap.get(d.id);
               const status = entry?.status || "Pending";
               return (
-                <tr key={d.id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
+                <tr
+                  key={d.id}
+                  className="border-b border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer group"
+                  onClick={(e) => handleRowClick(d, e)}
+                >
                   <td className="py-2.5 px-3 font-mono text-accent text-caption">{d.pcCode}</td>
                   <td className="py-2.5 px-3 font-medium text-foreground max-w-[140px] truncate">{d.account}</td>
                   <td className="py-2.5 px-3 text-muted-foreground max-w-[160px] truncate text-caption">{d.dealName}</td>
@@ -181,7 +272,7 @@ function DealTrackerTab({
                   <td className="py-2.5 px-3">
                     <select
                       value={status}
-                      onChange={(e) => handleStatusChange(d, e.target.value)}
+                      onChange={(e) => { e.stopPropagation(); handleStatusChange(d, e.target.value); }}
                       className={cn(
                         "text-caption font-semibold rounded px-2 py-1 border-0 outline-none cursor-pointer",
                         status === "Done" && "bg-positive/15 text-positive",
@@ -205,6 +296,13 @@ function DealTrackerTab({
                       onCheckedChange={(v) => toggleAnirudhJoining(d.id, !!v)}
                     />
                   </td>
+                  <td className="py-2.5 px-3">
+                    <span className="opacity-0 group-hover:opacity-100 transition-opacity">
+                      {entry?.status === "Done"
+                        ? <Eye className="h-4 w-4 text-muted-foreground" />
+                        : <Edit2 className="h-4 w-4 text-muted-foreground" />}
+                    </span>
+                  </td>
                 </tr>
               );
             })}
@@ -220,6 +318,19 @@ function DealTrackerTab({
           existingEntry={entryMap.get(drawerDeal.id) || null}
           selectedWeek={selectedWeek}
           onSave={handleDrawerSave}
+        />
+      )}
+
+      {viewDeal && (
+        <MBRDetailDialog
+          open={!!viewDeal}
+          onClose={() => setViewDeal(null)}
+          deal={viewDeal.deal}
+          entry={viewDeal.entry}
+          onEdit={() => {
+            setViewDeal(null);
+            setDrawerDeal(viewDeal.deal);
+          }}
         />
       )}
     </div>
@@ -317,7 +428,7 @@ export default function MBRTracker() {
           </TabsList>
 
           <TabsContent value="summary">
-            <VSDSummaryTab vsdSummary={vsdSummary} totals={totals} />
+            <VSDSummaryTab vsdSummary={vsdSummary} totals={totals} deals={deals} entries={entries} />
           </TabsContent>
 
           <TabsContent value="deals">
