@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      mbr_entries: {
+        Row: {
+          created_at: string
+          deal_id: string
+          id: string
+          mode: string | null
+          notes: string | null
+          status: string
+          updated_at: string
+          updated_by: string
+          week_start: string
+        }
+        Insert: {
+          created_at?: string
+          deal_id: string
+          id?: string
+          mode?: string | null
+          notes?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string
+          week_start: string
+        }
+        Update: {
+          created_at?: string
+          deal_id?: string
+          id?: string
+          mode?: string | null
+          notes?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string
+          week_start?: string
+        }
+        Relationships: []
+      }
       staffing_assignments: {
         Row: {
           allocation_pct: number
@@ -62,22 +98,30 @@ export type Database = {
       staffing_deals: {
         Row: {
           account: string
+          bopm: string
           business_unit: string
           capability_line: string
           created_at: string
           creative_staffing: boolean
+          customer_status: string
+          customer_type: string
           deal_id: string
           deal_name: string
           deal_status: string
           deal_status_cx: string
           deal_type: string
+          deal_value_lost: number | null
           duration: string | null
           id: string
           mrr: number | null
+          net_deal_value: number | null
           non_retainer_deal_value: number | null
           pc_code: string
+          principal_bopm: string
           retainer_deal_value: number | null
+          senior_bopm: string
           seo_staffing: boolean
+          service_line_tagging: string
           staffing_status: string
           total_deal_value: number | null
           updated_at: string
@@ -86,22 +130,30 @@ export type Database = {
         }
         Insert: {
           account?: string
+          bopm?: string
           business_unit?: string
           capability_line?: string
           created_at?: string
           creative_staffing?: boolean
+          customer_status?: string
+          customer_type?: string
           deal_id?: string
           deal_name?: string
           deal_status?: string
           deal_status_cx?: string
           deal_type?: string
+          deal_value_lost?: number | null
           duration?: string | null
           id: string
           mrr?: number | null
+          net_deal_value?: number | null
           non_retainer_deal_value?: number | null
           pc_code?: string
+          principal_bopm?: string
           retainer_deal_value?: number | null
+          senior_bopm?: string
           seo_staffing?: boolean
+          service_line_tagging?: string
           staffing_status?: string
           total_deal_value?: number | null
           updated_at?: string
@@ -110,22 +162,30 @@ export type Database = {
         }
         Update: {
           account?: string
+          bopm?: string
           business_unit?: string
           capability_line?: string
           created_at?: string
           creative_staffing?: boolean
+          customer_status?: string
+          customer_type?: string
           deal_id?: string
           deal_name?: string
           deal_status?: string
           deal_status_cx?: string
           deal_type?: string
+          deal_value_lost?: number | null
           duration?: string | null
           id?: string
           mrr?: number | null
+          net_deal_value?: number | null
           non_retainer_deal_value?: number | null
           pc_code?: string
+          principal_bopm?: string
           retainer_deal_value?: number | null
+          senior_bopm?: string
           seo_staffing?: boolean
+          service_line_tagging?: string
           staffing_status?: string
           total_deal_value?: number | null
           updated_at?: string
