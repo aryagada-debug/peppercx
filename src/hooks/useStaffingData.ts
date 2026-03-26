@@ -54,6 +54,10 @@ function dealToDb(d: Deal) {
     retainer_deal_value: d.retainerDealValue ?? null,
     non_retainer_deal_value: d.nonRetainerDealValue ?? null,
     total_deal_value: d.totalDealValue ?? null,
+    principal_bopm: d.principalBopm ?? '', senior_bopm: d.seniorBopm ?? '',
+    bopm: d.bopm ?? '', customer_status: d.customerStatus ?? '',
+    customer_type: d.customerType ?? '', service_line_tagging: d.serviceLineTagging ?? '',
+    deal_value_lost: d.dealValueLost ?? null, net_deal_value: d.netDealValue ?? null,
   };
 }
 
