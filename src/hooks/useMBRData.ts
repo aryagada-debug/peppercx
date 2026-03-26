@@ -20,6 +20,13 @@ export interface MBRDeal {
   netDealValue: number | null;
 }
 
+export interface ActionItem {
+  task: string;
+  owner: string;
+  deadline: string;
+  done: boolean;
+}
+
 export interface MBREntry {
   id: string;
   dealId: string;
@@ -28,6 +35,15 @@ export interface MBREntry {
   mode: string | null;
   notes: string | null;
   updatedBy: string;
+  sentiment: string | null;
+  fathomLink: string | null;
+  transcript: string | null;
+  aiSummary: string | null;
+  actionItems: ActionItem[];
+  scheduledDate: string | null;
+  anirudhAdded: boolean;
+  anirudhJoining: boolean;
+  inputRecordedAt: string | null;
 }
 
 export interface VSDSummary {
@@ -36,6 +52,10 @@ export interface VSDSummary {
   done: number;
   notDone: number;
   pending: number;
+  greenCount: number;
+  yellowCount: number;
+  redCount: number;
+  scheduledCount: number;
 }
 
 function getMonday(d: Date): string {
@@ -59,6 +79,27 @@ export function getWeekOptions(): { value: string; label: string }[] {
     weeks.push({ value: monday, label });
   }
   return weeks;
+}
+
+function mapEntry(e: any): MBREntry {
+  return {
+    id: e.id,
+    dealId: e.deal_id,
+    weekStart: e.week_start,
+    status: e.status,
+    mode: e.mode,
+    notes: e.notes,
+    updatedBy: e.updated_by,
+    sentiment: e.sentiment || null,
+    fathomLink: e.fathom_link || null,
+    transcript: e.transcript || null,
+    aiSummary: e.ai_summary || null,
+    actionItems: Array.isArray(e.action_items) ? e.action_items : [],
+    scheduledDate: e.scheduled_date || null,
+    anirudhAdded: !!e.anirudh_added,
+    anirudhJoining: !!e.anirudh_joining,
+    inputRecordedAt: e.input_recorded_at || null,
+  };
 }
 
 export function useMBRData() {
@@ -109,17 +150,7 @@ export function useMBRData() {
       .eq("week_start", week);
 
     if (data) {
-      setEntries(
-        data.map((e: any) => ({
-          id: e.id,
-          dealId: e.deal_id,
-          weekStart: e.week_start,
-          status: e.status,
-          mode: e.mode,
-          notes: e.notes,
-          updatedBy: e.updated_by,
-        }))
-      );
+      setEntries(data.map(mapEntry));
     }
   }, []);
 
@@ -133,31 +164,46 @@ export function useMBRData() {
   }, [selectedWeek]);
 
   const upsertEntry = useCallback(
-    async (dealId: string, status: string, mode: string | null, notes: string | null, updatedBy: string) => {
+    async (params: {
+      dealId: string;
+      status: string;
+      mode: string | null;
+      notes: string | null;
+      updatedBy: string;
+      sentiment?: string | null;
+      fathomLink?: string | null;
+      transcript?: string | null;
+      aiSummary?: string | null;
+      actionItems?: ActionItem[];
+      scheduledDate?: string | null;
+      anirudhAdded?: boolean;
+    }) => {
+      const row: any = {
+        deal_id: params.dealId,
+        week_start: selectedWeek,
+        status: params.status,
+        mode: params.mode,
+        notes: params.notes,
+        updated_by: params.updatedBy,
+      };
+      if (params.sentiment !== undefined) row.sentiment = params.sentiment;
+      if (params.fathomLink !== undefined) row.fathom_link = params.fathomLink;
+      if (params.transcript !== undefined) row.transcript = params.transcript;
+      if (params.aiSummary !== undefined) row.ai_summary = params.aiSummary;
+      if (params.actionItems !== undefined) row.action_items = params.actionItems;
+      if (params.scheduledDate !== undefined) row.scheduled_date = params.scheduledDate;
+      if (params.anirudhAdded !== undefined) row.anirudh_added = params.anirudhAdded;
+      if (params.status === "Done") row.input_recorded_at = new Date().toISOString();
+
       const { data, error } = await (supabase.from("mbr_entries") as any).upsert(
-        {
-          deal_id: dealId,
-          week_start: selectedWeek,
-          status,
-          mode,
-          notes,
-          updated_by: updatedBy,
-        },
+        row,
         { onConflict: "deal_id,week_start" }
       ).select();
 
       if (!error && data?.[0]) {
         setEntries((prev) => {
-          const existing = prev.findIndex((e) => e.dealId === dealId && e.weekStart === selectedWeek);
-          const newEntry: MBREntry = {
-            id: data[0].id,
-            dealId: data[0].deal_id,
-            weekStart: data[0].week_start,
-            status: data[0].status,
-            mode: data[0].mode,
-            notes: data[0].notes,
-            updatedBy: data[0].updated_by,
-          };
+          const existing = prev.findIndex((e) => e.dealId === params.dealId && e.weekStart === selectedWeek);
+          const newEntry = mapEntry(data[0]);
           if (existing >= 0) {
             const updated = [...prev];
             updated[existing] = newEntry;
@@ -170,20 +216,47 @@ export function useMBRData() {
     [selectedWeek]
   );
 
-  // Computed: VSD summary
+  const toggleAnirudhJoining = useCallback(
+    async (dealId: string, joining: boolean) => {
+      const { data, error } = await (supabase.from("mbr_entries") as any).upsert(
+        { deal_id: dealId, week_start: selectedWeek, anirudh_joining: joining, status: "Pending", updated_by: "" },
+        { onConflict: "deal_id,week_start" }
+      ).select();
+
+      if (!error && data?.[0]) {
+        setEntries((prev) => {
+          const existing = prev.findIndex((e) => e.dealId === dealId && e.weekStart === selectedWeek);
+          const newEntry = mapEntry(data[0]);
+          if (existing >= 0) {
+            const updated = [...prev];
+            updated[existing] = newEntry;
+            return updated;
+          }
+          return [...prev, newEntry];
+        });
+      }
+    },
+    [selectedWeek]
+  );
+
+  // Computed: VSD summary with sentiment
   const vsdSummary: VSDSummary[] = (() => {
-    const vsdMap = new Map<string, { total: number; done: number; notDone: number }>();
+    const vsdMap = new Map<string, { total: number; done: number; notDone: number; green: number; yellow: number; red: number; scheduled: number }>();
     const entryMap = new Map(entries.map((e) => [e.dealId, e]));
 
     for (const deal of deals) {
       const v = deal.vsd || "Unknown";
-      if (!vsdMap.has(v)) vsdMap.set(v, { total: 0, done: 0, notDone: 0 });
+      if (!vsdMap.has(v)) vsdMap.set(v, { total: 0, done: 0, notDone: 0, green: 0, yellow: 0, red: 0, scheduled: 0 });
       const s = vsdMap.get(v)!;
       s.total++;
       const entry = entryMap.get(deal.id);
       if (entry) {
         if (entry.status === "Done") s.done++;
         else if (entry.status === "Not Done") s.notDone++;
+        if (entry.sentiment === "Green") s.green++;
+        else if (entry.sentiment === "Yellow") s.yellow++;
+        else if (entry.sentiment === "Red") s.red++;
+        if (entry.scheduledDate) s.scheduled++;
       }
     }
 
@@ -194,6 +267,10 @@ export function useMBRData() {
         done: s.done,
         notDone: s.notDone,
         pending: s.total - s.done - s.notDone,
+        greenCount: s.green,
+        yellowCount: s.yellow,
+        redCount: s.red,
+        scheduledCount: s.scheduled,
       }))
       .sort((a, b) => b.retainerAccounts - a.retainerAccounts);
   })();
@@ -212,6 +289,7 @@ export function useMBRData() {
     selectedWeek,
     setSelectedWeek,
     upsertEntry,
+    toggleAnirudhJoining,
     vsdSummary,
     totals,
     refresh: () => loadEntries(selectedWeek),
