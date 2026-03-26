@@ -69,6 +69,14 @@ export interface Deal {
   retainerDealValue?: number;
   nonRetainerDealValue?: number;
   totalDealValue?: number;
+  principalBopm?: string;
+  seniorBopm?: string;
+  bopm?: string;
+  customerStatus?: string;
+  customerType?: string;
+  serviceLineTagging?: string;
+  dealValueLost?: number;
+  netDealValue?: number;
 }
 
 // ── Hiring Plan ──────────────────────────────────────────────────────────────
