@@ -14,6 +14,186 @@ export type Database = {
   }
   public: {
     Tables: {
+      deal_onboarding_steps: {
+        Row: {
+          category: string
+          completed: boolean
+          completed_at: string | null
+          created_at: string
+          deal_id: string
+          due_date: string | null
+          id: string
+          owner: string
+          sort_order: number
+          step_name: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          completed?: boolean
+          completed_at?: string | null
+          created_at?: string
+          deal_id: string
+          due_date?: string | null
+          id?: string
+          owner?: string
+          sort_order?: number
+          step_name?: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          completed?: boolean
+          completed_at?: string | null
+          created_at?: string
+          deal_id?: string
+          due_date?: string | null
+          id?: string
+          owner?: string
+          sort_order?: number
+          step_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      deal_revenue_monthly: {
+        Row: {
+          actuals: number
+          contraction: number
+          created_at: string
+          deal_id: string
+          delivered: number
+          id: string
+          invoiced: number
+          month: string
+          mrr: number
+          updated_at: string
+        }
+        Insert: {
+          actuals?: number
+          contraction?: number
+          created_at?: string
+          deal_id: string
+          delivered?: number
+          id?: string
+          invoiced?: number
+          month: string
+          mrr?: number
+          updated_at?: string
+        }
+        Update: {
+          actuals?: number
+          contraction?: number
+          created_at?: string
+          deal_id?: string
+          delivered?: number
+          id?: string
+          invoiced?: number
+          month?: string
+          mrr?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      deal_rgy_weekly: {
+        Row: {
+          consumption: string
+          created_at: string
+          customer: string
+          deal_id: string
+          delivery: string
+          id: string
+          internal: string
+          notes: string | null
+          week_start: string
+        }
+        Insert: {
+          consumption?: string
+          created_at?: string
+          customer?: string
+          deal_id: string
+          delivery?: string
+          id?: string
+          internal?: string
+          notes?: string | null
+          week_start: string
+        }
+        Update: {
+          consumption?: string
+          created_at?: string
+          customer?: string
+          deal_id?: string
+          delivery?: string
+          id?: string
+          internal?: string
+          notes?: string | null
+          week_start?: string
+        }
+        Relationships: []
+      }
+      deal_sow_items: {
+        Row: {
+          created_at: string
+          deal_id: string
+          id: string
+          revenue_share: number
+          scope: string
+          team_capability: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          deal_id: string
+          id?: string
+          revenue_share?: number
+          scope?: string
+          team_capability?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          deal_id?: string
+          id?: string
+          revenue_share?: number
+          scope?: string
+          team_capability?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      deal_targets_monthly: {
+        Row: {
+          contraction_target: number
+          created_at: string
+          deal_id: string
+          delivery_target: number
+          id: string
+          invoicing_target: number
+          month: string
+          updated_at: string
+        }
+        Insert: {
+          contraction_target?: number
+          created_at?: string
+          deal_id: string
+          delivery_target?: number
+          id?: string
+          invoicing_target?: number
+          month: string
+          updated_at?: string
+        }
+        Update: {
+          contraction_target?: number
+          created_at?: string
+          deal_id?: string
+          delivery_target?: number
+          id?: string
+          invoicing_target?: number
+          month?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       mbr_entries: {
         Row: {
           action_items: Json | null
@@ -183,6 +363,7 @@ export type Database = {
           net_deal_value: number | null
           non_retainer_deal_value: number | null
           pc_code: string
+          pod: string
           principal_bopm: string
           rag: string
           retainer_deal_value: number | null
@@ -216,6 +397,7 @@ export type Database = {
           net_deal_value?: number | null
           non_retainer_deal_value?: number | null
           pc_code?: string
+          pod?: string
           principal_bopm?: string
           rag?: string
           retainer_deal_value?: number | null
@@ -249,6 +431,7 @@ export type Database = {
           net_deal_value?: number | null
           non_retainer_deal_value?: number | null
           pc_code?: string
+          pod?: string
           principal_bopm?: string
           rag?: string
           retainer_deal_value?: number | null
