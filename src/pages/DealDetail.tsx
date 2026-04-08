@@ -1,291 +1,367 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useStaffingData } from "@/hooks/useStaffingData";
+import { useDealDetail } from "@/hooks/useDealDetail";
+import { useMBRData } from "@/hooks/useMBRData";
 
-const tabs = ["Overview", "Staffing", "Revenue", "Targets", "RGY Health", "MBR", "Slack", "Onboarding", "Timesheets"];
-
-const dealData = {
-  id: "D-2024-047",
-  client: "TechCorp India",
-  name: "SEO + Content Retainer",
-  type: "Retainer",
-  status: "Active",
-  serviceLine: "SEO+Content",
-  mrr: "₹8,50,000",
-  dealValue: "₹1,02,00,000",
-  duration: "12 months",
-  startDate: "Apr 2024",
-  endDate: "Mar 2025",
-  geo: "India",
-  vsd: "Anirudh Kumar",
-  gm1: "42.3%",
+const fmtCurrency = (n: number | undefined) => {
+  if (!n) return "—";
+  if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
+  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
+  if (n >= 1000) return `₹${(n / 1000).toFixed(0)}K`;
+  return `₹${n}`;
 };
 
-const staffing = [
-  { name: "Rahul S.", role: "Sr. BOPM", hoursWeek: 20, utilization: 82 },
-  { name: "Ankit K.", role: "Jr. BOPM", hoursWeek: 15, utilization: 65 },
-  { name: "Sneha P.", role: "Content Strategist", hoursWeek: 30, utilization: 90 },
-  { name: "Deepak R.", role: "SEO Lead", hoursWeek: 25, utilization: 78 },
-];
-
-const revenue = [
-  { month: "Oct 2024", target: "₹8.5L", actual: "₹8.2L", attainment: "96.5%" },
-  { month: "Nov 2024", target: "₹8.5L", actual: "₹8.7L", attainment: "102.4%" },
-  { month: "Dec 2024", target: "₹8.5L", actual: "₹7.9L", attainment: "92.9%" },
-  { month: "Jan 2025", target: "₹8.5L", actual: "₹8.5L", attainment: "100.0%" },
-  { month: "Feb 2025", target: "₹8.5L", actual: "₹8.8L", attainment: "103.5%" },
-  { month: "Mar 2025", target: "₹9.0L", actual: "₹7.2L", attainment: "80.0%" },
-];
-
-const rgyHistory = [
-  { month: "Jan 2025", internal: "G", customer: "G", delivery: "G", consumption: "G" },
-  { month: "Feb 2025", internal: "G", customer: "G", delivery: "Y", consumption: "G" },
-  { month: "Mar 2025", internal: "G", customer: "G", delivery: "Y", consumption: "G" },
-];
+const TABS = ["Overview", "Staffing", "Revenue", "Targets", "RGY Health", "MBR", "Onboarding"] as const;
+type TabKey = typeof TABS[number];
 
 const rgyColors: Record<string, string> = { G: "rgy-green", R: "rgy-red", Y: "rgy-yellow" };
 
 export default function DealDetail() {
   const { dealId } = useParams();
-  const [activeTab, setActiveTab] = useState("Overview");
+  const [activeTab, setActiveTab] = useState<TabKey>("Overview");
+  const { deals, people, assignments, loading: staffLoading } = useStaffingData();
+  const { sowItems, revenue, targets, rgyWeekly, onboarding, loading: detailLoading, toggleOnboardingStep } = useDealDetail(dealId);
+
+  const deal = useMemo(() => deals.find(d => d.id === dealId), [deals, dealId]);
+  const dealAssignments = useMemo(() => assignments.filter(a => a.dealId === dealId), [assignments, dealId]);
+  const dealPeople = useMemo(() => {
+    const personIds = new Set(dealAssignments.map(a => a.personId));
+    return people.filter(p => personIds.has(p.id));
+  }, [dealAssignments, people]);
+
+  const onboardingPct = useMemo(() => {
+    if (!onboarding.length) return 0;
+    return Math.round((onboarding.filter(s => s.completed).length / onboarding.length) * 100);
+  }, [onboarding]);
+
+  if (staffLoading || detailLoading) {
+    return (
+      <AppLayout>
+        <div className="p-8 flex items-center justify-center min-h-[60vh]">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (!deal) {
+    return (
+      <AppLayout>
+        <div className="p-8">
+          <Link to="/clients" className="text-primary hover:underline text-ui">← Back to Clients</Link>
+          <p className="mt-4 text-muted-foreground">Deal not found.</p>
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
       <div className="p-8">
+        {/* Header */}
         <div className="flex items-center gap-3 mb-6">
-          <Link to="/deals" className="h-8 w-8 rounded-md border border-border flex items-center justify-center hover:bg-secondary transition-colors">
+          <Link to="/clients" className="h-8 w-8 rounded-lg border border-border flex items-center justify-center hover:bg-accent transition-colors">
             <ArrowLeft className="h-4 w-4 text-muted-foreground" />
           </Link>
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-mono text-ui text-accent font-medium">{dealId || dealData.id}</span>
-              <span className="inline-block px-2 py-0.5 rounded-md text-caption font-medium bg-positive/10 text-positive">Active</span>
+              <span className="font-mono text-ui text-primary font-medium">{deal.dealId}</span>
+              <span className={cn(
+                "inline-flex px-2 py-0.5 rounded-full text-[11px] font-medium",
+                deal.dealStatusCx === "Active" ? "text-positive bg-[hsl(var(--success-bg))]" : "text-muted-foreground bg-secondary"
+              )}>{deal.dealStatusCx || deal.dealStatus}</span>
+              <span className={cn(
+                "inline-flex px-2 py-0.5 rounded-full text-[11px] font-medium bg-accent text-accent-foreground"
+              )}>{deal.dealType}</span>
             </div>
-            <h1 className="text-subhead font-semibold tracking-tight text-foreground">{dealData.name}</h1>
-            <p className="text-ui text-muted-foreground">{dealData.client}</p>
+            <h1 className="text-subhead font-bold tracking-tight text-foreground">{deal.dealName}</h1>
+            <p className="text-ui text-muted-foreground">{deal.account}</p>
           </div>
         </div>
 
         {/* Tabs */}
         <div className="border-b border-border mb-6">
-          <div className="flex gap-0 -mb-px">
-            {tabs.map(tab => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={cn(
-                  "px-4 py-2.5 text-ui font-medium transition-colors border-b-2 whitespace-nowrap",
-                  activeTab === tab
-                    ? "border-foreground text-foreground"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {tab}
-              </button>
+          <div className="flex gap-0 -mb-px overflow-x-auto">
+            {TABS.map(tab => (
+              <button key={tab} onClick={() => setActiveTab(tab)} className={cn(
+                "px-4 py-2.5 text-ui font-medium transition-colors border-b-2 whitespace-nowrap",
+                activeTab === tab ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+              )}>{tab}</button>
             ))}
           </div>
         </div>
 
-        {/* Tab Content */}
+        {/* Overview Tab */}
         {activeTab === "Overview" && (
-          <div className="grid grid-cols-3 gap-4">
-            {[
-              ["Deal Type", dealData.type], ["Service Line", dealData.serviceLine], ["Status", dealData.status],
-              ["MRR", dealData.mrr], ["Deal Value", dealData.dealValue], ["GM1", dealData.gm1],
-              ["Duration", dealData.duration], ["Start", dealData.startDate], ["End", dealData.endDate],
-              ["GEO", dealData.geo], ["VSD", dealData.vsd], ["Pipeline", "Won"],
-            ].map(([label, value]) => (
-              <div key={label} className="data-card">
-                <p className="metric-label">{label}</p>
-                <p className="text-ui font-medium text-foreground mt-1">{value}</p>
-              </div>
-            ))}
+          <div className="space-y-6 animate-fade-in">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[
+                ["Deal Type", deal.dealType], ["Service Line", deal.serviceLineTagging || deal.capabilityLine],
+                ["Status", deal.dealStatusCx || deal.dealStatus], ["MRR", fmtCurrency(deal.mrr)],
+                ["Retainer Value", fmtCurrency(deal.retainerDealValue)], ["Non-Retainer Value", fmtCurrency(deal.nonRetainerDealValue)],
+                ["Total Value", fmtCurrency(deal.totalDealValue)], ["Duration", deal.duration || "—"],
+                ["Location", deal.businessUnit], ["VSD", deal.vsd],
+                ["Principal BOPM", deal.principalBopm || "—"], ["Senior BOPM", deal.seniorBopm || "—"],
+                ["Junior BOPM", deal.bopm || "—"], ["Validation", deal.validation || "—"],
+              ].map(([label, value]) => (
+                <div key={label} className="data-card">
+                  <p className="metric-label">{label}</p>
+                  <p className="text-ui font-medium text-foreground mt-1">{value}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* SoW Criteria */}
+            <div className="data-card">
+              <h3 className="text-ui font-bold text-foreground mb-3">Scope of Work</h3>
+              {sowItems.length > 0 ? (
+                <table className="w-full text-ui">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="text-left py-2 text-caption uppercase tracking-wider text-muted-foreground font-medium">Scope</th>
+                      <th className="text-right py-2 text-caption uppercase tracking-wider text-muted-foreground font-medium">Revenue Share</th>
+                      <th className="text-left py-2 text-caption uppercase tracking-wider text-muted-foreground font-medium">Team</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sowItems.map(s => (
+                      <tr key={s.id} className="border-b border-border/50">
+                        <td className="py-2 text-foreground">{s.scope}</td>
+                        <td className="py-2 text-right font-mono tabular-nums">{fmtCurrency(s.revenueShare)}</td>
+                        <td className="py-2"><span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-accent text-accent-foreground">{s.teamCapability}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p className="text-muted-foreground text-caption">No SoW items added yet.</p>
+              )}
+            </div>
           </div>
         )}
 
+        {/* Staffing Tab */}
         {activeTab === "Staffing" && (
-          <div className="data-card p-0 overflow-hidden">
-            <table className="w-full text-ui">
-              <thead>
-                <tr className="border-b border-border bg-secondary/30">
-                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">Name</th>
-                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">Role on Deal</th>
-                  <th className="text-right py-3 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">Hrs/Week</th>
-                  <th className="text-right py-3 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">Utilization</th>
-                </tr>
-              </thead>
-              <tbody>
-                {staffing.map(s => (
-                  <tr key={s.name} className="border-b border-border/50">
-                    <td className="py-3 px-4 font-medium text-foreground">{s.name}</td>
-                    <td className="py-3 px-4 text-muted-foreground">{s.role}</td>
-                    <td className="py-3 px-4 text-right font-mono tabular-nums">{s.hoursWeek}</td>
-                    <td className="py-3 px-4 text-right font-mono tabular-nums">{s.utilization}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {activeTab === "Revenue" && (
-          <div className="data-card p-0 overflow-hidden">
-            <table className="w-full text-ui">
-              <thead>
-                <tr className="border-b border-border bg-secondary/30">
-                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">Month</th>
-                  <th className="text-right py-3 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">Target</th>
-                  <th className="text-right py-3 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">Actual</th>
-                  <th className="text-right py-3 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">Attainment</th>
-                </tr>
-              </thead>
-              <tbody>
-                {revenue.map(r => (
-                  <tr key={r.month} className="border-b border-border/50">
-                    <td className="py-3 px-4 text-foreground">{r.month}</td>
-                    <td className="py-3 px-4 text-right font-mono tabular-nums text-muted-foreground">{r.target}</td>
-                    <td className="py-3 px-4 text-right font-mono tabular-nums text-foreground">{r.actual}</td>
-                    <td className="py-3 px-4 text-right font-mono tabular-nums">
-                      <span className={cn(parseFloat(r.attainment) >= 100 ? "text-positive" : parseFloat(r.attainment) >= 90 ? "text-warning" : "text-destructive")}>{r.attainment}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {activeTab === "Targets" && (
-          <div className="data-card">
-            <p className="metric-label mb-4">Monthly Targets & Actuals</p>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="data-card"><p className="metric-label">Current Month Target</p><p className="metric-value mt-2">₹9.0L</p></div>
-              <div className="data-card"><p className="metric-label">YTD Target</p><p className="metric-value mt-2">₹51.0L</p></div>
-              <div className="data-card"><p className="metric-label">YTD Attainment</p><p className="metric-value mt-2">95.8%</p><p className="text-ui text-positive mt-1">↑ On track</p></div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === "RGY Health" && (
-          <div className="data-card p-0 overflow-hidden">
-            <table className="w-full text-ui">
-              <thead>
-                <tr className="border-b border-border bg-secondary/30">
-                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">Month</th>
-                  {["Internal", "Customer", "Delivery", "Consumption"].map(d => (
-                    <th key={d} className="text-center py-3 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">{d}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rgyHistory.map(r => (
-                  <tr key={r.month} className="border-b border-border/50">
-                    <td className="py-3 px-4 text-foreground">{r.month}</td>
-                    {[r.internal, r.customer, r.delivery, r.consumption].map((val, i) => (
-                      <td key={i} className="py-3 px-4 text-center">
-                        <span className={cn("inline-flex items-center justify-center w-7 h-7 rounded-md text-caption font-semibold", rgyColors[val])}>{val}</span>
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {activeTab === "MBR" && (
-          <div className="data-card">
-            <p className="metric-label mb-4">MBR History</p>
-            <div className="space-y-3">
-              {[
-                { month: "Feb 2025", status: "Done In-Person", date: "Feb 18, 2025" },
-                { month: "Jan 2025", status: "Done Virtual", date: "Jan 22, 2025" },
-                { month: "Dec 2024", status: "Done In-Person", date: "Dec 15, 2024" },
-              ].map(m => (
-                <div key={m.month} className="flex items-center justify-between py-2 border-b border-border/50">
-                  <span className="text-foreground font-medium">{m.month}</span>
-                  <span className="text-ui text-positive">{m.status}</span>
-                  <span className="text-ui text-muted-foreground font-mono">{m.date}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {activeTab === "Slack" && (
-          <div className="data-card">
-            <p className="metric-label mb-2">Channel Health</p>
-            <div className="flex items-center gap-4 mb-4">
-              <div>
-                <p className="text-ui text-muted-foreground">#techcorp-seo-content</p>
-                <p className="metric-value mt-1">78</p>
-                <p className="text-caption text-muted-foreground">Health Score</p>
+          <div className="animate-fade-in">
+            {dealPeople.length > 0 ? (
+              <div className="data-card !p-0 overflow-hidden">
+                <table className="w-full text-ui">
+                  <thead>
+                    <tr className="bg-accent/20 border-b border-border">
+                      <th className="text-left py-2.5 px-4 text-caption uppercase tracking-wider text-muted-foreground font-medium">Name</th>
+                      <th className="text-left py-2.5 px-4 text-caption uppercase tracking-wider text-muted-foreground font-medium">Role</th>
+                      <th className="text-left py-2.5 px-4 text-caption uppercase tracking-wider text-muted-foreground font-medium">Category</th>
+                      <th className="text-left py-2.5 px-4 text-caption uppercase tracking-wider text-muted-foreground font-medium">Pod</th>
+                      <th className="text-right py-2.5 px-4 text-caption uppercase tracking-wider text-muted-foreground font-medium">Allocation</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dealPeople.map(p => {
+                      const alloc = dealAssignments.find(a => a.personId === p.id);
+                      return (
+                        <tr key={p.id} className="border-b border-border/50 hover:bg-accent/10">
+                          <td className="py-2.5 px-4 font-medium text-foreground">{p.name}</td>
+                          <td className="py-2.5 px-4 text-muted-foreground">{p.roleTitle || p.designation}</td>
+                          <td className="py-2.5 px-4"><span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-accent text-accent-foreground">{p.roleCategory}</span></td>
+                          <td className="py-2.5 px-4 text-muted-foreground">{p.pod}</td>
+                          <td className="py-2.5 px-4 text-right">
+                            <span className="font-mono tabular-nums font-medium">{alloc?.allocationPct || 0}%</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                ["Channel Exists", "+10", "✓"],
-                ["All Staff in Channel", "+12/15", "4/5 members"],
-                ["Daily Updates (7d)", "+20/25", "4/5 days"],
-                ["Weekly Internal (4w)", "+16/20", "3/4 weeks"],
-                ["Weekly Customer (4w)", "+15/20", "3/4 weeks"],
-                ["Capability Email (4w)", "+5/10", "2/4 weeks"],
-              ].map(([label, pts, detail]) => (
-                <div key={label} className="flex items-center justify-between py-2 border-b border-border/50">
-                  <span className="text-ui text-foreground">{label}</span>
-                  <div className="text-right">
-                    <span className="text-ui font-mono tabular-nums text-positive">{pts}</span>
-                    <p className="text-caption text-muted-foreground">{detail}</p>
+            ) : (
+              <div className="data-card text-center py-8"><p className="text-muted-foreground">No team members assigned to this deal.</p></div>
+            )}
+          </div>
+        )}
+
+        {/* Revenue Tab */}
+        {activeTab === "Revenue" && (
+          <div className="animate-fade-in">
+            {revenue.length > 0 ? (
+              <div className="data-card !p-0 overflow-hidden">
+                <table className="w-full text-ui">
+                  <thead>
+                    <tr className="bg-accent/20 border-b border-border">
+                      {["Month", "MRR", "Contraction", "Delivered", "Invoiced", "Actuals", "Attainment"].map(h => (
+                        <th key={h} className={cn("py-2.5 px-4 text-caption uppercase tracking-wider text-muted-foreground font-medium", h === "Month" ? "text-left" : "text-right")}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {revenue.map(r => {
+                      const att = r.mrr > 0 ? ((r.actuals / r.mrr) * 100) : 0;
+                      return (
+                        <tr key={r.id} className="border-b border-border/50">
+                          <td className="py-2.5 px-4 text-foreground">{r.month}</td>
+                          <td className="py-2.5 px-4 text-right font-mono tabular-nums">{fmtCurrency(r.mrr)}</td>
+                          <td className="py-2.5 px-4 text-right font-mono tabular-nums text-destructive">{fmtCurrency(r.contraction)}</td>
+                          <td className="py-2.5 px-4 text-right font-mono tabular-nums">{fmtCurrency(r.delivered)}</td>
+                          <td className="py-2.5 px-4 text-right font-mono tabular-nums">{fmtCurrency(r.invoiced)}</td>
+                          <td className="py-2.5 px-4 text-right font-mono tabular-nums font-medium">{fmtCurrency(r.actuals)}</td>
+                          <td className="py-2.5 px-4 text-right font-mono tabular-nums">
+                            <span className={cn(att >= 100 ? "text-positive" : att >= 90 ? "text-warning" : "text-destructive")}>{att.toFixed(1)}%</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="data-card text-center py-8"><p className="text-muted-foreground">No revenue data recorded yet.</p></div>
+            )}
+          </div>
+        )}
+
+        {/* Targets Tab */}
+        {activeTab === "Targets" && (
+          <div className="animate-fade-in space-y-4">
+            <div className="grid grid-cols-3 gap-3">
+              {(() => {
+                const ytdContraction = targets.reduce((s, t) => s + t.contractionTarget, 0);
+                const ytdDelivery = targets.reduce((s, t) => s + t.deliveryTarget, 0);
+                const ytdInvoicing = targets.reduce((s, t) => s + t.invoicingTarget, 0);
+                return [
+                  { label: "YTD Contraction Target", value: fmtCurrency(ytdContraction) },
+                  { label: "YTD Delivery Target", value: fmtCurrency(ytdDelivery) },
+                  { label: "YTD Invoicing Target", value: fmtCurrency(ytdInvoicing) },
+                ].map(k => (
+                  <div key={k.label} className="data-card">
+                    <p className="metric-label">{k.label}</p>
+                    <p className="metric-value mt-2">{k.value}</p>
                   </div>
-                </div>
-              ))}
+                ));
+              })()}
             </div>
-          </div>
-        )}
-
-        {activeTab === "Onboarding" && (
-          <div className="data-card">
-            <p className="metric-label mb-4">Onboarding Checklist</p>
-            <p className="text-ui text-muted-foreground">This deal has completed onboarding.</p>
-            <div className="mt-4 h-2 bg-muted rounded-sm overflow-hidden">
-              <div className="h-full bg-positive rounded-sm" style={{ width: "100%" }} />
-            </div>
-            <p className="text-caption text-positive mt-1 font-medium">100% Complete — Completed in 18 days (SLA: 21 days)</p>
-          </div>
-        )}
-
-        {activeTab === "Timesheets" && (
-          <div className="data-card p-0 overflow-hidden">
-            <table className="w-full text-ui">
-              <thead>
-                <tr className="border-b border-border bg-secondary/30">
-                  <th className="text-left py-3 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">Person</th>
-                  <th className="text-right py-3 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">Mon</th>
-                  <th className="text-right py-3 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">Tue</th>
-                  <th className="text-right py-3 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">Wed</th>
-                  <th className="text-right py-3 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">Thu</th>
-                  <th className="text-right py-3 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">Fri</th>
-                  <th className="text-right py-3 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[
-                  { name: "Rahul S.", hours: [4, 4, 4, 4, 4] },
-                  { name: "Ankit K.", hours: [3, 3, 3, 3, 3] },
-                  { name: "Sneha P.", hours: [6, 6, 6, 6, 6] },
-                ].map(t => (
-                  <tr key={t.name} className="border-b border-border/50">
-                    <td className="py-3 px-4 font-medium text-foreground">{t.name}</td>
-                    {t.hours.map((h, i) => (
-                      <td key={i} className="py-3 px-4 text-right font-mono tabular-nums text-foreground">{h}</td>
+            {targets.length > 0 ? (
+              <div className="data-card !p-0 overflow-hidden">
+                <table className="w-full text-ui">
+                  <thead>
+                    <tr className="bg-accent/20 border-b border-border">
+                      {["Month", "Contraction", "Delivery", "Invoicing"].map(h => (
+                        <th key={h} className={cn("py-2.5 px-4 text-caption uppercase tracking-wider text-muted-foreground font-medium", h === "Month" ? "text-left" : "text-right")}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {targets.map(t => (
+                      <tr key={t.id} className="border-b border-border/50">
+                        <td className="py-2.5 px-4 text-foreground">{t.month}</td>
+                        <td className="py-2.5 px-4 text-right font-mono tabular-nums">{fmtCurrency(t.contractionTarget)}</td>
+                        <td className="py-2.5 px-4 text-right font-mono tabular-nums">{fmtCurrency(t.deliveryTarget)}</td>
+                        <td className="py-2.5 px-4 text-right font-mono tabular-nums">{fmtCurrency(t.invoicingTarget)}</td>
+                      </tr>
                     ))}
-                    <td className="py-3 px-4 text-right font-mono tabular-nums font-medium text-foreground">{t.hours.reduce((a, b) => a + b, 0)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="data-card text-center py-8"><p className="text-muted-foreground">No target data recorded yet.</p></div>
+            )}
+          </div>
+        )}
+
+        {/* RGY Health Tab (Weekly) */}
+        {activeTab === "RGY Health" && (
+          <div className="animate-fade-in">
+            {rgyWeekly.length > 0 ? (
+              <div className="data-card !p-0 overflow-hidden">
+                <table className="w-full text-ui">
+                  <thead>
+                    <tr className="bg-accent/20 border-b border-border">
+                      <th className="text-left py-2.5 px-4 text-caption uppercase tracking-wider text-muted-foreground font-medium">Week</th>
+                      {["Internal", "Customer", "Delivery", "Consumption"].map(d => (
+                        <th key={d} className="text-center py-2.5 px-4 text-caption uppercase tracking-wider text-muted-foreground font-medium">{d}</th>
+                      ))}
+                      <th className="text-left py-2.5 px-4 text-caption uppercase tracking-wider text-muted-foreground font-medium">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rgyWeekly.map(r => (
+                      <tr key={r.id} className="border-b border-border/50">
+                        <td className="py-2.5 px-4 text-foreground font-mono text-caption">{r.weekStart}</td>
+                        {[r.internal, r.customer, r.delivery, r.consumption].map((val, i) => (
+                          <td key={i} className="py-2.5 px-4 text-center">
+                            <span className={cn("inline-flex items-center justify-center w-7 h-7 rounded-lg text-caption font-bold", rgyColors[val] || "rgy-na")}>{val}</span>
+                          </td>
+                        ))}
+                        <td className="py-2.5 px-4 text-muted-foreground text-caption">{r.notes || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="data-card text-center py-8"><p className="text-muted-foreground">No weekly RGY data recorded yet.</p></div>
+            )}
+          </div>
+        )}
+
+        {/* MBR Tab */}
+        {activeTab === "MBR" && (
+          <div className="animate-fade-in">
+            <div className="data-card text-center py-8">
+              <p className="text-muted-foreground">MBR tracking for this deal is available in the <Link to="/mbr-tracker" className="text-primary hover:underline">MBR Tracker</Link>.</p>
+            </div>
+          </div>
+        )}
+
+        {/* Onboarding Tab */}
+        {activeTab === "Onboarding" && (
+          <div className="animate-fade-in space-y-4">
+            {/* Progress bar */}
+            <div className="data-card">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-ui font-bold text-foreground">Onboarding Progress</p>
+                <span className={cn("text-ui font-bold font-mono", onboardingPct === 100 ? "text-positive" : "text-foreground")}>{onboardingPct}%</span>
+              </div>
+              <div className="h-2.5 bg-secondary rounded-full overflow-hidden">
+                <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${onboardingPct}%` }} />
+              </div>
+              <p className="text-caption text-muted-foreground mt-1">{onboarding.filter(s => s.completed).length} of {onboarding.length} steps completed</p>
+            </div>
+
+            {/* Checklist */}
+            {onboarding.length > 0 ? (
+              <div className="data-card !p-0">
+                {(() => {
+                  const categories = [...new Set(onboarding.map(s => s.category))];
+                  return categories.map(cat => (
+                    <div key={cat}>
+                      <div className="px-4 py-2 bg-accent/20 border-b border-border">
+                        <span className="text-caption font-bold uppercase tracking-wider text-muted-foreground">{cat}</span>
+                      </div>
+                      {onboarding.filter(s => s.category === cat).map(step => (
+                        <div key={step.id} className="flex items-center gap-3 px-4 py-2.5 border-b border-border/50 hover:bg-accent/10 transition-colors">
+                          <button onClick={() => toggleOnboardingStep(step.id)} className={cn(
+                            "w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors flex-shrink-0",
+                            step.completed ? "bg-primary border-primary text-primary-foreground" : "border-border hover:border-primary"
+                          )}>
+                            {step.completed && <span className="text-[10px]">✓</span>}
+                          </button>
+                          <div className="flex-1 min-w-0">
+                            <span className={cn("text-ui", step.completed ? "line-through text-muted-foreground" : "text-foreground")}>{step.stepName}</span>
+                          </div>
+                          {step.owner && <span className="text-caption text-muted-foreground">{step.owner}</span>}
+                          {step.dueDate && <span className="text-caption font-mono text-muted-foreground">{step.dueDate}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  ));
+                })()}
+              </div>
+            ) : (
+              <div className="data-card text-center py-8"><p className="text-muted-foreground">No onboarding steps configured yet.</p></div>
+            )}
           </div>
         )}
       </div>
