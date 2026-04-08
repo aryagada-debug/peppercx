@@ -12,11 +12,29 @@ interface Props {
 
 const fmtPct = (n: number) => n === 0 ? "—" : `${n.toFixed(n % 1 === 0 ? 0 : 1)}%`;
 
+// ── Summary Card Data ──────────────────────────────────────────────────────
+function useCapacitySummary(people: Person[], assignments: StaffingAssignment[]) {
+  return useMemo(() => {
+    const activePeople = people.filter(p => !p.tbh && !p.leaving);
+    const utilMap: Record<string, number> = {};
+    activePeople.forEach(p => { utilMap[p.id] = 0; });
+    assignments.forEach(a => { if (utilMap[a.personId] !== undefined) utilMap[a.personId] += a.allocationPct; });
+
+    const overloaded = activePeople.filter(p => (utilMap[p.id] || 0) > 100);
+    const nearFull = activePeople.filter(p => { const u = utilMap[p.id] || 0; return u > 80 && u <= 100; });
+    const healthy = activePeople.filter(p => { const u = utilMap[p.id] || 0; return u >= 30 && u <= 80; });
+    const underUtilised = activePeople.filter(p => { const u = utilMap[p.id] || 0; return u < 30 && u > 0; });
+    const unassigned = activePeople.filter(p => (utilMap[p.id] || 0) === 0);
+
+    return { overloaded, nearFull, healthy, underUtilised, unassigned, utilMap };
+  }, [people, assignments]);
+}
+
+// ── Tree Building ──────────────────────────────────────────────────────────
 interface TreeNode {
   person: Person;
   totalPct: number;
   dealCount: number;
-  mrrOwned: number;
   dealDetails: { id: string; account: string; roleLabel: string; allocationPct: number }[];
   children: TreeNode[];
   rollupAvgUtil: number;
@@ -24,88 +42,48 @@ interface TreeNode {
 }
 
 function buildTree(people: Person[], assignments: StaffingAssignment[], deals: Deal[]): TreeNode[] {
-  const nameToPersons = new Map<string, Person[]>();
+  const personDataMap = new Map<string, { totalPct: number; dealCount: number; dealDetails: any[] }>();
   people.forEach(p => {
-    const key = p.name.toLowerCase();
-    if (!nameToPersons.has(key)) nameToPersons.set(key, []);
-    nameToPersons.get(key)!.push(p);
-  });
-
-  // Compute person data
-  const personDataMap = new Map<string, { totalPct: number; dealCount: number; mrrOwned: number; dealDetails: any[] }>();
-  people.forEach(p => {
-    const pAssignments = assignments.filter(a => a.personId === p.id);
-    const totalPct = pAssignments.reduce((s, a) => s + a.allocationPct, 0);
-    const dealIds = [...new Set(pAssignments.map(a => a.dealId))];
-    const mrrOwned = dealIds.reduce((s, did) => {
-      const deal = deals.find(d => d.id === did);
-      return s + (deal?.mrr || 0);
-    }, 0);
-    const dealDetails = pAssignments.map(a => {
+    const pAssigns = assignments.filter(a => a.personId === p.id);
+    const totalPct = pAssigns.reduce((s, a) => s + a.allocationPct, 0);
+    const dealIds = [...new Set(pAssigns.map(a => a.dealId))];
+    const dealDetails = pAssigns.map(a => {
       const deal = deals.find(d => d.id === a.dealId);
       const roleLabel = ROLE_SLOTS.find(s => s.roleKey === a.roleKey)?.roleLabel || a.roleKey;
       return { id: a.id, account: deal?.account || "Unknown", roleLabel, allocationPct: a.allocationPct };
     });
-    personDataMap.set(p.id, { totalPct, dealCount: dealIds.length, mrrOwned, dealDetails });
+    personDataMap.set(p.id, { totalPct, dealCount: dealIds.length, dealDetails });
   });
 
-  // Build parent-child relationships
   const childrenMap = new Map<string, Person[]>();
   const hasParent = new Set<string>();
-
   people.forEach(p => {
-    if (p.tbh) return;
-    const mgr = p.reportingManager;
+    if (p.tbh || !p.reportingManager) return;
+    const mgr = people.find(m => m.name === p.reportingManager && !m.tbh);
     if (mgr) {
-      // Find manager in the people list
-      const mgrPerson = people.find(m => m.name === mgr && !m.tbh);
-      if (mgrPerson) {
-        hasParent.add(p.id);
-        if (!childrenMap.has(mgrPerson.id)) childrenMap.set(mgrPerson.id, []);
-        childrenMap.get(mgrPerson.id)!.push(p);
-      }
+      hasParent.add(p.id);
+      if (!childrenMap.has(mgr.id)) childrenMap.set(mgr.id, []);
+      childrenMap.get(mgr.id)!.push(p);
     }
   });
 
   function buildNode(person: Person): TreeNode {
-    const data = personDataMap.get(person.id) || { totalPct: 0, dealCount: 0, mrrOwned: 0, dealDetails: [] };
+    const data = personDataMap.get(person.id) || { totalPct: 0, dealCount: 0, dealDetails: [] };
     const children = (childrenMap.get(person.id) || [])
-      .sort((a, b) => {
-        const bandOrder = (b.band || "L0").localeCompare(a.band || "L0");
-        return bandOrder !== 0 ? bandOrder : a.name.localeCompare(b.name);
-      })
+      .sort((a, b) => (b.band || "L0").localeCompare(a.band || "L0") || a.name.localeCompare(b.name))
       .map(buildNode);
-
-    // Rollup: average util of self + all descendants
-    let totalUtil = data.totalPct;
-    let totalCount = 1;
-    children.forEach(c => {
-      totalUtil += c.rollupAvgUtil * c.rollupPeopleCount;
-      totalCount += c.rollupPeopleCount;
-    });
-
+    let totalUtil = data.totalPct, totalCount = 1;
+    children.forEach(c => { totalUtil += c.rollupAvgUtil * c.rollupPeopleCount; totalCount += c.rollupPeopleCount; });
     return {
-      person,
-      totalPct: data.totalPct,
-      dealCount: data.dealCount,
-      mrrOwned: data.mrrOwned,
-      dealDetails: data.dealDetails,
-      children,
-      rollupAvgUtil: totalCount > 0 ? totalUtil / totalCount : 0,
-      rollupPeopleCount: totalCount,
+      person, totalPct: data.totalPct, dealCount: data.dealCount, dealDetails: data.dealDetails, children,
+      rollupAvgUtil: totalCount > 0 ? totalUtil / totalCount : 0, rollupPeopleCount: totalCount,
     };
   }
 
-  // Root nodes: people without a parent in the list
-  const roots = people
+  return people
     .filter(p => !p.tbh && !hasParent.has(p.id))
-    .sort((a, b) => {
-      const bandOrder = (b.band || "L0").localeCompare(a.band || "L0");
-      return bandOrder !== 0 ? bandOrder : a.name.localeCompare(b.name);
-    })
+    .sort((a, b) => (b.band || "L0").localeCompare(a.band || "L0") || a.name.localeCompare(b.name))
     .map(buildNode);
-
-  return roots;
 }
 
 export function CapacityTab({ deals, people, assignments }: Props) {
@@ -113,21 +91,19 @@ export function CapacityTab({ deals, people, assignments }: Props) {
   const [expandedDetails, setExpandedDetails] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<RoleCategory | "All">("All");
 
+  const { overloaded, nearFull, healthy, underUtilised, unassigned, utilMap } = useCapacitySummary(people, assignments);
+
   const filteredPeople = useMemo(() => {
-    if (categoryFilter === "All") return people.filter(p => !p.tbh);
-    return people.filter(p => !p.tbh && p.roleCategory === categoryFilter);
+    const base = people.filter(p => !p.tbh);
+    if (categoryFilter === "All") return base;
+    return base.filter(p => p.roleCategory === categoryFilter);
   }, [people, categoryFilter]);
 
   const tree = useMemo(() => buildTree(filteredPeople, assignments, deals), [filteredPeople, assignments, deals]);
 
   const toggleExpand = (id: string) => {
-    setExpandedNodes(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
+    setExpandedNodes(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   };
-
   const expandAll = () => {
     const allIds = new Set<string>();
     const collect = (nodes: TreeNode[]) => { nodes.forEach(n => { allIds.add(n.person.id); collect(n.children); }); };
@@ -136,12 +112,10 @@ export function CapacityTab({ deals, people, assignments }: Props) {
   };
   const collapseAll = () => setExpandedNodes(new Set());
 
-  // Render a tree row recursively
   const renderNode = (node: TreeNode, depth: number): React.ReactNode[] => {
     const hasChildren = node.children.length > 0;
     const isExpanded = expandedNodes.has(node.person.id);
     const isDetailExpanded = expandedDetails === node.person.id;
-
     const rows: React.ReactNode[] = [];
 
     rows.push(
@@ -157,9 +131,7 @@ export function CapacityTab({ deals, people, assignments }: Props) {
               onClick={() => setExpandedDetails(isDetailExpanded ? null : node.person.id)}>
               {node.person.name}
             </span>
-            {hasChildren && (
-              <span className="text-caption text-muted-foreground ml-1">({node.rollupPeopleCount - 1} reports)</span>
-            )}
+            {hasChildren && <span className="text-caption text-muted-foreground ml-1">({node.rollupPeopleCount - 1})</span>}
           </div>
         </td>
         <td className="py-2 px-3 text-muted-foreground text-caption">{node.person.designation || node.person.roleTitle}</td>
@@ -176,18 +148,16 @@ export function CapacityTab({ deals, people, assignments }: Props) {
         <td className="py-2 px-3 text-right">
           <span className={cn("font-mono text-caption font-medium", node.totalPct > 100 ? "text-destructive" : node.totalPct > 80 ? "text-warning" : "text-positive")}>{fmtPct(node.totalPct)}</span>
         </td>
-        {hasChildren && (
-          <td className="py-2 px-3 text-right">
+        <td className="py-2 px-3 text-right">
+          {hasChildren ? (
             <span className={cn("font-mono text-caption", node.rollupAvgUtil > 100 ? "text-destructive" : node.rollupAvgUtil > 80 ? "text-warning" : "text-muted-foreground")}>
               avg {node.rollupAvgUtil.toFixed(0)}%
             </span>
-          </td>
-        )}
-        {!hasChildren && <td />}
+          ) : null}
+        </td>
       </tr>
     );
 
-    // Detail expansion
     if (isDetailExpanded && node.dealDetails.length > 0) {
       rows.push(
         <tr key={`${node.person.id}-detail`}>
@@ -205,11 +175,8 @@ export function CapacityTab({ deals, people, assignments }: Props) {
       );
     }
 
-    // Render children if expanded
     if (isExpanded && hasChildren) {
-      node.children.forEach(child => {
-        rows.push(...renderNode(child, depth + 1));
-      });
+      node.children.forEach(child => { rows.push(...renderNode(child, depth + 1)); });
     }
 
     return rows;
@@ -217,7 +184,23 @@ export function CapacityTab({ deals, people, assignments }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Category Filter + controls */}
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        {[
+          { label: "Overloaded", count: overloaded.length, color: "text-destructive", bg: "bg-destructive/10" },
+          { label: "Near Full", count: nearFull.length, color: "text-warning", bg: "bg-warning/10" },
+          { label: "Healthy", count: healthy.length, color: "text-positive", bg: "bg-positive/10" },
+          { label: "Under-utilised", count: underUtilised.length, color: "text-accent", bg: "bg-accent/10" },
+          { label: "Unassigned", count: unassigned.length, color: "text-muted-foreground", bg: "bg-muted" },
+        ].map(c => (
+          <div key={c.label} className={cn("rounded-lg border border-border px-4 py-3", c.bg)}>
+            <p className="text-caption font-medium text-muted-foreground">{c.label}</p>
+            <p className={cn("text-2xl font-semibold font-mono mt-0.5", c.color)}>{c.count}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Filters */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex gap-1 overflow-x-auto pb-1">
           <button onClick={() => setCategoryFilter("All")} className={cn(
@@ -237,7 +220,7 @@ export function CapacityTab({ deals, people, assignments }: Props) {
         </div>
       </div>
 
-      {/* Tiered Capacity Table */}
+      {/* Tree Table */}
       <div className="data-card p-0 overflow-x-auto">
         <table className="w-full text-ui">
           <thead>

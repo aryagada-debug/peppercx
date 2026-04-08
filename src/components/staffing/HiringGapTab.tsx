@@ -1,11 +1,15 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
-import { Plus, X } from "lucide-react";
-import { ROLE_CATEGORIES, type HiringNeed, type RoleCategory, uid } from "@/data/staffingData";
+import { Plus, X, AlertTriangle, Users } from "lucide-react";
+import { ROLE_CATEGORIES, ROLE_SLOTS, type HiringNeed, type RoleCategory, type Person, type Deal, type StaffingAssignment, uid } from "@/data/staffingData";
 
 interface Props {
   hiringNeeds: HiringNeed[];
   onUpdateNeeds: (needs: HiringNeed[]) => void;
+  people: Person[];
+  deals: Deal[];
+  assignments: StaffingAssignment[];
+  editMode: boolean;
 }
 
 const priorityColors = {
@@ -20,7 +24,7 @@ const statusColors = {
   Filled: "bg-positive/10 text-positive",
 };
 
-export function HiringGapTab({ hiringNeeds, onUpdateNeeds }: Props) {
+export function HiringGapTab({ hiringNeeds, onUpdateNeeds, people, deals, assignments, editMode }: Props) {
   const [showAdd, setShowAdd] = useState(false);
   const [newNeed, setNewNeed] = useState<Partial<HiringNeed>>({
     role: "", roleCategory: "Operations", pod: "", priority: "High", targetDate: "", rationale: "", status: "Open"
@@ -43,16 +47,123 @@ export function HiringGapTab({ hiringNeeds, onUpdateNeeds }: Props) {
     return (p[a.priority] || 2) - (p[b.priority] || 2);
   });
 
+  // Compute gap analysis
+  const leavingPeople = people.filter(p => p.leaving && !p.tbh);
+  const tbhPeople = people.filter(p => p.tbh);
+
+  // Unstaffed active deals
+  const unstaffedDeals = useMemo(() => {
+    return deals.filter(d => {
+      if (d.staffingStatus === "No Staffing Needed") return false;
+      const hasStaff = assignments.some(a => a.dealId === d.id && a.allocationPct > 0);
+      return !hasStaff;
+    });
+  }, [deals, assignments]);
+
+  // FTE gap by role category
+  const fteGaps = useMemo(() => {
+    const gaps: { category: string; leaving: number; tbh: number; net: number }[] = [];
+    ROLE_CATEGORIES.forEach(cat => {
+      const leaving = leavingPeople.filter(p => p.roleCategory === cat).length;
+      const tbh = tbhPeople.filter(p => p.roleCategory === cat).length;
+      if (leaving > 0 || tbh > 0) {
+        gaps.push({ category: cat, leaving, tbh, net: tbh - leaving });
+      }
+    });
+    return gaps;
+  }, [leavingPeople, tbhPeople]);
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Gap Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Leaving People */}
+        <div className="data-card border-destructive/20">
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle className="h-4 w-4 text-destructive" />
+            <h4 className="text-ui font-semibold text-foreground">Leaving ({leavingPeople.length})</h4>
+          </div>
+          <div className="space-y-1">
+            {leavingPeople.slice(0, 6).map(p => (
+              <div key={p.id} className="flex items-center justify-between text-caption">
+                <span className="text-foreground line-through">{p.name}</span>
+                <span className="text-muted-foreground">{p.roleTitle}</span>
+              </div>
+            ))}
+            {leavingPeople.length > 6 && <p className="text-caption text-muted-foreground">+{leavingPeople.length - 6} more</p>}
+            {leavingPeople.length === 0 && <p className="text-caption text-muted-foreground">No attrition</p>}
+          </div>
+        </div>
+
+        {/* TBH Placeholders */}
+        <div className="data-card border-warning/20">
+          <div className="flex items-center gap-2 mb-3">
+            <Users className="h-4 w-4 text-warning" />
+            <h4 className="text-ui font-semibold text-foreground">TBH Placeholders ({tbhPeople.length})</h4>
+          </div>
+          <div className="space-y-1">
+            {tbhPeople.slice(0, 6).map(p => (
+              <div key={p.id} className="flex items-center justify-between text-caption">
+                <span className="text-warning italic">{p.name}</span>
+                <span className="text-muted-foreground">{p.roleCategory}</span>
+              </div>
+            ))}
+            {tbhPeople.length > 6 && <p className="text-caption text-muted-foreground">+{tbhPeople.length - 6} more</p>}
+            {tbhPeople.length === 0 && <p className="text-caption text-muted-foreground">No TBH roles</p>}
+          </div>
+        </div>
+
+        {/* Unstaffed Deals */}
+        <div className="data-card border-accent/20">
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle className="h-4 w-4 text-accent" />
+            <h4 className="text-ui font-semibold text-foreground">Unstaffed Deals ({unstaffedDeals.length})</h4>
+          </div>
+          <div className="space-y-1">
+            {unstaffedDeals.slice(0, 6).map(d => (
+              <div key={d.id} className="flex items-center justify-between text-caption">
+                <span className="text-foreground truncate max-w-[140px]">{d.account}</span>
+                <span className="text-muted-foreground">{d.vsd}</span>
+              </div>
+            ))}
+            {unstaffedDeals.length > 6 && <p className="text-caption text-muted-foreground">+{unstaffedDeals.length - 6} more</p>}
+            {unstaffedDeals.length === 0 && <p className="text-caption text-positive">All deals staffed</p>}
+          </div>
+        </div>
+      </div>
+
+      {/* FTE Gap Analysis */}
+      {fteGaps.length > 0 && (
+        <div className="data-card">
+          <h4 className="text-ui font-semibold text-foreground mb-3">FTE Gap Analysis by Role</h4>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {fteGaps.map(g => (
+              <div key={g.category} className="border border-border rounded-lg p-3">
+                <p className="text-caption font-medium text-foreground mb-1">{g.category}</p>
+                <div className="flex items-center gap-3 text-caption">
+                  <span className="text-destructive">-{g.leaving} leaving</span>
+                  <span className="text-warning">+{g.tbh} TBH</span>
+                  <span className={cn("font-medium font-mono", g.net > 0 ? "text-positive" : g.net < 0 ? "text-destructive" : "text-muted-foreground")}>
+                    Net: {g.net > 0 ? "+" : ""}{g.net}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Hiring Pipeline Table */}
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-ui font-semibold text-foreground">Hiring Pipeline</h3>
           <p className="text-caption text-muted-foreground">{hiringNeeds.filter(h => h.status === "Open").length} open • {hiringNeeds.filter(h => h.status === "In Progress").length} in progress • {hiringNeeds.filter(h => h.status === "Filled").length} filled</p>
         </div>
-        <button onClick={() => setShowAdd(true)} className="h-8 px-3 rounded-md bg-foreground text-primary-foreground text-caption font-medium hover:opacity-90 flex items-center gap-1">
-          <Plus className="h-3.5 w-3.5" /> Add Need
-        </button>
+        {editMode && (
+          <button onClick={() => setShowAdd(true)} className="h-8 px-3 rounded-md bg-foreground text-primary-foreground text-caption font-medium hover:opacity-90 flex items-center gap-1">
+            <Plus className="h-3.5 w-3.5" /> Add Need
+          </button>
+        )}
       </div>
 
       <div className="data-card p-0 overflow-x-auto">
@@ -76,17 +187,23 @@ export function HiringGapTab({ hiringNeeds, onUpdateNeeds }: Props) {
                 <td className="py-2 px-3 font-mono text-caption text-muted-foreground">{need.targetDate}</td>
                 <td className="py-2 px-3 text-caption text-muted-foreground max-w-[250px] truncate" title={need.rationale}>{need.rationale}</td>
                 <td className="py-2 px-3">
-                  <select value={need.status} onChange={e => updateStatus(need.id, e.target.value as HiringNeed["status"])}
-                    className={cn("h-7 px-2 rounded text-caption font-medium border-0 cursor-pointer", statusColors[need.status])}>
-                    <option value="Open">Open</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Filled">Filled</option>
-                  </select>
+                  {editMode ? (
+                    <select value={need.status} onChange={e => updateStatus(need.id, e.target.value as HiringNeed["status"])}
+                      className={cn("h-7 px-2 rounded text-caption font-medium border-0 cursor-pointer", statusColors[need.status])}>
+                      <option value="Open">Open</option>
+                      <option value="In Progress">In Progress</option>
+                      <option value="Filled">Filled</option>
+                    </select>
+                  ) : (
+                    <span className={cn("px-1.5 py-0.5 rounded text-caption font-medium", statusColors[need.status])}>{need.status}</span>
+                  )}
                 </td>
                 <td className="py-2 px-3">
-                  <button onClick={() => removeNeed(need.id)} className="text-muted-foreground hover:text-destructive">
-                    <X className="h-3.5 w-3.5" />
-                  </button>
+                  {editMode && (
+                    <button onClick={() => removeNeed(need.id)} className="text-muted-foreground hover:text-destructive">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

@@ -122,6 +122,45 @@ export type Database = {
           },
         ]
       }
+      staffing_bw_rules: {
+        Row: {
+          capability: string
+          created_at: string
+          id: string
+          mrr_max: number
+          mrr_min: number
+          mrr_tier_label: string
+          recommended_pct: number
+          region: string
+          role_key: string
+          updated_at: string
+        }
+        Insert: {
+          capability?: string
+          created_at?: string
+          id?: string
+          mrr_max?: number
+          mrr_min?: number
+          mrr_tier_label?: string
+          recommended_pct?: number
+          region?: string
+          role_key?: string
+          updated_at?: string
+        }
+        Update: {
+          capability?: string
+          created_at?: string
+          id?: string
+          mrr_max?: number
+          mrr_min?: number
+          mrr_tier_label?: string
+          recommended_pct?: number
+          region?: string
+          role_key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       staffing_deals: {
         Row: {
           account: string
@@ -145,6 +184,7 @@ export type Database = {
           non_retainer_deal_value: number | null
           pc_code: string
           principal_bopm: string
+          rag: string
           retainer_deal_value: number | null
           senior_bopm: string
           seo_staffing: boolean
@@ -177,6 +217,7 @@ export type Database = {
           non_retainer_deal_value?: number | null
           pc_code?: string
           principal_bopm?: string
+          rag?: string
           retainer_deal_value?: number | null
           senior_bopm?: string
           seo_staffing?: boolean
@@ -209,6 +250,7 @@ export type Database = {
           non_retainer_deal_value?: number | null
           pc_code?: string
           principal_bopm?: string
+          rag?: string
           retainer_deal_value?: number | null
           senior_bopm?: string
           seo_staffing?: boolean

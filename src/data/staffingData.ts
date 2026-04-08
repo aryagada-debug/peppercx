@@ -77,6 +77,18 @@ export interface Deal {
   serviceLineTagging?: string;
   dealValueLost?: number;
   netDealValue?: number;
+  rag?: string;
+}
+
+export interface BWRule {
+  id: string;
+  capability: string;
+  region: string;
+  mrrTierLabel: string;
+  mrrMin: number;
+  mrrMax: number;
+  roleKey: string;
+  recommendedPct: number;
 }
 
 // ── Hiring Plan ──────────────────────────────────────────────────────────────
