@@ -1,113 +1,179 @@
 
 
-# Replace Staffing Page with Unified SEO + Content + Ops Staffing System
+# Major App Redesign: Design Language + Unified Client-Deal View + Staffing Revamp
 
 ## Overview
 
-Replace the current 6-tab Staffing page with a new unified system that merges the best features from:
-- **Kindred Companion** (SEO staffing: pod-based with Leader/Principal/Manager hierarchy, BW rules, capacity heatmaps)
-- **Content Capability App** (Content staffing: VSD-based with Content Lead/Editor Fixed/Editor Freelance, multi-VSD assignments)
-- **Current project** (Database-backed with 10 role categories, 30+ role slots, 500+ deals from DB)
+Three major workstreams:
+1. **Design language overhaul** — switch from current dark-primary palette to the Pepper Marketplace design system (purple primary, DM Sans + JetBrains Mono, off-white backgrounds, pill badges)
+2. **Unified Client → Deal view** — merge Clients and Deals pages into a single Pod-based collapsible view with 7-tab deal detail
+3. **Staffing & Capacity simplification** — replace current 7-tab staffing with a clean 2-view system (Deal-level + People-level)
 
-The new page adds: Edit/Publish mode toggle, pod/VSD-level capacity cards, BW rules configuration, per-capability utilization views, and a KPI strip header.
+---
 
-## Architecture
+## Part 1: Design Language Migration
 
-The current project already has the right data model (deals, people, assignments in DB). The two external apps use local state with hardcoded data. We will:
+Update CSS variables, fonts, and Tailwind config to match the Pepper Marketplace Design Language document.
 
-1. Keep the existing DB tables and hooks entirely
-2. Rebuild the Staffing page UI to incorporate the best patterns from both apps
-3. Add a **capability switcher** (All / SEO / Content / Creative / Ops) that filters the view
-4. Add the missing UI features from both apps
+### Changes
+- **`src/index.css`**: Replace all `:root` CSS variables:
+  - `--background: 240 7% 98%` (#F8F8FA)
+  - `--foreground: 240 10% 16%` (#252530)
+  - `--primary: 238 40% 57%` (#5B57A8 — Indigo-Violet)
+  - `--secondary: 240 5% 96%`
+  - `--muted: 240 5% 96%`, `--muted-foreground: 240 5% 46%`
+  - `--accent: 238 40% 96%` (#EDEDF8)
+  - `--border: 240 6% 94%`
+  - `--destructive: 0 72% 51%`
+  - `--positive` → `--success: 142 60% 40%` + add `--success-bg`, `--warning-bg`, `--danger-bg`
+  - `--radius: 0.875rem` (14px)
+  - Sidebar: white bg, purple active state
+  - Add `--info: 210 80% 55%`
+- **Fonts**: Replace Geist with `DM Sans` (primary) and `JetBrains Mono` (mono). Update `@import` and `body` font-family.
+- **`tailwind.config.ts`**: Add `success`, `info` color tokens. Update font sizes to match doc (base 13px, caption 11-12px, heading 18-24px). Add `fade-in` and `slide-in` keyframes.
+- **Component updates**: Status badges become `rounded-full` (pill). Buttons get `rounded-[7px]`. Cards get `rounded-[14px]` with subtle shadow.
+- **Sidebar**: White background, purple active item (`--sidebar-primary: 238 40% 57%`), purple accent hover.
 
-## Key Features to Add
+### Files
+| File | Change |
+|------|--------|
+| `src/index.css` | Replace all CSS variables, font imports |
+| `tailwind.config.ts` | New color tokens, font sizes, keyframes |
+| `src/components/layout/AppSidebar.tsx` | Purple active state styling |
 
-### 1. Edit/Publish Mode Toggle
-- A lock/unlock button at the top (green = Published/read-only, amber = Edit mode)
-- When published, all dropdowns/inputs become read-only text
-- Matches the pattern from both external apps
+---
 
-### 2. KPI Strip Header
-- Sticky top bar showing: Total MRR, ARR, Team size, TBH count, Staffing gaps, Replacement-needed count
-- Filters dynamically based on active capability view
+## Part 2: Unified Client → Deal View
 
-### 3. Enhanced Accounts Tab
-- **RAG dot** per account (green/amber/red) with click-to-change
-- **Staffing status** column showing "Staffed / Gap / Replace" with color coding
-- **Team chips** in compact row, expandable drawer for full assignment management
-- **BW guideline** shown in expanded view per account
-- **Add Account form** inline (when in edit mode)
-- VSD + Pod + Region + RAG + Staffing status filters
+Merge `/clients` and `/deals` into a single `/clients` route. Remove separate `/deals` page. The view is: **Pod tabs → Collapsible client rows → Deal rows within each client**.
 
-### 4. Enhanced Capacity Tab
-- **Summary cards**: Overloaded (>100%), Near Full (85-100%), Healthy (30-85%), Under-utilised (<30%)
-- **Utilization table** grouped by role level with expandable per-person account splits
-- **Pod/VSD-level capacity cards** showing team breakdown with inline utilization bars
-- **MRR capacity benchmarks** per role/region with fill % column
-
-### 5. BW Rules Tab (New)
-- Editable bandwidth allocation guidelines table
-- Grouped by region (US/India) with MRR tier rows
-- Columns per role type (varies by capability: Leader/Principal/Manager for SEO, Content Lead/Editor Fixed/Editor Freelance for Content)
-- Click-to-edit percentage values
-- Stored in a new `staffing_bw_rules` DB table
-
-### 6. Enhanced Hiring Gap Tab
-- Leaving people panel + TBH placeholders panel (side by side)
-- Replacement-needed accounts with affected role badges
-- FTE gap analysis cards per role level
-- Unstaffed active accounts list
-
-### 7. Enhanced People Tab
-- TBH placeholder banner at top (collapsible)
-- Add forms: team member + TBH placeholder (in edit mode)
-- Leaving/Active toggle per person
-- Multi-VSD assignment for Content Leads
-- Cost-to-ARR ratio display
-
-## Database Changes
-
-### New table: `staffing_bw_rules`
+### Structure
 ```text
-staffing_bw_rules
-├── id (uuid, PK)
-├── capability (text: SEO / Content / Creative)
-├── region (text: US / India)
-├── mrr_tier_label (text: "< 1.5L", "1.5-3L", etc.)
-├── mrr_min (numeric)
-├── mrr_max (numeric)
-├── role_key (text: leader, principal, manager, etc.)
-├── recommended_pct (numeric: 0-100)
-└── created_at, updated_at
+[KPI Strip: Total Clients | Total Deals | Total Creators | Active Clients | Active Deals | Active Creators]
+[Checkbox: Show closed clients]
+[Pod Tabs: All | Integrated | India B2B | US B2B | FMCG | BFSI | ⚠ Unassigned]
+[+ Add Client to {Pod}]
+
+▼ Air India Express                               REVENUE  COST  MARGIN
+  BOPM: P: Tushar Walia · S: Ayushi Das           ₹128.9L  ₹0.5L  99.6%
+  Principal BOPM: ...  Senior BOPM: ...  Junior BOPM: —
+  [☐ Show completed] [☐ Show all creators]         [+ Add Deal]
+  
+  > Air India_Jan-2025 (D-0050) Non-Retainer  Aamir Khan  Rev ₹104.0L  Cost ₹0.0L  100%  Active  CS
+  > Contestant + Influencer (D-0051) Non-Retainer  ...
 ```
 
-Seed with BW data from both apps (SEO tiers + Content tiers).
+### Data source
+- Use `staffing_deals` table (already has ~550 deals with `account`, `vsd`, `business_unit`, `mrr`, etc.)
+- Group by `account` (client name) to create collapsible client sections
+- Pod assignment: derive from `business_unit` or add a `pod` column to `staffing_deals`
 
-### Alter `staffing_deals`: add `rag` column
-- `rag` (text, default 'green') -- green/amber/red health indicator
+### Deal Detail Page — 7 Tabs (remove Timesheets)
+Rewrite `/deals/:dealId` with these tabs:
 
-## Files to Create/Modify
+1. **Overview** — Deal metadata grid + **SoW Criteria section** (scope items with mapped revenue and team assignments). Add editable SoW rows: Scope, Revenue Share, Team/Capability.
+2. **Staffing** — Team-level hierarchy view. VSD org → Capability org (Content, SEO, Creative). Senior → Junior tree with allocation %.
+3. **Revenue** — Monthly table: Month, MRR, Contraction, Delivered, Invoiced, Actuals, Attainment %.
+4. **Targets** — Month-on-month targets for Contraction, Delivery, Invoicing + YTD Target + YTD Attainment.
+5. **RGY Health** — **Weekly** instead of monthly. Week-start dates as rows, same 4 dimensions (Internal/Customer/Delivery/Consumption).
+6. **MBR Tracking** — Embed same format as MBR Tracker (reuse `MBRInputDrawer` and `MBRDetailDialog`), filtered to this deal.
+7. **Onboarding** — Checklist with completion progress bar. Steps derived from Creative Process Decomposition for Creative Retainers; adapted versions for SEO/Content deals. Checklist items with checkbox + owner + due date.
 
-| File | Action |
+### Database changes
+- Add `pod` column to `staffing_deals` (text, default '')  — or derive from business_unit mapping
+- New table `deal_sow_items` for SoW criteria:
+  ```
+  id (uuid), deal_id (text), scope (text), revenue_share (numeric),
+  team_capability (text), created_at, updated_at
+  ```
+- New table `deal_revenue_monthly`:
+  ```
+  id (uuid), deal_id (text), month (date), mrr (numeric), contraction (numeric),
+  delivered (numeric), invoiced (numeric), actuals (numeric), created_at, updated_at
+  ```
+- New table `deal_targets_monthly`:
+  ```
+  id (uuid), deal_id (text), month (date), contraction_target (numeric),
+  delivery_target (numeric), invoicing_target (numeric), created_at, updated_at
+  ```
+- Alter `rgy_health` tracking to weekly (or new table `deal_rgy_weekly`):
+  ```
+  id (uuid), deal_id (text), week_start (date), internal (text), customer (text),
+  delivery (text), consumption (text), created_at
+  ```
+- New table `deal_onboarding_steps`:
+  ```
+  id (uuid), deal_id (text), step_name (text), category (text), owner (text),
+  due_date (date), completed (boolean), completed_at (timestamptz), sort_order (int)
+  ```
+
+### Routing changes
+- Remove `/deals` route (redirect to `/clients`)
+- Keep `/deals/:dealId` for deal detail page
+- Update sidebar: remove "Deals" nav item, keep "Clients" (rename concept to "Clients & Deals")
+
+### Files
+| File | Change |
 |------|--------|
-| Migration SQL | Create `staffing_bw_rules` table, add `rag` to `staffing_deals`, seed BW data |
-| `src/pages/Staffing.tsx` | Major rewrite: add mode toggle, KPI strip, capability switcher, enhanced tabs |
-| `src/components/staffing/SummaryTab.tsx` | Rewrite with StatCards, pod breakdown, utilization chips |
-| `src/components/staffing/CapacityTab.tsx` | Rewrite with summary cards, expandable rows, pod-level capacity cards |
-| `src/components/staffing/HiringGapTab.tsx` | Rewrite with leaving/TBH panels, FTE gap analysis |
-| `src/components/staffing/BWRulesTab.tsx` | Rewrite to use DB-backed rules with capability grouping |
-| `src/components/staffing/AccountsTab.tsx` | New: extracted accounts logic with RAG, BW guidelines, add form |
-| `src/components/staffing/PeopleTab.tsx` | New: extracted people logic with TBH banner, add forms |
-| `src/hooks/useStaffingData.ts` | Add BW rules CRUD, RAG update support |
-| `src/data/staffingData.ts` | Add `rag` to Deal interface |
+| Migration SQL | Create 5 new tables, add `pod` to staffing_deals |
+| `src/pages/Clients.tsx` | Complete rewrite: Pod tabs, collapsible clients, nested deals, KPIs |
+| `src/pages/DealDetail.tsx` | Complete rewrite: 7 tabs with SoW, weekly RGY, onboarding checklist |
+| `src/components/layout/AppSidebar.tsx` | Remove Deals nav, update Clients label |
+| `src/App.tsx` | Remove `/deals` list route, keep detail route |
+| `src/hooks/useClientDeals.ts` | New hook for grouped client-deal data |
+| `src/hooks/useDealDetail.ts` | New hook for deal-level data (revenue, targets, RGY, onboarding, SoW) |
+| `src/components/deals/SoWSection.tsx` | New: SoW criteria editor |
+| `src/components/deals/OnboardingTab.tsx` | New: checklist with progress bar |
+| `src/components/deals/WeeklyRGYTab.tsx` | New: weekly health grid |
+| `src/components/deals/RevenueTab.tsx` | New: monthly revenue table |
+| `src/components/deals/TargetsTab.tsx` | New: targets with YTD |
+| `src/components/deals/DealStaffingTab.tsx` | New: team hierarchy for single deal |
+| `src/components/deals/DealMBRTab.tsx` | New: MBR tracking filtered to deal |
 
-## Technical Details
+---
 
-- All styling uses existing Tailwind/shadcn patterns (no inline styles from external apps)
-- Capability switcher filters `ROLE_SLOTS` and deals by `businessUnit` mapping (existing `BU_ROLE_CATEGORIES`)
-- BW rules are capability-specific: SEO has leader/principal/manager, Content has content_lead/editor_fixed/editor_freelance
-- Edit mode toggle is local state (no auth gating for now)
-- KPI strip uses `useMemo` to compute totals from filtered data
-- Pod-level capacity cards compute average utilization per pod/VSD with per-person breakdowns
-- Existing `CapacityTab` tree view is kept but enhanced with the capacity cards and expandable account splits
+## Part 3: Staffing & Capacity Simplification
+
+Replace the current 7-tab Staffing module with a cleaner 2-view system.
+
+### Two Views
+
+**Tab 1: Deal-Level View**
+- Table of all deals showing: Account, Deal Name, Deal Type, MRR, RAG, Status
+- Expandable: shows all team members assigned from each capability team (SEO team, Content team, Creative team, Ops team) with their allocation % and the revenue they manage on that deal
+- Filters: Pod, Capability, Status, RAG
+
+**Tab 2: People-Level View**  
+- Hierarchical tree: Leader → Manager → Junior
+- Each person row shows: Name, Role, Pod, Region, # Deals, Total BW Used (bar + %), Status (Active/Leaving/TBH)
+- Expandable: shows all deals they're tagged to with allocation per deal and deal revenue
+- Summary cards at top: Overloaded / Near Full / Healthy / Under-utilised
+- Keep the existing tree-building logic from `CapacityTab.tsx`
+- Bring in pod-level capacity cards from Kindred Companion (per-pod average utilization with team breakdown)
+
+### Retain from current system
+- Edit/Publish mode toggle
+- KPI strip header
+- Capability switcher (All / SEO / Content / Creative / Ops)
+- BW Rules as a sub-section or settings panel (not a main tab)
+
+### Files
+| File | Change |
+|------|--------|
+| `src/pages/Staffing.tsx` | Simplify to 2-tab layout + KPI strip + capability switcher |
+| `src/components/staffing/DealLevelView.tsx` | New: deal-centric staffing table with expandable team breakdown |
+| `src/components/staffing/PeopleLevelView.tsx` | New: person-centric tree with capacity cards and expandable deal splits |
+| Remove/archive | `SummaryTab`, `AccountsTab`, `HiringGapTab`, `RevenueCapacityTab` (functionality absorbed into the two views) |
+| `src/components/staffing/BWRulesPanel.tsx` | BW Rules as a slide-out panel or collapsible section |
+
+---
+
+## Implementation Order
+
+1. **Design language** (foundation — affects all pages)
+2. **Unified Client-Deal view** (core navigation change)
+3. **Deal Detail 7 tabs** (new tables + UI)
+4. **Staffing simplification** (restructure to 2 views)
+
+This is a large effort spanning ~20+ files and 6 new database tables. I recommend implementing it in phases across multiple messages, starting with the design language migration.
 
