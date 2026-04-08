@@ -13,8 +13,7 @@ const navSections = [
     label: "Core",
     items: [
       { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-      { to: "/deals", icon: Briefcase, label: "Deals" },
-      { to: "/clients", icon: Building2, label: "Clients" },
+      { to: "/clients", icon: Building2, label: "Clients & Deals" },
     ],
   },
   {
@@ -23,7 +22,6 @@ const navSections = [
       { to: "/staffing", icon: UserCheck, label: "Staffing & Capacity" },
       { to: "/revenue", icon: DollarSign, label: "Revenue" },
       { to: "/targets", icon: Target, label: "Targets" },
-      { to: "/timesheets", icon: Clock, label: "Timesheets" },
     ],
   },
   {
@@ -60,10 +58,10 @@ export function AppSidebar() {
   };
 
   return (
-    <aside className="w-60 h-screen border-r border-border bg-sidebar flex flex-col flex-shrink-0 overflow-y-auto">
-      <div className="h-14 flex items-center px-5 border-b border-border">
-        <span className="text-base font-semibold tracking-tight text-foreground">VSD-OS</span>
-        <span className="ml-2 text-caption text-muted-foreground font-medium">v2.0</span>
+    <aside className="w-60 h-screen border-r border-sidebar-border bg-sidebar flex flex-col flex-shrink-0 overflow-y-auto">
+      <div className="h-14 flex items-center px-5 border-b border-sidebar-border">
+        <span className="text-base font-bold tracking-tight text-foreground">Pepper</span>
+        <span className="ml-1.5 text-caption text-primary font-semibold">OS</span>
       </div>
 
       <nav className="flex-1 py-3 px-3 space-y-1">
@@ -86,8 +84,8 @@ export function AppSidebar() {
                       cn(
                         "flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-ui transition-colors",
                         isActive
-                          ? "bg-foreground text-primary-foreground font-medium"
-                          : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                          ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                          : "text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent/50"
                       )
                     }
                     end={item.to === "/"}
@@ -102,9 +100,9 @@ export function AppSidebar() {
         ))}
       </nav>
 
-      <div className="p-4 border-t border-border">
+      <div className="p-4 border-t border-sidebar-border">
         <div className="flex items-center gap-2.5">
-          <div className="h-8 w-8 rounded-md bg-foreground text-primary-foreground flex items-center justify-center text-caption font-semibold">
+          <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-caption font-semibold">
             AK
           </div>
           <div className="flex-1 min-w-0">
