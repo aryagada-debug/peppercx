@@ -4,6 +4,7 @@ import {
   DEFAULT_DEALS, DEFAULT_PEOPLE, DEFAULT_ASSIGNMENTS, DEFAULT_HIRING_NEEDS, DEFAULT_REVENUE_TARGETS,
   type Deal, type Person, type StaffingAssignment, type HiringNeed, type RevenueCapacityTarget, type BWRule, uid
 } from "@/data/staffingData";
+import type { TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 
 // ── Mappers ──────────────────────────────────────────────────────────────────
 function dbToPerson(row: any): Person {
@@ -15,7 +16,7 @@ function dbToPerson(row: any): Person {
   };
 }
 
-function personToDb(p: Person) {
+function personToDb(p: Person): TablesInsert<"staffing_people"> {
   return {
     id: p.id, name: p.name, role_category: p.roleCategory, role_title: p.roleTitle,
     pod: p.pod, region: p.region, leaving: p.leaving, tbh: p.tbh,
@@ -40,10 +41,11 @@ function dbToDeal(row: any): Deal {
     customerType: row.customer_type || '', serviceLineTagging: row.service_line_tagging || '',
     dealValueLost: row.deal_value_lost ? Number(row.deal_value_lost) : undefined,
     netDealValue: row.net_deal_value ? Number(row.net_deal_value) : undefined,
+    rag: row.rag || 'green',
   };
 }
 
-function dealToDb(d: Deal) {
+function dealToDb(d: Deal): TablesInsert<"staffing_deals"> {
   return {
     id: d.id, pc_code: d.pcCode, deal_id: d.dealId, business_unit: d.businessUnit,
     capability_line: d.capabilityLine, account: d.account, deal_name: d.dealName,
@@ -65,7 +67,7 @@ function dbToAssignment(row: any): StaffingAssignment {
   return { id: row.id, dealId: row.deal_id, roleKey: row.role_key, personId: row.person_id, allocationPct: Number(row.allocation_pct) };
 }
 
-function assignmentToDb(a: StaffingAssignment) {
+function assignmentToDb(a: StaffingAssignment): TablesInsert<"staffing_assignments"> {
   return { id: a.id, deal_id: a.dealId, role_key: a.roleKey, person_id: a.personId, allocation_pct: a.allocationPct };
 }
 
@@ -73,7 +75,7 @@ function dbToHiring(row: any): HiringNeed {
   return { id: row.id, role: row.role, roleCategory: row.role_category, pod: row.pod, priority: row.priority, targetDate: row.target_date, rationale: row.rationale, status: row.status };
 }
 
-function hiringToDb(h: HiringNeed) {
+function hiringToDb(h: HiringNeed): TablesInsert<"staffing_hiring_needs"> {
   return { id: h.id, role: h.role, role_category: h.roleCategory, pod: h.pod, priority: h.priority, target_date: h.targetDate, rationale: h.rationale, status: h.status };
 }
 
@@ -81,12 +83,27 @@ function dbToRevTarget(row: any): RevenueCapacityTarget {
   return { department: row.department, designation: row.designation, targetDealValuePerPerson: Number(row.target_deal_value_per_person) };
 }
 
-// ── Batch insert helper (Supabase limit ~1000 rows per insert) ───────────
-async function batchUpsert(table: "staffing_people" | "staffing_deals" | "staffing_assignments" | "staffing_hiring_needs" | "staffing_revenue_targets", rows: Record<string, any>[], batchSize = 500) {
+function dbToBWRule(row: any): BWRule {
+  return {
+    id: row.id, capability: row.capability, region: row.region,
+    mrrTierLabel: row.mrr_tier_label, mrrMin: Number(row.mrr_min), mrrMax: Number(row.mrr_max),
+    roleKey: row.role_key, recommendedPct: Number(row.recommended_pct),
+  };
+}
+
+function bwRuleToDb(r: BWRule) {
+  return {
+    id: r.id, capability: r.capability, region: r.region,
+    mrr_tier_label: r.mrrTierLabel, mrr_min: r.mrrMin, mrr_max: r.mrrMax,
+    role_key: r.roleKey, recommended_pct: r.recommendedPct,
+  };
+}
+
+// ── Batch insert helper ───────────
+async function batchUpsert<T extends Record<string, unknown>>(table: string, rows: T[], batchSize = 500) {
   for (let i = 0; i < rows.length; i += batchSize) {
     const batch = rows.slice(i, i + batchSize);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase.from(table) as any).upsert(batch, { onConflict: "id" });
+    const { error } = await (supabase.from(table as any) as any).upsert(batch, { onConflict: "id" });
     if (error) console.error(`Seed error ${table} batch ${i}:`, error);
   }
 }
@@ -98,11 +115,11 @@ export function useStaffingData() {
   const [assignments, setAssignments] = useState<StaffingAssignment[]>(DEFAULT_ASSIGNMENTS);
   const [hiringNeeds, setHiringNeeds] = useState<HiringNeed[]>(DEFAULT_HIRING_NEEDS);
   const [revenueTargets, setRevenueTargets] = useState<RevenueCapacityTarget[]>(DEFAULT_REVENUE_TARGETS);
+  const [bwRules, setBwRules] = useState<BWRule[]>([]);
   const [loading, setLoading] = useState(true);
   const [seeded, setSeeded] = useState(false);
   const seedingRef = useRef(false);
 
-  // Load from DB on mount
   useEffect(() => {
     loadAll();
   }, []);
@@ -110,11 +127,9 @@ export function useStaffingData() {
   async function loadAll() {
     setLoading(true);
     try {
-      // Check if data exists
       const { count } = await supabase.from("staffing_people").select("id", { count: "exact", head: true });
       
       if (!count || count === 0) {
-        // Seed the database
         if (seedingRef.current) return;
         seedingRef.current = true;
         await seedDatabase();
@@ -123,13 +138,13 @@ export function useStaffingData() {
         return;
       }
 
-      // Load all data in parallel
-      const [pRes, dRes, aRes, hRes, rRes] = await Promise.all([
+      const [pRes, dRes, aRes, hRes, rRes, bRes] = await Promise.all([
         supabase.from("staffing_people").select("*"),
         supabase.from("staffing_deals").select("*"),
         supabase.from("staffing_assignments").select("*"),
         supabase.from("staffing_hiring_needs").select("*"),
         supabase.from("staffing_revenue_targets").select("*"),
+        supabase.from("staffing_bw_rules").select("*"),
       ]);
 
       if (pRes.data) setPeople(pRes.data.map(dbToPerson));
@@ -137,6 +152,7 @@ export function useStaffingData() {
       if (aRes.data) setAssignments(aRes.data.map(dbToAssignment));
       if (hRes.data) setHiringNeeds(hRes.data.map(dbToHiring));
       if (rRes.data) setRevenueTargets(rRes.data.map(dbToRevTarget));
+      if (bRes.data) setBwRules(bRes.data.map(dbToBWRule));
     } catch (err) {
       console.error("Failed to load staffing data:", err);
     }
@@ -145,51 +161,35 @@ export function useStaffingData() {
 
   async function seedDatabase() {
     console.log("Seeding staffing database...");
-    
-    // Seed people first (assignments reference them)
     await batchUpsert("staffing_people", DEFAULT_PEOPLE.map(personToDb));
-    
-    // Seed deals
     await batchUpsert("staffing_deals", DEFAULT_DEALS.map(dealToDb));
     
-    // Seed assignments - filter out invalid person/deal references
     const validPersonIds = new Set(DEFAULT_PEOPLE.map(p => p.id));
     const validDealIds = new Set(DEFAULT_DEALS.map(d => d.id));
     const validAssignments = DEFAULT_ASSIGNMENTS.filter(a => validPersonIds.has(a.personId) && validDealIds.has(a.dealId));
     await batchUpsert("staffing_assignments", validAssignments.map(assignmentToDb));
-    
-    // Seed hiring needs
     await batchUpsert("staffing_hiring_needs", DEFAULT_HIRING_NEEDS.map(hiringToDb));
     
-    // Seed revenue targets (use department+designation as composite key)
-    const rtRows = DEFAULT_REVENUE_TARGETS.map(rt => ({
-      id: `${rt.department}__${rt.designation}`.replace(/\s+/g, "_").toLowerCase(),
-      department: rt.department,
-      designation: rt.designation,
-      target_deal_value_per_person: rt.targetDealValuePerPerson,
-    }));
-    // Revenue targets table uses UUID, so insert differently
     for (const rt of DEFAULT_REVENUE_TARGETS) {
-      await supabase.from("staffing_revenue_targets").upsert({
+      await (supabase.from("staffing_revenue_targets") as any).upsert({
         department: rt.department,
         designation: rt.designation,
         target_deal_value_per_person: rt.targetDealValuePerPerson,
-      } as any, { onConflict: "department,designation" });
+      }, { onConflict: "department,designation" });
     }
     
     console.log("Seeding complete!");
-    // State already has defaults, no need to re-fetch
   }
 
   // ── CRUD: People ──
   const addPerson = useCallback(async (person: Person) => {
     setPeople(prev => [...prev, person]);
-    await supabase.from("staffing_people").insert(personToDb(person) as any);
+    await supabase.from("staffing_people").insert(personToDb(person));
   }, []);
 
   const updatePerson = useCallback(async (personId: string, updates: Partial<Person>) => {
     setPeople(prev => prev.map(p => p.id === personId ? { ...p, ...updates } : p));
-    const dbUpdates: Record<string, any> = {};
+    const dbUpdates: TablesUpdate<"staffing_people"> = {};
     if (updates.name !== undefined) dbUpdates.name = updates.name;
     if (updates.roleCategory !== undefined) dbUpdates.role_category = updates.roleCategory;
     if (updates.roleTitle !== undefined) dbUpdates.role_title = updates.roleTitle;
@@ -207,7 +207,6 @@ export function useStaffingData() {
   const deletePerson = useCallback(async (personId: string) => {
     setPeople(prev => prev.filter(p => p.id !== personId));
     setAssignments(prev => prev.filter(a => a.personId !== personId));
-    // DB cascade handles assignment cleanup
     await supabase.from("staffing_people").delete().eq("id", personId);
   }, []);
 
@@ -215,18 +214,19 @@ export function useStaffingData() {
     setPeople(prev => prev.map(p => personIds.includes(p.id) ? { ...p, [field]: value } : p));
     const dbField = field === "roleCategory" ? "role_category" : field === "roleTitle" ? "role_title"
       : field === "reportingManager" ? "reporting_manager" : field;
-    await supabase.from("staffing_people").update({ [dbField]: value }).in("id", personIds);
+    const updateObj: TablesUpdate<"staffing_people"> = { [dbField]: value };
+    await supabase.from("staffing_people").update(updateObj).in("id", personIds);
   }, []);
 
   // ── CRUD: Assignments ──
   const addAssignment = useCallback(async (assignment: StaffingAssignment) => {
     setAssignments(prev => [...prev, assignment]);
-    await supabase.from("staffing_assignments").insert(assignmentToDb(assignment) as any);
+    await supabase.from("staffing_assignments").insert(assignmentToDb(assignment));
   }, []);
 
   const updateAssignment = useCallback(async (id: string, updates: Partial<StaffingAssignment>) => {
     setAssignments(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a));
-    const dbUpdates: Record<string, any> = {};
+    const dbUpdates: TablesUpdate<"staffing_assignments"> = {};
     if (updates.personId !== undefined) dbUpdates.person_id = updates.personId;
     if (updates.allocationPct !== undefined) dbUpdates.allocation_pct = updates.allocationPct;
     if (updates.roleKey !== undefined) dbUpdates.role_key = updates.roleKey;
@@ -242,10 +242,10 @@ export function useStaffingData() {
   // ── CRUD: Deals ──
   const updateDeal = useCallback(async (dealId: string, updates: Partial<Deal>) => {
     setDeals(prev => prev.map(d => d.id === dealId ? { ...d, ...updates } : d));
-    const dbUpdates: Record<string, any> = {};
+    const dbUpdates: TablesUpdate<"staffing_deals"> = {};
     Object.entries(updates).forEach(([k, v]) => {
       const snakeKey = k.replace(/([A-Z])/g, "_$1").toLowerCase();
-      dbUpdates[snakeKey] = v;
+      (dbUpdates as any)[snakeKey] = v;
     });
     await supabase.from("staffing_deals").update(dbUpdates).eq("id", dealId);
   }, []);
@@ -253,7 +253,6 @@ export function useStaffingData() {
   // ── CRUD: Hiring Needs ──
   const setHiringNeedsAndSync = useCallback(async (newNeeds: HiringNeed[]) => {
     setHiringNeeds(newNeeds);
-    // Full replace: delete all then insert
     await supabase.from("staffing_hiring_needs").delete().neq("id", "");
     if (newNeeds.length > 0) {
       await batchUpsert("staffing_hiring_needs", newNeeds.map(hiringToDb));
@@ -265,25 +264,42 @@ export function useStaffingData() {
     setRevenueTargets(newTargets);
     await supabase.from("staffing_revenue_targets").delete().neq("id", "00000000-0000-0000-0000-000000000000");
     for (const rt of newTargets) {
-      await supabase.from("staffing_revenue_targets").upsert({
+      await (supabase.from("staffing_revenue_targets") as any).upsert({
         department: rt.department,
         designation: rt.designation,
         target_deal_value_per_person: rt.targetDealValuePerPerson,
-      } as any, { onConflict: "department,designation" });
+      }, { onConflict: "department,designation" });
     }
   }, []);
 
+  // ── CRUD: BW Rules ──
+  const updateBWRule = useCallback(async (ruleId: string, updates: Partial<BWRule>) => {
+    setBwRules(prev => prev.map(r => r.id === ruleId ? { ...r, ...updates } : r));
+    const dbUpdates: Record<string, any> = {};
+    if (updates.recommendedPct !== undefined) dbUpdates.recommended_pct = updates.recommendedPct;
+    if (updates.capability !== undefined) dbUpdates.capability = updates.capability;
+    if (updates.region !== undefined) dbUpdates.region = updates.region;
+    if (updates.roleKey !== undefined) dbUpdates.role_key = updates.roleKey;
+    await (supabase.from("staffing_bw_rules") as any).update(dbUpdates).eq("id", ruleId);
+  }, []);
+
+  const addBWRule = useCallback(async (rule: BWRule) => {
+    setBwRules(prev => [...prev, rule]);
+    await (supabase.from("staffing_bw_rules") as any).insert(bwRuleToDb(rule));
+  }, []);
+
+  const deleteBWRule = useCallback(async (ruleId: string) => {
+    setBwRules(prev => prev.filter(r => r.id !== ruleId));
+    await (supabase.from("staffing_bw_rules") as any).delete().eq("id", ruleId);
+  }, []);
+
   return {
-    people, deals, assignments, hiringNeeds, revenueTargets, loading,
-    // People
+    people, deals, assignments, hiringNeeds, revenueTargets, bwRules, loading,
     addPerson, updatePerson, deletePerson, bulkUpdatePeople, setPeople,
-    // Assignments
     addAssignment, updateAssignment, deleteAssignment, setAssignments,
-    // Deals
     updateDeal, setDeals,
-    // Hiring & Revenue
     setHiringNeeds: setHiringNeedsAndSync, setRevenueTargets: setRevenueTargetsAndSync,
-    // Refresh
+    updateBWRule, addBWRule, deleteBWRule, setBwRules,
     refresh: loadAll,
   };
 }
