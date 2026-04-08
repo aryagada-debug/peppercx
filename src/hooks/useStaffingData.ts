@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   DEFAULT_DEALS, DEFAULT_PEOPLE, DEFAULT_ASSIGNMENTS, DEFAULT_HIRING_NEEDS, DEFAULT_REVENUE_TARGETS,
-  type Deal, type Person, type StaffingAssignment, type HiringNeed, type RevenueCapacityTarget, uid
+  type Deal, type Person, type StaffingAssignment, type HiringNeed, type RevenueCapacityTarget, type BWRule, uid
 } from "@/data/staffingData";
 
 // ── Mappers ──────────────────────────────────────────────────────────────────
