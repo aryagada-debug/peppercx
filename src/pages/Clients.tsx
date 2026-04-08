@@ -1,58 +1,221 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Link } from "react-router-dom";
-import { Search } from "lucide-react";
-import { useState } from "react";
+import { Search, ChevronDown, ChevronRight, Building2 } from "lucide-react";
+import { useState, useMemo } from "react";
+import { useStaffingData } from "@/hooks/useStaffingData";
+import { cn } from "@/lib/utils";
+import { Loader2 } from "lucide-react";
 
-const clients = [
-  { pcCode: "PC-101", name: "TechCorp India", geo: "India", status: "Active", deals: 3, totalMrr: "₹18.5L", totalValue: "₹2.22Cr" },
-  { pcCode: "PC-102", name: "FinServe Ltd", geo: "India", status: "Active", deals: 2, totalMrr: "₹15.0L", totalValue: "₹1.80Cr" },
-  { pcCode: "PC-103", name: "MediaNext", geo: "UAE", status: "Active", deals: 1, totalMrr: "₹5.2L", totalValue: "₹15.6L" },
-  { pcCode: "PC-104", name: "RetailMax", geo: "India", status: "Active", deals: 2, totalMrr: "₹8.0L", totalValue: "₹96.0L" },
-  { pcCode: "PC-105", name: "CloudFirst", geo: "US", status: "Active", deals: 1, totalMrr: "₹15.0L", totalValue: "₹1.80Cr" },
-  { pcCode: "PC-106", name: "EduPrime", geo: "India", status: "Active", deals: 1, totalMrr: "₹6.8L", totalValue: "₹81.6L" },
-  { pcCode: "PC-107", name: "HealthPlus", geo: "India", status: "Paused", deals: 1, totalMrr: "₹4.5L", totalValue: "₹54.0L" },
-  { pcCode: "PC-108", name: "AutoDrive", geo: "US", status: "Completed", deals: 1, totalMrr: "—", totalValue: "₹21.0L" },
-];
+const PODS = ["All", "Integrated", "India B2B", "US B2B", "FMCG", "BFSI"] as const;
+type Pod = typeof PODS[number];
+
+const BU_TO_POD: Record<string, Pod> = {
+  "Pepper Creative": "Integrated",
+  "Pepper Content": "Integrated",
+  "Pepper SEO": "Integrated",
+  "India B2B": "India B2B",
+  "US B2B": "US B2B",
+  "FMCG": "FMCG",
+  "BFSI": "BFSI",
+};
+
+const fmtCurrency = (n: number | undefined) => {
+  if (!n) return "—";
+  if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
+  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
+  if (n >= 1000) return `₹${(n / 1000).toFixed(0)}K`;
+  return `₹${n}`;
+};
+
+const ragDot = (rag: string) => {
+  const colors: Record<string, string> = {
+    green: "bg-positive", amber: "bg-warning", red: "bg-destructive",
+  };
+  return <span className={cn("inline-block w-2 h-2 rounded-full", colors[rag] || "bg-muted-foreground")} />;
+};
 
 export default function Clients() {
+  const { deals, people, assignments, loading } = useStaffingData();
   const [search, setSearch] = useState("");
-  const filtered = clients.filter(c => c.name.toLowerCase().includes(search.toLowerCase()));
+  const [activePod, setActivePod] = useState<Pod>("All");
+  const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
+  const [showClosed, setShowClosed] = useState(false);
+
+  const filteredDeals = useMemo(() => {
+    let d = deals;
+    if (!showClosed) d = d.filter(deal => deal.dealStatusCx !== "Closed" && deal.dealStatus !== "Lost");
+    if (activePod !== "All") d = d.filter(deal => (BU_TO_POD[deal.businessUnit] || "Integrated") === activePod);
+    if (search) d = d.filter(deal => deal.account.toLowerCase().includes(search.toLowerCase()) || deal.dealName.toLowerCase().includes(search.toLowerCase()));
+    return d;
+  }, [deals, activePod, search, showClosed]);
+
+  const clientGroups = useMemo(() => {
+    const groups: Record<string, typeof filteredDeals> = {};
+    filteredDeals.forEach(d => {
+      const key = d.account || "Unknown";
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(d);
+    });
+    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
+  }, [filteredDeals]);
+
+  const kpis = useMemo(() => ({
+    clients: clientGroups.length,
+    deals: filteredDeals.length,
+    activeDeals: filteredDeals.filter(d => d.dealStatusCx === "Active" || d.dealStatus === "Won").length,
+    totalMRR: filteredDeals.reduce((s, d) => s + (d.mrr || 0), 0),
+    totalValue: filteredDeals.reduce((s, d) => s + (d.totalDealValue || 0), 0),
+  }), [clientGroups, filteredDeals]);
+
+  const toggleClient = (name: string) => {
+    setExpandedClients(prev => {
+      const next = new Set(prev);
+      next.has(name) ? next.delete(name) : next.add(name);
+      return next;
+    });
+  };
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="p-8 flex items-center justify-center min-h-[60vh]">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
       <div className="p-8">
-        <div className="mb-6">
-          <h1 className="text-subhead font-semibold tracking-tight text-foreground">Clients</h1>
-          <p className="text-ui text-muted-foreground mt-1">{clients.length} clients</p>
+        <div className="mb-5">
+          <h1 className="text-subhead font-bold tracking-tight text-foreground">Clients & Deals</h1>
+          <p className="text-ui text-muted-foreground mt-1">{kpis.clients} clients • {kpis.deals} deals</p>
         </div>
-        <div className="relative max-w-sm mb-6">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <input type="text" placeholder="Search clients..." value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full h-9 pl-9 pr-3 rounded-md bg-muted/50 border-0 text-ui text-foreground placeholder:text-muted-foreground focus:bg-card focus:ring-1 focus:ring-accent focus:outline-none transition-colors" />
+
+        {/* KPI Strip */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">
+          {[
+            { label: "Clients", value: String(kpis.clients) },
+            { label: "Total Deals", value: String(kpis.deals) },
+            { label: "Active Deals", value: String(kpis.activeDeals) },
+            { label: "Total MRR", value: fmtCurrency(kpis.totalMRR) },
+            { label: "Total Value", value: fmtCurrency(kpis.totalValue) },
+          ].map(k => (
+            <div key={k.label} className="data-card">
+              <p className="metric-label">{k.label}</p>
+              <p className="text-xl font-semibold font-mono tracking-tight mt-1 text-foreground">{k.value}</p>
+            </div>
+          ))}
         </div>
-        <div className="data-card p-0 overflow-hidden">
-          <table className="w-full text-ui">
-            <thead>
-              <tr className="border-b border-border bg-secondary/30">
-                {["PC Code", "Client", "GEO", "Deals", "Total MRR", "Total Value", "Status"].map(h => (
-                  <th key={h} className="text-left py-3 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(c => (
-                <tr key={c.pcCode} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
-                  <td className="py-3 px-4 font-mono text-accent font-medium">{c.pcCode}</td>
-                  <td className="py-3 px-4 font-medium text-foreground">{c.name}</td>
-                  <td className="py-3 px-4 text-muted-foreground">{c.geo}</td>
-                  <td className="py-3 px-4 font-mono tabular-nums text-foreground">{c.deals}</td>
-                  <td className="py-3 px-4 font-mono tabular-nums text-foreground">{c.totalMrr}</td>
-                  <td className="py-3 px-4 font-mono tabular-nums text-foreground">{c.totalValue}</td>
-                  <td className="py-3 px-4 text-muted-foreground">{c.status}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+
+        {/* Filters */}
+        <div className="flex items-center gap-4 mb-5 flex-wrap">
+          <div className="flex gap-1 bg-secondary rounded-lg p-1">
+            {PODS.map(pod => (
+              <button key={pod} onClick={() => setActivePod(pod)} className={cn(
+                "px-3 py-1.5 rounded-md text-caption font-medium whitespace-nowrap transition-colors",
+                activePod === pod ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}>{pod}</button>
+            ))}
+          </div>
+
+          <div className="relative flex-1 max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input type="text" placeholder="Search clients or deals..." value={search} onChange={e => setSearch(e.target.value)}
+              className="w-full h-9 pl-9 pr-3 rounded-lg bg-card border border-border text-ui text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all" />
+          </div>
+
+          <label className="flex items-center gap-2 text-ui text-muted-foreground cursor-pointer">
+            <input type="checkbox" checked={showClosed} onChange={e => setShowClosed(e.target.checked)} className="rounded border-border" />
+            Show closed
+          </label>
+        </div>
+
+        {/* Client List */}
+        <div className="space-y-1">
+          {clientGroups.map(([clientName, clientDeals]) => {
+            const isExpanded = expandedClients.has(clientName);
+            const clientMRR = clientDeals.reduce((s, d) => s + (d.mrr || 0), 0);
+            const clientValue = clientDeals.reduce((s, d) => s + (d.totalDealValue || 0), 0);
+            const vsd = clientDeals[0]?.vsd || "—";
+            const principalBopm = clientDeals[0]?.principalBopm || "—";
+
+            return (
+              <div key={clientName} className="data-card !p-0 overflow-hidden">
+                <button
+                  onClick={() => toggleClient(clientName)}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-accent/30 transition-colors text-left"
+                >
+                  {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />}
+                  <Building2 className="h-4 w-4 text-primary flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium text-foreground">{clientName}</span>
+                    <span className="ml-2 text-caption text-muted-foreground">{clientDeals.length} deal{clientDeals.length !== 1 ? "s" : ""}</span>
+                  </div>
+                  <div className="flex items-center gap-6 text-ui">
+                    <span className="text-muted-foreground text-caption">VSD: <span className="text-foreground font-medium">{vsd}</span></span>
+                    <span className="text-muted-foreground text-caption">P.BOPM: <span className="text-foreground font-medium">{principalBopm}</span></span>
+                    <span className="font-mono tabular-nums text-foreground">{fmtCurrency(clientMRR)}<span className="text-muted-foreground text-caption">/mo</span></span>
+                    <span className="font-mono tabular-nums text-foreground">{fmtCurrency(clientValue)}</span>
+                  </div>
+                </button>
+
+                {isExpanded && (
+                  <div className="border-t border-border animate-fade-in">
+                    <table className="w-full text-ui">
+                      <thead>
+                        <tr className="bg-accent/20">
+                          <th className="text-left py-2 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">Deal</th>
+                          <th className="text-left py-2 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">Type</th>
+                          <th className="text-left py-2 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">Status</th>
+                          <th className="text-left py-2 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">RAG</th>
+                          <th className="text-right py-2 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">MRR</th>
+                          <th className="text-right py-2 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">Total Value</th>
+                          <th className="text-left py-2 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">VSD</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {clientDeals.map(deal => (
+                          <tr key={deal.id} className="border-t border-border/50 hover:bg-accent/10 transition-colors">
+                            <td className="py-2.5 px-4">
+                              <Link to={`/deals/${deal.id}`} className="text-primary hover:underline font-medium">
+                                {deal.dealName}
+                              </Link>
+                              <span className="ml-2 text-caption text-muted-foreground font-mono">({deal.dealId})</span>
+                            </td>
+                            <td className="py-2.5 px-4">
+                              <span className={cn(
+                                "inline-flex px-2 py-0.5 rounded-full text-[11px] font-medium",
+                                deal.dealType === "Retainer" ? "bg-accent text-accent-foreground" : "bg-secondary text-secondary-foreground"
+                              )}>{deal.dealType}</span>
+                            </td>
+                            <td className="py-2.5 px-4">
+                              <span className={cn(
+                                "inline-flex px-2 py-0.5 rounded-full text-[11px] font-medium",
+                                deal.dealStatusCx === "Active" ? "text-positive" : "text-muted-foreground",
+                                deal.dealStatusCx === "Active" ? "bg-[hsl(var(--success-bg))]" : "bg-secondary"
+                              )}>{deal.dealStatusCx || deal.dealStatus}</span>
+                            </td>
+                            <td className="py-2.5 px-4">{ragDot(deal.rag || "green")}</td>
+                            <td className="py-2.5 px-4 text-right font-mono tabular-nums text-foreground">{fmtCurrency(deal.mrr)}</td>
+                            <td className="py-2.5 px-4 text-right font-mono tabular-nums text-foreground">{fmtCurrency(deal.totalDealValue)}</td>
+                            <td className="py-2.5 px-4 text-muted-foreground">{deal.vsd}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {clientGroups.length === 0 && (
+            <div className="data-card text-center py-12">
+              <p className="text-muted-foreground">No clients found matching your filters.</p>
+            </div>
+          )}
         </div>
       </div>
     </AppLayout>
