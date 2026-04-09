@@ -256,7 +256,6 @@ export function TaskKanban({ tasks, dealId, assignees, onAdd, onUpdate, onDelete
           title="Edit Task"
           onDelete={() => { onDelete(editTask.id); setEditTask(null); }}
         />
-        />
       )}
     </div>
   );
