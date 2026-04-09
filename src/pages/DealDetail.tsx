@@ -319,6 +319,18 @@ export default function DealDetail() {
           />
         )}
 
+        {/* ── Tasks Kanban ── */}
+        {activeTab === "Tasks" && (
+          <TaskKanban
+            tasks={tasks}
+            dealId={dealId!}
+            assignees={dealPeople.map(p => ({ id: p.id, name: p.name }))}
+            onAdd={addTask}
+            onUpdate={updateTask}
+            onDelete={deleteTask}
+          />
+        )}
+
         {/* ── RGY Health (Weekly History) ── */}
         {activeTab === "RGY Health" && (
           <div className="animate-fade-in">
