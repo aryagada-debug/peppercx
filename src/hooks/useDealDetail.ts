@@ -142,6 +142,54 @@ export function useDealDetail(dealId: string | undefined) {
     }
   }, [onboarding]);
 
+  const seedOnboarding = useCallback(async (dealType: string) => {
+    if (!dealId || onboarding.length > 0) return;
+    const templates: Record<string, { category: string; stepName: string; owner: string }[]> = {
+      Retainer: [
+        { category: "Account Setup", stepName: "Create PC Code in system", owner: "Finance" },
+        { category: "Account Setup", stepName: "Set up billing & invoicing", owner: "Finance" },
+        { category: "Account Setup", stepName: "NDA / MSA signed & filed", owner: "Legal" },
+        { category: "Account Setup", stepName: "Add client to CRM", owner: "Ops" },
+        { category: "Team & Access", stepName: "Assign BOPM & team", owner: "Ops" },
+        { category: "Team & Access", stepName: "Share access credentials (GA, GSC, CMS)", owner: "BOPM" },
+        { category: "Team & Access", stepName: "Set up Slack channel with client", owner: "BOPM" },
+        { category: "Kickoff", stepName: "Internal kickoff call", owner: "VSD" },
+        { category: "Kickoff", stepName: "Client kickoff call", owner: "VSD" },
+        { category: "Kickoff", stepName: "Share SOW & success metrics doc", owner: "BOPM" },
+        { category: "Delivery", stepName: "Baseline audit completed", owner: "SEO" },
+        { category: "Delivery", stepName: "Month 1 plan shared with client", owner: "BOPM" },
+        { category: "Delivery", stepName: "First MBR scheduled", owner: "BOPM" },
+      ],
+      "Non-Retainer": [
+        { category: "Account Setup", stepName: "Create PC Code in system", owner: "Finance" },
+        { category: "Account Setup", stepName: "Set up billing & invoicing", owner: "Finance" },
+        { category: "Account Setup", stepName: "Add client to CRM", owner: "Ops" },
+        { category: "Team & Access", stepName: "Assign project lead", owner: "Ops" },
+        { category: "Team & Access", stepName: "Share access credentials", owner: "Lead" },
+        { category: "Kickoff", stepName: "Client kickoff call", owner: "VSD" },
+        { category: "Kickoff", stepName: "Share project timeline & deliverables", owner: "Lead" },
+        { category: "Delivery", stepName: "First deliverable milestone", owner: "Lead" },
+      ],
+    };
+    const steps = templates[dealType] || templates["Retainer"];
+    const rows = steps.map((s, i) => ({
+      deal_id: dealId,
+      step_name: s.stepName,
+      category: s.category,
+      owner: s.owner,
+      sort_order: i,
+      completed: false,
+    }));
+    const { data } = await (supabase.from("deal_onboarding_steps") as any).insert(rows).select();
+    if (data) {
+      setOnboarding(data.map((r: any) => ({
+        id: r.id, dealId: r.deal_id, stepName: r.step_name, category: r.category,
+        owner: r.owner, dueDate: r.due_date, completed: r.completed,
+        completedAt: r.completed_at, sortOrder: r.sort_order,
+      })));
+    }
+  }, [dealId, onboarding.length]);
+
   // ── RGY ──
   const addRGYWeek = useCallback(async (entry: Omit<RGYWeekly, "id">) => {
     const { data } = await (supabase.from("deal_rgy_weekly") as any).insert({
@@ -242,7 +290,7 @@ export function useDealDetail(dealId: string | undefined) {
   return {
     sowItems, revenue, targets, rgyWeekly, onboarding, financials, tasks, loading,
     addSoWItem, updateSoWItem, deleteSoWItem,
-    toggleOnboardingStep,
+    toggleOnboardingStep, seedOnboarding,
     addRGYWeek, updateRGYWeek,
     addFinancial, updateFinancial, deleteFinancial,
     addTask, updateTask, deleteTask,

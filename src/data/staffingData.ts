@@ -12,6 +12,7 @@ export interface Person {
   designation?: string;
   reportingManager?: string;
   band?: string;
+  hourlyRate?: number;
 }
 
 export const DEPARTMENTS = [
