@@ -208,12 +208,44 @@ export function useDealDetail(dealId: string | undefined) {
     await supabase.from("deal_financials").delete().eq("id", id);
   }, []);
 
+  // ── Tasks CRUD ──
+  const addTask = useCallback(async (task: Omit<DealTask, "id">) => {
+    const { data } = await (supabase.from("deal_tasks") as any).insert({
+      deal_id: task.dealId, title: task.title, description: task.description,
+      stage: task.stage, assignee: task.assignee, start_date: task.startDate || null,
+      end_date: task.endDate || null, urgency: task.urgency, logged_hours: task.loggedHours,
+      sort_order: task.sortOrder,
+    }).select().single();
+    if (data) setTasks(prev => [...prev, { id: data.id, ...task }]);
+  }, []);
+
+  const updateTask = useCallback(async (id: string, updates: Partial<DealTask>) => {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+    const db: any = {};
+    if (updates.title !== undefined) db.title = updates.title;
+    if (updates.description !== undefined) db.description = updates.description;
+    if (updates.stage !== undefined) db.stage = updates.stage;
+    if (updates.assignee !== undefined) db.assignee = updates.assignee;
+    if (updates.startDate !== undefined) db.start_date = updates.startDate;
+    if (updates.endDate !== undefined) db.end_date = updates.endDate;
+    if (updates.urgency !== undefined) db.urgency = updates.urgency;
+    if (updates.loggedHours !== undefined) db.logged_hours = updates.loggedHours;
+    if (updates.sortOrder !== undefined) db.sort_order = updates.sortOrder;
+    await (supabase.from("deal_tasks") as any).update(db).eq("id", id);
+  }, []);
+
+  const deleteTask = useCallback(async (id: string) => {
+    setTasks(prev => prev.filter(t => t.id !== id));
+    await supabase.from("deal_tasks").delete().eq("id", id);
+  }, []);
+
   return {
-    sowItems, revenue, targets, rgyWeekly, onboarding, financials, loading,
+    sowItems, revenue, targets, rgyWeekly, onboarding, financials, tasks, loading,
     addSoWItem, updateSoWItem, deleteSoWItem,
     toggleOnboardingStep,
     addRGYWeek, updateRGYWeek,
     addFinancial, updateFinancial, deleteFinancial,
+    addTask, updateTask, deleteTask,
     refresh: loadAll,
   };
 }
