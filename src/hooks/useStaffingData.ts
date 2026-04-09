@@ -212,6 +212,7 @@ export function useStaffingData() {
     if (updates.designation !== undefined) dbUpdates.designation = updates.designation;
     if (updates.reportingManager !== undefined) dbUpdates.reporting_manager = updates.reportingManager;
     if (updates.band !== undefined) dbUpdates.band = updates.band;
+    if (updates.hourlyRate !== undefined) dbUpdates.hourly_rate = updates.hourlyRate;
     await supabase.from("staffing_people").update(dbUpdates).eq("id", personId);
   }, []);
 
