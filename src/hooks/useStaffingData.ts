@@ -42,6 +42,15 @@ function dbToDeal(row: any): Deal {
     dealValueLost: row.deal_value_lost ? Number(row.deal_value_lost) : undefined,
     netDealValue: row.net_deal_value ? Number(row.net_deal_value) : undefined,
     rag: row.rag || 'green',
+    pod: row.pod || '',
+    startDate: row.start_date || undefined,
+    endDate: row.end_date || undefined,
+    paymentTerms: row.payment_terms || '',
+    pepperBusinessUnit: row.pepper_business_unit || '',
+    projectedOutcomes: row.projected_outcomes || [],
+    successMetrics: row.success_metrics || [],
+    baselineMetrics: row.baseline_metrics || '',
+    clientId: row.client_id || undefined,
   };
 }
 
