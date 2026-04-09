@@ -472,7 +472,12 @@ export default function DealDetail() {
                 })()}
               </div>
             ) : (
-              <div className="data-card text-center py-8"><p className="text-muted-foreground">No onboarding steps configured yet.</p></div>
+              <div className="data-card text-center py-8">
+                <p className="text-muted-foreground mb-3">No onboarding steps configured yet.</p>
+                <Button variant="outline" onClick={() => { seedOnboarding(deal.dealType); toast.success("Onboarding checklist generated"); }}>
+                  <Plus className="h-4 w-4 mr-1" /> Generate Checklist for {deal.dealType}
+                </Button>
+              </div>
             )}
           </div>
         )}
