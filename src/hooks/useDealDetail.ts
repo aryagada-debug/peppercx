@@ -104,6 +104,12 @@ export function useDealDetail(dealId: string | undefined) {
       invoiced: Number(r.invoiced), received: Number(r.received), outstanding: Number(r.outstanding),
       invoiceDate: r.invoice_date, receivedDate: r.received_date, outstandingDate: r.outstanding_date,
     })));
+    if (tsk.data) setTasks(tsk.data.map((r: any) => ({
+      id: r.id, dealId: r.deal_id, title: r.title, description: r.description || "",
+      stage: r.stage, assignee: r.assignee || "", startDate: r.start_date || undefined,
+      endDate: r.end_date || undefined, urgency: r.urgency, loggedHours: Number(r.logged_hours),
+      sortOrder: r.sort_order,
+    })));
     setLoading(false);
   }
 
