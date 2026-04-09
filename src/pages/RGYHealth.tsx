@@ -6,15 +6,15 @@ type RGYValue = "R" | "G" | "Y" | "NA";
 
 const dimensions = ["Internal", "Customer", "Delivery", "Consumption", "Quality", "Growth", "Ops Hygiene"];
 
-const rgyData: { deal: string; client: string; dimensions: Record<string, RGYValue> }[] = [
-  { deal: "D-2024-047", client: "TechCorp India", dimensions: { Internal: "G", Customer: "G", Delivery: "Y", Consumption: "G", Quality: "G", Growth: "G", "Ops Hygiene": "G" } },
-  { deal: "D-2024-041", client: "FinServe Ltd", dimensions: { Internal: "Y", Customer: "R", Delivery: "Y", Consumption: "R", Quality: "Y", Growth: "R", "Ops Hygiene": "Y" } },
-  { deal: "D-2024-038", client: "MediaNext", dimensions: { Internal: "G", Customer: "G", Delivery: "G", Consumption: "Y", Quality: "G", Growth: "Y", "Ops Hygiene": "G" } },
-  { deal: "D-2024-035", client: "RetailMax", dimensions: { Internal: "R", Customer: "Y", Delivery: "R", Consumption: "Y", Quality: "R", Growth: "Y", "Ops Hygiene": "R" } },
-  { deal: "D-2024-033", client: "CloudFirst", dimensions: { Internal: "G", Customer: "G", Delivery: "G", Consumption: "G", Quality: "G", Growth: "G", "Ops Hygiene": "G" } },
-  { deal: "D-2024-029", client: "EduPrime", dimensions: { Internal: "Y", Customer: "Y", Delivery: "G", Consumption: "NA", Quality: "Y", Growth: "NA", "Ops Hygiene": "G" } },
-  { deal: "D-2024-025", client: "HealthPlus", dimensions: { Internal: "NA", Customer: "NA", Delivery: "NA", Consumption: "NA", Quality: "NA", Growth: "NA", "Ops Hygiene": "NA" } },
-  { deal: "D-2024-019", client: "AutoDrive", dimensions: { Internal: "G", Customer: "G", Delivery: "G", Consumption: "G", Quality: "G", Growth: "G", "Ops Hygiene": "G" } },
+const rgyData = [
+  { id: "rgy-h1", deal: "D-2024-047", client: "TechCorp India", bopm: "Rahul S.", dimensions: { Internal: "G" as RGYValue, Customer: "G" as RGYValue, Delivery: "Y" as RGYValue, Consumption: "G" as RGYValue, Quality: "G" as RGYValue, Growth: "G" as RGYValue, "Ops Hygiene": "G" as RGYValue } },
+  { id: "rgy-h2", deal: "D-2024-041", client: "FinServe Ltd", bopm: "Priya M.", dimensions: { Internal: "Y" as RGYValue, Customer: "R" as RGYValue, Delivery: "Y" as RGYValue, Consumption: "R" as RGYValue, Quality: "Y" as RGYValue, Growth: "R" as RGYValue, "Ops Hygiene": "Y" as RGYValue } },
+  { id: "rgy-h3", deal: "D-2024-038", client: "MediaNext", bopm: "Ankit K.", dimensions: { Internal: "G" as RGYValue, Customer: "G" as RGYValue, Delivery: "G" as RGYValue, Consumption: "Y" as RGYValue, Quality: "G" as RGYValue, Growth: "Y" as RGYValue, "Ops Hygiene": "G" as RGYValue } },
+  { id: "rgy-h4", deal: "D-2024-035", client: "RetailMax", bopm: "Meera T.", dimensions: { Internal: "R" as RGYValue, Customer: "Y" as RGYValue, Delivery: "R" as RGYValue, Consumption: "Y" as RGYValue, Quality: "R" as RGYValue, Growth: "Y" as RGYValue, "Ops Hygiene": "R" as RGYValue } },
+  { id: "rgy-h5", deal: "D-2024-033", client: "CloudFirst", bopm: "Vikram J.", dimensions: { Internal: "G" as RGYValue, Customer: "G" as RGYValue, Delivery: "G" as RGYValue, Consumption: "G" as RGYValue, Quality: "G" as RGYValue, Growth: "G" as RGYValue, "Ops Hygiene": "G" as RGYValue } },
+  { id: "rgy-h6", deal: "D-2024-029", client: "EduPrime", bopm: "Rahul S.", dimensions: { Internal: "Y" as RGYValue, Customer: "Y" as RGYValue, Delivery: "G" as RGYValue, Consumption: "NA" as RGYValue, Quality: "Y" as RGYValue, Growth: "NA" as RGYValue, "Ops Hygiene": "G" as RGYValue } },
+  { id: "rgy-h7", deal: "D-2024-025", client: "HealthPlus", bopm: "—", dimensions: { Internal: "NA" as RGYValue, Customer: "NA" as RGYValue, Delivery: "NA" as RGYValue, Consumption: "NA" as RGYValue, Quality: "NA" as RGYValue, Growth: "NA" as RGYValue, "Ops Hygiene": "NA" as RGYValue } },
+  { id: "rgy-h8", deal: "D-2024-019", client: "AutoDrive", bopm: "Priya M.", dimensions: { Internal: "G" as RGYValue, Customer: "G" as RGYValue, Delivery: "G" as RGYValue, Consumption: "G" as RGYValue, Quality: "G" as RGYValue, Growth: "G" as RGYValue, "Ops Hygiene": "G" as RGYValue } },
 ];
 
 export default function RGYHealth() {
