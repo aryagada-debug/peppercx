@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { FinancialRow } from "@/components/deals/FinancialsTab";
 
 export interface SoWItem {
   id: string;
@@ -38,6 +39,11 @@ export interface RGYWeekly {
   delivery: string;
   consumption: string;
   notes?: string;
+  accountHealth?: string;
+  financeBilling?: string;
+  capabilitySeo?: string;
+  capabilityCreative?: string;
+  planOfAction?: string;
 }
 
 export interface OnboardingStep {
@@ -58,6 +64,7 @@ export function useDealDetail(dealId: string | undefined) {
   const [targets, setTargets] = useState<TargetMonthly[]>([]);
   const [rgyWeekly, setRgyWeekly] = useState<RGYWeekly[]>([]);
   const [onboarding, setOnboarding] = useState<OnboardingStep[]>([]);
+  const [financials, setFinancials] = useState<FinancialRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -68,26 +75,56 @@ export function useDealDetail(dealId: string | undefined) {
   async function loadAll() {
     if (!dealId) return;
     setLoading(true);
-    const [sow, rev, tgt, rgy, onb] = await Promise.all([
+    const [sow, rev, tgt, rgy, onb, fin] = await Promise.all([
       supabase.from("deal_sow_items").select("*").eq("deal_id", dealId),
       supabase.from("deal_revenue_monthly").select("*").eq("deal_id", dealId).order("month"),
       supabase.from("deal_targets_monthly").select("*").eq("deal_id", dealId).order("month"),
       supabase.from("deal_rgy_weekly").select("*").eq("deal_id", dealId).order("week_start", { ascending: false }),
       supabase.from("deal_onboarding_steps").select("*").eq("deal_id", dealId).order("sort_order"),
+      supabase.from("deal_financials").select("*").eq("deal_id", dealId).order("month"),
     ]);
     if (sow.data) setSowItems(sow.data.map((r: any) => ({ id: r.id, dealId: r.deal_id, scope: r.scope, revenueShare: Number(r.revenue_share), teamCapability: r.team_capability })));
     if (rev.data) setRevenue(rev.data.map((r: any) => ({ id: r.id, dealId: r.deal_id, month: r.month, mrr: Number(r.mrr), contraction: Number(r.contraction), delivered: Number(r.delivered), invoiced: Number(r.invoiced), actuals: Number(r.actuals) })));
     if (tgt.data) setTargets(tgt.data.map((r: any) => ({ id: r.id, dealId: r.deal_id, month: r.month, contractionTarget: Number(r.contraction_target), deliveryTarget: Number(r.delivery_target), invoicingTarget: Number(r.invoicing_target) })));
-    if (rgy.data) setRgyWeekly(rgy.data.map((r: any) => ({ id: r.id, dealId: r.deal_id, weekStart: r.week_start, internal: r.internal, customer: r.customer, delivery: r.delivery, consumption: r.consumption, notes: r.notes })));
+    if (rgy.data) setRgyWeekly(rgy.data.map((r: any) => ({
+      id: r.id, dealId: r.deal_id, weekStart: r.week_start, internal: r.internal, customer: r.customer,
+      delivery: r.delivery, consumption: r.consumption, notes: r.notes,
+      accountHealth: r.account_health || "G", financeBilling: r.finance_billing || "G",
+      capabilitySeo: r.capability_seo || "G", capabilityCreative: r.capability_creative || "G",
+      planOfAction: r.plan_of_action || "",
+    })));
     if (onb.data) setOnboarding(onb.data.map((r: any) => ({ id: r.id, dealId: r.deal_id, stepName: r.step_name, category: r.category, owner: r.owner, dueDate: r.due_date, completed: r.completed, completedAt: r.completed_at, sortOrder: r.sort_order })));
+    if (fin.data) setFinancials(fin.data.map((r: any) => ({
+      id: r.id, dealId: r.deal_id, month: r.month,
+      contracted: Number(r.contracted), consumption: Number(r.consumption),
+      plannedGmPct: Number(r.planned_gm_pct), actualGmPct: Number(r.actual_gm_pct),
+      invoiced: Number(r.invoiced), received: Number(r.received), outstanding: Number(r.outstanding),
+      invoiceDate: r.invoice_date, receivedDate: r.received_date, outstandingDate: r.outstanding_date,
+    })));
     setLoading(false);
   }
 
+  // ── SoW CRUD ──
   const addSoWItem = useCallback(async (item: Omit<SoWItem, "id">) => {
     const { data } = await (supabase.from("deal_sow_items") as any).insert({ deal_id: item.dealId, scope: item.scope, revenue_share: item.revenueShare, team_capability: item.teamCapability }).select().single();
     if (data) setSowItems(prev => [...prev, { id: data.id, ...item }]);
   }, []);
 
+  const updateSoWItem = useCallback(async (id: string, updates: Partial<SoWItem>) => {
+    setSowItems(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+    const db: any = {};
+    if (updates.scope !== undefined) db.scope = updates.scope;
+    if (updates.revenueShare !== undefined) db.revenue_share = updates.revenueShare;
+    if (updates.teamCapability !== undefined) db.team_capability = updates.teamCapability;
+    await (supabase.from("deal_sow_items") as any).update(db).eq("id", id);
+  }, []);
+
+  const deleteSoWItem = useCallback(async (id: string) => {
+    setSowItems(prev => prev.filter(s => s.id !== id));
+    await supabase.from("deal_sow_items").delete().eq("id", id);
+  }, []);
+
+  // ── Onboarding ──
   const toggleOnboardingStep = useCallback(async (stepId: string) => {
     setOnboarding(prev => prev.map(s => s.id === stepId ? { ...s, completed: !s.completed, completedAt: !s.completed ? new Date().toISOString() : undefined } : s));
     const step = onboarding.find(s => s.id === stepId);
@@ -96,13 +133,78 @@ export function useDealDetail(dealId: string | undefined) {
     }
   }, [onboarding]);
 
+  // ── RGY ──
   const addRGYWeek = useCallback(async (entry: Omit<RGYWeekly, "id">) => {
-    const { data } = await (supabase.from("deal_rgy_weekly") as any).insert({ deal_id: entry.dealId, week_start: entry.weekStart, internal: entry.internal, customer: entry.customer, delivery: entry.delivery, consumption: entry.consumption, notes: entry.notes }).select().single();
+    const { data } = await (supabase.from("deal_rgy_weekly") as any).insert({
+      deal_id: entry.dealId, week_start: entry.weekStart, internal: entry.internal,
+      customer: entry.customer, delivery: entry.delivery, consumption: entry.consumption,
+      notes: entry.notes, account_health: entry.accountHealth || "G",
+      finance_billing: entry.financeBilling || "G", capability_seo: entry.capabilitySeo || "G",
+      capability_creative: entry.capabilityCreative || "G", plan_of_action: entry.planOfAction || "",
+    }).select().single();
     if (data) setRgyWeekly(prev => [{ id: data.id, ...entry }, ...prev]);
   }, []);
 
+  const updateRGYWeek = useCallback(async (id: string, updates: Partial<RGYWeekly>) => {
+    setRgyWeekly(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
+    const db: any = {};
+    if (updates.accountHealth !== undefined) db.account_health = updates.accountHealth;
+    if (updates.financeBilling !== undefined) db.finance_billing = updates.financeBilling;
+    if (updates.capabilitySeo !== undefined) db.capability_seo = updates.capabilitySeo;
+    if (updates.capabilityCreative !== undefined) db.capability_creative = updates.capabilityCreative;
+    if (updates.planOfAction !== undefined) db.plan_of_action = updates.planOfAction;
+    if (updates.internal !== undefined) db.internal = updates.internal;
+    if (updates.customer !== undefined) db.customer = updates.customer;
+    if (updates.delivery !== undefined) db.delivery = updates.delivery;
+    if (updates.consumption !== undefined) db.consumption = updates.consumption;
+    if (updates.notes !== undefined) db.notes = updates.notes;
+    await (supabase.from("deal_rgy_weekly") as any).update(db).eq("id", id);
+  }, []);
+
+  // ── Financials CRUD ──
+  const addFinancial = useCallback(async (row: Omit<FinancialRow, "id">) => {
+    const { data } = await (supabase.from("deal_financials") as any).insert({
+      deal_id: row.dealId, month: row.month, contracted: row.contracted,
+      consumption: row.consumption, planned_gm_pct: row.plannedGmPct,
+      actual_gm_pct: row.actualGmPct, invoiced: row.invoiced,
+      received: row.received, outstanding: row.outstanding,
+      invoice_date: row.invoiceDate || null, received_date: row.receivedDate || null,
+      outstanding_date: row.outstandingDate || null,
+    }).select().single();
+    if (data) {
+      setFinancials(prev => [...prev, {
+        id: data.id, ...row,
+      }].sort((a, b) => a.month.localeCompare(b.month)));
+    }
+  }, []);
+
+  const updateFinancial = useCallback(async (id: string, updates: Partial<FinancialRow>) => {
+    setFinancials(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
+    const db: any = {};
+    if (updates.contracted !== undefined) db.contracted = updates.contracted;
+    if (updates.consumption !== undefined) db.consumption = updates.consumption;
+    if (updates.plannedGmPct !== undefined) db.planned_gm_pct = updates.plannedGmPct;
+    if (updates.actualGmPct !== undefined) db.actual_gm_pct = updates.actualGmPct;
+    if (updates.invoiced !== undefined) db.invoiced = updates.invoiced;
+    if (updates.received !== undefined) db.received = updates.received;
+    if (updates.outstanding !== undefined) db.outstanding = updates.outstanding;
+    if (updates.invoiceDate !== undefined) db.invoice_date = updates.invoiceDate;
+    if (updates.receivedDate !== undefined) db.received_date = updates.receivedDate;
+    if (updates.outstandingDate !== undefined) db.outstanding_date = updates.outstandingDate;
+    await (supabase.from("deal_financials") as any).update(db).eq("id", id);
+  }, []);
+
+  const deleteFinancial = useCallback(async (id: string) => {
+    setFinancials(prev => prev.filter(f => f.id !== id));
+    await supabase.from("deal_financials").delete().eq("id", id);
+  }, []);
+
   return {
-    sowItems, revenue, targets, rgyWeekly, onboarding, loading,
-    addSoWItem, toggleOnboardingStep, addRGYWeek, refresh: loadAll,
+    sowItems, revenue, targets, rgyWeekly, onboarding, financials, loading,
+    addSoWItem, updateSoWItem, deleteSoWItem,
+    toggleOnboardingStep,
+    addRGYWeek, updateRGYWeek,
+    addFinancial, updateFinancial, deleteFinancial,
+    refresh: loadAll,
   };
 }
