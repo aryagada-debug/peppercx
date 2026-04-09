@@ -1,10 +1,16 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Link } from "react-router-dom";
-import { Search, ChevronDown, ChevronRight, Building2 } from "lucide-react";
+import { Search, ChevronDown, ChevronRight, Building2, Plus, Loader2 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useStaffingData } from "@/hooks/useStaffingData";
+import { useClients } from "@/hooks/useClients";
 import { cn } from "@/lib/utils";
-import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ClientFormDialog } from "@/components/deals/ClientFormDialog";
+import { DealFormWizard } from "@/components/deals/DealFormWizard";
+import { supabase } from "@/integrations/supabase/client";
+import { uid } from "@/data/staffingData";
+import { toast } from "sonner";
 
 const PODS = ["All", "Integrated", "India B2B", "US B2B", "FMCG", "BFSI"] as const;
 type Pod = typeof PODS[number];
@@ -35,11 +41,16 @@ const ragDot = (rag: string) => {
 };
 
 export default function Clients() {
-  const { deals, people, assignments, loading } = useStaffingData();
+  const { deals, loading: staffLoading, refresh: refreshStaffing } = useStaffingData();
+  const { clients, loading: clientsLoading, addClient, refresh: refreshClients } = useClients();
   const [search, setSearch] = useState("");
   const [activePod, setActivePod] = useState<Pod>("All");
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
   const [showClosed, setShowClosed] = useState(false);
+
+  const [clientDialogOpen, setClientDialogOpen] = useState(false);
+  const [dealWizardOpen, setDealWizardOpen] = useState(false);
+  const [dealWizardClientId, setDealWizardClientId] = useState<string | undefined>();
 
   const filteredDeals = useMemo(() => {
     let d = deals;
@@ -75,6 +86,74 @@ export default function Clients() {
     });
   };
 
+  const openDealWizardForClient = (clientName: string) => {
+    const client = clients.find(c => c.name === clientName);
+    setDealWizardClientId(client?.id);
+    setDealWizardOpen(true);
+  };
+
+  const handleCreateDeal = async (clientId: string, data: any) => {
+    const client = clients.find(c => c.id === clientId);
+    const newId = uid();
+    const dealCount = deals.length + 1;
+    const dealIdStr = `D-${String(dealCount).padStart(4, "0")}`;
+
+    const { error } = await supabase.from("staffing_deals").insert({
+      id: newId,
+      deal_id: dealIdStr,
+      deal_name: data.dealName,
+      deal_type: data.dealType,
+      deal_status: data.dealStatus,
+      deal_status_cx: data.dealStatus === "Won" ? "Active" : data.dealStatus,
+      account: client?.name || "",
+      pc_code: data.pcCode,
+      business_unit: data.pepperBusinessUnit,
+      capability_line: data.capabilityLine,
+      vsd: data.vsd,
+      principal_bopm: data.principalBopm,
+      senior_bopm: data.seniorBopm,
+      bopm: data.bopm,
+      mrr: data.mrr ? Number(data.mrr) : null,
+      total_deal_value: data.totalDealValue ? Number(data.totalDealValue) : null,
+      retainer_deal_value: data.retainerDealValue ? Number(data.retainerDealValue) : null,
+      non_retainer_deal_value: data.nonRetainerDealValue ? Number(data.nonRetainerDealValue) : null,
+      pod: data.pod,
+      customer_type: data.customerType,
+      payment_terms: data.paymentTerms,
+      pepper_business_unit: data.pepperBusinessUnit,
+      start_date: data.startDate || null,
+      end_date: data.endDate || null,
+      projected_outcomes: data.projectedOutcomes ? [{ text: data.projectedOutcomes }] : [],
+      success_metrics: data.successMetrics.filter((m: any) => m.name),
+      baseline_metrics: data.baselineMetrics,
+      client_id: clientId,
+    } as any);
+
+    if (error) {
+      console.error("Failed to create deal:", error);
+      toast.error("Failed to create deal");
+      return;
+    }
+
+    // Insert SoW items
+    const validSow = data.sowItems.filter((s: any) => s.scope);
+    if (validSow.length > 0) {
+      await supabase.from("deal_sow_items").insert(
+        validSow.map((s: any) => ({
+          deal_id: newId,
+          scope: s.scope,
+          revenue_share: s.revenueShare,
+          team_capability: s.teamCapability,
+        }))
+      );
+    }
+
+    toast.success("Deal created successfully");
+    refreshStaffing();
+  };
+
+  const loading = staffLoading || clientsLoading;
+
   if (loading) {
     return (
       <AppLayout>
@@ -88,9 +167,19 @@ export default function Clients() {
   return (
     <AppLayout>
       <div className="p-8">
-        <div className="mb-5">
-          <h1 className="text-subhead font-bold tracking-tight text-foreground">Clients & Deals</h1>
-          <p className="text-ui text-muted-foreground mt-1">{kpis.clients} clients • {kpis.deals} deals</p>
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h1 className="text-subhead font-bold tracking-tight text-foreground">Clients & Deals</h1>
+            <p className="text-ui text-muted-foreground mt-1">{kpis.clients} clients • {kpis.deals} deals</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setClientDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" /> Add Client
+            </Button>
+            <Button size="sm" onClick={() => { setDealWizardClientId(undefined); setDealWizardOpen(true); }}>
+              <Plus className="h-4 w-4 mr-1" /> Add Deal
+            </Button>
+          </div>
         </div>
 
         {/* KPI Strip */}
@@ -163,6 +252,11 @@ export default function Clients() {
 
                 {isExpanded && (
                   <div className="border-t border-border animate-fade-in">
+                    <div className="flex items-center justify-end px-4 py-2 bg-accent/10">
+                      <Button variant="ghost" size="sm" onClick={() => openDealWizardForClient(clientName)}>
+                        <Plus className="h-3.5 w-3.5 mr-1" /> Add Deal
+                      </Button>
+                    </div>
                     <table className="w-full text-ui">
                       <thead>
                         <tr className="bg-accent/20">
@@ -218,6 +312,28 @@ export default function Clients() {
           )}
         </div>
       </div>
+
+      {/* Dialogs */}
+      <ClientFormDialog
+        open={clientDialogOpen}
+        onOpenChange={setClientDialogOpen}
+        onSubmit={async (client) => {
+          const result = await addClient(client);
+          if (result) toast.success(`Client "${result.name}" created`);
+        }}
+      />
+
+      <DealFormWizard
+        open={dealWizardOpen}
+        onOpenChange={setDealWizardOpen}
+        clients={clients}
+        preSelectedClientId={dealWizardClientId}
+        onCreateClient={() => {
+          setDealWizardOpen(false);
+          setClientDialogOpen(true);
+        }}
+        onSubmit={handleCreateDeal}
+      />
     </AppLayout>
   );
 }
