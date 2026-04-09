@@ -13,6 +13,7 @@ function dbToPerson(row: any): Person {
     pod: row.pod, region: row.region, leaving: row.leaving, tbh: row.tbh,
     department: row.department || "", designation: row.designation || "",
     reportingManager: row.reporting_manager || "", band: row.band || "",
+    hourlyRate: row.hourly_rate ? Number(row.hourly_rate) : 0,
   };
 }
 
@@ -22,6 +23,7 @@ function personToDb(p: Person): TablesInsert<"staffing_people"> {
     pod: p.pod, region: p.region, leaving: p.leaving, tbh: p.tbh,
     department: p.department || "", designation: p.designation || "",
     reporting_manager: p.reportingManager || "", band: p.band || "",
+    hourly_rate: p.hourlyRate || 0,
   };
 }
 
