@@ -252,9 +252,10 @@ export function TaskKanban({ tasks, dealId, assignees, onAdd, onUpdate, onDelete
           onOpenChange={(open) => { if (!open) setEditTask(null); }}
           onSubmit={handleEdit}
           assignees={assignees}
-          initial={editTask}
+          initial={{ ...editTask, startDate: editTask.startDate || "", endDate: editTask.endDate || "" }}
           title="Edit Task"
           onDelete={() => { onDelete(editTask.id); setEditTask(null); }}
+        />
         />
       )}
     </div>
