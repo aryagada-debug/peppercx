@@ -78,6 +78,15 @@ export interface Deal {
   dealValueLost?: number;
   netDealValue?: number;
   rag?: string;
+  pod?: string;
+  startDate?: string;
+  endDate?: string;
+  paymentTerms?: string;
+  pepperBusinessUnit?: string;
+  projectedOutcomes?: any[];
+  successMetrics?: any[];
+  baselineMetrics?: string;
+  clientId?: string;
 }
 
 export interface BWRule {
