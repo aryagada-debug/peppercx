@@ -51,12 +51,12 @@ function EditableCell({ value, onSave, type = "text", prefix = "" }: { value: st
 export default function DealDetail() {
   const { dealId } = useParams();
   const [activeTab, setActiveTab] = useState<TabKey>("Overview");
-  const { deals, people, assignments, loading: staffLoading, updateDeal } = useStaffingData();
+  const { deals, people, assignments, loading: staffLoading, updateDeal, updatePerson } = useStaffingData();
   const {
     sowItems, rgyWeekly, onboarding, financials, tasks, loading: detailLoading,
     toggleOnboardingStep, addSoWItem, updateSoWItem, deleteSoWItem,
     addRGYWeek, updateRGYWeek, addFinancial, updateFinancial, deleteFinancial,
-    addTask, updateTask, deleteTask,
+    addTask, updateTask, deleteTask, seedOnboarding,
   } = useDealDetail(dealId);
 
   const deal = useMemo(() => deals.find(d => d.id === dealId), [deals, dealId]);
