@@ -7,6 +7,7 @@ import { useStaffingData } from "@/hooks/useStaffingData";
 import { useDealDetail } from "@/hooks/useDealDetail";
 import { EditableRGY } from "@/components/deals/EditableRGY";
 import { FinancialsTab } from "@/components/deals/FinancialsTab";
+import { TaskKanban } from "@/components/deals/TaskKanban";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -19,7 +20,7 @@ const fmtCurrency = (n: number | undefined) => {
   return `₹${n}`;
 };
 
-const TABS = ["Overview", "Staffing", "Financials", "RGY Health", "MBR", "Onboarding"] as const;
+const TABS = ["Overview", "Staffing", "Financials", "Tasks", "RGY Health", "MBR", "Onboarding"] as const;
 type TabKey = typeof TABS[number];
 
 const rgyColors: Record<string, string> = { G: "rgy-green", R: "rgy-red", Y: "rgy-yellow" };
@@ -52,9 +53,10 @@ export default function DealDetail() {
   const [activeTab, setActiveTab] = useState<TabKey>("Overview");
   const { deals, people, assignments, loading: staffLoading, updateDeal } = useStaffingData();
   const {
-    sowItems, rgyWeekly, onboarding, financials, loading: detailLoading,
+    sowItems, rgyWeekly, onboarding, financials, tasks, loading: detailLoading,
     toggleOnboardingStep, addSoWItem, updateSoWItem, deleteSoWItem,
     addRGYWeek, updateRGYWeek, addFinancial, updateFinancial, deleteFinancial,
+    addTask, updateTask, deleteTask,
   } = useDealDetail(dealId);
 
   const deal = useMemo(() => deals.find(d => d.id === dealId), [deals, dealId]);
@@ -314,6 +316,18 @@ export default function DealDetail() {
             onAdd={addFinancial}
             onUpdate={updateFinancial}
             onDelete={deleteFinancial}
+          />
+        )}
+
+        {/* ── Tasks Kanban ── */}
+        {activeTab === "Tasks" && (
+          <TaskKanban
+            tasks={tasks}
+            dealId={dealId!}
+            assignees={dealPeople.map(p => ({ id: p.id, name: p.name }))}
+            onAdd={addTask}
+            onUpdate={updateTask}
+            onDelete={deleteTask}
           />
         )}
 

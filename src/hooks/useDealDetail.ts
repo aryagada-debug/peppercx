@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { FinancialRow } from "@/components/deals/FinancialsTab";
+import type { DealTask } from "@/components/deals/TaskKanban";
 
 export interface SoWItem {
   id: string;
@@ -65,6 +66,7 @@ export function useDealDetail(dealId: string | undefined) {
   const [rgyWeekly, setRgyWeekly] = useState<RGYWeekly[]>([]);
   const [onboarding, setOnboarding] = useState<OnboardingStep[]>([]);
   const [financials, setFinancials] = useState<FinancialRow[]>([]);
+  const [tasks, setTasks] = useState<DealTask[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -75,13 +77,14 @@ export function useDealDetail(dealId: string | undefined) {
   async function loadAll() {
     if (!dealId) return;
     setLoading(true);
-    const [sow, rev, tgt, rgy, onb, fin] = await Promise.all([
+    const [sow, rev, tgt, rgy, onb, fin, tsk] = await Promise.all([
       supabase.from("deal_sow_items").select("*").eq("deal_id", dealId),
       supabase.from("deal_revenue_monthly").select("*").eq("deal_id", dealId).order("month"),
       supabase.from("deal_targets_monthly").select("*").eq("deal_id", dealId).order("month"),
       supabase.from("deal_rgy_weekly").select("*").eq("deal_id", dealId).order("week_start", { ascending: false }),
       supabase.from("deal_onboarding_steps").select("*").eq("deal_id", dealId).order("sort_order"),
       supabase.from("deal_financials").select("*").eq("deal_id", dealId).order("month"),
+      supabase.from("deal_tasks").select("*").eq("deal_id", dealId).order("sort_order"),
     ]);
     if (sow.data) setSowItems(sow.data.map((r: any) => ({ id: r.id, dealId: r.deal_id, scope: r.scope, revenueShare: Number(r.revenue_share), teamCapability: r.team_capability })));
     if (rev.data) setRevenue(rev.data.map((r: any) => ({ id: r.id, dealId: r.deal_id, month: r.month, mrr: Number(r.mrr), contraction: Number(r.contraction), delivered: Number(r.delivered), invoiced: Number(r.invoiced), actuals: Number(r.actuals) })));
@@ -100,6 +103,12 @@ export function useDealDetail(dealId: string | undefined) {
       plannedGmPct: Number(r.planned_gm_pct), actualGmPct: Number(r.actual_gm_pct),
       invoiced: Number(r.invoiced), received: Number(r.received), outstanding: Number(r.outstanding),
       invoiceDate: r.invoice_date, receivedDate: r.received_date, outstandingDate: r.outstanding_date,
+    })));
+    if (tsk.data) setTasks(tsk.data.map((r: any) => ({
+      id: r.id, dealId: r.deal_id, title: r.title, description: r.description || "",
+      stage: r.stage, assignee: r.assignee || "", startDate: r.start_date || undefined,
+      endDate: r.end_date || undefined, urgency: r.urgency, loggedHours: Number(r.logged_hours),
+      sortOrder: r.sort_order,
     })));
     setLoading(false);
   }
@@ -199,12 +208,44 @@ export function useDealDetail(dealId: string | undefined) {
     await supabase.from("deal_financials").delete().eq("id", id);
   }, []);
 
+  // ── Tasks CRUD ──
+  const addTask = useCallback(async (task: Omit<DealTask, "id">) => {
+    const { data } = await (supabase.from("deal_tasks") as any).insert({
+      deal_id: task.dealId, title: task.title, description: task.description,
+      stage: task.stage, assignee: task.assignee, start_date: task.startDate || null,
+      end_date: task.endDate || null, urgency: task.urgency, logged_hours: task.loggedHours,
+      sort_order: task.sortOrder,
+    }).select().single();
+    if (data) setTasks(prev => [...prev, { id: data.id, ...task }]);
+  }, []);
+
+  const updateTask = useCallback(async (id: string, updates: Partial<DealTask>) => {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+    const db: any = {};
+    if (updates.title !== undefined) db.title = updates.title;
+    if (updates.description !== undefined) db.description = updates.description;
+    if (updates.stage !== undefined) db.stage = updates.stage;
+    if (updates.assignee !== undefined) db.assignee = updates.assignee;
+    if (updates.startDate !== undefined) db.start_date = updates.startDate;
+    if (updates.endDate !== undefined) db.end_date = updates.endDate;
+    if (updates.urgency !== undefined) db.urgency = updates.urgency;
+    if (updates.loggedHours !== undefined) db.logged_hours = updates.loggedHours;
+    if (updates.sortOrder !== undefined) db.sort_order = updates.sortOrder;
+    await (supabase.from("deal_tasks") as any).update(db).eq("id", id);
+  }, []);
+
+  const deleteTask = useCallback(async (id: string) => {
+    setTasks(prev => prev.filter(t => t.id !== id));
+    await supabase.from("deal_tasks").delete().eq("id", id);
+  }, []);
+
   return {
-    sowItems, revenue, targets, rgyWeekly, onboarding, financials, loading,
+    sowItems, revenue, targets, rgyWeekly, onboarding, financials, tasks, loading,
     addSoWItem, updateSoWItem, deleteSoWItem,
     toggleOnboardingStep,
     addRGYWeek, updateRGYWeek,
     addFinancial, updateFinancial, deleteFinancial,
+    addTask, updateTask, deleteTask,
     refresh: loadAll,
   };
 }
