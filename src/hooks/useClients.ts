@@ -103,7 +103,7 @@ export function useClients() {
   }, []);
 
   const updateClient = useCallback(async (id: string, updates: Partial<Client>) => {
-    const dbUpdates: Record<string, any> = {};
+    const dbUpdates: any = {};
     if (updates.name !== undefined) dbUpdates.name = updates.name;
     if (updates.website !== undefined) dbUpdates.website = updates.website;
     if (updates.salesPoc !== undefined) dbUpdates.sales_poc = updates.salesPoc;
