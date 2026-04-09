@@ -86,10 +86,10 @@ export function TaskFormDialog({ open, onOpenChange, onSubmit, assignees, defaul
 
           <div className="space-y-1">
             <Label className="text-caption text-muted-foreground">Assignee</Label>
-            <Select value={form.assignee} onValueChange={v => set("assignee", v)}>
+            <Select value={form.assignee || "__unassigned__"} onValueChange={v => set("assignee", v === "__unassigned__" ? "" : v)}>
               <SelectTrigger><SelectValue placeholder="Select assignee" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Unassigned</SelectItem>
+                <SelectItem value="__unassigned__">Unassigned</SelectItem>
                 {assignees.map(a => <SelectItem key={a.id} value={a.name}>{a.name}</SelectItem>)}
               </SelectContent>
             </Select>
