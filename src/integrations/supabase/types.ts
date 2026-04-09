@@ -14,6 +14,141 @@ export type Database = {
   }
   public: {
     Tables: {
+      clients: {
+        Row: {
+          account_status: string
+          billing_address: string
+          competitor_involved: string
+          contract_signed_date: string | null
+          created_at: string
+          daily_poc_linkedin: string
+          daily_poc_name: string
+          daily_poc_phone: string
+          geography: string
+          gst_number: string
+          hom_poc_linkedin: string
+          hom_poc_name: string
+          hom_poc_phone: string
+          id: string
+          industry: string
+          lead_source: string
+          name: string
+          nda_signed: boolean
+          notes: string
+          pc_code: string
+          sales_poc: string
+          signing_entity: string
+          updated_at: string
+          website: string
+        }
+        Insert: {
+          account_status?: string
+          billing_address?: string
+          competitor_involved?: string
+          contract_signed_date?: string | null
+          created_at?: string
+          daily_poc_linkedin?: string
+          daily_poc_name?: string
+          daily_poc_phone?: string
+          geography?: string
+          gst_number?: string
+          hom_poc_linkedin?: string
+          hom_poc_name?: string
+          hom_poc_phone?: string
+          id?: string
+          industry?: string
+          lead_source?: string
+          name: string
+          nda_signed?: boolean
+          notes?: string
+          pc_code?: string
+          sales_poc?: string
+          signing_entity?: string
+          updated_at?: string
+          website?: string
+        }
+        Update: {
+          account_status?: string
+          billing_address?: string
+          competitor_involved?: string
+          contract_signed_date?: string | null
+          created_at?: string
+          daily_poc_linkedin?: string
+          daily_poc_name?: string
+          daily_poc_phone?: string
+          geography?: string
+          gst_number?: string
+          hom_poc_linkedin?: string
+          hom_poc_name?: string
+          hom_poc_phone?: string
+          id?: string
+          industry?: string
+          lead_source?: string
+          name?: string
+          nda_signed?: boolean
+          notes?: string
+          pc_code?: string
+          sales_poc?: string
+          signing_entity?: string
+          updated_at?: string
+          website?: string
+        }
+        Relationships: []
+      }
+      deal_financials: {
+        Row: {
+          actual_gm_pct: number
+          consumption: number
+          contracted: number
+          created_at: string
+          deal_id: string
+          id: string
+          invoice_date: string | null
+          invoiced: number
+          month: string
+          outstanding: number
+          outstanding_date: string | null
+          planned_gm_pct: number
+          received: number
+          received_date: string | null
+          updated_at: string
+        }
+        Insert: {
+          actual_gm_pct?: number
+          consumption?: number
+          contracted?: number
+          created_at?: string
+          deal_id: string
+          id?: string
+          invoice_date?: string | null
+          invoiced?: number
+          month: string
+          outstanding?: number
+          outstanding_date?: string | null
+          planned_gm_pct?: number
+          received?: number
+          received_date?: string | null
+          updated_at?: string
+        }
+        Update: {
+          actual_gm_pct?: number
+          consumption?: number
+          contracted?: number
+          created_at?: string
+          deal_id?: string
+          id?: string
+          invoice_date?: string | null
+          invoiced?: number
+          month?: string
+          outstanding?: number
+          outstanding_date?: string | null
+          planned_gm_pct?: number
+          received?: number
+          received_date?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       deal_onboarding_steps: {
         Row: {
           category: string
@@ -97,36 +232,51 @@ export type Database = {
       }
       deal_rgy_weekly: {
         Row: {
+          account_health: string
+          capability_creative: string
+          capability_seo: string
           consumption: string
           created_at: string
           customer: string
           deal_id: string
           delivery: string
+          finance_billing: string
           id: string
           internal: string
           notes: string | null
+          plan_of_action: string
           week_start: string
         }
         Insert: {
+          account_health?: string
+          capability_creative?: string
+          capability_seo?: string
           consumption?: string
           created_at?: string
           customer?: string
           deal_id: string
           delivery?: string
+          finance_billing?: string
           id?: string
           internal?: string
           notes?: string | null
+          plan_of_action?: string
           week_start: string
         }
         Update: {
+          account_health?: string
+          capability_creative?: string
+          capability_seo?: string
           consumption?: string
           created_at?: string
           customer?: string
           deal_id?: string
           delivery?: string
+          finance_billing?: string
           id?: string
           internal?: string
           notes?: string | null
+          plan_of_action?: string
           week_start?: string
         }
         Relationships: []
@@ -191,6 +341,54 @@ export type Database = {
           invoicing_target?: number
           month?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      deal_tasks: {
+        Row: {
+          assignee: string
+          created_at: string
+          deal_id: string
+          description: string
+          end_date: string | null
+          id: string
+          logged_hours: number
+          sort_order: number
+          stage: string
+          start_date: string | null
+          title: string
+          updated_at: string
+          urgency: string
+        }
+        Insert: {
+          assignee?: string
+          created_at?: string
+          deal_id: string
+          description?: string
+          end_date?: string | null
+          id?: string
+          logged_hours?: number
+          sort_order?: number
+          stage?: string
+          start_date?: string | null
+          title?: string
+          updated_at?: string
+          urgency?: string
+        }
+        Update: {
+          assignee?: string
+          created_at?: string
+          deal_id?: string
+          description?: string
+          end_date?: string | null
+          id?: string
+          logged_hours?: number
+          sort_order?: number
+          stage?: string
+          start_date?: string | null
+          title?: string
+          updated_at?: string
+          urgency?: string
         }
         Relationships: []
       }
@@ -344,9 +542,11 @@ export type Database = {
       staffing_deals: {
         Row: {
           account: string
+          baseline_metrics: string
           bopm: string
           business_unit: string
           capability_line: string
+          client_id: string | null
           created_at: string
           creative_staffing: boolean
           customer_status: string
@@ -358,19 +558,25 @@ export type Database = {
           deal_type: string
           deal_value_lost: number | null
           duration: string | null
+          end_date: string | null
           id: string
           mrr: number | null
           net_deal_value: number | null
           non_retainer_deal_value: number | null
+          payment_terms: string
           pc_code: string
+          pepper_business_unit: string
           pod: string
           principal_bopm: string
+          projected_outcomes: Json | null
           rag: string
           retainer_deal_value: number | null
           senior_bopm: string
           seo_staffing: boolean
           service_line_tagging: string
           staffing_status: string
+          start_date: string | null
+          success_metrics: Json | null
           total_deal_value: number | null
           updated_at: string
           validation: string
@@ -378,9 +584,11 @@ export type Database = {
         }
         Insert: {
           account?: string
+          baseline_metrics?: string
           bopm?: string
           business_unit?: string
           capability_line?: string
+          client_id?: string | null
           created_at?: string
           creative_staffing?: boolean
           customer_status?: string
@@ -392,19 +600,25 @@ export type Database = {
           deal_type?: string
           deal_value_lost?: number | null
           duration?: string | null
+          end_date?: string | null
           id: string
           mrr?: number | null
           net_deal_value?: number | null
           non_retainer_deal_value?: number | null
+          payment_terms?: string
           pc_code?: string
+          pepper_business_unit?: string
           pod?: string
           principal_bopm?: string
+          projected_outcomes?: Json | null
           rag?: string
           retainer_deal_value?: number | null
           senior_bopm?: string
           seo_staffing?: boolean
           service_line_tagging?: string
           staffing_status?: string
+          start_date?: string | null
+          success_metrics?: Json | null
           total_deal_value?: number | null
           updated_at?: string
           validation?: string
@@ -412,9 +626,11 @@ export type Database = {
         }
         Update: {
           account?: string
+          baseline_metrics?: string
           bopm?: string
           business_unit?: string
           capability_line?: string
+          client_id?: string | null
           created_at?: string
           creative_staffing?: boolean
           customer_status?: string
@@ -426,25 +642,39 @@ export type Database = {
           deal_type?: string
           deal_value_lost?: number | null
           duration?: string | null
+          end_date?: string | null
           id?: string
           mrr?: number | null
           net_deal_value?: number | null
           non_retainer_deal_value?: number | null
+          payment_terms?: string
           pc_code?: string
+          pepper_business_unit?: string
           pod?: string
           principal_bopm?: string
+          projected_outcomes?: Json | null
           rag?: string
           retainer_deal_value?: number | null
           senior_bopm?: string
           seo_staffing?: boolean
           service_line_tagging?: string
           staffing_status?: string
+          start_date?: string | null
+          success_metrics?: Json | null
           total_deal_value?: number | null
           updated_at?: string
           validation?: string
           vsd?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "staffing_deals_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       staffing_hiring_needs: {
         Row: {
@@ -491,6 +721,7 @@ export type Database = {
           created_at: string
           department: string | null
           designation: string | null
+          hourly_rate: number
           id: string
           leaving: boolean
           name: string
@@ -507,6 +738,7 @@ export type Database = {
           created_at?: string
           department?: string | null
           designation?: string | null
+          hourly_rate?: number
           id: string
           leaving?: boolean
           name: string
@@ -523,6 +755,7 @@ export type Database = {
           created_at?: string
           department?: string | null
           designation?: string | null
+          hourly_rate?: number
           id?: string
           leaving?: boolean
           name?: string
