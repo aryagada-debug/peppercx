@@ -133,6 +133,78 @@ export function useDealDetail(dealId: string | undefined) {
       mbrPptLink: e.mbr_ppt_link || null,
     })));
     setLoading(false);
+  }
+
+  // ── MBR upsert ──
+  const upsertMBREntry = useCallback(async (params: {
+    dealId: string;
+    status: string;
+    mode: string | null;
+    notes: string | null;
+    updatedBy: string;
+    sentiment?: string | null;
+    fathomLink?: string | null;
+    transcript?: string | null;
+    aiSummary?: string | null;
+    actionItems?: ActionItem[];
+    scheduledDate?: string | null;
+    anirudhAdded?: boolean;
+    mbrPptLink?: string | null;
+  }, weekStart: string) => {
+    const row: any = {
+      deal_id: params.dealId,
+      week_start: weekStart,
+      status: params.status,
+      mode: params.mode,
+      notes: params.notes,
+      updated_by: params.updatedBy,
+    };
+    if (params.sentiment !== undefined) row.sentiment = params.sentiment;
+    if (params.fathomLink !== undefined) row.fathom_link = params.fathomLink;
+    if (params.transcript !== undefined) row.transcript = params.transcript;
+    if (params.aiSummary !== undefined) row.ai_summary = params.aiSummary;
+    if (params.actionItems !== undefined) row.action_items = params.actionItems;
+    if (params.scheduledDate !== undefined) row.scheduled_date = params.scheduledDate;
+    if (params.anirudhAdded !== undefined) row.anirudh_added = params.anirudhAdded;
+    if (params.mbrPptLink !== undefined) row.mbr_ppt_link = params.mbrPptLink;
+    if (params.status === "Done") row.input_recorded_at = new Date().toISOString();
+
+    const { data, error } = await (supabase.from("mbr_entries") as any).upsert(
+      row,
+      { onConflict: "deal_id,week_start" }
+    ).select();
+
+    if (!error && data?.[0]) {
+      const newEntry: MBREntry = {
+        id: data[0].id,
+        dealId: data[0].deal_id,
+        weekStart: data[0].week_start,
+        status: data[0].status,
+        mode: data[0].mode,
+        notes: data[0].notes,
+        updatedBy: data[0].updated_by,
+        sentiment: data[0].sentiment || null,
+        fathomLink: data[0].fathom_link || null,
+        transcript: data[0].transcript || null,
+        aiSummary: data[0].ai_summary || null,
+        actionItems: Array.isArray(data[0].action_items) ? data[0].action_items : [],
+        scheduledDate: data[0].scheduled_date || null,
+        anirudhAdded: !!data[0].anirudh_added,
+        anirudhJoining: !!data[0].anirudh_joining,
+        inputRecordedAt: data[0].input_recorded_at || null,
+        mbrPptLink: data[0].mbr_ppt_link || null,
+      };
+      setMbrEntries(prev => {
+        const idx = prev.findIndex(e => e.weekStart === weekStart);
+        if (idx >= 0) {
+          const updated = [...prev];
+          updated[idx] = newEntry;
+          return updated;
+        }
+        return [newEntry, ...prev];
+      });
+    }
+  }, []);
 
   // ── SoW CRUD ──
   const addSoWItem = useCallback(async (item: Omit<SoWItem, "id">) => {
