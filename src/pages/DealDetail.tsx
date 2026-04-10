@@ -316,7 +316,7 @@ export default function DealDetail() {
               </div>
             </div>
 
-            {/* ── Editable RGY ── */}
+            {/* ── RGY + SoW ── */}
             <EditableRGY
               dimensions={[
                 { key: "accountHealth", label: "Account Health", owner: "VSD", value: currentRGY?.accountHealth || "G", planOfAction: "" },
@@ -329,53 +329,72 @@ export default function DealDetail() {
             />
 
             {/* ── SoW ── */}
-            <div className="bg-card border border-border rounded-xl p-5">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-foreground">Scope of Work</h3>
-                <Button variant="outline" size="sm" onClick={() => setAddingSoW(true)}>
-                  <Plus className="h-4 w-4 mr-1" /> Add Item
-                </Button>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-3">
+                Scope of Work
+              </p>
+              <div className="bg-card border border-border rounded-xl overflow-hidden">
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+                  <h3 className="text-sm font-medium text-foreground">SoW Items</h3>
+                  <button
+                    onClick={() => setAddingSoW(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 transition-colors"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add item
+                  </button>
+                </div>
+
+                {/* Column headers */}
+                <div className="flex items-center px-5 py-2 bg-secondary/40 border-b border-border">
+                  <span className="flex-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Scope</span>
+                  <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground text-right w-40">Revenue share team</span>
+                  <span className="w-8" />
+                </div>
+
+                {/* Add row */}
+                {addingSoW && (
+                  <div className="flex items-center gap-2 px-5 py-3 border-b border-border bg-accent/5">
+                    <div className="flex-1">
+                      <Input value={newSoW.scope} onChange={e => setNewSoW(p => ({ ...p, scope: e.target.value }))} className="h-7 text-sm" placeholder="Scope description" />
+                    </div>
+                    <div className="w-40">
+                      <Input value={newSoW.teamCapability} onChange={e => setNewSoW(p => ({ ...p, teamCapability: e.target.value }))} className="h-7 text-sm" placeholder="e.g. SEO" />
+                    </div>
+                    <div className="flex gap-1 w-8 justify-end">
+                      <button onClick={() => { addSoWItem({ dealId: dealId!, ...newSoW }); setNewSoW({ scope: "", revenueShare: 0, teamCapability: "" }); setAddingSoW(false); }} className="text-primary"><Check className="h-4 w-4" /></button>
+                      <button onClick={() => setAddingSoW(false)} className="text-muted-foreground"><X className="h-4 w-4" /></button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Items */}
+                {sowItems.map((s, i) => (
+                  <div key={s.id} className={cn(
+                    "flex items-center px-5 py-3 group hover:bg-accent/5 transition-colors",
+                    i < sowItems.length - 1 && "border-b border-border"
+                  )}>
+                    <div className="flex-1 min-w-0">
+                      <EditableCell value={s.scope} onSave={v => updateSoWItem(s.id, { scope: v })} />
+                    </div>
+                    <div className="w-40 text-right">
+                      <EditableCell value={s.teamCapability} onSave={v => updateSoWItem(s.id, { teamCapability: v })} />
+                    </div>
+                    <div className="w-8 flex justify-end">
+                      <button onClick={() => deleteSoWItem(s.id)} className="opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Empty state */}
+                {sowItems.length === 0 && !addingSoW && (
+                  <div className="px-5 py-10 text-center">
+                    <p className="text-sm text-muted-foreground">No SoW items yet. Click 'Add item' to start.</p>
+                  </div>
+                )}
               </div>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left py-2 text-xs uppercase tracking-wider text-muted-foreground font-medium">Scope</th>
-                    <th className="text-right py-2 text-xs uppercase tracking-wider text-muted-foreground font-medium">Revenue Share</th>
-                    <th className="text-left py-2 text-xs uppercase tracking-wider text-muted-foreground font-medium">Team</th>
-                    <th className="w-10"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {addingSoW && (
-                    <tr className="border-b border-border/50 bg-accent/10">
-                      <td className="py-2"><Input value={newSoW.scope} onChange={e => setNewSoW(p => ({ ...p, scope: e.target.value }))} className="h-7 text-sm" placeholder="Scope description" /></td>
-                      <td className="py-2 px-2"><Input type="number" value={newSoW.revenueShare || ""} onChange={e => setNewSoW(p => ({ ...p, revenueShare: Number(e.target.value) }))} className="h-7 text-sm w-28 text-right" /></td>
-                      <td className="py-2"><Input value={newSoW.teamCapability} onChange={e => setNewSoW(p => ({ ...p, teamCapability: e.target.value }))} className="h-7 text-sm" placeholder="e.g. SEO" /></td>
-                      <td className="py-2">
-                        <div className="flex gap-1">
-                          <button onClick={() => { addSoWItem({ dealId: dealId!, ...newSoW }); setNewSoW({ scope: "", revenueShare: 0, teamCapability: "" }); setAddingSoW(false); }} className="text-primary"><Check className="h-4 w-4" /></button>
-                          <button onClick={() => setAddingSoW(false)} className="text-muted-foreground"><X className="h-4 w-4" /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                  {sowItems.map(s => (
-                    <tr key={s.id} className="border-b border-border/50 group hover:bg-accent/10">
-                      <td className="py-2"><EditableCell value={s.scope} onSave={v => updateSoWItem(s.id, { scope: v })} /></td>
-                      <td className="py-2 text-right"><EditableCell value={String(s.revenueShare)} onSave={v => updateSoWItem(s.id, { revenueShare: Number(v) })} type="number" /></td>
-                      <td className="py-2"><EditableCell value={s.teamCapability} onSave={v => updateSoWItem(s.id, { teamCapability: v })} /></td>
-                      <td className="py-2">
-                        <button onClick={() => deleteSoWItem(s.id)} className="opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {sowItems.length === 0 && !addingSoW && (
-                    <tr><td colSpan={4} className="py-6 text-center text-muted-foreground text-xs">No SoW items yet. Click "Add Item" to start.</td></tr>
-                  )}
-                </tbody>
-              </table>
             </div>
           </div>
         )}
