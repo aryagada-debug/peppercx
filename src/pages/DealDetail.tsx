@@ -175,8 +175,45 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry }: {
     "Not Required": "bg-muted text-muted-foreground",
   };
 
+  // Sort descending by weekStart
+  const sorted = useMemo(() => [...mbrEntries].sort((a, b) => b.weekStart.localeCompare(a.weekStart)), [mbrEntries]);
+  const doneEntries = useMemo(() => sorted.filter(e => e.status === "Done"), [sorted]);
+  const lastDone = doneEntries[0];
+
+  // Missing month warning
+  const currentMonthLabel = format(new Date(), "MMMM yyyy");
+  const currentMonthPrefix = format(new Date(), "yyyy-MM");
+  const hasMBRThisMonth = doneEntries.some(e => e.weekStart.startsWith(currentMonthPrefix));
+
   return (
     <div className="animate-fade-in space-y-4">
+      {/* Snapshot */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          { label: "Total MBRs Done", value: String(doneEntries.length) },
+          { label: "Last Sentiment", value: lastDone?.sentiment || "—", isSentiment: true },
+          { label: "Next MBR Date", value: sorted[0]?.scheduledDate ? format(new Date(sorted[0].scheduledDate), "dd MMM yyyy") : "Not scheduled" },
+          { label: "Last Mode", value: lastDone?.mode || "—" },
+        ].map(card => (
+          <div key={card.label} className="rounded-lg bg-secondary/40 p-4">
+            <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium">{card.label}</p>
+            <p className="mt-1 text-lg font-semibold text-foreground">
+              {(card as any).isSentiment && lastDone?.sentiment ? (
+                <Badge className={cn("text-xs", sentimentColors[lastDone.sentiment] || "")}>{lastDone.sentiment}</Badge>
+              ) : card.value}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {/* Missing month warning */}
+      {!hasMBRThisMonth && (
+        <div className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-2.5 text-sm text-warning">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span>No MBR recorded for {currentMonthLabel}</span>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">MBR History</p>
         <Button variant="outline" size="sm" className="gap-1.5" onClick={handleNewMBR}>
@@ -184,7 +221,7 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry }: {
         </Button>
       </div>
 
-      {mbrEntries.length > 0 ? (
+      {sorted.length > 0 ? (
         <div className="bg-card border border-border rounded-xl overflow-hidden">
           <table className="w-full text-sm">
             <thead>
@@ -195,7 +232,7 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry }: {
               </tr>
             </thead>
             <tbody>
-              {mbrEntries.map(entry => (
+              {sorted.map(entry => (
                 <tr
                   key={entry.id}
                   className="border-b border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer group"
