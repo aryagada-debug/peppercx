@@ -1,6 +1,6 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Loader2, Plus, Trash2, Pencil, Check, X } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, Trash2, Pencil, Check, X, Calendar, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useMemo, useCallback } from "react";
 import { useStaffingData } from "@/hooks/useStaffingData";
@@ -10,6 +10,7 @@ import { FinancialsTab } from "@/components/deals/FinancialsTab";
 import { TaskKanban } from "@/components/deals/TaskKanban";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 
 const fmtCurrency = (n: number | undefined) => {
@@ -20,20 +21,26 @@ const fmtCurrency = (n: number | undefined) => {
   return `₹${n}`;
 };
 
+const fmtDate = (d: string | undefined) => {
+  if (!d) return "Not set";
+  const date = new Date(d);
+  return date.toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" });
+};
+
 const TABS = ["Overview", "Staffing", "Financials", "Tasks", "RGY Health", "MBR", "Onboarding"] as const;
 type TabKey = typeof TABS[number];
 
 const rgyColors: Record<string, string> = { G: "rgy-green", R: "rgy-red", Y: "rgy-yellow" };
 
 // ── Editable Cell ──
-function EditableCell({ value, onSave, type = "text", prefix = "" }: { value: string; onSave: (v: string) => void; type?: string; prefix?: string }) {
+function EditableCell({ value, onSave, type = "text", prefix = "", placeholder = "—" }: { value: string; onSave: (v: string) => void; type?: string; prefix?: string; placeholder?: string }) {
   const [editing, setEditing] = useState(false);
   const [local, setLocal] = useState(value);
 
   if (editing) {
     return (
       <div className="flex items-center gap-1">
-        <Input value={local} onChange={e => setLocal(e.target.value)} type={type} className="h-7 text-ui w-full" autoFocus onKeyDown={e => { if (e.key === "Enter") { onSave(local); setEditing(false); } if (e.key === "Escape") { setLocal(value); setEditing(false); } }} />
+        <Input value={local} onChange={e => setLocal(e.target.value)} type={type} className="h-7 text-sm w-full" autoFocus onKeyDown={e => { if (e.key === "Enter") { onSave(local); setEditing(false); } if (e.key === "Escape") { setLocal(value); setEditing(false); } }} />
         <button onClick={() => { onSave(local); setEditing(false); }} className="text-primary"><Check className="h-3.5 w-3.5" /></button>
         <button onClick={() => { setLocal(value); setEditing(false); }} className="text-muted-foreground"><X className="h-3.5 w-3.5" /></button>
       </div>
@@ -41,9 +48,40 @@ function EditableCell({ value, onSave, type = "text", prefix = "" }: { value: st
   }
 
   return (
-    <div className="group flex items-center gap-1 cursor-pointer" onClick={() => setEditing(true)}>
-      <span className="text-ui font-medium text-foreground">{prefix}{value || "—"}</span>
+    <div className="group flex items-center gap-1.5 cursor-pointer" onClick={() => setEditing(true)}>
+      <span className={cn("text-sm font-medium", value ? "text-foreground" : "text-muted-foreground")}>{prefix}{value || placeholder}</span>
       <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+    </div>
+  );
+}
+
+// ── Financial Metric Card ──
+function FinancialMetricCard({ label, value, subLabel, onSave }: { label: string; value: string; subLabel: string; onSave: (v: string) => void }) {
+  return (
+    <div className="rounded-lg bg-secondary/50 p-4">
+      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">{label}</p>
+      <EditableCell value={value} onSave={onSave} type="number" prefix="₹" placeholder="—" />
+      <p className="text-xs text-muted-foreground mt-0.5">{subLabel}</p>
+    </div>
+  );
+}
+
+// ── Team Member Row ──
+function TeamMemberRow({ name, role, color, onSave }: { name: string; role: string; color: string; onSave: (v: string) => void }) {
+  const initials = name && name !== "Not assigned"
+    ? name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()
+    : "?";
+  const isUnassigned = !name || name === "Not assigned";
+
+  return (
+    <div className="flex items-center gap-3 py-2">
+      <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium text-white shrink-0", color)}>
+        {initials}
+      </div>
+      <div className="flex-1 min-w-0">
+        <EditableCell value={isUnassigned ? "" : name} onSave={onSave} placeholder="Not assigned" />
+      </div>
+      <span className="text-xs text-muted-foreground whitespace-nowrap">{role}</span>
     </div>
   );
 }
@@ -78,6 +116,19 @@ export default function DealDetail() {
     updateDeal(dealId, { [field]: v });
     toast.success("Updated");
   }, [dealId, updateDeal]);
+
+  // Progress & renewal calculations
+  const progressInfo = useMemo(() => {
+    if (!deal?.startDate || !deal?.endDate) return null;
+    const start = new Date(deal.startDate);
+    const end = new Date(deal.endDate);
+    const today = new Date();
+    const totalDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+    const elapsedDays = Math.ceil((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    const pct = Math.min(100, Math.max(0, Math.round((elapsedDays / totalDays) * 100)));
+    const daysRemaining = Math.max(0, Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
+    return { pct, daysRemaining, totalDays, startLabel: fmtDate(deal.startDate), endLabel: fmtDate(deal.endDate) };
+  }, [deal?.startDate, deal?.endDate]);
 
   // Current week's RGY for overview
   const currentRGY = useMemo(() => {
@@ -136,75 +187,136 @@ export default function DealDetail() {
   }
 
   if (!deal) {
-    return <AppLayout><div className="p-8"><Link to="/clients" className="text-primary hover:underline text-ui">← Back to Clients</Link><p className="mt-4 text-muted-foreground">Deal not found.</p></div></AppLayout>;
+    return <AppLayout><div className="p-8"><Link to="/clients" className="text-primary hover:underline text-sm">← Back to Clients</Link><p className="mt-4 text-muted-foreground">Deal not found.</p></div></AppLayout>;
   }
 
-  const metadataFields: [string, string, string, string?][] = [
-    ["Deal Type", "dealType", deal.dealType],
-    ["Service Line", "serviceLineTagging", deal.serviceLineTagging || deal.capabilityLine],
-    ["Status", "dealStatusCx", deal.dealStatusCx || deal.dealStatus],
-    ["MRR", "mrr", String(deal.mrr || ""), "₹"],
-    ["Retainer Value", "retainerDealValue", String(deal.retainerDealValue || ""), "₹"],
-    ["Non-Retainer Value", "nonRetainerDealValue", String(deal.nonRetainerDealValue || ""), "₹"],
-    ["Total Value", "totalDealValue", String(deal.totalDealValue || ""), "₹"],
-    ["Duration", "duration", deal.duration || ""],
-    ["Business Unit", "businessUnit", deal.businessUnit],
-    ["VSD", "vsd", deal.vsd],
-    ["Principal BOPM", "principalBopm", deal.principalBopm || ""],
-    ["Senior BOPM", "seniorBopm", deal.seniorBopm || ""],
-    ["Junior BOPM", "bopm", deal.bopm || ""],
-    ["Payment Terms", "paymentTerms", deal.paymentTerms || ""],
-    ["Start Date", "startDate", deal.startDate || ""],
-    ["End Date", "endDate", deal.endDate || ""],
-  ];
+  const subtitle = [deal.serviceLineTagging || deal.capabilityLine, deal.account].filter(Boolean).join(" · ");
 
   return (
     <AppLayout>
-      <div className="p-8">
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
-          <Link to="/clients" className="h-8 w-8 rounded-lg border border-border flex items-center justify-center hover:bg-accent transition-colors">
+      <div className="p-4 md:p-8 max-w-6xl">
+        {/* ── Header ── */}
+        <div className="flex items-start gap-3 mb-6">
+          <Link to="/clients" className="h-9 w-9 rounded-lg border border-border flex items-center justify-center hover:bg-accent transition-colors mt-1 shrink-0" aria-label="Back to clients">
             <ArrowLeft className="h-4 w-4 text-muted-foreground" />
           </Link>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-ui text-primary font-medium">{deal.dealId}</span>
-              <span className={cn("inline-flex px-2 py-0.5 rounded-full text-[11px] font-medium", deal.dealStatusCx === "Active" ? "text-positive bg-[hsl(var(--success-bg))]" : "text-muted-foreground bg-secondary")}>{deal.dealStatusCx || deal.dealStatus}</span>
-              <span className="inline-flex px-2 py-0.5 rounded-full text-[11px] font-medium bg-accent text-accent-foreground">{deal.dealType}</span>
-            </div>
-            <h1 className="text-subhead font-bold tracking-tight text-foreground">{deal.dealName}</h1>
-            <p className="text-ui text-muted-foreground">{deal.account}</p>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground leading-tight">{deal.dealName}</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 mt-1">
+            <span className="inline-flex px-3 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
+              {deal.dealType}
+            </span>
+            <span className={cn(
+              "inline-flex px-3 py-1 rounded-full text-xs font-medium",
+              (deal.dealStatusCx || deal.dealStatus) === "Active"
+                ? "bg-[hsl(142_60%_96%)] text-[hsl(142_60%_30%)]"
+                : "bg-secondary text-muted-foreground"
+            )}>
+              {deal.dealStatusCx || deal.dealStatus}
+            </span>
           </div>
         </div>
 
-        {/* Tabs */}
+        {/* ── Tabs ── */}
         <div className="border-b border-border mb-6">
           <div className="flex gap-0 -mb-px overflow-x-auto">
             {TABS.map(tab => (
               <button key={tab} onClick={() => setActiveTab(tab)} className={cn(
-                "px-4 py-2.5 text-ui font-medium transition-colors border-b-2 whitespace-nowrap",
+                "px-4 py-2.5 text-sm font-medium transition-colors border-b-2 whitespace-nowrap",
                 activeTab === tab ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
               )}>{tab}</button>
             ))}
           </div>
         </div>
 
-        {/* ── Overview ── */}
+        {/* ══════════ Overview ══════════ */}
         {activeTab === "Overview" && (
           <div className="space-y-6 animate-fade-in">
-            {/* Editable Metadata Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {metadataFields.map(([label, field, value, prefix]) => (
-                <div key={label} className="data-card">
-                  <p className="metric-label">{label}</p>
-                  <div className="mt-1">
-                    <EditableCell value={value} prefix="" onSave={v => handleDealFieldSave(field, v)} type={["mrr", "retainerDealValue", "nonRetainerDealValue", "totalDealValue"].includes(field) ? "number" : "text"} />
-                  </div>
-                </div>
-              ))}
+            {/* ── Financial Snapshot ── */}
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">Financial Snapshot</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <FinancialMetricCard label="MRR" value={String(deal.mrr || "")} subLabel="Monthly recurring" onSave={v => handleDealFieldSave("mrr", v)} />
+                <FinancialMetricCard label="Total Value" value={String(deal.totalDealValue || "")} subLabel="Contract total" onSave={v => handleDealFieldSave("totalDealValue", v)} />
+                <FinancialMetricCard label="Retainer Value" value={String(deal.retainerDealValue || "")} subLabel="Of total value" onSave={v => handleDealFieldSave("retainerDealValue", v)} />
+                <FinancialMetricCard label="Non-Retainer" value={String(deal.nonRetainerDealValue || "")} subLabel="Non-retainer portion" onSave={v => handleDealFieldSave("nonRetainerDealValue", v)} />
+              </div>
             </div>
 
-            {/* Editable RGY in Overview */}
+            {/* ── Contract Details + Team ── */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Contract Details */}
+              <div className="bg-card border border-border rounded-xl p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  <h3 className="text-sm font-semibold text-foreground">Contract Details</h3>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Payment Terms</span>
+                    <EditableCell value={deal.paymentTerms || ""} onSave={v => handleDealFieldSave("paymentTerms", v)} placeholder="Not set" />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Duration</span>
+                    <EditableCell value={deal.duration || ""} onSave={v => handleDealFieldSave("duration", v)} placeholder="Not set" />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Service Line</span>
+                    <EditableCell value={deal.serviceLineTagging || deal.capabilityLine || ""} onSave={v => handleDealFieldSave("serviceLineTagging", v)} placeholder="Not set" />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Start Date</span>
+                    <EditableCell value={deal.startDate || ""} onSave={v => handleDealFieldSave("startDate", v)} type="date" placeholder="Not set" />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">End Date</span>
+                    <EditableCell value={deal.endDate || ""} onSave={v => handleDealFieldSave("endDate", v)} type="date" placeholder="Not set" />
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                {progressInfo && (
+                  <div className="mt-5 pt-4 border-t border-border">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
+                      <span>{progressInfo.startLabel}</span>
+                      <span>{progressInfo.endLabel}</span>
+                    </div>
+                    <Progress value={progressInfo.pct} className="h-2" />
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {progressInfo.pct}% complete · {progressInfo.daysRemaining} days remaining
+                    </p>
+                    <div className="mt-3">
+                      <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-[hsl(38_92%_95%)] text-[hsl(38_80%_35%)]">
+                        Renews in {progressInfo.daysRemaining} days
+                      </span>
+                    </div>
+                  </div>
+                )}
+                {!progressInfo && (
+                  <div className="mt-5 pt-4 border-t border-border">
+                    <p className="text-xs text-muted-foreground">Set start and end dates to see progress.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Team */}
+              <div className="bg-card border border-border rounded-xl p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <h3 className="text-sm font-semibold text-foreground">Team</h3>
+                </div>
+                <div className="divide-y divide-border">
+                  <TeamMemberRow name={deal.vsd || ""} role="VSD" color="bg-teal-600" onSave={v => handleDealFieldSave("vsd", v)} />
+                  <TeamMemberRow name={deal.principalBopm || ""} role="Principal BOPM" color="bg-primary" onSave={v => handleDealFieldSave("principalBopm", v)} />
+                  <TeamMemberRow name={deal.seniorBopm || ""} role="Senior BOPM" color="bg-muted-foreground/60" onSave={v => handleDealFieldSave("seniorBopm", v)} />
+                  <TeamMemberRow name={deal.bopm || ""} role="Junior BOPM" color="bg-muted-foreground/60" onSave={v => handleDealFieldSave("bopm", v)} />
+                </div>
+              </div>
+            </div>
+
+            {/* ── Editable RGY ── */}
             <EditableRGY
               dimensions={[
                 { key: "accountHealth", label: "Account Health", owner: "VSD", value: currentRGY?.accountHealth || "G", planOfAction: "" },
@@ -216,29 +328,29 @@ export default function DealDetail() {
               onSave={handleRGYSave}
             />
 
-            {/* SoW Criteria — Editable */}
-            <div className="data-card">
+            {/* ── SoW ── */}
+            <div className="bg-card border border-border rounded-xl p-5">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-ui font-bold text-foreground">Scope of Work</h3>
+                <h3 className="text-sm font-semibold text-foreground">Scope of Work</h3>
                 <Button variant="outline" size="sm" onClick={() => setAddingSoW(true)}>
                   <Plus className="h-4 w-4 mr-1" /> Add Item
                 </Button>
               </div>
-              <table className="w-full text-ui">
+              <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border">
-                    <th className="text-left py-2 text-caption uppercase tracking-wider text-muted-foreground font-medium">Scope</th>
-                    <th className="text-right py-2 text-caption uppercase tracking-wider text-muted-foreground font-medium">Revenue Share</th>
-                    <th className="text-left py-2 text-caption uppercase tracking-wider text-muted-foreground font-medium">Team</th>
+                    <th className="text-left py-2 text-xs uppercase tracking-wider text-muted-foreground font-medium">Scope</th>
+                    <th className="text-right py-2 text-xs uppercase tracking-wider text-muted-foreground font-medium">Revenue Share</th>
+                    <th className="text-left py-2 text-xs uppercase tracking-wider text-muted-foreground font-medium">Team</th>
                     <th className="w-10"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {addingSoW && (
                     <tr className="border-b border-border/50 bg-accent/10">
-                      <td className="py-2"><Input value={newSoW.scope} onChange={e => setNewSoW(p => ({ ...p, scope: e.target.value }))} className="h-7 text-ui" placeholder="Scope description" /></td>
-                      <td className="py-2 px-2"><Input type="number" value={newSoW.revenueShare || ""} onChange={e => setNewSoW(p => ({ ...p, revenueShare: Number(e.target.value) }))} className="h-7 text-ui w-28 text-right" /></td>
-                      <td className="py-2"><Input value={newSoW.teamCapability} onChange={e => setNewSoW(p => ({ ...p, teamCapability: e.target.value }))} className="h-7 text-ui" placeholder="e.g. SEO" /></td>
+                      <td className="py-2"><Input value={newSoW.scope} onChange={e => setNewSoW(p => ({ ...p, scope: e.target.value }))} className="h-7 text-sm" placeholder="Scope description" /></td>
+                      <td className="py-2 px-2"><Input type="number" value={newSoW.revenueShare || ""} onChange={e => setNewSoW(p => ({ ...p, revenueShare: Number(e.target.value) }))} className="h-7 text-sm w-28 text-right" /></td>
+                      <td className="py-2"><Input value={newSoW.teamCapability} onChange={e => setNewSoW(p => ({ ...p, teamCapability: e.target.value }))} className="h-7 text-sm" placeholder="e.g. SEO" /></td>
                       <td className="py-2">
                         <div className="flex gap-1">
                           <button onClick={() => { addSoWItem({ dealId: dealId!, ...newSoW }); setNewSoW({ scope: "", revenueShare: 0, teamCapability: "" }); setAddingSoW(false); }} className="text-primary"><Check className="h-4 w-4" /></button>
@@ -260,7 +372,7 @@ export default function DealDetail() {
                     </tr>
                   ))}
                   {sowItems.length === 0 && !addingSoW && (
-                    <tr><td colSpan={4} className="py-6 text-center text-muted-foreground text-caption">No SoW items yet. Click "Add Item" to start.</td></tr>
+                    <tr><td colSpan={4} className="py-6 text-center text-muted-foreground text-xs">No SoW items yet. Click "Add Item" to start.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -268,17 +380,14 @@ export default function DealDetail() {
           </div>
         )}
 
-        {/* ── Staffing ── */}
+        {/* ══════════ Staffing ══════════ */}
         {activeTab === "Staffing" && (
           <div className="animate-fade-in space-y-4">
             {dealPeople.length > 0 ? (
               (() => {
                 const TEAM_ORDER = ["Operations", "SEO", "Content", "Content Strategy", "Creative Strategy", "Creative Art", "Creative Copy", "Video", "Performance & Growth", "Other"];
                 const grouped = TEAM_ORDER
-                  .map(cat => ({
-                    category: cat,
-                    members: dealPeople.filter(p => p.roleCategory === cat),
-                  }))
+                  .map(cat => ({ category: cat, members: dealPeople.filter(p => p.roleCategory === cat) }))
                   .filter(g => g.members.length > 0);
 
                 let totalCostWeek = 0;
@@ -288,7 +397,6 @@ export default function DealDetail() {
 
                 return (
                   <>
-                    {/* Summary KPIs */}
                     {(() => {
                       dealPeople.forEach(p => {
                         const alloc = dealAssignments.find(a => a.personId === p.id);
@@ -300,31 +408,31 @@ export default function DealDetail() {
                       });
                       return (
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                          <div className="data-card"><p className="metric-label">Team Size</p><p className="text-subhead font-bold text-foreground">{dealPeople.length}</p></div>
-                          <div className="data-card"><p className="metric-label">Total Hrs/Week</p><p className="text-subhead font-bold text-foreground">{totalHrsWeek.toFixed(1)}h</p></div>
-                          <div className="data-card"><p className="metric-label">Cost/Week</p><p className="text-subhead font-bold text-foreground">{fmtCurrency(totalCostWeek)}</p></div>
-                          <div className="data-card"><p className="metric-label">Revenue Managed</p><p className="text-subhead font-bold text-foreground">{fmtCurrency(totalRevManaged)}</p></div>
+                          <div className="rounded-lg bg-secondary/50 p-4"><p className="metric-label">Team Size</p><p className="text-xl font-semibold text-foreground">{dealPeople.length}</p></div>
+                          <div className="rounded-lg bg-secondary/50 p-4"><p className="metric-label">Total Hrs/Week</p><p className="text-xl font-semibold text-foreground">{totalHrsWeek.toFixed(1)}h</p></div>
+                          <div className="rounded-lg bg-secondary/50 p-4"><p className="metric-label">Cost/Week</p><p className="text-xl font-semibold text-foreground">{fmtCurrency(totalCostWeek)}</p></div>
+                          <div className="rounded-lg bg-secondary/50 p-4"><p className="metric-label">Revenue Managed</p><p className="text-xl font-semibold text-foreground">{fmtCurrency(totalRevManaged)}</p></div>
                         </div>
                       );
                     })()}
 
                     {grouped.map(group => (
-                      <div key={group.category} className="data-card !p-0 overflow-hidden">
+                      <div key={group.category} className="bg-card border border-border rounded-xl overflow-hidden">
                         <div className="px-4 py-2 bg-accent/20 border-b border-border flex items-center justify-between">
-                          <span className="text-caption font-bold uppercase tracking-wider text-muted-foreground">{group.category}</span>
-                          <span className="text-caption text-muted-foreground">{group.members.length} member{group.members.length > 1 ? "s" : ""}</span>
+                          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{group.category}</span>
+                          <span className="text-xs text-muted-foreground">{group.members.length} member{group.members.length > 1 ? "s" : ""}</span>
                         </div>
-                        <table className="w-full text-ui">
+                        <table className="w-full text-sm">
                           <thead>
                             <tr className="border-b border-border">
-                              <th className="text-left py-2 px-4 text-caption uppercase tracking-wider text-muted-foreground font-medium">Name</th>
-                              <th className="text-left py-2 px-4 text-caption uppercase tracking-wider text-muted-foreground font-medium">Role</th>
-                              <th className="text-left py-2 px-4 text-caption uppercase tracking-wider text-muted-foreground font-medium">Pod</th>
-                              <th className="text-right py-2 px-4 text-caption uppercase tracking-wider text-muted-foreground font-medium">Allocation</th>
-                              <th className="text-right py-2 px-4 text-caption uppercase tracking-wider text-muted-foreground font-medium">Hrs/Week</th>
-                              <th className="text-right py-2 px-4 text-caption uppercase tracking-wider text-muted-foreground font-medium">Rate/Hr</th>
-                              <th className="text-right py-2 px-4 text-caption uppercase tracking-wider text-muted-foreground font-medium">Cost/Week</th>
-                              <th className="text-right py-2 px-4 text-caption uppercase tracking-wider text-muted-foreground font-medium">Rev Managed</th>
+                              <th className="text-left py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Name</th>
+                              <th className="text-left py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Role</th>
+                              <th className="text-left py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Pod</th>
+                              <th className="text-right py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Allocation</th>
+                              <th className="text-right py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Hrs/Week</th>
+                              <th className="text-right py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Rate/Hr</th>
+                              <th className="text-right py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Cost/Week</th>
+                              <th className="text-right py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Rev Managed</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -333,10 +441,10 @@ export default function DealDetail() {
                               const pct = (alloc?.allocationPct || 0) / 100;
                               const hrs = pct * 40;
                               const costWeek = hrs * (p.hourlyRate || 0);
-                              const revManaged = dealMrr * pct;
+                              const revManaged = (deal.mrr || 0) * pct;
                               return (
                                 <tr key={p.id} className="border-b border-border/50 hover:bg-accent/10">
-                                  <td className="py-2.5 px-4 font-medium text-foreground">{p.name}{p.tbh && <span className="ml-1 text-caption text-warning">(TBH)</span>}{p.leaving && <span className="ml-1 text-caption text-destructive">(Leaving)</span>}</td>
+                                  <td className="py-2.5 px-4 font-medium text-foreground">{p.name}{p.tbh && <span className="ml-1 text-xs text-warning">(TBH)</span>}{p.leaving && <span className="ml-1 text-xs text-destructive">(Leaving)</span>}</td>
                                   <td className="py-2.5 px-4 text-muted-foreground">{p.roleTitle || p.designation}</td>
                                   <td className="py-2.5 px-4 text-muted-foreground">{p.pod}</td>
                                   <td className="py-2.5 px-4 text-right font-mono tabular-nums font-medium">{alloc?.allocationPct || 0}%</td>
@@ -357,100 +465,85 @@ export default function DealDetail() {
                 );
               })()
             ) : (
-              <div className="data-card text-center py-8"><p className="text-muted-foreground">No team members assigned to this deal.</p></div>
+              <div className="bg-card border border-border rounded-xl text-center py-8 px-5"><p className="text-muted-foreground">No team members assigned to this deal.</p></div>
             )}
           </div>
         )}
 
-        {/* ── Financials (replaces Revenue + Targets) ── */}
+        {/* ══════════ Financials ══════════ */}
         {activeTab === "Financials" && (
-          <FinancialsTab
-            rows={financials}
-            dealId={dealId!}
-            onAdd={addFinancial}
-            onUpdate={updateFinancial}
-            onDelete={deleteFinancial}
-          />
+          <FinancialsTab rows={financials} dealId={dealId!} onAdd={addFinancial} onUpdate={updateFinancial} onDelete={deleteFinancial} />
         )}
 
-        {/* ── Tasks Kanban ── */}
+        {/* ══════════ Tasks ══════════ */}
         {activeTab === "Tasks" && (
-          <TaskKanban
-            tasks={tasks}
-            dealId={dealId!}
-            assignees={dealPeople.map(p => ({ id: p.id, name: p.name }))}
-            onAdd={addTask}
-            onUpdate={updateTask}
-            onDelete={deleteTask}
-          />
+          <TaskKanban tasks={tasks} dealId={dealId!} assignees={dealPeople.map(p => ({ id: p.id, name: p.name }))} onAdd={addTask} onUpdate={updateTask} onDelete={deleteTask} />
         )}
 
-        {/* ── RGY Health (Weekly History) ── */}
+        {/* ══════════ RGY Health ══════════ */}
         {activeTab === "RGY Health" && (
           <div className="animate-fade-in">
             {rgyWeekly.length > 0 ? (
-              <div className="data-card !p-0 overflow-hidden">
-                <table className="w-full text-ui">
+              <div className="bg-card border border-border rounded-xl overflow-hidden">
+                <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-accent/20 border-b border-border">
-                      <th className="text-left py-2.5 px-4 text-caption uppercase tracking-wider text-muted-foreground font-medium">Week</th>
+                      <th className="text-left py-2.5 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Week</th>
                       {["Acct Health", "Delivery", "Finance", "SEO", "Creative"].map(d => (
-                        <th key={d} className="text-center py-2.5 px-3 text-caption uppercase tracking-wider text-muted-foreground font-medium">{d}</th>
+                        <th key={d} className="text-center py-2.5 px-3 text-xs uppercase tracking-wider text-muted-foreground font-medium">{d}</th>
                       ))}
-                      <th className="text-left py-2.5 px-4 text-caption uppercase tracking-wider text-muted-foreground font-medium">Plan of Action</th>
+                      <th className="text-left py-2.5 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Plan of Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {rgyWeekly.map(r => (
                       <tr key={r.id} className="border-b border-border/50">
-                        <td className="py-2.5 px-4 text-foreground font-mono text-caption">{r.weekStart}</td>
+                        <td className="py-2.5 px-4 text-foreground font-mono text-xs">{r.weekStart}</td>
                         {[r.accountHealth || r.internal, r.delivery, r.financeBilling || "G", r.capabilitySeo || "G", r.capabilityCreative || "G"].map((val, i) => (
                           <td key={i} className="py-2.5 px-3 text-center">
-                            <span className={cn("inline-flex items-center justify-center w-7 h-7 rounded-lg text-caption font-bold", rgyColors[val || "G"] || "rgy-na")}>{val || "G"}</span>
+                            <span className={cn("inline-flex items-center justify-center w-7 h-7 rounded-lg text-xs font-bold", rgyColors[val || "G"] || "rgy-na")}>{val || "G"}</span>
                           </td>
                         ))}
-                        <td className="py-2.5 px-4 text-muted-foreground text-caption max-w-xs truncate">{r.planOfAction || r.notes || "—"}</td>
+                        <td className="py-2.5 px-4 text-muted-foreground text-xs max-w-xs truncate">{r.planOfAction || r.notes || "—"}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             ) : (
-              <div className="data-card text-center py-8"><p className="text-muted-foreground">No weekly RGY data recorded yet. Set health status in the Overview tab.</p></div>
+              <div className="bg-card border border-border rounded-xl text-center py-8 px-5"><p className="text-muted-foreground">No weekly RGY data recorded yet. Set health status in the Overview tab.</p></div>
             )}
           </div>
         )}
 
-        {/* ── MBR ── */}
+        {/* ══════════ MBR ══════════ */}
         {activeTab === "MBR" && (
           <div className="animate-fade-in">
-            <div className="data-card text-center py-8">
+            <div className="bg-card border border-border rounded-xl text-center py-8 px-5">
               <p className="text-muted-foreground">MBR tracking for this deal is available in the <Link to="/mbr-tracker" className="text-primary hover:underline">MBR Tracker</Link>.</p>
             </div>
           </div>
         )}
 
-        {/* ── Onboarding ── */}
+        {/* ══════════ Onboarding ══════════ */}
         {activeTab === "Onboarding" && (
           <div className="animate-fade-in space-y-4">
-            <div className="data-card">
+            <div className="bg-card border border-border rounded-xl p-5">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-ui font-bold text-foreground">Onboarding Progress</p>
-                <span className={cn("text-ui font-bold font-mono", onboardingPct === 100 ? "text-positive" : "text-foreground")}>{onboardingPct}%</span>
+                <p className="text-sm font-semibold text-foreground">Onboarding Progress</p>
+                <span className={cn("text-sm font-semibold font-mono", onboardingPct === 100 ? "text-positive" : "text-foreground")}>{onboardingPct}%</span>
               </div>
-              <div className="h-2.5 bg-secondary rounded-full overflow-hidden">
-                <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${onboardingPct}%` }} />
-              </div>
-              <p className="text-caption text-muted-foreground mt-1">{onboarding.filter(s => s.completed).length} of {onboarding.length} steps completed</p>
+              <Progress value={onboardingPct} className="h-2" />
+              <p className="text-xs text-muted-foreground mt-1">{onboarding.filter(s => s.completed).length} of {onboarding.length} steps completed</p>
             </div>
             {onboarding.length > 0 ? (
-              <div className="data-card !p-0">
+              <div className="bg-card border border-border rounded-xl overflow-hidden">
                 {(() => {
                   const categories = [...new Set(onboarding.map(s => s.category))];
                   return categories.map(cat => (
                     <div key={cat}>
                       <div className="px-4 py-2 bg-accent/20 border-b border-border">
-                        <span className="text-caption font-bold uppercase tracking-wider text-muted-foreground">{cat}</span>
+                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{cat}</span>
                       </div>
                       {onboarding.filter(s => s.category === cat).map(step => (
                         <div key={step.id} className="flex items-center gap-3 px-4 py-2.5 border-b border-border/50 hover:bg-accent/10 transition-colors">
@@ -461,10 +554,10 @@ export default function DealDetail() {
                             {step.completed && <span className="text-[10px]">✓</span>}
                           </button>
                           <div className="flex-1 min-w-0">
-                            <span className={cn("text-ui", step.completed ? "line-through text-muted-foreground" : "text-foreground")}>{step.stepName}</span>
+                            <span className={cn("text-sm", step.completed ? "line-through text-muted-foreground" : "text-foreground")}>{step.stepName}</span>
                           </div>
-                          {step.owner && <span className="text-caption text-muted-foreground">{step.owner}</span>}
-                          {step.dueDate && <span className="text-caption font-mono text-muted-foreground">{step.dueDate}</span>}
+                          {step.owner && <span className="text-xs text-muted-foreground">{step.owner}</span>}
+                          {step.dueDate && <span className="text-xs font-mono text-muted-foreground">{step.dueDate}</span>}
                         </div>
                       ))}
                     </div>
@@ -472,7 +565,7 @@ export default function DealDetail() {
                 })()}
               </div>
             ) : (
-              <div className="data-card text-center py-8">
+              <div className="bg-card border border-border rounded-xl text-center py-8 px-5">
                 <p className="text-muted-foreground mb-3">No onboarding steps configured yet.</p>
                 <Button variant="outline" onClick={() => { seedOnboarding(deal.dealType); toast.success("Onboarding checklist generated"); }}>
                   <Plus className="h-4 w-4 mr-1" /> Generate Checklist for {deal.dealType}
