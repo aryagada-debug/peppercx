@@ -1,0 +1,1 @@
+ALTER TABLE public.mbr_entries ADD COLUMN mbr_ppt_link text DEFAULT '';
