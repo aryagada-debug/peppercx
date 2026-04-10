@@ -1,44 +1,29 @@
 
 
-# Autocomplete Client Selection in Deal Form Wizard
+# Propagate "Add Month" Data Across All Sections
 
-## Current State
-The `DealFormWizard` Step 0 has a search input + a scrollable list of all clients. It works but feels like a manual browse — not a true autocomplete experience.
+## Problem
+When a new financial month is added via the modal, the data correctly appends to the financials table and the Financials tab sections re-compute. However:
+1. **No toast confirmation** — the modal closes silently with no feedback
+2. **Overview tab's Financial Snapshot** shows only deal-level fields (MRR, Total Value) — it doesn't reflect aggregated data from monthly financials (total consumed, total invoiced, total received, outstanding)
+3. The Overview tab could show a "latest month" summary card to surface recent financial activity
 
-## Change
-Replace the current search + list UI in Step 0 with a **Combobox-style autocomplete** using the existing shadcn `Command` component (already in the project via `GlobalSearch`). As the user types, matching clients appear in a dropdown. Selecting one highlights it. The "New Client" button remains accessible.
+## Changes
 
-## File: `src/components/deals/DealFormWizard.tsx`
+### File: `src/components/deals/FinancialsTab.tsx`
+- Add a `toast.success("Month added")` call in `AddMonthDialog.handleSave` after the `onAdd` callback
+- Import `toast` from `sonner`
 
-### Changes to Step 0 (lines 124-163):
-- Replace the plain `Input` + scrollable div with a `Popover` + `Command` combobox pattern
-- Show client suggestions as the user types (filtered by name, industry, geography)
-- Highlight the selected client with a checkmark
-- Keep the "New Client" button at the top
-- Show client metadata (industry, geography) in each suggestion row
-- Auto-open the dropdown when the input is focused
-- If no matches, show "No clients found — Create one" prompt
+### File: `src/pages/DealDetail.tsx`
+- In the **Overview tab's Financial Snapshot** section, compute aggregated values from the `financials` array (total consumed, total invoiced, total received, outstanding) and display them alongside the existing deal-level metric cards
+- Add a row of 4 derived metric cards below the existing 4 editable ones:
+  - **Total consumed** — sum of all consumption entries
+  - **Total invoiced** — sum of all invoiced entries  
+  - **Total received** — sum of all received entries
+  - **Outstanding** — total invoiced minus total received (red if > 0)
+- These cards are read-only (not editable) since they're computed from monthly data
+- Show "No financial data yet" placeholder text if no financials rows exist
 
-### Technical approach:
-```text
-┌──────────────────────────────────┐
-│  🔍 Type client name...    [+]  │
-├──────────────────────────────────┤
-│  ✓ Air India                    │
-│    Enterprise • India           │
-│  ─ PhonePe                      │
-│    Fintech • India              │
-│  ─ Godrej                       │
-│    FMCG • India                 │
-└──────────────────────────────────┘
-```
-
-- Uses `Popover` + `Command` from shadcn (already installed)
-- `CommandInput` handles the search text
-- `CommandItem` for each client with `onSelect` to set `selectedClientId`
-- Check icon on the currently selected item
-- Popover opens on focus, closes on selection
-- Selected client shown as a highlighted card below the input when chosen
-
-No new files. Single file edit to `DealFormWizard.tsx`.
+### No database changes needed
+All data already persists correctly via `useDealDetail.addFinancial`. The `financials` state array is shared across tabs, so adding a month automatically recomputes all `useMemo` values in `FinancialsTab`.
 
