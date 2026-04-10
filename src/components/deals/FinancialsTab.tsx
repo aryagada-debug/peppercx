@@ -81,6 +81,62 @@ const colorStyles = {
   red: { bg: "bg-[#FCEBEB]", text: "text-[#791F1F]", bar: "#E24B4A" },
 };
 
+// ── Editable Table Cell ──
+function EditableTableCell({ value, field, rowId, onUpdate, format = "currency", suffix = "" }: {
+  value: number; field: string; rowId: string;
+  onUpdate: (id: string, updates: Partial<FinancialRow>) => void;
+  format?: "currency" | "percent";
+  suffix?: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [localVal, setLocalVal] = useState(String(value));
+  const [showCheck, setShowCheck] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) {
+      setLocalVal(String(value));
+      setTimeout(() => inputRef.current?.select(), 0);
+    }
+  }, [editing, value]);
+
+  const commit = useCallback(() => {
+    setEditing(false);
+    const num = Number(localVal);
+    if (!isNaN(num) && num !== value) {
+      onUpdate(rowId, { [field]: num } as Partial<FinancialRow>);
+      setShowCheck(true);
+      setTimeout(() => setShowCheck(false), 1200);
+    }
+  }, [localVal, value, field, rowId, onUpdate]);
+
+  if (editing) {
+    return (
+      <td className="py-1 px-1.5 text-right">
+        <input
+          ref={inputRef}
+          type="number"
+          value={localVal}
+          onChange={e => setLocalVal(e.target.value)}
+          onBlur={commit}
+          onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
+          className="w-20 h-7 rounded border border-[#534AB7] bg-white px-1.5 text-right text-xs tabular-nums outline-none focus:ring-1 focus:ring-[#534AB7]"
+        />
+      </td>
+    );
+  }
+
+  return (
+    <td
+      className="py-2.5 px-3 text-right tabular-nums cursor-pointer hover:bg-[#F1EFE8]/60 transition-colors relative"
+      onClick={() => setEditing(true)}
+    >
+      {showCheck && <Check className="absolute left-0.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#639922]" />}
+      {format === "currency" ? fmtCurrency(value) : `${value}${suffix}`}
+    </td>
+  );
+}
+
 export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete }: Props) {
   const [addOpen, setAddOpen] = useState(false);
 
