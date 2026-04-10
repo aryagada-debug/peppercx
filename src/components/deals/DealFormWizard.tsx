@@ -127,41 +127,67 @@ export function DealFormWizard({ open, onOpenChange, clients, preSelectedClientI
             {step === 0 && (
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <Input
-                    placeholder="Search clients..."
-                    value={clientSearch}
-                    onChange={e => setClientSearch(e.target.value)}
-                    className="flex-1"
-                  />
+                  <Popover open={clientPopoverOpen} onOpenChange={setClientPopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={clientPopoverOpen}
+                        className="flex-1 justify-start font-normal"
+                      >
+                        {selectedClientId
+                          ? clients.find(c => c.id === selectedClientId)?.name ?? "Select client…"
+                          : "Search clients…"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Type client name…" value={clientSearch} onValueChange={setClientSearch} />
+                        <CommandList>
+                          <CommandEmpty>
+                            No clients found.{" "}
+                            <button onClick={() => { setClientPopoverOpen(false); onCreateClient(); }} className="text-primary hover:underline">
+                              Create one
+                            </button>
+                          </CommandEmpty>
+                          <CommandGroup>
+                            {filteredClients.map(c => (
+                              <CommandItem
+                                key={c.id}
+                                value={`${c.name} ${c.industry} ${c.geography}`}
+                                onSelect={() => {
+                                  setSelectedClientId(c.id);
+                                  setClientPopoverOpen(false);
+                                }}
+                              >
+                                <Check className={cn("mr-2 h-4 w-4", selectedClientId === c.id ? "opacity-100" : "opacity-0")} />
+                                <div>
+                                  <p className="font-medium">{c.name}</p>
+                                  <p className="text-caption text-muted-foreground">{c.industry} • {c.geography}</p>
+                                </div>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                   <Button variant="outline" size="sm" onClick={onCreateClient}>
                     <Plus className="h-4 w-4 mr-1" /> New Client
                   </Button>
                 </div>
-                <div className="border border-border rounded-lg divide-y divide-border max-h-[40vh] overflow-y-auto">
-                  {filteredClients.map(c => (
-                    <button
-                      key={c.id}
-                      onClick={() => setSelectedClientId(c.id)}
-                      className={cn(
-                        "w-full text-left px-4 py-3 hover:bg-accent/30 transition-colors flex items-center justify-between",
-                        selectedClientId === c.id && "bg-accent"
-                      )}
-                    >
+                {selectedClientId && (() => {
+                  const sel = clients.find(c => c.id === selectedClientId);
+                  return sel ? (
+                    <div className="border border-primary/30 bg-accent/40 rounded-lg px-4 py-3 flex items-center justify-between">
                       <div>
-                        <p className="font-medium text-foreground">{c.name}</p>
-                        <p className="text-caption text-muted-foreground">{c.industry} • {c.geography}</p>
+                        <p className="font-medium text-foreground">{sel.name}</p>
+                        <p className="text-caption text-muted-foreground">{sel.industry} • {sel.geography}</p>
                       </div>
-                      {selectedClientId === c.id && (
-                        <span className="text-primary text-caption font-medium">Selected</span>
-                      )}
-                    </button>
-                  ))}
-                  {filteredClients.length === 0 && (
-                    <div className="px-4 py-8 text-center text-muted-foreground">
-                      No clients found. <button onClick={onCreateClient} className="text-primary hover:underline">Create one</button>.
+                      <span className="text-primary text-caption font-medium">Selected ✓</span>
                     </div>
-                  )}
-                </div>
+                  ) : null;
+                })()}
               </div>
             )}
 
