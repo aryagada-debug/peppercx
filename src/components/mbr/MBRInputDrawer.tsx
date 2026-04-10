@@ -75,6 +75,9 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
   const [mode, setMode] = useState(existingEntry?.mode || "");
   const [notes, setNotes] = useState(existingEntry?.notes || "");
   const [mbrPptLink, setMbrPptLink] = useState(existingEntry?.mbrPptLink || "");
+  const [mbrDate, setMbrDate] = useState<Date | undefined>(
+    selectedWeek ? new Date(selectedWeek) : new Date()
+  );
   const [summarizing, setSummarizing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
