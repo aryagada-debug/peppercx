@@ -245,6 +245,49 @@ export default function DealDetail() {
               </div>
             </div>
 
+            {/* ── Aggregated Financial Metrics (from monthly data) ── */}
+            {financials.length > 0 ? (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">YTD Financial Summary</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {(() => {
+                    const totalConsumed = financials.reduce((s, r) => s + (r.consumption || 0), 0);
+                    const totalInvoiced = financials.reduce((s, r) => s + (r.invoiced || 0), 0);
+                    const totalReceived = financials.reduce((s, r) => s + (r.received || 0), 0);
+                    const outstanding = totalInvoiced - totalReceived;
+                    return (
+                      <>
+                        <div className="rounded-lg bg-secondary/50 p-4">
+                          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">Total Consumed</p>
+                          <p className="text-sm font-medium text-foreground">{fmtCurrency(totalConsumed)}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">YTD consumption</p>
+                        </div>
+                        <div className="rounded-lg bg-secondary/50 p-4">
+                          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">Total Invoiced</p>
+                          <p className="text-sm font-medium text-foreground">{fmtCurrency(totalInvoiced)}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">Billed to client</p>
+                        </div>
+                        <div className="rounded-lg bg-secondary/50 p-4">
+                          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">Total Received</p>
+                          <p className="text-sm font-medium text-foreground">{fmtCurrency(totalReceived)}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">Payments cleared</p>
+                        </div>
+                        <div className="rounded-lg bg-secondary/50 p-4">
+                          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">Outstanding</p>
+                          <p className={cn("text-sm font-medium", outstanding > 0 ? "text-[hsl(0_70%_50%)]" : "text-foreground")}>{fmtCurrency(outstanding)}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">Pending receivable</p>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-border p-6 text-center">
+                <p className="text-sm text-muted-foreground">No financial data yet. Add months in the Financials tab.</p>
+              </div>
+            )}
+
             {/* ── Contract Details + Team ── */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* Contract Details */}
