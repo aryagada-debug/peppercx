@@ -585,11 +585,12 @@ export default function DealDetail() {
 
         {/* ══════════ MBR ══════════ */}
         {activeTab === "MBR" && (
-          <div className="animate-fade-in">
-            <div className="bg-card border border-border rounded-xl text-center py-8 px-5">
-              <p className="text-muted-foreground">MBR tracking for this deal is available in the <Link to="/mbr-tracker" className="text-primary hover:underline">MBR Tracker</Link>.</p>
-            </div>
-          </div>
+          <DealMBRTab
+            deal={deal}
+            dealId={dealId!}
+            mbrEntries={mbrEntries}
+            upsertMBREntry={upsertMBREntry}
+          />
         )}
 
         {/* ══════════ Onboarding ══════════ */}
