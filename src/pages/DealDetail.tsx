@@ -223,6 +223,7 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry }: {
         </div>
       )}
 
+      <div className="flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">MBR History</p>
         <Button variant="outline" size="sm" className="gap-1.5" onClick={handleNewMBR}>
           <Plus className="h-3.5 w-3.5" /> Record MBR
