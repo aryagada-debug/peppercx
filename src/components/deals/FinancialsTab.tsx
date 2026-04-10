@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { toast } from "sonner";
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -370,6 +371,7 @@ function AddMonthDialog({ open, onOpenChange, dealId, defaultMrr, onAdd }: {
     });
     setForm({ month: "", contracted: defaultMrr, consumption: 0, plannedGmPct: 0, actualGmPct: 0, invoiced: 0, received: 0 });
     onOpenChange(false);
+    toast.success("Month added");
   };
 
   const fields = [
