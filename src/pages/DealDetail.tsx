@@ -316,7 +316,7 @@ export default function DealDetail() {
               </div>
             </div>
 
-            {/* ── Editable RGY ── */}
+            {/* ── RGY + SoW ── */}
             <EditableRGY
               dimensions={[
                 { key: "accountHealth", label: "Account Health", owner: "VSD", value: currentRGY?.accountHealth || "G", planOfAction: "" },
