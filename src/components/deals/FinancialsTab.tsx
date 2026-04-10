@@ -307,17 +307,17 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete }:
                     return (
                       <tr key={row.id} className={cn("group", idx < rows.length - 1 && "border-b border-[#D3D1C7]/50")}>
                         <td className="py-2.5 px-3 font-medium text-muted-foreground">{fmtMonth(row.month)}</td>
-                        <td className="py-2.5 px-3 text-right tabular-nums">{fmtCurrency(row.contracted)}</td>
-                        <td className="py-2.5 px-3 text-right tabular-nums">{fmtCurrency(row.consumption)}</td>
+                        <EditableTableCell value={row.contracted} field="contracted" rowId={row.id} onUpdate={onUpdate} />
+                        <EditableTableCell value={row.consumption} field="consumption" rowId={row.id} onUpdate={onUpdate} />
                         <td className="py-2.5 px-3 text-right">
                           <span className={cn("inline-block px-1.5 py-0.5 rounded text-[11px] font-medium", cs.bg, cs.text)}>
                             {att.toFixed(0)}%
                           </span>
                         </td>
-                        <td className="py-2.5 px-3 text-right tabular-nums">{row.plannedGmPct}%</td>
-                        <td className="py-2.5 px-3 text-right tabular-nums">{row.actualGmPct}%</td>
-                        <td className="py-2.5 px-3 text-right tabular-nums">{fmtCurrency(row.invoiced)}</td>
-                        <td className="py-2.5 px-3 text-right tabular-nums">{fmtCurrency(row.received)}</td>
+                        <EditableTableCell value={row.plannedGmPct} field="plannedGmPct" rowId={row.id} onUpdate={onUpdate} format="percent" suffix="%" />
+                        <EditableTableCell value={row.actualGmPct} field="actualGmPct" rowId={row.id} onUpdate={onUpdate} format="percent" suffix="%" />
+                        <EditableTableCell value={row.invoiced} field="invoiced" rowId={row.id} onUpdate={onUpdate} />
+                        <EditableTableCell value={row.received} field="received" rowId={row.id} onUpdate={onUpdate} />
                         <td className={cn("py-2.5 px-3 text-right tabular-nums", row.outstanding > 0 && "text-[#791F1F]")}>{fmtCurrency(row.outstanding)}</td>
                       </tr>
                     );
