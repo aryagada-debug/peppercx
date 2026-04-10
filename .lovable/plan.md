@@ -1,29 +1,35 @@
 
 
-# Propagate "Add Month" Data Across All Sections
-
-## Problem
-When a new financial month is added via the modal, the data correctly appends to the financials table and the Financials tab sections re-compute. However:
-1. **No toast confirmation** — the modal closes silently with no feedback
-2. **Overview tab's Financial Snapshot** shows only deal-level fields (MRR, Total Value) — it doesn't reflect aggregated data from monthly financials (total consumed, total invoiced, total received, outstanding)
-3. The Overview tab could show a "latest month" summary card to surface recent financial activity
+# Make Financials Tab Fully Editable + Propagate Add Month Data
 
 ## Changes
 
-### File: `src/components/deals/FinancialsTab.tsx`
-- Add a `toast.success("Month added")` call in `AddMonthDialog.handleSave` after the `onAdd` callback
-- Import `toast` from `sonner`
+### 1. Inline editing in the Monthly Financials table (`FinancialsTab.tsx`)
 
-### File: `src/pages/DealDetail.tsx`
-- In the **Overview tab's Financial Snapshot** section, compute aggregated values from the `financials` array (total consumed, total invoiced, total received, outstanding) and display them alongside the existing deal-level metric cards
-- Add a row of 4 derived metric cards below the existing 4 editable ones:
-  - **Total consumed** — sum of all consumption entries
-  - **Total invoiced** — sum of all invoiced entries  
-  - **Total received** — sum of all received entries
-  - **Outstanding** — total invoiced minus total received (red if > 0)
-- These cards are read-only (not editable) since they're computed from monthly data
-- Show "No financial data yet" placeholder text if no financials rows exist
+Add click-to-edit on every data cell in the table (Contracted, Consumption, Planned GM%, Actual GM%, Invoiced, Received). Clicking a cell turns it into a small input; on blur/Enter it calls `onUpdate(row.id, { field: newValue })` and shows a brief green checkmark. Outstanding recomputes automatically. The Month column stays read-only.
 
-### No database changes needed
-All data already persists correctly via `useDealDetail.addFinancial`. The `financials` state array is shared across tabs, so adding a month automatically recomputes all `useMemo` values in `FinancialsTab`.
+All derived sections (Deal Snapshot cards, Pipeline Health cards, Charts, Consumption Bucket) already use `useMemo` on `rows`, so they update instantly when a row is edited.
+
+### 2. Propagate Add Month data to Overview tab (`DealDetail.tsx`)
+
+The YTD Financial Summary section (lines 249-289) already computes totals from the `financials` array, so new months auto-propagate there. No change needed for that.
+
+However, the **Financial Snapshot metric cards** in the Overview (lines 215-247 area — MRR, Total Value, GM%) are deal-level fields, not derived from monthly data. We should add the monthly-derived totals (consumed, invoiced, received, outstanding) into those cards so the Overview fully reflects added months. This is already done per the previous implementation.
+
+### 3. Implementation details
+
+**`FinancialsTab.tsx`** — Single file edit:
+- Add an `EditableTableCell` inline component: renders value as text normally, on click switches to `<input>`, on blur/Enter calls `onUpdate` and flashes a green checkmark icon for 1 second
+- Replace each static `<td>` in the data rows (Contracted through Received — 6 columns) with `<EditableTableCell>`
+- Outstanding column stays computed (invoiced - received), not directly editable
+- Att% stays computed, not editable
+- Month stays read-only
+
+**`DealDetail.tsx`** — No changes needed. The Overview YTD cards already derive from `financials` array and update reactively.
+
+## Files
+
+| File | Change |
+|------|--------|
+| `src/components/deals/FinancialsTab.tsx` | Add inline cell editing to table rows |
 
