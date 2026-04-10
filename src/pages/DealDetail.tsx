@@ -491,7 +491,7 @@ export default function DealDetail() {
 
         {/* ══════════ Financials ══════════ */}
         {activeTab === "Financials" && (
-          <FinancialsTab rows={financials} dealId={dealId!} onAdd={addFinancial} onUpdate={updateFinancial} onDelete={deleteFinancial} />
+          <FinancialsTab rows={financials} dealId={dealId!} deal={deal ? { totalDealValue: deal.totalDealValue, mrr: deal.mrr } : undefined} onAdd={addFinancial} onUpdate={updateFinancial} onDelete={deleteFinancial} />
         )}
 
         {/* ══════════ Tasks ══════════ */}
