@@ -1,35 +1,69 @@
 
 
-# Make Financials Tab Fully Editable + Propagate Add Month Data
+# Link MBR Tab in Deals with MBR Tracker
 
-## Changes
+## Summary
+Replace the placeholder MBR tab in Deal Detail with a full MBR interface that reads/writes the same `mbr_entries` table used by the MBR Tracker page. Add a missing `mbr_ppt_link` column to the database. Any edit in either place reflects immediately since both use the same data source.
 
-### 1. Inline editing in the Monthly Financials table (`FinancialsTab.tsx`)
+---
 
-Add click-to-edit on every data cell in the table (Contracted, Consumption, Planned GM%, Actual GM%, Invoiced, Received). Clicking a cell turns it into a small input; on blur/Enter it calls `onUpdate(row.id, { field: newValue })` and shows a brief green checkmark. Outstanding recomputes automatically. The Month column stays read-only.
+## Database Migration
 
-All derived sections (Deal Snapshot cards, Pipeline Health cards, Charts, Consumption Bucket) already use `useMemo` on `rows`, so they update instantly when a row is edited.
+Add one column to `mbr_entries`:
+```sql
+ALTER TABLE public.mbr_entries ADD COLUMN mbr_ppt_link text DEFAULT '';
+```
 
-### 2. Propagate Add Month data to Overview tab (`DealDetail.tsx`)
+---
 
-The YTD Financial Summary section (lines 249-289) already computes totals from the `financials` array, so new months auto-propagate there. No change needed for that.
+## Code Changes
 
-However, the **Financial Snapshot metric cards** in the Overview (lines 215-247 area — MRR, Total Value, GM%) are deal-level fields, not derived from monthly data. We should add the monthly-derived totals (consumed, invoiced, received, outstanding) into those cards so the Overview fully reflects added months. This is already done per the previous implementation.
+### 1. `src/hooks/useMBRData.ts`
+- Add `mbrPptLink: string | null` to `MBREntry` interface
+- Update `mapEntry` to include `mbr_ppt_link`
+- Update `upsertEntry` params to accept `mbrPptLink` and write `mbr_ppt_link`
 
-### 3. Implementation details
+### 2. `src/components/mbr/MBRInputDrawer.tsx`
+- Add `mbrPptLink` state field with an input labeled "MBR PPT Link"
+- Include `mbrPptLink` in the `onSave` callback data
+- Update the `onSave` type to include `mbrPptLink`
 
-**`FinancialsTab.tsx`** — Single file edit:
-- Add an `EditableTableCell` inline component: renders value as text normally, on click switches to `<input>`, on blur/Enter calls `onUpdate` and flashes a green checkmark icon for 1 second
-- Replace each static `<td>` in the data rows (Contracted through Received — 6 columns) with `<EditableTableCell>`
-- Outstanding column stays computed (invoiced - received), not directly editable
-- Att% stays computed, not editable
-- Month stays read-only
+### 3. `src/components/mbr/MBRDetailDialog.tsx`
+- Display `mbrPptLink` field in the read-only detail view (as a clickable link)
 
-**`DealDetail.tsx`** — No changes needed. The Overview YTD cards already derive from `financials` array and update reactively.
+### 4. `src/hooks/useDealDetail.ts`
+- Add MBR data loading: fetch `mbr_entries` filtered by `deal_id` matching the current deal's `id`
+- Add `upsertMBREntry` function that calls the same upsert logic as `useMBRData` (writing to `mbr_entries` table)
+- Export MBR entries and the upsert function
 
-## Files
+### 5. `src/pages/DealDetail.tsx` — MBR Tab (replace placeholder)
+- Import `MBRInputDrawer` and `MBRDetailDialog`
+- Fetch MBR entries for this deal from `useDealDetail`
+- Display a table of MBR entries for this deal (week, status, sentiment, scheduled date, mode, notes, PPT link)
+- Add a "+ Record MBR" button that opens `MBRInputDrawer` pre-filled with deal info
+- Clicking a "Done" row opens `MBRDetailDialog` (read-only view); clicking other rows opens the input drawer for editing
+- On submit, upsert to `mbr_entries` — since MBR Tracker reads from the same table, it automatically reflects the change
+
+### 6. `src/pages/MBRTracker.tsx`
+- Pass `mbrPptLink` through to `MBRInputDrawer` in `onSave` callback (already works via upsertEntry, just needs the new field threaded through)
+
+---
+
+## Data Flow
+
+Both the MBR Tracker page and the Deal Detail MBR tab read/write the **same `mbr_entries` table**. There is no duplication — edits in one place are visible in the other on next load. The `MBRInputDrawer` component is reused in both contexts with all fields: Sentiment, Fathom link, Transcript, Scheduled Date, Meeting Mode (In-Person/Virtual), Additional Notes, Anirudh Added, and the new MBR PPT Link.
+
+---
+
+## Files Modified
 
 | File | Change |
 |------|--------|
-| `src/components/deals/FinancialsTab.tsx` | Add inline cell editing to table rows |
+| Migration | Add `mbr_ppt_link` column |
+| `src/hooks/useMBRData.ts` | Add `mbrPptLink` to interface, mapper, and upsert |
+| `src/hooks/useDealDetail.ts` | Add MBR entries loading and upsert |
+| `src/components/mbr/MBRInputDrawer.tsx` | Add MBR PPT Link field |
+| `src/components/mbr/MBRDetailDialog.tsx` | Display PPT link |
+| `src/pages/DealDetail.tsx` | Replace MBR placeholder with full MBR table + drawer integration |
+| `src/pages/MBRTracker.tsx` | Thread `mbrPptLink` through save flow |
 
