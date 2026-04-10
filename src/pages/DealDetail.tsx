@@ -1,6 +1,6 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Loader2, Plus, Trash2, Pencil, Check, X, Calendar, Users } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, Trash2, Pencil, Check, X, Calendar, Users, Eye, Edit2, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useMemo, useCallback } from "react";
 import { useStaffingData } from "@/hooks/useStaffingData";
@@ -8,10 +8,15 @@ import { useDealDetail } from "@/hooks/useDealDetail";
 import { EditableRGY } from "@/components/deals/EditableRGY";
 import { FinancialsTab } from "@/components/deals/FinancialsTab";
 import { TaskKanban } from "@/components/deals/TaskKanban";
+import { MBRInputDrawer } from "@/components/mbr/MBRInputDrawer";
+import { MBRDetailDialog } from "@/components/mbr/MBRDetailDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { getWeekOptions } from "@/hooks/useMBRData";
+import type { MBREntry } from "@/hooks/useMBRData";
 
 const fmtCurrency = (n: number | undefined) => {
   if (!n) return "—";
@@ -91,10 +96,10 @@ export default function DealDetail() {
   const [activeTab, setActiveTab] = useState<TabKey>("Overview");
   const { deals, people, assignments, loading: staffLoading, updateDeal, updatePerson } = useStaffingData();
   const {
-    sowItems, rgyWeekly, onboarding, financials, tasks, loading: detailLoading,
+    sowItems, rgyWeekly, onboarding, financials, tasks, mbrEntries, loading: detailLoading,
     toggleOnboardingStep, addSoWItem, updateSoWItem, deleteSoWItem,
     addRGYWeek, updateRGYWeek, addFinancial, updateFinancial, deleteFinancial,
-    addTask, updateTask, deleteTask, seedOnboarding,
+    addTask, updateTask, deleteTask, seedOnboarding, upsertMBREntry,
   } = useDealDetail(dealId);
 
   const deal = useMemo(() => deals.find(d => d.id === dealId), [deals, dealId]);
