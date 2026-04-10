@@ -83,6 +83,17 @@ export function MBRDetailDialog({ open, onClose, deal, entry, onEdit }: MBRDetai
             </div>
           )}
 
+          {/* MBR PPT Link */}
+          {entry?.mbrPptLink && (
+            <div>
+              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">MBR PPT Link</h4>
+              <a href={entry.mbrPptLink} target="_blank" rel="noopener noreferrer" className="text-sm text-accent hover:underline inline-flex items-center gap-1">
+                {entry.mbrPptLink.slice(0, 60)}{entry.mbrPptLink.length > 60 ? "…" : ""}
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
+          )}
+
           {/* AI Summary */}
           {entry?.aiSummary && (
             <div>

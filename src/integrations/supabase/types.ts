@@ -403,6 +403,7 @@ export type Database = {
           fathom_link: string | null
           id: string
           input_recorded_at: string | null
+          mbr_ppt_link: string | null
           mode: string | null
           notes: string | null
           scheduled_date: string | null
@@ -423,6 +424,7 @@ export type Database = {
           fathom_link?: string | null
           id?: string
           input_recorded_at?: string | null
+          mbr_ppt_link?: string | null
           mode?: string | null
           notes?: string | null
           scheduled_date?: string | null
@@ -443,6 +445,7 @@ export type Database = {
           fathom_link?: string | null
           id?: string
           input_recorded_at?: string | null
+          mbr_ppt_link?: string | null
           mode?: string | null
           notes?: string | null
           scheduled_date?: string | null

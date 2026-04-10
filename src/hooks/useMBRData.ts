@@ -44,6 +44,7 @@ export interface MBREntry {
   anirudhAdded: boolean;
   anirudhJoining: boolean;
   inputRecordedAt: string | null;
+  mbrPptLink: string | null;
 }
 
 export interface VSDSummary {
@@ -99,6 +100,7 @@ function mapEntry(e: any): MBREntry {
     anirudhAdded: !!e.anirudh_added,
     anirudhJoining: !!e.anirudh_joining,
     inputRecordedAt: e.input_recorded_at || null,
+    mbrPptLink: e.mbr_ppt_link || null,
   };
 }
 
@@ -177,6 +179,7 @@ export function useMBRData() {
       actionItems?: ActionItem[];
       scheduledDate?: string | null;
       anirudhAdded?: boolean;
+      mbrPptLink?: string | null;
     }) => {
       const row: any = {
         deal_id: params.dealId,
@@ -193,6 +196,7 @@ export function useMBRData() {
       if (params.actionItems !== undefined) row.action_items = params.actionItems;
       if (params.scheduledDate !== undefined) row.scheduled_date = params.scheduledDate;
       if (params.anirudhAdded !== undefined) row.anirudh_added = params.anirudhAdded;
+      if (params.mbrPptLink !== undefined) row.mbr_ppt_link = params.mbrPptLink;
       if (params.status === "Done") row.input_recorded_at = new Date().toISOString();
 
       const { data, error } = await (supabase.from("mbr_entries") as any).upsert(
