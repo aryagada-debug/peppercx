@@ -91,6 +91,191 @@ function TeamMemberRow({ name, role, color, onSave }: { name: string; role: stri
   );
 }
 
+// ── Deal MBR Tab ──
+function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry }: {
+  deal: any;
+  dealId: string;
+  mbrEntries: MBREntry[];
+  upsertMBREntry: (params: any, weekStart: string) => Promise<void>;
+}) {
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<MBREntry | null>(null);
+  const [viewEntry, setViewEntry] = useState<MBREntry | null>(null);
+
+  const weekOptions = getWeekOptions();
+  const currentWeek = weekOptions.find(w => {
+    const now = new Date();
+    const day = now.getDay();
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(now);
+    monday.setDate(diff);
+    return w.value === monday.toISOString().split("T")[0];
+  })?.value || weekOptions[0]?.value || "";
+
+  const [selectedWeek, setSelectedWeek] = useState(currentWeek);
+
+  const dealForDrawer = {
+    id: dealId,
+    account: deal.account || "",
+    dealName: deal.dealName || "",
+    vsd: deal.vsd || "",
+    pcCode: deal.pcCode || "",
+  };
+
+  const dealForDialog = {
+    id: dealId,
+    pcCode: deal.pcCode || "",
+    dealId: deal.dealId || "",
+    account: deal.account || "",
+    dealName: deal.dealName || "",
+    vsd: deal.vsd || "",
+    principalBopm: deal.principalBopm || "",
+    seniorBopm: deal.seniorBopm || "",
+    bopm: deal.bopm || "",
+    customerStatus: deal.customerStatus || "",
+    customerType: deal.customerType || "",
+    serviceLineTagging: deal.serviceLineTagging || "",
+    businessUnit: deal.businessUnit || "",
+    mrr: deal.mrr || null,
+    totalDealValue: deal.totalDealValue || null,
+    netDealValue: deal.netDealValue || null,
+  };
+
+  const handleRowClick = (entry: MBREntry) => {
+    if (entry.status === "Done") {
+      setViewEntry(entry);
+    } else {
+      setEditingEntry(entry);
+      setSelectedWeek(entry.weekStart);
+      setDrawerOpen(true);
+    }
+  };
+
+  const handleNewMBR = () => {
+    setEditingEntry(null);
+    setDrawerOpen(true);
+  };
+
+  const handleSave = (data: any) => {
+    upsertMBREntry(data, selectedWeek);
+    toast.success("MBR entry saved");
+  };
+
+  const sentimentColors: Record<string, string> = {
+    Green: "bg-positive/15 text-positive",
+    Yellow: "bg-warning/15 text-warning",
+    Red: "bg-destructive/15 text-destructive",
+  };
+
+  const statusColors: Record<string, string> = {
+    Done: "bg-positive/15 text-positive",
+    "Not Done": "bg-destructive/15 text-destructive",
+    Pending: "bg-warning/15 text-warning",
+    "Not Required": "bg-muted text-muted-foreground",
+  };
+
+  return (
+    <div className="animate-fade-in space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">MBR History</p>
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={handleNewMBR}>
+          <Plus className="h-3.5 w-3.5" /> Record MBR
+        </Button>
+      </div>
+
+      {mbrEntries.length > 0 ? (
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-secondary/40 border-b border-border">
+                {["Week", "Status", "Sentiment", "Mode", "Scheduled Date", "Fathom Link", "PPT Link", "Notes", ""].map(h => (
+                  <th key={h} className="text-left py-2.5 px-3 text-xs uppercase tracking-wider text-muted-foreground font-medium whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {mbrEntries.map(entry => (
+                <tr
+                  key={entry.id}
+                  className="border-b border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer group"
+                  onClick={() => handleRowClick(entry)}
+                >
+                  <td className="py-2.5 px-3 font-mono text-xs text-foreground">{entry.weekStart}</td>
+                  <td className="py-2.5 px-3">
+                    <Badge className={cn("text-xs", statusColors[entry.status] || "")}>{entry.status}</Badge>
+                  </td>
+                  <td className="py-2.5 px-3">
+                    {entry.sentiment ? (
+                      <Badge className={cn("text-xs", sentimentColors[entry.sentiment] || "")}>{entry.sentiment}</Badge>
+                    ) : <span className="text-muted-foreground text-xs">—</span>}
+                  </td>
+                  <td className="py-2.5 px-3 text-xs text-muted-foreground">{entry.mode || "—"}</td>
+                  <td className="py-2.5 px-3 text-xs text-muted-foreground">{entry.scheduledDate || "—"}</td>
+                  <td className="py-2.5 px-3">
+                    {entry.fathomLink ? (
+                      <a href={entry.fathomLink} target="_blank" rel="noopener noreferrer" className="text-xs text-accent hover:underline inline-flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                        Link <ExternalLink className="h-3 w-3" />
+                      </a>
+                    ) : <span className="text-muted-foreground text-xs">—</span>}
+                  </td>
+                  <td className="py-2.5 px-3">
+                    {entry.mbrPptLink ? (
+                      <a href={entry.mbrPptLink} target="_blank" rel="noopener noreferrer" className="text-xs text-accent hover:underline inline-flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                        PPT <ExternalLink className="h-3 w-3" />
+                      </a>
+                    ) : <span className="text-muted-foreground text-xs">—</span>}
+                  </td>
+                  <td className="py-2.5 px-3 text-xs text-muted-foreground max-w-[150px] truncate">{entry.notes || "—"}</td>
+                  <td className="py-2.5 px-3">
+                    <span className="opacity-0 group-hover:opacity-100 transition-opacity">
+                      {entry.status === "Done"
+                        ? <Eye className="h-4 w-4 text-muted-foreground" />
+                        : <Edit2 className="h-4 w-4 text-muted-foreground" />}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="bg-card border border-border rounded-xl text-center py-8 px-5">
+          <p className="text-muted-foreground mb-3">No MBR entries yet for this deal.</p>
+          <Button variant="outline" onClick={handleNewMBR}>
+            <Plus className="h-4 w-4 mr-1" /> Record First MBR
+          </Button>
+        </div>
+      )}
+
+      {drawerOpen && (
+        <MBRInputDrawer
+          open={drawerOpen}
+          onClose={() => { setDrawerOpen(false); setEditingEntry(null); }}
+          deal={dealForDrawer}
+          existingEntry={editingEntry}
+          selectedWeek={selectedWeek}
+          onSave={handleSave}
+        />
+      )}
+
+      {viewEntry && (
+        <MBRDetailDialog
+          open={!!viewEntry}
+          onClose={() => setViewEntry(null)}
+          deal={dealForDialog}
+          entry={viewEntry}
+          onEdit={() => {
+            setEditingEntry(viewEntry);
+            setSelectedWeek(viewEntry.weekStart);
+            setViewEntry(null);
+            setDrawerOpen(true);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
 export default function DealDetail() {
   const { dealId } = useParams();
   const [activeTab, setActiveTab] = useState<TabKey>("Overview");
