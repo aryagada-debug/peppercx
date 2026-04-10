@@ -158,7 +158,8 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry }: {
   };
 
   const handleSave = (data: any) => {
-    upsertMBREntry(data, selectedWeek);
+    const weekToUse = data.mbrDate || selectedWeek;
+    upsertMBREntry(data, weekToUse);
     toast.success("MBR entry saved");
   };
 
@@ -195,8 +196,8 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry }: {
           { label: "Next MBR Date", value: sorted[0]?.scheduledDate ? format(new Date(sorted[0].scheduledDate), "dd MMM yyyy") : "Not scheduled" },
           { label: "Last Mode", value: lastDone?.mode || "—" },
         ].map(card => (
-          <div key={card.label} className="rounded-lg bg-secondary/40 p-4">
-            <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium">{card.label}</p>
+          <div key={card.label} className="rounded-lg bg-[#E8E6DF] dark:bg-secondary/60 border-l-4 border-l-[#534AB7] p-4">
+            <p className="text-xs uppercase tracking-widest text-muted-foreground font-medium">{card.label}</p>
             <p className="mt-1 text-lg font-semibold text-foreground">
               {(card as any).isSentiment && lastDone?.sentiment ? (
                 <Badge className={cn("text-xs", sentimentColors[lastDone.sentiment] || "")}>{lastDone.sentiment}</Badge>
@@ -214,6 +215,14 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry }: {
         </div>
       )}
 
+      {/* Next MBR scheduled banner */}
+      {sorted[0]?.scheduledDate && (
+        <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5 text-sm text-foreground">
+          <Calendar className="h-4 w-4 shrink-0 text-primary" />
+          <span>📅 Next MBR scheduled: <span className="font-semibold">{format(new Date(sorted[0].scheduledDate), "dd MMM yyyy")}</span></span>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">MBR History</p>
         <Button variant="outline" size="sm" className="gap-1.5" onClick={handleNewMBR}>
@@ -226,7 +235,7 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry }: {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-secondary/40 border-b border-border">
-                {["Week", "Status", "Sentiment", "Mode", "Scheduled Date", "Fathom Link", "PPT Link", "Notes", ""].map(h => (
+                {["Week", "Status", "Sentiment", "Mode", "Scheduled Date", "Next MBR", "Fathom Link", "PPT Link", "Notes", ""].map(h => (
                   <th key={h} className="text-left py-2.5 px-3 text-xs uppercase tracking-wider text-muted-foreground font-medium whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -249,16 +258,17 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry }: {
                   </td>
                   <td className="py-2.5 px-3 text-xs text-muted-foreground">{entry.mode || "—"}</td>
                   <td className="py-2.5 px-3 text-xs text-muted-foreground">{entry.scheduledDate || "—"}</td>
+                  <td className="py-2.5 px-3 text-xs text-muted-foreground">{entry.scheduledDate ? format(new Date(entry.scheduledDate), "dd MMM yyyy") : "—"}</td>
                   <td className="py-2.5 px-3">
                     {entry.fathomLink ? (
-                      <a href={entry.fathomLink} target="_blank" rel="noopener noreferrer" className="text-xs text-accent hover:underline inline-flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                      <a href={entry.fathomLink} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-700 dark:text-blue-400 font-medium hover:underline inline-flex items-center gap-1" onClick={e => e.stopPropagation()}>
                         Link <ExternalLink className="h-3 w-3" />
                       </a>
                     ) : <span className="text-muted-foreground text-xs">—</span>}
                   </td>
                   <td className="py-2.5 px-3">
                     {entry.mbrPptLink ? (
-                      <a href={entry.mbrPptLink} target="_blank" rel="noopener noreferrer" className="text-xs text-accent hover:underline inline-flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                      <a href={entry.mbrPptLink} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-700 dark:text-blue-400 font-medium hover:underline inline-flex items-center gap-1" onClick={e => e.stopPropagation()}>
                         PPT <ExternalLink className="h-3 w-3" />
                       </a>
                     ) : <span className="text-muted-foreground text-xs">—</span>}

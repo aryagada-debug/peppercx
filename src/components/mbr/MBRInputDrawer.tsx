@@ -58,6 +58,7 @@ interface MBRInputDrawerProps {
     scheduledDate: string | null;
     anirudhAdded: boolean;
     mbrPptLink: string | null;
+    mbrDate?: string;
   }) => void;
 }
 
@@ -74,6 +75,9 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
   const [mode, setMode] = useState(existingEntry?.mode || "");
   const [notes, setNotes] = useState(existingEntry?.notes || "");
   const [mbrPptLink, setMbrPptLink] = useState(existingEntry?.mbrPptLink || "");
+  const [mbrDate, setMbrDate] = useState<Date | undefined>(
+    selectedWeek ? new Date(selectedWeek) : new Date()
+  );
   const [summarizing, setSummarizing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -130,6 +134,7 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
       scheduledDate: format(scheduledDate, "yyyy-MM-dd"),
       anirudhAdded,
       mbrPptLink: mbrPptLink || null,
+      mbrDate: mbrDate ? format(mbrDate, "yyyy-MM-dd") : undefined,
     });
     setSubmitting(false);
     onClose();
@@ -153,6 +158,23 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
         </SheetHeader>
 
         <div className="p-6 space-y-6">
+          {/* MBR Date */}
+          <div>
+            <Label className="text-sm font-medium mb-1.5 block">MBR Date</Label>
+            <p className="text-xs text-muted-foreground mb-1.5">Select the date this MBR was conducted (defaults to current week, can be backdated)</p>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !mbrDate && "text-muted-foreground")}>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {mbrDate ? format(mbrDate, "PPP") : "Pick MBR date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={mbrDate} onSelect={setMbrDate} initialFocus className={cn("p-3 pointer-events-auto")} />
+              </PopoverContent>
+            </Popover>
+          </div>
+
           {/* Sentiment */}
           <div>
             <Label className="text-sm font-medium mb-2 block">Sentiment Post MBR <span className="text-destructive">*</span></Label>
