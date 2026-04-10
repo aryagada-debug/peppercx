@@ -381,12 +381,13 @@ export function useDealDetail(dealId: string | undefined) {
   }, []);
 
   return {
-    sowItems, revenue, targets, rgyWeekly, onboarding, financials, tasks, loading,
+    sowItems, revenue, targets, rgyWeekly, onboarding, financials, tasks, mbrEntries, loading,
     addSoWItem, updateSoWItem, deleteSoWItem,
     toggleOnboardingStep, seedOnboarding,
     addRGYWeek, updateRGYWeek,
     addFinancial, updateFinancial, deleteFinancial,
     addTask, updateTask, deleteTask,
+    upsertMBREntry,
     refresh: loadAll,
   };
 }
