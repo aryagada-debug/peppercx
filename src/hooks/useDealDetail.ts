@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { FinancialRow } from "@/components/deals/FinancialsTab";
 import type { DealTask } from "@/components/deals/TaskKanban";
+import type { MBREntry, ActionItem } from "@/hooks/useMBRData";
 
 export interface SoWItem {
   id: string;
@@ -67,6 +68,7 @@ export function useDealDetail(dealId: string | undefined) {
   const [onboarding, setOnboarding] = useState<OnboardingStep[]>([]);
   const [financials, setFinancials] = useState<FinancialRow[]>([]);
   const [tasks, setTasks] = useState<DealTask[]>([]);
+  const [mbrEntries, setMbrEntries] = useState<MBREntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -77,7 +79,7 @@ export function useDealDetail(dealId: string | undefined) {
   async function loadAll() {
     if (!dealId) return;
     setLoading(true);
-    const [sow, rev, tgt, rgy, onb, fin, tsk] = await Promise.all([
+    const [sow, rev, tgt, rgy, onb, fin, tsk, mbr] = await Promise.all([
       supabase.from("deal_sow_items").select("*").eq("deal_id", dealId),
       supabase.from("deal_revenue_monthly").select("*").eq("deal_id", dealId).order("month"),
       supabase.from("deal_targets_monthly").select("*").eq("deal_id", dealId).order("month"),
@@ -85,6 +87,7 @@ export function useDealDetail(dealId: string | undefined) {
       supabase.from("deal_onboarding_steps").select("*").eq("deal_id", dealId).order("sort_order"),
       supabase.from("deal_financials").select("*").eq("deal_id", dealId).order("month"),
       supabase.from("deal_tasks").select("*").eq("deal_id", dealId).order("sort_order"),
+      supabase.from("mbr_entries").select("*").eq("deal_id", dealId).order("week_start", { ascending: false }),
     ]);
     if (sow.data) setSowItems(sow.data.map((r: any) => ({ id: r.id, dealId: r.deal_id, scope: r.scope, revenueShare: Number(r.revenue_share), teamCapability: r.team_capability })));
     if (rev.data) setRevenue(rev.data.map((r: any) => ({ id: r.id, dealId: r.deal_id, month: r.month, mrr: Number(r.mrr), contraction: Number(r.contraction), delivered: Number(r.delivered), invoiced: Number(r.invoiced), actuals: Number(r.actuals) })));
@@ -110,8 +113,26 @@ export function useDealDetail(dealId: string | undefined) {
       endDate: r.end_date || undefined, urgency: r.urgency, loggedHours: Number(r.logged_hours),
       sortOrder: r.sort_order,
     })));
+    if (mbr.data) setMbrEntries(mbr.data.map((e: any) => ({
+      id: e.id,
+      dealId: e.deal_id,
+      weekStart: e.week_start,
+      status: e.status,
+      mode: e.mode,
+      notes: e.notes,
+      updatedBy: e.updated_by,
+      sentiment: e.sentiment || null,
+      fathomLink: e.fathom_link || null,
+      transcript: e.transcript || null,
+      aiSummary: e.ai_summary || null,
+      actionItems: Array.isArray(e.action_items) ? e.action_items : [],
+      scheduledDate: e.scheduled_date || null,
+      anirudhAdded: !!e.anirudh_added,
+      anirudhJoining: !!e.anirudh_joining,
+      inputRecordedAt: e.input_recorded_at || null,
+      mbrPptLink: e.mbr_ppt_link || null,
+    })));
     setLoading(false);
-  }
 
   // ── SoW CRUD ──
   const addSoWItem = useCallback(async (item: Omit<SoWItem, "id">) => {

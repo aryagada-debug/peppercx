@@ -41,6 +41,7 @@ interface MBRInputDrawerProps {
     anirudhAdded?: boolean;
     mode?: string | null;
     notes?: string | null;
+    mbrPptLink?: string | null;
   } | null;
   selectedWeek: string;
   onSave: (data: {
@@ -56,6 +57,7 @@ interface MBRInputDrawerProps {
     actionItems: ActionItem[];
     scheduledDate: string | null;
     anirudhAdded: boolean;
+    mbrPptLink: string | null;
   }) => void;
 }
 
@@ -71,6 +73,7 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
   const [anirudhAdded, setAnirudhAdded] = useState(existingEntry?.anirudhAdded || false);
   const [mode, setMode] = useState(existingEntry?.mode || "");
   const [notes, setNotes] = useState(existingEntry?.notes || "");
+  const [mbrPptLink, setMbrPptLink] = useState(existingEntry?.mbrPptLink || "");
   const [summarizing, setSummarizing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -126,6 +129,7 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
       actionItems,
       scheduledDate: format(scheduledDate, "yyyy-MM-dd"),
       anirudhAdded,
+      mbrPptLink: mbrPptLink || null,
     });
     setSubmitting(false);
     onClose();
@@ -304,6 +308,16 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
           <div>
             <Label className="text-sm font-medium mb-1.5 block">Additional Notes</Label>
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any additional notes..." className="min-h-[80px]" />
+          </div>
+
+          {/* MBR PPT Link */}
+          <div>
+            <Label className="text-sm font-medium mb-1.5 block">MBR PPT Link</Label>
+            <Input
+              value={mbrPptLink}
+              onChange={(e) => setMbrPptLink(e.target.value)}
+              placeholder="https://docs.google.com/presentation/..."
+            />
           </div>
 
           {/* Submit */}
