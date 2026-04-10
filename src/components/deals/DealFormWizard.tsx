@@ -63,6 +63,7 @@ export function DealFormWizard({ open, onOpenChange, clients, preSelectedClientI
   const [selectedClientId, setSelectedClientId] = useState(preSelectedClientId || "");
   const [saving, setSaving] = useState(false);
   const [clientSearch, setClientSearch] = useState("");
+  const [clientPopoverOpen, setClientPopoverOpen] = useState(false);
   const [form, setForm] = useState<DealFormData>({
     dealName: "", dealType: "Retainer", startDate: "", endDate: "",
     mrr: "", totalDealValue: "", retainerDealValue: "", nonRetainerDealValue: "",
