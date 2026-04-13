@@ -120,7 +120,9 @@ function AddStaffingMemberDialog({
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
   const [allocationPct, setAllocationPct] = useState(10);
   const [expandedPerson, setExpandedPerson] = useState<string | null>(null);
-
+  const [roleOnDeal, setRoleOnDeal] = useState("");
+  const [assignmentType, setAssignmentType] = useState<"Internal" | "External" | "Freelance">("Internal");
+  const [expandedOpsGroup, setExpandedOpsGroup] = useState<string | null>(null);
   const alreadyAssigned = useMemo(() => new Set(assignments.filter(a => a.dealId === dealId).map(a => a.personId)), [assignments, dealId]);
 
   const filteredPeople = useMemo(() => {
