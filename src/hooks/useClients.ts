@@ -130,5 +130,56 @@ export function useClients() {
     await supabase.from("clients").update(dbUpdates).eq("id", id);
   }, []);
 
-  return { clients, loading, addClient, updateClient, refresh: loadClients };
+  const deleteClient = useCallback(async (clientId: string) => {
+    // First delete all deals associated with this client
+    const { data: clientDeals } = await supabase
+      .from("staffing_deals")
+      .select("id")
+      .eq("client_id", clientId);
+
+    if (clientDeals && clientDeals.length > 0) {
+      const dealIds = clientDeals.map(d => d.id);
+      // Delete related data for all deals
+      await Promise.all([
+        supabase.from("deal_financials").delete().in("deal_id", dealIds),
+        supabase.from("deal_sow_items").delete().in("deal_id", dealIds),
+        supabase.from("deal_tasks").delete().in("deal_id", dealIds),
+        supabase.from("deal_onboarding_steps").delete().in("deal_id", dealIds),
+        supabase.from("deal_rgy_weekly").delete().in("deal_id", dealIds),
+        supabase.from("deal_revenue_monthly").delete().in("deal_id", dealIds),
+        supabase.from("deal_targets_monthly").delete().in("deal_id", dealIds),
+        supabase.from("mbr_entries").delete().in("deal_id", dealIds),
+      ]);
+      await supabase.from("staffing_deals").delete().eq("client_id", clientId);
+    }
+
+    const { error } = await supabase.from("clients").delete().eq("id", clientId);
+    if (error) {
+      console.error("Failed to delete client:", error);
+      return false;
+    }
+    setClients(prev => prev.filter(c => c.id !== clientId));
+    return true;
+  }, []);
+
+  const deleteDeal = useCallback(async (dealId: string) => {
+    await Promise.all([
+      supabase.from("deal_financials").delete().eq("deal_id", dealId),
+      supabase.from("deal_sow_items").delete().eq("deal_id", dealId),
+      supabase.from("deal_tasks").delete().eq("deal_id", dealId),
+      supabase.from("deal_onboarding_steps").delete().eq("deal_id", dealId),
+      supabase.from("deal_rgy_weekly").delete().eq("deal_id", dealId),
+      supabase.from("deal_revenue_monthly").delete().eq("deal_id", dealId),
+      supabase.from("deal_targets_monthly").delete().eq("deal_id", dealId),
+      supabase.from("mbr_entries").delete().eq("deal_id", dealId),
+    ]);
+    const { error } = await supabase.from("staffing_deals").delete().eq("id", dealId);
+    if (error) {
+      console.error("Failed to delete deal:", error);
+      return false;
+    }
+    return true;
+  }, []);
+
+  return { clients, loading, addClient, updateClient, deleteClient, deleteDeal, refresh: loadClients };
 }
