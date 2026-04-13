@@ -440,7 +440,7 @@ function AddStaffingMemberDialog({
 
         <AlertDialogFooter>
           <AlertDialogCancel onClick={reset}>Cancel</AlertDialogCancel>
-          {step === 3 && <AlertDialogAction onClick={handleConfirm}>Add Member</AlertDialogAction>}
+          {step === 3 && <AlertDialogAction onClick={handleConfirm}>Add to Plan</AlertDialogAction>}
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
