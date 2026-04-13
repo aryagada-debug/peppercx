@@ -46,6 +46,12 @@ export interface RGYWeekly {
   capabilitySeo?: string;
   capabilityCreative?: string;
   planOfAction?: string;
+  issueDate?: string;
+  issueDetails?: string;
+  discussedActionPlan?: string;
+  actionPlan?: string;
+  resolutionDueDate?: string;
+  issueStatus?: string;
 }
 
 export interface OnboardingStep {
