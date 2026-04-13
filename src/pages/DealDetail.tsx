@@ -782,37 +782,156 @@ export default function DealDetail() {
 
         {/* ══════════ RGY Health ══════════ */}
         {activeTab === "RGY Health" && (
-          <div className="animate-fade-in">
-            {rgyWeekly.length > 0 ? (
-              <div className="bg-card border border-border rounded-xl overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-accent/20 border-b border-border">
-                      <th className="text-left py-2.5 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Week</th>
-                      {["Acct Health", "Delivery", "Finance", "SEO", "Creative"].map(d => (
-                        <th key={d} className="text-center py-2.5 px-3 text-xs uppercase tracking-wider text-muted-foreground font-medium">{d}</th>
-                      ))}
-                      <th className="text-left py-2.5 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Plan of Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rgyWeekly.map(r => (
-                      <tr key={r.id} className="border-b border-border/50">
-                        <td className="py-2.5 px-4 text-foreground font-mono text-xs">{r.weekStart}</td>
-                        {[r.accountHealth || r.internal, r.delivery, r.financeBilling || "G", r.capabilitySeo || "G", r.capabilityCreative || "G"].map((val, i) => (
-                          <td key={i} className="py-2.5 px-3 text-center">
-                            <span className={cn("inline-flex items-center justify-center w-7 h-7 rounded-lg text-xs font-bold", rgyColors[val || "G"] || "rgy-na")}>{val || "G"}</span>
-                          </td>
-                        ))}
-                        <td className="py-2.5 px-4 text-muted-foreground text-xs max-w-xs truncate">{r.planOfAction || r.notes || "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="bg-card border border-border rounded-xl text-center py-8 px-5"><p className="text-muted-foreground">No weekly RGY data recorded yet. Set health status in the Overview tab.</p></div>
+          <div className="animate-fade-in space-y-5">
+            {/* Current Week RGY Editor */}
+            <EditableRGY
+              dimensions={[
+                { key: "accountHealth", label: "Account Health", owner: "VSD", value: currentRGY?.accountHealth || "G" },
+                { key: "delivery", label: "Delivery", owner: "BOPM", value: currentRGY?.delivery || "G" },
+                { key: "financeBilling", label: "Finance / Billing", owner: "Finance", value: currentRGY?.financeBilling || "G" },
+                { key: "capabilitySeo", label: "Capability — SEO", owner: "SEO", value: currentRGY?.capabilitySeo || "G" },
+                { key: "capabilityCreative", label: "Capability — Creative", owner: "Creative", value: currentRGY?.capabilityCreative || "G" },
+              ]}
+              onSave={handleRGYSave}
+            />
+
+            {/* RGY Task Summary */}
+            {(() => {
+              const rgyTasks = tasks.filter(t => t.title.startsWith("[RGY Health]"));
+              const toDo = rgyTasks.filter(t => t.stage === "To Do").length;
+              const inProgress = rgyTasks.filter(t => t.stage === "In Progress").length;
+              const inReview = rgyTasks.filter(t => t.stage === "In Review").length;
+              const done = rgyTasks.filter(t => t.stage === "Done").length;
+              const dropped = rgyTasks.filter(t => t.stage === "Dropped").length;
+              const hasNonGreen = currentRGY && (
+                currentRGY.accountHealth !== "G" || currentRGY.delivery !== "G" ||
+                currentRGY.financeBilling !== "G" || currentRGY.capabilitySeo !== "G" ||
+                currentRGY.capabilityCreative !== "G"
+              );
+              const allDone = rgyTasks.length > 0 && rgyTasks.every(t => t.stage === "Done" || t.stage === "Dropped");
+              const showWarning = hasNonGreen && allDone;
+
+              if (rgyTasks.length === 0) return null;
+              return (
+                <div className="bg-card border border-border rounded-xl p-4">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">RGY Health Tasks Summary</p>
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    {toDo > 0 && <Badge variant="outline" className="gap-1">To Do <span className="font-bold">{toDo}</span></Badge>}
+                    {inProgress > 0 && <Badge variant="outline" className="gap-1 border-primary/40 text-primary">In Progress <span className="font-bold">{inProgress}</span></Badge>}
+                    {inReview > 0 && <Badge variant="outline" className="gap-1 border-blue-400/40 text-blue-600">In Review <span className="font-bold">{inReview}</span></Badge>}
+                    {done > 0 && <Badge variant="outline" className="gap-1 border-positive/40 text-positive">Done <span className="font-bold">{done}</span></Badge>}
+                    {dropped > 0 && <Badge variant="outline" className="gap-1">Dropped <span className="font-bold">{dropped}</span></Badge>}
+                  </div>
+                  {showWarning && (
+                    <div className="flex items-center gap-2 mt-3 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                      <span>All RGY tasks are done but status is still Red/Yellow — consider updating RGY status to Green.</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Issue Capture Form — show when any dimension is R or Y */}
+            {currentRGY && (
+              currentRGY.accountHealth !== "G" || currentRGY.delivery !== "G" ||
+              currentRGY.financeBilling !== "G" || currentRGY.capabilitySeo !== "G" ||
+              currentRGY.capabilityCreative !== "G"
+            ) && (
+              <RGYIssueForm
+                dealId={dealId!}
+                currentRGY={currentRGY!}
+                assignees={dealPeople.map(p => ({ id: p.id, name: p.name }))}
+                teamMembers={[
+                  deal.vsd, deal.principalBopm, deal.seniorBopm, deal.bopm
+                ].filter(Boolean)}
+                onSaveIssue={async (issueData) => {
+                  if (currentRGY) {
+                    await updateRGYWeek(currentRGY.id, {
+                      issueDate: issueData.issueDate,
+                      issueDetails: issueData.issueDetails,
+                      discussedActionPlan: issueData.discussedActionPlan,
+                      actionPlan: issueData.actionPlan,
+                      resolutionDueDate: issueData.resolutionDueDate,
+                      issueStatus: issueData.issueStatus,
+                    });
+                  }
+                  // Create tasks
+                  for (const task of issueData.tasks) {
+                    for (const assignee of task.assignees) {
+                      await addTask({
+                        dealId: dealId!,
+                        title: `[RGY Health] ${task.dimension} — ${task.issueSummary}`,
+                        description: `Issue Details: ${issueData.issueDetails}\nAction Plan: ${issueData.actionPlan}\nDiscussed Action Plan: ${issueData.discussedActionPlan}`,
+                        stage: "To Do",
+                        assignee,
+                        urgency: task.urgency,
+                        loggedHours: 0,
+                        sortOrder: 0,
+                        startDate: issueData.issueDate,
+                        endDate: issueData.resolutionDueDate,
+                      });
+                    }
+                  }
+                  toast.success("Issue saved & tasks created");
+                }}
+              />
             )}
+
+            {/* Historic Timeline */}
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">RGY History</p>
+              {rgyWeekly.length > 0 ? (
+                <div className="bg-card border border-border rounded-xl overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-secondary/40 border-b border-border">
+                        <th className="text-left py-2 px-3 text-xs uppercase tracking-wider text-muted-foreground font-medium">Week</th>
+                        {["Acct Health", "Delivery", "Finance", "SEO", "Creative"].map(d => (
+                          <th key={d} className="text-center py-2 px-2 text-xs uppercase tracking-wider text-muted-foreground font-medium">{d}</th>
+                        ))}
+                        <th className="text-left py-2 px-3 text-xs uppercase tracking-wider text-muted-foreground font-medium">Issue</th>
+                        <th className="text-left py-2 px-3 text-xs uppercase tracking-wider text-muted-foreground font-medium">Action Plan</th>
+                        <th className="text-left py-2 px-2 text-xs uppercase tracking-wider text-muted-foreground font-medium">Due</th>
+                        <th className="text-center py-2 px-2 text-xs uppercase tracking-wider text-muted-foreground font-medium">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rgyWeekly.map(r => {
+                        const hasIssue = [r.accountHealth, r.delivery, r.financeBilling, r.capabilitySeo, r.capabilityCreative].some(v => v === "R" || v === "Y");
+                        return (
+                          <tr key={r.id} className={cn("border-b border-border/50 hover:bg-secondary/20 transition-colors", hasIssue && "bg-warning/5")}>
+                            <td className="py-2 px-3 font-mono text-xs text-foreground">{r.weekStart}</td>
+                            {[r.accountHealth || "G", r.delivery || "G", r.financeBilling || "G", r.capabilitySeo || "G", r.capabilityCreative || "G"].map((val, i) => (
+                              <td key={i} className="py-2 px-2 text-center">
+                                <span className={cn("inline-flex items-center justify-center w-6 h-6 rounded-md text-[10px] font-bold", rgyColors[val] || "rgy-na")}>{val}</span>
+                              </td>
+                            ))}
+                            <td className="py-2 px-3 text-xs text-muted-foreground max-w-[120px] truncate">{r.issueDetails || "—"}</td>
+                            <td className="py-2 px-3 text-xs text-muted-foreground max-w-[120px] truncate">{r.actionPlan || r.planOfAction || "—"}</td>
+                            <td className="py-2 px-2 text-xs text-muted-foreground whitespace-nowrap">{r.resolutionDueDate || "—"}</td>
+                            <td className="py-2 px-2 text-center">
+                              {r.issueStatus && r.issueStatus !== "Open" ? (
+                                <Badge variant="outline" className={cn("text-[10px]",
+                                  r.issueStatus === "Resolved" ? "border-positive/40 text-positive" :
+                                  r.issueStatus === "In Progress" ? "border-primary/40 text-primary" : ""
+                                )}>{r.issueStatus}</Badge>
+                              ) : hasIssue ? (
+                                <Badge variant="outline" className="text-[10px] border-warning/40 text-warning">Open</Badge>
+                              ) : <span className="text-muted-foreground text-[10px]">—</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="bg-card border border-border rounded-xl text-center py-8 px-5">
+                  <p className="text-muted-foreground">No weekly RGY data recorded yet. Use the editor above to set health status.</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
