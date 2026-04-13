@@ -141,7 +141,7 @@ function AddStaffingMemberDialog({
     return d ? `${d.account} — ${d.dealName}` : dId;
   }, [deals]);
 
-  const reset = () => { setStep(1); setSelectedCategory(null); setSelectedPerson(null); setAllocationPct(10); setExpandedPerson(null); };
+  const reset = () => { setStep(1); setSelectedCategory(null); setSelectedPerson(null); setAllocationPct(10); setExpandedPerson(null); setRoleOnDeal(""); setAssignmentType("Internal"); setExpandedOpsGroup(null); };
 
   const handleConfirm = () => {
     if (!selectedPerson) return;
