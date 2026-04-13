@@ -414,9 +414,11 @@ function AddMonthDialog({ open, onOpenChange, dealId, defaultMrr, onAdd }: {
 
   const handleSave = () => {
     if (!form.month) return;
+    // Month input gives "YYYY-MM", DB needs "YYYY-MM-DD"
+    const monthDate = form.month.length === 7 ? `${form.month}-01` : form.month;
     onAdd({
       dealId,
-      month: form.month,
+      month: monthDate,
       contracted: form.contracted,
       consumption: form.consumption,
       plannedGmPct: form.plannedGmPct,
