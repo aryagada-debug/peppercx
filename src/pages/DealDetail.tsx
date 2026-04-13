@@ -5,6 +5,8 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import React, { useState, useMemo, useCallback } from "react";
 import { useStaffingData } from "@/hooks/useStaffingData";
+import { uid } from "@/data/staffingData";
+import type { StaffingAssignment, Person, Deal, RoleCategory } from "@/data/staffingData";
 import { useDealDetail } from "@/hooks/useDealDetail";
 import { EditableRGY } from "@/components/deals/EditableRGY";
 import { FinancialsTab } from "@/components/deals/FinancialsTab";
@@ -99,7 +101,202 @@ function TeamMemberRow({ name, role, color, onSave }: { name: string; role: stri
   );
 }
 
-// ── Deal MBR Tab ──
+// ── Add Staffing Member Dialog ──
+const ROLE_CATEGORIES: RoleCategory[] = ["Operations", "SEO", "Content", "Content Strategy", "Creative Strategy", "Creative Art", "Creative Copy", "Video", "Performance & Growth"];
+
+function AddStaffingMemberDialog({
+  open, onOpenChange, people, assignments, deals, dealId, onAdd,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  people: Person[];
+  assignments: StaffingAssignment[];
+  deals: Deal[];
+  dealId: string;
+  onAdd: (assignment: StaffingAssignment) => void;
+}) {
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [selectedCategory, setSelectedCategory] = useState<RoleCategory | null>(null);
+  const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
+  const [allocationPct, setAllocationPct] = useState(10);
+  const [expandedPerson, setExpandedPerson] = useState<string | null>(null);
+
+  const alreadyAssigned = useMemo(() => new Set(assignments.filter(a => a.dealId === dealId).map(a => a.personId)), [assignments, dealId]);
+
+  const filteredPeople = useMemo(() => {
+    if (!selectedCategory) return [];
+    return people.filter(p => p.roleCategory === selectedCategory && !alreadyAssigned.has(p.id));
+  }, [people, selectedCategory, alreadyAssigned]);
+
+  const getPersonUtilization = useCallback((personId: string) => {
+    const personAssignments = assignments.filter(a => a.personId === personId);
+    const total = personAssignments.reduce((s, a) => s + a.allocationPct, 0);
+    return { total, assignments: personAssignments };
+  }, [assignments]);
+
+  const getDealName = useCallback((dId: string) => {
+    const d = deals.find(x => x.id === dId);
+    return d ? `${d.account} — ${d.dealName}` : dId;
+  }, [deals]);
+
+  const reset = () => { setStep(1); setSelectedCategory(null); setSelectedPerson(null); setAllocationPct(10); setExpandedPerson(null); };
+
+  const handleConfirm = () => {
+    if (!selectedPerson) return;
+    onAdd({
+      id: uid(),
+      dealId,
+      roleKey: selectedPerson.roleTitle || selectedPerson.roleCategory,
+      personId: selectedPerson.id,
+      allocationPct,
+    });
+    toast.success(`${selectedPerson.name} added at ${allocationPct}%`);
+    reset();
+    onOpenChange(false);
+  };
+
+  return (
+    <AlertDialog open={open} onOpenChange={v => { if (!v) reset(); onOpenChange(v); }}>
+      <AlertDialogContent className="max-w-lg max-h-[80vh] flex flex-col">
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {step === 1 && "Select Team"}
+            {step === 2 && `Select Member — ${selectedCategory}`}
+            {step === 3 && `Set Allocation — ${selectedPerson?.name}`}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {step === 1 && "Choose a team/capability to browse available members."}
+            {step === 2 && "Pick a team member to assign. Click the arrow to see their current deals."}
+            {step === 3 && "Set the allocation percentage for this deal."}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        <div className="flex-1 overflow-y-auto py-2 space-y-2">
+          {step === 1 && (
+            <div className="grid grid-cols-2 gap-2">
+              {ROLE_CATEGORIES.map(cat => {
+                const count = people.filter(p => p.roleCategory === cat && !alreadyAssigned.has(p.id)).length;
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => { setSelectedCategory(cat); setStep(2); }}
+                    className="rounded-lg border border-border p-3 text-left hover:bg-accent/20 transition-colors"
+                  >
+                    <span className="text-sm font-medium text-foreground">{cat}</span>
+                    <span className="block text-xs text-muted-foreground mt-0.5">{count} available</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {step === 2 && (
+            <>
+              {filteredPeople.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">No available members in {selectedCategory}.</p>
+              ) : (
+                filteredPeople.map(p => {
+                  const util = getPersonUtilization(p.id);
+                  const isExpanded = expandedPerson === p.id;
+                  const utilColor = util.total > 100 ? "text-destructive" : util.total >= 80 ? "text-warning" : "text-positive";
+                  return (
+                    <div key={p.id} className="border border-border rounded-lg overflow-hidden">
+                      <div
+                        className="flex items-center gap-3 p-3 cursor-pointer hover:bg-accent/10"
+                        onClick={() => { setSelectedPerson(p); setStep(3); }}
+                      >
+                        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-medium text-primary shrink-0">
+                          {p.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-medium text-foreground truncate">{p.name}</span>
+                            {p.tbh && <Badge variant="outline" className="text-[10px] px-1 py-0 text-warning border-warning/30">TBH</Badge>}
+                            {p.leaving && <Badge variant="outline" className="text-[10px] px-1 py-0 text-destructive border-destructive/30">Leaving</Badge>}
+                          </div>
+                          <span className="text-xs text-muted-foreground">{p.roleTitle} · {p.pod} · {p.region}</span>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className={cn("text-sm font-mono font-medium", utilColor)}>{util.total}%</span>
+                          <span className="block text-[10px] text-muted-foreground">{util.assignments.length} deal{util.assignments.length !== 1 ? "s" : ""}</span>
+                        </div>
+                        <button
+                          onClick={e => { e.stopPropagation(); setExpandedPerson(isExpanded ? null : p.id); }}
+                          className="p-1 text-muted-foreground hover:text-foreground"
+                        >
+                          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </button>
+                      </div>
+                      {isExpanded && (
+                        <div className="px-4 pb-3 border-t border-border/50 bg-accent/5">
+                          <div className="pt-2">
+                            <Progress value={Math.min(util.total, 100)} className="h-2 mb-2" />
+                            {util.assignments.length > 0 ? (
+                              <div className="space-y-1">
+                                {util.assignments.map(a => (
+                                  <div key={a.id} className="flex justify-between text-xs">
+                                    <span className="text-muted-foreground truncate mr-2">{getDealName(a.dealId)}</span>
+                                    <span className="font-mono text-foreground shrink-0">{a.allocationPct}%</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-xs text-muted-foreground">No current assignments</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+              <Button variant="ghost" size="sm" onClick={() => { setSelectedCategory(null); setStep(1); }} className="mt-2">
+                <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back to teams
+              </Button>
+            </>
+          )}
+
+          {step === 3 && selectedPerson && (
+            <div className="space-y-4">
+              <div className="rounded-lg bg-secondary/50 p-4">
+                <p className="text-sm font-medium text-foreground">{selectedPerson.name}</p>
+                <p className="text-xs text-muted-foreground">{selectedPerson.roleTitle} · {selectedPerson.pod}</p>
+                <div className="mt-2">
+                  <Progress value={Math.min(getPersonUtilization(selectedPerson.id).total, 100)} className="h-2" />
+                  <p className="text-xs text-muted-foreground mt-1">Currently at {getPersonUtilization(selectedPerson.id).total}% utilization</p>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Allocation % for this deal</label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={allocationPct}
+                  onChange={e => setAllocationPct(Math.max(1, Math.min(100, Number(e.target.value) || 0)))}
+                  className="w-32"
+                />
+                {getPersonUtilization(selectedPerson.id).total + allocationPct > 100 && (
+                  <p className="text-xs text-warning mt-1">⚠ This will bring total utilization to {getPersonUtilization(selectedPerson.id).total + allocationPct}%</p>
+                )}
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => { setSelectedPerson(null); setStep(2); }}>
+                <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back to members
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={reset}>Cancel</AlertDialogCancel>
+          {step === 3 && <AlertDialogAction onClick={handleConfirm}>Add Member</AlertDialogAction>}
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+
 function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry }: {
   deal: any;
   dealId: string;
@@ -708,7 +905,7 @@ function GroupedRGYHistory({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
 export default function DealDetail() {
   const { dealId } = useParams();
   const [activeTab, setActiveTab] = useState<TabKey>("Overview");
-  const { deals, people, assignments, loading: staffLoading, updateDeal, updatePerson } = useStaffingData();
+  const { deals, people, assignments, loading: staffLoading, updateDeal, updatePerson, addAssignment, updateAssignment, deleteAssignment } = useStaffingData();
   const {
     sowItems, rgyWeekly, onboarding, financials, tasks, mbrEntries, loading: detailLoading,
     toggleOnboardingStep, addSoWItem, updateSoWItem, deleteSoWItem,
@@ -758,6 +955,12 @@ export default function DealDetail() {
   // RGY issue form visibility
   const [showIssueForm, setShowIssueForm] = useState(false);
   const [prevRGYSnapshot, setPrevRGYSnapshot] = useState<Record<string, string> | null>(null);
+
+  // Staffing dialog states
+  const [addMemberOpen, setAddMemberOpen] = useState(false);
+  const [editingAllocation, setEditingAllocation] = useState<string | null>(null);
+  const [editAllocationValue, setEditAllocationValue] = useState(0);
+  const [confirmDeleteAssignment, setConfirmDeleteAssignment] = useState<string | null>(null);
 
   // Green-gate dialog state
   const [greenGateDialog, setGreenGateDialog] = useState<{
@@ -1140,6 +1343,13 @@ export default function DealDetail() {
         {/* ══════════ Staffing ══════════ */}
         {activeTab === "Staffing" && (
           <div className="animate-fade-in space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-foreground">Team Members</h3>
+              <Button size="sm" onClick={() => setAddMemberOpen(true)}>
+                <Plus className="h-3.5 w-3.5 mr-1" /> Add Member
+              </Button>
+            </div>
+
             {dealPeople.length > 0 ? (
               (() => {
                 const TEAM_ORDER = ["Operations", "SEO", "Content", "Content Strategy", "Creative Strategy", "Creative Art", "Creative Copy", "Video", "Performance & Growth", "Other"];
@@ -1190,6 +1400,7 @@ export default function DealDetail() {
                               <th className="text-right py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Rate/Hr</th>
                               <th className="text-right py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Cost/Week</th>
                               <th className="text-right py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Rev Managed</th>
+                              <th className="w-16"></th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1199,18 +1410,56 @@ export default function DealDetail() {
                               const hrs = pct * 40;
                               const costWeek = hrs * (p.hourlyRate || 0);
                               const revManaged = (deal.mrr || 0) * pct;
+                              const isEditingThis = editingAllocation === alloc?.id;
                               return (
                                 <tr key={p.id} className="border-b border-border/50 hover:bg-accent/10">
                                   <td className="py-2.5 px-4 font-medium text-foreground">{p.name}{p.tbh && <span className="ml-1 text-xs text-warning">(TBH)</span>}{p.leaving && <span className="ml-1 text-xs text-destructive">(Leaving)</span>}</td>
                                   <td className="py-2.5 px-4 text-muted-foreground">{p.roleTitle || p.designation}</td>
                                   <td className="py-2.5 px-4 text-muted-foreground">{p.pod}</td>
-                                  <td className="py-2.5 px-4 text-right font-mono tabular-nums font-medium">{alloc?.allocationPct || 0}%</td>
+                                  <td className="py-2.5 px-4 text-right font-mono tabular-nums font-medium">
+                                    {isEditingThis ? (
+                                      <div className="flex items-center justify-end gap-1">
+                                        <Input
+                                          type="number"
+                                          min={1}
+                                          max={100}
+                                          value={editAllocationValue}
+                                          onChange={e => setEditAllocationValue(Number(e.target.value) || 0)}
+                                          className="h-7 w-16 text-sm text-right"
+                                          autoFocus
+                                          onKeyDown={e => {
+                                            if (e.key === "Enter") { updateAssignment(alloc!.id, { allocationPct: editAllocationValue }); setEditingAllocation(null); toast.success("Allocation updated"); }
+                                            if (e.key === "Escape") setEditingAllocation(null);
+                                          }}
+                                        />
+                                        <span className="text-xs">%</span>
+                                        <button onClick={() => { updateAssignment(alloc!.id, { allocationPct: editAllocationValue }); setEditingAllocation(null); toast.success("Allocation updated"); }} className="text-primary"><Check className="h-3.5 w-3.5" /></button>
+                                        <button onClick={() => setEditingAllocation(null)} className="text-muted-foreground"><X className="h-3.5 w-3.5" /></button>
+                                      </div>
+                                    ) : (
+                                      <span
+                                        className="cursor-pointer hover:underline"
+                                        onClick={() => { if (alloc) { setEditingAllocation(alloc.id); setEditAllocationValue(alloc.allocationPct); } }}
+                                      >
+                                        {alloc?.allocationPct || 0}%
+                                      </span>
+                                    )}
+                                  </td>
                                   <td className="py-2.5 px-4 text-right font-mono tabular-nums text-muted-foreground">{hrs.toFixed(1)}h</td>
                                   <td className="py-2.5 px-4 text-right font-mono tabular-nums">
                                     <EditableCell value={String(p.hourlyRate || 0)} onSave={v => updatePerson(p.id, { hourlyRate: Number(v) || 0 })} type="number" prefix="₹" />
                                   </td>
                                   <td className="py-2.5 px-4 text-right font-mono tabular-nums text-muted-foreground">{fmtCurrency(costWeek)}</td>
                                   <td className="py-2.5 px-4 text-right font-mono tabular-nums text-muted-foreground">{fmtCurrency(revManaged)}</td>
+                                  <td className="py-2.5 px-4 text-right">
+                                    <button
+                                      onClick={() => alloc && setConfirmDeleteAssignment(alloc.id)}
+                                      className="p-1 text-muted-foreground hover:text-destructive transition-colors"
+                                      title="Remove from deal"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  </td>
                                 </tr>
                               );
                             })}
@@ -1222,8 +1471,38 @@ export default function DealDetail() {
                 );
               })()
             ) : (
-              <div className="bg-card border border-border rounded-xl text-center py-8 px-5"><p className="text-muted-foreground">No team members assigned to this deal.</p></div>
+              <div className="bg-card border border-border rounded-xl text-center py-8 px-5">
+                <p className="text-muted-foreground mb-3">No team members assigned to this deal.</p>
+                <Button size="sm" onClick={() => setAddMemberOpen(true)}>
+                  <Plus className="h-3.5 w-3.5 mr-1" /> Add First Member
+                </Button>
+              </div>
             )}
+
+            {/* Add Member Dialog */}
+            <AddStaffingMemberDialog
+              open={addMemberOpen}
+              onOpenChange={setAddMemberOpen}
+              people={people}
+              assignments={assignments}
+              deals={deals}
+              dealId={dealId!}
+              onAdd={addAssignment}
+            />
+
+            {/* Confirm Delete Assignment */}
+            <AlertDialog open={!!confirmDeleteAssignment} onOpenChange={v => { if (!v) setConfirmDeleteAssignment(null); }}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Remove team member?</AlertDialogTitle>
+                  <AlertDialogDescription>This will remove the member's assignment from this deal.</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => { if (confirmDeleteAssignment) { deleteAssignment(confirmDeleteAssignment); toast.success("Member removed"); setConfirmDeleteAssignment(null); } }}>Remove</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         )}
 
