@@ -1,18 +1,43 @@
-# Show RGY Issue Form Only When Health Changes to Y/R
 
-## Problem
 
-The issue capture form is always visible whenever any dimension is currently Y or R. It should only appear when a user **changes** a dimension to Y or R (i.e., on save), not persist on every page load.
+# Block Green Until Tasks Done + Full RGY Change History
 
-## Approach
+## Summary
+Two changes: (1) When a dimension is moved back to Green, show a dialog listing all open `[RGY Health]` tasks for that dimension — user must mark them Done before Green is accepted. (2) Every RGY save creates a new row (never updates the current week's row), building a full change log. History table groups entries by week with a collapsible dropdown when multiple changes exist in the same week.
 
-Add a `showIssueForm` boolean state (default `false`) in the RGY Health tab section. Set it to `true` inside `handleRGYSave` only when the newly saved dimensions contain any Y or R value. Set it to `false` after the issue form is submitted or manually dismissed. The existing `hasNonGreen` check around `<RGYIssueForm>` will be replaced with `showIssueForm`.
+## Changes
 
-## Changes — `src/pages/DealDetail.tsx`
+### 1. Green-gate dialog (`src/pages/DealDetail.tsx`)
 
-1. Add state: `const [showIssueForm, setShowIssueForm] = useState(false);`
-2. In `handleRGYSave`, after saving, check if any dimension is Y/R → `setShowIssueForm(true)`, otherwise `setShowIssueForm(false)`.
-3. Replace the condition around `<RGYIssueForm>` (lines ~1087-1091) from the `hasNonGreen` check to simply `showIssueForm`.
-4. After issue form submission (`onSaveIssue`), call `setShowIssueForm(false)`.
-5. Add a small "Cancel" / dismiss button on the form to hide it without submitting.  
-If Cancle is selected, don't change the account health. revert it to previous R,G or Y
+In `handleRGYSave`, before persisting, compare old vs new values per dimension. If any dimension changed **to Green**, find all `[RGY Health] {dimension}` tasks that are NOT "Done"/"Dropped". If any exist:
+- Block the save
+- Show an `AlertDialog` listing the pending tasks with checkboxes
+- User can mark tasks as Done directly from the dialog (calls `updateTask`)
+- Once all tasks for that dimension are Done, allow the Green transition
+- Add a "Force close" option that marks remaining tasks as Done automatically
+
+State: `pendingGreenDims` (array of `{dimension, label, tasks}`) controls dialog visibility.
+
+### 2. Always insert new RGY row for history (`src/pages/DealDetail.tsx`)
+
+Change `handleRGYSave`: remove the `if (currentRGY && currentRGY.weekStart === weekStart) { updateRGYWeek(...) }` branch. Always call `addRGYWeek(...)` so every save creates a new row. The `currentRGY` (index 0 of sorted array) still reflects the latest state.
+
+### 3. Grouped history table (`src/pages/DealDetail.tsx`)
+
+Replace the flat history table with a grouped view:
+- Group `rgyWeekly` by `weekStart`
+- If a week has 1 entry → show it as a normal row
+- If a week has multiple entries → show the latest as the main row with a small expand/collapse chevron. Clicking expands to show all changes within that week as indented sub-rows with timestamps (using `created_at` from the DB)
+- Add `created_at` to the `RGYWeekly` interface to support ordering within a week
+
+### 4. Add `createdAt` to RGYWeekly interface (`src/hooks/useDealDetail.ts`)
+
+Add `createdAt?: string` to the interface and map `created_at` from DB rows in the load query. Sort `rgyWeekly` by `created_at` descending.
+
+## Files Modified
+
+| File | Change |
+|------|--------|
+| `src/hooks/useDealDetail.ts` | Add `createdAt` to `RGYWeekly`, map from DB, sort by `created_at desc` |
+| `src/pages/DealDetail.tsx` | Green-gate dialog, always-insert logic, grouped history with week dropdown |
+
