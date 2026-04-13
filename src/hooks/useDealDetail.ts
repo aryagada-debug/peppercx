@@ -52,6 +52,7 @@ export interface RGYWeekly {
   actionPlan?: string;
   resolutionDueDate?: string;
   issueStatus?: string;
+  createdAt?: string;
 }
 
 export interface OnboardingStep {
@@ -89,7 +90,7 @@ export function useDealDetail(dealId: string | undefined) {
       supabase.from("deal_sow_items").select("*").eq("deal_id", dealId),
       supabase.from("deal_revenue_monthly").select("*").eq("deal_id", dealId).order("month"),
       supabase.from("deal_targets_monthly").select("*").eq("deal_id", dealId).order("month"),
-      supabase.from("deal_rgy_weekly").select("*").eq("deal_id", dealId).order("week_start", { ascending: false }),
+      supabase.from("deal_rgy_weekly").select("*").eq("deal_id", dealId).order("created_at", { ascending: false }),
       supabase.from("deal_onboarding_steps").select("*").eq("deal_id", dealId).order("sort_order"),
       supabase.from("deal_financials").select("*").eq("deal_id", dealId).order("month"),
       supabase.from("deal_tasks").select("*").eq("deal_id", dealId).order("sort_order"),
@@ -107,6 +108,7 @@ export function useDealDetail(dealId: string | undefined) {
       issueDate: r.issue_date || undefined, issueDetails: r.issue_details || "",
       discussedActionPlan: r.discussed_action_plan || "", actionPlan: r.action_plan || "",
       resolutionDueDate: r.resolution_due_date || undefined, issueStatus: r.issue_status || "Open",
+      createdAt: r.created_at,
     })));
     if (onb.data) setOnboarding(onb.data.map((r: any) => ({ id: r.id, dealId: r.deal_id, stepName: r.step_name, category: r.category, owner: r.owner, dueDate: r.due_date, completed: r.completed, completedAt: r.completed_at, sortOrder: r.sort_order })));
     if (fin.data) setFinancials(fin.data.map((r: any) => ({
