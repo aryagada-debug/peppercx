@@ -329,7 +329,254 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry }: {
   );
 }
 
-export default function DealDetail() {
+// ── RGY Issue Form ──
+interface RGYIssueTask {
+  dimension: string;
+  issueSummary: string;
+  urgency: string;
+  assignees: string[];
+}
+
+interface RGYIssueFormProps {
+  dealId: string;
+  currentRGY: RGYWeekly;
+  assignees: { id: string; name: string }[];
+  teamMembers: string[];
+  onSaveIssue: (data: {
+    issueDate: string;
+    issueDetails: string;
+    discussedActionPlan: string;
+    actionPlan: string;
+    resolutionDueDate: string;
+    issueStatus: string;
+    tasks: RGYIssueTask[];
+  }) => Promise<void>;
+}
+
+function RGYIssueForm({ dealId, currentRGY, assignees, teamMembers, onSaveIssue }: RGYIssueFormProps) {
+  const [issueDate, setIssueDate] = useState<Date>(new Date());
+  const [issueDetails, setIssueDetails] = useState("");
+  const [discussedActionPlan, setDiscussedActionPlan] = useState("");
+  const [actionPlan, setActionPlan] = useState("");
+  const [resolutionDueDate, setResolutionDueDate] = useState<Date | undefined>();
+  const [issueStatus, setIssueStatus] = useState("Open");
+  const [saving, setSaving] = useState(false);
+
+  // Build tasks from non-green dimensions
+  const nonGreenDims = [
+    { key: "accountHealth", label: "Account Health", value: currentRGY.accountHealth },
+    { key: "delivery", label: "Delivery", value: currentRGY.delivery },
+    { key: "financeBilling", label: "Finance/Billing", value: currentRGY.financeBilling },
+    { key: "capabilitySeo", label: "Capability-SEO", value: currentRGY.capabilitySeo },
+    { key: "capabilityCreative", label: "Capability-Creative", value: currentRGY.capabilityCreative },
+  ].filter(d => d.value === "R" || d.value === "Y");
+
+  const [issueTasks, setIssueTasks] = useState<RGYIssueTask[]>(
+    nonGreenDims.map(d => ({
+      dimension: d.label,
+      issueSummary: "",
+      urgency: d.value === "R" ? "High" : "Medium",
+      assignees: [],
+    }))
+  );
+
+  const allAssigneeNames = [...new Set([
+    ...assignees.map(a => a.name),
+    ...teamMembers,
+  ])].filter(Boolean);
+
+  const updateIssueTask = (idx: number, updates: Partial<RGYIssueTask>) => {
+    setIssueTasks(prev => prev.map((t, i) => i === idx ? { ...t, ...updates } : t));
+  };
+
+  const addNewTask = () => {
+    setIssueTasks(prev => [...prev, { dimension: nonGreenDims[0]?.label || "", issueSummary: "", urgency: "Medium", assignees: [] }]);
+  };
+
+  const removeTask = (idx: number) => {
+    setIssueTasks(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleSubmit = async () => {
+    if (!issueDetails.trim()) {
+      toast.error("Please fill in issue details");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSaveIssue({
+        issueDate: issueDate.toISOString().split("T")[0],
+        issueDetails,
+        discussedActionPlan,
+        actionPlan,
+        resolutionDueDate: resolutionDueDate?.toISOString().split("T")[0] || "",
+        issueStatus,
+        tasks: issueTasks.filter(t => t.issueSummary.trim() && t.assignees.length > 0),
+      });
+      setIssueDetails("");
+      setDiscussedActionPlan("");
+      setActionPlan("");
+      setIssueTasks(nonGreenDims.map(d => ({
+        dimension: d.label,
+        issueSummary: "",
+        urgency: d.value === "R" ? "High" : "Medium",
+        assignees: [],
+      })));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-5 space-y-4">
+      <div className="flex items-center gap-2 mb-1">
+        <AlertTriangle className="h-4 w-4 text-warning" />
+        <h3 className="text-sm font-semibold text-foreground">Issue Tracker — Non-Green Dimensions</h3>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Issue Date */}
+        <div>
+          <label className="text-xs font-medium text-muted-foreground mb-1 block">Issue Date</label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className={cn("w-full justify-start text-left text-sm font-normal h-9")}>
+                <Calendar className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                {format(issueDate, "dd MMM yyyy")}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <CalendarComponent mode="single" selected={issueDate} onSelect={d => d && setIssueDate(d)} className="p-3 pointer-events-auto" />
+            </PopoverContent>
+          </Popover>
+        </div>
+
+        {/* Resolution Due Date */}
+        <div>
+          <label className="text-xs font-medium text-muted-foreground mb-1 block">Resolution Due Date</label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className={cn("w-full justify-start text-left text-sm font-normal h-9", !resolutionDueDate && "text-muted-foreground")}>
+                <Calendar className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                {resolutionDueDate ? format(resolutionDueDate, "dd MMM yyyy") : "Pick a date"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <CalendarComponent mode="single" selected={resolutionDueDate} onSelect={setResolutionDueDate} className="p-3 pointer-events-auto" />
+            </PopoverContent>
+          </Popover>
+        </div>
+
+        {/* Status */}
+        <div>
+          <label className="text-xs font-medium text-muted-foreground mb-1 block">Status</label>
+          <Select value={issueStatus} onValueChange={setIssueStatus}>
+            <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Open">Open</SelectItem>
+              <SelectItem value="In Progress">In Progress</SelectItem>
+              <SelectItem value="Resolved">Resolved</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Issue Details */}
+      <div>
+        <label className="text-xs font-medium text-muted-foreground mb-1 block">Issue Details</label>
+        <Textarea value={issueDetails} onChange={e => setIssueDetails(e.target.value)} placeholder="Describe the issue..." className="text-sm min-h-[60px]" />
+      </div>
+
+      {/* Discussed Action Plan */}
+      <div>
+        <label className="text-xs font-medium text-muted-foreground mb-1 block">Discussed Action Plan</label>
+        <Textarea value={discussedActionPlan} onChange={e => setDiscussedActionPlan(e.target.value)} placeholder="What was discussed..." className="text-sm min-h-[60px]" />
+      </div>
+
+      {/* Action Plan */}
+      <div>
+        <label className="text-xs font-medium text-muted-foreground mb-1 block">Action Plan</label>
+        <Textarea value={actionPlan} onChange={e => setActionPlan(e.target.value)} placeholder="Final action plan..." className="text-sm min-h-[60px]" />
+      </div>
+
+      {/* Tasks */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Tasks to Create</label>
+          <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={addNewTask}>
+            <Plus className="h-3 w-3" /> Add Task
+          </Button>
+        </div>
+        <div className="space-y-3">
+          {issueTasks.map((task, idx) => (
+            <div key={idx} className="bg-secondary/30 rounded-lg p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-foreground">{task.dimension}</span>
+                <div className="flex items-center gap-2">
+                  <Select value={task.urgency} onValueChange={v => updateIssueTask(idx, { urgency: v })}>
+                    <SelectTrigger className="h-7 w-[90px] text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Critical">Critical</SelectItem>
+                      <SelectItem value="High">High</SelectItem>
+                      <SelectItem value="Medium">Medium</SelectItem>
+                      <SelectItem value="Low">Low</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {issueTasks.length > 1 && (
+                    <button onClick={() => removeTask(idx)} className="text-destructive hover:text-destructive/80">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+              <Input
+                value={task.issueSummary}
+                onChange={e => updateIssueTask(idx, { issueSummary: e.target.value })}
+                placeholder="Brief issue summary for task title..."
+                className="h-8 text-sm"
+              />
+              <div>
+                <label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 block">Assignees (select multiple)</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {allAssigneeNames.map(name => {
+                    const selected = task.assignees.includes(name);
+                    return (
+                      <button
+                        key={name}
+                        onClick={() => {
+                          updateIssueTask(idx, {
+                            assignees: selected
+                              ? task.assignees.filter(a => a !== name)
+                              : [...task.assignees, name],
+                          });
+                        }}
+                        className={cn(
+                          "px-2 py-0.5 rounded-full text-[11px] border transition-colors",
+                          selected
+                            ? "bg-primary/15 border-primary/40 text-primary font-medium"
+                            : "bg-secondary/50 border-border text-muted-foreground hover:bg-secondary"
+                        )}
+                      >
+                        {name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <Button onClick={handleSubmit} disabled={saving} className="gap-1.5">
+        {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+        Save Issue & Create Tasks
+      </Button>
+    </div>
+  );
+}
+
+
   const { dealId } = useParams();
   const [activeTab, setActiveTab] = useState<TabKey>("Overview");
   const { deals, people, assignments, loading: staffLoading, updateDeal, updatePerson } = useStaffingData();
