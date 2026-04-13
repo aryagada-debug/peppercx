@@ -5,6 +5,8 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import React, { useState, useMemo, useCallback } from "react";
 import { useStaffingData } from "@/hooks/useStaffingData";
+import { uid } from "@/data/staffingData";
+import type { StaffingAssignment, Person, Deal, RoleCategory } from "@/data/staffingData";
 import { useDealDetail } from "@/hooks/useDealDetail";
 import { EditableRGY } from "@/components/deals/EditableRGY";
 import { FinancialsTab } from "@/components/deals/FinancialsTab";
