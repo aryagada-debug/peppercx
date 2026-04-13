@@ -1343,6 +1343,13 @@ export default function DealDetail() {
         {/* ══════════ Staffing ══════════ */}
         {activeTab === "Staffing" && (
           <div className="animate-fade-in space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-foreground">Team Members</h3>
+              <Button size="sm" onClick={() => setAddMemberOpen(true)}>
+                <Plus className="h-3.5 w-3.5 mr-1" /> Add Member
+              </Button>
+            </div>
+
             {dealPeople.length > 0 ? (
               (() => {
                 const TEAM_ORDER = ["Operations", "SEO", "Content", "Content Strategy", "Creative Strategy", "Creative Art", "Creative Copy", "Video", "Performance & Growth", "Other"];
@@ -1393,6 +1400,7 @@ export default function DealDetail() {
                               <th className="text-right py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Rate/Hr</th>
                               <th className="text-right py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Cost/Week</th>
                               <th className="text-right py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Rev Managed</th>
+                              <th className="w-16"></th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1402,18 +1410,56 @@ export default function DealDetail() {
                               const hrs = pct * 40;
                               const costWeek = hrs * (p.hourlyRate || 0);
                               const revManaged = (deal.mrr || 0) * pct;
+                              const isEditingThis = editingAllocation === alloc?.id;
                               return (
                                 <tr key={p.id} className="border-b border-border/50 hover:bg-accent/10">
                                   <td className="py-2.5 px-4 font-medium text-foreground">{p.name}{p.tbh && <span className="ml-1 text-xs text-warning">(TBH)</span>}{p.leaving && <span className="ml-1 text-xs text-destructive">(Leaving)</span>}</td>
                                   <td className="py-2.5 px-4 text-muted-foreground">{p.roleTitle || p.designation}</td>
                                   <td className="py-2.5 px-4 text-muted-foreground">{p.pod}</td>
-                                  <td className="py-2.5 px-4 text-right font-mono tabular-nums font-medium">{alloc?.allocationPct || 0}%</td>
+                                  <td className="py-2.5 px-4 text-right font-mono tabular-nums font-medium">
+                                    {isEditingThis ? (
+                                      <div className="flex items-center justify-end gap-1">
+                                        <Input
+                                          type="number"
+                                          min={1}
+                                          max={100}
+                                          value={editAllocationValue}
+                                          onChange={e => setEditAllocationValue(Number(e.target.value) || 0)}
+                                          className="h-7 w-16 text-sm text-right"
+                                          autoFocus
+                                          onKeyDown={e => {
+                                            if (e.key === "Enter") { updateAssignment(alloc!.id, { allocationPct: editAllocationValue }); setEditingAllocation(null); toast.success("Allocation updated"); }
+                                            if (e.key === "Escape") setEditingAllocation(null);
+                                          }}
+                                        />
+                                        <span className="text-xs">%</span>
+                                        <button onClick={() => { updateAssignment(alloc!.id, { allocationPct: editAllocationValue }); setEditingAllocation(null); toast.success("Allocation updated"); }} className="text-primary"><Check className="h-3.5 w-3.5" /></button>
+                                        <button onClick={() => setEditingAllocation(null)} className="text-muted-foreground"><X className="h-3.5 w-3.5" /></button>
+                                      </div>
+                                    ) : (
+                                      <span
+                                        className="cursor-pointer hover:underline"
+                                        onClick={() => { if (alloc) { setEditingAllocation(alloc.id); setEditAllocationValue(alloc.allocationPct); } }}
+                                      >
+                                        {alloc?.allocationPct || 0}%
+                                      </span>
+                                    )}
+                                  </td>
                                   <td className="py-2.5 px-4 text-right font-mono tabular-nums text-muted-foreground">{hrs.toFixed(1)}h</td>
                                   <td className="py-2.5 px-4 text-right font-mono tabular-nums">
                                     <EditableCell value={String(p.hourlyRate || 0)} onSave={v => updatePerson(p.id, { hourlyRate: Number(v) || 0 })} type="number" prefix="₹" />
                                   </td>
                                   <td className="py-2.5 px-4 text-right font-mono tabular-nums text-muted-foreground">{fmtCurrency(costWeek)}</td>
                                   <td className="py-2.5 px-4 text-right font-mono tabular-nums text-muted-foreground">{fmtCurrency(revManaged)}</td>
+                                  <td className="py-2.5 px-4 text-right">
+                                    <button
+                                      onClick={() => alloc && setConfirmDeleteAssignment(alloc.id)}
+                                      className="p-1 text-muted-foreground hover:text-destructive transition-colors"
+                                      title="Remove from deal"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  </td>
                                 </tr>
                               );
                             })}
@@ -1425,8 +1471,38 @@ export default function DealDetail() {
                 );
               })()
             ) : (
-              <div className="bg-card border border-border rounded-xl text-center py-8 px-5"><p className="text-muted-foreground">No team members assigned to this deal.</p></div>
+              <div className="bg-card border border-border rounded-xl text-center py-8 px-5">
+                <p className="text-muted-foreground mb-3">No team members assigned to this deal.</p>
+                <Button size="sm" onClick={() => setAddMemberOpen(true)}>
+                  <Plus className="h-3.5 w-3.5 mr-1" /> Add First Member
+                </Button>
+              </div>
             )}
+
+            {/* Add Member Dialog */}
+            <AddStaffingMemberDialog
+              open={addMemberOpen}
+              onOpenChange={setAddMemberOpen}
+              people={people}
+              assignments={assignments}
+              deals={deals}
+              dealId={dealId!}
+              onAdd={addAssignment}
+            />
+
+            {/* Confirm Delete Assignment */}
+            <AlertDialog open={!!confirmDeleteAssignment} onOpenChange={v => { if (!v) setConfirmDeleteAssignment(null); }}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Remove team member?</AlertDialogTitle>
+                  <AlertDialogDescription>This will remove the member's assignment from this deal.</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => { if (confirmDeleteAssignment) { deleteAssignment(confirmDeleteAssignment); toast.success("Member removed"); setConfirmDeleteAssignment(null); } }}>Remove</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         )}
 
