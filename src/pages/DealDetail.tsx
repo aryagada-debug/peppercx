@@ -351,9 +351,10 @@ interface RGYIssueFormProps {
     issueStatus: string;
     tasks: RGYIssueTask[];
   }) => Promise<void>;
+  onCancel: () => void;
 }
 
-function RGYIssueForm({ dealId, currentRGY, assignees, teamMembers, onSaveIssue }: RGYIssueFormProps) {
+function RGYIssueForm({ dealId, currentRGY, assignees, teamMembers, onSaveIssue, onCancel }: RGYIssueFormProps) {
   const [issueDate, setIssueDate] = useState<Date>(new Date());
   const [issueDetails, setIssueDetails] = useState("");
   const [discussedActionPlan, setDiscussedActionPlan] = useState("");
@@ -627,6 +628,16 @@ export default function DealDetail() {
 
   const handleRGYSave = useCallback((dims: any[]) => {
     if (!dealId) return;
+    // Snapshot current values before saving for potential revert
+    if (currentRGY) {
+      setPrevRGYSnapshot({
+        accountHealth: currentRGY.accountHealth,
+        delivery: currentRGY.delivery,
+        financeBilling: currentRGY.financeBilling,
+        capabilitySeo: currentRGY.capabilitySeo,
+        capabilityCreative: currentRGY.capabilityCreative,
+      });
+    }
     const today = new Date();
     const dayOfWeek = today.getDay();
     const monday = new Date(today);
@@ -664,8 +675,16 @@ export default function DealDetail() {
         planOfAction: planParts.join("; "),
       });
     }
+    // Check if any dimension is Y or R to show issue form
+    const hasYorR = Object.values(rgyData).some(v => v === "Y" || v === "R");
+    setShowIssueForm(hasYorR);
+    if (!hasYorR) setPrevRGYSnapshot(null);
     toast.success("RGY health saved");
   }, [dealId, currentRGY, addRGYWeek, updateRGYWeek]);
+
+  // RGY issue form visibility
+  const [showIssueForm, setShowIssueForm] = useState(false);
+  const [prevRGYSnapshot, setPrevRGYSnapshot] = useState<Record<string, string> | null>(null);
 
   // SoW add
   const [addingSoW, setAddingSoW] = useState(false);
