@@ -956,6 +956,12 @@ export default function DealDetail() {
   const [showIssueForm, setShowIssueForm] = useState(false);
   const [prevRGYSnapshot, setPrevRGYSnapshot] = useState<Record<string, string> | null>(null);
 
+  // Staffing dialog states
+  const [addMemberOpen, setAddMemberOpen] = useState(false);
+  const [editingAllocation, setEditingAllocation] = useState<string | null>(null);
+  const [editAllocationValue, setEditAllocationValue] = useState(0);
+  const [confirmDeleteAssignment, setConfirmDeleteAssignment] = useState<string | null>(null);
+
   // Green-gate dialog state
   const [greenGateDialog, setGreenGateDialog] = useState<{
     pendingDims: { key: string; label: string; tasks: any[] }[];
