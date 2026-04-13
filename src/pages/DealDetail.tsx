@@ -351,9 +351,10 @@ interface RGYIssueFormProps {
     issueStatus: string;
     tasks: RGYIssueTask[];
   }) => Promise<void>;
+  onCancel: () => void;
 }
 
-function RGYIssueForm({ dealId, currentRGY, assignees, teamMembers, onSaveIssue }: RGYIssueFormProps) {
+function RGYIssueForm({ dealId, currentRGY, assignees, teamMembers, onSaveIssue, onCancel }: RGYIssueFormProps) {
   const [issueDate, setIssueDate] = useState<Date>(new Date());
   const [issueDetails, setIssueDetails] = useState("");
   const [discussedActionPlan, setDiscussedActionPlan] = useState("");
@@ -568,10 +569,15 @@ function RGYIssueForm({ dealId, currentRGY, assignees, teamMembers, onSaveIssue 
         </div>
       </div>
 
-      <Button onClick={handleSubmit} disabled={saving} className="gap-1.5">
-        {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-        Save Issue & Create Tasks
-      </Button>
+      <div className="flex gap-2">
+        <Button variant="outline" onClick={onCancel} disabled={saving}>
+          Cancel
+        </Button>
+        <Button onClick={handleSubmit} disabled={saving} className="gap-1.5">
+          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+          Save Issue & Create Tasks
+        </Button>
+      </div>
     </div>
   );
 }
@@ -627,6 +633,16 @@ export default function DealDetail() {
 
   const handleRGYSave = useCallback((dims: any[]) => {
     if (!dealId) return;
+    // Snapshot current values before saving for potential revert
+    if (currentRGY) {
+      setPrevRGYSnapshot({
+        accountHealth: currentRGY.accountHealth,
+        delivery: currentRGY.delivery,
+        financeBilling: currentRGY.financeBilling,
+        capabilitySeo: currentRGY.capabilitySeo,
+        capabilityCreative: currentRGY.capabilityCreative,
+      });
+    }
     const today = new Date();
     const dayOfWeek = today.getDay();
     const monday = new Date(today);
@@ -664,8 +680,16 @@ export default function DealDetail() {
         planOfAction: planParts.join("; "),
       });
     }
+    // Check if any dimension is Y or R to show issue form
+    const hasYorR = Object.values(rgyData).some(v => v === "Y" || v === "R");
+    setShowIssueForm(hasYorR);
+    if (!hasYorR) setPrevRGYSnapshot(null);
     toast.success("RGY health saved");
   }, [dealId, currentRGY, addRGYWeek, updateRGYWeek]);
+
+  // RGY issue form visibility
+  const [showIssueForm, setShowIssueForm] = useState(false);
+  const [prevRGYSnapshot, setPrevRGYSnapshot] = useState<Record<string, string> | null>(null);
 
   // SoW add
   const [addingSoW, setAddingSoW] = useState(false);
@@ -1083,12 +1107,8 @@ export default function DealDetail() {
               );
             })()}
 
-            {/* Issue Capture Form — show when any dimension is R or Y */}
-            {currentRGY && (
-              currentRGY.accountHealth !== "G" || currentRGY.delivery !== "G" ||
-              currentRGY.financeBilling !== "G" || currentRGY.capabilitySeo !== "G" ||
-              currentRGY.capabilityCreative !== "G"
-            ) && (
+            {/* Issue Capture Form — show only when user changes to Y/R */}
+            {showIssueForm && currentRGY && (
               <RGYIssueForm
                 dealId={dealId!}
                 currentRGY={currentRGY!}
@@ -1096,6 +1116,21 @@ export default function DealDetail() {
                 teamMembers={[
                   deal.vsd, deal.principalBopm, deal.seniorBopm, deal.bopm
                 ].filter(Boolean)}
+                onCancel={() => {
+                  setShowIssueForm(false);
+                  // Revert RGY to previous values
+                  if (prevRGYSnapshot && currentRGY) {
+                    updateRGYWeek(currentRGY.id, {
+                      accountHealth: prevRGYSnapshot.accountHealth || "G",
+                      delivery: prevRGYSnapshot.delivery || "G",
+                      financeBilling: prevRGYSnapshot.financeBilling || "G",
+                      capabilitySeo: prevRGYSnapshot.capabilitySeo || "G",
+                      capabilityCreative: prevRGYSnapshot.capabilityCreative || "G",
+                    });
+                    toast.info("RGY changes reverted");
+                  }
+                  setPrevRGYSnapshot(null);
+                }}
                 onSaveIssue={async (issueData) => {
                   if (currentRGY) {
                     await updateRGYWeek(currentRGY.id, {
@@ -1124,6 +1159,8 @@ export default function DealDetail() {
                       });
                     }
                   }
+                  setShowIssueForm(false);
+                  setPrevRGYSnapshot(null);
                   toast.success("Issue saved & tasks created");
                 }}
               />
