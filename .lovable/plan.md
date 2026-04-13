@@ -1,48 +1,47 @@
-# Add Team Members to Deal Staffing Tab
+
+
+# Enhance Add Member Dialog — Show Engagements & Group Ops by Role
 
 ## Summary
 
-Add an "Add Member" flow to the Deal → Staffing tab. User picks a team/category first, then sees available people in that team with their current capacity utilization, selects one, sets allocation %, and assigns them to the deal.
+Two changes: (1) Redesign the Add Member dialog to match the reference image — after selecting a person, show their current engagements inline with deal names, role, allocation bars, and status badges, plus a capacity warning when at 100%. (2) In step 2 (member list), group Operations people by sub-role (VSD, Principal BOPM, Senior BOPM, BOPM) instead of a flat list.
 
-## Changes
+## Changes — `src/pages/DealDetail.tsx`
 
-### 1. Add Member Dialog (`src/pages/DealDetail.tsx`)
+### 1. Redesign Step 3 to match reference image
 
-Add a new `AddStaffingMemberDialog` component within the file:
+Replace the current minimal step 3 with a layout matching the uploaded reference:
 
-- **Step 1 — Select Team**: Show buttons/cards for each `roleCategory` (Operations, SEO, Content, Creative Art, Creative Copy, Video, Content Strategy, Creative Strategy, Performance & Growth)
-- **Step 2 — Select Person**: Filter `people` by selected category, excluding already-assigned members. For each person show:
-  - Name, role title, pod, region
-  - **Current capacity**: Calculate total allocation across all deals from `assignments` and show as a utilization bar (e.g., "65% allocated across 4 deals")
-  - **Deal breakdown**: Expandable list showing each deal they're on with the % allocation (like their existing capacity mapping)
-  - Highlight if person is `leaving` or `tbh`
-- **Step 3 — Set Allocation**: Input field for allocation % for this deal, then confirm
+- **Person dropdown** (read-only, showing selected name + role title)
+- **Current engagements panel** below the person selector:
+  - Header: `"{Name} — current engagements"` with capacity summary on right (`X% allocated · Y% free` in green/orange/red)
+  - List of each deal assignment: `{Account} — {DealName}  {roleKey}  [progress bar]  {pct}%  Active` badge
+  - If total utilization ≥ 100%, show a yellow warning banner: `"⚠ This person is already at {X}% capacity across other deals. Adding them may exceed 100%."`
+- **Role on this deal** field (pre-filled with person's `roleTitle`, editable)
+- **Allocation %** input field
+- **Type** dropdown (Internal / External / Freelance) — default "Internal"
+- **Footer**: Cancel + "Add to plan" button
 
-On confirm, call `addAssignment` with a new `StaffingAssignment` record.
+### 2. Group Operations people by roleTitle in Step 2
 
-### 2. Remove Member Button
+When `selectedCategory === "Operations"`, instead of a flat list, group members under collapsible sub-headers by `roleTitle`:
+- VSD
+- Principal BOPM
+- Senior BOPM
+- BOPM
 
-Add a trash icon on each member row in the staffing table. On click, confirm and call `deleteAssignment` to remove them from the deal.
+Each sub-header shows the count of available members. Members listed under their respective group. Other categories remain ungrouped (flat list).
 
-### 3. Edit Allocation Inline
+### 3. State additions
 
-Make the allocation % column editable (click to edit). On save, call `updateAssignment`.
+- `roleOnDeal: string` — pre-filled from `selectedPerson.roleTitle`
+- `assignmentType: "Internal" | "External" | "Freelance"` — default `"Internal"`
 
-### 4. Wire up missing hook functions
-
-The `DealDetail` component currently destructures only `{ deals, people, assignments, loading, updateDeal, updatePerson }` from `useStaffingData`. Need to also pull `addAssignment`, `updateAssignment`, `deleteAssignment`.
-
-## Technical Details
-
-- `addAssignment` already exists in `useStaffingData` hook — just needs to be destructured in `DealDetail`
-- Assignment ID generated via `uid()` helper from `staffingData.ts`
-- Capacity calculation: `assignments.filter(a => a.personId === person.id).reduce(sum allocationPct)` gives total utilization
-- Per-deal breakdown: join `assignments` with `deals` to show deal name + allocation for the selected person  
-Reflect the same changes in the overall staffing tab 
+These get passed into `onAdd` (extend `StaffingAssignment` or just store locally for display).
 
 ## Files Modified
 
+| File | Change |
+|------|--------|
+| `src/pages/DealDetail.tsx` | Redesign step 3 UI with engagements panel + warning; group Ops by roleTitle in step 2; add roleOnDeal and type fields |
 
-| File                       | Change                                                                                               |
-| -------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `src/pages/DealDetail.tsx` | Add `AddStaffingMemberDialog`, remove/edit assignment buttons, destructure additional hook functions |
