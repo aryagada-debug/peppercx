@@ -196,6 +196,70 @@ function AddStaffingMemberDialog({
             <>
               {filteredPeople.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-6">No available members in {selectedCategory}.</p>
+              ) : selectedCategory === "Operations" ? (
+                // Group Operations by roleTitle
+                (() => {
+                  const OPS_GROUPS = ["VSD", "Principal BOPM", "Senior BOPM", "BOPM"];
+                  const grouped: Record<string, Person[]> = {};
+                  const otherOps: Person[] = [];
+                  filteredPeople.forEach(p => {
+                    const matchedGroup = OPS_GROUPS.find(g => (p.roleTitle || "").toLowerCase().includes(g.toLowerCase()));
+                    if (matchedGroup) {
+                      if (!grouped[matchedGroup]) grouped[matchedGroup] = [];
+                      grouped[matchedGroup].push(p);
+                    } else {
+                      otherOps.push(p);
+                    }
+                  });
+                  const allGroups = [...OPS_GROUPS.filter(g => grouped[g]?.length), ...(otherOps.length ? ["Other"] : [])];
+                  if (otherOps.length) grouped["Other"] = otherOps;
+
+                  return allGroups.map(group => (
+                    <div key={group} className="border border-border rounded-lg overflow-hidden">
+                      <button
+                        className="w-full flex items-center justify-between p-3 hover:bg-accent/10 transition-colors"
+                        onClick={() => setExpandedOpsGroup(expandedOpsGroup === group ? null : group)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-foreground">{group}</span>
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{grouped[group].length}</Badge>
+                        </div>
+                        {expandedOpsGroup === group ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                      </button>
+                      {expandedOpsGroup === group && (
+                        <div className="border-t border-border/50">
+                          {grouped[group].map(p => {
+                            const util = getPersonUtilization(p.id);
+                            const utilColor = util.total > 100 ? "text-destructive" : util.total >= 80 ? "text-warning" : "text-positive";
+                            return (
+                              <div
+                                key={p.id}
+                                className="flex items-center gap-3 p-3 cursor-pointer hover:bg-accent/10 border-b border-border/30 last:border-b-0"
+                                onClick={() => { setSelectedPerson(p); setRoleOnDeal(p.roleTitle || p.roleCategory); setStep(3); }}
+                              >
+                                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-medium text-primary shrink-0">
+                                  {p.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-sm font-medium text-foreground truncate">{p.name}</span>
+                                    {p.tbh && <Badge variant="outline" className="text-[10px] px-1 py-0 text-warning border-warning/30">TBH</Badge>}
+                                    {p.leaving && <Badge variant="outline" className="text-[10px] px-1 py-0 text-destructive border-destructive/30">Leaving</Badge>}
+                                  </div>
+                                  <span className="text-xs text-muted-foreground">{p.pod} · {p.region}</span>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <span className={cn("text-sm font-mono font-medium", utilColor)}>{util.total}%</span>
+                                  <span className="block text-[10px] text-muted-foreground">{util.assignments.length} deal{util.assignments.length !== 1 ? "s" : ""}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  ));
+                })()
               ) : (
                 filteredPeople.map(p => {
                   const util = getPersonUtilization(p.id);
@@ -205,7 +269,7 @@ function AddStaffingMemberDialog({
                     <div key={p.id} className="border border-border rounded-lg overflow-hidden">
                       <div
                         className="flex items-center gap-3 p-3 cursor-pointer hover:bg-accent/10"
-                        onClick={() => { setSelectedPerson(p); setStep(3); }}
+                        onClick={() => { setSelectedPerson(p); setRoleOnDeal(p.roleTitle || p.roleCategory); setStep(3); }}
                       >
                         <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-medium text-primary shrink-0">
                           {p.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
@@ -252,41 +316,126 @@ function AddStaffingMemberDialog({
                   );
                 })
               )}
-              <Button variant="ghost" size="sm" onClick={() => { setSelectedCategory(null); setStep(1); }} className="mt-2">
+              <Button variant="ghost" size="sm" onClick={() => { setSelectedCategory(null); setStep(1); setExpandedOpsGroup(null); }} className="mt-2">
                 <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back to teams
               </Button>
             </>
           )}
 
-          {step === 3 && selectedPerson && (
-            <div className="space-y-4">
-              <div className="rounded-lg bg-secondary/50 p-4">
-                <p className="text-sm font-medium text-foreground">{selectedPerson.name}</p>
-                <p className="text-xs text-muted-foreground">{selectedPerson.roleTitle} · {selectedPerson.pod}</p>
-                <div className="mt-2">
-                  <Progress value={Math.min(getPersonUtilization(selectedPerson.id).total, 100)} className="h-2" />
-                  <p className="text-xs text-muted-foreground mt-1">Currently at {getPersonUtilization(selectedPerson.id).total}% utilization</p>
+          {step === 3 && selectedPerson && (() => {
+            const util = getPersonUtilization(selectedPerson.id);
+            const freeCapacity = Math.max(0, 100 - util.total);
+            const newTotal = util.total + allocationPct;
+            const capacityColor = freeCapacity <= 0 ? "text-destructive" : freeCapacity <= 20 ? "text-warning" : "text-positive";
+
+            return (
+              <div className="space-y-4">
+                {/* Person header */}
+                <div className="rounded-lg bg-secondary/50 p-4 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-sm font-medium text-primary shrink-0">
+                    {selectedPerson.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{selectedPerson.name}</p>
+                    <p className="text-xs text-muted-foreground">{selectedPerson.roleTitle} · {selectedPerson.pod} · {selectedPerson.region}</p>
+                  </div>
                 </div>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Allocation % for this deal</label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={100}
-                  value={allocationPct}
-                  onChange={e => setAllocationPct(Math.max(1, Math.min(100, Number(e.target.value) || 0)))}
-                  className="w-32"
-                />
-                {getPersonUtilization(selectedPerson.id).total + allocationPct > 100 && (
-                  <p className="text-xs text-warning mt-1">⚠ This will bring total utilization to {getPersonUtilization(selectedPerson.id).total + allocationPct}%</p>
+
+                {/* Current engagements */}
+                <div className="rounded-lg border border-border overflow-hidden">
+                  <div className="flex items-center justify-between p-3 bg-secondary/30">
+                    <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Current Engagements</span>
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="font-mono font-medium text-foreground">{util.total}% allocated</span>
+                      <span className="text-muted-foreground">·</span>
+                      <span className={cn("font-mono font-medium", capacityColor)}>{freeCapacity}% free</span>
+                    </div>
+                  </div>
+                  <div className="p-3">
+                    <Progress value={Math.min(util.total, 100)} className="h-2 mb-3" />
+                    {util.assignments.length > 0 ? (
+                      <div className="space-y-2.5">
+                        {util.assignments.map(a => {
+                          const assignDeal = deals.find(d => d.id === a.dealId);
+                          return (
+                            <div key={a.id} className="flex items-center gap-2">
+                              <div className="flex-1 min-w-0">
+                                <span className="text-xs font-medium text-foreground truncate block">{getDealName(a.dealId)}</span>
+                                <span className="text-[10px] text-muted-foreground">{a.roleKey}</span>
+                              </div>
+                              <div className="w-20 shrink-0">
+                                <Progress value={a.allocationPct} className="h-1.5" />
+                              </div>
+                              <span className="text-xs font-mono text-foreground w-10 text-right shrink-0">{a.allocationPct}%</span>
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-positive border-positive/30 shrink-0">
+                                {assignDeal?.dealStatus === "Deal Completed Successfully" ? "Completed" : "Active"}
+                              </Badge>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground text-center py-2">No current assignments — fully available</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Capacity warning */}
+                {util.total >= 100 && (
+                  <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
+                    <p className="text-xs text-warning">This person is already at {util.total}% capacity across other deals. Adding them may exceed 100%.</p>
+                  </div>
                 )}
+
+                {/* Role on this deal */}
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Role on this deal</label>
+                  <Input
+                    value={roleOnDeal}
+                    onChange={e => setRoleOnDeal(e.target.value)}
+                    placeholder="e.g. Senior BOPM"
+                    className="h-8 text-sm"
+                  />
+                </div>
+
+                {/* Allocation + Type row */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Allocation %</label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={allocationPct}
+                      onChange={e => setAllocationPct(Math.max(1, Math.min(100, Number(e.target.value) || 0)))}
+                      className="h-8 text-sm"
+                    />
+                    {newTotal > 100 && (
+                      <p className="text-[10px] text-warning mt-1">⚠ Total will be {newTotal}%</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Type</label>
+                    <Select value={assignmentType} onValueChange={v => setAssignmentType(v as any)}>
+                      <SelectTrigger className="h-8 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Internal">Internal</SelectItem>
+                        <SelectItem value="External">External</SelectItem>
+                        <SelectItem value="Freelance">Freelance</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <Button variant="ghost" size="sm" onClick={() => { setSelectedPerson(null); setStep(2); }}>
+                  <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back to members
+                </Button>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => { setSelectedPerson(null); setStep(2); }}>
-                <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back to members
-              </Button>
-            </div>
-          )}
+            );
+          })()}
         </div>
 
         <AlertDialogFooter>
