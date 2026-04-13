@@ -583,6 +583,128 @@ function RGYIssueForm({ dealId, currentRGY, assignees, teamMembers, onSaveIssue,
     </div>
   );
 }
+// ── Grouped RGY History ──
+function GroupedRGYHistory({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
+  const [expandedWeeks, setExpandedWeeks] = useState<Set<string>>(new Set());
+
+  const grouped = useMemo(() => {
+    const map: Record<string, RGYWeekly[]> = {};
+    rgyWeekly.forEach(r => {
+      if (!map[r.weekStart]) map[r.weekStart] = [];
+      map[r.weekStart].push(r);
+    });
+    // Sort weeks descending
+    return Object.entries(map).sort(([a], [b]) => b.localeCompare(a));
+  }, [rgyWeekly]);
+
+  const toggleWeek = (week: string) => {
+    setExpandedWeeks(prev => {
+      const next = new Set(prev);
+      if (next.has(week)) next.delete(week); else next.add(week);
+      return next;
+    });
+  };
+
+  const renderRow = (r: RGYWeekly, label: string, indent = false) => {
+    const hasIssue = [r.accountHealth, r.delivery, r.financeBilling, r.capabilitySeo, r.capabilityCreative].some(v => v === "R" || v === "Y");
+    return (
+      <tr key={r.id} className={cn("border-b border-border/50 hover:bg-secondary/20 transition-colors", hasIssue && "bg-warning/5")}>
+        <td className={cn("py-2 px-3 font-mono text-xs text-foreground", indent && "pl-8")}>
+          {label}
+          {indent && r.createdAt && (
+            <span className="text-muted-foreground ml-1">
+              {new Date(r.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          )}
+        </td>
+        {[r.accountHealth || "G", r.delivery || "G", r.financeBilling || "G", r.capabilitySeo || "G", r.capabilityCreative || "G"].map((val, i) => (
+          <td key={i} className="py-2 px-2 text-center">
+            <span className={cn("inline-flex items-center justify-center w-6 h-6 rounded-md text-[10px] font-bold", rgyColors[val] || "rgy-na")}>{val}</span>
+          </td>
+        ))}
+        <td className="py-2 px-3 text-xs text-muted-foreground max-w-[120px] truncate">{r.issueDetails || "—"}</td>
+        <td className="py-2 px-3 text-xs text-muted-foreground max-w-[120px] truncate">{r.actionPlan || r.planOfAction || "—"}</td>
+        <td className="py-2 px-2 text-xs text-muted-foreground whitespace-nowrap">{r.resolutionDueDate || "—"}</td>
+        <td className="py-2 px-2 text-center">
+          {r.issueStatus && r.issueStatus !== "Open" ? (
+            <Badge variant="outline" className={cn("text-[10px]",
+              r.issueStatus === "Resolved" ? "border-positive/40 text-positive" :
+              r.issueStatus === "In Progress" ? "border-primary/40 text-primary" : ""
+            )}>{r.issueStatus}</Badge>
+          ) : hasIssue ? (
+            <Badge variant="outline" className="text-[10px] border-warning/40 text-warning">Open</Badge>
+          ) : <span className="text-muted-foreground text-[10px]">—</span>}
+        </td>
+      </tr>
+    );
+  };
+
+  return (
+    <div className="bg-card border border-border rounded-xl overflow-hidden">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="bg-secondary/40 border-b border-border">
+            <th className="text-left py-2 px-3 text-xs uppercase tracking-wider text-muted-foreground font-medium">Week</th>
+            {["Acct Health", "Delivery", "Finance", "SEO", "Creative"].map(d => (
+              <th key={d} className="text-center py-2 px-2 text-xs uppercase tracking-wider text-muted-foreground font-medium">{d}</th>
+            ))}
+            <th className="text-left py-2 px-3 text-xs uppercase tracking-wider text-muted-foreground font-medium">Issue</th>
+            <th className="text-left py-2 px-3 text-xs uppercase tracking-wider text-muted-foreground font-medium">Action Plan</th>
+            <th className="text-left py-2 px-2 text-xs uppercase tracking-wider text-muted-foreground font-medium">Due</th>
+            <th className="text-center py-2 px-2 text-xs uppercase tracking-wider text-muted-foreground font-medium">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {grouped.map(([weekStart, entries]) => {
+            if (entries.length === 1) {
+              return renderRow(entries[0], weekStart);
+            }
+            const isExpanded = expandedWeeks.has(weekStart);
+            const latest = entries[0]; // already sorted by created_at desc
+            return (
+              <React.Fragment key={weekStart}>
+                <tr
+                  className={cn("border-b border-border/50 hover:bg-secondary/20 transition-colors cursor-pointer",
+                    [latest.accountHealth, latest.delivery, latest.financeBilling, latest.capabilitySeo, latest.capabilityCreative].some(v => v === "R" || v === "Y") && "bg-warning/5"
+                  )}
+                  onClick={() => toggleWeek(weekStart)}
+                >
+                  <td className="py-2 px-3 font-mono text-xs text-foreground">
+                    <span className="inline-flex items-center gap-1">
+                      {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                      {weekStart}
+                      <Badge variant="outline" className="text-[9px] ml-1">{entries.length} changes</Badge>
+                    </span>
+                  </td>
+                  {[latest.accountHealth || "G", latest.delivery || "G", latest.financeBilling || "G", latest.capabilitySeo || "G", latest.capabilityCreative || "G"].map((val, i) => (
+                    <td key={i} className="py-2 px-2 text-center">
+                      <span className={cn("inline-flex items-center justify-center w-6 h-6 rounded-md text-[10px] font-bold", rgyColors[val] || "rgy-na")}>{val}</span>
+                    </td>
+                  ))}
+                  <td className="py-2 px-3 text-xs text-muted-foreground max-w-[120px] truncate">{latest.issueDetails || "—"}</td>
+                  <td className="py-2 px-3 text-xs text-muted-foreground max-w-[120px] truncate">{latest.actionPlan || latest.planOfAction || "—"}</td>
+                  <td className="py-2 px-2 text-xs text-muted-foreground whitespace-nowrap">{latest.resolutionDueDate || "—"}</td>
+                  <td className="py-2 px-2 text-center">
+                    {latest.issueStatus && latest.issueStatus !== "Open" ? (
+                      <Badge variant="outline" className={cn("text-[10px]",
+                        latest.issueStatus === "Resolved" ? "border-positive/40 text-positive" :
+                        latest.issueStatus === "In Progress" ? "border-primary/40 text-primary" : ""
+                      )}>{latest.issueStatus}</Badge>
+                    ) : [latest.accountHealth, latest.delivery, latest.financeBilling, latest.capabilitySeo, latest.capabilityCreative].some(v => v === "R" || v === "Y") ? (
+                      <Badge variant="outline" className="text-[10px] border-warning/40 text-warning">Open</Badge>
+                    ) : <span className="text-muted-foreground text-[10px]">—</span>}
+                  </td>
+                </tr>
+                {isExpanded && entries.slice(1).map(r => renderRow(r, "", true))}
+              </React.Fragment>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default function DealDetail() {
   const { dealId } = useParams();
   const [activeTab, setActiveTab] = useState<TabKey>("Overview");
