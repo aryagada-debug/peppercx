@@ -3,7 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { ArrowLeft, Loader2, Plus, Trash2, Pencil, Check, X, Calendar, Users, Eye, Edit2, ExternalLink, AlertTriangle, ChevronDown, ChevronUp, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { useStaffingData } from "@/hooks/useStaffingData";
 import { useDealDetail } from "@/hooks/useDealDetail";
 import { EditableRGY } from "@/components/deals/EditableRGY";
