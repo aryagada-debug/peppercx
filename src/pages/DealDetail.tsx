@@ -1,6 +1,6 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Loader2, Plus, Trash2, Pencil, Check, X, Calendar, Users, Eye, Edit2, ExternalLink, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, Trash2, Pencil, Check, X, Calendar, Users, Eye, Edit2, ExternalLink, AlertTriangle, ChevronDown, ChevronUp } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useState, useMemo, useCallback } from "react";
@@ -13,8 +13,13 @@ import { MBRInputDrawer } from "@/components/mbr/MBRInputDrawer";
 import { MBRDetailDialog } from "@/components/mbr/MBRDetailDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import type { RGYWeekly } from "@/hooks/useDealDetail";
 import { toast } from "sonner";
 import { getWeekOptions } from "@/hooks/useMBRData";
 import type { MBREntry } from "@/hooks/useMBRData";
@@ -324,7 +329,254 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry }: {
   );
 }
 
-export default function DealDetail() {
+// ── RGY Issue Form ──
+interface RGYIssueTask {
+  dimension: string;
+  issueSummary: string;
+  urgency: string;
+  assignees: string[];
+}
+
+interface RGYIssueFormProps {
+  dealId: string;
+  currentRGY: RGYWeekly;
+  assignees: { id: string; name: string }[];
+  teamMembers: string[];
+  onSaveIssue: (data: {
+    issueDate: string;
+    issueDetails: string;
+    discussedActionPlan: string;
+    actionPlan: string;
+    resolutionDueDate: string;
+    issueStatus: string;
+    tasks: RGYIssueTask[];
+  }) => Promise<void>;
+}
+
+function RGYIssueForm({ dealId, currentRGY, assignees, teamMembers, onSaveIssue }: RGYIssueFormProps) {
+  const [issueDate, setIssueDate] = useState<Date>(new Date());
+  const [issueDetails, setIssueDetails] = useState("");
+  const [discussedActionPlan, setDiscussedActionPlan] = useState("");
+  const [actionPlan, setActionPlan] = useState("");
+  const [resolutionDueDate, setResolutionDueDate] = useState<Date | undefined>();
+  const [issueStatus, setIssueStatus] = useState("Open");
+  const [saving, setSaving] = useState(false);
+
+  // Build tasks from non-green dimensions
+  const nonGreenDims = [
+    { key: "accountHealth", label: "Account Health", value: currentRGY.accountHealth },
+    { key: "delivery", label: "Delivery", value: currentRGY.delivery },
+    { key: "financeBilling", label: "Finance/Billing", value: currentRGY.financeBilling },
+    { key: "capabilitySeo", label: "Capability-SEO", value: currentRGY.capabilitySeo },
+    { key: "capabilityCreative", label: "Capability-Creative", value: currentRGY.capabilityCreative },
+  ].filter(d => d.value === "R" || d.value === "Y");
+
+  const [issueTasks, setIssueTasks] = useState<RGYIssueTask[]>(
+    nonGreenDims.map(d => ({
+      dimension: d.label,
+      issueSummary: "",
+      urgency: d.value === "R" ? "High" : "Medium",
+      assignees: [],
+    }))
+  );
+
+  const allAssigneeNames = [...new Set([
+    ...assignees.map(a => a.name),
+    ...teamMembers,
+  ])].filter(Boolean);
+
+  const updateIssueTask = (idx: number, updates: Partial<RGYIssueTask>) => {
+    setIssueTasks(prev => prev.map((t, i) => i === idx ? { ...t, ...updates } : t));
+  };
+
+  const addNewTask = () => {
+    setIssueTasks(prev => [...prev, { dimension: nonGreenDims[0]?.label || "", issueSummary: "", urgency: "Medium", assignees: [] }]);
+  };
+
+  const removeTask = (idx: number) => {
+    setIssueTasks(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleSubmit = async () => {
+    if (!issueDetails.trim()) {
+      toast.error("Please fill in issue details");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSaveIssue({
+        issueDate: issueDate.toISOString().split("T")[0],
+        issueDetails,
+        discussedActionPlan,
+        actionPlan,
+        resolutionDueDate: resolutionDueDate?.toISOString().split("T")[0] || "",
+        issueStatus,
+        tasks: issueTasks.filter(t => t.issueSummary.trim() && t.assignees.length > 0),
+      });
+      setIssueDetails("");
+      setDiscussedActionPlan("");
+      setActionPlan("");
+      setIssueTasks(nonGreenDims.map(d => ({
+        dimension: d.label,
+        issueSummary: "",
+        urgency: d.value === "R" ? "High" : "Medium",
+        assignees: [],
+      })));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-5 space-y-4">
+      <div className="flex items-center gap-2 mb-1">
+        <AlertTriangle className="h-4 w-4 text-warning" />
+        <h3 className="text-sm font-semibold text-foreground">Issue Tracker — Non-Green Dimensions</h3>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Issue Date */}
+        <div>
+          <label className="text-xs font-medium text-muted-foreground mb-1 block">Issue Date</label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className={cn("w-full justify-start text-left text-sm font-normal h-9")}>
+                <Calendar className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                {format(issueDate, "dd MMM yyyy")}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <CalendarComponent mode="single" selected={issueDate} onSelect={d => d && setIssueDate(d)} className="p-3 pointer-events-auto" />
+            </PopoverContent>
+          </Popover>
+        </div>
+
+        {/* Resolution Due Date */}
+        <div>
+          <label className="text-xs font-medium text-muted-foreground mb-1 block">Resolution Due Date</label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className={cn("w-full justify-start text-left text-sm font-normal h-9", !resolutionDueDate && "text-muted-foreground")}>
+                <Calendar className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                {resolutionDueDate ? format(resolutionDueDate, "dd MMM yyyy") : "Pick a date"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <CalendarComponent mode="single" selected={resolutionDueDate} onSelect={setResolutionDueDate} className="p-3 pointer-events-auto" />
+            </PopoverContent>
+          </Popover>
+        </div>
+
+        {/* Status */}
+        <div>
+          <label className="text-xs font-medium text-muted-foreground mb-1 block">Status</label>
+          <Select value={issueStatus} onValueChange={setIssueStatus}>
+            <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Open">Open</SelectItem>
+              <SelectItem value="In Progress">In Progress</SelectItem>
+              <SelectItem value="Resolved">Resolved</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Issue Details */}
+      <div>
+        <label className="text-xs font-medium text-muted-foreground mb-1 block">Issue Details</label>
+        <Textarea value={issueDetails} onChange={e => setIssueDetails(e.target.value)} placeholder="Describe the issue..." className="text-sm min-h-[60px]" />
+      </div>
+
+      {/* Discussed Action Plan */}
+      <div>
+        <label className="text-xs font-medium text-muted-foreground mb-1 block">Discussed Action Plan</label>
+        <Textarea value={discussedActionPlan} onChange={e => setDiscussedActionPlan(e.target.value)} placeholder="What was discussed..." className="text-sm min-h-[60px]" />
+      </div>
+
+      {/* Action Plan */}
+      <div>
+        <label className="text-xs font-medium text-muted-foreground mb-1 block">Action Plan</label>
+        <Textarea value={actionPlan} onChange={e => setActionPlan(e.target.value)} placeholder="Final action plan..." className="text-sm min-h-[60px]" />
+      </div>
+
+      {/* Tasks */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Tasks to Create</label>
+          <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={addNewTask}>
+            <Plus className="h-3 w-3" /> Add Task
+          </Button>
+        </div>
+        <div className="space-y-3">
+          {issueTasks.map((task, idx) => (
+            <div key={idx} className="bg-secondary/30 rounded-lg p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-foreground">{task.dimension}</span>
+                <div className="flex items-center gap-2">
+                  <Select value={task.urgency} onValueChange={v => updateIssueTask(idx, { urgency: v })}>
+                    <SelectTrigger className="h-7 w-[90px] text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Critical">Critical</SelectItem>
+                      <SelectItem value="High">High</SelectItem>
+                      <SelectItem value="Medium">Medium</SelectItem>
+                      <SelectItem value="Low">Low</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {issueTasks.length > 1 && (
+                    <button onClick={() => removeTask(idx)} className="text-destructive hover:text-destructive/80">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+              <Input
+                value={task.issueSummary}
+                onChange={e => updateIssueTask(idx, { issueSummary: e.target.value })}
+                placeholder="Brief issue summary for task title..."
+                className="h-8 text-sm"
+              />
+              <div>
+                <label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 block">Assignees (select multiple)</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {allAssigneeNames.map(name => {
+                    const selected = task.assignees.includes(name);
+                    return (
+                      <button
+                        key={name}
+                        onClick={() => {
+                          updateIssueTask(idx, {
+                            assignees: selected
+                              ? task.assignees.filter(a => a !== name)
+                              : [...task.assignees, name],
+                          });
+                        }}
+                        className={cn(
+                          "px-2 py-0.5 rounded-full text-[11px] border transition-colors",
+                          selected
+                            ? "bg-primary/15 border-primary/40 text-primary font-medium"
+                            : "bg-secondary/50 border-border text-muted-foreground hover:bg-secondary"
+                        )}
+                      >
+                        {name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <Button onClick={handleSubmit} disabled={saving} className="gap-1.5">
+        {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+        Save Issue & Create Tasks
+      </Button>
+    </div>
+  );
+}
+
+
   const { dealId } = useParams();
   const [activeTab, setActiveTab] = useState<TabKey>("Overview");
   const { deals, people, assignments, loading: staffLoading, updateDeal, updatePerson } = useStaffingData();
@@ -782,37 +1034,156 @@ export default function DealDetail() {
 
         {/* ══════════ RGY Health ══════════ */}
         {activeTab === "RGY Health" && (
-          <div className="animate-fade-in">
-            {rgyWeekly.length > 0 ? (
-              <div className="bg-card border border-border rounded-xl overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-accent/20 border-b border-border">
-                      <th className="text-left py-2.5 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Week</th>
-                      {["Acct Health", "Delivery", "Finance", "SEO", "Creative"].map(d => (
-                        <th key={d} className="text-center py-2.5 px-3 text-xs uppercase tracking-wider text-muted-foreground font-medium">{d}</th>
-                      ))}
-                      <th className="text-left py-2.5 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Plan of Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rgyWeekly.map(r => (
-                      <tr key={r.id} className="border-b border-border/50">
-                        <td className="py-2.5 px-4 text-foreground font-mono text-xs">{r.weekStart}</td>
-                        {[r.accountHealth || r.internal, r.delivery, r.financeBilling || "G", r.capabilitySeo || "G", r.capabilityCreative || "G"].map((val, i) => (
-                          <td key={i} className="py-2.5 px-3 text-center">
-                            <span className={cn("inline-flex items-center justify-center w-7 h-7 rounded-lg text-xs font-bold", rgyColors[val || "G"] || "rgy-na")}>{val || "G"}</span>
-                          </td>
-                        ))}
-                        <td className="py-2.5 px-4 text-muted-foreground text-xs max-w-xs truncate">{r.planOfAction || r.notes || "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="bg-card border border-border rounded-xl text-center py-8 px-5"><p className="text-muted-foreground">No weekly RGY data recorded yet. Set health status in the Overview tab.</p></div>
+          <div className="animate-fade-in space-y-5">
+            {/* Current Week RGY Editor */}
+            <EditableRGY
+              dimensions={[
+                { key: "accountHealth", label: "Account Health", owner: "VSD", value: currentRGY?.accountHealth || "G" },
+                { key: "delivery", label: "Delivery", owner: "BOPM", value: currentRGY?.delivery || "G" },
+                { key: "financeBilling", label: "Finance / Billing", owner: "Finance", value: currentRGY?.financeBilling || "G" },
+                { key: "capabilitySeo", label: "Capability — SEO", owner: "SEO", value: currentRGY?.capabilitySeo || "G" },
+                { key: "capabilityCreative", label: "Capability — Creative", owner: "Creative", value: currentRGY?.capabilityCreative || "G" },
+              ]}
+              onSave={handleRGYSave}
+            />
+
+            {/* RGY Task Summary */}
+            {(() => {
+              const rgyTasks = tasks.filter(t => t.title.startsWith("[RGY Health]"));
+              const toDo = rgyTasks.filter(t => t.stage === "To Do").length;
+              const inProgress = rgyTasks.filter(t => t.stage === "In Progress").length;
+              const inReview = rgyTasks.filter(t => t.stage === "In Review").length;
+              const done = rgyTasks.filter(t => t.stage === "Done").length;
+              const dropped = rgyTasks.filter(t => t.stage === "Dropped").length;
+              const hasNonGreen = currentRGY && (
+                currentRGY.accountHealth !== "G" || currentRGY.delivery !== "G" ||
+                currentRGY.financeBilling !== "G" || currentRGY.capabilitySeo !== "G" ||
+                currentRGY.capabilityCreative !== "G"
+              );
+              const allDone = rgyTasks.length > 0 && rgyTasks.every(t => t.stage === "Done" || t.stage === "Dropped");
+              const showWarning = hasNonGreen && allDone;
+
+              if (rgyTasks.length === 0) return null;
+              return (
+                <div className="bg-card border border-border rounded-xl p-4">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">RGY Health Tasks Summary</p>
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    {toDo > 0 && <Badge variant="outline" className="gap-1">To Do <span className="font-bold">{toDo}</span></Badge>}
+                    {inProgress > 0 && <Badge variant="outline" className="gap-1 border-primary/40 text-primary">In Progress <span className="font-bold">{inProgress}</span></Badge>}
+                    {inReview > 0 && <Badge variant="outline" className="gap-1 border-blue-400/40 text-blue-600">In Review <span className="font-bold">{inReview}</span></Badge>}
+                    {done > 0 && <Badge variant="outline" className="gap-1 border-positive/40 text-positive">Done <span className="font-bold">{done}</span></Badge>}
+                    {dropped > 0 && <Badge variant="outline" className="gap-1">Dropped <span className="font-bold">{dropped}</span></Badge>}
+                  </div>
+                  {showWarning && (
+                    <div className="flex items-center gap-2 mt-3 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                      <span>All RGY tasks are done but status is still Red/Yellow — consider updating RGY status to Green.</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Issue Capture Form — show when any dimension is R or Y */}
+            {currentRGY && (
+              currentRGY.accountHealth !== "G" || currentRGY.delivery !== "G" ||
+              currentRGY.financeBilling !== "G" || currentRGY.capabilitySeo !== "G" ||
+              currentRGY.capabilityCreative !== "G"
+            ) && (
+              <RGYIssueForm
+                dealId={dealId!}
+                currentRGY={currentRGY!}
+                assignees={dealPeople.map(p => ({ id: p.id, name: p.name }))}
+                teamMembers={[
+                  deal.vsd, deal.principalBopm, deal.seniorBopm, deal.bopm
+                ].filter(Boolean)}
+                onSaveIssue={async (issueData) => {
+                  if (currentRGY) {
+                    await updateRGYWeek(currentRGY.id, {
+                      issueDate: issueData.issueDate,
+                      issueDetails: issueData.issueDetails,
+                      discussedActionPlan: issueData.discussedActionPlan,
+                      actionPlan: issueData.actionPlan,
+                      resolutionDueDate: issueData.resolutionDueDate,
+                      issueStatus: issueData.issueStatus,
+                    });
+                  }
+                  // Create tasks
+                  for (const task of issueData.tasks) {
+                    for (const assignee of task.assignees) {
+                      await addTask({
+                        dealId: dealId!,
+                        title: `[RGY Health] ${task.dimension} — ${task.issueSummary}`,
+                        description: `Issue Details: ${issueData.issueDetails}\nAction Plan: ${issueData.actionPlan}\nDiscussed Action Plan: ${issueData.discussedActionPlan}`,
+                        stage: "To Do",
+                        assignee,
+                        urgency: task.urgency,
+                        loggedHours: 0,
+                        sortOrder: 0,
+                        startDate: issueData.issueDate,
+                        endDate: issueData.resolutionDueDate,
+                      });
+                    }
+                  }
+                  toast.success("Issue saved & tasks created");
+                }}
+              />
             )}
+
+            {/* Historic Timeline */}
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">RGY History</p>
+              {rgyWeekly.length > 0 ? (
+                <div className="bg-card border border-border rounded-xl overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-secondary/40 border-b border-border">
+                        <th className="text-left py-2 px-3 text-xs uppercase tracking-wider text-muted-foreground font-medium">Week</th>
+                        {["Acct Health", "Delivery", "Finance", "SEO", "Creative"].map(d => (
+                          <th key={d} className="text-center py-2 px-2 text-xs uppercase tracking-wider text-muted-foreground font-medium">{d}</th>
+                        ))}
+                        <th className="text-left py-2 px-3 text-xs uppercase tracking-wider text-muted-foreground font-medium">Issue</th>
+                        <th className="text-left py-2 px-3 text-xs uppercase tracking-wider text-muted-foreground font-medium">Action Plan</th>
+                        <th className="text-left py-2 px-2 text-xs uppercase tracking-wider text-muted-foreground font-medium">Due</th>
+                        <th className="text-center py-2 px-2 text-xs uppercase tracking-wider text-muted-foreground font-medium">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rgyWeekly.map(r => {
+                        const hasIssue = [r.accountHealth, r.delivery, r.financeBilling, r.capabilitySeo, r.capabilityCreative].some(v => v === "R" || v === "Y");
+                        return (
+                          <tr key={r.id} className={cn("border-b border-border/50 hover:bg-secondary/20 transition-colors", hasIssue && "bg-warning/5")}>
+                            <td className="py-2 px-3 font-mono text-xs text-foreground">{r.weekStart}</td>
+                            {[r.accountHealth || "G", r.delivery || "G", r.financeBilling || "G", r.capabilitySeo || "G", r.capabilityCreative || "G"].map((val, i) => (
+                              <td key={i} className="py-2 px-2 text-center">
+                                <span className={cn("inline-flex items-center justify-center w-6 h-6 rounded-md text-[10px] font-bold", rgyColors[val] || "rgy-na")}>{val}</span>
+                              </td>
+                            ))}
+                            <td className="py-2 px-3 text-xs text-muted-foreground max-w-[120px] truncate">{r.issueDetails || "—"}</td>
+                            <td className="py-2 px-3 text-xs text-muted-foreground max-w-[120px] truncate">{r.actionPlan || r.planOfAction || "—"}</td>
+                            <td className="py-2 px-2 text-xs text-muted-foreground whitespace-nowrap">{r.resolutionDueDate || "—"}</td>
+                            <td className="py-2 px-2 text-center">
+                              {r.issueStatus && r.issueStatus !== "Open" ? (
+                                <Badge variant="outline" className={cn("text-[10px]",
+                                  r.issueStatus === "Resolved" ? "border-positive/40 text-positive" :
+                                  r.issueStatus === "In Progress" ? "border-primary/40 text-primary" : ""
+                                )}>{r.issueStatus}</Badge>
+                              ) : hasIssue ? (
+                                <Badge variant="outline" className="text-[10px] border-warning/40 text-warning">Open</Badge>
+                              ) : <span className="text-muted-foreground text-[10px]">—</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="bg-card border border-border rounded-xl text-center py-8 px-5">
+                  <p className="text-muted-foreground">No weekly RGY data recorded yet. Use the editor above to set health status.</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

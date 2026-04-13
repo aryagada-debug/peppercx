@@ -46,6 +46,12 @@ export interface RGYWeekly {
   capabilitySeo?: string;
   capabilityCreative?: string;
   planOfAction?: string;
+  issueDate?: string;
+  issueDetails?: string;
+  discussedActionPlan?: string;
+  actionPlan?: string;
+  resolutionDueDate?: string;
+  issueStatus?: string;
 }
 
 export interface OnboardingStep {
@@ -98,6 +104,9 @@ export function useDealDetail(dealId: string | undefined) {
       accountHealth: r.account_health || "G", financeBilling: r.finance_billing || "G",
       capabilitySeo: r.capability_seo || "G", capabilityCreative: r.capability_creative || "G",
       planOfAction: r.plan_of_action || "",
+      issueDate: r.issue_date || undefined, issueDetails: r.issue_details || "",
+      discussedActionPlan: r.discussed_action_plan || "", actionPlan: r.action_plan || "",
+      resolutionDueDate: r.resolution_due_date || undefined, issueStatus: r.issue_status || "Open",
     })));
     if (onb.data) setOnboarding(onb.data.map((r: any) => ({ id: r.id, dealId: r.deal_id, stepName: r.step_name, category: r.category, owner: r.owner, dueDate: r.due_date, completed: r.completed, completedAt: r.completed_at, sortOrder: r.sort_order })));
     if (fin.data) setFinancials(fin.data.map((r: any) => ({
@@ -291,6 +300,9 @@ export function useDealDetail(dealId: string | undefined) {
       notes: entry.notes, account_health: entry.accountHealth || "G",
       finance_billing: entry.financeBilling || "G", capability_seo: entry.capabilitySeo || "G",
       capability_creative: entry.capabilityCreative || "G", plan_of_action: entry.planOfAction || "",
+      issue_date: entry.issueDate || null, issue_details: entry.issueDetails || "",
+      discussed_action_plan: entry.discussedActionPlan || "", action_plan: entry.actionPlan || "",
+      resolution_due_date: entry.resolutionDueDate || null, issue_status: entry.issueStatus || "Open",
     }).select().single();
     if (data) setRgyWeekly(prev => [{ id: data.id, ...entry }, ...prev]);
   }, []);
@@ -308,6 +320,12 @@ export function useDealDetail(dealId: string | undefined) {
     if (updates.delivery !== undefined) db.delivery = updates.delivery;
     if (updates.consumption !== undefined) db.consumption = updates.consumption;
     if (updates.notes !== undefined) db.notes = updates.notes;
+    if (updates.issueDate !== undefined) db.issue_date = updates.issueDate;
+    if (updates.issueDetails !== undefined) db.issue_details = updates.issueDetails;
+    if (updates.discussedActionPlan !== undefined) db.discussed_action_plan = updates.discussedActionPlan;
+    if (updates.actionPlan !== undefined) db.action_plan = updates.actionPlan;
+    if (updates.resolutionDueDate !== undefined) db.resolution_due_date = updates.resolutionDueDate;
+    if (updates.issueStatus !== undefined) db.issue_status = updates.issueStatus;
     await (supabase.from("deal_rgy_weekly") as any).update(db).eq("id", id);
   }, []);
 
