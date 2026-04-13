@@ -569,10 +569,15 @@ function RGYIssueForm({ dealId, currentRGY, assignees, teamMembers, onSaveIssue,
         </div>
       </div>
 
-      <Button onClick={handleSubmit} disabled={saving} className="gap-1.5">
-        {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-        Save Issue & Create Tasks
-      </Button>
+      <div className="flex gap-2">
+        <Button variant="outline" onClick={onCancel} disabled={saving}>
+          Cancel
+        </Button>
+        <Button onClick={handleSubmit} disabled={saving} className="gap-1.5">
+          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+          Save Issue & Create Tasks
+        </Button>
+      </div>
     </div>
   );
 }
@@ -1102,12 +1107,8 @@ export default function DealDetail() {
               );
             })()}
 
-            {/* Issue Capture Form — show when any dimension is R or Y */}
-            {currentRGY && (
-              currentRGY.accountHealth !== "G" || currentRGY.delivery !== "G" ||
-              currentRGY.financeBilling !== "G" || currentRGY.capabilitySeo !== "G" ||
-              currentRGY.capabilityCreative !== "G"
-            ) && (
+            {/* Issue Capture Form — show only when user changes to Y/R */}
+            {showIssueForm && currentRGY && (
               <RGYIssueForm
                 dealId={dealId!}
                 currentRGY={currentRGY!}
@@ -1115,6 +1116,21 @@ export default function DealDetail() {
                 teamMembers={[
                   deal.vsd, deal.principalBopm, deal.seniorBopm, deal.bopm
                 ].filter(Boolean)}
+                onCancel={() => {
+                  setShowIssueForm(false);
+                  // Revert RGY to previous values
+                  if (prevRGYSnapshot && currentRGY) {
+                    updateRGYWeek(currentRGY.id, {
+                      accountHealth: prevRGYSnapshot.accountHealth || "G",
+                      delivery: prevRGYSnapshot.delivery || "G",
+                      financeBilling: prevRGYSnapshot.financeBilling || "G",
+                      capabilitySeo: prevRGYSnapshot.capabilitySeo || "G",
+                      capabilityCreative: prevRGYSnapshot.capabilityCreative || "G",
+                    });
+                    toast.info("RGY changes reverted");
+                  }
+                  setPrevRGYSnapshot(null);
+                }}
                 onSaveIssue={async (issueData) => {
                   if (currentRGY) {
                     await updateRGYWeek(currentRGY.id, {
@@ -1143,6 +1159,8 @@ export default function DealDetail() {
                       });
                     }
                   }
+                  setShowIssueForm(false);
+                  setPrevRGYSnapshot(null);
                   toast.success("Issue saved & tasks created");
                 }}
               />
