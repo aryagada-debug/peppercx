@@ -575,8 +575,7 @@ function RGYIssueForm({ dealId, currentRGY, assignees, teamMembers, onSaveIssue 
     </div>
   );
 }
-
-
+export default function DealDetail() {
   const { dealId } = useParams();
   const [activeTab, setActiveTab] = useState<TabKey>("Overview");
   const { deals, people, assignments, loading: staffLoading, updateDeal, updatePerson } = useStaffingData();
