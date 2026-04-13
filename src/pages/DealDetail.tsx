@@ -1,6 +1,6 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Loader2, Plus, Trash2, Pencil, Check, X, Calendar, Users, Eye, Edit2, ExternalLink, AlertTriangle, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, Trash2, Pencil, Check, X, Calendar, Users, Eye, Edit2, ExternalLink, AlertTriangle, ChevronDown, ChevronUp, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useState, useMemo, useCallback } from "react";
@@ -18,6 +18,8 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import type { RGYWeekly } from "@/hooks/useDealDetail";
 import { toast } from "sonner";
@@ -631,8 +633,67 @@ export default function DealDetail() {
     return null;
   }, [rgyWeekly]);
 
+  // RGY issue form visibility
+  const [showIssueForm, setShowIssueForm] = useState(false);
+  const [prevRGYSnapshot, setPrevRGYSnapshot] = useState<Record<string, string> | null>(null);
+
+  // Green-gate dialog state
+  const [greenGateDialog, setGreenGateDialog] = useState<{
+    pendingDims: { key: string; label: string; tasks: any[] }[];
+    pendingSave: any[] | null;
+  } | null>(null);
+
+  const dimensionLabels: Record<string, string> = {
+    accountHealth: "Account Health",
+    delivery: "Delivery",
+    financeBilling: "Finance/Billing",
+    capabilitySeo: "Capability-SEO",
+    capabilityCreative: "Capability-Creative",
+  };
+
   const handleRGYSave = useCallback((dims: any[]) => {
     if (!dealId) return;
+
+    const rgyData: Record<string, string> = {};
+    const planParts: string[] = [];
+    dims.forEach(d => {
+      rgyData[d.key] = d.value;
+      if (d.planOfAction) planParts.push(`${d.label}: ${d.planOfAction}`);
+    });
+
+    // Check green-gate: if any dimension is moving TO Green, check for open tasks
+    if (currentRGY) {
+      const oldValues: Record<string, string> = {
+        accountHealth: currentRGY.accountHealth || "G",
+        delivery: currentRGY.delivery || "G",
+        financeBilling: currentRGY.financeBilling || "G",
+        capabilitySeo: currentRGY.capabilitySeo || "G",
+        capabilityCreative: currentRGY.capabilityCreative || "G",
+      };
+
+      const pendingGreenDims: { key: string; label: string; tasks: any[] }[] = [];
+      for (const [key, newVal] of Object.entries(rgyData)) {
+        const oldVal = oldValues[key];
+        if (newVal === "G" && oldVal !== "G") {
+          // Find open [RGY Health] tasks for this dimension
+          const label = dimensionLabels[key] || key;
+          const openTasks = tasks.filter(
+            t => t.title.startsWith("[RGY Health]") &&
+              t.title.includes(label) &&
+              t.stage !== "Done" && t.stage !== "Dropped"
+          );
+          if (openTasks.length > 0) {
+            pendingGreenDims.push({ key, label, tasks: openTasks });
+          }
+        }
+      }
+
+      if (pendingGreenDims.length > 0) {
+        setGreenGateDialog({ pendingDims: pendingGreenDims, pendingSave: dims });
+        return; // Block save
+      }
+    }
+
     // Snapshot current values before saving for potential revert
     if (currentRGY) {
       setPrevRGYSnapshot({
@@ -643,53 +704,52 @@ export default function DealDetail() {
         capabilityCreative: currentRGY.capabilityCreative,
       });
     }
-    const today = new Date();
-    const dayOfWeek = today.getDay();
-    const monday = new Date(today);
-    monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
-    const weekStart = monday.toISOString().split("T")[0];
 
-    const rgyData: Record<string, string> = {};
-    const planParts: string[] = [];
-    dims.forEach(d => {
-      rgyData[d.key] = d.value;
-      if (d.planOfAction) planParts.push(`${d.label}: ${d.planOfAction}`);
+    // Always insert a new row for full history
+    addRGYWeek({
+      dealId,
+      weekStart: (() => {
+        const today = new Date();
+        const dayOfWeek = today.getDay();
+        const monday = new Date(today);
+        monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+        return monday.toISOString().split("T")[0];
+      })(),
+      internal: rgyData.accountHealth || "G",
+      customer: "G",
+      delivery: rgyData.delivery || "G",
+      consumption: "G",
+      accountHealth: rgyData.accountHealth || "G",
+      financeBilling: rgyData.financeBilling || "G",
+      capabilitySeo: rgyData.capabilitySeo || "G",
+      capabilityCreative: rgyData.capabilityCreative || "G",
+      planOfAction: planParts.join("; "),
     });
 
-    if (currentRGY && currentRGY.weekStart === weekStart) {
-      updateRGYWeek(currentRGY.id, {
-        accountHealth: rgyData.accountHealth || "G",
-        delivery: rgyData.delivery || "G",
-        financeBilling: rgyData.financeBilling || "G",
-        capabilitySeo: rgyData.capabilitySeo || "G",
-        capabilityCreative: rgyData.capabilityCreative || "G",
-        planOfAction: planParts.join("; "),
-      });
-    } else {
-      addRGYWeek({
-        dealId,
-        weekStart,
-        internal: rgyData.accountHealth || "G",
-        customer: "G",
-        delivery: rgyData.delivery || "G",
-        consumption: "G",
-        accountHealth: rgyData.accountHealth || "G",
-        financeBilling: rgyData.financeBilling || "G",
-        capabilitySeo: rgyData.capabilitySeo || "G",
-        capabilityCreative: rgyData.capabilityCreative || "G",
-        planOfAction: planParts.join("; "),
-      });
-    }
     // Check if any dimension is Y or R to show issue form
     const hasYorR = Object.values(rgyData).some(v => v === "Y" || v === "R");
     setShowIssueForm(hasYorR);
     if (!hasYorR) setPrevRGYSnapshot(null);
     toast.success("RGY health saved");
-  }, [dealId, currentRGY, addRGYWeek, updateRGYWeek]);
+  }, [dealId, currentRGY, addRGYWeek, tasks]);
 
-  // RGY issue form visibility
-  const [showIssueForm, setShowIssueForm] = useState(false);
-  const [prevRGYSnapshot, setPrevRGYSnapshot] = useState<Record<string, string> | null>(null);
+  const handleForceCloseGreenGate = useCallback(async () => {
+    if (!greenGateDialog) return;
+    // Mark all pending tasks as Done
+    for (const dim of greenGateDialog.pendingDims) {
+      for (const task of dim.tasks) {
+        await updateTask(task.id, { stage: "Done" });
+      }
+    }
+    toast.success("Tasks force-closed");
+    // Now retry the save
+    if (greenGateDialog.pendingSave) {
+      setGreenGateDialog(null);
+      handleRGYSave(greenGateDialog.pendingSave);
+    } else {
+      setGreenGateDialog(null);
+    }
+  }, [greenGateDialog, updateTask, handleRGYSave]);
 
   // SoW add
   const [addingSoW, setAddingSoW] = useState(false);
@@ -1166,54 +1226,80 @@ export default function DealDetail() {
               />
             )}
 
-            {/* Historic Timeline */}
+            {/* Green-Gate Dialog */}
+            {greenGateDialog && (
+              <AlertDialog open={!!greenGateDialog} onOpenChange={(open) => { if (!open) setGreenGateDialog(null); }}>
+                <AlertDialogContent className="max-w-lg">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="flex items-center gap-2">
+                      <AlertTriangle className="h-5 w-5 text-warning" />
+                      Open Tasks Must Be Completed
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      The following RGY Health tasks are still open. You must complete or force-close them before moving the status to Green.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <div className="space-y-3 max-h-60 overflow-y-auto">
+                    {greenGateDialog.pendingDims.map(dim => (
+                      <div key={dim.key} className="space-y-1.5">
+                        <p className="text-xs font-semibold text-foreground">{dim.label}</p>
+                        {dim.tasks.map(task => (
+                          <div key={task.id} className="flex items-center gap-2 pl-2">
+                            <Checkbox
+                              checked={task.stage === "Done"}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  updateTask(task.id, { stage: "Done" });
+                                  // Update local dialog state
+                                  setGreenGateDialog(prev => {
+                                    if (!prev) return prev;
+                                    return {
+                                      ...prev,
+                                      pendingDims: prev.pendingDims.map(d => ({
+                                        ...d,
+                                        tasks: d.tasks.map(t => t.id === task.id ? { ...t, stage: "Done" } : t)
+                                      }))
+                                    };
+                                  });
+                                }
+                              }}
+                            />
+                            <span className="text-sm text-foreground">{task.title}</span>
+                            <Badge variant="outline" className="text-[10px] ml-auto">{task.stage}</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <Button
+                      variant="outline"
+                      onClick={handleForceCloseGreenGate}
+                      className="text-warning border-warning/40"
+                    >
+                      Force Close All & Save
+                    </Button>
+                    <AlertDialogAction
+                      disabled={greenGateDialog.pendingDims.some(d => d.tasks.some(t => t.stage !== "Done" && t.stage !== "Dropped"))}
+                      onClick={() => {
+                        const pendingSave = greenGateDialog.pendingSave;
+                        setGreenGateDialog(null);
+                        if (pendingSave) handleRGYSave(pendingSave);
+                      }}
+                    >
+                      Save as Green
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+
+            {/* Historic Timeline — Grouped by Week */}
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">RGY History</p>
               {rgyWeekly.length > 0 ? (
-                <div className="bg-card border border-border rounded-xl overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-secondary/40 border-b border-border">
-                        <th className="text-left py-2 px-3 text-xs uppercase tracking-wider text-muted-foreground font-medium">Week</th>
-                        {["Acct Health", "Delivery", "Finance", "SEO", "Creative"].map(d => (
-                          <th key={d} className="text-center py-2 px-2 text-xs uppercase tracking-wider text-muted-foreground font-medium">{d}</th>
-                        ))}
-                        <th className="text-left py-2 px-3 text-xs uppercase tracking-wider text-muted-foreground font-medium">Issue</th>
-                        <th className="text-left py-2 px-3 text-xs uppercase tracking-wider text-muted-foreground font-medium">Action Plan</th>
-                        <th className="text-left py-2 px-2 text-xs uppercase tracking-wider text-muted-foreground font-medium">Due</th>
-                        <th className="text-center py-2 px-2 text-xs uppercase tracking-wider text-muted-foreground font-medium">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rgyWeekly.map(r => {
-                        const hasIssue = [r.accountHealth, r.delivery, r.financeBilling, r.capabilitySeo, r.capabilityCreative].some(v => v === "R" || v === "Y");
-                        return (
-                          <tr key={r.id} className={cn("border-b border-border/50 hover:bg-secondary/20 transition-colors", hasIssue && "bg-warning/5")}>
-                            <td className="py-2 px-3 font-mono text-xs text-foreground">{r.weekStart}</td>
-                            {[r.accountHealth || "G", r.delivery || "G", r.financeBilling || "G", r.capabilitySeo || "G", r.capabilityCreative || "G"].map((val, i) => (
-                              <td key={i} className="py-2 px-2 text-center">
-                                <span className={cn("inline-flex items-center justify-center w-6 h-6 rounded-md text-[10px] font-bold", rgyColors[val] || "rgy-na")}>{val}</span>
-                              </td>
-                            ))}
-                            <td className="py-2 px-3 text-xs text-muted-foreground max-w-[120px] truncate">{r.issueDetails || "—"}</td>
-                            <td className="py-2 px-3 text-xs text-muted-foreground max-w-[120px] truncate">{r.actionPlan || r.planOfAction || "—"}</td>
-                            <td className="py-2 px-2 text-xs text-muted-foreground whitespace-nowrap">{r.resolutionDueDate || "—"}</td>
-                            <td className="py-2 px-2 text-center">
-                              {r.issueStatus && r.issueStatus !== "Open" ? (
-                                <Badge variant="outline" className={cn("text-[10px]",
-                                  r.issueStatus === "Resolved" ? "border-positive/40 text-positive" :
-                                  r.issueStatus === "In Progress" ? "border-primary/40 text-primary" : ""
-                                )}>{r.issueStatus}</Badge>
-                              ) : hasIssue ? (
-                                <Badge variant="outline" className="text-[10px] border-warning/40 text-warning">Open</Badge>
-                              ) : <span className="text-muted-foreground text-[10px]">—</span>}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                <GroupedRGYHistory rgyWeekly={rgyWeekly} />
               ) : (
                 <div className="bg-card border border-border rounded-xl text-center py-8 px-5">
                   <p className="text-muted-foreground">No weekly RGY data recorded yet. Use the editor above to set health status.</p>
