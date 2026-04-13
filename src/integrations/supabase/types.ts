@@ -233,6 +233,7 @@ export type Database = {
       deal_rgy_weekly: {
         Row: {
           account_health: string
+          action_plan: string | null
           capability_creative: string
           capability_seo: string
           consumption: string
@@ -240,15 +241,21 @@ export type Database = {
           customer: string
           deal_id: string
           delivery: string
+          discussed_action_plan: string | null
           finance_billing: string
           id: string
           internal: string
+          issue_date: string | null
+          issue_details: string | null
+          issue_status: string | null
           notes: string | null
           plan_of_action: string
+          resolution_due_date: string | null
           week_start: string
         }
         Insert: {
           account_health?: string
+          action_plan?: string | null
           capability_creative?: string
           capability_seo?: string
           consumption?: string
@@ -256,15 +263,21 @@ export type Database = {
           customer?: string
           deal_id: string
           delivery?: string
+          discussed_action_plan?: string | null
           finance_billing?: string
           id?: string
           internal?: string
+          issue_date?: string | null
+          issue_details?: string | null
+          issue_status?: string | null
           notes?: string | null
           plan_of_action?: string
+          resolution_due_date?: string | null
           week_start: string
         }
         Update: {
           account_health?: string
+          action_plan?: string | null
           capability_creative?: string
           capability_seo?: string
           consumption?: string
@@ -272,11 +285,16 @@ export type Database = {
           customer?: string
           deal_id?: string
           delivery?: string
+          discussed_action_plan?: string | null
           finance_billing?: string
           id?: string
           internal?: string
+          issue_date?: string | null
+          issue_details?: string | null
+          issue_status?: string | null
           notes?: string | null
           plan_of_action?: string
+          resolution_due_date?: string | null
           week_start?: string
         }
         Relationships: []
