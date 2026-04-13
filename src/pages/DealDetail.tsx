@@ -148,7 +148,7 @@ function AddStaffingMemberDialog({
     onAdd({
       id: uid(),
       dealId,
-      roleKey: selectedPerson.roleTitle || selectedPerson.roleCategory,
+      roleKey: roleOnDeal || selectedPerson.roleTitle || selectedPerson.roleCategory,
       personId: selectedPerson.id,
       allocationPct,
     });
