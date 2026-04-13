@@ -1,6 +1,6 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Link } from "react-router-dom";
-import { Search, ChevronDown, ChevronRight, Building2, Plus, Loader2 } from "lucide-react";
+import { Search, ChevronDown, ChevronRight, Building2, Plus, Loader2, Trash2 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useStaffingData } from "@/hooks/useStaffingData";
 import { useClients } from "@/hooks/useClients";
@@ -11,6 +11,23 @@ import { DealFormWizard } from "@/components/deals/DealFormWizard";
 import { supabase } from "@/integrations/supabase/client";
 import { uid } from "@/data/staffingData";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const PODS = ["All", "Integrated", "India B2B", "US B2B", "FMCG", "BFSI"] as const;
 type Pod = typeof PODS[number];
@@ -24,6 +41,8 @@ const BU_TO_POD: Record<string, Pod> = {
   "FMCG": "FMCG",
   "BFSI": "BFSI",
 };
+
+const DEAL_STATUSES = ["Active", "Paused", "Closed", "Lost", "Pipeline", "Won"] as const;
 
 const fmtCurrency = (n: number | undefined) => {
   if (!n) return "—";
@@ -42,7 +61,7 @@ const ragDot = (rag: string) => {
 
 export default function Clients() {
   const { deals, loading: staffLoading, refresh: refreshStaffing } = useStaffingData();
-  const { clients, loading: clientsLoading, addClient, refresh: refreshClients } = useClients();
+  const { clients, loading: clientsLoading, addClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
   const [search, setSearch] = useState("");
   const [activePod, setActivePod] = useState<Pod>("All");
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
@@ -51,6 +70,9 @@ export default function Clients() {
   const [clientDialogOpen, setClientDialogOpen] = useState(false);
   const [dealWizardOpen, setDealWizardOpen] = useState(false);
   const [dealWizardClientId, setDealWizardClientId] = useState<string | undefined>();
+
+  // Delete confirmation state
+  const [deleteTarget, setDeleteTarget] = useState<{ type: "client" | "deal"; id: string; name: string } | null>(null);
 
   const filteredDeals = useMemo(() => {
     let d = deals;
@@ -135,7 +157,6 @@ export default function Clients() {
       return;
     }
 
-    // Insert SoW items
     const validSow = data.sowItems.filter((s: any) => s.scope);
     if (validSow.length > 0) {
       await supabase.from("deal_sow_items").insert(
@@ -152,12 +173,42 @@ export default function Clients() {
     refreshStaffing();
   };
 
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    if (deleteTarget.type === "client") {
+      const client = clients.find(c => c.name === deleteTarget.name);
+      if (client) {
+        const ok = await deleteClient(client.id);
+        if (ok) {
+          toast.success(`Client "${deleteTarget.name}" deleted`);
+          refreshStaffing();
+        } else {
+          toast.error("Failed to delete client");
+        }
+      }
+    } else {
+      const ok = await deleteDeal(deleteTarget.id);
+      if (ok) {
+        toast.success(`Deal "${deleteTarget.name}" deleted`);
+        refreshStaffing();
+      } else {
+        toast.error("Failed to delete deal");
+      }
+    }
+    setDeleteTarget(null);
+  };
+
+  const handleStatusChange = async (dealId: string, newStatus: string) => {
+    await supabase.from("staffing_deals").update({ deal_status_cx: newStatus } as any).eq("id", dealId);
+    refreshStaffing();
+  };
+
   const loading = staffLoading || clientsLoading;
 
   if (loading) {
     return (
       <AppLayout>
-        <div className="p-8 flex items-center justify-center min-h-[60vh]">
+        <div className="p-5 flex items-center justify-center min-h-[60vh]">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       </AppLayout>
@@ -166,11 +217,11 @@ export default function Clients() {
 
   return (
     <AppLayout>
-      <div className="p-8">
-        <div className="flex items-center justify-between mb-5">
+      <div className="p-5">
+        <div className="flex items-center justify-between mb-3">
           <div>
             <h1 className="text-subhead font-bold tracking-tight text-foreground">Clients & Deals</h1>
-            <p className="text-ui text-muted-foreground mt-1">{kpis.clients} clients • {kpis.deals} deals</p>
+            <p className="text-ui text-muted-foreground mt-0.5">{kpis.clients} clients • {kpis.deals} deals</p>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => setClientDialogOpen(true)}>
@@ -183,7 +234,7 @@ export default function Clients() {
         </div>
 
         {/* KPI Strip */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3">
           {[
             { label: "Clients", value: String(kpis.clients) },
             { label: "Total Deals", value: String(kpis.deals) },
@@ -199,7 +250,7 @@ export default function Clients() {
         </div>
 
         {/* Filters */}
-        <div className="flex items-center gap-4 mb-5 flex-wrap">
+        <div className="flex items-center gap-4 mb-3 flex-wrap">
           <div className="flex gap-1 bg-secondary rounded-lg p-1">
             {PODS.map(pod => (
               <button key={pod} onClick={() => setActivePod(pod)} className={cn(
@@ -222,7 +273,7 @@ export default function Clients() {
         </div>
 
         {/* Client List */}
-        <div className="space-y-1">
+        <div className="space-y-0.5">
           {clientGroups.map(([clientName, clientDeals]) => {
             const isExpanded = expandedClients.has(clientName);
             const clientMRR = clientDeals.reduce((s, d) => s + (d.mrr || 0), 0);
@@ -232,27 +283,39 @@ export default function Clients() {
 
             return (
               <div key={clientName} className="data-card !p-0 overflow-hidden">
-                <button
-                  onClick={() => toggleClient(clientName)}
-                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-accent/30 transition-colors text-left"
-                >
-                  {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />}
-                  <Building2 className="h-4 w-4 text-primary flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <span className="font-medium text-foreground">{clientName}</span>
-                    <span className="ml-2 text-caption text-muted-foreground">{clientDeals.length} deal{clientDeals.length !== 1 ? "s" : ""}</span>
-                  </div>
-                  <div className="flex items-center gap-6 text-ui">
-                    <span className="text-muted-foreground text-caption">VSD: <span className="text-foreground font-medium">{vsd}</span></span>
-                    <span className="text-muted-foreground text-caption">P.BOPM: <span className="text-foreground font-medium">{principalBopm}</span></span>
-                    <span className="font-mono tabular-nums text-foreground">{fmtCurrency(clientMRR)}<span className="text-muted-foreground text-caption">/mo</span></span>
-                    <span className="font-mono tabular-nums text-foreground">{fmtCurrency(clientValue)}</span>
-                  </div>
-                </button>
+                <div className="flex items-center group">
+                  <button
+                    onClick={() => toggleClient(clientName)}
+                    className="flex-1 flex items-center gap-3 px-3 py-2 hover:bg-accent/30 transition-colors text-left"
+                  >
+                    {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />}
+                    <Building2 className="h-4 w-4 text-primary flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <span className="font-medium text-foreground">{clientName}</span>
+                      <span className="ml-2 text-caption text-muted-foreground">{clientDeals.length} deal{clientDeals.length !== 1 ? "s" : ""}</span>
+                    </div>
+                    <div className="flex items-center gap-6 text-ui">
+                      <span className="text-muted-foreground text-caption">VSD: <span className="text-foreground font-medium">{vsd}</span></span>
+                      <span className="text-muted-foreground text-caption">P.BOPM: <span className="text-foreground font-medium">{principalBopm}</span></span>
+                      <span className="font-mono tabular-nums text-foreground">{fmtCurrency(clientMRR)}<span className="text-muted-foreground text-caption">/mo</span></span>
+                      <span className="font-mono tabular-nums text-foreground">{fmtCurrency(clientValue)}</span>
+                    </div>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteTarget({ type: "client", id: clientName, name: clientName });
+                    }}
+                    className="px-2 py-2 mr-1 text-muted-foreground/40 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Delete client"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
 
                 {isExpanded && (
                   <div className="border-t border-border animate-fade-in">
-                    <div className="flex items-center justify-end px-4 py-2 bg-accent/10">
+                    <div className="flex items-center justify-end px-3 py-1.5 bg-accent/10">
                       <Button variant="ghost" size="sm" onClick={() => openDealWizardForClient(clientName)}>
                         <Plus className="h-3.5 w-3.5 mr-1" /> Add Deal
                       </Button>
@@ -260,41 +323,59 @@ export default function Clients() {
                     <table className="w-full text-ui">
                       <thead>
                         <tr className="bg-accent/20">
-                          <th className="text-left py-2 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">Deal</th>
-                          <th className="text-left py-2 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">Type</th>
-                          <th className="text-left py-2 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">Status</th>
-                          <th className="text-left py-2 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">RAG</th>
-                          <th className="text-right py-2 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">MRR</th>
-                          <th className="text-right py-2 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">Total Value</th>
-                          <th className="text-left py-2 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">VSD</th>
+                          <th className="text-left py-1.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider">Deal</th>
+                          <th className="text-left py-1.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider">Type</th>
+                          <th className="text-left py-1.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider">Status</th>
+                          <th className="text-left py-1.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider">RAG</th>
+                          <th className="text-right py-1.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider">MRR</th>
+                          <th className="text-right py-1.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider">Total Value</th>
+                          <th className="text-left py-1.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider">VSD</th>
+                          <th className="w-8"></th>
                         </tr>
                       </thead>
                       <tbody>
                         {clientDeals.map(deal => (
-                          <tr key={deal.id} className="border-t border-border/50 hover:bg-accent/10 transition-colors">
-                            <td className="py-2.5 px-4">
+                          <tr key={deal.id} className="border-t border-border/50 hover:bg-accent/10 transition-colors group/row">
+                            <td className="py-1.5 px-3">
                               <Link to={`/deals/${deal.id}`} className="text-primary hover:underline font-medium">
                                 {deal.dealName}
                               </Link>
                               <span className="ml-2 text-caption text-muted-foreground font-mono">({deal.dealId})</span>
                             </td>
-                            <td className="py-2.5 px-4">
+                            <td className="py-1.5 px-3">
                               <span className={cn(
                                 "inline-flex px-2 py-0.5 rounded-full text-[11px] font-medium",
                                 deal.dealType === "Retainer" ? "bg-accent text-accent-foreground" : "bg-secondary text-secondary-foreground"
                               )}>{deal.dealType}</span>
                             </td>
-                            <td className="py-2.5 px-4">
-                              <span className={cn(
-                                "inline-flex px-2 py-0.5 rounded-full text-[11px] font-medium",
-                                deal.dealStatusCx === "Active" ? "text-positive" : "text-muted-foreground",
-                                deal.dealStatusCx === "Active" ? "bg-[hsl(var(--success-bg))]" : "bg-secondary"
-                              )}>{deal.dealStatusCx || deal.dealStatus}</span>
+                            <td className="py-1.5 px-3">
+                              <Select
+                                value={deal.dealStatusCx || deal.dealStatus || "Active"}
+                                onValueChange={(v) => handleStatusChange(deal.id, v)}
+                              >
+                                <SelectTrigger className="h-6 w-[90px] text-[11px] border-none bg-transparent shadow-none px-1 focus:ring-0">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {DEAL_STATUSES.map(s => (
+                                    <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             </td>
-                            <td className="py-2.5 px-4">{ragDot(deal.rag || "green")}</td>
-                            <td className="py-2.5 px-4 text-right font-mono tabular-nums text-foreground">{fmtCurrency(deal.mrr)}</td>
-                            <td className="py-2.5 px-4 text-right font-mono tabular-nums text-foreground">{fmtCurrency(deal.totalDealValue)}</td>
-                            <td className="py-2.5 px-4 text-muted-foreground">{deal.vsd}</td>
+                            <td className="py-1.5 px-3">{ragDot(deal.rag || "green")}</td>
+                            <td className="py-1.5 px-3 text-right font-mono tabular-nums text-foreground">{fmtCurrency(deal.mrr)}</td>
+                            <td className="py-1.5 px-3 text-right font-mono tabular-nums text-foreground">{fmtCurrency(deal.totalDealValue)}</td>
+                            <td className="py-1.5 px-3 text-muted-foreground">{deal.vsd}</td>
+                            <td className="py-1.5 px-1">
+                              <button
+                                onClick={() => setDeleteTarget({ type: "deal", id: deal.id, name: deal.dealName })}
+                                className="text-muted-foreground/40 hover:text-destructive opacity-0 group-hover/row:opacity-100 transition-opacity"
+                                title="Delete deal"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -312,6 +393,28 @@ export default function Clients() {
           )}
         </div>
       </div>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {deleteTarget?.type === "client" ? "client" : "deal"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.type === "client"
+                ? `This will permanently delete "${deleteTarget.name}" and all associated deals, financials, tasks, and MBR entries.`
+                : `This will permanently delete deal "${deleteTarget?.name}" and all related data.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Dialogs */}
       <ClientFormDialog
