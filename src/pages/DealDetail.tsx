@@ -159,7 +159,7 @@ function AddStaffingMemberDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={v => { if (!v) reset(); onOpenChange(v); }}>
-      <AlertDialogContent className="max-w-lg max-h-[80vh] flex flex-col">
+      <AlertDialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
         <AlertDialogHeader>
           <AlertDialogTitle>
             {step === 1 && "Select Team"}
