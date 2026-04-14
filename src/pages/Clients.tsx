@@ -98,6 +98,18 @@ export default function Clients() {
   const [dealWizardClientId, setDealWizardClientId] = useState<string | undefined>();
 
   const [deleteTarget, setDeleteTarget] = useState<{ type: "client" | "deal"; id: string; name: string } | null>(null);
+  const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
+
+  const toggleClient = (client: string) => {
+    setExpandedClients(prev => {
+      const next = new Set(prev);
+      if (next.has(client)) next.delete(client); else next.add(client);
+      return next;
+    });
+  };
+
+  const expandAll = () => setExpandedClients(new Set(groupedDeals.map(g => g.client)));
+  const collapseAll = () => setExpandedClients(new Set());
 
   // People filtered by role for dropdowns
   const vsdPeople = useMemo(() => people.filter(p => (p.roleTitle || "").toLowerCase().includes("vsd")), [people]);
@@ -113,6 +125,17 @@ export default function Clients() {
     if (search) d = d.filter(deal => deal.account.toLowerCase().includes(search.toLowerCase()) || deal.dealName.toLowerCase().includes(search.toLowerCase()));
     return d;
   }, [deals, activePod, search, showClosed]);
+
+  const groupedDeals = useMemo(() => {
+    const map = new Map<string, typeof filteredDeals>();
+    filteredDeals.forEach(deal => {
+      const existing = map.get(deal.account) || [];
+      map.set(deal.account, [...existing, deal]);
+    });
+    return Array.from(map.entries())
+      .map(([client, deals]) => ({ client, deals }))
+      .sort((a, b) => a.client.localeCompare(b.client));
+  }, [filteredDeals]);
 
   const kpis = useMemo(() => {
     const clientSet = new Set(filteredDeals.map(d => d.account));
