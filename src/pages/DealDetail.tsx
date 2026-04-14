@@ -81,12 +81,13 @@ function FinancialMetricCard({ label, value, subLabel, onSave }: { label: string
   );
 }
 
-// ── Team Member Row ──
-function TeamMemberRow({ name, role, color, onSave }: { name: string; role: string; color: string; onSave: (v: string) => void }) {
-  const initials = name && name !== "Not assigned"
-    ? name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()
+// ── Team Member Select (dropdown from staffing people) ──
+function TeamMemberSelect({ currentName, role, color, people, onSelect }: {
+  currentName: string; role: string; color: string; people: { id: string; name: string; roleTitle: string }[]; onSelect: (name: string) => void;
+}) {
+  const initials = currentName && currentName !== "Not assigned"
+    ? currentName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()
     : "?";
-  const isUnassigned = !name || name === "Not assigned";
 
   return (
     <div className="flex items-center gap-3 py-2">
@@ -94,7 +95,17 @@ function TeamMemberRow({ name, role, color, onSave }: { name: string; role: stri
         {initials}
       </div>
       <div className="flex-1 min-w-0">
-        <EditableCell value={isUnassigned ? "" : name} onSave={onSave} placeholder="Not assigned" />
+        <Select value={currentName || "_none"} onValueChange={v => v !== "_none" && onSelect(v)}>
+          <SelectTrigger className="h-7 text-sm border-none bg-transparent shadow-none px-0 focus:ring-0">
+            <SelectValue placeholder="Not assigned" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="_none" className="text-xs text-muted-foreground">— Not assigned —</SelectItem>
+            {people.map(p => (
+              <SelectItem key={p.id} value={p.name} className="text-xs">{p.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <span className="text-xs text-muted-foreground whitespace-nowrap">{role}</span>
     </div>
