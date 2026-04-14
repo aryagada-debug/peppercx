@@ -1,3 +1,4 @@
+import React from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Link } from "react-router-dom";
 import { Search, Plus, Loader2, Trash2, Pencil, Check, X, ChevronRight, ChevronDown, ChevronsUpDown } from "lucide-react";
