@@ -1259,23 +1259,39 @@ export default function DealDetail() {
                 </div>
 
                 {/* Column headers */}
-                <div className="flex items-center px-5 py-2 bg-secondary/40 border-b border-border">
-                  <span className="flex-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Scope</span>
-                  <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground text-right w-40">Revenue share team</span>
-                  <span className="w-8" />
+                <div className="grid grid-cols-[1fr_120px_200px_80px_32px] items-center px-5 py-2 bg-secondary/40 border-b border-border gap-2">
+                  <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Scope</span>
+                  <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground text-right">Value (₹)</span>
+                  <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Teams</span>
+                  <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Capability</span>
+                  <span />
                 </div>
 
                 {/* Add row */}
                 {addingSoW && (
-                  <div className="flex items-center gap-2 px-5 py-3 border-b border-border bg-accent/5">
-                    <div className="flex-1">
-                      <Input value={newSoW.scope} onChange={e => setNewSoW(p => ({ ...p, scope: e.target.value }))} className="h-7 text-sm" placeholder="Scope description" />
+                  <div className="grid grid-cols-[1fr_120px_200px_80px_32px] items-start gap-2 px-5 py-3 border-b border-border bg-accent/5">
+                    <Input value={newSoW.scope} onChange={e => setNewSoW(p => ({ ...p, scope: e.target.value }))} className="h-7 text-sm" placeholder="Scope description" />
+                    <Input value={newSoW.lineItemValue || ""} onChange={e => setNewSoW(p => ({ ...p, lineItemValue: Number(e.target.value) || 0 }))} className="h-7 text-sm text-right" type="number" placeholder="0" />
+                    <div className="flex flex-wrap gap-1.5 py-1">
+                      {["Account Management", "Content", "SEO", "Creative"].map(team => (
+                        <label key={team} className="flex items-center gap-1 text-xs cursor-pointer">
+                          <Checkbox
+                            checked={newSoW.teams.includes(team)}
+                            onCheckedChange={(checked) => {
+                              setNewSoW(p => ({
+                                ...p,
+                                teams: checked ? [...p.teams, team] : p.teams.filter(t => t !== team)
+                              }));
+                            }}
+                            className="h-3.5 w-3.5"
+                          />
+                          <span className="text-muted-foreground">{team}</span>
+                        </label>
+                      ))}
                     </div>
-                    <div className="w-40">
-                      <Input value={newSoW.teamCapability} onChange={e => setNewSoW(p => ({ ...p, teamCapability: e.target.value }))} className="h-7 text-sm" placeholder="e.g. SEO" />
-                    </div>
-                    <div className="flex gap-1 w-8 justify-end">
-                      <button onClick={() => { addSoWItem({ dealId: dealId!, ...newSoW }); setNewSoW({ scope: "", revenueShare: 0, teamCapability: "" }); setAddingSoW(false); }} className="text-primary"><Check className="h-4 w-4" /></button>
+                    <Input value={newSoW.teamCapability} onChange={e => setNewSoW(p => ({ ...p, teamCapability: e.target.value }))} className="h-7 text-sm" placeholder="SEO" />
+                    <div className="flex gap-1 justify-end pt-1">
+                      <button onClick={() => { addSoWItem({ dealId: dealId!, ...newSoW }); setNewSoW({ scope: "", revenueShare: 0, teamCapability: "", teams: [], lineItemValue: 0 }); setAddingSoW(false); }} className="text-primary"><Check className="h-4 w-4" /></button>
                       <button onClick={() => setAddingSoW(false)} className="text-muted-foreground"><X className="h-4 w-4" /></button>
                     </div>
                   </div>
@@ -1284,16 +1300,25 @@ export default function DealDetail() {
                 {/* Items */}
                 {sowItems.map((s, i) => (
                   <div key={s.id} className={cn(
-                    "flex items-center px-5 py-3 group hover:bg-accent/5 transition-colors",
+                    "grid grid-cols-[1fr_120px_200px_80px_32px] items-center gap-2 px-5 py-3 group hover:bg-accent/5 transition-colors",
                     i < sowItems.length - 1 && "border-b border-border"
                   )}>
-                    <div className="flex-1 min-w-0">
+                    <div className="min-w-0">
                       <EditableCell value={s.scope} onSave={v => updateSoWItem(s.id, { scope: v })} />
                     </div>
-                    <div className="w-40 text-right">
+                    <div className="text-right">
+                      <EditableCell value={String(s.lineItemValue || "")} onSave={v => updateSoWItem(s.id, { lineItemValue: Number(v) || 0 })} type="number" prefix="₹" placeholder="—" />
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {(s.teams || []).map(team => (
+                        <span key={team} className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-accent text-accent-foreground">{team}</span>
+                      ))}
+                      {(!s.teams || s.teams.length === 0) && <span className="text-[10px] text-muted-foreground">—</span>}
+                    </div>
+                    <div>
                       <EditableCell value={s.teamCapability} onSave={v => updateSoWItem(s.id, { teamCapability: v })} />
                     </div>
-                    <div className="w-8 flex justify-end">
+                    <div className="flex justify-end">
                       <button onClick={() => deleteSoWItem(s.id)} className="opacity-0 group-hover:opacity-100 transition-opacity">
                         <Trash2 className="h-3.5 w-3.5 text-destructive" />
                       </button>
