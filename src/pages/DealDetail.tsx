@@ -934,11 +934,13 @@ export default function DealDetail() {
             </span>
             <span className={cn(
               "inline-flex px-3 py-1 rounded-full text-xs font-medium",
-              (deal.dealStatusCx || deal.dealStatus) === "Active"
-                ? "bg-[hsl(142_60%_96%)] text-[hsl(142_60%_30%)]"
+              deal.dealStatus === "Active Deal" ? "bg-[hsl(var(--success-bg))] text-positive"
+                : deal.dealStatus === "Deal Churned / Lost" ? "bg-destructive/10 text-destructive"
+                : deal.dealStatus === "Deal Disputed" ? "bg-warning/10 text-warning"
+                : deal.dealStatus === "New Deal in SLA/PO" ? "bg-accent text-accent-foreground"
                 : "bg-secondary text-muted-foreground"
             )}>
-              {deal.dealStatusCx || deal.dealStatus}
+              {deal.dealStatus}
             </span>
           </div>
         </div>
