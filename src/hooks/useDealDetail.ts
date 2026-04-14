@@ -47,6 +47,12 @@ export interface RGYWeekly {
   financeBilling?: string;
   capabilitySeo?: string;
   capabilityCreative?: string;
+  content?: string;
+  seo?: string;
+  supply?: string;
+  copy?: string;
+  design?: string;
+  video?: string;
   planOfAction?: string;
   issueDate?: string;
   issueDetails?: string;
