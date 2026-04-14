@@ -33,13 +33,6 @@ export function MBRDetailDialog({ open, onClose, deal, entry }: MBRDetailDialogP
         <DialogHeader>
           <div className="flex items-center justify-between">
             <DialogTitle className="text-lg font-semibold text-foreground">{deal.account}</DialogTitle>
-            {onEdit && (
-              <Button variant="outline" size="sm" className="gap-1.5" onClick={onEdit}>
-                <Edit2 className="h-3.5 w-3.5" /> Edit
-              </Button>
-            )}
-          </div>
-          <p className="text-sm text-muted-foreground">{deal.dealName} · PC: {deal.pcCode}</p>
         </DialogHeader>
 
         <div className="space-y-5 mt-2">
