@@ -6,6 +6,7 @@ interface RGYHeatmapProps {
   data: RGYRow[];
   dimensions: string[];
   onRowClick?: (row: RGYRow) => void;
+  onDealClick?: (dealId: string) => void;
 }
 
 const cellColors: Record<RGYStatus, string> = {
@@ -29,7 +30,7 @@ const cellLabels: Record<RGYStatus, string> = {
   NA: "—",
 };
 
-export function RGYHeatmap({ data, dimensions, onRowClick }: RGYHeatmapProps) {
+export function RGYHeatmap({ data, dimensions, onRowClick, onDealClick }: RGYHeatmapProps) {
   if (data.length === 0) {
     return (
       <div className="flex items-center justify-center py-12 text-ui text-muted-foreground">
@@ -62,7 +63,19 @@ export function RGYHeatmap({ data, dimensions, onRowClick }: RGYHeatmapProps) {
                 )}
                 onClick={() => onRowClick?.(row)}
               >
-                <td className="py-2 pr-4 font-medium text-foreground whitespace-nowrap">{row.deal}</td>
+                <td className="py-2 pr-4 whitespace-nowrap">
+                  {onDealClick ? (
+                    <button
+                      type="button"
+                      className="font-medium text-primary hover:underline text-left"
+                      onClick={(e) => { e.stopPropagation(); onDealClick(row.id); }}
+                    >
+                      {row.deal}
+                    </button>
+                  ) : (
+                    <span className="font-medium text-foreground">{row.deal}</span>
+                  )}
+                </td>
                 <td className="py-2 pr-4 text-muted-foreground whitespace-nowrap">{row.client}</td>
                 <td className="py-2 pr-4 text-muted-foreground whitespace-nowrap">{row.bopm}</td>
                 {dimensions.map(d => {
