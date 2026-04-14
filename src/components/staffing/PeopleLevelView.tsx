@@ -1,7 +1,10 @@
+import React from "react";
 import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronRight, Search } from "lucide-react";
-import type { Deal, Person, StaffingAssignment } from "@/data/staffingData";
+import type { Deal, Person, StaffingAssignment, RevenueCapacityTarget } from "@/data/staffingData";
+
+const ACTIVE_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
 
 const fmtCurrency = (n: number | undefined) => {
   if (!n) return "—";
@@ -15,6 +18,7 @@ interface Props {
   people: Person[];
   deals: Deal[];
   assignments: StaffingAssignment[];
+  revenueTargets?: RevenueCapacityTarget[];
 }
 
 function getUtilBucket(pct: number): { label: string; color: string; bg: string } {
@@ -24,7 +28,7 @@ function getUtilBucket(pct: number): { label: string; color: string; bg: string 
   return { label: "Under-utilised", color: "text-info", bg: "bg-accent" };
 }
 
-export function PeopleLevelView({ people, deals, assignments }: Props) {
+export function PeopleLevelView({ people, deals, assignments, revenueTargets = [] }: Props) {
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -34,15 +38,29 @@ export function PeopleLevelView({ people, deals, assignments }: Props) {
     return m;
   }, [deals]);
 
+  // Only count active deals for utilization
+  const activeDealIds = useMemo(() => new Set(deals.filter(d => ACTIVE_STATUSES.has(d.dealStatus)).map(d => d.id)), [deals]);
+
   const personUtils = useMemo(() => {
-    const m: Record<string, { totalPct: number; dealAssigns: StaffingAssignment[] }> = {};
+    const m: Record<string, { totalPct: number; dealAssigns: StaffingAssignment[]; activeMRR: number; activeHours: number }> = {};
     assignments.forEach(a => {
-      if (!m[a.personId]) m[a.personId] = { totalPct: 0, dealAssigns: [] };
-      m[a.personId].totalPct += a.allocationPct;
+      if (!m[a.personId]) m[a.personId] = { totalPct: 0, dealAssigns: [], activeMRR: 0, activeHours: 0 };
       m[a.personId].dealAssigns.push(a);
+      if (activeDealIds.has(a.dealId)) {
+        m[a.personId].totalPct += a.allocationPct;
+        const deal = dealMap[a.dealId];
+        m[a.personId].activeMRR += (deal?.mrr || 0) * (a.allocationPct / 100);
+        m[a.personId].activeHours += (a.allocationPct / 100) * 160; // 160 hrs/month
+      }
     });
     return m;
-  }, [assignments]);
+  }, [assignments, activeDealIds, dealMap]);
+
+  // Revenue target lookup
+  const getTarget = (person: Person): number => {
+    const t = revenueTargets.find(rt => rt.department === person.department && rt.designation === person.designation);
+    return t?.targetDealValuePerPerson || 0;
+  };
 
   // Build hierarchy: group by reporting manager
   const hierarchy = useMemo(() => {
@@ -96,7 +114,12 @@ export function PeopleLevelView({ people, deals, assignments }: Props) {
     const children = hierarchy.managerMap[p.id] || [];
     const isExp = expanded.has(p.id);
     const hasChildren = children.length > 0;
-    const dealCount = util?.dealAssigns.length || 0;
+    const activeDealCount = util?.dealAssigns.filter(a => activeDealIds.has(a.dealId)).length || 0;
+    const actualMRR = util?.activeMRR || 0;
+    const targetMRR = getTarget(p);
+    const revPct = targetMRR > 0 ? Math.round((actualMRR / targetMRR) * 100) : 0;
+    const hoursUsed = util?.activeHours || 0;
+    const hoursPct = Math.round((hoursUsed / 160) * 100);
 
     return (
       <div key={p.id}>
@@ -117,14 +140,24 @@ export function PeopleLevelView({ people, deals, assignments }: Props) {
 
           <div className="flex items-center gap-4 flex-shrink-0">
             <span className="text-caption text-muted-foreground">{p.pod}</span>
-            <span className="text-caption text-muted-foreground">{p.region}</span>
-            <span className="text-caption text-muted-foreground font-mono">{dealCount} deals</span>
+            <span className="text-caption text-muted-foreground font-mono">{activeDealCount} deals</span>
             
-            <div className="w-20 flex items-center gap-1.5">
-              <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
-                <div className={cn("h-full rounded-full transition-all", totalPct > 100 ? "bg-destructive" : totalPct >= 85 ? "bg-warning" : totalPct >= 30 ? "bg-positive" : "bg-info")} style={{ width: `${Math.min(totalPct, 100)}%` }} />
+            {/* Revenue: target vs actual */}
+            {targetMRR > 0 && (
+              <div className="w-24 flex items-center gap-1.5" title={`${fmtCurrency(actualMRR)} / ${fmtCurrency(targetMRR)}`}>
+                <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
+                  <div className={cn("h-full rounded-full transition-all", revPct > 100 ? "bg-destructive" : revPct >= 70 ? "bg-positive" : "bg-warning")} style={{ width: `${Math.min(revPct, 100)}%` }} />
+                </div>
+                <span className="text-[10px] font-mono text-muted-foreground w-8 text-right">{revPct}%</span>
               </div>
-              <span className={cn("text-caption font-mono font-medium tabular-nums w-8 text-right", bucket.color)}>{totalPct}%</span>
+            )}
+
+            {/* Hours: /160 */}
+            <div className="w-20 flex items-center gap-1.5" title={`${Math.round(hoursUsed)}h / 160h`}>
+              <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
+                <div className={cn("h-full rounded-full transition-all", hoursPct > 100 ? "bg-destructive" : hoursPct >= 85 ? "bg-warning" : hoursPct >= 30 ? "bg-positive" : "bg-info")} style={{ width: `${Math.min(hoursPct, 100)}%` }} />
+              </div>
+              <span className={cn("text-caption font-mono font-medium tabular-nums w-8 text-right", bucket.color)}>{hoursPct}%</span>
             </div>
 
             {p.leaving && <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-[hsl(var(--danger-bg))] text-destructive">Leaving</span>}
@@ -137,10 +170,12 @@ export function PeopleLevelView({ people, deals, assignments }: Props) {
           <div className="bg-accent/5 border-b border-border" style={{ paddingLeft: `${36 + depth * 24}px` }}>
             {util.dealAssigns.map(a => {
               const d = dealMap[a.dealId];
+              const isActive = activeDealIds.has(a.dealId);
               return (
-                <div key={a.id} className="flex items-center gap-3 py-1.5 px-3 text-caption">
+                <div key={a.id} className={cn("flex items-center gap-3 py-1.5 px-3 text-caption", !isActive && "opacity-50")}>
                   <span className="text-foreground">{d?.dealName || a.dealId}</span>
                   <span className="text-muted-foreground">{d?.account}</span>
+                  {!isActive && <span className="px-1 py-0.5 rounded text-[9px] bg-secondary text-muted-foreground">Closed</span>}
                   <span className="ml-auto font-mono tabular-nums text-foreground">{a.allocationPct}%</span>
                   <span className="font-mono tabular-nums text-muted-foreground">{fmtCurrency(d?.mrr)}</span>
                 </div>
@@ -170,6 +205,19 @@ export function PeopleLevelView({ people, deals, assignments }: Props) {
             <p className={cn("text-xl font-bold font-mono mt-1", b.color)}>{b.value}</p>
           </div>
         ))}
+      </div>
+
+      {/* Column labels */}
+      <div className="flex items-center justify-between mb-2 px-3">
+        <div className="flex items-center gap-4">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Person</span>
+        </div>
+        <div className="flex items-center gap-4 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+          <span className="w-12 text-center">Pod</span>
+          <span className="w-14 text-center">Deals</span>
+          <span className="w-24 text-center">Revenue</span>
+          <span className="w-20 text-center">Hours</span>
+        </div>
       </div>
 
       <div className="relative max-w-xs mb-4">
