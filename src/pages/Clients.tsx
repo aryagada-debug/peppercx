@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ClientFormDialog } from "@/components/deals/ClientFormDialog";
 import { DealFormWizard } from "@/components/deals/DealFormWizard";
+import { AddStaffingMemberDialog } from "@/components/staffing/AddStaffingMemberDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { uid } from "@/data/staffingData";
 import { toast } from "sonner";
@@ -100,6 +101,7 @@ export default function Clients() {
 
   const [deleteTarget, setDeleteTarget] = useState<{ type: "client" | "deal"; id: string; name: string } | null>(null);
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
+  const [staffingDialog, setStaffingDialog] = useState<{ open: boolean; dealId: string; roleFilter?: "Operations"; preSelectedName?: string } | null>(null);
 
   const toggleClient = (client: string) => {
     setExpandedClients(prev => {
@@ -456,36 +458,20 @@ export default function Clients() {
                             </Select>
                           </td>
                           <td className="py-2 px-3">
-                            <Select
-                              value={deal.vsd || "_none"}
-                              onValueChange={(v) => v !== "_none" && handleVSDChange(deal.id, v)}
+                            <button
+                              onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "Operations", preSelectedName: deal.vsd || undefined })}
+                              className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate max-w-[110px] block text-left"
                             >
-                              <SelectTrigger className="h-6 w-[110px] text-[11px] border-none bg-transparent shadow-none px-1 focus:ring-0">
-                                <SelectValue placeholder="—" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="_none" className="text-xs text-muted-foreground">— None —</SelectItem>
-                                {vsdPeople.map(p => (
-                                  <SelectItem key={p.id} value={p.name} className="text-xs">{p.name}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                              {deal.vsd || <span className="text-muted-foreground">— None —</span>}
+                            </button>
                           </td>
                           <td className="py-2 px-3">
-                            <Select
-                              value={deal.principalBopm || deal.seniorBopm || "_none"}
-                              onValueChange={(v) => v !== "_none" && handleBOPMChange(deal.id, v)}
+                            <button
+                              onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "Operations", preSelectedName: deal.principalBopm || deal.seniorBopm || undefined })}
+                              className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate max-w-[120px] block text-left"
                             >
-                              <SelectTrigger className="h-6 w-[120px] text-[11px] border-none bg-transparent shadow-none px-1 focus:ring-0">
-                                <SelectValue placeholder="—" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="_none" className="text-xs text-muted-foreground">— None —</SelectItem>
-                                {bopmPeople.map(p => (
-                                  <SelectItem key={p.id} value={p.name} className="text-xs">{p.name}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                              {deal.principalBopm || deal.seniorBopm || <span className="text-muted-foreground">— None —</span>}
+                            </button>
                           </td>
                           <td className="py-2 px-3 text-right">
                             <InlineEditCell
@@ -575,6 +561,29 @@ export default function Clients() {
         }}
         onSubmit={handleCreateDeal}
       />
+
+      {staffingDialog && (
+        <AddStaffingMemberDialog
+          open={staffingDialog.open}
+          onOpenChange={(v) => { if (!v) setStaffingDialog(null); }}
+          people={people}
+          assignments={assignments}
+          deals={deals}
+          dealId={staffingDialog.dealId}
+          initialCategory={staffingDialog.roleFilter}
+          onAdd={(assignment) => {
+            const person = people.find(p => p.id === assignment.personId);
+            if (!person) return;
+            const rt = (person.roleTitle || "").toLowerCase();
+            if (rt.includes("vsd")) {
+              handleVSDChange(staffingDialog.dealId, person.name);
+            } else {
+              handleBOPMChange(staffingDialog.dealId, person.name);
+            }
+            setStaffingDialog(null);
+          }}
+        />
+      )}
     </AppLayout>
   );
 }
