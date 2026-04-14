@@ -1,41 +1,82 @@
-
-
-# Fix RGY Issue Form as Popup + Staffing Availability Dialog in Clients & Deals
+# Enhanced Task Board — Drag & Drop, Rich Text, Subtasks, Ideal Hours
 
 ## Summary
 
-Two fixes: (1) Convert the inline `RGYIssueForm` into a modal dialog so it appears as a popup over the page, and revert RGY status on cancel — applies to both Overview and RGY Health tabs. (2) When VSD or BOPM is changed via dropdown in the Clients & Deals page, show the same `AddStaffingMemberDialog` (with engagements panel + capacity warning) instead of silently assigning.
+Upgrade the Task Kanban board to match the reference screenshot: add HTML5 drag-and-drop between columns, rich text description editing (bold, italic, bullets, checklists), subtask support, ideal/estimated hours field, and improved log-hours UX.
 
 ## Changes
 
-### 1. RGY Issue Form as Dialog (`src/pages/DealDetail.tsx`)
+### 1. Install `@dnd-kit` for drag-and-drop
 
-Wrap the `RGYIssueForm` component's return JSX inside a `<Dialog>` (from `@/components/ui/dialog`). The form is currently rendered inline as a `<div>` at line 793. Change it to:
+Install `@dnd-kit/core` and `@dnd-kit/sortable` — lightweight, accessible, and React-native. No heavy dependencies like `react-beautiful-dnd`.
 
-- Wrap in `<Dialog open={true}>` + `<DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">`
-- Move the Cancel button to trigger `onCancel` (which already reverts via `prevRGYSnapshot`)
-- Close the dialog on cancel or successful save
-- Both the Overview tab instance (line 1526) and the RGY Health tab instance (line 1880) already pass the same `onCancel` revert logic — no changes needed there, just the form itself becoming a dialog
+### 2. Extend `DealTask` interface (`src/components/deals/TaskKanban.tsx`)
 
-### 2. Staffing Availability Dialog in Clients & Deals (`src/pages/Clients.tsx`)
+Add new fields to the `DealTask` interface:
 
-Currently `handleVSDChange` and `handleBOPMChange` silently assign a person on dropdown change. Instead:
+- `estimatedHours: number` — ideal/budgeted hours set at creation
+- `subtasks: SubTask[]` — array of `{ id, title, completed, assignee?, description? }`
+- `parentTaskId?: string` — if this task is a subtask (for flat storage alternative)
 
-- Add state for a staffing dialog: `staffingDialogOpen`, `staffingDialogDealId`, `staffingDialogRoleFilter` (VSD or BOPM)
-- When VSD or BOPM dropdown value changes, instead of calling `handleVSDChange`/`handleBOPMChange` directly, open the `AddStaffingMemberDialog` pre-filtered to the relevant role category (Operations) and pre-selected to the chosen person
-- Import and render the `AddStaffingMemberDialog` component (it's currently defined inside `DealDetail.tsx` — extract it to a shared component file first, or duplicate the key parts)
+### 3. Rich Text Description (`src/components/deals/TaskFormDialog.tsx`)
 
-**Approach**: Extract `AddStaffingMemberDialog` from `DealDetail.tsx` into `src/components/staffing/AddStaffingMemberDialog.tsx` so it can be reused in both `DealDetail.tsx` and `Clients.tsx`.
+Replace the plain `<Textarea>` with a mini toolbar + contentEditable div or a lightweight approach:
 
-- In `Clients.tsx`, replace the simple `Select` dropdowns for VSD and BOPM with buttons that open the staffing dialog
-- The dialog shows the engagements panel, capacity warning, and allocation input — same UX as the Staffing tab
-- On confirm, run the existing `handleVSDChange`/`handleBOPMChange` logic
+- Toolbar buttons: **Bold** (B), *Italic* (I), Bullet list, Checklist
+- Store description as HTML string
+- Use `document.execCommand` for formatting (simple, no extra library needed)
+- Render description in task cards using `dangerouslySetInnerHTML` with sanitization  
+Should also have the option to add url
+
+### 4. Add Estimated Hours field (`src/components/deals/TaskFormDialog.tsx`)
+
+- Add "Estimated Hours" numeric input alongside the date fields
+- Display on task cards as `{loggedHours}/{estimatedHours}h` with a small progress bar
+- Add to `TaskData` interface
+
+### 5. Log Hours improvements (`src/components/deals/TaskFormDialog.tsx`)
+
+- In the edit dialog, show logged hours with a "+ Log" button that adds to the cumulative total
+- Show estimated vs logged comparison
+
+### 6. Subtasks (`src/components/deals/TaskFormDialog.tsx`)
+
+- Add a "Subtasks" section in the edit/create dialog
+- Each subtask has: title, assignee (dropdown), status checkbox, description (same rich text)
+- "+ Add subtask" button appends to the list
+- Subtasks are stored as part of the parent task object (JSON array)
+- Subtask cards shown nested under the parent in the Kanban column (indented, smaller)
+
+### 7. Drag & Drop Kanban (`src/components/deals/TaskKanban.tsx`)
+
+- Wrap board in `<DndContext>` from `@dnd-kit/core`
+- Each column is a `useDroppable` zone
+- Each task card is `useDraggable`
+- On `onDragEnd`, call `onUpdate(taskId, { stage: newStage })` to move the task
+- Add visual feedback: drop zone highlight, dragging card opacity
+- Remove the hover-based "move to stage" buttons (drag replaces them)
+
+### 8. Update `useDealDetail.ts`
+
+- Extend `addTask` to include `estimatedHours` and `subtasks` fields
+- Extend `updateTask` to handle subtask updates
+
+### 9. Task card layout update (`TaskKanban.tsx`)
+
+Match the reference screenshot:
+
+- Card shows: title, description preview, category badge (from task tags/labels), assignee name, due date, urgency badge
+- Cleaner layout with category color coding
+- "+ Add task" button at bottom of each column  
+  
+10. Add an attachthment option for any type of attachments like PPT, PDF, Word, Etc
 
 ## Files Modified
 
-| File | Change |
-|------|--------|
-| `src/pages/DealDetail.tsx` | Wrap `RGYIssueForm` return in `<Dialog>`; import from extracted `AddStaffingMemberDialog` |
-| `src/components/staffing/AddStaffingMemberDialog.tsx` | New file — extracted from `DealDetail.tsx` |
-| `src/pages/Clients.tsx` | Import `AddStaffingMemberDialog`; replace VSD/BOPM dropdowns with dialog trigger; add dialog state and render |
 
+| File                                      | Change                                                                                                  |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `package.json`                            | Add `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`                                          |
+| `src/components/deals/TaskKanban.tsx`     | DndContext wrapping, draggable cards, droppable columns, extended DealTask interface, subtask rendering |
+| `src/components/deals/TaskFormDialog.tsx` | Rich text toolbar, estimated hours input, subtasks section, log hours in edit mode                      |
+| `src/hooks/useDealDetail.ts`              | Extended task fields (estimatedHours, subtasks)                                                         |
