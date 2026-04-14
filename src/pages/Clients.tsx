@@ -101,6 +101,7 @@ export default function Clients() {
 
   const [deleteTarget, setDeleteTarget] = useState<{ type: "client" | "deal"; id: string; name: string } | null>(null);
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
+  const [staffingDialog, setStaffingDialog] = useState<{ open: boolean; dealId: string; roleFilter?: "Operations"; preSelectedName?: string } | null>(null);
 
   const toggleClient = (client: string) => {
     setExpandedClients(prev => {
