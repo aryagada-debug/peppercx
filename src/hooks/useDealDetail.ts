@@ -339,6 +339,12 @@ export function useDealDetail(dealId: string | undefined) {
     if (updates.customer !== undefined) db.customer = updates.customer;
     if (updates.delivery !== undefined) db.delivery = updates.delivery;
     if (updates.consumption !== undefined) db.consumption = updates.consumption;
+    if (updates.content !== undefined) db.content = updates.content;
+    if (updates.seo !== undefined) db.seo = updates.seo;
+    if (updates.supply !== undefined) db.supply = updates.supply;
+    if (updates.copy !== undefined) db.copy = updates.copy;
+    if (updates.design !== undefined) db.design = updates.design;
+    if (updates.video !== undefined) db.video = updates.video;
     if (updates.notes !== undefined) db.notes = updates.notes;
     if (updates.issueDate !== undefined) db.issue_date = updates.issueDate;
     if (updates.issueDetails !== undefined) db.issue_details = updates.issueDetails;
