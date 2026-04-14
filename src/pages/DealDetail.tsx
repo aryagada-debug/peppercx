@@ -384,11 +384,14 @@ function RGYIssueForm({ dealId, currentRGY, assignees, teamMembers, onSaveIssue,
 
   // Build tasks from non-green dimensions
   const nonGreenDims = [
-    { key: "accountHealth", label: "Account Health", value: currentRGY.accountHealth },
-    { key: "delivery", label: "Delivery", value: currentRGY.delivery },
-    { key: "financeBilling", label: "Finance/Billing", value: currentRGY.financeBilling },
-    { key: "capabilitySeo", label: "Capability-SEO", value: currentRGY.capabilitySeo },
-    { key: "capabilityCreative", label: "Capability-Creative", value: currentRGY.capabilityCreative },
+    { key: "customer", label: "Overall Customer", value: currentRGY.customer },
+    { key: "internal", label: "Internal", value: currentRGY.internal },
+    { key: "content", label: "Content", value: currentRGY.content },
+    { key: "seo", label: "SEO", value: currentRGY.seo },
+    { key: "supply", label: "Supply", value: currentRGY.supply },
+    { key: "copy", label: "Copy", value: currentRGY.copy },
+    { key: "design", label: "Design", value: currentRGY.design },
+    { key: "video", label: "Video", value: currentRGY.video },
   ].filter(d => d.value === "R" || d.value === "Y");
 
   const [issueTasks, setIssueTasks] = useState<RGYIssueTask[]>(
