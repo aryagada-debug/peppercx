@@ -1565,9 +1565,10 @@ export default function DealDetail() {
               const done = rgyTasks.filter(t => t.stage === "Done").length;
               const dropped = rgyTasks.filter(t => t.stage === "Dropped").length;
               const hasNonGreen = currentRGY && (
-                currentRGY.accountHealth !== "G" || currentRGY.delivery !== "G" ||
-                currentRGY.financeBilling !== "G" || currentRGY.capabilitySeo !== "G" ||
-                currentRGY.capabilityCreative !== "G"
+                currentRGY.customer !== "G" || currentRGY.internal !== "G" ||
+                currentRGY.content !== "G" || currentRGY.seo !== "G" ||
+                currentRGY.supply !== "G" || currentRGY.copy !== "G" ||
+                currentRGY.design !== "G" || currentRGY.video !== "G"
               );
               const allDone = rgyTasks.length > 0 && rgyTasks.every(t => t.stage === "Done" || t.stage === "Dropped");
               const showWarning = hasNonGreen && allDone;
