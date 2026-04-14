@@ -1,37 +1,49 @@
 
 
-# RGY Health — Show All Deal Statuses in Tabular View
+# MBR Tracker — Read-Only View Synced with Clients & Deals
 
 ## What Changes
 
-Currently the RGY Health page only fetches active deals (Active Deal, Deal Disputed, New Deal in SLA/PO). The request is to show RGY status for **all** deal statuses — active and closed — in a tabular view, alongside the existing metrics and heatmap.
-
-Total deals: ~791 (317 Active, 394 Completed, 64 Churned, 12 New in SLA/PO, 3 Disputed).
+The MBR Tracker page becomes a **read-only dashboard**. All editing (status changes, input drawer, Anirudh Joining checkbox) is removed from this page. The clickable deal dialog remains for viewing MBR details. Users edit MBR data from the Deal Detail page's MBR tab, and those changes automatically appear here.
 
 ## Implementation
 
-### 1. Update `src/pages/RGYHealth.tsx`
+### 1. Update `src/pages/MBRTracker.tsx`
 
-- **Remove the active-only filter** — fetch all deals from `staffing_deals` (no `.in("deal_status", ...)` filter)
-- **Add a status filter dropdown** at the top (default: "All Statuses") with options for each status: Active Deal, Deal Disputed, New Deal in SLA/PO, Deal Completed Successfully, Deal Churned / Lost
-- **Add a status column** to the heatmap table showing deal status with color-coded badges
-- Keep existing metric cards but compute them based on the filtered view
-- Handle the larger dataset (791 rows) — paginate or use virtual scroll if needed, otherwise just render all since it's a manageable size
+**VSD Summary Tab** — no changes needed, already read-only.
 
-### 2. Update `src/components/dashboard/RGYHeatmap.tsx`
+**Deal Tracker Tab** — make fully read-only:
+- Remove the status `<select>` dropdown — replace with a static color-coded badge
+- Remove the Anirudh Joining `<Checkbox>` — replace with a static checkmark/cross
+- Remove the `MBRInputDrawer` import and usage entirely
+- Remove the edit icon on hover — keep only the eye icon
+- Clicking any row always opens `MBRDetailDialog` in view-only mode (no `onEdit` callback)
+- Remove `upsertEntry` and `toggleAnirudhJoining` props from `DealTrackerTab`
 
-- Add a `Status` column between `BOPM` and the dimension columns
-- Render deal status as a small color-coded badge (green for Active, gray for Completed, red for Churned, yellow for Disputed, blue for New in SLA/PO)
-- Add the status field to the `RGYRow` type
+**History Tab** — already read-only, no changes.
 
-### 3. Update `src/types/dashboard.ts`
+**Main component** — stop passing `upsertEntry` and `toggleAnirudhJoining` to children. Remove those from `useMBRData` usage (they can stay in the hook for use elsewhere).
 
-- Add optional `status` field to `RGYRow` interface
+### 2. Update `src/components/mbr/MBRDetailDialog.tsx`
+
+- Remove the `onEdit` prop and the Edit button entirely
+- Make the dialog purely informational
+
+### 3. Ensure Deal Detail MBR tab works as the editing surface
+
+The Deal Detail page already has an MBR tab (`src/pages/DealDetail.tsx`) that uses `MBRInputDrawer` for editing. Verify it writes to `mbr_entries` correctly — this is the single source of truth that the MBR Tracker reads from. No additional sync logic needed since both pages query the same `mbr_entries` table.
 
 ### Files Modified
 | File | Change |
 |------|--------|
-| `src/pages/RGYHealth.tsx` | Fetch all deals, add status filter dropdown |
-| `src/components/dashboard/RGYHeatmap.tsx` | Add Status column with badges |
-| `src/types/dashboard.ts` | Add `status` to `RGYRow` |
+| `src/pages/MBRTracker.tsx` | Remove all edit controls (status select, checkbox, drawer), make Deal Tracker tab view-only |
+| `src/components/mbr/MBRDetailDialog.tsx` | Remove Edit button and `onEdit` prop |
+
+### What stays the same
+- All KPI metric cards (computed from live data)
+- VSD Summary expandable rows
+- Deal Tracker table with filters (VSD, Status)
+- Week selector
+- History tab with trend bars
+- Clickable rows opening the detail dialog
 
