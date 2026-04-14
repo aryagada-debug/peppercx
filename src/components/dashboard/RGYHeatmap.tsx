@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
 import type { RGYStatus, RGYRow } from "@/types/dashboard";
 
 interface RGYHeatmapProps {
@@ -30,6 +31,22 @@ const cellLabels: Record<RGYStatus, string> = {
   NA: "—",
 };
 
+const statusBadgeStyles: Record<string, string> = {
+  "Active Deal": "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30",
+  "Deal Disputed": "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30",
+  "New Deal in SLA/PO": "bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/30",
+  "Deal Completed Successfully": "bg-muted text-muted-foreground border-border",
+  "Deal Churned / Lost": "bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/30",
+};
+
+const statusShortLabels: Record<string, string> = {
+  "Active Deal": "Active",
+  "Deal Disputed": "Disputed",
+  "New Deal in SLA/PO": "New/SLA",
+  "Deal Completed Successfully": "Completed",
+  "Deal Churned / Lost": "Churned",
+};
+
 export function RGYHeatmap({ data, dimensions, onRowClick, onDealClick }: RGYHeatmapProps) {
   if (data.length === 0) {
     return (
@@ -38,6 +55,8 @@ export function RGYHeatmap({ data, dimensions, onRowClick, onDealClick }: RGYHea
       </div>
     );
   }
+
+  const showStatus = data.some(r => r.status);
 
   return (
     <TooltipProvider>
@@ -48,6 +67,9 @@ export function RGYHeatmap({ data, dimensions, onRowClick, onDealClick }: RGYHea
               <th className="text-left py-2 pr-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">Deal</th>
               <th className="text-left py-2 pr-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">Client</th>
               <th className="text-left py-2 pr-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">BOPM</th>
+              {showStatus && (
+                <th className="text-left py-2 pr-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">Status</th>
+              )}
               {dimensions.map(d => (
                 <th key={d} className="text-center py-2 px-2 font-medium text-muted-foreground text-caption uppercase tracking-wider whitespace-nowrap">{d}</th>
               ))}
@@ -78,6 +100,19 @@ export function RGYHeatmap({ data, dimensions, onRowClick, onDealClick }: RGYHea
                 </td>
                 <td className="py-2 pr-4 text-muted-foreground whitespace-nowrap">{row.client}</td>
                 <td className="py-2 pr-4 text-muted-foreground whitespace-nowrap">{row.bopm}</td>
+                {showStatus && (
+                  <td className="py-2 pr-4 whitespace-nowrap">
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "text-[10px] px-1.5 py-0 font-medium border",
+                        statusBadgeStyles[row.status || ""] || "bg-muted text-muted-foreground border-border"
+                      )}
+                    >
+                      {statusShortLabels[row.status || ""] || row.status || "—"}
+                    </Badge>
+                  </td>
+                )}
                 {dimensions.map(d => {
                   const status = (row.dimensions[d] || "NA") as RGYStatus;
                   return (
