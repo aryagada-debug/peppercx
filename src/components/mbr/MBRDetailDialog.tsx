@@ -1,8 +1,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Edit2, ExternalLink, CheckCircle2, Circle } from "lucide-react";
+import { ExternalLink, CheckCircle2, Circle } from "lucide-react";
 import type { MBRDeal, MBREntry, ActionItem } from "@/hooks/useMBRData";
 
 interface MBRDetailDialogProps {
@@ -33,16 +32,14 @@ export function MBRDetailDialog({ open, onClose, deal, entry, onEdit }: MBRDetai
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <div className="flex items-center justify-between">
-            <DialogTitle className="text-lg font-semibold text-foreground">{deal.account}</DialogTitle>
-            {onEdit && (
-              <Button variant="outline" size="sm" className="gap-1.5" onClick={onEdit}>
-                <Edit2 className="h-3.5 w-3.5" /> Edit
-              </Button>
-            )}
-          </div>
+          <DialogTitle className="text-lg font-semibold text-foreground">{deal.account}</DialogTitle>
           <p className="text-sm text-muted-foreground">{deal.dealName} · PC: {deal.pcCode}</p>
         </DialogHeader>
+        {onEdit && (
+          <div className="flex justify-end -mt-2">
+            <button onClick={onEdit} className="text-xs text-accent hover:underline">Edit MBR</button>
+          </div>
+        )}
 
         <div className="space-y-5 mt-2">
           {/* Status & Sentiment Row */}

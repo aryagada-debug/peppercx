@@ -2,11 +2,9 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { useMBRData, getWeekOptions, type MBREntry, type MBRDeal, type VSDSummary } from "@/hooks/useMBRData";
-import { MBRInputDrawer } from "@/components/mbr/MBRInputDrawer";
-import { Loader2, CheckCircle2, Clock, BarChart3, ChevronDown, ChevronRight, Eye, Edit2 } from "lucide-react";
+import { Loader2, CheckCircle2, Clock, BarChart3, ChevronDown, ChevronRight, Eye } from "lucide-react";
 import { useState } from "react";
 import { MBRDetailDialog } from "@/components/mbr/MBRDetailDialog";
 
@@ -160,13 +158,12 @@ function VSDSummaryTab({
 
 // ── Deal-Level Tracker Tab ───────────────────────────────────────────────────
 function DealTrackerTab({
-  deals, entries, upsertEntry, toggleAnirudhJoining, selectedWeek
+  deals, entries
 }: {
-  deals: MBRDeal[]; entries: MBREntry[]; upsertEntry: any; toggleAnirudhJoining: any; selectedWeek: string;
+  deals: MBRDeal[]; entries: MBREntry[];
 }) {
   const [filterVsd, setFilterVsd] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
-  const [drawerDeal, setDrawerDeal] = useState<MBRDeal | null>(null);
   const [viewDeal, setViewDeal] = useState<{ deal: MBRDeal; entry: MBREntry | null } | null>(null);
 
   const entryMap = new Map(entries.map((e) => [e.dealId, e]));
@@ -182,30 +179,9 @@ function DealTrackerTab({
     return true;
   });
 
-  const handleStatusChange = (deal: MBRDeal, status: string) => {
-    if (status === "Done") {
-      setDrawerDeal(deal);
-    } else {
-      const existing = entryMap.get(deal.id);
-      upsertEntry({ dealId: deal.id, status, mode: existing?.mode || null, notes: existing?.notes || null, updatedBy: "" });
-    }
-  };
-
-  const handleDrawerSave = (data: any) => {
-    upsertEntry(data);
-  };
-
-  const handleRowClick = (deal: MBRDeal, e: React.MouseEvent) => {
-    // Don't open if clicking on interactive elements
-    const target = e.target as HTMLElement;
-    if (target.closest("select") || target.closest("button") || target.closest('[role="checkbox"]')) return;
-    
+  const handleRowClick = (deal: MBRDeal) => {
     const entry = entryMap.get(deal.id);
-    if (entry && entry.status === "Done") {
-      setViewDeal({ deal, entry });
-    } else {
-      setDrawerDeal(deal);
-    }
+    setViewDeal({ deal, entry: entry || null });
   };
 
   const formatCurrency = (v: number | null) => {
@@ -261,7 +237,7 @@ function DealTrackerTab({
                 <tr
                   key={d.id}
                   className="border-b border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer group"
-                  onClick={(e) => handleRowClick(d, e)}
+                  onClick={() => handleRowClick(d)}
                 >
                   <td className="py-2.5 px-3 font-mono text-accent text-caption">{d.pcCode}</td>
                   <td className="py-2.5 px-3 font-medium text-foreground max-w-[140px] truncate">{d.account}</td>
@@ -270,37 +246,21 @@ function DealTrackerTab({
                   <td className="py-2.5 px-3 text-muted-foreground whitespace-nowrap">{d.seniorBopm}</td>
                   <td className="py-2.5 px-3 font-mono tabular-nums text-foreground whitespace-nowrap">{formatCurrency(d.mrr)}</td>
                   <td className="py-2.5 px-3">
-                    <select
-                      value={status}
-                      onChange={(e) => { e.stopPropagation(); handleStatusChange(d, e.target.value); }}
-                      className={cn(
-                        "text-caption font-semibold rounded px-2 py-1 border-0 outline-none cursor-pointer",
-                        status === "Done" && "bg-positive/15 text-positive",
-                        status === "Not Done" && "bg-destructive/15 text-destructive",
-                        status === "Not Required" && "bg-muted text-muted-foreground",
-                        status === "Pending" && "bg-warning/15 text-warning",
-                      )}
-                    >
-                      <option value="Pending">Pending</option>
-                      <option value="Done">Done</option>
-                      <option value="Not Done">Not Done</option>
-                      <option value="Not Required">Not Required</option>
-                    </select>
+                    <span className={cn(
+                      "text-caption font-semibold rounded px-2 py-1 inline-block",
+                      status === "Done" && "bg-positive/15 text-positive",
+                      status === "Not Done" && "bg-destructive/15 text-destructive",
+                      status === "Not Required" && "bg-muted text-muted-foreground",
+                      status === "Pending" && "bg-warning/15 text-warning",
+                    )}>{status}</span>
                   </td>
                   <td className="py-2.5 px-3 text-center">{sentimentDot(entry?.sentiment ?? null)}</td>
                   <td className="py-2.5 px-3 text-caption text-muted-foreground whitespace-nowrap">{entry?.scheduledDate || "—"}</td>
                   <td className="py-2.5 px-3 text-center">{entry?.anirudhAdded ? <span className="text-positive font-bold">✓</span> : <span className="text-muted-foreground">✗</span>}</td>
-                  <td className="py-2.5 px-3 text-center">
-                    <Checkbox
-                      checked={entry?.anirudhJoining || false}
-                      onCheckedChange={(v) => toggleAnirudhJoining(d.id, !!v)}
-                    />
-                  </td>
+                  <td className="py-2.5 px-3 text-center">{entry?.anirudhJoining ? <span className="text-positive font-bold">✓</span> : <span className="text-muted-foreground">✗</span>}</td>
                   <td className="py-2.5 px-3">
                     <span className="opacity-0 group-hover:opacity-100 transition-opacity">
-                      {entry?.status === "Done"
-                        ? <Eye className="h-4 w-4 text-muted-foreground" />
-                        : <Edit2 className="h-4 w-4 text-muted-foreground" />}
+                      <Eye className="h-4 w-4 text-muted-foreground" />
                     </span>
                   </td>
                 </tr>
@@ -310,27 +270,12 @@ function DealTrackerTab({
         </table>
       </div>
 
-      {drawerDeal && (
-        <MBRInputDrawer
-          open={!!drawerDeal}
-          onClose={() => setDrawerDeal(null)}
-          deal={drawerDeal}
-          existingEntry={entryMap.get(drawerDeal.id) || null}
-          selectedWeek={selectedWeek}
-          onSave={handleDrawerSave}
-        />
-      )}
-
       {viewDeal && (
         <MBRDetailDialog
           open={!!viewDeal}
           onClose={() => setViewDeal(null)}
           deal={viewDeal.deal}
           entry={viewDeal.entry}
-          onEdit={() => {
-            setViewDeal(null);
-            setDrawerDeal(viewDeal.deal);
-          }}
         />
       )}
     </div>
@@ -432,7 +377,7 @@ export default function MBRTracker() {
           </TabsContent>
 
           <TabsContent value="deals">
-            <DealTrackerTab deals={deals} entries={entries} upsertEntry={upsertEntry} toggleAnirudhJoining={toggleAnirudhJoining} selectedWeek={selectedWeek} />
+            <DealTrackerTab deals={deals} entries={entries} />
           </TabsContent>
 
           <TabsContent value="history">
