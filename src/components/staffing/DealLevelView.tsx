@@ -94,8 +94,12 @@ export function DealLevelView({ deals, people, assignments }: Props) {
                     <td className="py-2.5 px-3">
                       <span className={cn(
                         "px-2 py-0.5 rounded-full text-[11px] font-medium",
-                        deal.dealStatusCx === "Active" ? "text-positive bg-[hsl(var(--success-bg))]" : "text-muted-foreground bg-secondary"
-                      )}>{deal.dealStatusCx || deal.dealStatus}</span>
+                        deal.dealStatus === "Active Deal" ? "text-positive bg-[hsl(var(--success-bg))]"
+                        : deal.dealStatus === "Deal Churned / Lost" ? "text-destructive bg-destructive/10"
+                        : deal.dealStatus === "Deal Disputed" ? "text-warning bg-warning/10"
+                        : deal.dealStatus === "New Deal in SLA/PO" ? "text-accent bg-accent/10"
+                        : "text-muted-foreground bg-secondary"
+                      )}>{deal.dealStatus}</span>
                     </td>
                     <td className="py-2.5 px-3 text-right font-mono tabular-nums text-muted-foreground">{teamCount}</td>
                   </tr>
