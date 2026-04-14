@@ -35,7 +35,9 @@ import {
 const PODS = ["All", "Integrated", "India B2B", "US B2B", "FMCG", "BFSI", "Unassigned"] as const;
 type Pod = typeof PODS[number];
 
-const DEAL_STATUSES = ["Active", "Paused", "Closed", "Lost", "Pipeline", "Won"] as const;
+const DEAL_STATUSES = ["Active Deal", "New Deal in SLA/PO", "Deal Disputed", "Deal Completed Successfully", "Deal Churned / Lost"] as const;
+const ACTIVE_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
+const CLOSED_STATUSES = new Set(["Deal Completed Successfully", "Deal Churned / Lost"]);
 
 const fmtCurrency = (n: number | undefined) => {
   if (!n) return "—";
@@ -113,7 +115,7 @@ export default function Clients() {
 
   const filteredDeals = useMemo(() => {
     let d = deals;
-    if (!showClosed) d = d.filter(deal => deal.dealStatusCx !== "Closed" && deal.dealStatus !== "Lost");
+    if (!showClosed) d = d.filter(deal => ACTIVE_STATUSES.has(deal.dealStatus));
     if (activePod === "Unassigned") {
       d = d.filter(deal => !deal.vsd || deal.vsd === "Not Assigned" || deal.vsd === "Unassigned" || deal.vsd === "Not Applicable");
     } else if (activePod !== "All") {
@@ -139,7 +141,7 @@ export default function Clients() {
     return {
       clients: clientSet.size,
       deals: filteredDeals.length,
-      activeDeals: filteredDeals.filter(d => d.dealStatusCx === "Active" || d.dealStatus === "Won").length,
+      activeDeals: filteredDeals.filter(d => ACTIVE_STATUSES.has(d.dealStatus)).length,
       totalMRR: filteredDeals.reduce((s, d) => s + (d.mrr || 0), 0),
       totalValue: filteredDeals.reduce((s, d) => s + (d.totalDealValue || 0), 0),
     };
@@ -157,7 +159,7 @@ export default function Clients() {
       deal_name: data.dealName,
       deal_type: data.dealType,
       deal_status: data.dealStatus,
-      deal_status_cx: data.dealStatus === "Won" ? "Active" : data.dealStatus,
+      deal_status_cx: data.dealStatus,
       account: client?.name || "",
       pc_code: data.pcCode,
       business_unit: data.pepperBusinessUnit,
@@ -230,7 +232,7 @@ export default function Clients() {
   };
 
   const handleStatusChange = async (dealId: string, newStatus: string) => {
-    await supabase.from("staffing_deals").update({ deal_status_cx: newStatus } as any).eq("id", dealId);
+    await supabase.from("staffing_deals").update({ deal_status: newStatus, deal_status_cx: newStatus } as any).eq("id", dealId);
     refreshStaffing();
   };
 
@@ -343,7 +345,7 @@ export default function Clients() {
 
           <label className="flex items-center gap-2 text-ui text-muted-foreground cursor-pointer">
             <input type="checkbox" checked={showClosed} onChange={e => setShowClosed(e.target.checked)} className="rounded border-border" />
-            Show closed
+            Show closed/completed
           </label>
 
           <Button variant="ghost" size="sm" onClick={() => expandedClients.size === groupedDeals.length ? collapseAll() : expandAll()} className="text-xs gap-1 text-muted-foreground">
@@ -438,7 +440,7 @@ export default function Clients() {
                           </td>
                           <td className="py-2 px-3">
                             <Select
-                              value={deal.dealStatusCx || deal.dealStatus || "Active"}
+                              value={deal.dealStatus || "Active Deal"}
                               onValueChange={(v) => handleStatusChange(deal.id, v)}
                             >
                               <SelectTrigger className="h-6 w-[85px] text-[11px] border-none bg-transparent shadow-none px-1 focus:ring-0">
