@@ -632,7 +632,7 @@ function GroupedRGYHistory({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
   };
 
   const renderRow = (r: RGYWeekly, label: string, indent = false) => {
-    const hasIssue = [r.accountHealth, r.delivery, r.financeBilling, r.capabilitySeo, r.capabilityCreative].some(v => v === "R" || v === "Y");
+    const hasIssue = [r.customer, r.internal, r.content, r.seo, r.supply, r.copy, r.design, r.video].some(v => v === "R" || v === "Y");
     return (
       <tr key={r.id} className={cn("border-b border-border/50 hover:bg-secondary/20 transition-colors", hasIssue && "bg-warning/5")}>
         <td className={cn("py-2 px-3 font-mono text-xs text-foreground", indent && "pl-8")}>
@@ -643,7 +643,7 @@ function GroupedRGYHistory({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
             </span>
           )}
         </td>
-        {[r.accountHealth || "G", r.delivery || "G", r.financeBilling || "G", r.capabilitySeo || "G", r.capabilityCreative || "G"].map((val, i) => (
+        {[r.customer || "G", r.internal || "G", r.content || "G", r.seo || "G", r.supply || "G", r.copy || "G", r.design || "G", r.video || "G"].map((val, i) => (
           <td key={i} className="py-2 px-2 text-center">
             <span className={cn("inline-flex items-center justify-center w-6 h-6 rounded-md text-[10px] font-bold", rgyColors[val] || "rgy-na")}>{val}</span>
           </td>
