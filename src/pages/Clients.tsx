@@ -458,36 +458,20 @@ export default function Clients() {
                             </Select>
                           </td>
                           <td className="py-2 px-3">
-                            <Select
-                              value={deal.vsd || "_none"}
-                              onValueChange={(v) => v !== "_none" && handleVSDChange(deal.id, v)}
+                            <button
+                              onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "Operations", preSelectedName: deal.vsd || undefined })}
+                              className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate max-w-[110px] block text-left"
                             >
-                              <SelectTrigger className="h-6 w-[110px] text-[11px] border-none bg-transparent shadow-none px-1 focus:ring-0">
-                                <SelectValue placeholder="—" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="_none" className="text-xs text-muted-foreground">— None —</SelectItem>
-                                {vsdPeople.map(p => (
-                                  <SelectItem key={p.id} value={p.name} className="text-xs">{p.name}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                              {deal.vsd || <span className="text-muted-foreground">— None —</span>}
+                            </button>
                           </td>
                           <td className="py-2 px-3">
-                            <Select
-                              value={deal.principalBopm || deal.seniorBopm || "_none"}
-                              onValueChange={(v) => v !== "_none" && handleBOPMChange(deal.id, v)}
+                            <button
+                              onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "Operations", preSelectedName: deal.principalBopm || deal.seniorBopm || undefined })}
+                              className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate max-w-[120px] block text-left"
                             >
-                              <SelectTrigger className="h-6 w-[120px] text-[11px] border-none bg-transparent shadow-none px-1 focus:ring-0">
-                                <SelectValue placeholder="—" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="_none" className="text-xs text-muted-foreground">— None —</SelectItem>
-                                {bopmPeople.map(p => (
-                                  <SelectItem key={p.id} value={p.name} className="text-xs">{p.name}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                              {deal.principalBopm || deal.seniorBopm || <span className="text-muted-foreground">— None —</span>}
+                            </button>
                           </td>
                           <td className="py-2 px-3 text-right">
                             <InlineEditCell
