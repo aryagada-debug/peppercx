@@ -6,6 +6,7 @@ interface RGYHeatmapProps {
   data: RGYRow[];
   dimensions: string[];
   onRowClick?: (row: RGYRow) => void;
+  onDealClick?: (dealId: string) => void;
 }
 
 const cellColors: Record<RGYStatus, string> = {
