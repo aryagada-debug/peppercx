@@ -1179,11 +1179,14 @@ export default function DealDetail() {
             {/* ── RGY + SoW ── */}
             <EditableRGY
               dimensions={[
-                { key: "accountHealth", label: "Account Health", owner: "VSD", value: currentRGY?.accountHealth || "G", planOfAction: "" },
-                { key: "delivery", label: "Delivery", owner: "BOPM", value: currentRGY?.delivery || "G", planOfAction: "" },
-                { key: "financeBilling", label: "Finance / Billing", owner: "Finance", value: currentRGY?.financeBilling || "G", planOfAction: "" },
-                { key: "capabilitySeo", label: "Capability — SEO", owner: "SEO", value: currentRGY?.capabilitySeo || "G", planOfAction: "" },
-                { key: "capabilityCreative", label: "Capability — Creative", owner: "Creative", value: currentRGY?.capabilityCreative || "G", planOfAction: "" },
+                { key: "customer", label: "Overall Customer", owner: "VSD", value: currentRGY?.customer || "G", planOfAction: "" },
+                { key: "internal", label: "Internal", owner: "BOPM", value: currentRGY?.internal || "G", planOfAction: "" },
+                { key: "content", label: "Content", owner: "Content", value: currentRGY?.content || "G", planOfAction: "" },
+                { key: "seo", label: "SEO", owner: "SEO", value: currentRGY?.seo || "G", planOfAction: "" },
+                { key: "supply", label: "Supply", owner: "Supply", value: currentRGY?.supply || "G", planOfAction: "" },
+                { key: "copy", label: "Copy", owner: "Copy", value: currentRGY?.copy || "G", planOfAction: "" },
+                { key: "design", label: "Design", owner: "Design", value: currentRGY?.design || "G", planOfAction: "" },
+                { key: "video", label: "Video", owner: "Video", value: currentRGY?.video || "G", planOfAction: "" },
               ]}
               onSave={handleRGYSave}
             />
