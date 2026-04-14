@@ -1,82 +1,146 @@
-# Enhanced Task Board — Drag & Drop, Rich Text, Subtasks, Ideal Hours
+
+
+# Comprehensive Staffing, Capacity & Data Overhaul
 
 ## Summary
 
-Upgrade the Task Kanban board to match the reference screenshot: add HTML5 drag-and-drop between columns, rich text description editing (bold, italic, bullets, checklists), subtask support, ideal/estimated hours field, and improved log-hours UX.
+This plan addresses 10 interconnected issues: fixing deal status display, active/closed filtering, pod assignment gaps, staffing data sync from Google Sheet, SOW team-revenue mapping, Settings-based MRR capacity editing, staffing capacity metrics (target vs actual revenue + time utilization), reporting structure from referenced projects, and a complete deal-level staffing view redesign.
 
-## Changes
+---
 
-### 1. Install `@dnd-kit` for drag-and-drop
+## Phase 1 — Data Fixes (Database Migrations + SQL Updates)
 
-Install `@dnd-kit/core` and `@dnd-kit/sortable` — lightweight, accessible, and React-native. No heavy dependencies like `react-beautiful-dnd`.
+### 1A. Fix Deal Status Display
+**Problem**: The `deal_status_cx` field still shows old values like "Deal - Open and WIP" while `deal_status` has the correct values from the sheet. The Clients page status dropdown uses `deal_status_cx` with old options ("Active", "Paused", "Closed", etc.) instead of the 5 canonical statuses.
 
-### 2. Extend `DealTask` interface (`src/components/deals/TaskKanban.tsx`)
+**Fix**:
+- SQL migration to sync `deal_status_cx` FROM `deal_status` for all records
+- Update `DEAL_STATUSES` constant in `Clients.tsx` to use the 5 canonical values: `Active Deal`, `Deal Completed Successfully`, `Deal Churned / Lost`, `Deal Disputed`, `New Deal in SLA/PO`
+- Make the status dropdown use `deal_status` (the canonical field) consistently
 
-Add new fields to the `DealTask` interface:
+### 1B. Active vs Closed Filtering
+**Problem**: Current filter logic checks `dealStatusCx !== "Closed"` which doesn't match the canonical statuses.
 
-- `estimatedHours: number` — ideal/budgeted hours set at creation
-- `subtasks: SubTask[]` — array of `{ id, title, completed, assignee?, description? }`
-- `parentTaskId?: string` — if this task is a subtask (for flat storage alternative)
+**Fix**:
+- "Active deals" (default view) = `Active Deal` + `Deal Disputed` + `New Deal in SLA/PO`
+- "Closed deals" (shown when toggled) = `Deal Completed Successfully` + `Deal Churned / Lost`
+- Update `showClosed` toggle label to "Show closed/completed"
+- Update KPI "Active Deals" count to match this logic
 
-### 3. Rich Text Description (`src/components/deals/TaskFormDialog.tsx`)
+### 1C. Fix Pod Assignments
+**Problem**: 135 out of 333 Active Deals have empty `pod`. The VSD-to-pod mapping was applied with short names that didn't match all VSD values.
 
-Replace the plain `<Textarea>` with a mini toolbar + contentEditable div or a lightweight approach:
+**Fix**:
+- SQL update to map pods based on VSD name patterns — any deal where VSD contains "Sneha" → FMCG, "Aamir" → Integrated, "Neema" → US B2B, "Sumit" → India B2B, "Aditya Shaw" → BFSI
+- Also map pods based on deals assigned to people who report to these VSDs (by checking `staffing_people.reporting_manager`)
 
-- Toolbar buttons: **Bold** (B), *Italic* (I), Bullet list, Checklist
-- Store description as HTML string
-- Use `document.execCommand` for formatting (simple, no extra library needed)
-- Render description in task cards using `dangerouslySetInnerHTML` with sanitization  
-Should also have the option to add url
+---
 
-### 4. Add Estimated Hours field (`src/components/deals/TaskFormDialog.tsx`)
+## Phase 2 — Staffing Data Sync from Sheet
 
-- Add "Estimated Hours" numeric input alongside the date fields
-- Display on task cards as `{loggedHours}/{estimatedHours}h` with a small progress bar
-- Add to `TaskData` interface
+### 2A. Re-fetch Google Sheet & Update Team Assignments
+- Re-access the Google Sheet "1.0 Deal Level Mapping" tab
+- Extract ALL team columns (VSD, Principal BOPM, Senior BOPM, BOPM, Content Lead, SEO Manager, etc.) with their allocation percentages
+- Create/update `staffing_assignments` records to match the sheet data
+- Ensure every person referenced exists in `staffing_people`
 
-### 5. Log Hours improvements (`src/components/deals/TaskFormDialog.tsx`)
+### 2B. Connect Deal Staffing to Staffing & Capacity View
+- The Staffing page already reads from the same `useStaffingData` hook, so assignments created/updated in Deal Detail already reflect in the Staffing view
+- Verify this works end-to-end; if there's a caching issue, add a `refresh()` call after assignment changes in Deal Detail
 
-- In the edit dialog, show logged hours with a "+ Log" button that adds to the cumulative total
-- Show estimated vs logged comparison
+---
 
-### 6. Subtasks (`src/components/deals/TaskFormDialog.tsx`)
+## Phase 3 — SOW Team-Revenue Mapping
 
-- Add a "Subtasks" section in the edit/create dialog
-- Each subtask has: title, assignee (dropdown), status checkbox, description (same rich text)
-- "+ Add subtask" button appends to the list
-- Subtasks are stored as part of the parent task object (JSON array)
-- Subtask cards shown nested under the parent in the Kanban column (indented, smaller)
+### 3A. Enhance `deal_sow_items` Table
+- Add columns: `teams` (jsonb — array of team names: Account Management, Content, SEO, Creative), `line_item_value` (numeric — deal amount for this line item)
+- Migration to alter the existing table
 
-### 7. Drag & Drop Kanban (`src/components/deals/TaskKanban.tsx`)
+### 3B. Update SOW UI in Deal Detail
+- When adding/creating a SOW line item, add:
+  - Multi-select checkboxes for teams (Account Management, Content, SEO, Creative)
+  - Numeric input for line item deal value (₹)
+- Display team badges and value per line item in the SOW table
+- This maps revenue to teams per deal, enabling team-level revenue reporting
 
-- Wrap board in `<DndContext>` from `@dnd-kit/core`
-- Each column is a `useDroppable` zone
-- Each task card is `useDraggable`
-- On `onDragEnd`, call `onUpdate(taskId, { stage: newStage })` to move the task
-- Add visual feedback: drop zone highlight, dragging card opacity
-- Remove the hover-based "move to stage" buttons (drag replaces them)
+---
 
-### 8. Update `useDealDetail.ts`
+## Phase 4 — Settings: MRR Capacity Configuration
 
-- Extend `addTask` to include `estimatedHours` and `subtasks` fields
-- Extend `updateTask` to handle subtask updates
+### 4A. Make Settings Tab Functional
+- Replace hardcoded users array with data from `staffing_people`
+- Add a new sub-tab: **"Revenue Capacity"** under Settings
+- This tab shows an editable table of `staffing_revenue_targets` — role/designation vs target MRR capacity per person
+- Allow inline editing of target values
+- Add a **"People & Reporting"** sub-tab that allows editing reporting manager for each person
 
-### 9. Task card layout update (`TaskKanban.tsx`)
+### 4B. Reporting Manager Editor
+- Show people grouped by department with editable reporting manager dropdowns
+- Changes persist to `staffing_people.reporting_manager`
+- The People-Level view hierarchy updates automatically since it already reads `reportingManager`
 
-Match the reference screenshot:
+---
 
-- Card shows: title, description preview, category badge (from task tags/labels), assignee name, due date, urgency badge
-- Cleaner layout with category color coding
-- "+ Add task" button at bottom of each column  
-  
-10. Add an attachthment option for any type of attachments like PPT, PDF, Word, Etc
+## Phase 5 — Staffing & Capacity View Overhaul
 
-## Files Modified
+### 5A. Two Core Metrics
+1. **Target vs Actual Revenue**: For each person, show target MRR capacity (from `staffing_revenue_targets` by their designation) vs actual MRR managed (sum of `deal.mrr × assignment.allocationPct` for active deals only)
+2. **Time Utilization**: 160 hours/month base. Show hours allocated per deal and total utilization percentage
 
+### 5B. Deal-Level View Redesign
+The current deal-level view is a basic expandable table. Redesign to show:
+- Card-based or enhanced table layout grouped by pod/VSD
+- For each deal: status badge, MRR, team members with allocation bars
+- Quick-add member capability
+- Filter by active deals only by default
+- Revenue mapped per team (from SOW team mapping)
+- Visual indicators for staffing gaps (missing roles)
 
-| File                                      | Change                                                                                                  |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `package.json`                            | Add `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`                                          |
-| `src/components/deals/TaskKanban.tsx`     | DndContext wrapping, draggable cards, droppable columns, extended DealTask interface, subtask rendering |
-| `src/components/deals/TaskFormDialog.tsx` | Rich text toolbar, estimated hours input, subtasks section, log hours in edit mode                      |
-| `src/hooks/useDealDetail.ts`              | Extended task fields (estimatedHours, subtasks)                                                         |
+### 5C. People-Level View Enhancement
+- Add revenue column: target vs actual with progress bar
+- Add hours column: allocated hours vs 160 with progress bar
+- Maintain the reporting hierarchy tree
+
+### 5D. Only Map Capacity for Active Deals
+- Filter assignments to only count deals with status `Active Deal`, `Deal Disputed`, or `New Deal in SLA/PO` when computing utilization and revenue metrics
+
+---
+
+## Phase 6 — Reporting Structure from Referenced Projects
+
+### 6A. Reference Content Capability App
+- The Content Capability App has a similar staffing model with VSD options, bandwidth rules by region/MRR tier, and content lead/editor hierarchy
+- Port the BW rules logic pattern (leader/principal/manager percentages by MRR tier and region)
+
+### 6B. Build Proper Hierarchy
+- Use `reportingManager` field to build a multi-level tree: VSD → Principal BOPM → Senior BOPM → BOPM
+- The People-Level view already does this partially — enhance to support full depth
+- Settings tab allows editing reporting relationships
+
+---
+
+## Files to Create/Modify
+
+| File | Change |
+|------|--------|
+| **Database** | Migration: sync `deal_status_cx`, fix pods, add SOW columns |
+| `src/pages/Clients.tsx` | Fix status options, active/closed filter logic |
+| `src/pages/Settings.tsx` | Full rebuild: People/Reporting tab, Revenue Capacity tab |
+| `src/pages/Staffing.tsx` | Active-only filter default, pass revenue targets |
+| `src/components/staffing/DealLevelView.tsx` | Complete redesign with pod grouping, capacity metrics |
+| `src/components/staffing/PeopleLevelView.tsx` | Add revenue & hours columns |
+| `src/components/staffing/CapacityTab.tsx` | Add target vs actual revenue, hours utilization |
+| `src/pages/DealDetail.tsx` | SOW section: team checkboxes + line item value |
+| `src/hooks/useStaffingData.ts` | Active-deal filtering helper, revenue target CRUD |
+
+---
+
+## Implementation Order
+
+1. Database migrations (status sync, pod fix, SOW columns)
+2. Clients page status/filter fixes
+3. SOW team-revenue mapping UI
+4. Settings page rebuild (people, reporting, revenue capacity)
+5. Staffing view overhaul (deal + people views with new metrics)
+6. Data re-sync from Google Sheet for team assignments
+
