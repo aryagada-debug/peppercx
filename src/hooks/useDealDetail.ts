@@ -112,6 +112,8 @@ export function useDealDetail(dealId: string | undefined) {
       delivery: r.delivery, consumption: r.consumption, notes: r.notes,
       accountHealth: r.account_health || "G", financeBilling: r.finance_billing || "G",
       capabilitySeo: r.capability_seo || "G", capabilityCreative: r.capability_creative || "G",
+      content: r.content || "G", seo: r.seo || "G", supply: r.supply || "G",
+      copy: r.copy || "G", design: r.design || "G", video: r.video || "G",
       planOfAction: r.plan_of_action || "",
       issueDate: r.issue_date || undefined, issueDetails: r.issue_details || "",
       discussedActionPlan: r.discussed_action_plan || "", actionPlan: r.action_plan || "",
