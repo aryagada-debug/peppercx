@@ -671,7 +671,7 @@ function GroupedRGYHistory({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
         <thead>
           <tr className="bg-secondary/40 border-b border-border">
             <th className="text-left py-2 px-3 text-xs uppercase tracking-wider text-muted-foreground font-medium">Week</th>
-            {["Acct Health", "Delivery", "Finance", "SEO", "Creative"].map(d => (
+            {["Customer", "Internal", "Content", "SEO", "Supply", "Copy", "Design", "Video"].map(d => (
               <th key={d} className="text-center py-2 px-2 text-xs uppercase tracking-wider text-muted-foreground font-medium">{d}</th>
             ))}
             <th className="text-left py-2 px-3 text-xs uppercase tracking-wider text-muted-foreground font-medium">Issue</th>
