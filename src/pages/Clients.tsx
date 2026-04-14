@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ClientFormDialog } from "@/components/deals/ClientFormDialog";
 import { DealFormWizard } from "@/components/deals/DealFormWizard";
+import { AddStaffingMemberDialog } from "@/components/staffing/AddStaffingMemberDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { uid } from "@/data/staffingData";
 import { toast } from "sonner";
