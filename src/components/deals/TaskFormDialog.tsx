@@ -1,11 +1,15 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Trash2, Bold, Italic, List, CheckSquare, Link, Plus, Clock, ChevronDown, ChevronRight, X,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import type { SubTask } from "./TaskKanban";
 
 const STAGES = ["To Do", "In Progress", "In Review", "Done", "Dropped"];
 const URGENCIES = ["Low", "Medium", "High", "Critical"];
@@ -18,6 +22,8 @@ export interface TaskData {
   startDate: string;
   endDate: string;
   urgency: string;
+  estimatedHours?: number;
+  subtasks?: SubTask[];
 }
 
 interface Props {
@@ -31,6 +37,120 @@ interface Props {
   onDelete?: () => void;
 }
 
+/* ── Rich Text Editor ── */
+function RichTextEditor({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const editorRef = useRef<HTMLDivElement>(null);
+
+  const exec = (cmd: string, val?: string) => {
+    document.execCommand(cmd, false, val);
+    if (editorRef.current) onChange(editorRef.current.innerHTML);
+  };
+
+  const handleLink = () => {
+    const url = prompt("Enter URL:");
+    if (url) exec("createLink", url);
+  };
+
+  return (
+    <div className="border border-input rounded-md overflow-hidden focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+      {/* Toolbar */}
+      <div className="flex items-center gap-0.5 px-2 py-1 border-b border-input bg-muted/30">
+        <button type="button" onMouseDown={e => { e.preventDefault(); exec("bold"); }}
+          className="p-1.5 rounded hover:bg-accent transition-colors" title="Bold">
+          <Bold className="h-3.5 w-3.5" />
+        </button>
+        <button type="button" onMouseDown={e => { e.preventDefault(); exec("italic"); }}
+          className="p-1.5 rounded hover:bg-accent transition-colors" title="Italic">
+          <Italic className="h-3.5 w-3.5" />
+        </button>
+        <div className="w-px h-4 bg-border mx-1" />
+        <button type="button" onMouseDown={e => { e.preventDefault(); exec("insertUnorderedList"); }}
+          className="p-1.5 rounded hover:bg-accent transition-colors" title="Bullet List">
+          <List className="h-3.5 w-3.5" />
+        </button>
+        <button type="button" onMouseDown={e => { e.preventDefault(); exec("insertOrderedList"); }}
+          className="p-1.5 rounded hover:bg-accent transition-colors" title="Checklist">
+          <CheckSquare className="h-3.5 w-3.5" />
+        </button>
+        <div className="w-px h-4 bg-border mx-1" />
+        <button type="button" onMouseDown={e => { e.preventDefault(); handleLink(); }}
+          className="p-1.5 rounded hover:bg-accent transition-colors" title="Add Link">
+          <Link className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      {/* Editable area */}
+      <div
+        ref={editorRef}
+        contentEditable
+        className="min-h-[100px] max-h-[200px] overflow-y-auto px-3 py-2 text-sm text-foreground bg-background focus:outline-none prose prose-sm max-w-none [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:text-primary [&_a]:underline"
+        dangerouslySetInnerHTML={{ __html: value }}
+        onInput={() => {
+          if (editorRef.current) onChange(editorRef.current.innerHTML);
+        }}
+      />
+    </div>
+  );
+}
+
+/* ── Subtask Row ── */
+function SubtaskRow({
+  subtask,
+  assignees,
+  onUpdate,
+  onDelete,
+}: {
+  subtask: SubTask;
+  assignees: { id: string; name: string }[];
+  onUpdate: (updates: Partial<SubTask>) => void;
+  onDelete: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="border border-border rounded-md p-2 bg-muted/20">
+      <div className="flex items-center gap-2">
+        <Checkbox
+          checked={subtask.completed}
+          onCheckedChange={(checked) => onUpdate({ completed: !!checked })}
+        />
+        <Input
+          value={subtask.title}
+          onChange={e => onUpdate({ title: e.target.value })}
+          placeholder="Subtask title"
+          className="h-7 text-sm flex-1"
+        />
+        <Select
+          value={subtask.assignee || "__unassigned__"}
+          onValueChange={v => onUpdate({ assignee: v === "__unassigned__" ? "" : v })}
+        >
+          <SelectTrigger className="h-7 w-[120px] text-xs">
+            <SelectValue placeholder="Assign" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__unassigned__">Unassigned</SelectItem>
+            {assignees.map(a => <SelectItem key={a.id} value={a.name}>{a.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <button type="button" onClick={() => setExpanded(!expanded)} className="p-1 hover:bg-accent rounded">
+          {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        </button>
+        <button type="button" onClick={onDelete} className="p-1 hover:bg-destructive/10 rounded text-destructive">
+          <X className="h-3 w-3" />
+        </button>
+      </div>
+      {expanded && (
+        <div className="mt-2 ml-6">
+          <Label className="text-[10px] text-muted-foreground">Description</Label>
+          <RichTextEditor
+            value={subtask.description || ""}
+            onChange={v => onUpdate({ description: v })}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function TaskFormDialog({ open, onOpenChange, onSubmit, assignees, defaultStage, initial, title = "Create Task", onDelete }: Props) {
   const [form, setForm] = useState<TaskData>({
     title: initial?.title || "",
@@ -40,9 +160,13 @@ export function TaskFormDialog({ open, onOpenChange, onSubmit, assignees, defaul
     startDate: initial?.startDate || "",
     endDate: initial?.endDate || "",
     urgency: initial?.urgency || "Medium",
+    estimatedHours: initial?.estimatedHours || 0,
+    subtasks: initial?.subtasks || [],
   });
+  const [logHoursInput, setLogHoursInput] = useState("");
+  const [showLogHours, setShowLogHours] = useState(false);
 
-  const set = (key: keyof TaskData, value: string) => setForm(prev => ({ ...prev, [key]: value }));
+  const set = (key: keyof TaskData, value: any) => setForm(prev => ({ ...prev, [key]: value }));
 
   const handleSubmit = () => {
     if (!form.title.trim()) return;
@@ -50,23 +174,45 @@ export function TaskFormDialog({ open, onOpenChange, onSubmit, assignees, defaul
     onOpenChange(false);
   };
 
+  const addSubtask = () => {
+    const newSub: SubTask = {
+      id: crypto.randomUUID(),
+      title: "",
+      completed: false,
+      assignee: "",
+      description: "",
+    };
+    set("subtasks", [...(form.subtasks || []), newSub]);
+  };
+
+  const updateSubtask = (id: string, updates: Partial<SubTask>) => {
+    set("subtasks", (form.subtasks || []).map(s => s.id === id ? { ...s, ...updates } : s));
+  };
+
+  const deleteSubtask = (id: string) => {
+    set("subtasks", (form.subtasks || []).filter(s => s.id !== id));
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 pt-2">
+          {/* Title */}
           <div className="space-y-1">
             <Label className="text-caption text-muted-foreground">Title *</Label>
             <Input value={form.title} onChange={e => set("title", e.target.value)} placeholder="Task title" autoFocus />
           </div>
 
+          {/* Rich Text Description */}
           <div className="space-y-1">
             <Label className="text-caption text-muted-foreground">Description</Label>
-            <Textarea value={form.description} onChange={e => set("description", e.target.value)} rows={3} placeholder="Add details, checklists, notes..." />
+            <RichTextEditor value={form.description} onChange={v => set("description", v)} />
           </div>
 
+          {/* Stage + Urgency */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-caption text-muted-foreground">Stage</Label>
@@ -84,6 +230,7 @@ export function TaskFormDialog({ open, onOpenChange, onSubmit, assignees, defaul
             </div>
           </div>
 
+          {/* Assignee */}
           <div className="space-y-1">
             <Label className="text-caption text-muted-foreground">Assignee</Label>
             <Select value={form.assignee || "__unassigned__"} onValueChange={v => set("assignee", v === "__unassigned__" ? "" : v)}>
@@ -95,7 +242,8 @@ export function TaskFormDialog({ open, onOpenChange, onSubmit, assignees, defaul
             </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          {/* Dates + Estimated Hours */}
+          <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1">
               <Label className="text-caption text-muted-foreground">Start Date</Label>
               <Input type="date" value={form.startDate} onChange={e => set("startDate", e.target.value)} />
@@ -104,15 +252,84 @@ export function TaskFormDialog({ open, onOpenChange, onSubmit, assignees, defaul
               <Label className="text-caption text-muted-foreground">End Date</Label>
               <Input type="date" value={form.endDate} onChange={e => set("endDate", e.target.value)} />
             </div>
+            <div className="space-y-1">
+              <Label className="text-caption text-muted-foreground">Estimated Hours</Label>
+              <Input
+                type="number"
+                min={0}
+                value={form.estimatedHours || ""}
+                onChange={e => set("estimatedHours", parseFloat(e.target.value) || 0)}
+                placeholder="0"
+              />
+            </div>
           </div>
 
-          {initial?.loggedHours !== undefined && initial.loggedHours > 0 && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent/30">
+          {/* Logged hours (edit mode) */}
+          {initial?.loggedHours !== undefined && (
+            <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-accent/30">
+              <Clock className="h-4 w-4 text-muted-foreground" />
               <span className="text-caption text-muted-foreground">Hours logged:</span>
               <span className="text-ui font-mono font-bold text-primary">{initial.loggedHours}h</span>
+              {form.estimatedHours != null && form.estimatedHours > 0 && (
+                <span className="text-caption text-muted-foreground">/ {form.estimatedHours}h estimated</span>
+              )}
+              <div className="ml-auto">
+                {showLogHours ? (
+                  <div className="flex items-center gap-1">
+                    <Input
+                      type="number"
+                      value={logHoursInput}
+                      onChange={e => setLogHoursInput(e.target.value)}
+                      className="h-7 w-20"
+                      placeholder="hrs"
+                      autoFocus
+                      onKeyDown={e => {
+                        if (e.key === "Escape") setShowLogHours(false);
+                      }}
+                    />
+                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => {
+                      // Log hours will be handled by parent - we pass the increment through a special mechanism
+                      const hrs = parseFloat(logHoursInput);
+                      if (!isNaN(hrs) && hrs > 0 && initial) {
+                        // We'll submit with updated loggedHours
+                        onSubmit({ ...form });
+                        // Parent needs to handle the loggedHours increment separately
+                      }
+                      setShowLogHours(false);
+                      setLogHoursInput("");
+                    }}>
+                      + Log
+                    </Button>
+                  </div>
+                ) : (
+                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowLogHours(true)}>
+                    <Plus className="h-3 w-3 mr-1" /> Log Hours
+                  </Button>
+                )}
+              </div>
             </div>
           )}
 
+          {/* Subtasks */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-caption text-muted-foreground font-semibold">Subtasks</Label>
+              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={addSubtask}>
+                <Plus className="h-3 w-3 mr-1" /> Add Subtask
+              </Button>
+            </div>
+            {(form.subtasks || []).map(sub => (
+              <SubtaskRow
+                key={sub.id}
+                subtask={sub}
+                assignees={assignees}
+                onUpdate={updates => updateSubtask(sub.id, updates)}
+                onDelete={() => deleteSubtask(sub.id)}
+              />
+            ))}
+          </div>
+
+          {/* Actions */}
           <div className="flex items-center justify-between pt-2">
             {onDelete ? (
               <Button variant="ghost" onClick={onDelete} className="text-destructive hover:text-destructive">
