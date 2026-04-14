@@ -237,10 +237,13 @@ export type Database = {
           capability_creative: string
           capability_seo: string
           consumption: string
+          content: string
+          copy: string
           created_at: string
           customer: string
           deal_id: string
           delivery: string
+          design: string
           discussed_action_plan: string | null
           finance_billing: string
           id: string
@@ -251,6 +254,9 @@ export type Database = {
           notes: string | null
           plan_of_action: string
           resolution_due_date: string | null
+          seo: string
+          supply: string
+          video: string
           week_start: string
         }
         Insert: {
@@ -259,10 +265,13 @@ export type Database = {
           capability_creative?: string
           capability_seo?: string
           consumption?: string
+          content?: string
+          copy?: string
           created_at?: string
           customer?: string
           deal_id: string
           delivery?: string
+          design?: string
           discussed_action_plan?: string | null
           finance_billing?: string
           id?: string
@@ -273,6 +282,9 @@ export type Database = {
           notes?: string | null
           plan_of_action?: string
           resolution_due_date?: string | null
+          seo?: string
+          supply?: string
+          video?: string
           week_start: string
         }
         Update: {
@@ -281,10 +293,13 @@ export type Database = {
           capability_creative?: string
           capability_seo?: string
           consumption?: string
+          content?: string
+          copy?: string
           created_at?: string
           customer?: string
           deal_id?: string
           delivery?: string
+          design?: string
           discussed_action_plan?: string | null
           finance_billing?: string
           id?: string
@@ -295,6 +310,9 @@ export type Database = {
           notes?: string | null
           plan_of_action?: string
           resolution_due_date?: string | null
+          seo?: string
+          supply?: string
+          video?: string
           week_start?: string
         }
         Relationships: []
