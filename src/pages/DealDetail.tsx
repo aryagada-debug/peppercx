@@ -1544,11 +1544,14 @@ export default function DealDetail() {
             {/* Current Week RGY Editor */}
             <EditableRGY
               dimensions={[
-                { key: "accountHealth", label: "Account Health", owner: "VSD", value: currentRGY?.accountHealth || "G" },
-                { key: "delivery", label: "Delivery", owner: "BOPM", value: currentRGY?.delivery || "G" },
-                { key: "financeBilling", label: "Finance / Billing", owner: "Finance", value: currentRGY?.financeBilling || "G" },
-                { key: "capabilitySeo", label: "Capability — SEO", owner: "SEO", value: currentRGY?.capabilitySeo || "G" },
-                { key: "capabilityCreative", label: "Capability — Creative", owner: "Creative", value: currentRGY?.capabilityCreative || "G" },
+                { key: "customer", label: "Overall Customer", owner: "VSD", value: currentRGY?.customer || "G" },
+                { key: "internal", label: "Internal", owner: "BOPM", value: currentRGY?.internal || "G" },
+                { key: "content", label: "Content", owner: "Content", value: currentRGY?.content || "G" },
+                { key: "seo", label: "SEO", owner: "SEO", value: currentRGY?.seo || "G" },
+                { key: "supply", label: "Supply", owner: "Supply", value: currentRGY?.supply || "G" },
+                { key: "copy", label: "Copy", owner: "Copy", value: currentRGY?.copy || "G" },
+                { key: "design", label: "Design", owner: "Design", value: currentRGY?.design || "G" },
+                { key: "video", label: "Video", owner: "Video", value: currentRGY?.video || "G" },
               ]}
               onSave={handleRGYSave}
             />
