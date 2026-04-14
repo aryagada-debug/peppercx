@@ -31,8 +31,8 @@ export function MBRDetailDialog({ open, onClose, deal, entry }: MBRDetailDialogP
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <div className="flex items-center justify-between">
-            <DialogTitle className="text-lg font-semibold text-foreground">{deal.account}</DialogTitle>
+          <DialogTitle className="text-lg font-semibold text-foreground">{deal.account}</DialogTitle>
+          <p className="text-sm text-muted-foreground">{deal.dealName} · PC: {deal.pcCode}</p>
         </DialogHeader>
 
         <div className="space-y-5 mt-2">
