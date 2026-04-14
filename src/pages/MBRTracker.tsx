@@ -377,7 +377,7 @@ export default function MBRTracker() {
           </TabsContent>
 
           <TabsContent value="deals">
-            <DealTrackerTab deals={deals} entries={entries} upsertEntry={upsertEntry} toggleAnirudhJoining={toggleAnirudhJoining} selectedWeek={selectedWeek} />
+            <DealTrackerTab deals={deals} entries={entries} />
           </TabsContent>
 
           <TabsContent value="history">
