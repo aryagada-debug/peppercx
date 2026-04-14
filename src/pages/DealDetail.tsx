@@ -1411,11 +1411,102 @@ export default function DealDetail() {
                   <h3 className="text-sm font-semibold text-foreground">Team</h3>
                 </div>
                 <div className="divide-y divide-border">
-                  <TeamMemberRow name={deal.vsd || ""} role="VSD" color="bg-teal-600" onSave={v => handleDealFieldSave("vsd", v)} />
-                  <TeamMemberRow name={deal.principalBopm || ""} role="Principal BOPM" color="bg-primary" onSave={v => handleDealFieldSave("principalBopm", v)} />
-                  <TeamMemberRow name={deal.seniorBopm || ""} role="Senior BOPM" color="bg-muted-foreground/60" onSave={v => handleDealFieldSave("seniorBopm", v)} />
-                  <TeamMemberRow name={deal.bopm || ""} role="Junior BOPM" color="bg-muted-foreground/60" onSave={v => handleDealFieldSave("bopm", v)} />
+                  <TeamMemberSelect
+                    currentName={deal.vsd || ""}
+                    role="VSD"
+                    color="bg-teal-600"
+                    people={people.filter(p => (p.roleTitle || "").toLowerCase().includes("vsd"))}
+                    onSelect={name => {
+                      handleDealFieldSave("vsd", name);
+                      const person = people.find(p => p.name === name);
+                      if (person) {
+                        const existing = assignments.find(a => a.dealId === dealId && a.roleKey === "VSD");
+                        if (existing) updateAssignment(existing.id, { personId: person.id });
+                        else addAssignment({ id: uid(), dealId: dealId!, roleKey: "VSD", personId: person.id, allocationPct: 10 });
+                      }
+                    }}
+                  />
+                  <TeamMemberSelect
+                    currentName={deal.principalBopm || ""}
+                    role="Principal BOPM"
+                    color="bg-primary"
+                    people={people.filter(p => (p.roleTitle || "").toLowerCase().includes("principal bopm"))}
+                    onSelect={name => {
+                      handleDealFieldSave("principalBopm", name);
+                      const person = people.find(p => p.name === name);
+                      if (person) {
+                        const existing = assignments.find(a => a.dealId === dealId && a.roleKey === "Principal BOPM");
+                        if (existing) updateAssignment(existing.id, { personId: person.id });
+                        else addAssignment({ id: uid(), dealId: dealId!, roleKey: "Principal BOPM", personId: person.id, allocationPct: 10 });
+                      }
+                    }}
+                  />
+                  <TeamMemberSelect
+                    currentName={deal.seniorBopm || ""}
+                    role="Senior BOPM"
+                    color="bg-muted-foreground/60"
+                    people={people.filter(p => (p.roleTitle || "").toLowerCase().includes("senior bopm"))}
+                    onSelect={name => {
+                      handleDealFieldSave("seniorBopm", name);
+                      const person = people.find(p => p.name === name);
+                      if (person) {
+                        const existing = assignments.find(a => a.dealId === dealId && a.roleKey === "Senior BOPM");
+                        if (existing) updateAssignment(existing.id, { personId: person.id });
+                        else addAssignment({ id: uid(), dealId: dealId!, roleKey: "Senior BOPM", personId: person.id, allocationPct: 10 });
+                      }
+                    }}
+                  />
+                  <TeamMemberSelect
+                    currentName={deal.bopm || ""}
+                    role="BOPM"
+                    color="bg-muted-foreground/60"
+                    people={people.filter(p => {
+                      const rt = (p.roleTitle || "").toLowerCase();
+                      return rt.includes("bopm") && !rt.includes("senior") && !rt.includes("principal");
+                    })}
+                    onSelect={name => {
+                      handleDealFieldSave("bopm", name);
+                      const person = people.find(p => p.name === name);
+                      if (person) {
+                        const existing = assignments.find(a => a.dealId === dealId && a.roleKey === "BOPM");
+                        if (existing) updateAssignment(existing.id, { personId: person.id });
+                        else addAssignment({ id: uid(), dealId: dealId!, roleKey: "BOPM", personId: person.id, allocationPct: 10 });
+                      }
+                    }}
+                  />
                 </div>
+
+                {/* Additional assigned members from staffing */}
+                {(() => {
+                  const coreRoles = new Set(["VSD", "Principal BOPM", "Senior BOPM", "BOPM"]);
+                  const otherAssignments = dealAssignments.filter(a => !coreRoles.has(a.roleKey));
+                  if (otherAssignments.length === 0) return null;
+                  const grouped: Record<string, { person: typeof people[0]; alloc: typeof otherAssignments[0] }[]> = {};
+                  otherAssignments.forEach(a => {
+                    const p = people.find(pp => pp.id === a.personId);
+                    if (!p) return;
+                    const cat = p.roleCategory || "Other";
+                    if (!grouped[cat]) grouped[cat] = [];
+                    grouped[cat].push({ person: p, alloc: a });
+                  });
+                  return (
+                    <div className="mt-3 pt-3 border-t border-border space-y-2">
+                      <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">Other Assigned</p>
+                      {Object.entries(grouped).map(([cat, members]) => (
+                        <div key={cat}>
+                          <p className="text-[10px] text-muted-foreground font-medium mb-1">{cat}</p>
+                          {members.map(({ person, alloc }) => (
+                            <div key={alloc.id} className="flex items-center gap-2 py-1 text-xs">
+                              <span className="text-foreground">{person.name}</span>
+                              <span className="text-muted-foreground">·</span>
+                              <span className="font-mono text-muted-foreground">{alloc.allocationPct}%</span>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
@@ -1430,6 +1521,61 @@ export default function DealDetail() {
               ]}
               onSave={handleRGYSave}
             />
+
+            {/* Overview RGY Issue Form */}
+            {showIssueForm && currentRGY && (
+              <RGYIssueForm
+                dealId={dealId!}
+                currentRGY={currentRGY!}
+                assignees={dealPeople.map(p => ({ id: p.id, name: p.name }))}
+                teamMembers={[deal.vsd, deal.principalBopm, deal.seniorBopm, deal.bopm].filter(Boolean)}
+                onCancel={() => {
+                  setShowIssueForm(false);
+                  if (prevRGYSnapshot && currentRGY) {
+                    updateRGYWeek(currentRGY.id, {
+                      accountHealth: prevRGYSnapshot.accountHealth || "G",
+                      delivery: prevRGYSnapshot.delivery || "G",
+                      financeBilling: prevRGYSnapshot.financeBilling || "G",
+                      capabilitySeo: prevRGYSnapshot.capabilitySeo || "G",
+                      capabilityCreative: prevRGYSnapshot.capabilityCreative || "G",
+                    });
+                    toast.info("RGY changes reverted");
+                  }
+                  setPrevRGYSnapshot(null);
+                }}
+                onSaveIssue={async (issueData) => {
+                  if (currentRGY) {
+                    await updateRGYWeek(currentRGY.id, {
+                      issueDate: issueData.issueDate,
+                      issueDetails: issueData.issueDetails,
+                      discussedActionPlan: issueData.discussedActionPlan,
+                      actionPlan: issueData.actionPlan,
+                      resolutionDueDate: issueData.resolutionDueDate,
+                      issueStatus: issueData.issueStatus,
+                    });
+                  }
+                  for (const task of issueData.tasks) {
+                    for (const assignee of task.assignees) {
+                      await addTask({
+                        dealId: dealId!,
+                        title: `[RGY Health] ${task.dimension} — ${task.issueSummary}`,
+                        description: `Issue Details: ${issueData.issueDetails}\nAction Plan: ${issueData.actionPlan}\nDiscussed Action Plan: ${issueData.discussedActionPlan}`,
+                        stage: "To Do",
+                        assignee,
+                        urgency: task.urgency,
+                        loggedHours: 0,
+                        sortOrder: 0,
+                        startDate: issueData.issueDate,
+                        endDate: issueData.resolutionDueDate,
+                      });
+                    }
+                  }
+                  setShowIssueForm(false);
+                  setPrevRGYSnapshot(null);
+                  toast.success("Issue saved & tasks created");
+                }}
+              />
+            )}
 
             {/* ── SoW ── */}
             <div>
