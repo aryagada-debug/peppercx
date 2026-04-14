@@ -1,64 +1,45 @@
-
-
-# Clients & Deals Tabular View + Deal Overview Sync
+# Group Deals Under Client Rows with Collapsible Sections
 
 ## Summary
 
-Three interconnected changes: (1) Redesign the Clients page to show a flat tabular view with editable VSD, P.BOPM/Sr BOPM, MRR, and Total Revenue columns linked to the deal's staffing and financials data. (2) Rebuild the Deal Overview Team section to reflect actual staffing assignments with role-filtered dropdowns. (3) Wire the Overview tab's RGY health section through the same `handleRGYSave` logic (issue form on Y/R, green-gate on G).
+Restructure the Clients & Deals table so each client appears once as a parent row, with its deals nested underneath in a collapsible section. Currently every deal is a flat row repeating the client name.
 
-## Changes
+## Changes — `src/pages/Clients.tsx`
 
-### 1. Clients & Deals Page — Flat Tabular View (`src/pages/Clients.tsx`)
+### 1. Group deals by client
 
-Replace the current collapsible client-group layout with a flat, spreadsheet-style table. Each row = one deal.
+Add a `useMemo` that groups `filteredDeals` by `deal.account` into a `Map<string, Deal[]>` (or array of `{ client: string, deals: Deal[] }`), sorted alphabetically by client name.
 
-**Columns**: Client | Deal Name | Deal ID | Type | Status (dropdown) | VSD (dropdown) | P.BOPM / Sr BOPM (dropdown) | MRR (inline edit) | Total Revenue (inline edit) | RGY (dot) | Actions
+### 2. Client parent row (collapsible)
 
-**Editable columns**:
-- **VSD**: Dropdown populated from `people.filter(p => p.roleTitle includes "VSD")`. On change, call `updateDeal(deal.id, { vsd: selectedName })` AND update/create a staffing assignment for that person on the deal.
-- **P.BOPM / Sr BOPM**: Dropdown from people with roleTitle containing "Principal BOPM" or "Senior BOPM". Same dual update.
-- **MRR & Total Revenue**: Inline editable numeric cells using the existing `EditableCell` pattern, calling `updateDeal`.
-- **Status**: Already exists as a dropdown — keep as-is.
+For each client group, render a parent `<tr>` spanning the full table width:
 
-Import `people` from `useStaffingData` to populate dropdowns. Keep the client grouping toggle as an option (flat vs grouped view toggle button).
+- **Chevron** toggle icon (ChevronRight / ChevronDown)
+- **Client name** (bold)
+- **Deal count** badge (e.g., "3 deals")
+- **Aggregated MRR** and **Total Revenue** summed across all deals for that client
+- **Delete client** button (existing logic)
+- **Add Deal** button scoped to that client
 
-### 2. Deal Overview — Team from Staffing (`src/pages/DealDetail.tsx`)
+Track expanded clients in a `Set<string>` state (`expandedClients`). Clicking the row toggles visibility.
 
-Replace the current `TeamMemberRow` free-text edit with dropdown selects sourced from `people`:
+### 3. Deal child rows
 
-- **VSD row**: Dropdown of people where `roleTitle` contains "VSD"
-- **Principal BOPM row**: Dropdown of people where `roleTitle` contains "Principal BOPM"
-- **Senior BOPM row**: Dropdown of people where `roleTitle` contains "Senior BOPM"
-- **BOPM row**: Dropdown of people where `roleTitle` contains "BOPM" (but not Senior/Principal)
+When a client is expanded, render its deals as child `<tr>` rows below with slight left indentation. These keep ALL existing columns and editing functionality (Status, VSD, BOPM dropdowns, inline MRR/Revenue edit, RGY dot, delete). Remove the "Client" column from child rows since the parent already shows it.
 
-On selection:
-1. Update `deal.vsd` / `deal.principalBopm` / etc. via `updateDeal`
-2. Create or update a staffing assignment (`addAssignment` / `updateAssignment`) linking that person to the deal with a default allocation
+### 4. Table header update
 
-Show additional assigned members (from staffing tab) below the core 4 roles, grouped by category (SEO, Content, Creative, etc.) with their allocation %.
+Remove the standalone "Client" column header. The first column becomes the client name / deal name depending on row level.
 
-### 3. Overview RGY — Full Edit Rules (`src/pages/DealDetail.tsx`)
+### 5. Expand/collapse all
 
-The Overview tab already renders `<EditableRGY>` connected to `handleRGYSave` (line 1412-1421), which already includes:
-- Green-gate validation (blocking Green if open tasks exist)
-- Issue form trigger on Y/R save
-- Snapshot + revert on cancel
-
-Verify the `showIssueForm` state and `<RGYIssueForm>` component render within the Overview tab section (currently they only render in the RGY Health tab). Move or duplicate the issue form rendering so it also appears in the Overview tab after an RGY save triggers `setShowIssueForm(true)`.
-
-Also render the green-gate `AlertDialog` when triggered from the Overview tab's EditableRGY.
-
-### 4. New `TeamMemberSelect` Component
-
-Create a small reusable component (inline in DealDetail.tsx or extracted):
-- Props: `role: string`, `currentName: string`, `people: Person[]`, `onSelect: (person: Person) => void`
-- Renders: Avatar + name + role label, with a `Select` dropdown on click showing filtered people
-- Reused in both the Clients table and the Deal Overview Team section
+Add a small "Expand All / Collapse All" toggle button near the filters.  
+  
+Add delete Deal button as well subtle to the side
 
 ## Files Modified
 
-| File | Change |
-|------|--------|
-| `src/pages/Clients.tsx` | Flat tabular layout, editable VSD/BOPM dropdowns from `people`, inline MRR/revenue editing |
-| `src/pages/DealDetail.tsx` | Team section uses dropdowns from `people` by role, syncs with staffing assignments; RGY issue form + green-gate rendered in Overview tab |
 
+| File                    | Change                                                                                         |
+| ----------------------- | ---------------------------------------------------------------------------------------------- |
+| `src/pages/Clients.tsx` | Group deals by client, collapsible parent rows with aggregated stats, indented child deal rows |
