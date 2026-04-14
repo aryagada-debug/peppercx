@@ -790,11 +790,15 @@ function RGYIssueForm({ dealId, currentRGY, assignees, teamMembers, onSaveIssue,
   };
 
   return (
-    <div className="bg-card border border-border rounded-xl p-5 space-y-4">
-      <div className="flex items-center gap-2 mb-1">
-        <AlertTriangle className="h-4 w-4 text-warning" />
-        <h3 className="text-sm font-semibold text-foreground">Issue Tracker — Non-Green Dimensions</h3>
-      </div>
+    <Dialog open={true} onOpenChange={(open) => { if (!open) onCancel(); }}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-warning" />
+            Issue Tracker — Non-Green Dimensions
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Issue Date */}
@@ -930,7 +934,7 @@ function RGYIssueForm({ dealId, currentRGY, assignees, teamMembers, onSaveIssue,
         </div>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 justify-end">
         <Button variant="outline" onClick={onCancel} disabled={saving}>
           Cancel
         </Button>
@@ -939,7 +943,9 @@ function RGYIssueForm({ dealId, currentRGY, assignees, teamMembers, onSaveIssue,
           Save Issue & Create Tasks
         </Button>
       </div>
-    </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 // ── Grouped RGY History ──
