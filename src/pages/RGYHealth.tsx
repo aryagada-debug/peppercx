@@ -4,10 +4,18 @@ import { RGYHeatmap } from "@/components/dashboard/RGYHeatmap";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { DealDetailDialog } from "@/components/rgy/DealDetailDialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import type { RGYRow, RGYStatus } from "@/types/dashboard";
 
-const ACTIVE_STATUSES = ["Active Deal", "Deal Disputed", "New Deal in SLA/PO"];
+const ALL_STATUSES = [
+  "Active Deal",
+  "Deal Disputed",
+  "New Deal in SLA/PO",
+  "Deal Completed Successfully",
+  "Deal Churned / Lost",
+];
+
 const DIMENSIONS = ["Account Health", "Delivery", "Finance/Billing", "Capability-SEO", "Capability-Creative"];
 
 interface DealWithRGY {
@@ -25,7 +33,6 @@ interface DealWithRGY {
   start_date: string | null;
   end_date: string | null;
   payment_terms: string;
-  // latest RGY
   account_health?: string;
   delivery?: string;
   finance_billing?: string;
@@ -37,31 +44,34 @@ export default function RGYHealth() {
   const [deals, setDeals] = useState<DealWithRGY[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
 
   useEffect(() => {
     async function fetchData() {
-      // Fetch active deals
+      // Fetch ALL deals (no status filter)
       const { data: dealRows } = await supabase
         .from("staffing_deals")
         .select("id, deal_name, account, bopm, deal_status, pod, mrr, total_deal_value, vsd, principal_bopm, senior_bopm, start_date, end_date, payment_terms")
-        .in("deal_status", ACTIVE_STATUSES)
         .order("deal_name");
 
       if (!dealRows) { setLoading(false); return; }
 
-      // Fetch latest RGY per deal (all at once, then pick latest per deal_id)
       const dealIds = dealRows.map(d => d.id);
-      const { data: rgyRows } = await supabase
-        .from("deal_rgy_weekly")
-        .select("deal_id, account_health, delivery, finance_billing, capability_seo, capability_creative, week_start")
-        .in("deal_id", dealIds)
-        .order("week_start", { ascending: false });
 
-      // Build map: deal_id -> latest RGY
-      const rgyMap = new Map<string, typeof rgyRows extends (infer T)[] | null ? T : never>();
-      if (rgyRows) {
-        for (const r of rgyRows) {
-          if (!rgyMap.has(r.deal_id)) rgyMap.set(r.deal_id, r);
+      // Fetch in batches of 500 to avoid URI limits
+      const rgyMap = new Map<string, { account_health: string; delivery: string; finance_billing: string; capability_seo: string; capability_creative: string }>();
+      for (let i = 0; i < dealIds.length; i += 500) {
+        const batch = dealIds.slice(i, i + 500);
+        const { data: rgyRows } = await supabase
+          .from("deal_rgy_weekly")
+          .select("deal_id, account_health, delivery, finance_billing, capability_seo, capability_creative, week_start")
+          .in("deal_id", batch)
+          .order("week_start", { ascending: false });
+
+        if (rgyRows) {
+          for (const r of rgyRows) {
+            if (!rgyMap.has(r.deal_id)) rgyMap.set(r.deal_id, r);
+          }
         }
       }
 
@@ -83,12 +93,18 @@ export default function RGYHealth() {
     fetchData();
   }, []);
 
+  // Filter deals by status
+  const filteredDeals = statusFilter === "all"
+    ? deals
+    : deals.filter(d => d.deal_status === statusFilter);
+
   // Map to RGYRow format
-  const rgyData: RGYRow[] = deals.map(d => ({
+  const rgyData: RGYRow[] = filteredDeals.map(d => ({
     id: d.id,
     deal: d.deal_name,
     client: d.account,
     bopm: d.bopm || "—",
+    status: d.deal_status,
     dimensions: {
       "Account Health": (d.account_health || "NA") as RGYStatus,
       "Delivery": (d.delivery || "NA") as RGYStatus,
@@ -98,7 +114,7 @@ export default function RGYHealth() {
     },
   }));
 
-  // Compute metrics
+  // Compute metrics from filtered view
   const allStatuses = rgyData.flatMap(r => Object.values(r.dimensions));
   const redCount = allStatuses.filter(v => v === "R").length;
   const yellowCount = allStatuses.filter(v => v === "Y").length;
@@ -109,6 +125,12 @@ export default function RGYHealth() {
     : "—";
 
   const selectedDeal = deals.find(d => d.id === selectedDealId) ?? null;
+
+  // Status counts for subtitle
+  const statusCounts = ALL_STATUSES.reduce((acc, s) => {
+    acc[s] = deals.filter(d => d.deal_status === s).length;
+    return acc;
+  }, {} as Record<string, number>);
 
   if (loading) {
     return (
@@ -127,9 +149,22 @@ export default function RGYHealth() {
   return (
     <AppLayout>
       <div className="p-8">
-        <h1 className="text-subhead font-semibold tracking-tight text-foreground mb-1">RGY Health Tracker</h1>
+        <div className="flex items-center justify-between mb-1">
+          <h1 className="text-subhead font-semibold tracking-tight text-foreground">RGY Health Tracker</h1>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[220px]">
+              <SelectValue placeholder="Filter by status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses ({deals.length})</SelectItem>
+              {ALL_STATUSES.map(s => (
+                <SelectItem key={s} value={s}>{s} ({statusCounts[s] || 0})</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <p className="text-ui text-muted-foreground mb-6">
-          Multi-dimensional deal health — {deals.length} active deals
+          Multi-dimensional deal health — showing {filteredDeals.length} of {deals.length} deals
         </p>
 
         <div className="grid grid-cols-4 gap-4 mb-8">

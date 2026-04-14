@@ -33,6 +33,7 @@ export interface RGYRow {
   deal: string;
   client: string;
   bopm: string;
+  status?: string;
   dimensions: Record<string, RGYStatus>;
 }
 
