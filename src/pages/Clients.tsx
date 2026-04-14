@@ -114,7 +114,11 @@ export default function Clients() {
   const filteredDeals = useMemo(() => {
     let d = deals;
     if (!showClosed) d = d.filter(deal => deal.dealStatusCx !== "Closed" && deal.dealStatus !== "Lost");
-    if (activePod !== "All") d = d.filter(deal => (BU_TO_POD[deal.businessUnit] || "Integrated") === activePod);
+    if (activePod === "Unassigned") {
+      d = d.filter(deal => !deal.vsd || deal.vsd === "Not Assigned" || deal.vsd === "Unassigned" || deal.vsd === "Not Applicable");
+    } else if (activePod !== "All") {
+      d = d.filter(deal => (deal.pod || "") === activePod);
+    }
     if (search) d = d.filter(deal => deal.account.toLowerCase().includes(search.toLowerCase()) || deal.dealName.toLowerCase().includes(search.toLowerCase()));
     return d;
   }, [deals, activePod, search, showClosed]);
