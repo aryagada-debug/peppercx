@@ -561,6 +561,29 @@ export default function Clients() {
         }}
         onSubmit={handleCreateDeal}
       />
+
+      {staffingDialog && (
+        <AddStaffingMemberDialog
+          open={staffingDialog.open}
+          onOpenChange={(v) => { if (!v) setStaffingDialog(null); }}
+          people={people}
+          assignments={assignments}
+          deals={deals}
+          dealId={staffingDialog.dealId}
+          initialCategory={staffingDialog.roleFilter}
+          onAdd={(assignment) => {
+            const person = people.find(p => p.id === assignment.personId);
+            if (!person) return;
+            const rt = (person.roleTitle || "").toLowerCase();
+            if (rt.includes("vsd")) {
+              handleVSDChange(staffingDialog.dealId, person.name);
+            } else {
+              handleBOPMChange(staffingDialog.dealId, person.name);
+            }
+            setStaffingDialog(null);
+          }}
+        />
+      )}
     </AppLayout>
   );
 }
