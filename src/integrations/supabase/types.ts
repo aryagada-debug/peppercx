@@ -304,27 +304,33 @@ export type Database = {
           created_at: string
           deal_id: string
           id: string
+          line_item_value: number | null
           revenue_share: number
           scope: string
           team_capability: string
+          teams: Json | null
           updated_at: string
         }
         Insert: {
           created_at?: string
           deal_id: string
           id?: string
+          line_item_value?: number | null
           revenue_share?: number
           scope?: string
           team_capability?: string
+          teams?: Json | null
           updated_at?: string
         }
         Update: {
           created_at?: string
           deal_id?: string
           id?: string
+          line_item_value?: number | null
           revenue_share?: number
           scope?: string
           team_capability?: string
+          teams?: Json | null
           updated_at?: string
         }
         Relationships: []

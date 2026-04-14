@@ -10,6 +10,8 @@ import { useStaffingData } from "@/hooks/useStaffingData";
 import { DealLevelView } from "@/components/staffing/DealLevelView";
 import { PeopleLevelView } from "@/components/staffing/PeopleLevelView";
 
+const ACTIVE_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
+
 const fmtCurrency = (n: number | undefined) => {
   if (!n) return "—";
   if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
@@ -35,7 +37,7 @@ export default function Staffing() {
   const [editMode, setEditMode] = useState(false);
   const [capability, setCapability] = useState<CapabilitySwitcher>("All");
   const {
-    people, deals, assignments, bwRules, loading,
+    people, deals, assignments, bwRules, revenueTargets, loading,
     addPerson: dbAddPerson, updatePerson: dbUpdatePerson, deletePerson: dbDeletePerson,
     addAssignment: dbAddAssignment, updateAssignment: dbUpdateAssignment,
     deleteAssignment: dbDeleteAssignment, updateDeal: dbUpdateDeal,
@@ -141,10 +143,10 @@ export default function Staffing() {
 
         {/* View Content */}
         {activeView === "deals" && (
-          <DealLevelView deals={filteredDeals} people={people} assignments={filteredAssignments} />
+          <DealLevelView deals={filteredDeals} people={people} assignments={filteredAssignments} revenueTargets={revenueTargets} />
         )}
         {activeView === "people" && (
-          <PeopleLevelView people={filteredPeople} deals={deals} assignments={assignments} />
+          <PeopleLevelView people={filteredPeople} deals={deals} assignments={assignments} revenueTargets={revenueTargets} />
         )}
       </div>
     </AppLayout>

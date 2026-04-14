@@ -10,6 +10,8 @@ export interface SoWItem {
   scope: string;
   revenueShare: number;
   teamCapability: string;
+  teams: string[];
+  lineItemValue: number;
 }
 
 export interface RevenueMonthly {
@@ -96,7 +98,7 @@ export function useDealDetail(dealId: string | undefined) {
       supabase.from("deal_tasks").select("*").eq("deal_id", dealId).order("sort_order"),
       supabase.from("mbr_entries").select("*").eq("deal_id", dealId).order("week_start", { ascending: false }),
     ]);
-    if (sow.data) setSowItems(sow.data.map((r: any) => ({ id: r.id, dealId: r.deal_id, scope: r.scope, revenueShare: Number(r.revenue_share), teamCapability: r.team_capability })));
+    if (sow.data) setSowItems(sow.data.map((r: any) => ({ id: r.id, dealId: r.deal_id, scope: r.scope, revenueShare: Number(r.revenue_share), teamCapability: r.team_capability, teams: Array.isArray(r.teams) ? r.teams : [], lineItemValue: Number(r.line_item_value || 0) })));
     if (rev.data) setRevenue(rev.data.map((r: any) => ({ id: r.id, dealId: r.deal_id, month: r.month, mrr: Number(r.mrr), contraction: Number(r.contraction), delivered: Number(r.delivered), invoiced: Number(r.invoiced), actuals: Number(r.actuals) })));
     if (tgt.data) setTargets(tgt.data.map((r: any) => ({ id: r.id, dealId: r.deal_id, month: r.month, contractionTarget: Number(r.contraction_target), deliveryTarget: Number(r.delivery_target), invoicingTarget: Number(r.invoicing_target) })));
     if (rgy.data) setRgyWeekly(rgy.data.map((r: any) => ({
@@ -220,7 +222,10 @@ export function useDealDetail(dealId: string | undefined) {
 
   // ── SoW CRUD ──
   const addSoWItem = useCallback(async (item: Omit<SoWItem, "id">) => {
-    const { data } = await (supabase.from("deal_sow_items") as any).insert({ deal_id: item.dealId, scope: item.scope, revenue_share: item.revenueShare, team_capability: item.teamCapability }).select().single();
+    const { data } = await (supabase.from("deal_sow_items") as any).insert({
+      deal_id: item.dealId, scope: item.scope, revenue_share: item.revenueShare,
+      team_capability: item.teamCapability, teams: item.teams || [], line_item_value: item.lineItemValue || 0,
+    }).select().single();
     if (data) setSowItems(prev => [...prev, { id: data.id, ...item }]);
   }, []);
 
@@ -230,6 +235,8 @@ export function useDealDetail(dealId: string | undefined) {
     if (updates.scope !== undefined) db.scope = updates.scope;
     if (updates.revenueShare !== undefined) db.revenue_share = updates.revenueShare;
     if (updates.teamCapability !== undefined) db.team_capability = updates.teamCapability;
+    if (updates.teams !== undefined) db.teams = updates.teams;
+    if (updates.lineItemValue !== undefined) db.line_item_value = updates.lineItemValue;
     await (supabase.from("deal_sow_items") as any).update(db).eq("id", id);
   }, []);
 
