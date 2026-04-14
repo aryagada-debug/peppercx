@@ -691,7 +691,7 @@ function GroupedRGYHistory({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
               <React.Fragment key={weekStart}>
                 <tr
                   className={cn("border-b border-border/50 hover:bg-secondary/20 transition-colors cursor-pointer",
-                    [latest.accountHealth, latest.delivery, latest.financeBilling, latest.capabilitySeo, latest.capabilityCreative].some(v => v === "R" || v === "Y") && "bg-warning/5"
+                    [latest.customer, latest.internal, latest.content, latest.seo, latest.supply, latest.copy, latest.design, latest.video].some(v => v === "R" || v === "Y") && "bg-warning/5"
                   )}
                   onClick={() => toggleWeek(weekStart)}
                 >
@@ -702,7 +702,7 @@ function GroupedRGYHistory({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
                       <Badge variant="outline" className="text-[9px] ml-1">{entries.length} changes</Badge>
                     </span>
                   </td>
-                  {[latest.accountHealth || "G", latest.delivery || "G", latest.financeBilling || "G", latest.capabilitySeo || "G", latest.capabilityCreative || "G"].map((val, i) => (
+                  {[latest.customer || "G", latest.internal || "G", latest.content || "G", latest.seo || "G", latest.supply || "G", latest.copy || "G", latest.design || "G", latest.video || "G"].map((val, i) => (
                     <td key={i} className="py-2 px-2 text-center">
                       <span className={cn("inline-flex items-center justify-center w-6 h-6 rounded-md text-[10px] font-bold", rgyColors[val] || "rgy-na")}>{val}</span>
                     </td>
@@ -716,7 +716,7 @@ function GroupedRGYHistory({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
                         latest.issueStatus === "Resolved" ? "border-positive/40 text-positive" :
                         latest.issueStatus === "In Progress" ? "border-primary/40 text-primary" : ""
                       )}>{latest.issueStatus}</Badge>
-                    ) : [latest.accountHealth, latest.delivery, latest.financeBilling, latest.capabilitySeo, latest.capabilityCreative].some(v => v === "R" || v === "Y") ? (
+                    ) : [latest.customer, latest.internal, latest.content, latest.seo, latest.supply, latest.copy, latest.design, latest.video].some(v => v === "R" || v === "Y") ? (
                       <Badge variant="outline" className="text-[10px] border-warning/40 text-warning">Open</Badge>
                     ) : <span className="text-muted-foreground text-[10px]">—</span>}
                   </td>
