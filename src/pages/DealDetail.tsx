@@ -795,11 +795,14 @@ export default function DealDetail() {
   } | null>(null);
 
   const dimensionLabels: Record<string, string> = {
-    accountHealth: "Account Health",
-    delivery: "Delivery",
-    financeBilling: "Finance/Billing",
-    capabilitySeo: "Capability-SEO",
-    capabilityCreative: "Capability-Creative",
+    customer: "Overall Customer",
+    internal: "Internal",
+    content: "Content",
+    seo: "SEO",
+    supply: "Supply",
+    copy: "Copy",
+    design: "Design",
+    video: "Video",
   };
 
   const handleRGYSave = useCallback((dims: any[]) => {
@@ -815,18 +818,20 @@ export default function DealDetail() {
     // Check green-gate: if any dimension is moving TO Green, check for open tasks
     if (currentRGY) {
       const oldValues: Record<string, string> = {
-        accountHealth: currentRGY.accountHealth || "G",
-        delivery: currentRGY.delivery || "G",
-        financeBilling: currentRGY.financeBilling || "G",
-        capabilitySeo: currentRGY.capabilitySeo || "G",
-        capabilityCreative: currentRGY.capabilityCreative || "G",
+        customer: currentRGY.customer || "G",
+        internal: currentRGY.internal || "G",
+        content: currentRGY.content || "G",
+        seo: currentRGY.seo || "G",
+        supply: currentRGY.supply || "G",
+        copy: currentRGY.copy || "G",
+        design: currentRGY.design || "G",
+        video: currentRGY.video || "G",
       };
 
       const pendingGreenDims: { key: string; label: string; tasks: any[] }[] = [];
       for (const [key, newVal] of Object.entries(rgyData)) {
         const oldVal = oldValues[key];
         if (newVal === "G" && oldVal !== "G") {
-          // Find open [RGY Health] tasks for this dimension
           const label = dimensionLabels[key] || key;
           const openTasks = tasks.filter(
             t => t.title.startsWith("[RGY Health]") &&
@@ -841,18 +846,21 @@ export default function DealDetail() {
 
       if (pendingGreenDims.length > 0) {
         setGreenGateDialog({ pendingDims: pendingGreenDims, pendingSave: dims });
-        return; // Block save
+        return;
       }
     }
 
     // Snapshot current values before saving for potential revert
     if (currentRGY) {
       setPrevRGYSnapshot({
-        accountHealth: currentRGY.accountHealth,
-        delivery: currentRGY.delivery,
-        financeBilling: currentRGY.financeBilling,
-        capabilitySeo: currentRGY.capabilitySeo,
-        capabilityCreative: currentRGY.capabilityCreative,
+        customer: currentRGY.customer,
+        internal: currentRGY.internal,
+        content: currentRGY.content,
+        seo: currentRGY.seo,
+        supply: currentRGY.supply,
+        copy: currentRGY.copy,
+        design: currentRGY.design,
+        video: currentRGY.video,
       });
     }
 
@@ -866,14 +874,20 @@ export default function DealDetail() {
         monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
         return monday.toISOString().split("T")[0];
       })(),
-      internal: rgyData.accountHealth || "G",
-      customer: "G",
-      delivery: rgyData.delivery || "G",
+      internal: rgyData.internal || "G",
+      customer: rgyData.customer || "G",
+      delivery: "G",
       consumption: "G",
-      accountHealth: rgyData.accountHealth || "G",
-      financeBilling: rgyData.financeBilling || "G",
-      capabilitySeo: rgyData.capabilitySeo || "G",
-      capabilityCreative: rgyData.capabilityCreative || "G",
+      content: rgyData.content || "G",
+      seo: rgyData.seo || "G",
+      supply: rgyData.supply || "G",
+      copy: rgyData.copy || "G",
+      design: rgyData.design || "G",
+      video: rgyData.video || "G",
+      accountHealth: rgyData.customer || "G",
+      financeBilling: "G",
+      capabilitySeo: rgyData.seo || "G",
+      capabilityCreative: "G",
       planOfAction: planParts.join("; "),
     });
 
