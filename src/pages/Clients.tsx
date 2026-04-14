@@ -1,11 +1,12 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Link } from "react-router-dom";
-import { Search, ChevronDown, ChevronRight, Building2, Plus, Loader2, Trash2 } from "lucide-react";
+import { Search, Plus, Loader2, Trash2, Pencil, Check, X } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useStaffingData } from "@/hooks/useStaffingData";
 import { useClients } from "@/hooks/useClients";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ClientFormDialog } from "@/components/deals/ClientFormDialog";
 import { DealFormWizard } from "@/components/deals/DealFormWizard";
 import { supabase } from "@/integrations/supabase/client";
@@ -59,20 +60,51 @@ const ragDot = (rag: string) => {
   return <span className={cn("inline-block w-2 h-2 rounded-full", colors[rag] || "bg-muted-foreground")} />;
 };
 
+// ── Inline Editable Cell ──
+function InlineEditCell({ value, onSave, type = "text", prefix = "", placeholder = "—" }: {
+  value: string; onSave: (v: string) => void; type?: string; prefix?: string; placeholder?: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [local, setLocal] = useState(value);
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1">
+        <Input value={local} onChange={e => setLocal(e.target.value)} type={type} className="h-6 text-xs w-full min-w-[60px]" autoFocus
+          onKeyDown={e => { if (e.key === "Enter") { onSave(local); setEditing(false); } if (e.key === "Escape") { setLocal(value); setEditing(false); } }} />
+        <button onClick={() => { onSave(local); setEditing(false); }} className="text-primary"><Check className="h-3 w-3" /></button>
+        <button onClick={() => { setLocal(value); setEditing(false); }} className="text-muted-foreground"><X className="h-3 w-3" /></button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="group/edit flex items-center gap-1 cursor-pointer" onClick={() => { setLocal(value); setEditing(true); }}>
+      <span className={cn("text-xs font-medium font-mono tabular-nums", value ? "text-foreground" : "text-muted-foreground")}>{prefix}{value || placeholder}</span>
+      <Pencil className="h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover/edit:opacity-100 transition-opacity" />
+    </div>
+  );
+}
+
 export default function Clients() {
-  const { deals, loading: staffLoading, refresh: refreshStaffing } = useStaffingData();
+  const { deals, people, assignments, loading: staffLoading, refresh: refreshStaffing, updateDeal, addAssignment, updateAssignment } = useStaffingData();
   const { clients, loading: clientsLoading, addClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
   const [search, setSearch] = useState("");
   const [activePod, setActivePod] = useState<Pod>("All");
-  const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
   const [showClosed, setShowClosed] = useState(false);
 
   const [clientDialogOpen, setClientDialogOpen] = useState(false);
   const [dealWizardOpen, setDealWizardOpen] = useState(false);
   const [dealWizardClientId, setDealWizardClientId] = useState<string | undefined>();
 
-  // Delete confirmation state
   const [deleteTarget, setDeleteTarget] = useState<{ type: "client" | "deal"; id: string; name: string } | null>(null);
+
+  // People filtered by role for dropdowns
+  const vsdPeople = useMemo(() => people.filter(p => (p.roleTitle || "").toLowerCase().includes("vsd")), [people]);
+  const bopmPeople = useMemo(() => people.filter(p => {
+    const rt = (p.roleTitle || "").toLowerCase();
+    return rt.includes("principal bopm") || rt.includes("senior bopm");
+  }), [people]);
 
   const filteredDeals = useMemo(() => {
     let d = deals;
@@ -82,37 +114,16 @@ export default function Clients() {
     return d;
   }, [deals, activePod, search, showClosed]);
 
-  const clientGroups = useMemo(() => {
-    const groups: Record<string, typeof filteredDeals> = {};
-    filteredDeals.forEach(d => {
-      const key = d.account || "Unknown";
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(d);
-    });
-    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
+  const kpis = useMemo(() => {
+    const clientSet = new Set(filteredDeals.map(d => d.account));
+    return {
+      clients: clientSet.size,
+      deals: filteredDeals.length,
+      activeDeals: filteredDeals.filter(d => d.dealStatusCx === "Active" || d.dealStatus === "Won").length,
+      totalMRR: filteredDeals.reduce((s, d) => s + (d.mrr || 0), 0),
+      totalValue: filteredDeals.reduce((s, d) => s + (d.totalDealValue || 0), 0),
+    };
   }, [filteredDeals]);
-
-  const kpis = useMemo(() => ({
-    clients: clientGroups.length,
-    deals: filteredDeals.length,
-    activeDeals: filteredDeals.filter(d => d.dealStatusCx === "Active" || d.dealStatus === "Won").length,
-    totalMRR: filteredDeals.reduce((s, d) => s + (d.mrr || 0), 0),
-    totalValue: filteredDeals.reduce((s, d) => s + (d.totalDealValue || 0), 0),
-  }), [clientGroups, filteredDeals]);
-
-  const toggleClient = (name: string) => {
-    setExpandedClients(prev => {
-      const next = new Set(prev);
-      next.has(name) ? next.delete(name) : next.add(name);
-      return next;
-    });
-  };
-
-  const openDealWizardForClient = (clientName: string) => {
-    const client = clients.find(c => c.name === clientName);
-    setDealWizardClientId(client?.id);
-    setDealWizardOpen(true);
-  };
 
   const handleCreateDeal = async (clientId: string, data: any) => {
     const client = clients.find(c => c.id === clientId);
@@ -203,6 +214,50 @@ export default function Clients() {
     refreshStaffing();
   };
 
+  const handleVSDChange = (dealId: string, personName: string) => {
+    updateDeal(dealId, { vsd: personName });
+    // Find or create staffing assignment
+    const person = people.find(p => p.name === personName);
+    if (person) {
+      const existing = assignments.find(a => a.dealId === dealId && a.roleKey === "VSD");
+      if (existing) {
+        updateAssignment(existing.id, { personId: person.id });
+      } else {
+        addAssignment({ id: uid(), dealId, roleKey: "VSD", personId: person.id, allocationPct: 10 });
+      }
+    }
+    toast.success("VSD updated");
+  };
+
+  const handleBOPMChange = (dealId: string, personName: string) => {
+    const person = people.find(p => p.name === personName);
+    const rt = (person?.roleTitle || "").toLowerCase();
+    if (rt.includes("principal")) {
+      updateDeal(dealId, { principalBopm: personName });
+    } else {
+      updateDeal(dealId, { seniorBopm: personName });
+    }
+    if (person) {
+      const existing = assignments.find(a => a.dealId === dealId && (a.roleKey === "Principal BOPM" || a.roleKey === "Senior BOPM"));
+      if (existing) {
+        updateAssignment(existing.id, { personId: person.id, roleKey: person.roleTitle || "Senior BOPM" });
+      } else {
+        addAssignment({ id: uid(), dealId, roleKey: person.roleTitle || "Senior BOPM", personId: person.id, allocationPct: 10 });
+      }
+    }
+    toast.success("BOPM updated");
+  };
+
+  const handleMRRSave = (dealId: string, value: string) => {
+    updateDeal(dealId, { mrr: Number(value) || undefined });
+    toast.success("MRR updated");
+  };
+
+  const handleTotalRevenueSave = (dealId: string, value: string) => {
+    updateDeal(dealId, { totalDealValue: Number(value) || undefined });
+    toast.success("Total Revenue updated");
+  };
+
   const loading = staffLoading || clientsLoading;
 
   if (loading) {
@@ -272,123 +327,125 @@ export default function Clients() {
           </label>
         </div>
 
-        {/* Client List */}
-        <div className="space-y-0.5">
-          {clientGroups.map(([clientName, clientDeals]) => {
-            const isExpanded = expandedClients.has(clientName);
-            const clientMRR = clientDeals.reduce((s, d) => s + (d.mrr || 0), 0);
-            const clientValue = clientDeals.reduce((s, d) => s + (d.totalDealValue || 0), 0);
-            const vsd = clientDeals[0]?.vsd || "—";
-            const principalBopm = clientDeals[0]?.principalBopm || "—";
+        {/* Flat Table */}
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-ui">
+              <thead>
+                <tr className="bg-secondary/40 border-b border-border">
+                  <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Client</th>
+                  <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Deal Name</th>
+                  <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Deal ID</th>
+                  <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Type</th>
+                  <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Status</th>
+                  <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">VSD</th>
+                  <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">P.BOPM / Sr BOPM</th>
+                  <th className="text-right py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">MRR</th>
+                  <th className="text-right py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Total Revenue</th>
+                  <th className="text-center py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">RGY</th>
+                  <th className="w-8"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredDeals.map(deal => (
+                  <tr key={deal.id} className="border-b border-border/50 hover:bg-accent/10 transition-colors group/row">
+                    <td className="py-2 px-3 text-xs font-medium text-foreground whitespace-nowrap">{deal.account}</td>
+                    <td className="py-2 px-3">
+                      <Link to={`/deals/${deal.id}`} className="text-primary hover:underline text-xs font-medium">
+                        {deal.dealName}
+                      </Link>
+                    </td>
+                    <td className="py-2 px-3 text-xs font-mono text-muted-foreground">{deal.dealId}</td>
+                    <td className="py-2 px-3">
+                      <span className={cn(
+                        "inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium",
+                        deal.dealType === "Retainer" ? "bg-accent text-accent-foreground" : "bg-secondary text-secondary-foreground"
+                      )}>{deal.dealType}</span>
+                    </td>
+                    <td className="py-2 px-3">
+                      <Select
+                        value={deal.dealStatusCx || deal.dealStatus || "Active"}
+                        onValueChange={(v) => handleStatusChange(deal.id, v)}
+                      >
+                        <SelectTrigger className="h-6 w-[85px] text-[11px] border-none bg-transparent shadow-none px-1 focus:ring-0">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {DEAL_STATUSES.map(s => (
+                            <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </td>
+                    <td className="py-2 px-3">
+                      <Select
+                        value={deal.vsd || "_none"}
+                        onValueChange={(v) => v !== "_none" && handleVSDChange(deal.id, v)}
+                      >
+                        <SelectTrigger className="h-6 w-[110px] text-[11px] border-none bg-transparent shadow-none px-1 focus:ring-0">
+                          <SelectValue placeholder="—" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="_none" className="text-xs text-muted-foreground">— None —</SelectItem>
+                          {vsdPeople.map(p => (
+                            <SelectItem key={p.id} value={p.name} className="text-xs">{p.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </td>
+                    <td className="py-2 px-3">
+                      <Select
+                        value={deal.principalBopm || deal.seniorBopm || "_none"}
+                        onValueChange={(v) => v !== "_none" && handleBOPMChange(deal.id, v)}
+                      >
+                        <SelectTrigger className="h-6 w-[120px] text-[11px] border-none bg-transparent shadow-none px-1 focus:ring-0">
+                          <SelectValue placeholder="—" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="_none" className="text-xs text-muted-foreground">— None —</SelectItem>
+                          {bopmPeople.map(p => (
+                            <SelectItem key={p.id} value={p.name} className="text-xs">{p.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </td>
+                    <td className="py-2 px-3 text-right">
+                      <InlineEditCell
+                        value={String(deal.mrr || "")}
+                        onSave={v => handleMRRSave(deal.id, v)}
+                        type="number"
+                        prefix="₹"
+                        placeholder="—"
+                      />
+                    </td>
+                    <td className="py-2 px-3 text-right">
+                      <InlineEditCell
+                        value={String(deal.totalDealValue || "")}
+                        onSave={v => handleTotalRevenueSave(deal.id, v)}
+                        type="number"
+                        prefix="₹"
+                        placeholder="—"
+                      />
+                    </td>
+                    <td className="py-2 px-3 text-center">{ragDot(deal.rag || "green")}</td>
+                    <td className="py-2 px-1">
+                      <button
+                        onClick={() => setDeleteTarget({ type: "deal", id: deal.id, name: deal.dealName })}
+                        className="text-muted-foreground/40 hover:text-destructive opacity-0 group-hover/row:opacity-100 transition-opacity"
+                        title="Delete deal"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-            return (
-              <div key={clientName} className="data-card !p-0 overflow-hidden">
-                <div className="flex items-center group">
-                  <button
-                    onClick={() => toggleClient(clientName)}
-                    className="flex-1 flex items-center gap-3 px-3 py-2 hover:bg-accent/30 transition-colors text-left"
-                  >
-                    {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />}
-                    <Building2 className="h-4 w-4 text-primary flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <span className="font-medium text-foreground">{clientName}</span>
-                      <span className="ml-2 text-caption text-muted-foreground">{clientDeals.length} deal{clientDeals.length !== 1 ? "s" : ""}</span>
-                    </div>
-                    <div className="flex items-center gap-6 text-ui">
-                      <span className="text-muted-foreground text-caption">VSD: <span className="text-foreground font-medium">{vsd}</span></span>
-                      <span className="text-muted-foreground text-caption">P.BOPM: <span className="text-foreground font-medium">{principalBopm}</span></span>
-                      <span className="font-mono tabular-nums text-foreground">{fmtCurrency(clientMRR)}<span className="text-muted-foreground text-caption">/mo</span></span>
-                      <span className="font-mono tabular-nums text-foreground">{fmtCurrency(clientValue)}</span>
-                    </div>
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDeleteTarget({ type: "client", id: clientName, name: clientName });
-                    }}
-                    className="px-2 py-2 mr-1 text-muted-foreground/40 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="Delete client"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-
-                {isExpanded && (
-                  <div className="border-t border-border animate-fade-in">
-                    <div className="flex items-center justify-end px-3 py-1.5 bg-accent/10">
-                      <Button variant="ghost" size="sm" onClick={() => openDealWizardForClient(clientName)}>
-                        <Plus className="h-3.5 w-3.5 mr-1" /> Add Deal
-                      </Button>
-                    </div>
-                    <table className="w-full text-ui">
-                      <thead>
-                        <tr className="bg-accent/20">
-                          <th className="text-left py-1.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider">Deal</th>
-                          <th className="text-left py-1.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider">Type</th>
-                          <th className="text-left py-1.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider">Status</th>
-                          <th className="text-left py-1.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider">RAG</th>
-                          <th className="text-right py-1.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider">MRR</th>
-                          <th className="text-right py-1.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider">Total Value</th>
-                          <th className="text-left py-1.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider">VSD</th>
-                          <th className="w-8"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {clientDeals.map(deal => (
-                          <tr key={deal.id} className="border-t border-border/50 hover:bg-accent/10 transition-colors group/row">
-                            <td className="py-1.5 px-3">
-                              <Link to={`/deals/${deal.id}`} className="text-primary hover:underline font-medium">
-                                {deal.dealName}
-                              </Link>
-                              <span className="ml-2 text-caption text-muted-foreground font-mono">({deal.dealId})</span>
-                            </td>
-                            <td className="py-1.5 px-3">
-                              <span className={cn(
-                                "inline-flex px-2 py-0.5 rounded-full text-[11px] font-medium",
-                                deal.dealType === "Retainer" ? "bg-accent text-accent-foreground" : "bg-secondary text-secondary-foreground"
-                              )}>{deal.dealType}</span>
-                            </td>
-                            <td className="py-1.5 px-3">
-                              <Select
-                                value={deal.dealStatusCx || deal.dealStatus || "Active"}
-                                onValueChange={(v) => handleStatusChange(deal.id, v)}
-                              >
-                                <SelectTrigger className="h-6 w-[90px] text-[11px] border-none bg-transparent shadow-none px-1 focus:ring-0">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {DEAL_STATUSES.map(s => (
-                                    <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </td>
-                            <td className="py-1.5 px-3">{ragDot(deal.rag || "green")}</td>
-                            <td className="py-1.5 px-3 text-right font-mono tabular-nums text-foreground">{fmtCurrency(deal.mrr)}</td>
-                            <td className="py-1.5 px-3 text-right font-mono tabular-nums text-foreground">{fmtCurrency(deal.totalDealValue)}</td>
-                            <td className="py-1.5 px-3 text-muted-foreground">{deal.vsd}</td>
-                            <td className="py-1.5 px-1">
-                              <button
-                                onClick={() => setDeleteTarget({ type: "deal", id: deal.id, name: deal.dealName })}
-                                className="text-muted-foreground/40 hover:text-destructive opacity-0 group-hover/row:opacity-100 transition-opacity"
-                                title="Delete deal"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-
-          {clientGroups.length === 0 && (
-            <div className="data-card text-center py-12">
-              <p className="text-muted-foreground">No clients found matching your filters.</p>
+          {filteredDeals.length === 0 && (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">No deals found matching your filters.</p>
             </div>
           )}
         </div>
