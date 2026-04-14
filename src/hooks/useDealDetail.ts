@@ -47,6 +47,12 @@ export interface RGYWeekly {
   financeBilling?: string;
   capabilitySeo?: string;
   capabilityCreative?: string;
+  content?: string;
+  seo?: string;
+  supply?: string;
+  copy?: string;
+  design?: string;
+  video?: string;
   planOfAction?: string;
   issueDate?: string;
   issueDetails?: string;
@@ -106,6 +112,8 @@ export function useDealDetail(dealId: string | undefined) {
       delivery: r.delivery, consumption: r.consumption, notes: r.notes,
       accountHealth: r.account_health || "G", financeBilling: r.finance_billing || "G",
       capabilitySeo: r.capability_seo || "G", capabilityCreative: r.capability_creative || "G",
+      content: r.content || "G", seo: r.seo || "G", supply: r.supply || "G",
+      copy: r.copy || "G", design: r.design || "G", video: r.video || "G",
       planOfAction: r.plan_of_action || "",
       issueDate: r.issue_date || undefined, issueDetails: r.issue_details || "",
       discussedActionPlan: r.discussed_action_plan || "", actionPlan: r.action_plan || "",
@@ -310,6 +318,8 @@ export function useDealDetail(dealId: string | undefined) {
       notes: entry.notes, account_health: entry.accountHealth || "G",
       finance_billing: entry.financeBilling || "G", capability_seo: entry.capabilitySeo || "G",
       capability_creative: entry.capabilityCreative || "G", plan_of_action: entry.planOfAction || "",
+      content: entry.content || "G", seo: entry.seo || "G", supply: entry.supply || "G",
+      copy: entry.copy || "G", design: entry.design || "G", video: entry.video || "G",
       issue_date: entry.issueDate || null, issue_details: entry.issueDetails || "",
       discussed_action_plan: entry.discussedActionPlan || "", action_plan: entry.actionPlan || "",
       resolution_due_date: entry.resolutionDueDate || null, issue_status: entry.issueStatus || "Open",
@@ -329,6 +339,12 @@ export function useDealDetail(dealId: string | undefined) {
     if (updates.customer !== undefined) db.customer = updates.customer;
     if (updates.delivery !== undefined) db.delivery = updates.delivery;
     if (updates.consumption !== undefined) db.consumption = updates.consumption;
+    if (updates.content !== undefined) db.content = updates.content;
+    if (updates.seo !== undefined) db.seo = updates.seo;
+    if (updates.supply !== undefined) db.supply = updates.supply;
+    if (updates.copy !== undefined) db.copy = updates.copy;
+    if (updates.design !== undefined) db.design = updates.design;
+    if (updates.video !== undefined) db.video = updates.video;
     if (updates.notes !== undefined) db.notes = updates.notes;
     if (updates.issueDate !== undefined) db.issue_date = updates.issueDate;
     if (updates.issueDetails !== undefined) db.issue_details = updates.issueDetails;

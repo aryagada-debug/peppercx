@@ -384,11 +384,14 @@ function RGYIssueForm({ dealId, currentRGY, assignees, teamMembers, onSaveIssue,
 
   // Build tasks from non-green dimensions
   const nonGreenDims = [
-    { key: "accountHealth", label: "Account Health", value: currentRGY.accountHealth },
-    { key: "delivery", label: "Delivery", value: currentRGY.delivery },
-    { key: "financeBilling", label: "Finance/Billing", value: currentRGY.financeBilling },
-    { key: "capabilitySeo", label: "Capability-SEO", value: currentRGY.capabilitySeo },
-    { key: "capabilityCreative", label: "Capability-Creative", value: currentRGY.capabilityCreative },
+    { key: "customer", label: "Overall Customer", value: currentRGY.customer },
+    { key: "internal", label: "Internal", value: currentRGY.internal },
+    { key: "content", label: "Content", value: currentRGY.content },
+    { key: "seo", label: "SEO", value: currentRGY.seo },
+    { key: "supply", label: "Supply", value: currentRGY.supply },
+    { key: "copy", label: "Copy", value: currentRGY.copy },
+    { key: "design", label: "Design", value: currentRGY.design },
+    { key: "video", label: "Video", value: currentRGY.video },
   ].filter(d => d.value === "R" || d.value === "Y");
 
   const [issueTasks, setIssueTasks] = useState<RGYIssueTask[]>(
@@ -629,7 +632,7 @@ function GroupedRGYHistory({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
   };
 
   const renderRow = (r: RGYWeekly, label: string, indent = false) => {
-    const hasIssue = [r.accountHealth, r.delivery, r.financeBilling, r.capabilitySeo, r.capabilityCreative].some(v => v === "R" || v === "Y");
+    const hasIssue = [r.customer, r.internal, r.content, r.seo, r.supply, r.copy, r.design, r.video].some(v => v === "R" || v === "Y");
     return (
       <tr key={r.id} className={cn("border-b border-border/50 hover:bg-secondary/20 transition-colors", hasIssue && "bg-warning/5")}>
         <td className={cn("py-2 px-3 font-mono text-xs text-foreground", indent && "pl-8")}>
@@ -640,7 +643,7 @@ function GroupedRGYHistory({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
             </span>
           )}
         </td>
-        {[r.accountHealth || "G", r.delivery || "G", r.financeBilling || "G", r.capabilitySeo || "G", r.capabilityCreative || "G"].map((val, i) => (
+        {[r.customer || "G", r.internal || "G", r.content || "G", r.seo || "G", r.supply || "G", r.copy || "G", r.design || "G", r.video || "G"].map((val, i) => (
           <td key={i} className="py-2 px-2 text-center">
             <span className={cn("inline-flex items-center justify-center w-6 h-6 rounded-md text-[10px] font-bold", rgyColors[val] || "rgy-na")}>{val}</span>
           </td>
@@ -668,7 +671,7 @@ function GroupedRGYHistory({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
         <thead>
           <tr className="bg-secondary/40 border-b border-border">
             <th className="text-left py-2 px-3 text-xs uppercase tracking-wider text-muted-foreground font-medium">Week</th>
-            {["Acct Health", "Delivery", "Finance", "SEO", "Creative"].map(d => (
+            {["Customer", "Internal", "Content", "SEO", "Supply", "Copy", "Design", "Video"].map(d => (
               <th key={d} className="text-center py-2 px-2 text-xs uppercase tracking-wider text-muted-foreground font-medium">{d}</th>
             ))}
             <th className="text-left py-2 px-3 text-xs uppercase tracking-wider text-muted-foreground font-medium">Issue</th>
@@ -688,7 +691,7 @@ function GroupedRGYHistory({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
               <React.Fragment key={weekStart}>
                 <tr
                   className={cn("border-b border-border/50 hover:bg-secondary/20 transition-colors cursor-pointer",
-                    [latest.accountHealth, latest.delivery, latest.financeBilling, latest.capabilitySeo, latest.capabilityCreative].some(v => v === "R" || v === "Y") && "bg-warning/5"
+                    [latest.customer, latest.internal, latest.content, latest.seo, latest.supply, latest.copy, latest.design, latest.video].some(v => v === "R" || v === "Y") && "bg-warning/5"
                   )}
                   onClick={() => toggleWeek(weekStart)}
                 >
@@ -699,7 +702,7 @@ function GroupedRGYHistory({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
                       <Badge variant="outline" className="text-[9px] ml-1">{entries.length} changes</Badge>
                     </span>
                   </td>
-                  {[latest.accountHealth || "G", latest.delivery || "G", latest.financeBilling || "G", latest.capabilitySeo || "G", latest.capabilityCreative || "G"].map((val, i) => (
+                  {[latest.customer || "G", latest.internal || "G", latest.content || "G", latest.seo || "G", latest.supply || "G", latest.copy || "G", latest.design || "G", latest.video || "G"].map((val, i) => (
                     <td key={i} className="py-2 px-2 text-center">
                       <span className={cn("inline-flex items-center justify-center w-6 h-6 rounded-md text-[10px] font-bold", rgyColors[val] || "rgy-na")}>{val}</span>
                     </td>
@@ -713,7 +716,7 @@ function GroupedRGYHistory({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
                         latest.issueStatus === "Resolved" ? "border-positive/40 text-positive" :
                         latest.issueStatus === "In Progress" ? "border-primary/40 text-primary" : ""
                       )}>{latest.issueStatus}</Badge>
-                    ) : [latest.accountHealth, latest.delivery, latest.financeBilling, latest.capabilitySeo, latest.capabilityCreative].some(v => v === "R" || v === "Y") ? (
+                    ) : [latest.customer, latest.internal, latest.content, latest.seo, latest.supply, latest.copy, latest.design, latest.video].some(v => v === "R" || v === "Y") ? (
                       <Badge variant="outline" className="text-[10px] border-warning/40 text-warning">Open</Badge>
                     ) : <span className="text-muted-foreground text-[10px]">—</span>}
                   </td>
@@ -795,11 +798,14 @@ export default function DealDetail() {
   } | null>(null);
 
   const dimensionLabels: Record<string, string> = {
-    accountHealth: "Account Health",
-    delivery: "Delivery",
-    financeBilling: "Finance/Billing",
-    capabilitySeo: "Capability-SEO",
-    capabilityCreative: "Capability-Creative",
+    customer: "Overall Customer",
+    internal: "Internal",
+    content: "Content",
+    seo: "SEO",
+    supply: "Supply",
+    copy: "Copy",
+    design: "Design",
+    video: "Video",
   };
 
   const handleRGYSave = useCallback((dims: any[]) => {
@@ -815,18 +821,20 @@ export default function DealDetail() {
     // Check green-gate: if any dimension is moving TO Green, check for open tasks
     if (currentRGY) {
       const oldValues: Record<string, string> = {
-        accountHealth: currentRGY.accountHealth || "G",
-        delivery: currentRGY.delivery || "G",
-        financeBilling: currentRGY.financeBilling || "G",
-        capabilitySeo: currentRGY.capabilitySeo || "G",
-        capabilityCreative: currentRGY.capabilityCreative || "G",
+        customer: currentRGY.customer || "G",
+        internal: currentRGY.internal || "G",
+        content: currentRGY.content || "G",
+        seo: currentRGY.seo || "G",
+        supply: currentRGY.supply || "G",
+        copy: currentRGY.copy || "G",
+        design: currentRGY.design || "G",
+        video: currentRGY.video || "G",
       };
 
       const pendingGreenDims: { key: string; label: string; tasks: any[] }[] = [];
       for (const [key, newVal] of Object.entries(rgyData)) {
         const oldVal = oldValues[key];
         if (newVal === "G" && oldVal !== "G") {
-          // Find open [RGY Health] tasks for this dimension
           const label = dimensionLabels[key] || key;
           const openTasks = tasks.filter(
             t => t.title.startsWith("[RGY Health]") &&
@@ -841,18 +849,21 @@ export default function DealDetail() {
 
       if (pendingGreenDims.length > 0) {
         setGreenGateDialog({ pendingDims: pendingGreenDims, pendingSave: dims });
-        return; // Block save
+        return;
       }
     }
 
     // Snapshot current values before saving for potential revert
     if (currentRGY) {
       setPrevRGYSnapshot({
-        accountHealth: currentRGY.accountHealth,
-        delivery: currentRGY.delivery,
-        financeBilling: currentRGY.financeBilling,
-        capabilitySeo: currentRGY.capabilitySeo,
-        capabilityCreative: currentRGY.capabilityCreative,
+        customer: currentRGY.customer,
+        internal: currentRGY.internal,
+        content: currentRGY.content,
+        seo: currentRGY.seo,
+        supply: currentRGY.supply,
+        copy: currentRGY.copy,
+        design: currentRGY.design,
+        video: currentRGY.video,
       });
     }
 
@@ -866,14 +877,20 @@ export default function DealDetail() {
         monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
         return monday.toISOString().split("T")[0];
       })(),
-      internal: rgyData.accountHealth || "G",
-      customer: "G",
-      delivery: rgyData.delivery || "G",
+      internal: rgyData.internal || "G",
+      customer: rgyData.customer || "G",
+      delivery: "G",
       consumption: "G",
-      accountHealth: rgyData.accountHealth || "G",
-      financeBilling: rgyData.financeBilling || "G",
-      capabilitySeo: rgyData.capabilitySeo || "G",
-      capabilityCreative: rgyData.capabilityCreative || "G",
+      content: rgyData.content || "G",
+      seo: rgyData.seo || "G",
+      supply: rgyData.supply || "G",
+      copy: rgyData.copy || "G",
+      design: rgyData.design || "G",
+      video: rgyData.video || "G",
+      accountHealth: rgyData.customer || "G",
+      financeBilling: "G",
+      capabilitySeo: rgyData.seo || "G",
+      capabilityCreative: "G",
       planOfAction: planParts.join("; "),
     });
 
@@ -1179,11 +1196,14 @@ export default function DealDetail() {
             {/* ── RGY + SoW ── */}
             <EditableRGY
               dimensions={[
-                { key: "accountHealth", label: "Account Health", owner: "VSD", value: currentRGY?.accountHealth || "G", planOfAction: "" },
-                { key: "delivery", label: "Delivery", owner: "BOPM", value: currentRGY?.delivery || "G", planOfAction: "" },
-                { key: "financeBilling", label: "Finance / Billing", owner: "Finance", value: currentRGY?.financeBilling || "G", planOfAction: "" },
-                { key: "capabilitySeo", label: "Capability — SEO", owner: "SEO", value: currentRGY?.capabilitySeo || "G", planOfAction: "" },
-                { key: "capabilityCreative", label: "Capability — Creative", owner: "Creative", value: currentRGY?.capabilityCreative || "G", planOfAction: "" },
+                { key: "customer", label: "Overall Customer", owner: "VSD", value: currentRGY?.customer || "G", planOfAction: "" },
+                { key: "internal", label: "Internal", owner: "BOPM", value: currentRGY?.internal || "G", planOfAction: "" },
+                { key: "content", label: "Content", owner: "Content", value: currentRGY?.content || "G", planOfAction: "" },
+                { key: "seo", label: "SEO", owner: "SEO", value: currentRGY?.seo || "G", planOfAction: "" },
+                { key: "supply", label: "Supply", owner: "Supply", value: currentRGY?.supply || "G", planOfAction: "" },
+                { key: "copy", label: "Copy", owner: "Copy", value: currentRGY?.copy || "G", planOfAction: "" },
+                { key: "design", label: "Design", owner: "Design", value: currentRGY?.design || "G", planOfAction: "" },
+                { key: "video", label: "Video", owner: "Video", value: currentRGY?.video || "G", planOfAction: "" },
               ]}
               onSave={handleRGYSave}
             />
@@ -1199,11 +1219,14 @@ export default function DealDetail() {
                   setShowIssueForm(false);
                   if (prevRGYSnapshot && currentRGY) {
                     updateRGYWeek(currentRGY.id, {
-                      accountHealth: prevRGYSnapshot.accountHealth || "G",
-                      delivery: prevRGYSnapshot.delivery || "G",
-                      financeBilling: prevRGYSnapshot.financeBilling || "G",
-                      capabilitySeo: prevRGYSnapshot.capabilitySeo || "G",
-                      capabilityCreative: prevRGYSnapshot.capabilityCreative || "G",
+                      customer: prevRGYSnapshot.customer || "G",
+                      internal: prevRGYSnapshot.internal || "G",
+                      content: prevRGYSnapshot.content || "G",
+                      seo: prevRGYSnapshot.seo || "G",
+                      supply: prevRGYSnapshot.supply || "G",
+                      copy: prevRGYSnapshot.copy || "G",
+                      design: prevRGYSnapshot.design || "G",
+                      video: prevRGYSnapshot.video || "G",
                     });
                     toast.info("RGY changes reverted");
                   }
@@ -1521,11 +1544,14 @@ export default function DealDetail() {
             {/* Current Week RGY Editor */}
             <EditableRGY
               dimensions={[
-                { key: "accountHealth", label: "Account Health", owner: "VSD", value: currentRGY?.accountHealth || "G" },
-                { key: "delivery", label: "Delivery", owner: "BOPM", value: currentRGY?.delivery || "G" },
-                { key: "financeBilling", label: "Finance / Billing", owner: "Finance", value: currentRGY?.financeBilling || "G" },
-                { key: "capabilitySeo", label: "Capability — SEO", owner: "SEO", value: currentRGY?.capabilitySeo || "G" },
-                { key: "capabilityCreative", label: "Capability — Creative", owner: "Creative", value: currentRGY?.capabilityCreative || "G" },
+                { key: "customer", label: "Overall Customer", owner: "VSD", value: currentRGY?.customer || "G" },
+                { key: "internal", label: "Internal", owner: "BOPM", value: currentRGY?.internal || "G" },
+                { key: "content", label: "Content", owner: "Content", value: currentRGY?.content || "G" },
+                { key: "seo", label: "SEO", owner: "SEO", value: currentRGY?.seo || "G" },
+                { key: "supply", label: "Supply", owner: "Supply", value: currentRGY?.supply || "G" },
+                { key: "copy", label: "Copy", owner: "Copy", value: currentRGY?.copy || "G" },
+                { key: "design", label: "Design", owner: "Design", value: currentRGY?.design || "G" },
+                { key: "video", label: "Video", owner: "Video", value: currentRGY?.video || "G" },
               ]}
               onSave={handleRGYSave}
             />
@@ -1539,9 +1565,10 @@ export default function DealDetail() {
               const done = rgyTasks.filter(t => t.stage === "Done").length;
               const dropped = rgyTasks.filter(t => t.stage === "Dropped").length;
               const hasNonGreen = currentRGY && (
-                currentRGY.accountHealth !== "G" || currentRGY.delivery !== "G" ||
-                currentRGY.financeBilling !== "G" || currentRGY.capabilitySeo !== "G" ||
-                currentRGY.capabilityCreative !== "G"
+                currentRGY.customer !== "G" || currentRGY.internal !== "G" ||
+                currentRGY.content !== "G" || currentRGY.seo !== "G" ||
+                currentRGY.supply !== "G" || currentRGY.copy !== "G" ||
+                currentRGY.design !== "G" || currentRGY.video !== "G"
               );
               const allDone = rgyTasks.length > 0 && rgyTasks.every(t => t.stage === "Done" || t.stage === "Dropped");
               const showWarning = hasNonGreen && allDone;
@@ -1581,11 +1608,14 @@ export default function DealDetail() {
                   // Revert RGY to previous values
                   if (prevRGYSnapshot && currentRGY) {
                     updateRGYWeek(currentRGY.id, {
-                      accountHealth: prevRGYSnapshot.accountHealth || "G",
-                      delivery: prevRGYSnapshot.delivery || "G",
-                      financeBilling: prevRGYSnapshot.financeBilling || "G",
-                      capabilitySeo: prevRGYSnapshot.capabilitySeo || "G",
-                      capabilityCreative: prevRGYSnapshot.capabilityCreative || "G",
+                      customer: prevRGYSnapshot.customer || "G",
+                      internal: prevRGYSnapshot.internal || "G",
+                      content: prevRGYSnapshot.content || "G",
+                      seo: prevRGYSnapshot.seo || "G",
+                      supply: prevRGYSnapshot.supply || "G",
+                      copy: prevRGYSnapshot.copy || "G",
+                      design: prevRGYSnapshot.design || "G",
+                      video: prevRGYSnapshot.video || "G",
                     });
                     toast.info("RGY changes reverted");
                   }
