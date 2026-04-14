@@ -1608,11 +1608,14 @@ export default function DealDetail() {
                   // Revert RGY to previous values
                   if (prevRGYSnapshot && currentRGY) {
                     updateRGYWeek(currentRGY.id, {
-                      accountHealth: prevRGYSnapshot.accountHealth || "G",
-                      delivery: prevRGYSnapshot.delivery || "G",
-                      financeBilling: prevRGYSnapshot.financeBilling || "G",
-                      capabilitySeo: prevRGYSnapshot.capabilitySeo || "G",
-                      capabilityCreative: prevRGYSnapshot.capabilityCreative || "G",
+                      customer: prevRGYSnapshot.customer || "G",
+                      internal: prevRGYSnapshot.internal || "G",
+                      content: prevRGYSnapshot.content || "G",
+                      seo: prevRGYSnapshot.seo || "G",
+                      supply: prevRGYSnapshot.supply || "G",
+                      copy: prevRGYSnapshot.copy || "G",
+                      design: prevRGYSnapshot.design || "G",
+                      video: prevRGYSnapshot.video || "G",
                     });
                     toast.info("RGY changes reverted");
                   }
