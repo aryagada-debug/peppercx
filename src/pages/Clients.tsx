@@ -32,18 +32,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const PODS = ["All", "Integrated", "India B2B", "US B2B", "FMCG", "BFSI"] as const;
+const PODS = ["All", "Integrated", "India B2B", "US B2B", "FMCG", "BFSI", "Unassigned"] as const;
 type Pod = typeof PODS[number];
-
-const BU_TO_POD: Record<string, Pod> = {
-  "Pepper Creative": "Integrated",
-  "Pepper Content": "Integrated",
-  "Pepper SEO": "Integrated",
-  "India B2B": "India B2B",
-  "US B2B": "US B2B",
-  "FMCG": "FMCG",
-  "BFSI": "BFSI",
-};
 
 const DEAL_STATUSES = ["Active", "Paused", "Closed", "Lost", "Pipeline", "Won"] as const;
 
@@ -124,7 +114,11 @@ export default function Clients() {
   const filteredDeals = useMemo(() => {
     let d = deals;
     if (!showClosed) d = d.filter(deal => deal.dealStatusCx !== "Closed" && deal.dealStatus !== "Lost");
-    if (activePod !== "All") d = d.filter(deal => (BU_TO_POD[deal.businessUnit] || "Integrated") === activePod);
+    if (activePod === "Unassigned") {
+      d = d.filter(deal => !deal.vsd || deal.vsd === "Not Assigned" || deal.vsd === "Unassigned" || deal.vsd === "Not Applicable");
+    } else if (activePod !== "All") {
+      d = d.filter(deal => (deal.pod || "") === activePod);
+    }
     if (search) d = d.filter(deal => deal.account.toLowerCase().includes(search.toLowerCase()) || deal.dealName.toLowerCase().includes(search.toLowerCase()));
     return d;
   }, [deals, activePod, search, showClosed]);
