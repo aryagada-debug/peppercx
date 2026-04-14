@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
 interface RGYDimension {
@@ -41,6 +41,12 @@ const dotColor = (v: string) =>
 export function EditableRGY({ dimensions, onSave }: Props) {
   const [local, setLocal] = useState<RGYDimension[]>(dimensions);
   const [dirty, setDirty] = useState(false);
+
+  // Sync local state when parent dimensions change (e.g. after revert)
+  useEffect(() => {
+    setLocal(dimensions);
+    setDirty(false);
+  }, [dimensions.map(d => d.value).join(",")]);
 
   const update = (key: string, value: string) => {
     setLocal(prev => prev.map(d => (d.key === key ? { ...d, value } : d)));
