@@ -1,6 +1,6 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Link } from "react-router-dom";
-import { Search, Plus, Loader2, Trash2, Pencil, Check, X } from "lucide-react";
+import { Search, Plus, Loader2, Trash2, Pencil, Check, X, ChevronRight, ChevronDown, ChevronsUpDown } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useStaffingData } from "@/hooks/useStaffingData";
 import { useClients } from "@/hooks/useClients";
