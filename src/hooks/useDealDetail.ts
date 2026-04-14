@@ -318,6 +318,8 @@ export function useDealDetail(dealId: string | undefined) {
       notes: entry.notes, account_health: entry.accountHealth || "G",
       finance_billing: entry.financeBilling || "G", capability_seo: entry.capabilitySeo || "G",
       capability_creative: entry.capabilityCreative || "G", plan_of_action: entry.planOfAction || "",
+      content: entry.content || "G", seo: entry.seo || "G", supply: entry.supply || "G",
+      copy: entry.copy || "G", design: entry.design || "G", video: entry.video || "G",
       issue_date: entry.issueDate || null, issue_details: entry.issueDetails || "",
       discussed_action_plan: entry.discussedActionPlan || "", action_plan: entry.actionPlan || "",
       resolution_due_date: entry.resolutionDueDate || null, issue_status: entry.issueStatus || "Open",
