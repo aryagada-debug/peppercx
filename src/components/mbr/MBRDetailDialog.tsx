@@ -1,8 +1,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Edit2, ExternalLink, CheckCircle2, Circle } from "lucide-react";
+import { ExternalLink, CheckCircle2, Circle } from "lucide-react";
 import type { MBRDeal, MBREntry, ActionItem } from "@/hooks/useMBRData";
 
 interface MBRDetailDialogProps {
@@ -10,10 +9,9 @@ interface MBRDetailDialogProps {
   onClose: () => void;
   deal: MBRDeal;
   entry: MBREntry | null;
-  onEdit?: () => void;
 }
 
-export function MBRDetailDialog({ open, onClose, deal, entry, onEdit }: MBRDetailDialogProps) {
+export function MBRDetailDialog({ open, onClose, deal, entry }: MBRDetailDialogProps) {
   const sentimentColors: Record<string, string> = {
     Green: "bg-positive text-positive-foreground",
     Yellow: "bg-warning text-warning-foreground",

@@ -2,11 +2,9 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { useMBRData, getWeekOptions, type MBREntry, type MBRDeal, type VSDSummary } from "@/hooks/useMBRData";
-import { MBRInputDrawer } from "@/components/mbr/MBRInputDrawer";
-import { Loader2, CheckCircle2, Clock, BarChart3, ChevronDown, ChevronRight, Eye, Edit2 } from "lucide-react";
+import { Loader2, CheckCircle2, Clock, BarChart3, ChevronDown, ChevronRight, Eye } from "lucide-react";
 import { useState } from "react";
 import { MBRDetailDialog } from "@/components/mbr/MBRDetailDialog";
 
