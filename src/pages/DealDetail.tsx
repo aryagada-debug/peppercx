@@ -904,7 +904,7 @@ export default function DealDetail() {
 
   // SoW add
   const [addingSoW, setAddingSoW] = useState(false);
-  const [newSoW, setNewSoW] = useState({ scope: "", revenueShare: 0, teamCapability: "" });
+  const [newSoW, setNewSoW] = useState({ scope: "", revenueShare: 0, teamCapability: "", teams: [] as string[], lineItemValue: 0 });
 
   if (staffLoading || detailLoading) {
     return <AppLayout><div className="p-8 flex items-center justify-center min-h-[60vh]"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div></AppLayout>;
