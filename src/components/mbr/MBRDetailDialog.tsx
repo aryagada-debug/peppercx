@@ -9,9 +9,10 @@ interface MBRDetailDialogProps {
   onClose: () => void;
   deal: MBRDeal;
   entry: MBREntry | null;
+  onEdit?: () => void;
 }
 
-export function MBRDetailDialog({ open, onClose, deal, entry }: MBRDetailDialogProps) {
+export function MBRDetailDialog({ open, onClose, deal, entry, onEdit }: MBRDetailDialogProps) {
   const sentimentColors: Record<string, string> = {
     Green: "bg-positive text-positive-foreground",
     Yellow: "bg-warning text-warning-foreground",
@@ -34,6 +35,11 @@ export function MBRDetailDialog({ open, onClose, deal, entry }: MBRDetailDialogP
           <DialogTitle className="text-lg font-semibold text-foreground">{deal.account}</DialogTitle>
           <p className="text-sm text-muted-foreground">{deal.dealName} · PC: {deal.pcCode}</p>
         </DialogHeader>
+        {onEdit && (
+          <div className="flex justify-end -mt-2">
+            <button onClick={onEdit} className="text-xs text-accent hover:underline">Edit MBR</button>
+          </div>
+        )}
 
         <div className="space-y-5 mt-2">
           {/* Status & Sentiment Row */}
