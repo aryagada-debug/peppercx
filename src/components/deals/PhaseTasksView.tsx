@@ -262,7 +262,19 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
       urgency: data.urgency,
       estimatedHours: data.estimatedHours || 0,
       subtasks: data.subtasks || [],
+      autoRegen: data.autoRegen || false,
     });
+    // Check auto-regen if stage changed to Done
+    if (data.stage === "Done" && editTask.stage !== "Done" && data.autoRegen) {
+      onAdd({
+        dealId: editTask.dealId, title: data.title, description: data.description,
+        stage: "To Do", assignee: data.assignee, urgency: data.urgency,
+        loggedHours: 0, sortOrder: (tasksByPhase[editTask.phase || ""]?.length || 0) + 1,
+        estimatedHours: data.estimatedHours || 0, subtasks: [],
+        phase: editTask.phase, tags: editTask.tags, autoRegen: true,
+      });
+      toast.info("Task auto-regenerated");
+    }
     setEditTask(null);
   };
 
