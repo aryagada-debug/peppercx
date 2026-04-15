@@ -389,6 +389,7 @@ export type Database = {
       deal_tasks: {
         Row: {
           assignee: string
+          auto_regen: boolean
           created_at: string
           deal_id: string
           description: string
@@ -408,6 +409,7 @@ export type Database = {
         }
         Insert: {
           assignee?: string
+          auto_regen?: boolean
           created_at?: string
           deal_id: string
           description?: string
@@ -427,6 +429,7 @@ export type Database = {
         }
         Update: {
           assignee?: string
+          auto_regen?: boolean
           created_at?: string
           deal_id?: string
           description?: string
