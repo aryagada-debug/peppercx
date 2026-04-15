@@ -1,16 +1,17 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { Check, ChevronRight, Plus, Trash2, Pencil, RefreshCw, Tag, List, LayoutGrid } from "lucide-react";
+import { Check, ChevronRight, Plus, Trash2, Pencil, RefreshCw, Tag, List, LayoutGrid, GripVertical, Save, Copy, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { TaskFormDialog, type TaskData } from "./TaskFormDialog";
 import { TaskKanban, type DealTask } from "./TaskKanban";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 // ── Phase Template (from PDF onboarding plan) ──
@@ -143,7 +144,315 @@ function resolveAssignee(role: string, deal: any): string {
   if (r === "senior bopm") return deal.seniorBopm || "";
   if (r === "bopm") return deal.bopm || "";
   if (r === "principal bopm") return deal.principalBopm || "";
-  return ""; // SEO Lead, Content Lead, etc. — left blank for manual assignment
+  return "";
+}
+
+// ── Saved Template type ──
+interface SavedTemplate {
+  id: string;
+  name: string;
+  phases: PhaseTemplate[];
+}
+
+// ── Template Editor Dialog ──
+function TemplateEditorDialog({
+  open,
+  onOpenChange,
+  initialPhases,
+  onSeed,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  initialPhases: PhaseTemplate[];
+  onSeed: (phases: PhaseTemplate[]) => void;
+}) {
+  const [phases, setPhases] = useState<PhaseTemplate[]>(() => JSON.parse(JSON.stringify(initialPhases)));
+  const [selectedPhaseIdx, setSelectedPhaseIdx] = useState(0);
+  const [savedTemplates, setSavedTemplates] = useState<SavedTemplate[]>([]);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [saveName, setSaveName] = useState("");
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+
+  // Load saved templates
+  useEffect(() => {
+    if (!open) return;
+    setLoadingTemplates(true);
+    supabase.from("task_templates").select("*").order("created_at", { ascending: false })
+      .then(({ data }) => {
+        if (data) {
+          setSavedTemplates(data.map((t: any) => ({
+            id: t.id,
+            name: t.name,
+            phases: Array.isArray(t.phases) ? t.phases : [],
+          })));
+        }
+        setLoadingTemplates(false);
+      });
+  }, [open]);
+
+  const currentPhase = phases[selectedPhaseIdx];
+
+  const addPhase = () => {
+    const newPhase: PhaseTemplate = { phase: `New Phase ${phases.length + 1}`, tasks: [] };
+    setPhases(prev => [...prev, newPhase]);
+    setSelectedPhaseIdx(phases.length);
+  };
+
+  const removePhase = (idx: number) => {
+    if (phases.length <= 1) return;
+    setPhases(prev => prev.filter((_, i) => i !== idx));
+    setSelectedPhaseIdx(prev => Math.min(prev, phases.length - 2));
+  };
+
+  const updatePhaseName = (idx: number, name: string) => {
+    setPhases(prev => prev.map((p, i) => i === idx ? { ...p, phase: name } : p));
+  };
+
+  const movePhase = (idx: number, dir: -1 | 1) => {
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= phases.length) return;
+    setPhases(prev => {
+      const arr = [...prev];
+      [arr[idx], arr[newIdx]] = [arr[newIdx], arr[idx]];
+      return arr;
+    });
+    setSelectedPhaseIdx(newIdx);
+  };
+
+  const addTask = () => {
+    setPhases(prev => prev.map((p, i) =>
+      i === selectedPhaseIdx
+        ? { ...p, tasks: [...p.tasks, { title: "", description: "", assigneeRole: "", tags: [] }] }
+        : p
+    ));
+  };
+
+  const removeTask = (taskIdx: number) => {
+    setPhases(prev => prev.map((p, i) =>
+      i === selectedPhaseIdx
+        ? { ...p, tasks: p.tasks.filter((_, ti) => ti !== taskIdx) }
+        : p
+    ));
+  };
+
+  const updateTask = (taskIdx: number, field: string, value: any) => {
+    setPhases(prev => prev.map((p, i) =>
+      i === selectedPhaseIdx
+        ? { ...p, tasks: p.tasks.map((t, ti) => ti === taskIdx ? { ...t, [field]: value } : t) }
+        : p
+    ));
+  };
+
+  const moveTask = (taskIdx: number, dir: -1 | 1) => {
+    const newIdx = taskIdx + dir;
+    if (newIdx < 0 || newIdx >= (currentPhase?.tasks.length || 0)) return;
+    setPhases(prev => prev.map((p, i) => {
+      if (i !== selectedPhaseIdx) return p;
+      const arr = [...p.tasks];
+      [arr[taskIdx], arr[newIdx]] = [arr[newIdx], arr[newIdx]]; // swap
+      [arr[taskIdx], arr[newIdx]] = [arr[newIdx], arr[taskIdx]];
+      return { ...p, tasks: arr };
+    }));
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!saveName.trim()) return;
+    const { data, error } = await (supabase.from("task_templates") as any)
+      .insert({ name: saveName.trim(), phases })
+      .select()
+      .single();
+    if (data) {
+      setSavedTemplates(prev => [{ id: data.id, name: data.name, phases: data.phases }, ...prev]);
+      toast.success(`Template "${saveName}" saved`);
+      setSaveDialogOpen(false);
+      setSaveName("");
+    } else if (error) {
+      toast.error("Failed to save template");
+    }
+  };
+
+  const handleLoadTemplate = (template: SavedTemplate) => {
+    setPhases(JSON.parse(JSON.stringify(template.phases)));
+    setSelectedPhaseIdx(0);
+    toast.success(`Loaded template "${template.name}"`);
+  };
+
+  const handleDeleteTemplate = async (id: string) => {
+    await supabase.from("task_templates").delete().eq("id", id);
+    setSavedTemplates(prev => prev.filter(t => t.id !== id));
+    toast.success("Template deleted");
+  };
+
+  return (
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Template Editor</DialogTitle>
+            <DialogDescription>Customize phases and tasks before seeding. You can also save this as a reusable template.</DialogDescription>
+          </DialogHeader>
+
+          <div className="flex gap-4 flex-1 min-h-0 overflow-hidden">
+            {/* Left: phases list */}
+            <div className="w-56 shrink-0 border border-border rounded-lg overflow-hidden flex flex-col">
+              <div className="p-2 border-b border-border bg-secondary/30 flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Phases</span>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={addPhase}><Plus className="h-3 w-3" /></Button>
+              </div>
+              <div className="overflow-y-auto flex-1">
+                {phases.map((p, idx) => (
+                  <div
+                    key={idx}
+                    onClick={() => setSelectedPhaseIdx(idx)}
+                    className={cn(
+                      "px-2 py-2 text-xs border-b border-border/50 cursor-pointer hover:bg-secondary/40 flex items-center gap-1",
+                      selectedPhaseIdx === idx && "bg-primary/10 border-l-2 border-l-primary font-medium"
+                    )}
+                  >
+                    <span className="flex-1 truncate">{p.phase || "Untitled"}</span>
+                    <span className="text-[10px] text-muted-foreground font-mono">{p.tasks.length}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Right: phase details + tasks */}
+            <div className="flex-1 overflow-y-auto space-y-4">
+              {currentPhase && (
+                <>
+                  {/* Phase name + actions */}
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={currentPhase.phase}
+                      onChange={(e) => updatePhaseName(selectedPhaseIdx, e.target.value)}
+                      className="h-8 text-sm font-medium flex-1"
+                      placeholder="Phase name"
+                    />
+                    <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => movePhase(selectedPhaseIdx, -1)} disabled={selectedPhaseIdx === 0}>↑</Button>
+                    <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => movePhase(selectedPhaseIdx, 1)} disabled={selectedPhaseIdx === phases.length - 1}>↓</Button>
+                    <Button variant="ghost" size="sm" className="h-8 px-2 text-xs text-destructive" onClick={() => removePhase(selectedPhaseIdx)} disabled={phases.length <= 1}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+
+                  {/* Tasks */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tasks ({currentPhase.tasks.length})</Label>
+                      <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={addTask}>
+                        <Plus className="h-3 w-3" /> Add Task
+                      </Button>
+                    </div>
+
+                    {currentPhase.tasks.map((task, tIdx) => (
+                      <div key={tIdx} className="border border-border rounded-lg p-3 space-y-2 bg-card">
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={task.title}
+                            onChange={(e) => updateTask(tIdx, "title", e.target.value)}
+                            className="h-7 text-sm flex-1"
+                            placeholder="Task title"
+                          />
+                          <Button variant="ghost" size="sm" className="h-7 px-1.5" onClick={() => moveTask(tIdx, -1)} disabled={tIdx === 0}>↑</Button>
+                          <Button variant="ghost" size="sm" className="h-7 px-1.5" onClick={() => moveTask(tIdx, 1)} disabled={tIdx === currentPhase.tasks.length - 1}>↓</Button>
+                          <Button variant="ghost" size="sm" className="h-7 px-1.5 text-destructive" onClick={() => removeTask(tIdx)}>
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <Input
+                          value={task.description}
+                          onChange={(e) => updateTask(tIdx, "description", e.target.value)}
+                          className="h-7 text-xs"
+                          placeholder="Description"
+                        />
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={task.assigneeRole}
+                            onChange={(e) => updateTask(tIdx, "assigneeRole", e.target.value)}
+                            className="h-7 text-xs w-36"
+                            placeholder="Assignee role (e.g. VSD)"
+                          />
+                          <Input
+                            value={(task.tags || []).join(", ")}
+                            onChange={(e) => updateTask(tIdx, "tags", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
+                            className="h-7 text-xs flex-1"
+                            placeholder="Tags (comma-separated)"
+                          />
+                        </div>
+                      </div>
+                    ))}
+
+                    {currentPhase.tasks.length === 0 && (
+                      <p className="text-xs text-muted-foreground text-center py-4">No tasks in this phase. Click "Add Task" to add one.</p>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Saved templates + actions */}
+          <div className="border-t border-border pt-3 space-y-3">
+            {savedTemplates.length > 0 && (
+              <div>
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">Saved Templates</Label>
+                <div className="flex flex-wrap gap-2">
+                  {savedTemplates.map(t => (
+                    <div key={t.id} className="flex items-center gap-1 border border-border rounded-lg px-2 py-1 text-xs bg-secondary/30">
+                      <button onClick={() => handleLoadTemplate(t)} className="hover:text-primary font-medium">{t.name}</button>
+                      <button onClick={() => handleDeleteTemplate(t.id)} className="text-destructive/50 hover:text-destructive ml-1"><Trash2 className="h-3 w-3" /></button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between">
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setSaveDialogOpen(true)}>
+                  <Save className="h-3.5 w-3.5" /> Save as Template
+                </Button>
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => {
+                  setPhases(JSON.parse(JSON.stringify(ONBOARDING_PHASES)));
+                  setSelectedPhaseIdx(0);
+                  toast.success("Reset to default Template v1");
+                }}>
+                  Reset to Default
+                </Button>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+                <Button onClick={() => { onSeed(phases); onOpenChange(false); }} className="gap-1.5">
+                  <Plus className="h-3.5 w-3.5" /> Seed Tasks
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Save template name dialog */}
+      <AlertDialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Save Template</AlertDialogTitle>
+            <AlertDialogDescription>Give this template a name to save it for reuse across deals.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <Input
+            value={saveName}
+            onChange={(e) => setSaveName(e.target.value)}
+            placeholder="Template name"
+            autoFocus
+            onKeyDown={(e) => e.key === "Enter" && handleSaveTemplate()}
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSaveTemplate} disabled={!saveName.trim()}>Save</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
 }
 
 interface Props {
@@ -164,7 +473,7 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
   const [editTask, setEditTask] = useState<DealTask | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [templateEditMode, setTemplateEditMode] = useState(false);
+  const [templateEditorOpen, setTemplateEditorOpen] = useState(false);
 
   // Check if tasks have been seeded
   const phaseTasks = useMemo(() => tasks.filter(t => t.phase && t.phase !== ""), [tasks]);
@@ -192,11 +501,11 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
 
   const activePhase = selectedPhase || currentPhase;
 
-  // Seed template
-  const handleSeedTemplate = useCallback(() => {
+  // Seed from template editor
+  const handleSeedFromEditor = useCallback((phases: PhaseTemplate[]) => {
     const rows: Omit<DealTask, "id">[] = [];
     let sortIdx = 0;
-    ONBOARDING_PHASES.forEach(phase => {
+    phases.forEach(phase => {
       phase.tasks.forEach(t => {
         rows.push({
           dealId,
@@ -215,14 +524,20 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
       });
     });
     onAddBulk(rows);
-    toast.success("Onboarding tasks seeded from Template v1");
+    toast.success(`Seeded ${rows.length} tasks across ${phases.length} phases`);
   }, [dealId, deal, onAddBulk]);
 
   // Handle marking task done with per-task auto-regen
   const handleStageChange = useCallback((taskId: string, newStage: string) => {
+    // Find the task BEFORE updating, so we have the current autoRegen value
     const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    const shouldRegen = task.autoRegen && newStage === "Done" && task.stage !== "Done";
+
     onUpdate(taskId, { stage: newStage });
-    if (task?.autoRegen && newStage === "Done") {
+
+    if (shouldRegen) {
       onAdd({
         dealId: task.dealId,
         title: task.title,
@@ -236,9 +551,9 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
         subtasks: [],
         phase: task.phase,
         tags: task.tags,
-        autoRegen: task.autoRegen,
+        autoRegen: true,
       });
-      toast.info("Task auto-regenerated");
+      toast.success(`"${task.title}" auto-regenerated as a new To Do task`);
     }
   }, [tasks, onUpdate, onAdd, tasksByPhase]);
 
@@ -252,6 +567,11 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
 
   const handleEditSubmit = (data: TaskData) => {
     if (!editTask) return;
+
+    const wasNotDone = editTask.stage !== "Done";
+    const nowDone = data.stage === "Done";
+    const shouldRegen = wasNotDone && nowDone && data.autoRegen;
+
     onUpdate(editTask.id, {
       title: data.title,
       description: data.description,
@@ -264,16 +584,24 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
       subtasks: data.subtasks || [],
       autoRegen: data.autoRegen || false,
     });
-    // Check auto-regen if stage changed to Done
-    if (data.stage === "Done" && editTask.stage !== "Done" && data.autoRegen) {
+
+    if (shouldRegen) {
       onAdd({
-        dealId: editTask.dealId, title: data.title, description: data.description,
-        stage: "To Do", assignee: data.assignee, urgency: data.urgency,
-        loggedHours: 0, sortOrder: (tasksByPhase[editTask.phase || ""]?.length || 0) + 1,
-        estimatedHours: data.estimatedHours || 0, subtasks: [],
-        phase: editTask.phase, tags: editTask.tags, autoRegen: true,
+        dealId: editTask.dealId,
+        title: data.title,
+        description: data.description,
+        stage: "To Do",
+        assignee: data.assignee,
+        urgency: data.urgency,
+        loggedHours: 0,
+        sortOrder: (tasksByPhase[editTask.phase || ""]?.length || 0) + 1,
+        estimatedHours: data.estimatedHours || 0,
+        subtasks: [],
+        phase: editTask.phase,
+        tags: editTask.tags,
+        autoRegen: true,
       });
-      toast.info("Task auto-regenerated");
+      toast.success(`"${data.title}" auto-regenerated as a new To Do task`);
     }
     setEditTask(null);
   };
@@ -294,11 +622,21 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
       subtasks: data.subtasks || [],
       phase: activePhase,
       tags: [],
+      autoRegen: data.autoRegen || false,
     });
   };
 
   // Tasks to display
   const visibleTasks = showAll ? phaseTasks : (tasksByPhase[activePhase] || []);
+
+  // Get all unique phases from tasks (for dynamic phase list)
+  const allPhases = useMemo(() => {
+    const phaseNames = ONBOARDING_PHASES.map(p => p.phase);
+    phaseTasks.forEach(t => {
+      if (t.phase && !phaseNames.includes(t.phase)) phaseNames.push(t.phase);
+    });
+    return phaseNames;
+  }, [phaseTasks]);
 
   if (!hasPhaseData) {
     return (
@@ -306,13 +644,21 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
         <div className="text-center max-w-md">
           <h3 className="text-lg font-semibold mb-2">Onboarding Tasks</h3>
           <p className="text-sm text-muted-foreground mb-6">
-            Seed the onboarding task template (Template v1) to create phase-based tasks for this deal.
-            Tasks will be pre-populated with assignees based on deal team members.
+            Seed the onboarding task template to create phase-based tasks for this deal.
+            You can customize phases and tasks before seeding.
           </p>
-          <Button onClick={handleSeedTemplate} className="gap-2">
-            <Plus className="h-4 w-4" /> Seed Template v1
-          </Button>
+          <div className="flex gap-3 justify-center">
+            <Button onClick={() => setTemplateEditorOpen(true)} className="gap-2">
+              <Settings2 className="h-4 w-4" /> Customize & Seed Template
+            </Button>
+          </div>
         </div>
+        <TemplateEditorDialog
+          open={templateEditorOpen}
+          onOpenChange={setTemplateEditorOpen}
+          initialPhases={ONBOARDING_PHASES}
+          onSeed={handleSeedFromEditor}
+        />
       </div>
     );
   }
@@ -339,22 +685,22 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
             </span>
           </button>
 
-          {ONBOARDING_PHASES.map(p => {
-            const pts = tasksByPhase[p.phase] || [];
+          {allPhases.map(phaseName => {
+            const pts = tasksByPhase[phaseName] || [];
             const doneCount = pts.filter(t => t.stage === "Done").length;
-            const isActive = !showAll && activePhase === p.phase;
+            const isActive = !showAll && activePhase === phaseName;
             const isComplete = pts.length > 0 && doneCount === pts.length;
 
             return (
               <button
-                key={p.phase}
+                key={phaseName}
                 onClick={() => {
                   if (isActive && !showAll) {
                     setShowAll(true);
                     setSelectedPhase(null);
                   } else {
                     setShowAll(false);
-                    setSelectedPhase(p.phase);
+                    setSelectedPhase(phaseName);
                   }
                 }}
                 className={cn(
@@ -369,7 +715,7 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
                     ) : (
                       <ChevronRight className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform", isActive && "rotate-90")} />
                     )}
-                    <span className="truncate">{p.phase}</span>
+                    <span className="truncate">{phaseName}</span>
                   </span>
                   <span className="text-[10px] text-muted-foreground font-mono shrink-0">
                     {doneCount}/{pts.length}
@@ -421,21 +767,23 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
             assignees={assignees}
             onAdd={(task) => onAdd({ ...task, phase: showAll ? "" : activePhase })}
             onUpdate={(id, updates) => {
-              onUpdate(id, updates);
-              // Auto-regen on drag to Done
+              // Handle auto-regen on drag to Done in Kanban
               if (updates.stage === "Done") {
                 const task = tasks.find(t => t.id === id);
-                if (task?.autoRegen) {
+                if (task && task.stage !== "Done" && task.autoRegen) {
+                  onUpdate(id, updates);
                   onAdd({
                     dealId: task.dealId, title: task.title, description: task.description,
                     stage: "To Do", assignee: task.assignee, urgency: task.urgency,
                     loggedHours: 0, sortOrder: (tasksByPhase[task.phase || ""]?.length || 0) + 1,
                     estimatedHours: task.estimatedHours || 0, subtasks: [],
-                    phase: task.phase, tags: task.tags, autoRegen: task.autoRegen,
+                    phase: task.phase, tags: task.tags, autoRegen: true,
                   });
-                  toast.info("Task auto-regenerated");
+                  toast.success(`"${task.title}" auto-regenerated as a new To Do task`);
+                  return;
                 }
               }
+              onUpdate(id, updates);
             }}
             onDelete={onDelete}
           />
@@ -451,7 +799,6 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
                 <Checkbox
                   checked={task.stage === "Done"}
                   onCheckedChange={(checked) => {
-                    // Stop propagation handled by stopping click
                     handleStageChange(task.id, checked ? "Done" : "To Do");
                   }}
                   onClick={(e) => e.stopPropagation()}
@@ -463,6 +810,9 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
                   <div className="flex items-center gap-2 mb-0.5">
                     <span className={cn("text-sm font-medium", task.stage === "Done" && "line-through text-muted-foreground")}>{task.title}</span>
                     <span className={cn("w-2 h-2 rounded-full shrink-0", STAGE_DOT[task.stage] || "bg-muted-foreground")} title={task.stage} />
+                    {task.autoRegen && (
+                      <RefreshCw className="h-3 w-3 text-primary shrink-0" title="Auto-regenerate ON" />
+                    )}
                   </div>
                   {task.description && (
                     <p className="text-xs text-muted-foreground line-clamp-1 mb-1">{task.description.replace(/<[^>]*>/g, '').slice(0, 100)}</p>
@@ -488,9 +838,12 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
                 {/* Actions */}
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={(e) => e.stopPropagation()}>
                   <button
-                    onClick={() => onUpdate(task.id, { autoRegen: !task.autoRegen })}
+                    onClick={() => {
+                      onUpdate(task.id, { autoRegen: !task.autoRegen });
+                      toast.info(task.autoRegen ? "Auto-regenerate OFF" : "Auto-regenerate ON for this task");
+                    }}
                     className={cn("p-1.5 rounded transition-colors", task.autoRegen ? "bg-primary/10 text-primary" : "hover:bg-secondary text-muted-foreground")}
-                    title={task.autoRegen ? "Auto-regen ON" : "Auto-regen OFF"}
+                    title={task.autoRegen ? "Auto-regen ON — click to turn OFF" : "Auto-regen OFF — click to turn ON"}
                   >
                     <RefreshCw className="h-3.5 w-3.5" />
                   </button>
