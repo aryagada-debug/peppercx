@@ -377,12 +377,23 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
             <h3 className="text-base font-semibold">{showAll ? "All Tasks" : activePhase}</h3>
             <p className="text-xs text-muted-foreground">{visibleTasks.length} task{visibleTasks.length !== 1 ? "s" : ""}</p>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Switch checked={autoRegen} onCheckedChange={setAutoRegen} />
-              <Label className="text-xs text-muted-foreground cursor-pointer flex items-center gap-1">
-                <RefreshCw className="h-3 w-3" /> Auto-regenerate
-              </Label>
+          <div className="flex items-center gap-3">
+            {/* View toggle */}
+            <div className="flex items-center border border-border rounded-lg overflow-hidden">
+              <button
+                onClick={() => setViewMode("list")}
+                className={cn("p-1.5 transition-colors", viewMode === "list" ? "bg-primary/10 text-primary" : "hover:bg-secondary text-muted-foreground")}
+                title="List view"
+              >
+                <List className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setViewMode("kanban")}
+                className={cn("p-1.5 transition-colors", viewMode === "kanban" ? "bg-primary/10 text-primary" : "hover:bg-secondary text-muted-foreground")}
+                title="Kanban view"
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </button>
             </div>
             <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
               <Plus className="h-3.5 w-3.5" /> Add Task
