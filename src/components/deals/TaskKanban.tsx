@@ -42,6 +42,7 @@ export interface DealTask {
   subtasks?: SubTask[];
   phase?: string;
   tags?: string[];
+  autoRegen?: boolean;
 }
 
 const STAGES = ["To Do", "In Progress", "In Review", "Done", "Dropped"] as const;

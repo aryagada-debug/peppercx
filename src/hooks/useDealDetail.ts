@@ -135,6 +135,7 @@ export function useDealDetail(dealId: string | undefined) {
       sortOrder: r.sort_order, estimatedHours: Number(r.estimated_hours || 0),
       subtasks: Array.isArray(r.subtasks) ? r.subtasks : [],
       phase: r.phase || "", tags: Array.isArray(r.tags) ? r.tags : [],
+      autoRegen: !!r.auto_regen,
     })));
     if (mbr.data) setMbrEntries(mbr.data.map((e: any) => ({
       id: e.id,
@@ -402,6 +403,7 @@ export function useDealDetail(dealId: string | undefined) {
       end_date: task.endDate || null, urgency: task.urgency, logged_hours: task.loggedHours,
       sort_order: task.sortOrder, estimated_hours: task.estimatedHours || 0,
       subtasks: task.subtasks || [], phase: task.phase || "", tags: task.tags || [],
+      auto_regen: task.autoRegen || false,
     }).select().single();
     if (data) setTasks(prev => [...prev, { id: data.id, ...task }]);
   }, []);
@@ -413,6 +415,7 @@ export function useDealDetail(dealId: string | undefined) {
       end_date: task.endDate || null, urgency: task.urgency, logged_hours: task.loggedHours || 0,
       sort_order: task.sortOrder, estimated_hours: task.estimatedHours || 0,
       subtasks: task.subtasks || [], phase: task.phase || "", tags: task.tags || [],
+      auto_regen: task.autoRegen || false,
     }));
     const { data } = await (supabase.from("deal_tasks") as any).insert(rows).select();
     if (data) {
@@ -423,6 +426,7 @@ export function useDealDetail(dealId: string | undefined) {
         sortOrder: r.sort_order, estimatedHours: Number(r.estimated_hours || 0),
         subtasks: Array.isArray(r.subtasks) ? r.subtasks : [],
         phase: r.phase || "", tags: Array.isArray(r.tags) ? r.tags : [],
+        autoRegen: !!r.auto_regen,
       }));
       setTasks(prev => [...prev, ...mapped]);
     }
@@ -444,6 +448,7 @@ export function useDealDetail(dealId: string | undefined) {
     if (updates.subtasks !== undefined) db.subtasks = updates.subtasks;
     if ((updates as any).phase !== undefined) db.phase = (updates as any).phase;
     if ((updates as any).tags !== undefined) db.tags = (updates as any).tags;
+    if (updates.autoRegen !== undefined) db.auto_regen = updates.autoRegen;
     await (supabase.from("deal_tasks") as any).update(db).eq("id", id);
   }, []);
 
