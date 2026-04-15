@@ -160,7 +160,7 @@ interface Props {
 export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBulk, onUpdate, onDelete }: Props) {
   const [selectedPhase, setSelectedPhase] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
-  const [autoRegen, setAutoRegen] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
   const [editTask, setEditTask] = useState<DealTask | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -218,11 +218,11 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
     toast.success("Onboarding tasks seeded from Template v1");
   }, [dealId, deal, onAddBulk]);
 
-  // Handle marking task done with auto-regen
+  // Handle marking task done with per-task auto-regen
   const handleStageChange = useCallback((taskId: string, newStage: string) => {
     const task = tasks.find(t => t.id === taskId);
     onUpdate(taskId, { stage: newStage });
-    if (autoRegen && newStage === "Done" && task) {
+    if (task?.autoRegen && newStage === "Done") {
       onAdd({
         dealId: task.dealId,
         title: task.title,
@@ -236,10 +236,11 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
         subtasks: [],
         phase: task.phase,
         tags: task.tags,
+        autoRegen: task.autoRegen,
       });
       toast.info("Task auto-regenerated");
     }
-  }, [autoRegen, tasks, onUpdate, onAdd, tasksByPhase]);
+  }, [tasks, onUpdate, onAdd, tasksByPhase]);
 
   const handleDeleteConfirm = () => {
     if (deleteConfirmId) {
