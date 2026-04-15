@@ -1,29 +1,39 @@
 
 
-# MBR Tab — Add Edit & Delete Actions for All Entries
+# Fix MBR Detail Dialog Save in Clients & Deals
 
-## What Changes
+## Problem
+The MBR Detail Dialog opened from the Deal Detail MBR tab (line 344) does not pass `onSave`, so the Save button never appears. Edits made in the dialog have no effect.
 
-Currently, clicking a "Done" MBR entry opens a read-only detail dialog, while non-Done entries open the edit drawer. The request is to allow **editing and deleting any MBR entry** regardless of status, directly from the MBR History table.
+## Solution
 
-## Implementation
+### `src/pages/DealDetail.tsx` — Pass `onSave` to `MBRDetailDialog`
 
-### 1. Update `src/pages/DealDetail.tsx` — `DealMBRTab` component
+Add an `onSave` handler that bridges the dialog's save signature to `upsertMBREntry`:
 
-- **Add Edit/Delete action buttons** to each row (replacing the current eye/edit icon):
-  - Edit (Pencil icon): Opens the `MBRInputDrawer` pre-filled with that entry's data, regardless of status
-  - Delete (Trash icon): Opens a confirmation `AlertDialog`, then deletes the entry from `mbr_entries` table via Supabase
-- **Remove the status-based branching** in `handleRowClick` — clicking a row always opens the detail dialog for viewing; explicit Edit button opens the drawer
-- **Add a `deleteMBREntry` function** that calls `supabase.from("mbr_entries").delete().eq("id", entryId)` and refreshes the entries list
-- Pass the delete handler down or implement it inline since `DealMBRTab` already has access to `supabase`
+```tsx
+{viewEntry && (
+  <MBRDetailDialog
+    open={!!viewEntry}
+    onClose={() => setViewEntry(null)}
+    deal={dealForDialog}
+    entry={viewEntry}
+    onSave={async (params) => {
+      const weekToUse = viewEntry?.weekStart || selectedWeek;
+      await upsertMBREntry(params, weekToUse);
+      toast.success("MBR entry updated");
+    }}
+  />
+)}
+```
 
-### 2. Update `src/hooks/useDealDetail.ts` (or inline in DealMBRTab)
-
-- Add a `deleteMBREntry(id: string)` function that deletes from `mbr_entries` and triggers a re-fetch of the entries list
+This single change ensures:
+- The Save button appears in the dialog
+- Edits persist to the `mbr_entries` table via `upsertMBREntry`
+- Changes propagate bidirectionally — the MBR Tracker reads from the same table and already passes `onSave` to its dialog instances
 
 ### Files Modified
 | File | Change |
 |------|--------|
-| `src/pages/DealDetail.tsx` | Add edit/delete buttons per row, delete confirmation dialog, allow editing Done entries |
-| `src/hooks/useDealDetail.ts` | Add `deleteMBREntry` function if not handled inline |
+| `src/pages/DealDetail.tsx` | Add `onSave` prop to `MBRDetailDialog` rendering (~line 344) |
 
