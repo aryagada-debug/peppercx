@@ -531,6 +531,7 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
             endDate: editTask.endDate || "",
             estimatedHours: editTask.estimatedHours || 0,
             subtasks: editTask.subtasks || [],
+            autoRegen: editTask.autoRegen || false,
           }}
           title="Edit Task"
           onDelete={() => { onDelete(editTask.id); setEditTask(null); }}
