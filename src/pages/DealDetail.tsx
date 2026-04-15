@@ -347,7 +347,7 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry, deleteMBREntry }
           deal={dealForDialog}
           entry={viewEntry}
           onSave={async (params) => {
-            const weekToUse = viewEntry?.week_start || selectedWeek;
+            const weekToUse = viewEntry?.weekStart || selectedWeek;
             await upsertMBREntry(params, weekToUse);
             toast.success("MBR entry updated");
           }}
