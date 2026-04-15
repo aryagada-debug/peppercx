@@ -169,12 +169,21 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry, deleteMBREntry }
   };
 
   const handleRowClick = (entry: MBREntry) => {
-    if (entry.status === "Done") {
-      setViewEntry(entry);
-    } else {
-      setEditingEntry(entry);
-      setSelectedWeek(entry.weekStart);
-      setDrawerOpen(true);
+    setViewEntry(entry);
+  };
+
+  const handleEdit = (entry: MBREntry, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingEntry(entry);
+    setSelectedWeek(entry.weekStart);
+    setDrawerOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (deleteConfirmId) {
+      await deleteMBREntry(deleteConfirmId);
+      toast.success("MBR entry deleted");
+      setDeleteConfirmId(null);
     }
   };
 
@@ -301,10 +310,9 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry, deleteMBREntry }
                   </td>
                   <td className="py-2.5 px-3 text-xs text-muted-foreground max-w-[150px] truncate">{entry.notes || "—"}</td>
                   <td className="py-2.5 px-3">
-                    <span className="opacity-0 group-hover:opacity-100 transition-opacity">
-                      {entry.status === "Done"
-                        ? <Eye className="h-4 w-4 text-muted-foreground" />
-                        : <Edit2 className="h-4 w-4 text-muted-foreground" />}
+                    <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={(e) => handleEdit(entry, e)} title="Edit" className="p-1 rounded hover:bg-secondary"><Pencil className="h-3.5 w-3.5 text-muted-foreground" /></button>
+                      <button onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(entry.id); }} title="Delete" className="p-1 rounded hover:bg-destructive/10"><Trash2 className="h-3.5 w-3.5 text-destructive" /></button>
                     </span>
                   </td>
                 </tr>
