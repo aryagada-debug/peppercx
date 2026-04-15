@@ -1,34 +1,38 @@
 
 
-# Tasks Tab — Click-to-Edit, Kanban View Toggle, Per-Task Auto-Regen
+# MBR Tracker — RGY Health-Style UI with Filters, Search, and VSD Insights Table
 
 ## What Changes
 
-1. **Clicking a task row opens the TaskFormDialog** — Currently only the pencil icon opens it. The entire task row should open the edit dialog on click (same as Kanban behavior).
+Redesign the MBR Tracker page to match the RGY Health page layout:
+- Replace the current tab-based layout with a single unified view
+- Add Pod filter tabs (All, Integrated, India B2B, US B2B, FMCG, BFSI, Unassigned)
+- Add search bar for filtering by client/deal name
+- Add "Show closed/completed" checkbox
+- Add Expand All / Collapse All toggle
+- Group deals by client (same accordion pattern as RGY Health)
+- Add KPI strip at the top (Retainer Accounts, Done, Not Done, Pending, Portfolio Compliance)
+- Add a consolidated **VSD Insights table** below the main deal table showing per-VSD metrics (accounts, done/not done/pending counts, sentiment breakdown, scheduling compliance)
 
-2. **Kanban view toggle** — Add a List/Kanban view switcher in the header. When "Kanban" is selected, render the existing `TaskKanban` component filtered to the current phase's tasks (or all tasks if "All" is selected). The Kanban retains full drag-and-drop functionality.
-
-3. **Per-task auto-regenerate toggle** — Remove the global auto-regen toggle from the header. Instead, add an `auto_regen` boolean column to `deal_tasks`. Each task row shows a small refresh icon/toggle. When a task with `auto_regen = true` is marked "Done", a new copy is created. Default is `false`.
+The week selector stays in the header. The Deal Tracker tab content becomes the main view but restructured as a client-grouped accordion. The VSD Summary and History tabs are removed as separate tabs — the VSD data becomes the insights table below.
 
 ## Implementation
 
-### Migration
-```sql
-ALTER TABLE deal_tasks ADD COLUMN auto_regen boolean NOT NULL DEFAULT false;
-```
+### `src/pages/MBRTracker.tsx` — Full Rewrite
+
+1. **Remove Tabs** — single-page layout like RGY Health
+2. **Add filter state**: `activePod`, `search`, `showClosed`, `expandedClients` (same as RGY Health)
+3. **Pod filter bar** — reuse the same Pod list and `getPodForDeal()` logic from RGY Health
+4. **Search input** — filter by account or deal name
+5. **Client-grouped accordion table** — group deals by account, show MBR status, sentiment, scheduled date per deal row. Click to open MBRDetailDialog.
+6. **KPI strip** — Done, Not Done, Pending, Retainer Accounts, Compliance %
+7. **VSD Insights table** — below the main table, show per-VSD row with: VSD name, # accounts, # done, # not done, # pending, green/yellow/red sentiment counts, scheduling compliance ratio
 
 ### Files Modified
 
 | File | Change |
 |------|--------|
-| `src/components/deals/PhaseTasksView.tsx` | (1) Make task row clickable to open edit dialog. (2) Add List/Kanban toggle state + render `TaskKanban` when Kanban selected, passing filtered tasks. (3) Remove global `autoRegen` state; read `task.auto_regen` per-task instead. Add per-task regen toggle icon in row actions. |
-| `src/components/deals/TaskKanban.tsx` | Accept optional `phase` filter prop so it can work within PhaseTasksView. Wire auto-regen on drag-to-Done using `task.auto_regen`. |
-| `src/hooks/useDealDetail.ts` | Add `autoRegen` to `DealTask` interface and handle it in add/update. |
-| `src/components/deals/TaskFormDialog.tsx` | Add `auto_regen` checkbox to the form. |
+| `src/pages/MBRTracker.tsx` | Rewrite to match RGY Health layout with filters, search, client grouping, and VSD insights table below |
 
-### Key Details
-
-- **Row click**: Wrap the task row `<div>` with `onClick={() => setEditTask(task)}`, remove from pencil-only.
-- **View toggle**: Two icon buttons (List, LayoutGrid) in header. State `viewMode: "list" | "kanban"`. When kanban, render `<TaskKanban tasks={visibleTasks} .../>`.
-- **Per-task regen**: In the task row actions area, show a `RefreshCw` icon that toggles `auto_regen` via `onUpdate(task.id, { autoRegen: !task.autoRegen })`. In `handleStageChange`, check `task.auto_regen` instead of global toggle.
+No database changes needed — all data already exists in `mbr_entries` and `staffing_deals`.
 
