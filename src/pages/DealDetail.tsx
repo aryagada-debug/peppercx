@@ -348,6 +348,19 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry, deleteMBREntry }
           entry={viewEntry}
         />
       )}
+
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete MBR Entry</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure you want to delete this MBR entry? This action cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -1750,6 +1763,7 @@ export default function DealDetail() {
             dealId={dealId!}
             mbrEntries={mbrEntries}
             upsertMBREntry={upsertMBREntry}
+            deleteMBREntry={deleteMBREntry}
           />
         )}
 
