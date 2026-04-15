@@ -1,8 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { Check, ChevronRight, Plus, Trash2, Pencil, RefreshCw, Tag } from "lucide-react";
+import { Check, ChevronRight, Plus, Trash2, Pencil, RefreshCw, Tag, List, LayoutGrid } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { TaskFormDialog, type TaskData } from "./TaskFormDialog";
-import type { DealTask } from "./TaskKanban";
+import { TaskKanban, type DealTask } from "./TaskKanban";
 import { toast } from "sonner";
 
 // ── Phase Template (from PDF onboarding plan) ──
