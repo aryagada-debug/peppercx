@@ -5,16 +5,30 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { useMBRData, getWeekOptions, type MBREntry, type MBRDeal, type VSDSummary } from "@/hooks/useMBRData";
 import { Loader2, CheckCircle2, Clock, BarChart3, ChevronDown, ChevronRight, Eye } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MBRDetailDialog } from "@/components/mbr/MBRDetailDialog";
+import { supabase } from "@/integrations/supabase/client";
+
+// ── RGY dot helper ───────────────────────────────────────────────────────────
+const RGY_DIMS = ["customer", "internal", "content", "seo", "supply", "copy", "design", "video"] as const;
+
+function getWorstRGY(rgy: Record<string, string> | undefined): string {
+  if (!rgy) return "bg-muted";
+  const vals = RGY_DIMS.map(d => rgy[d] || "G");
+  if (vals.includes("R")) return "bg-destructive";
+  if (vals.includes("Y")) return "bg-warning";
+  if (vals.includes("G")) return "bg-positive";
+  return "bg-muted";
+}
 
 // ── VSD Summary Tab ──────────────────────────────────────────────────────────
 function VSDSummaryTab({
-  vsdSummary, totals, deals, entries
+  vsdSummary, totals, deals, entries, onSave, rgyMap
 }: {
   vsdSummary: VSDSummary[]; totals: any; deals: MBRDeal[]; entries: MBREntry[];
+  onSave: (params: any) => Promise<void>;
+  rgyMap: Map<string, Record<string, string>>;
 }) {
-  const maxAccounts = Math.max(...vsdSummary.map(v => v.retainerAccounts), 1);
   const totalScheduled = vsdSummary.reduce((a, v) => a + v.scheduledCount, 0);
   const schedCompliance = totals.retainerAccounts > 0 ? Math.round((totalScheduled / totals.retainerAccounts) * 100) : 0;
 
@@ -22,11 +36,7 @@ function VSDSummaryTab({
   const [viewDeal, setViewDeal] = useState<{ deal: MBRDeal; entry: MBREntry | null } | null>(null);
 
   const entryMap = new Map(entries.map(e => [e.dealId, e]));
-
-  const toggleExpand = (vsd: string) => {
-    setExpandedVsd(prev => prev === vsd ? null : vsd);
-  };
-
+  const toggleExpand = (vsd: string) => setExpandedVsd(prev => prev === vsd ? null : vsd);
   const vsdDeals = expandedVsd ? deals.filter(d => d.vsd === expandedVsd) : [];
 
   const sentimentDot = (s: string | null) => {
@@ -81,6 +91,7 @@ function VSDSummaryTab({
                 {expandedVsd === v.vsd && vsdDeals.map(d => {
                   const entry = entryMap.get(d.id);
                   const status = entry?.status || "Pending";
+                  const rgyDotColor = getWorstRGY(rgyMap.get(d.id));
                   return (
                     <tr
                       key={`deal-${d.id}`}
@@ -88,7 +99,10 @@ function VSDSummaryTab({
                       onClick={() => setViewDeal({ deal: d, entry: entry || null })}
                     >
                       <td />
-                      <td className="py-2 px-3 pl-8 text-sm text-muted-foreground">{d.account}</td>
+                      <td className="py-2 px-3 pl-8 text-sm text-muted-foreground flex items-center gap-2">
+                        <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", rgyDotColor)} title="Overall RGY" />
+                        {d.account}
+                      </td>
                       <td className="py-2 px-3 text-xs text-muted-foreground truncate max-w-[120px]">{d.dealName}</td>
                       <td className="py-2 px-3">
                         <span className={cn(
@@ -114,42 +128,13 @@ function VSDSummaryTab({
         </table>
       </div>
 
-      {/* Stacked Bar Chart */}
-      <div className="data-card p-6">
-        <h3 className="text-ui font-semibold text-foreground mb-4">MBR Completion by VSD</h3>
-        <div className="space-y-3">
-          {vsdSummary.map(v => {
-            const total = v.done + v.notDone;
-            const doneW = total > 0 ? (v.done / maxAccounts) * 100 : 0;
-            const notDoneW = total > 0 ? (v.notDone / maxAccounts) * 100 : 0;
-            return (
-              <div key={v.vsd} className="flex items-center gap-4">
-                <span className="w-36 text-ui text-foreground font-medium truncate">{v.vsd}</span>
-                <div className="flex-1 flex items-center gap-1 h-7">
-                  {v.done > 0 && (
-                    <div className="bg-positive h-full rounded-l flex items-center justify-center text-positive-foreground text-caption font-bold min-w-[24px]" style={{ width: `${doneW}%` }}>{v.done}</div>
-                  )}
-                  {v.notDone > 0 && (
-                    <div className="bg-destructive h-full flex items-center justify-center text-destructive-foreground text-caption font-bold min-w-[24px]" style={{ width: `${notDoneW}%`, borderRadius: v.done === 0 ? '0.25rem 0 0 0.25rem' : '0' }}>{v.notDone}</div>
-                  )}
-                  <span className="text-ui font-bold text-foreground ml-1">{v.retainerAccounts}</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <div className="flex items-center gap-4 mt-4 text-caption text-muted-foreground">
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-positive inline-block" /> Done</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-destructive inline-block" /> Not Done</span>
-        </div>
-      </div>
-
       {viewDeal && (
         <MBRDetailDialog
           open={!!viewDeal}
           onClose={() => setViewDeal(null)}
           deal={viewDeal.deal}
           entry={viewDeal.entry}
+          onSave={onSave}
         />
       )}
     </div>
@@ -158,9 +143,10 @@ function VSDSummaryTab({
 
 // ── Deal-Level Tracker Tab ───────────────────────────────────────────────────
 function DealTrackerTab({
-  deals, entries
+  deals, entries, onSave
 }: {
   deals: MBRDeal[]; entries: MBREntry[];
+  onSave: (params: any) => Promise<void>;
 }) {
   const [filterVsd, setFilterVsd] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -276,6 +262,7 @@ function DealTrackerTab({
           onClose={() => setViewDeal(null)}
           deal={viewDeal.deal}
           entry={viewDeal.entry}
+          onSave={onSave}
         />
       )}
     </div>
@@ -336,8 +323,45 @@ function HistoryTab({ deals, selectedWeek }: { deals: MBRDeal[]; selectedWeek: s
 
 // ── Main Component ───────────────────────────────────────────────────────────
 export default function MBRTracker() {
-  const { deals, entries, loading, selectedWeek, setSelectedWeek, upsertEntry, toggleAnirudhJoining, vsdSummary, totals } = useMBRData();
+  const { deals, entries, loading, selectedWeek, setSelectedWeek, upsertEntry, vsdSummary, totals, refresh } = useMBRData();
   const weekOptions = getWeekOptions();
+
+  // Fetch latest RGY data for all deals
+  const [rgyMap, setRgyMap] = useState<Map<string, Record<string, string>>>(new Map());
+
+  useEffect(() => {
+    if (deals.length === 0) return;
+    const dealIds = deals.map(d => d.id);
+    supabase
+      .from("deal_rgy_weekly")
+      .select("deal_id, customer, internal, content, seo, supply, copy, design, video, week_start")
+      .in("deal_id", dealIds)
+      .order("week_start", { ascending: false })
+      .then(({ data }) => {
+        if (!data) return;
+        const map = new Map<string, Record<string, string>>();
+        for (const row of data) {
+          if (!map.has(row.deal_id)) {
+            map.set(row.deal_id, {
+              customer: row.customer,
+              internal: row.internal,
+              content: row.content,
+              seo: row.seo,
+              supply: row.supply,
+              copy: row.copy,
+              design: row.design,
+              video: row.video,
+            });
+          }
+        }
+        setRgyMap(map);
+      });
+  }, [deals]);
+
+  const handleSave = async (params: any) => {
+    await upsertEntry(params);
+    await refresh();
+  };
 
   if (loading) {
     return (
@@ -373,11 +397,11 @@ export default function MBRTracker() {
           </TabsList>
 
           <TabsContent value="summary">
-            <VSDSummaryTab vsdSummary={vsdSummary} totals={totals} deals={deals} entries={entries} />
+            <VSDSummaryTab vsdSummary={vsdSummary} totals={totals} deals={deals} entries={entries} onSave={handleSave} rgyMap={rgyMap} />
           </TabsContent>
 
           <TabsContent value="deals">
-            <DealTrackerTab deals={deals} entries={entries} />
+            <DealTrackerTab deals={deals} entries={entries} onSave={handleSave} />
           </TabsContent>
 
           <TabsContent value="history">

@@ -336,12 +336,6 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry }: {
           onClose={() => setViewEntry(null)}
           deal={dealForDialog}
           entry={viewEntry}
-          onEdit={() => {
-            setEditingEntry(viewEntry);
-            setSelectedWeek(viewEntry.weekStart);
-            setViewEntry(null);
-            setDrawerOpen(true);
-          }}
         />
       )}
     </div>

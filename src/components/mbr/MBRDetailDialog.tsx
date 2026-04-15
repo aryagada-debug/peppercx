@@ -1,7 +1,13 @@
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { ExternalLink, CheckCircle2, Circle } from "lucide-react";
+import { ExternalLink, CheckCircle2, Circle, Save } from "lucide-react";
 import type { MBRDeal, MBREntry, ActionItem } from "@/hooks/useMBRData";
 
 interface MBRDetailDialogProps {
@@ -9,24 +15,70 @@ interface MBRDetailDialogProps {
   onClose: () => void;
   deal: MBRDeal;
   entry: MBREntry | null;
-  onEdit?: () => void;
+  onSave?: (params: {
+    dealId: string;
+    status: string;
+    mode: string | null;
+    notes: string | null;
+    updatedBy: string;
+    sentiment?: string | null;
+    fathomLink?: string | null;
+    scheduledDate?: string | null;
+    anirudhAdded?: boolean;
+    anirudhJoining?: boolean;
+    mbrPptLink?: string | null;
+  }) => Promise<void>;
 }
 
-export function MBRDetailDialog({ open, onClose, deal, entry, onEdit }: MBRDetailDialogProps) {
+export function MBRDetailDialog({ open, onClose, deal, entry, onSave }: MBRDetailDialogProps) {
+  const [status, setStatus] = useState(entry?.status || "Pending");
+  const [sentiment, setSentiment] = useState(entry?.sentiment || "");
+  const [mode, setMode] = useState(entry?.mode || "");
+  const [notes, setNotes] = useState(entry?.notes || "");
+  const [fathomLink, setFathomLink] = useState(entry?.fathomLink || "");
+  const [mbrPptLink, setMbrPptLink] = useState(entry?.mbrPptLink || "");
+  const [scheduledDate, setScheduledDate] = useState(entry?.scheduledDate || "");
+  const [anirudhAdded, setAnirudhAdded] = useState(entry?.anirudhAdded || false);
+  const [anirudhJoining, setAnirudhJoining] = useState(entry?.anirudhJoining || false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setStatus(entry?.status || "Pending");
+    setSentiment(entry?.sentiment || "");
+    setMode(entry?.mode || "");
+    setNotes(entry?.notes || "");
+    setFathomLink(entry?.fathomLink || "");
+    setMbrPptLink(entry?.mbrPptLink || "");
+    setScheduledDate(entry?.scheduledDate || "");
+    setAnirudhAdded(entry?.anirudhAdded || false);
+    setAnirudhJoining(entry?.anirudhJoining || false);
+  }, [entry]);
+
+  const handleSave = async () => {
+    if (!onSave) return;
+    setSaving(true);
+    await onSave({
+      dealId: deal.id,
+      status,
+      mode: mode || null,
+      notes: notes || null,
+      updatedBy: "",
+      sentiment: sentiment || null,
+      fathomLink: fathomLink || null,
+      scheduledDate: scheduledDate || null,
+      anirudhAdded,
+      anirudhJoining,
+      mbrPptLink: mbrPptLink || null,
+    });
+    setSaving(false);
+    onClose();
+  };
+
   const sentimentColors: Record<string, string> = {
     Green: "bg-positive text-positive-foreground",
     Yellow: "bg-warning text-warning-foreground",
     Red: "bg-destructive text-destructive-foreground",
   };
-
-  const statusColors: Record<string, string> = {
-    Done: "bg-positive/15 text-positive",
-    "Not Done": "bg-destructive/15 text-destructive",
-    Pending: "bg-warning/15 text-warning",
-    "Not Required": "bg-muted text-muted-foreground",
-  };
-
-  const status = entry?.status || "Pending";
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -35,63 +87,88 @@ export function MBRDetailDialog({ open, onClose, deal, entry, onEdit }: MBRDetai
           <DialogTitle className="text-lg font-semibold text-foreground">{deal.account}</DialogTitle>
           <p className="text-sm text-muted-foreground">{deal.dealName} · PC: {deal.pcCode}</p>
         </DialogHeader>
-        {onEdit && (
-          <div className="flex justify-end -mt-2">
-            <button onClick={onEdit} className="text-xs text-accent hover:underline">Edit MBR</button>
-          </div>
-        )}
 
         <div className="space-y-5 mt-2">
-          {/* Status & Sentiment Row */}
-          <div className="flex items-center gap-3 flex-wrap">
-            <Badge className={cn("text-xs", statusColors[status])}>{status}</Badge>
-            {entry?.sentiment && (
-              <Badge className={cn("text-xs", sentimentColors[entry.sentiment])}>
-                {entry.sentiment} Sentiment
-              </Badge>
-            )}
-            {entry?.mode && (
-              <Badge variant="outline" className="text-xs">{entry.mode}</Badge>
-            )}
+          {/* Editable Fields */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</label>
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Done">Done</SelectItem>
+                  <SelectItem value="Not Done">Not Done</SelectItem>
+                  <SelectItem value="Pending">Pending</SelectItem>
+                  <SelectItem value="Not Required">Not Required</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Sentiment</label>
+              <Select value={sentiment} onValueChange={setSentiment}>
+                <SelectTrigger className="mt-1"><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Green">Green</SelectItem>
+                  <SelectItem value="Yellow">Yellow</SelectItem>
+                  <SelectItem value="Red">Red</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Mode</label>
+              <Select value={mode} onValueChange={setMode}>
+                <SelectTrigger className="mt-1"><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="In-Person">In-Person</SelectItem>
+                  <SelectItem value="Virtual">Virtual</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Scheduled Date</label>
+              <Input type="date" value={scheduledDate} onChange={e => setScheduledDate(e.target.value)} className="mt-1" />
+            </div>
           </div>
 
-          {/* Deal Info Grid */}
+          {/* Links */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Fathom Link</label>
+              <Input value={fathomLink} onChange={e => setFathomLink(e.target.value)} placeholder="https://..." className="mt-1" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">MBR PPT Link</label>
+              <Input value={mbrPptLink} onChange={e => setMbrPptLink(e.target.value)} placeholder="https://..." className="mt-1" />
+            </div>
+          </div>
+
+          {/* Anirudh Flags */}
+          <div className="flex items-center gap-6">
+            <label className="flex items-center gap-2 text-sm text-foreground">
+              <Checkbox checked={anirudhAdded} onCheckedChange={(v) => setAnirudhAdded(!!v)} />
+              Anirudh Added
+            </label>
+            <label className="flex items-center gap-2 text-sm text-foreground">
+              <Checkbox checked={anirudhJoining} onCheckedChange={(v) => setAnirudhJoining(!!v)} />
+              Anirudh Joining
+            </label>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Notes</label>
+            <Textarea value={notes} onChange={e => setNotes(e.target.value)} className="mt-1" rows={3} placeholder="Add notes..." />
+          </div>
+
+          {/* Deal Info (read-only) */}
           <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
             <InfoRow label="VSD" value={deal.vsd} />
             <InfoRow label="Sr. BOPM" value={deal.seniorBopm} />
             <InfoRow label="BOPM" value={deal.bopm} />
             <InfoRow label="MRR" value={deal.mrr ? `₹${deal.mrr.toLocaleString("en-IN")}` : "—"} />
-            <InfoRow label="Next MBR Date" value={entry?.scheduledDate || "Not scheduled"} />
-            <InfoRow label="Anirudh Added" value={entry?.anirudhAdded ? "Yes ✓" : "No"} />
-            <InfoRow label="Anirudh Joining" value={entry?.anirudhJoining ? "Yes ✓" : "No"} />
-            {entry?.inputRecordedAt && (
-              <InfoRow label="Recorded At" value={new Date(entry.inputRecordedAt).toLocaleString("en-IN")} />
-            )}
           </div>
 
-          {/* Fathom Link */}
-          {entry?.fathomLink && (
-            <div>
-              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Fathom Link</h4>
-              <a href={entry.fathomLink} target="_blank" rel="noopener noreferrer" className="text-sm text-accent hover:underline inline-flex items-center gap-1">
-                {entry.fathomLink.slice(0, 60)}{entry.fathomLink.length > 60 ? "…" : ""}
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            </div>
-          )}
-
-          {/* MBR PPT Link */}
-          {entry?.mbrPptLink && (
-            <div>
-              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">MBR PPT Link</h4>
-              <a href={entry.mbrPptLink} target="_blank" rel="noopener noreferrer" className="text-sm text-accent hover:underline inline-flex items-center gap-1">
-                {entry.mbrPptLink.slice(0, 60)}{entry.mbrPptLink.length > 60 ? "…" : ""}
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            </div>
-          )}
-
-          {/* AI Summary */}
+          {/* AI Summary (read-only) */}
           {entry?.aiSummary && (
             <div>
               <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">AI Summary</h4>
@@ -99,7 +176,7 @@ export function MBRDetailDialog({ open, onClose, deal, entry, onEdit }: MBRDetai
             </div>
           )}
 
-          {/* Action Items */}
+          {/* Action Items (read-only) */}
           {entry?.actionItems && entry.actionItems.length > 0 && (
             <div>
               <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Action Items ({entry.actionItems.length})</h4>
@@ -123,15 +200,7 @@ export function MBRDetailDialog({ open, onClose, deal, entry, onEdit }: MBRDetai
             </div>
           )}
 
-          {/* Notes */}
-          {entry?.notes && (
-            <div>
-              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Notes</h4>
-              <p className="text-sm text-foreground">{entry.notes}</p>
-            </div>
-          )}
-
-          {/* Transcript (collapsed) */}
+          {/* Transcript */}
           {entry?.transcript && (
             <details className="group">
               <summary className="text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:text-foreground transition-colors">
@@ -141,6 +210,16 @@ export function MBRDetailDialog({ open, onClose, deal, entry, onEdit }: MBRDetai
                 {entry.transcript}
               </div>
             </details>
+          )}
+
+          {/* Save Button */}
+          {onSave && (
+            <div className="flex justify-end pt-2">
+              <Button onClick={handleSave} disabled={saving} className="gap-2">
+                <Save className="h-4 w-4" />
+                {saving ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
           )}
         </div>
       </DialogContent>
