@@ -811,7 +811,7 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
                     <span className={cn("text-sm font-medium", task.stage === "Done" && "line-through text-muted-foreground")}>{task.title}</span>
                     <span className={cn("w-2 h-2 rounded-full shrink-0", STAGE_DOT[task.stage] || "bg-muted-foreground")} title={task.stage} />
                     {task.autoRegen && (
-                      <RefreshCw className="h-3 w-3 text-primary shrink-0" title="Auto-regenerate ON" />
+                      <span title="Auto-regenerate ON"><RefreshCw className="h-3 w-3 text-primary shrink-0" /></span>
                     )}
                   </div>
                   {task.description && (
