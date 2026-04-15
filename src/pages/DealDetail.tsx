@@ -11,6 +11,7 @@ import { useDealDetail } from "@/hooks/useDealDetail";
 import { EditableRGY } from "@/components/deals/EditableRGY";
 import { FinancialsTab } from "@/components/deals/FinancialsTab";
 import { TaskKanban } from "@/components/deals/TaskKanban";
+import { PhaseTasksView } from "@/components/deals/PhaseTasksView";
 import { MBRInputDrawer } from "@/components/mbr/MBRInputDrawer";
 import { MBRDetailDialog } from "@/components/mbr/MBRDetailDialog";
 import { AddStaffingMemberDialog } from "@/components/staffing/AddStaffingMemberDialog";
@@ -761,7 +762,7 @@ export default function DealDetail() {
     sowItems, rgyWeekly, onboarding, financials, tasks, mbrEntries, loading: detailLoading,
     toggleOnboardingStep, addSoWItem, updateSoWItem, deleteSoWItem,
     addRGYWeek, updateRGYWeek, addFinancial, updateFinancial, deleteFinancial,
-    addTask, updateTask, deleteTask, seedOnboarding, upsertMBREntry, deleteMBREntry,
+    addTask, addTasksBulk, updateTask, deleteTask, seedOnboarding, upsertMBREntry, deleteMBREntry,
   } = useDealDetail(dealId);
 
   const deal = useMemo(() => deals.find(d => d.id === dealId), [deals, dealId]);
@@ -1556,8 +1557,17 @@ export default function DealDetail() {
         )}
 
         {/* ══════════ Tasks ══════════ */}
-        {activeTab === "Tasks" && (
-          <TaskKanban tasks={tasks} dealId={dealId!} assignees={dealPeople.map(p => ({ id: p.id, name: p.name }))} onAdd={addTask} onUpdate={updateTask} onDelete={deleteTask} />
+        {activeTab === "Tasks" && deal && (
+          <PhaseTasksView
+            tasks={tasks}
+            dealId={dealId!}
+            deal={deal}
+            assignees={dealPeople.map(p => ({ id: p.id, name: p.name }))}
+            onAdd={addTask}
+            onAddBulk={addTasksBulk}
+            onUpdate={updateTask}
+            onDelete={deleteTask}
+          />
         )}
 
         {/* ══════════ RGY Health ══════════ */}

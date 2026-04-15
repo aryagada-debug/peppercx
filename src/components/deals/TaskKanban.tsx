@@ -40,6 +40,8 @@ export interface DealTask {
   sortOrder: number;
   estimatedHours?: number;
   subtasks?: SubTask[];
+  phase?: string;
+  tags?: string[];
 }
 
 const STAGES = ["To Do", "In Progress", "In Review", "Done", "Dropped"] as const;

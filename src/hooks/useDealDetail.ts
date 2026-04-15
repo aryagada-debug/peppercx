@@ -134,6 +134,7 @@ export function useDealDetail(dealId: string | undefined) {
       endDate: r.end_date || undefined, urgency: r.urgency, loggedHours: Number(r.logged_hours),
       sortOrder: r.sort_order, estimatedHours: Number(r.estimated_hours || 0),
       subtasks: Array.isArray(r.subtasks) ? r.subtasks : [],
+      phase: r.phase || "", tags: Array.isArray(r.tags) ? r.tags : [],
     })));
     if (mbr.data) setMbrEntries(mbr.data.map((e: any) => ({
       id: e.id,
@@ -400,9 +401,31 @@ export function useDealDetail(dealId: string | undefined) {
       stage: task.stage, assignee: task.assignee, start_date: task.startDate || null,
       end_date: task.endDate || null, urgency: task.urgency, logged_hours: task.loggedHours,
       sort_order: task.sortOrder, estimated_hours: task.estimatedHours || 0,
-      subtasks: task.subtasks || [],
+      subtasks: task.subtasks || [], phase: task.phase || "", tags: task.tags || [],
     }).select().single();
     if (data) setTasks(prev => [...prev, { id: data.id, ...task }]);
+  }, []);
+
+  const addTasksBulk = useCallback(async (taskRows: Omit<DealTask, "id">[]) => {
+    const rows = taskRows.map(task => ({
+      deal_id: task.dealId, title: task.title, description: task.description,
+      stage: task.stage, assignee: task.assignee, start_date: task.startDate || null,
+      end_date: task.endDate || null, urgency: task.urgency, logged_hours: task.loggedHours || 0,
+      sort_order: task.sortOrder, estimated_hours: task.estimatedHours || 0,
+      subtasks: task.subtasks || [], phase: task.phase || "", tags: task.tags || [],
+    }));
+    const { data } = await (supabase.from("deal_tasks") as any).insert(rows).select();
+    if (data) {
+      const mapped = data.map((r: any) => ({
+        id: r.id, dealId: r.deal_id, title: r.title, description: r.description || "",
+        stage: r.stage, assignee: r.assignee || "", startDate: r.start_date || undefined,
+        endDate: r.end_date || undefined, urgency: r.urgency, loggedHours: Number(r.logged_hours),
+        sortOrder: r.sort_order, estimatedHours: Number(r.estimated_hours || 0),
+        subtasks: Array.isArray(r.subtasks) ? r.subtasks : [],
+        phase: r.phase || "", tags: Array.isArray(r.tags) ? r.tags : [],
+      }));
+      setTasks(prev => [...prev, ...mapped]);
+    }
   }, []);
 
   const updateTask = useCallback(async (id: string, updates: Partial<DealTask>) => {
@@ -419,6 +442,8 @@ export function useDealDetail(dealId: string | undefined) {
     if (updates.sortOrder !== undefined) db.sort_order = updates.sortOrder;
     if (updates.estimatedHours !== undefined) db.estimated_hours = updates.estimatedHours;
     if (updates.subtasks !== undefined) db.subtasks = updates.subtasks;
+    if ((updates as any).phase !== undefined) db.phase = (updates as any).phase;
+    if ((updates as any).tags !== undefined) db.tags = (updates as any).tags;
     await (supabase.from("deal_tasks") as any).update(db).eq("id", id);
   }, []);
 
@@ -438,7 +463,7 @@ export function useDealDetail(dealId: string | undefined) {
     toggleOnboardingStep, seedOnboarding,
     addRGYWeek, updateRGYWeek,
     addFinancial, updateFinancial, deleteFinancial,
-    addTask, updateTask, deleteTask,
+    addTask, addTasksBulk, updateTask, deleteTask,
     upsertMBREntry, deleteMBREntry,
     refresh: loadAll,
   };
