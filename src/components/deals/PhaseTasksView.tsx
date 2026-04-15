@@ -401,18 +401,48 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
           </div>
         </div>
 
-        {/* Task List */}
-        {visibleTasks.length > 0 ? (
+        {/* Task Views */}
+        {viewMode === "kanban" ? (
+          <TaskKanban
+            tasks={visibleTasks}
+            dealId={dealId}
+            assignees={assignees}
+            onAdd={(task) => onAdd({ ...task, phase: showAll ? "" : activePhase })}
+            onUpdate={(id, updates) => {
+              onUpdate(id, updates);
+              // Auto-regen on drag to Done
+              if (updates.stage === "Done") {
+                const task = tasks.find(t => t.id === id);
+                if (task?.autoRegen) {
+                  onAdd({
+                    dealId: task.dealId, title: task.title, description: task.description,
+                    stage: "To Do", assignee: task.assignee, urgency: task.urgency,
+                    loggedHours: 0, sortOrder: (tasksByPhase[task.phase || ""]?.length || 0) + 1,
+                    estimatedHours: task.estimatedHours || 0, subtasks: [],
+                    phase: task.phase, tags: task.tags, autoRegen: task.autoRegen,
+                  });
+                  toast.info("Task auto-regenerated");
+                }
+              }
+            }}
+            onDelete={onDelete}
+          />
+        ) : visibleTasks.length > 0 ? (
           <div className="space-y-2">
             {visibleTasks.map(task => (
               <div
                 key={task.id}
-                className="group flex items-start gap-3 p-3 rounded-lg border border-border bg-card hover:shadow-sm transition-shadow"
+                onClick={() => setEditTask(task)}
+                className="group flex items-start gap-3 p-3 rounded-lg border border-border bg-card hover:shadow-sm transition-shadow cursor-pointer"
               >
                 {/* Checkbox */}
                 <Checkbox
                   checked={task.stage === "Done"}
-                  onCheckedChange={(checked) => handleStageChange(task.id, checked ? "Done" : "To Do")}
+                  onCheckedChange={(checked) => {
+                    // Stop propagation handled by stopping click
+                    handleStageChange(task.id, checked ? "Done" : "To Do");
+                  }}
+                  onClick={(e) => e.stopPropagation()}
                   className="mt-0.5"
                 />
 
@@ -444,7 +474,14 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={() => onUpdate(task.id, { autoRegen: !task.autoRegen })}
+                    className={cn("p-1.5 rounded transition-colors", task.autoRegen ? "bg-primary/10 text-primary" : "hover:bg-secondary text-muted-foreground")}
+                    title={task.autoRegen ? "Auto-regen ON" : "Auto-regen OFF"}
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                  </button>
                   <Select value={task.stage} onValueChange={(v) => handleStageChange(task.id, v)}>
                     <SelectTrigger className="h-7 w-[100px] text-[10px] border-none bg-secondary/50">
                       <SelectValue />
@@ -455,7 +492,6 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
                       ))}
                     </SelectContent>
                   </Select>
-                  <button onClick={() => setEditTask(task)} className="p-1.5 rounded hover:bg-secondary"><Pencil className="h-3.5 w-3.5 text-muted-foreground" /></button>
                   <button onClick={() => setDeleteConfirmId(task.id)} className="p-1.5 rounded hover:bg-destructive/10"><Trash2 className="h-3.5 w-3.5 text-destructive" /></button>
                 </div>
               </div>
