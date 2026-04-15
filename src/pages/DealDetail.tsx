@@ -117,15 +117,17 @@ function TeamMemberSelect({ currentName, role, color, people, onSelect }: {
 
 
 
-function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry }: {
+function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry, deleteMBREntry }: {
   deal: any;
   dealId: string;
   mbrEntries: MBREntry[];
   upsertMBREntry: (params: any, weekStart: string) => Promise<void>;
+  deleteMBREntry: (id: string) => Promise<void>;
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<MBREntry | null>(null);
   const [viewEntry, setViewEntry] = useState<MBREntry | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const weekOptions = getWeekOptions();
   const currentWeek = weekOptions.find(w => {
@@ -167,12 +169,21 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry }: {
   };
 
   const handleRowClick = (entry: MBREntry) => {
-    if (entry.status === "Done") {
-      setViewEntry(entry);
-    } else {
-      setEditingEntry(entry);
-      setSelectedWeek(entry.weekStart);
-      setDrawerOpen(true);
+    setViewEntry(entry);
+  };
+
+  const handleEdit = (entry: MBREntry, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingEntry(entry);
+    setSelectedWeek(entry.weekStart);
+    setDrawerOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (deleteConfirmId) {
+      await deleteMBREntry(deleteConfirmId);
+      toast.success("MBR entry deleted");
+      setDeleteConfirmId(null);
     }
   };
 
@@ -299,10 +310,9 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry }: {
                   </td>
                   <td className="py-2.5 px-3 text-xs text-muted-foreground max-w-[150px] truncate">{entry.notes || "—"}</td>
                   <td className="py-2.5 px-3">
-                    <span className="opacity-0 group-hover:opacity-100 transition-opacity">
-                      {entry.status === "Done"
-                        ? <Eye className="h-4 w-4 text-muted-foreground" />
-                        : <Edit2 className="h-4 w-4 text-muted-foreground" />}
+                    <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={(e) => handleEdit(entry, e)} title="Edit" className="p-1 rounded hover:bg-secondary"><Pencil className="h-3.5 w-3.5 text-muted-foreground" /></button>
+                      <button onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(entry.id); }} title="Delete" className="p-1 rounded hover:bg-destructive/10"><Trash2 className="h-3.5 w-3.5 text-destructive" /></button>
                     </span>
                   </td>
                 </tr>
@@ -338,6 +348,19 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry }: {
           entry={viewEntry}
         />
       )}
+
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete MBR Entry</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure you want to delete this MBR entry? This action cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -733,7 +756,7 @@ export default function DealDetail() {
     sowItems, rgyWeekly, onboarding, financials, tasks, mbrEntries, loading: detailLoading,
     toggleOnboardingStep, addSoWItem, updateSoWItem, deleteSoWItem,
     addRGYWeek, updateRGYWeek, addFinancial, updateFinancial, deleteFinancial,
-    addTask, updateTask, deleteTask, seedOnboarding, upsertMBREntry,
+    addTask, updateTask, deleteTask, seedOnboarding, upsertMBREntry, deleteMBREntry,
   } = useDealDetail(dealId);
 
   const deal = useMemo(() => deals.find(d => d.id === dealId), [deals, dealId]);
@@ -1740,6 +1763,7 @@ export default function DealDetail() {
             dealId={dealId!}
             mbrEntries={mbrEntries}
             upsertMBREntry={upsertMBREntry}
+            deleteMBREntry={deleteMBREntry}
           />
         )}
 
