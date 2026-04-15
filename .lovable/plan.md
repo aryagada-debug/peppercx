@@ -1,49 +1,38 @@
 
 
-# MBR Tracker — Read-Only View Synced with Clients & Deals
+# MBR Tracker — Editable Dialog, Remove Completion Chart, Add RGY Dots
 
 ## What Changes
 
-The MBR Tracker page becomes a **read-only dashboard**. All editing (status changes, input drawer, Anirudh Joining checkbox) is removed from this page. The clickable deal dialog remains for viewing MBR details. Users edit MBR data from the Deal Detail page's MBR tab, and those changes automatically appear here.
+1. **Editable MBR Detail Dialog** — When clicking a deal in VSD Summary, the dialog becomes editable (status, sentiment, mode, notes, links, scheduled date, Anirudh flags). Changes sync bidirectionally with the database (same `mbr_entries` table used by Deal Detail page).
+
+2. **Remove "MBR Completion by VSD" chart** — The stacked bar chart section (lines 118-145 in `MBRTracker.tsx`) inside `VSDSummaryTab` is deleted.
+
+3. **RGY dot on expanded deals** — When a VSD row is expanded, each deal row shows a colored dot representing the overall RGY status fetched from `deal_rgy_weekly`. The "worst" dimension across the 8 RGY dimensions determines the dot color (Red > Yellow > Green > NA).
 
 ## Implementation
 
-### 1. Update `src/pages/MBRTracker.tsx`
+### 1. Make `MBRDetailDialog` editable
 
-**VSD Summary Tab** — no changes needed, already read-only.
+- Add local state for all editable fields (status, sentiment, mode, notes, fathomLink, mbrPptLink, scheduledDate, anirudhAdded, anirudhJoining)
+- Replace static display with form inputs (Select for status/sentiment/mode, Input for links/dates, Textarea for notes, Checkbox for Anirudh flags)
+- Add a "Save" button that calls `upsertEntry` and closes the dialog
+- Pass `upsertEntry` from `useMBRData` through to VSDSummaryTab and DealTrackerTab, then into the dialog
+- After save, refresh entries so the table updates
 
-**Deal Tracker Tab** — make fully read-only:
-- Remove the status `<select>` dropdown — replace with a static color-coded badge
-- Remove the Anirudh Joining `<Checkbox>` — replace with a static checkmark/cross
-- Remove the `MBRInputDrawer` import and usage entirely
-- Remove the edit icon on hover — keep only the eye icon
-- Clicking any row always opens `MBRDetailDialog` in view-only mode (no `onEdit` callback)
-- Remove `upsertEntry` and `toggleAnirudhJoining` props from `DealTrackerTab`
+### 2. Remove completion chart
 
-**History Tab** — already read-only, no changes.
+- Delete the "MBR Completion by VSD" `<div>` block (lines 117-145) from `VSDSummaryTab`
 
-**Main component** — stop passing `upsertEntry` and `toggleAnirudhJoining` to children. Remove those from `useMBRData` usage (they can stay in the hook for use elsewhere).
+### 3. Add RGY dot to expanded deal rows
 
-### 2. Update `src/components/mbr/MBRDetailDialog.tsx`
-
-- Remove the `onEdit` prop and the Edit button entirely
-- Make the dialog purely informational
-
-### 3. Ensure Deal Detail MBR tab works as the editing surface
-
-The Deal Detail page already has an MBR tab (`src/pages/DealDetail.tsx`) that uses `MBRInputDrawer` for editing. Verify it writes to `mbr_entries` correctly — this is the single source of truth that the MBR Tracker reads from. No additional sync logic needed since both pages query the same `mbr_entries` table.
+- In `VSDSummaryTab`, fetch `deal_rgy_weekly` for all deal IDs (latest entry per deal) when the component mounts
+- Compute "worst status" across 8 dimensions (customer, internal, content, seo, supply, copy, design, video): R > Y > G > NA
+- Show a colored dot in the expanded deal row next to the account name
 
 ### Files Modified
 | File | Change |
 |------|--------|
-| `src/pages/MBRTracker.tsx` | Remove all edit controls (status select, checkbox, drawer), make Deal Tracker tab view-only |
-| `src/components/mbr/MBRDetailDialog.tsx` | Remove Edit button and `onEdit` prop |
-
-### What stays the same
-- All KPI metric cards (computed from live data)
-- VSD Summary expandable rows
-- Deal Tracker table with filters (VSD, Status)
-- Week selector
-- History tab with trend bars
-- Clickable rows opening the detail dialog
+| `src/components/mbr/MBRDetailDialog.tsx` | Convert from read-only to editable form with save |
+| `src/pages/MBRTracker.tsx` | Pass `upsertEntry`/`refresh` to tabs, remove completion chart, fetch RGY data for dots |
 
