@@ -117,15 +117,17 @@ function TeamMemberSelect({ currentName, role, color, people, onSelect }: {
 
 
 
-function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry }: {
+function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry, deleteMBREntry }: {
   deal: any;
   dealId: string;
   mbrEntries: MBREntry[];
   upsertMBREntry: (params: any, weekStart: string) => Promise<void>;
+  deleteMBREntry: (id: string) => Promise<void>;
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<MBREntry | null>(null);
   const [viewEntry, setViewEntry] = useState<MBREntry | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const weekOptions = getWeekOptions();
   const currentWeek = weekOptions.find(w => {

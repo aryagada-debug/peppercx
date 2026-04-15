@@ -427,6 +427,11 @@ export function useDealDetail(dealId: string | undefined) {
     await supabase.from("deal_tasks").delete().eq("id", id);
   }, []);
 
+  const deleteMBREntry = useCallback(async (id: string) => {
+    setMbrEntries(prev => prev.filter(e => e.id !== id));
+    await supabase.from("mbr_entries").delete().eq("id", id);
+  }, []);
+
   return {
     sowItems, revenue, targets, rgyWeekly, onboarding, financials, tasks, mbrEntries, loading,
     addSoWItem, updateSoWItem, deleteSoWItem,
@@ -434,7 +439,7 @@ export function useDealDetail(dealId: string | undefined) {
     addRGYWeek, updateRGYWeek,
     addFinancial, updateFinancial, deleteFinancial,
     addTask, updateTask, deleteTask,
-    upsertMBREntry,
+    upsertMBREntry, deleteMBREntry,
     refresh: loadAll,
   };
 }
