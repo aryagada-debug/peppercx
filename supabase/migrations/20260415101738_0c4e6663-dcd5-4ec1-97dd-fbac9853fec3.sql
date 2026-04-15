@@ -1,0 +1,1 @@
+ALTER TABLE deal_tasks ADD COLUMN auto_regen boolean NOT NULL DEFAULT false;

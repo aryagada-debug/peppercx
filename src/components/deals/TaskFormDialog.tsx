@@ -24,6 +24,7 @@ export interface TaskData {
   urgency: string;
   estimatedHours?: number;
   subtasks?: SubTask[];
+  autoRegen?: boolean;
 }
 
 interface Props {
@@ -162,6 +163,7 @@ export function TaskFormDialog({ open, onOpenChange, onSubmit, assignees, defaul
     urgency: initial?.urgency || "Medium",
     estimatedHours: initial?.estimatedHours || 0,
     subtasks: initial?.subtasks || [],
+    autoRegen: initial?.autoRegen || false,
   });
   const [logHoursInput, setLogHoursInput] = useState("");
   const [showLogHours, setShowLogHours] = useState(false);
@@ -309,6 +311,18 @@ export function TaskFormDialog({ open, onOpenChange, onSubmit, assignees, defaul
               </div>
             </div>
           )}
+
+          {/* Auto-regenerate */}
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/30 border border-border">
+            <Checkbox
+              id="auto-regen"
+              checked={form.autoRegen || false}
+              onCheckedChange={(checked) => set("autoRegen", !!checked)}
+            />
+            <Label htmlFor="auto-regen" className="text-xs text-muted-foreground cursor-pointer">
+              Auto-regenerate this task when marked Done
+            </Label>
+          </div>
 
           {/* Subtasks */}
           <div className="space-y-2">

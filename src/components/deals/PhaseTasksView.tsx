@@ -1,8 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { Check, ChevronRight, Plus, Trash2, Pencil, RefreshCw, Tag } from "lucide-react";
+import { Check, ChevronRight, Plus, Trash2, Pencil, RefreshCw, Tag, List, LayoutGrid } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { TaskFormDialog, type TaskData } from "./TaskFormDialog";
-import type { DealTask } from "./TaskKanban";
+import { TaskKanban, type DealTask } from "./TaskKanban";
 import { toast } from "sonner";
 
 // ── Phase Template (from PDF onboarding plan) ──
@@ -161,7 +160,7 @@ interface Props {
 export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBulk, onUpdate, onDelete }: Props) {
   const [selectedPhase, setSelectedPhase] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
-  const [autoRegen, setAutoRegen] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
   const [editTask, setEditTask] = useState<DealTask | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -219,11 +218,11 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
     toast.success("Onboarding tasks seeded from Template v1");
   }, [dealId, deal, onAddBulk]);
 
-  // Handle marking task done with auto-regen
+  // Handle marking task done with per-task auto-regen
   const handleStageChange = useCallback((taskId: string, newStage: string) => {
     const task = tasks.find(t => t.id === taskId);
     onUpdate(taskId, { stage: newStage });
-    if (autoRegen && newStage === "Done" && task) {
+    if (task?.autoRegen && newStage === "Done") {
       onAdd({
         dealId: task.dealId,
         title: task.title,
@@ -237,10 +236,11 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
         subtasks: [],
         phase: task.phase,
         tags: task.tags,
+        autoRegen: task.autoRegen,
       });
       toast.info("Task auto-regenerated");
     }
-  }, [autoRegen, tasks, onUpdate, onAdd, tasksByPhase]);
+  }, [tasks, onUpdate, onAdd, tasksByPhase]);
 
   const handleDeleteConfirm = () => {
     if (deleteConfirmId) {
@@ -262,7 +262,19 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
       urgency: data.urgency,
       estimatedHours: data.estimatedHours || 0,
       subtasks: data.subtasks || [],
+      autoRegen: data.autoRegen || false,
     });
+    // Check auto-regen if stage changed to Done
+    if (data.stage === "Done" && editTask.stage !== "Done" && data.autoRegen) {
+      onAdd({
+        dealId: editTask.dealId, title: data.title, description: data.description,
+        stage: "To Do", assignee: data.assignee, urgency: data.urgency,
+        loggedHours: 0, sortOrder: (tasksByPhase[editTask.phase || ""]?.length || 0) + 1,
+        estimatedHours: data.estimatedHours || 0, subtasks: [],
+        phase: editTask.phase, tags: editTask.tags, autoRegen: true,
+      });
+      toast.info("Task auto-regenerated");
+    }
     setEditTask(null);
   };
 
@@ -377,12 +389,23 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
             <h3 className="text-base font-semibold">{showAll ? "All Tasks" : activePhase}</h3>
             <p className="text-xs text-muted-foreground">{visibleTasks.length} task{visibleTasks.length !== 1 ? "s" : ""}</p>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Switch checked={autoRegen} onCheckedChange={setAutoRegen} />
-              <Label className="text-xs text-muted-foreground cursor-pointer flex items-center gap-1">
-                <RefreshCw className="h-3 w-3" /> Auto-regenerate
-              </Label>
+          <div className="flex items-center gap-3">
+            {/* View toggle */}
+            <div className="flex items-center border border-border rounded-lg overflow-hidden">
+              <button
+                onClick={() => setViewMode("list")}
+                className={cn("p-1.5 transition-colors", viewMode === "list" ? "bg-primary/10 text-primary" : "hover:bg-secondary text-muted-foreground")}
+                title="List view"
+              >
+                <List className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setViewMode("kanban")}
+                className={cn("p-1.5 transition-colors", viewMode === "kanban" ? "bg-primary/10 text-primary" : "hover:bg-secondary text-muted-foreground")}
+                title="Kanban view"
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </button>
             </div>
             <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
               <Plus className="h-3.5 w-3.5" /> Add Task
@@ -390,18 +413,48 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
           </div>
         </div>
 
-        {/* Task List */}
-        {visibleTasks.length > 0 ? (
+        {/* Task Views */}
+        {viewMode === "kanban" ? (
+          <TaskKanban
+            tasks={visibleTasks}
+            dealId={dealId}
+            assignees={assignees}
+            onAdd={(task) => onAdd({ ...task, phase: showAll ? "" : activePhase })}
+            onUpdate={(id, updates) => {
+              onUpdate(id, updates);
+              // Auto-regen on drag to Done
+              if (updates.stage === "Done") {
+                const task = tasks.find(t => t.id === id);
+                if (task?.autoRegen) {
+                  onAdd({
+                    dealId: task.dealId, title: task.title, description: task.description,
+                    stage: "To Do", assignee: task.assignee, urgency: task.urgency,
+                    loggedHours: 0, sortOrder: (tasksByPhase[task.phase || ""]?.length || 0) + 1,
+                    estimatedHours: task.estimatedHours || 0, subtasks: [],
+                    phase: task.phase, tags: task.tags, autoRegen: task.autoRegen,
+                  });
+                  toast.info("Task auto-regenerated");
+                }
+              }
+            }}
+            onDelete={onDelete}
+          />
+        ) : visibleTasks.length > 0 ? (
           <div className="space-y-2">
             {visibleTasks.map(task => (
               <div
                 key={task.id}
-                className="group flex items-start gap-3 p-3 rounded-lg border border-border bg-card hover:shadow-sm transition-shadow"
+                onClick={() => setEditTask(task)}
+                className="group flex items-start gap-3 p-3 rounded-lg border border-border bg-card hover:shadow-sm transition-shadow cursor-pointer"
               >
                 {/* Checkbox */}
                 <Checkbox
                   checked={task.stage === "Done"}
-                  onCheckedChange={(checked) => handleStageChange(task.id, checked ? "Done" : "To Do")}
+                  onCheckedChange={(checked) => {
+                    // Stop propagation handled by stopping click
+                    handleStageChange(task.id, checked ? "Done" : "To Do");
+                  }}
+                  onClick={(e) => e.stopPropagation()}
                   className="mt-0.5"
                 />
 
@@ -433,7 +486,14 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={() => onUpdate(task.id, { autoRegen: !task.autoRegen })}
+                    className={cn("p-1.5 rounded transition-colors", task.autoRegen ? "bg-primary/10 text-primary" : "hover:bg-secondary text-muted-foreground")}
+                    title={task.autoRegen ? "Auto-regen ON" : "Auto-regen OFF"}
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                  </button>
                   <Select value={task.stage} onValueChange={(v) => handleStageChange(task.id, v)}>
                     <SelectTrigger className="h-7 w-[100px] text-[10px] border-none bg-secondary/50">
                       <SelectValue />
@@ -444,7 +504,6 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
                       ))}
                     </SelectContent>
                   </Select>
-                  <button onClick={() => setEditTask(task)} className="p-1.5 rounded hover:bg-secondary"><Pencil className="h-3.5 w-3.5 text-muted-foreground" /></button>
                   <button onClick={() => setDeleteConfirmId(task.id)} className="p-1.5 rounded hover:bg-destructive/10"><Trash2 className="h-3.5 w-3.5 text-destructive" /></button>
                 </div>
               </div>
@@ -472,6 +531,7 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
             endDate: editTask.endDate || "",
             estimatedHours: editTask.estimatedHours || 0,
             subtasks: editTask.subtasks || [],
+            autoRegen: editTask.autoRegen || false,
           }}
           title="Edit Task"
           onDelete={() => { onDelete(editTask.id); setEditTask(null); }}
