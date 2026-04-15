@@ -1,38 +1,29 @@
 
 
-# MBR Tracker — Editable Dialog, Remove Completion Chart, Add RGY Dots
+# MBR Tab — Add Edit & Delete Actions for All Entries
 
 ## What Changes
 
-1. **Editable MBR Detail Dialog** — When clicking a deal in VSD Summary, the dialog becomes editable (status, sentiment, mode, notes, links, scheduled date, Anirudh flags). Changes sync bidirectionally with the database (same `mbr_entries` table used by Deal Detail page).
-
-2. **Remove "MBR Completion by VSD" chart** — The stacked bar chart section (lines 118-145 in `MBRTracker.tsx`) inside `VSDSummaryTab` is deleted.
-
-3. **RGY dot on expanded deals** — When a VSD row is expanded, each deal row shows a colored dot representing the overall RGY status fetched from `deal_rgy_weekly`. The "worst" dimension across the 8 RGY dimensions determines the dot color (Red > Yellow > Green > NA).
+Currently, clicking a "Done" MBR entry opens a read-only detail dialog, while non-Done entries open the edit drawer. The request is to allow **editing and deleting any MBR entry** regardless of status, directly from the MBR History table.
 
 ## Implementation
 
-### 1. Make `MBRDetailDialog` editable
+### 1. Update `src/pages/DealDetail.tsx` — `DealMBRTab` component
 
-- Add local state for all editable fields (status, sentiment, mode, notes, fathomLink, mbrPptLink, scheduledDate, anirudhAdded, anirudhJoining)
-- Replace static display with form inputs (Select for status/sentiment/mode, Input for links/dates, Textarea for notes, Checkbox for Anirudh flags)
-- Add a "Save" button that calls `upsertEntry` and closes the dialog
-- Pass `upsertEntry` from `useMBRData` through to VSDSummaryTab and DealTrackerTab, then into the dialog
-- After save, refresh entries so the table updates
+- **Add Edit/Delete action buttons** to each row (replacing the current eye/edit icon):
+  - Edit (Pencil icon): Opens the `MBRInputDrawer` pre-filled with that entry's data, regardless of status
+  - Delete (Trash icon): Opens a confirmation `AlertDialog`, then deletes the entry from `mbr_entries` table via Supabase
+- **Remove the status-based branching** in `handleRowClick` — clicking a row always opens the detail dialog for viewing; explicit Edit button opens the drawer
+- **Add a `deleteMBREntry` function** that calls `supabase.from("mbr_entries").delete().eq("id", entryId)` and refreshes the entries list
+- Pass the delete handler down or implement it inline since `DealMBRTab` already has access to `supabase`
 
-### 2. Remove completion chart
+### 2. Update `src/hooks/useDealDetail.ts` (or inline in DealMBRTab)
 
-- Delete the "MBR Completion by VSD" `<div>` block (lines 117-145) from `VSDSummaryTab`
-
-### 3. Add RGY dot to expanded deal rows
-
-- In `VSDSummaryTab`, fetch `deal_rgy_weekly` for all deal IDs (latest entry per deal) when the component mounts
-- Compute "worst status" across 8 dimensions (customer, internal, content, seo, supply, copy, design, video): R > Y > G > NA
-- Show a colored dot in the expanded deal row next to the account name
+- Add a `deleteMBREntry(id: string)` function that deletes from `mbr_entries` and triggers a re-fetch of the entries list
 
 ### Files Modified
 | File | Change |
 |------|--------|
-| `src/components/mbr/MBRDetailDialog.tsx` | Convert from read-only to editable form with save |
-| `src/pages/MBRTracker.tsx` | Pass `upsertEntry`/`refresh` to tabs, remove completion chart, fetch RGY data for dots |
+| `src/pages/DealDetail.tsx` | Add edit/delete buttons per row, delete confirmation dialog, allow editing Done entries |
+| `src/hooks/useDealDetail.ts` | Add `deleteMBREntry` function if not handled inline |
 
