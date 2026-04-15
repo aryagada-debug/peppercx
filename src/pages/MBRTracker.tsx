@@ -1,367 +1,182 @@
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { MetricCard } from "@/components/dashboard/MetricCard";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ChevronDown, ChevronRight, ChevronsUpDown, Search, Loader2, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Link } from "react-router-dom";
 import { useMBRData, getWeekOptions, type MBREntry, type MBRDeal, type VSDSummary } from "@/hooks/useMBRData";
-import { Loader2, CheckCircle2, Clock, BarChart3, ChevronDown, ChevronRight, Eye } from "lucide-react";
-import { useState, useEffect } from "react";
 import { MBRDetailDialog } from "@/components/mbr/MBRDetailDialog";
 import { supabase } from "@/integrations/supabase/client";
 
-// ── RGY dot helper ───────────────────────────────────────────────────────────
-const RGY_DIMS = ["customer", "internal", "content", "seo", "supply", "copy", "design", "video"] as const;
+const PODS = ["All", "Integrated", "India B2B", "US B2B", "FMCG", "BFSI", "Unassigned"] as const;
+type Pod = typeof PODS[number];
 
-function getWorstRGY(rgy: Record<string, string> | undefined): string {
-  if (!rgy) return "bg-muted";
-  const vals = RGY_DIMS.map(d => rgy[d] || "G");
-  if (vals.includes("R")) return "bg-destructive";
-  if (vals.includes("Y")) return "bg-warning";
-  if (vals.includes("G")) return "bg-positive";
-  return "bg-muted";
+const ACTIVE_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
+
+function getPodForDeal(vsd: string, pod: string): string {
+  if (pod && pod !== "" && pod !== "Not Assigned" && pod !== "Unassigned" && pod !== "Not Applicable") return pod;
+  const vsdMap: Record<string, string> = {
+    "Sneha Iyer": "FMCG",
+    "Aamir Khan": "Integrated",
+    "Neema Jayadas": "US B2B",
+    "Sumit Shekhawat": "India B2B",
+    "Aditya Shaw": "BFSI",
+  };
+  return vsdMap[vsd] || "Unassigned";
 }
 
-// ── VSD Summary Tab ──────────────────────────────────────────────────────────
-function VSDSummaryTab({
-  vsdSummary, totals, deals, entries, onSave, rgyMap
-}: {
-  vsdSummary: VSDSummary[]; totals: any; deals: MBRDeal[]; entries: MBREntry[];
-  onSave: (params: any) => Promise<void>;
-  rgyMap: Map<string, Record<string, string>>;
-}) {
-  const totalScheduled = vsdSummary.reduce((a, v) => a + v.scheduledCount, 0);
-  const schedCompliance = totals.retainerAccounts > 0 ? Math.round((totalScheduled / totals.retainerAccounts) * 100) : 0;
+const sentimentDot = (s: string | null) => {
+  if (!s) return <span className="text-muted-foreground text-xs">—</span>;
+  const colors: Record<string, string> = { Green: "bg-positive", Yellow: "bg-warning", Red: "bg-destructive" };
+  return <span className={cn("w-3 h-3 rounded-full inline-block", colors[s] || "bg-muted")} title={s} />;
+};
 
-  const [expandedVsd, setExpandedVsd] = useState<string | null>(null);
+const formatCurrency = (v: number | null) => {
+  if (!v) return "—";
+  if (v >= 10000000) return `₹${(v / 10000000).toFixed(1)}Cr`;
+  if (v >= 100000) return `₹${(v / 100000).toFixed(1)}L`;
+  return `₹${v.toLocaleString("en-IN")}`;
+};
+
+// Extend MBRDeal with pod info for filtering
+interface MBRDealWithPod extends MBRDeal {
+  pod: string;
+  dealStatus: string;
+}
+
+export default function MBRTracker() {
+  const { deals, entries, loading, selectedWeek, setSelectedWeek, upsertEntry, vsdSummary, totals, refresh } = useMBRData();
+  const weekOptions = getWeekOptions();
+
+  const [activePod, setActivePod] = useState<Pod>("All");
+  const [search, setSearch] = useState("");
+  const [showClosed, setShowClosed] = useState(false);
+  const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
   const [viewDeal, setViewDeal] = useState<{ deal: MBRDeal; entry: MBREntry | null } | null>(null);
 
-  const entryMap = new Map(entries.map(e => [e.dealId, e]));
-  const toggleExpand = (vsd: string) => setExpandedVsd(prev => prev === vsd ? null : vsd);
-  const vsdDeals = expandedVsd ? deals.filter(d => d.vsd === expandedVsd) : [];
+  // Fetch pod/status info from staffing_deals
+  const [dealMeta, setDealMeta] = useState<Map<string, { pod: string; dealStatus: string }>>(new Map());
 
-  const sentimentDot = (s: string | null) => {
-    if (!s) return <span className="text-muted-foreground text-xs">—</span>;
-    const colors: Record<string, string> = { Green: "bg-positive", Yellow: "bg-warning", Red: "bg-destructive" };
-    return <span className={cn("w-3 h-3 rounded-full inline-block", colors[s] || "bg-muted")} title={s} />;
+  useEffect(() => {
+    if (deals.length === 0) return;
+    const ids = deals.map(d => d.id);
+    supabase
+      .from("staffing_deals")
+      .select("id, pod, deal_status, vsd")
+      .in("id", ids)
+      .then(({ data }) => {
+        if (!data) return;
+        const m = new Map<string, { pod: string; dealStatus: string }>();
+        for (const row of data) {
+          m.set(row.id, {
+            pod: getPodForDeal(row.vsd || "", row.pod || ""),
+            dealStatus: row.deal_status || "",
+          });
+        }
+        setDealMeta(m);
+      });
+  }, [deals]);
+
+  const entryMap = useMemo(() => new Map(entries.map(e => [e.dealId, e])), [entries]);
+
+  // Filter deals
+  const filteredDeals = useMemo(() => {
+    let d = deals;
+    if (!showClosed) {
+      d = d.filter(deal => {
+        const meta = dealMeta.get(deal.id);
+        return meta ? ACTIVE_STATUSES.has(meta.dealStatus) : true;
+      });
+    }
+    if (activePod !== "All") {
+      d = d.filter(deal => {
+        const meta = dealMeta.get(deal.id);
+        const pod = meta?.pod || "Unassigned";
+        return pod === activePod;
+      });
+    }
+    if (search) {
+      const s = search.toLowerCase();
+      d = d.filter(deal => deal.account.toLowerCase().includes(s) || deal.dealName.toLowerCase().includes(s));
+    }
+    return d;
+  }, [deals, dealMeta, activePod, search, showClosed]);
+
+  // Group by client
+  const groupedDeals = useMemo(() => {
+    const map = new Map<string, MBRDeal[]>();
+    filteredDeals.forEach(deal => {
+      const existing = map.get(deal.account) || [];
+      map.set(deal.account, [...existing, deal]);
+    });
+    return Array.from(map.entries())
+      .map(([client, deals]) => ({ client, deals }))
+      .sort((a, b) => a.client.localeCompare(b.client));
+  }, [filteredDeals]);
+
+  const toggleClient = (client: string) => {
+    setExpandedClients(prev => {
+      const next = new Set(prev);
+      if (next.has(client)) next.delete(client); else next.add(client);
+      return next;
+    });
   };
 
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-5 gap-4">
-        <MetricCard label="Retainer Accounts" value={String(totals.retainerAccounts)} />
-        <MetricCard label="MBRs Done" value={String(totals.done)} />
-        <MetricCard label="Not Done" value={String(totals.notDone)} />
-        <MetricCard label="Pending to Update" value={String(totals.pending)} />
-        <MetricCard label="Scheduling Compliance" value={`${schedCompliance}%`} />
-      </div>
+  const expandAll = () => setExpandedClients(new Set(groupedDeals.map(g => g.client)));
+  const collapseAll = () => setExpandedClients(new Set());
 
-      <div className="data-card p-0 overflow-hidden">
-        <table className="w-full text-ui">
-          <thead>
-            <tr className="border-b border-border bg-secondary/30">
-              <th className="w-8" />
-              {["VSD", "Accounts", "Done", "Not Done", "Pending", "🟢", "🟡", "🔴", "Scheduled"].map(h => (
-                <th key={h} className="text-left py-3 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {vsdSummary.map(v => (
-              <>
-                <tr
-                  key={v.vsd}
-                  className="border-b border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer"
-                  onClick={() => toggleExpand(v.vsd)}
-                >
-                  <td className="py-3 px-2 text-center">
-                    {expandedVsd === v.vsd
-                      ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                      : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-                  </td>
-                  <td className="py-3 px-3 font-semibold text-foreground">{v.vsd}</td>
-                  <td className="py-3 px-3 font-mono tabular-nums text-foreground">{v.retainerAccounts}</td>
-                  <td className="py-3 px-3 font-mono tabular-nums text-positive font-semibold">{v.done}</td>
-                  <td className="py-3 px-3 font-mono tabular-nums text-destructive font-semibold">{v.notDone}</td>
-                  <td className="py-3 px-3 font-mono tabular-nums text-warning font-semibold">{v.pending}</td>
-                  <td className="py-3 px-3 font-mono tabular-nums text-positive">{v.greenCount}</td>
-                  <td className="py-3 px-3 font-mono tabular-nums text-warning">{v.yellowCount}</td>
-                  <td className="py-3 px-3 font-mono tabular-nums text-destructive">{v.redCount}</td>
-                  <td className="py-3 px-3 font-mono tabular-nums text-foreground">{v.scheduledCount}/{v.retainerAccounts}</td>
-                </tr>
-                {expandedVsd === v.vsd && vsdDeals.map(d => {
-                  const entry = entryMap.get(d.id);
-                  const status = entry?.status || "Pending";
-                  const rgyDotColor = getWorstRGY(rgyMap.get(d.id));
-                  return (
-                    <tr
-                      key={`deal-${d.id}`}
-                      className="border-b border-border/30 bg-secondary/10 hover:bg-secondary/20 transition-colors cursor-pointer"
-                      onClick={() => setViewDeal({ deal: d, entry: entry || null })}
-                    >
-                      <td />
-                      <td className="py-2 px-3 pl-8 text-sm text-muted-foreground flex items-center gap-2">
-                        <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", rgyDotColor)} title="Overall RGY" />
-                        {d.account}
-                      </td>
-                      <td className="py-2 px-3 text-xs text-muted-foreground truncate max-w-[120px]">{d.dealName}</td>
-                      <td className="py-2 px-3">
-                        <span className={cn(
-                          "text-xs font-semibold rounded px-1.5 py-0.5",
-                          status === "Done" && "bg-positive/15 text-positive",
-                          status === "Not Done" && "bg-destructive/15 text-destructive",
-                          status === "Pending" && "bg-warning/15 text-warning",
-                          status === "Not Required" && "bg-muted text-muted-foreground",
-                        )}>{status}</span>
-                      </td>
-                      <td />
-                      <td />
-                      <td className="py-2 px-3">{sentimentDot(entry?.sentiment ?? null)}</td>
-                      <td />
-                      <td />
-                      <td className="py-2 px-3 text-xs text-muted-foreground">{entry?.scheduledDate || "—"}</td>
-                    </tr>
-                  );
-                })}
-              </>
-            ))}
-          </tbody>
-        </table>
-      </div>
+  // KPIs from filtered deals
+  const kpis = useMemo(() => {
+    const filteredIds = new Set(filteredDeals.map(d => d.id));
+    const filteredEntries = entries.filter(e => filteredIds.has(e.dealId));
+    const done = filteredEntries.filter(e => e.status === "Done").length;
+    const notDone = filteredEntries.filter(e => e.status === "Not Done").length;
+    const pending = filteredDeals.length - filteredEntries.filter(e => ["Done", "Not Done", "Not Required"].includes(e.status)).length;
+    const compliance = filteredDeals.length > 0 ? Math.round((done / filteredDeals.length) * 100) : 0;
+    return { retainerAccounts: filteredDeals.length, done, notDone, pending, compliance };
+  }, [filteredDeals, entries]);
 
-      {viewDeal && (
-        <MBRDetailDialog
-          open={!!viewDeal}
-          onClose={() => setViewDeal(null)}
-          deal={viewDeal.deal}
-          entry={viewDeal.entry}
-          onSave={onSave}
-        />
-      )}
-    </div>
-  );
-}
-
-// ── Deal-Level Tracker Tab ───────────────────────────────────────────────────
-function DealTrackerTab({
-  deals, entries, onSave
-}: {
-  deals: MBRDeal[]; entries: MBREntry[];
-  onSave: (params: any) => Promise<void>;
-}) {
-  const [filterVsd, setFilterVsd] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [viewDeal, setViewDeal] = useState<{ deal: MBRDeal; entry: MBREntry | null } | null>(null);
-
-  const entryMap = new Map(entries.map((e) => [e.dealId, e]));
-  const vsds = [...new Set(deals.map(d => d.vsd))].sort();
-
-  const filtered = deals.filter(d => {
-    if (filterVsd !== "all" && d.vsd !== filterVsd) return false;
-    if (filterStatus !== "all") {
-      const entry = entryMap.get(d.id);
-      const st = entry?.status || "Pending";
-      if (filterStatus !== st) return false;
-    }
-    return true;
-  });
+  const handleSave = async (params: any) => {
+    await upsertEntry(params);
+    await refresh();
+  };
 
   const handleRowClick = (deal: MBRDeal) => {
     const entry = entryMap.get(deal.id);
     setViewDeal({ deal, entry: entry || null });
   };
 
-  const formatCurrency = (v: number | null) => {
-    if (!v) return "—";
-    if (v >= 10000000) return `₹${(v / 10000000).toFixed(1)}Cr`;
-    if (v >= 100000) return `₹${(v / 100000).toFixed(1)}L`;
-    return `₹${v.toLocaleString("en-IN")}`;
-  };
+  // VSD insights from filtered deals
+  const vsdInsights = useMemo(() => {
+    const vsdMap = new Map<string, { vsd: string; total: number; done: number; notDone: number; pending: number; green: number; yellow: number; red: number; scheduled: number }>();
+    const filteredIds = new Set(filteredDeals.map(d => d.id));
 
-  const sentimentDot = (s: string | null) => {
-    if (!s) return null;
-    const colors: Record<string, string> = { Green: "bg-positive", Yellow: "bg-warning", Red: "bg-destructive" };
-    return <span className={cn("w-3.5 h-3.5 rounded-full inline-block", colors[s] || "bg-muted")} title={s} />;
-  };
+    for (const deal of filteredDeals) {
+      const v = deal.vsd || "Unknown";
+      if (!vsdMap.has(v)) vsdMap.set(v, { vsd: v, total: 0, done: 0, notDone: 0, pending: 0, green: 0, yellow: 0, red: 0, scheduled: 0 });
+      const s = vsdMap.get(v)!;
+      s.total++;
+      const entry = entryMap.get(deal.id);
+      if (entry) {
+        if (entry.status === "Done") s.done++;
+        else if (entry.status === "Not Done") s.notDone++;
+        if (entry.sentiment === "Green") s.green++;
+        else if (entry.sentiment === "Yellow") s.yellow++;
+        else if (entry.sentiment === "Red") s.red++;
+        if (entry.scheduledDate) s.scheduled++;
+      }
+    }
 
-  return (
-    <div className="space-y-4">
-      <div className="flex gap-3">
-        <Select value={filterVsd} onValueChange={setFilterVsd}>
-          <SelectTrigger className="w-48"><SelectValue placeholder="Filter by VSD" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All VSDs</SelectItem>
-            {vsds.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-48"><SelectValue placeholder="Filter by Status" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            <SelectItem value="Done">Done</SelectItem>
-            <SelectItem value="Not Done">Not Done</SelectItem>
-            <SelectItem value="Not Required">Not Required</SelectItem>
-            <SelectItem value="Pending">Pending</SelectItem>
-          </SelectContent>
-        </Select>
-        <span className="text-caption text-muted-foreground self-center ml-2">{filtered.length} deals</span>
-      </div>
+    // Calculate pending
+    for (const s of vsdMap.values()) {
+      s.pending = s.total - s.done - s.notDone;
+    }
 
-      <div className="data-card p-0 overflow-auto max-h-[65vh]">
-        <table className="w-full text-ui">
-          <thead className="sticky top-0 z-10">
-            <tr className="border-b border-border bg-secondary/60 backdrop-blur">
-              {["PC Code", "Account", "Deal Name", "VSD", "Sr. BOPM", "MRR", "Status", "Sentiment", "Scheduled", "Anirudh Added", "Anirudh Joining", ""].map(h => (
-                <th key={h} className="text-left py-3 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider whitespace-nowrap">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map(d => {
-              const entry = entryMap.get(d.id);
-              const status = entry?.status || "Pending";
-              return (
-                <tr
-                  key={d.id}
-                  className="border-b border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer group"
-                  onClick={() => handleRowClick(d)}
-                >
-                  <td className="py-2.5 px-3 font-mono text-accent text-caption">{d.pcCode}</td>
-                  <td className="py-2.5 px-3 font-medium text-foreground max-w-[140px] truncate">{d.account}</td>
-                  <td className="py-2.5 px-3 text-muted-foreground max-w-[160px] truncate text-caption">{d.dealName}</td>
-                  <td className="py-2.5 px-3 text-foreground whitespace-nowrap">{d.vsd}</td>
-                  <td className="py-2.5 px-3 text-muted-foreground whitespace-nowrap">{d.seniorBopm}</td>
-                  <td className="py-2.5 px-3 font-mono tabular-nums text-foreground whitespace-nowrap">{formatCurrency(d.mrr)}</td>
-                  <td className="py-2.5 px-3">
-                    <span className={cn(
-                      "text-caption font-semibold rounded px-2 py-1 inline-block",
-                      status === "Done" && "bg-positive/15 text-positive",
-                      status === "Not Done" && "bg-destructive/15 text-destructive",
-                      status === "Not Required" && "bg-muted text-muted-foreground",
-                      status === "Pending" && "bg-warning/15 text-warning",
-                    )}>{status}</span>
-                  </td>
-                  <td className="py-2.5 px-3 text-center">{sentimentDot(entry?.sentiment ?? null)}</td>
-                  <td className="py-2.5 px-3 text-caption text-muted-foreground whitespace-nowrap">{entry?.scheduledDate || "—"}</td>
-                  <td className="py-2.5 px-3 text-center">{entry?.anirudhAdded ? <span className="text-positive font-bold">✓</span> : <span className="text-muted-foreground">✗</span>}</td>
-                  <td className="py-2.5 px-3 text-center">{entry?.anirudhJoining ? <span className="text-positive font-bold">✓</span> : <span className="text-muted-foreground">✗</span>}</td>
-                  <td className="py-2.5 px-3">
-                    <span className="opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Eye className="h-4 w-4 text-muted-foreground" />
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {viewDeal && (
-        <MBRDetailDialog
-          open={!!viewDeal}
-          onClose={() => setViewDeal(null)}
-          deal={viewDeal.deal}
-          entry={viewDeal.entry}
-          onSave={onSave}
-        />
-      )}
-    </div>
-  );
-}
-
-// ── History Tab ──────────────────────────────────────────────────────────────
-function HistoryTab({ deals, selectedWeek }: { deals: MBRDeal[]; selectedWeek: string }) {
-  const weeks = getWeekOptions().slice(0, 8);
-  const [historyData, setHistoryData] = useState<Record<string, any[]>>({});
-  const [loaded, setLoaded] = useState(false);
-
-  if (!loaded) {
-    import("@/integrations/supabase/client").then(({ supabase }) => {
-      const weekValues = weeks.map(w => w.value);
-      supabase.from("mbr_entries").select("*").in("week_start", weekValues).then(({ data }) => {
-        if (data) {
-          const grouped: Record<string, any[]> = {};
-          for (const e of data) {
-            if (!grouped[e.week_start]) grouped[e.week_start] = [];
-            grouped[e.week_start].push(e);
-          }
-          setHistoryData(grouped);
-        }
-        setLoaded(true);
-      });
-    });
-  }
-
-  const totalDeals = deals.length;
-
-  return (
-    <div className="space-y-6">
-      <div className="data-card p-6">
-        <h3 className="text-ui font-semibold text-foreground mb-4">Weekly Completion Trend</h3>
-        <div className="space-y-3">
-          {weeks.map(w => {
-            const weekEntries = historyData[w.value] || [];
-            const done = weekEntries.filter((e: any) => e.status === "Done").length;
-            const rate = totalDeals > 0 ? Math.round((done / totalDeals) * 100) : 0;
-            const isCurrent = w.value === selectedWeek;
-            return (
-              <div key={w.value} className={cn("flex items-center gap-4 p-3 rounded-lg", isCurrent && "bg-accent/10 border border-accent/20")}>
-                <span className="w-48 text-caption text-muted-foreground">{w.label}</span>
-                <div className="flex-1 bg-muted rounded-full h-4 overflow-hidden">
-                  <div className="bg-positive h-full rounded-full transition-all" style={{ width: `${rate}%` }} />
-                </div>
-                <span className="font-mono text-ui font-semibold text-foreground w-16 text-right">{rate}%</span>
-                <span className="text-caption text-muted-foreground w-20">{done}/{totalDeals}</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Main Component ───────────────────────────────────────────────────────────
-export default function MBRTracker() {
-  const { deals, entries, loading, selectedWeek, setSelectedWeek, upsertEntry, vsdSummary, totals, refresh } = useMBRData();
-  const weekOptions = getWeekOptions();
-
-  // Fetch latest RGY data for all deals
-  const [rgyMap, setRgyMap] = useState<Map<string, Record<string, string>>>(new Map());
-
-  useEffect(() => {
-    if (deals.length === 0) return;
-    const dealIds = deals.map(d => d.id);
-    supabase
-      .from("deal_rgy_weekly")
-      .select("deal_id, customer, internal, content, seo, supply, copy, design, video, week_start")
-      .in("deal_id", dealIds)
-      .order("week_start", { ascending: false })
-      .then(({ data }) => {
-        if (!data) return;
-        const map = new Map<string, Record<string, string>>();
-        for (const row of data) {
-          if (!map.has(row.deal_id)) {
-            map.set(row.deal_id, {
-              customer: row.customer,
-              internal: row.internal,
-              content: row.content,
-              seo: row.seo,
-              supply: row.supply,
-              copy: row.copy,
-              design: row.design,
-              video: row.video,
-            });
-          }
-        }
-        setRgyMap(map);
-      });
-  }, [deals]);
-
-  const handleSave = async (params: any) => {
-    await upsertEntry(params);
-    await refresh();
-  };
+    return Array.from(vsdMap.values()).sort((a, b) => b.total - a.total);
+  }, [filteredDeals, entryMap]);
 
   if (loading) {
     return (
@@ -375,11 +190,14 @@ export default function MBRTracker() {
 
   return (
     <AppLayout>
-      <div className="p-8">
-        <div className="flex items-center justify-between mb-6">
+      <div className="p-5">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-1">
           <div>
-            <h1 className="text-subhead font-semibold tracking-tight text-foreground mb-1">MBR Tracker</h1>
-            <p className="text-ui text-muted-foreground">Weekly Business Review completion tracking</p>
+            <h1 className="text-subhead font-bold tracking-tight text-foreground">MBR Tracker</h1>
+            <p className="text-ui text-muted-foreground mt-0.5">
+              {kpis.retainerAccounts} retainer accounts • Weekly Business Review tracking
+            </p>
           </div>
           <Select value={selectedWeek} onValueChange={setSelectedWeek}>
             <SelectTrigger className="w-64"><SelectValue placeholder="Select week" /></SelectTrigger>
@@ -389,26 +207,197 @@ export default function MBRTracker() {
           </Select>
         </div>
 
-        <Tabs defaultValue="summary" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="summary" className="gap-1.5"><BarChart3 className="h-3.5 w-3.5" /> VSD Summary</TabsTrigger>
-            <TabsTrigger value="deals" className="gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" /> Deal Tracker</TabsTrigger>
-            <TabsTrigger value="history" className="gap-1.5"><Clock className="h-3.5 w-3.5" /> History</TabsTrigger>
-          </TabsList>
+        {/* KPI Strip */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3">
+          <MetricCard label="Retainer Accounts" value={String(kpis.retainerAccounts)} />
+          <MetricCard label="Done" value={String(kpis.done)} />
+          <MetricCard label="Not Done" value={String(kpis.notDone)} />
+          <MetricCard label="Pending" value={String(kpis.pending)} />
+          <MetricCard label="Compliance" value={`${kpis.compliance}%`} />
+        </div>
 
-          <TabsContent value="summary">
-            <VSDSummaryTab vsdSummary={vsdSummary} totals={totals} deals={deals} entries={entries} onSave={handleSave} rgyMap={rgyMap} />
-          </TabsContent>
+        {/* Filters */}
+        <div className="flex items-center gap-4 mb-3 flex-wrap">
+          <div className="flex gap-1 bg-secondary rounded-lg p-1">
+            {PODS.map(pod => (
+              <button key={pod} onClick={() => setActivePod(pod)} className={cn(
+                "px-3 py-1.5 rounded-md text-caption font-medium whitespace-nowrap transition-colors",
+                activePod === pod ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}>{pod}</button>
+            ))}
+          </div>
 
-          <TabsContent value="deals">
-            <DealTrackerTab deals={deals} entries={entries} onSave={handleSave} />
-          </TabsContent>
+          <div className="relative flex-1 max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input type="text" placeholder="Search clients or deals..." value={search} onChange={e => setSearch(e.target.value)}
+              className="w-full h-9 pl-9 pr-3 rounded-lg bg-card border border-border text-ui text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all" />
+          </div>
 
-          <TabsContent value="history">
-            <HistoryTab deals={deals} selectedWeek={selectedWeek} />
-          </TabsContent>
-        </Tabs>
+          <label className="flex items-center gap-2 text-ui text-muted-foreground cursor-pointer">
+            <input type="checkbox" checked={showClosed} onChange={e => setShowClosed(e.target.checked)} className="rounded border-border" />
+            Show closed/completed
+          </label>
+
+          <Button variant="ghost" size="sm" onClick={() => expandedClients.size === groupedDeals.length ? collapseAll() : expandAll()} className="text-xs gap-1 text-muted-foreground">
+            <ChevronsUpDown className="h-3.5 w-3.5" />
+            {expandedClients.size === groupedDeals.length ? "Collapse All" : "Expand All"}
+          </Button>
+        </div>
+
+        {/* Client-Grouped Accordion Table */}
+        <div className="bg-card border border-border rounded-xl overflow-hidden mb-6">
+          <div className="overflow-x-auto">
+            <table className="w-full text-ui">
+              <thead>
+                <tr className="bg-secondary/40 border-b border-border">
+                  <th className="w-8 py-2 px-3"></th>
+                  <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Deal Name</th>
+                  <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">VSD</th>
+                  <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Sr. BOPM</th>
+                  <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">MRR</th>
+                  <th className="text-center py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Status</th>
+                  <th className="text-center py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Sentiment</th>
+                  <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Scheduled</th>
+                  <th className="text-center py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Anirudh</th>
+                  <th className="w-8"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {groupedDeals.map(({ client, deals: clientDeals }) => {
+                  const isExpanded = expandedClients.has(client);
+                  const clientDone = clientDeals.filter(d => entryMap.get(d.id)?.status === "Done").length;
+                  const clientNotDone = clientDeals.filter(d => entryMap.get(d.id)?.status === "Not Done").length;
+
+                  return (
+                    <React.Fragment key={client}>
+                      <tr
+                        className="border-b border-border bg-secondary/20 hover:bg-secondary/40 cursor-pointer transition-colors"
+                        onClick={() => toggleClient(client)}
+                      >
+                        <td className="py-2 px-3">
+                          {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                        </td>
+                        <td className="py-2 px-3" colSpan={4}>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-foreground">{client}</span>
+                            <span className="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
+                              {clientDeals.length} deal{clientDeals.length !== 1 ? "s" : ""}
+                            </span>
+                          </div>
+                        </td>
+                        <td colSpan={5} className="py-2 px-3">
+                          <div className="flex items-center gap-3 justify-end">
+                            {clientDone > 0 && <span className="text-[10px] font-medium text-positive">{clientDone} Done</span>}
+                            {clientNotDone > 0 && <span className="text-[10px] font-medium text-destructive">{clientNotDone} Not Done</span>}
+                            {clientDone === 0 && clientNotDone === 0 && <span className="text-[10px] text-muted-foreground">Pending</span>}
+                          </div>
+                        </td>
+                      </tr>
+
+                      {isExpanded && clientDeals.map(deal => {
+                        const entry = entryMap.get(deal.id);
+                        const status = entry?.status || "Pending";
+                        return (
+                          <tr
+                            key={deal.id}
+                            className="border-b border-border/50 hover:bg-accent/10 transition-colors cursor-pointer group"
+                            onClick={() => handleRowClick(deal)}
+                          >
+                            <td className="py-2 px-3"></td>
+                            <td className="py-2 px-3 pl-6">
+                              <span className="text-primary text-xs font-medium">{deal.dealName}</span>
+                            </td>
+                            <td className="py-2 px-3 text-xs text-foreground whitespace-nowrap">{deal.vsd}</td>
+                            <td className="py-2 px-3 text-xs text-muted-foreground whitespace-nowrap">{deal.seniorBopm}</td>
+                            <td className="py-2 px-3 text-xs font-mono tabular-nums text-foreground">{formatCurrency(deal.mrr)}</td>
+                            <td className="py-2 px-3 text-center">
+                              <span className={cn(
+                                "text-[10px] font-semibold rounded px-2 py-1 inline-block",
+                                status === "Done" && "bg-positive/15 text-positive",
+                                status === "Not Done" && "bg-destructive/15 text-destructive",
+                                status === "Not Required" && "bg-muted text-muted-foreground",
+                                status === "Pending" && "bg-warning/15 text-warning",
+                              )}>{status}</span>
+                            </td>
+                            <td className="py-2 px-3 text-center">{sentimentDot(entry?.sentiment ?? null)}</td>
+                            <td className="py-2 px-3 text-xs text-muted-foreground whitespace-nowrap">{entry?.scheduledDate || "—"}</td>
+                            <td className="py-2 px-3 text-center">
+                              <div className="flex items-center gap-1 justify-center">
+                                {entry?.anirudhAdded ? <span className="text-positive font-bold text-[10px]">A</span> : null}
+                                {entry?.anirudhJoining ? <span className="text-positive font-bold text-[10px]">J</span> : null}
+                                {!entry?.anirudhAdded && !entry?.anirudhJoining && <span className="text-muted-foreground text-xs">—</span>}
+                              </div>
+                            </td>
+                            <td className="py-2 px-3">
+                              <span className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Eye className="h-4 w-4 text-muted-foreground" />
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {groupedDeals.length === 0 && (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">No deals found matching your filters.</p>
+            </div>
+          )}
+        </div>
+
+        {/* VSD Insights Table */}
+        <div>
+          <h2 className="text-sm font-semibold text-foreground mb-2">VSD Insights</h2>
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <table className="w-full text-ui">
+              <thead>
+                <tr className="bg-secondary/40 border-b border-border">
+                  {["VSD", "Accounts", "Done", "Not Done", "Pending", "🟢", "🟡", "🔴", "Scheduled"].map(h => (
+                    <th key={h} className="text-left py-2.5 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {vsdInsights.map(v => {
+                  const schedCompliance = v.total > 0 ? `${v.scheduled}/${v.total}` : "—";
+                  return (
+                    <tr key={v.vsd} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
+                      <td className="py-2.5 px-3 font-semibold text-foreground text-xs">{v.vsd}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-foreground text-xs">{v.total}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-positive font-semibold text-xs">{v.done}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-destructive font-semibold text-xs">{v.notDone}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-warning font-semibold text-xs">{v.pending}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-positive text-xs">{v.green}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-warning text-xs">{v.yellow}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-destructive text-xs">{v.red}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-foreground text-xs">{schedCompliance}</td>
+                    </tr>
+                  );
+                })}
+                {vsdInsights.length === 0 && (
+                  <tr><td colSpan={9} className="text-center py-8 text-muted-foreground">No data</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
+
+      {/* MBR Detail Dialog */}
+      {viewDeal && (
+        <MBRDetailDialog
+          open={!!viewDeal}
+          onClose={() => setViewDeal(null)}
+          deal={viewDeal.deal}
+          entry={viewDeal.entry}
+          onSave={handleSave}
+        />
+      )}
     </AppLayout>
   );
 }
