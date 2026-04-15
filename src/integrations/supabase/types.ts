@@ -396,10 +396,12 @@ export type Database = {
           estimated_hours: number
           id: string
           logged_hours: number
+          phase: string
           sort_order: number
           stage: string
           start_date: string | null
           subtasks: Json
+          tags: string[] | null
           title: string
           updated_at: string
           urgency: string
@@ -413,10 +415,12 @@ export type Database = {
           estimated_hours?: number
           id?: string
           logged_hours?: number
+          phase?: string
           sort_order?: number
           stage?: string
           start_date?: string | null
           subtasks?: Json
+          tags?: string[] | null
           title?: string
           updated_at?: string
           urgency?: string
@@ -430,10 +434,12 @@ export type Database = {
           estimated_hours?: number
           id?: string
           logged_hours?: number
+          phase?: string
           sort_order?: number
           stage?: string
           start_date?: string | null
           subtasks?: Json
+          tags?: string[] | null
           title?: string
           updated_at?: string
           urgency?: string
