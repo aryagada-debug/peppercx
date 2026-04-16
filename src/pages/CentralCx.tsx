@@ -73,6 +73,7 @@ export default function CentralCx() {
   const [membersOpen, setMembersOpen] = useState(false);
   const [statusMgrOpen, setStatusMgrOpen] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Collect all unique tags across tasks
   const allTags = Array.from(new Set(tasks.flatMap(t => t.tags || [])));
