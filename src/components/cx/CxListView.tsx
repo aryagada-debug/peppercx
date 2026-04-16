@@ -2,9 +2,8 @@ import React, { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Plus, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Progress } from "@/components/ui/progress";
 import { CxTaskFormDialog } from "@/components/cx/CxTaskFormDialog";
 import type { CxTask, CxStatus, CxSpace } from "@/pages/CentralCx";
 
@@ -18,12 +17,11 @@ interface Props {
   onAddTask: (task: Partial<CxTask> & { space_id: string; title: string }) => void;
 }
 
-const priorityColors: Record<string, string> = {
-  Urgent: "bg-red-500/15 text-red-700",
+const URGENCY_COLORS: Record<string, string> = {
+  Critical: "bg-destructive/15 text-destructive",
   High: "bg-orange-500/15 text-orange-700",
-  Normal: "bg-blue-500/15 text-blue-700",
+  Medium: "bg-blue-500/15 text-blue-700",
   Low: "bg-muted text-muted-foreground",
-  None: "bg-muted text-muted-foreground",
 };
 
 export function CxListView({ tasks, statuses, spaces, selectedSpaceId, onUpdateTask, onDeleteTask, onAddTask }: Props) {
@@ -44,8 +42,9 @@ export function CxListView({ tasks, statuses, spaces, selectedSpaceId, onUpdateT
             <th className="text-left py-2 px-2 font-medium">Name</th>
             {!selectedSpaceId && <th className="text-left py-2 px-2 font-medium">Space</th>}
             <th className="text-left py-2 px-2 font-medium">Status</th>
-            <th className="text-left py-2 px-2 font-medium">Priority</th>
+            <th className="text-left py-2 px-2 font-medium">Urgency</th>
             <th className="text-left py-2 px-2 font-medium">Assignee</th>
+            <th className="text-left py-2 px-2 font-medium">Hours</th>
             <th className="text-left py-2 px-2 font-medium">Start</th>
             <th className="text-left py-2 px-2 font-medium">End</th>
             <th className="w-8" />
@@ -55,6 +54,9 @@ export function CxListView({ tasks, statuses, spaces, selectedSpaceId, onUpdateT
           {tasks.map(task => {
             const space = spaces.find(s => s.id === task.space_id);
             const statusObj = statuses.find(s => s.label === task.status);
+            const hoursProgress = task.estimated_hours > 0
+              ? Math.min(100, (task.logged_hours / task.estimated_hours) * 100)
+              : 0;
             return (
               <tr
                 key={task.id}
@@ -69,11 +71,23 @@ export function CxListView({ tasks, statuses, spaces, selectedSpaceId, onUpdateT
                   </Badge>
                 </td>
                 <td className="py-2 px-2">
-                  <Badge variant="outline" className={cn("text-[10px]", priorityColors[task.priority || "None"])}>
-                    {task.priority || "None"}
+                  <Badge variant="outline" className={cn("text-[10px]", URGENCY_COLORS[task.urgency || "Medium"])}>
+                    {task.urgency || "Medium"}
                   </Badge>
                 </td>
                 <td className="py-2 px-2 text-muted-foreground">{task.assignee || "—"}</td>
+                <td className="py-2 px-2">
+                  {task.estimated_hours > 0 ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono text-muted-foreground">{task.logged_hours}/{task.estimated_hours}h</span>
+                      <Progress value={hoursProgress} className="h-1.5 w-16" />
+                    </div>
+                  ) : task.logged_hours > 0 ? (
+                    <span className="text-xs font-mono text-primary">{task.logged_hours}h</span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
+                </td>
                 <td className="py-2 px-2 text-muted-foreground">{task.start_date || "—"}</td>
                 <td className="py-2 px-2 text-muted-foreground">{task.end_date || "—"}</td>
                 <td className="py-2 px-2">
@@ -115,6 +129,10 @@ export function CxListView({ tasks, statuses, spaces, selectedSpaceId, onUpdateT
           onClose={() => setEditingTask(null)}
           onSave={(updates) => {
             onUpdateTask(editingTask.id, updates);
+            setEditingTask(null);
+          }}
+          onDelete={() => {
+            onDeleteTask(editingTask.id);
             setEditingTask(null);
           }}
         />

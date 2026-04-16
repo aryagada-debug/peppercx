@@ -186,48 +186,63 @@ export type Database = {
       cx_tasks: {
         Row: {
           assignee: string
+          auto_regen: boolean
           created_at: string
           description: string
           end_date: string | null
+          estimated_hours: number
           id: string
+          logged_hours: number
           priority: string
           sort_order: number
           space_id: string
           start_date: string | null
           status: string
+          subtasks: Json
           tags: string[] | null
           title: string
           updated_at: string
+          urgency: string
         }
         Insert: {
           assignee?: string
+          auto_regen?: boolean
           created_at?: string
           description?: string
           end_date?: string | null
+          estimated_hours?: number
           id?: string
+          logged_hours?: number
           priority?: string
           sort_order?: number
           space_id: string
           start_date?: string | null
           status?: string
+          subtasks?: Json
           tags?: string[] | null
           title?: string
           updated_at?: string
+          urgency?: string
         }
         Update: {
           assignee?: string
+          auto_regen?: boolean
           created_at?: string
           description?: string
           end_date?: string | null
+          estimated_hours?: number
           id?: string
+          logged_hours?: number
           priority?: string
           sort_order?: number
           space_id?: string
           start_date?: string | null
           status?: string
+          subtasks?: Json
           tags?: string[] | null
           title?: string
           updated_at?: string
+          urgency?: string
         }
         Relationships: [
           {
