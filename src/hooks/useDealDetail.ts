@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { FinancialRow } from "@/components/deals/FinancialsTab";
 import type { DealTask } from "@/components/deals/TaskKanban";
@@ -481,6 +482,33 @@ export function useDealDetail(dealId: string | undefined) {
     await supabase.from("mbr_entries").delete().eq("id", id);
   }, []);
 
+  const quickUpdateMBRField = useCallback(async (entryId: string, field: string, value: any) => {
+    const dbFieldMap: Record<string, string> = {
+      status: "status",
+      sentiment: "sentiment",
+      mode: "mode",
+      scheduledDate: "scheduled_date",
+      fathomLink: "fathom_link",
+      mbrPptLink: "mbr_ppt_link",
+      notes: "notes",
+    };
+    const dbField = dbFieldMap[field];
+    if (!dbField) return;
+
+    // Optimistic update
+    setMbrEntries(prev => prev.map(e => e.id === entryId ? { ...e, [field]: value } : e));
+
+    const updateObj: any = { [dbField]: value };
+    if (field === "status" && value === "Done") updateObj.input_recorded_at = new Date().toISOString();
+    
+    const { error } = await supabase.from("mbr_entries").update(updateObj).eq("id", entryId);
+    if (error) {
+      toast.error("Failed to update");
+      // Revert
+      setMbrEntries(prev => [...prev]);
+    }
+  }, []);
+
   return {
     sowItems, revenue, targets, rgyWeekly, onboarding, financials, tasks, mbrEntries, loading,
     addSoWItem, updateSoWItem, deleteSoWItem,
@@ -488,7 +516,7 @@ export function useDealDetail(dealId: string | undefined) {
     addRGYWeek, updateRGYWeek,
     addFinancial, updateFinancial, deleteFinancial,
     addTask, addTasksBulk, updateTask, deleteTask,
-    upsertMBREntry, deleteMBREntry,
+    upsertMBREntry, deleteMBREntry, quickUpdateMBRField,
     refresh: loadAll,
   };
 }
