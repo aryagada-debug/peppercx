@@ -52,6 +52,188 @@ export function departmentToRoleCategory(dept: string): RoleCategory {
   return map[dept] || "Other";
 }
 
+export interface RoleSlot {
+  roleKey: string;
+  roleLabel: string;
+  category: RoleCategory;
+}
+
+export interface StaffingAssignment {
+  id: string;
+  dealId: string;
+  roleKey: string;
+  personId: string;
+  allocationPct: number;
+}
+
+export interface Deal {
+  id: string;
+  pcCode: string;
+  dealId: string;
+  businessUnit: string;
+  capabilityLine: string;
+  account: string;
+  dealName: string;
+  dealType: "Retainer" | "Non-Retainer" | "Pilot";
+  dealStatus: string;
+  staffingStatus: string;
+  validation: string;
+  dealStatusCx: string;
+  vsd: string;
+  seoStaffing: boolean;
+  creativeStaffing: boolean;
+  mrr?: number;
+  duration?: string;
+  retainerDealValue?: number;
+  nonRetainerDealValue?: number;
+  totalDealValue?: number;
+  principalBopm?: string;
+  seniorBopm?: string;
+  bopm?: string;
+  customerStatus?: string;
+  customerType?: string;
+  serviceLineTagging?: string;
+  dealValueLost?: number;
+  netDealValue?: number;
+  rag?: string;
+  pod?: string;
+  startDate?: string;
+  endDate?: string;
+  paymentTerms?: string;
+  pepperBusinessUnit?: string;
+  projectedOutcomes?: any[];
+  successMetrics?: any[];
+  baselineMetrics?: string;
+  clientId?: string;
+}
+
+export interface BWRule {
+  id: string;
+  capability: string;
+  region: string;
+  mrrTierLabel: string;
+  mrrMin: number;
+  mrrMax: number;
+  roleKey: string;
+  recommendedPct: number;
+}
+
+export interface HiringNeed {
+  id: string;
+  role: string;
+  roleCategory: RoleCategory;
+  pod: string;
+  priority: "Critical" | "High" | "Medium";
+  targetDate: string;
+  rationale: string;
+  status: "Open" | "In Progress" | "Filled";
+}
+
+export const DEFAULT_HIRING_NEEDS: HiringNeed[] = [
+  { id: "h1", role: "Senior BOPM", roleCategory: "Operations", pod: "Neema", priority: "Critical", targetDate: "2026-04-15", rationale: "US pod understaffed - 3 accounts without BOPM", status: "Open" },
+  { id: "h2", role: "SEO Manager", roleCategory: "SEO", pod: "SEO", priority: "High", targetDate: "2026-05-01", rationale: "Growing US account load needs additional SEO manager", status: "In Progress" },
+  { id: "h3", role: "Content Lead", roleCategory: "Content", pod: "Quality", priority: "High", targetDate: "2026-04-30", rationale: "Expanding India content operations", status: "Open" },
+  { id: "h4", role: "Jr. Designer", roleCategory: "Creative Art", pod: "Creative", priority: "Medium", targetDate: "2026-06-01", rationale: "Support growing creative workload", status: "Open" },
+  { id: "h5", role: "BOPM", roleCategory: "Operations", pod: "Sumit", priority: "Critical", targetDate: "2026-04-01", rationale: "Backfill for leaving team member", status: "In Progress" },
+];
+
+export interface RevenueCapacityTarget {
+  department: string;
+  designation: string;
+  targetDealValuePerPerson: number;
+}
+
+export const DEFAULT_REVENUE_TARGETS: RevenueCapacityTarget[] = [
+  { department: "Delivery Ops and CS", designation: "Vertical Service Delivery Leader", targetDealValuePerPerson: 15000000 },
+  { department: "Delivery Ops and CS", designation: "Group Account Manager", targetDealValuePerPerson: 8000000 },
+  { department: "Delivery Ops and CS", designation: "Principal Account Engagement Lead", targetDealValuePerPerson: 7000000 },
+  { department: "Delivery Ops and CS", designation: "Senior BOPM", targetDealValuePerPerson: 4000000 },
+  { department: "Delivery Ops and CS", designation: "BOPM", targetDealValuePerPerson: 2500000 },
+  { department: "Delivery Ops and CS", designation: "Junior BOPM", targetDealValuePerPerson: 1500000 },
+  { department: "Capability - SEO Team", designation: "SEO - Practice Head", targetDealValuePerPerson: 10000000 },
+  { department: "Capability - SEO Team", designation: "Group Head - SEO", targetDealValuePerPerson: 5000000 },
+  { department: "Capability - SEO Team", designation: "Senior SEO Manager", targetDealValuePerPerson: 3000000 },
+  { department: "Capability - SEO Team", designation: "SEO Manager", targetDealValuePerPerson: 2000000 },
+  { department: "Capability - SEO Team", designation: "Senior SEO Analyst", targetDealValuePerPerson: 1500000 },
+  { department: "Capability - Quality Team", designation: "Practice Head - Editorial", targetDealValuePerPerson: 10000000 },
+  { department: "Capability - Quality Team", designation: "Associate Director - Content", targetDealValuePerPerson: 5000000 },
+  { department: "Capability - Quality Team", designation: "Senior Content Lead", targetDealValuePerPerson: 2500000 },
+  { department: "Capability - Quality Team", designation: "Content Lead", targetDealValuePerPerson: 2000000 },
+  { department: "Capability - Creative Team", designation: "Senior Creative Director", targetDealValuePerPerson: 8000000 },
+  { department: "Capability - Creative Team", designation: "Associate Creative Director", targetDealValuePerPerson: 5000000 },
+  { department: "Capability - Creative Team", designation: "Art Director", targetDealValuePerPerson: 3000000 },
+  { department: "Capability - Video Production Team", designation: "Executive Producer", targetDealValuePerPerson: 5000000 },
+  { department: "Capability - Video Production Team", designation: "Creative Producer", targetDealValuePerPerson: 3000000 },
+];
+
+export const ROLE_SLOTS: RoleSlot[] = [
+  { roleKey: "vsd", roleLabel: "VSD", category: "Operations" },
+  { roleKey: "principal_bopm", roleLabel: "Principal BOPM", category: "Operations" },
+  { roleKey: "senior_bopm", roleLabel: "Senior BOPM", category: "Operations" },
+  { roleKey: "bopm", roleLabel: "BOPM", category: "Operations" },
+  { roleKey: "managing_editor", roleLabel: "Managing Editor", category: "Content" },
+  { roleKey: "content_lead", roleLabel: "Content Lead", category: "Content" },
+  { roleKey: "senior_editor", roleLabel: "Senior Editor", category: "Content" },
+  { roleKey: "seo_leader", roleLabel: "SEO Leader", category: "SEO" },
+  { roleKey: "seo_group_head", roleLabel: "Group Head", category: "SEO" },
+  { roleKey: "sr_seo_manager", roleLabel: "Sr. SEO Manager", category: "SEO" },
+  { roleKey: "seo_manager", roleLabel: "SEO Manager", category: "SEO" },
+  { roleKey: "sr_seo_analyst", roleLabel: "Sr. SEO Analyst", category: "SEO" },
+  { roleKey: "seo_analyst", roleLabel: "SEO Analyst", category: "SEO" },
+  { roleKey: "strategy_cd", roleLabel: "Strategy CD", category: "Creative Strategy" },
+  { roleKey: "strategy_acd", roleLabel: "Strategy ACD", category: "Creative Strategy" },
+  { roleKey: "strategy_sr", roleLabel: "Sr. Strategist", category: "Creative Strategy" },
+  { roleKey: "cd_copy", roleLabel: "CD - Copy", category: "Creative Copy" },
+  { roleKey: "acd_copy", roleLabel: "ACD - Copy", category: "Creative Copy" },
+  { roleKey: "sr_copywriter", roleLabel: "Sr. Copywriter", category: "Creative Copy" },
+  { roleKey: "jr_copywriter", roleLabel: "Jr. Copywriter", category: "Creative Copy" },
+  { roleKey: "sr_cd_art", roleLabel: "Sr. CD - Art", category: "Creative Art" },
+  { roleKey: "acd_art", roleLabel: "ACD - Art", category: "Creative Art" },
+  { roleKey: "art_director", roleLabel: "Art Director", category: "Creative Art" },
+  { roleKey: "sr_designer", roleLabel: "Sr. Designer", category: "Creative Art" },
+  { roleKey: "jr_designer", roleLabel: "Jr. Designer", category: "Creative Art" },
+  { roleKey: "production_head", roleLabel: "Production Head", category: "Video" },
+  { roleKey: "ad_video_pm", roleLabel: "AD - Video PM", category: "Video" },
+  { roleKey: "video_pm", roleLabel: "Video PM/ACP", category: "Video" },
+  { roleKey: "video_editor_1", roleLabel: "Video Editor 1", category: "Video" },
+  { roleKey: "video_editor_2", roleLabel: "Video Editor 2", category: "Video" },
+  { roleKey: "influencer", roleLabel: "Influencer Team", category: "Other" },
+  { roleKey: "perf_growth", roleLabel: "Performance & Growth", category: "Performance & Growth" },
+];
+
+export const ROLE_CATEGORIES: RoleCategory[] = [
+  "Operations", "Content", "Content Strategy", "SEO", "Creative Strategy", "Creative Copy", "Creative Art", "Video", "Performance & Growth", "Other"
+];
+
+export const BU_ROLE_CATEGORIES: Record<string, RoleCategory[]> = {
+  "Pepper Creative": ["Operations", "Creative Strategy", "Creative Copy", "Creative Art", "Video"],
+  "Pepper SEO/GEO + Content": ["Operations", "Content", "SEO"],
+  "Integrated": ROLE_CATEGORIES,
+  "Content Studios": ["Operations", "Content", "Video"],
+  "Others": ROLE_CATEGORIES,
+};
+
+export const getBUCategories = (bu: string): RoleCategory[] => {
+  return BU_ROLE_CATEGORIES[bu] || ROLE_CATEGORIES;
+};
+
+export const ROLE_TO_PEOPLE_FILTER: Record<string, string[]> = {
+  vsd: ["VSD"], principal_bopm: ["Principal BOPM"], senior_bopm: ["Senior BOPM"], bopm: ["BOPM"],
+  managing_editor: ["Managing Editor"], content_lead: ["Content Lead"], senior_editor: ["Senior Editor"],
+  seo_leader: ["SEO Leader"], seo_group_head: ["Group Head"], sr_seo_manager: ["Sr. SEO Manager"],
+  seo_manager: ["SEO Manager"], sr_seo_analyst: ["Sr. SEO Analyst"], seo_analyst: ["SEO Analyst"],
+  strategy_cd: ["Strategy CD"], strategy_acd: ["Strategy ACD"], strategy_sr: ["Sr. Strategist"],
+  cd_copy: ["CD - Copy"], acd_copy: ["ACD - Copy"], sr_copywriter: ["Sr. Copywriter"], jr_copywriter: ["Jr. Copywriter"],
+  sr_cd_art: ["Sr. CD - Art"], acd_art: ["ACD - Art"], art_director: ["Art Director"],
+  sr_designer: ["Sr. Designer"], jr_designer: ["Jr. Designer"],
+  production_head: ["Production Head"], ad_video_pm: ["AD - Video PM"], video_pm: ["Video PM/ACP"],
+  video_editor_1: ["Video Editor 1"], video_editor_2: ["Video Editor 2"],
+  influencer: ["Influencer Team"], perf_growth: ["Performance & Growth"],
+};
+
+let _uid = 0;
+export const uid = () => `id_${++_uid}_${Math.random().toString(36).slice(2, 7)}`;
+
 // ── People Data (from Google Sheet — 185 employees) ───────────────────────
 export const DEFAULT_PEOPLE: Person[] = [
   // ── Capability - Creative Team ──
