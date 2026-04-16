@@ -281,36 +281,138 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry, deleteMBREntry, 
               {sorted.map(entry => (
                 <tr
                   key={entry.id}
-                  className="border-b border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer group"
-                  onClick={() => handleRowClick(entry)}
+                  className="border-b border-border/50 hover:bg-secondary/30 transition-colors group"
                 >
-                  <td className="py-2.5 px-3 font-mono text-xs text-foreground">{entry.weekStart}</td>
-                  <td className="py-2.5 px-3">
-                    <Badge className={cn("text-xs", statusColors[entry.status] || "")}>{entry.status}</Badge>
+                  {/* Week - clickable to open dialog */}
+                  <td className="py-2.5 px-3 font-mono text-xs text-foreground cursor-pointer hover:underline" onClick={() => handleRowClick(entry)}>{entry.weekStart}</td>
+
+                  {/* Status dropdown */}
+                  <td className="py-2.5 px-3" onClick={e => e.stopPropagation()}>
+                    <Select
+                      value={entry.status || "_none"}
+                      onValueChange={v => {
+                        const newVal = v === entry.status ? null : v;
+                        quickUpdateMBRField(entry.id, "status", newVal || "Pending");
+                      }}
+                    >
+                      <SelectTrigger className="h-6 text-xs border-none bg-transparent shadow-none px-1 focus:ring-0 w-[100px]">
+                        <Badge className={cn("text-xs", statusColors[entry.status] || "")}>{entry.status}</Badge>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {["Done", "Not Done", "Not Required", "Pending"].map(s => (
+                          <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </td>
-                  <td className="py-2.5 px-3">
-                    {entry.sentiment ? (
-                      <Badge className={cn("text-xs", sentimentColors[entry.sentiment] || "")}>{entry.sentiment}</Badge>
-                    ) : <span className="text-muted-foreground text-xs">—</span>}
+
+                  {/* Sentiment dropdown */}
+                  <td className="py-2.5 px-3" onClick={e => e.stopPropagation()}>
+                    <Select
+                      value={entry.sentiment || "_none"}
+                      onValueChange={v => {
+                        const newVal = v === "_none" ? null : (v === entry.sentiment ? null : v);
+                        quickUpdateMBRField(entry.id, "sentiment", newVal);
+                      }}
+                    >
+                      <SelectTrigger className="h-6 text-xs border-none bg-transparent shadow-none px-1 focus:ring-0 w-[90px]">
+                        {entry.sentiment ? (
+                          <Badge className={cn("text-xs", sentimentColors[entry.sentiment] || "")}>{entry.sentiment}</Badge>
+                        ) : <span className="text-muted-foreground text-xs">—</span>}
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="_none" className="text-xs text-muted-foreground">— Clear —</SelectItem>
+                        {["Green", "Yellow", "Red"].map(s => (
+                          <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </td>
-                  <td className="py-2.5 px-3 text-xs text-muted-foreground">{entry.mode || "—"}</td>
-                  <td className="py-2.5 px-3 text-xs text-muted-foreground">{entry.scheduledDate || "—"}</td>
+
+                  {/* Mode dropdown */}
+                  <td className="py-2.5 px-3" onClick={e => e.stopPropagation()}>
+                    <Select
+                      value={entry.mode || "_none"}
+                      onValueChange={v => {
+                        const newVal = v === "_none" ? null : (v === entry.mode ? null : v);
+                        quickUpdateMBRField(entry.id, "mode", newVal);
+                      }}
+                    >
+                      <SelectTrigger className="h-6 text-xs border-none bg-transparent shadow-none px-1 focus:ring-0 w-[90px]">
+                        <span className="text-xs">{entry.mode || "—"}</span>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="_none" className="text-xs text-muted-foreground">— Clear —</SelectItem>
+                        {["In-Person", "Virtual", "Hybrid"].map(s => (
+                          <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </td>
+
+                  {/* Scheduled Date picker */}
+                  <td className="py-2.5 px-3" onClick={e => e.stopPropagation()}>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+                          {entry.scheduledDate ? format(new Date(entry.scheduledDate), "dd MMM yyyy") : "—"}
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComponent
+                          mode="single"
+                          selected={entry.scheduledDate ? new Date(entry.scheduledDate) : undefined}
+                          onSelect={d => {
+                            if (d) {
+                              const dateStr = format(d, "yyyy-MM-dd");
+                              // Deselect if same date clicked
+                              if (entry.scheduledDate === dateStr) {
+                                quickUpdateMBRField(entry.id, "scheduledDate", null);
+                              } else {
+                                quickUpdateMBRField(entry.id, "scheduledDate", dateStr);
+                              }
+                            }
+                          }}
+                          className={cn("p-3 pointer-events-auto")}
+                        />
+                        {entry.scheduledDate && (
+                          <div className="px-3 pb-2">
+                            <button className="text-xs text-destructive hover:underline" onClick={() => quickUpdateMBRField(entry.id, "scheduledDate", null)}>Clear date</button>
+                          </div>
+                        )}
+                      </PopoverContent>
+                    </Popover>
+                  </td>
+
+                  {/* Next MBR - same as scheduled date display */}
                   <td className="py-2.5 px-3 text-xs text-muted-foreground">{entry.scheduledDate ? format(new Date(entry.scheduledDate), "dd MMM yyyy") : "—"}</td>
-                  <td className="py-2.5 px-3">
-                    {entry.fathomLink ? (
-                      <a href={entry.fathomLink} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-700 dark:text-blue-400 font-medium hover:underline inline-flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                        Link <ExternalLink className="h-3 w-3" />
-                      </a>
-                    ) : <span className="text-muted-foreground text-xs">—</span>}
+
+                  {/* Fathom Link - editable */}
+                  <td className="py-2.5 px-3" onClick={e => e.stopPropagation()}>
+                    <InlineLinkEditor
+                      value={entry.fathomLink}
+                      label="Link"
+                      onSave={v => quickUpdateMBRField(entry.id, "fathomLink", v)}
+                    />
                   </td>
-                  <td className="py-2.5 px-3">
-                    {entry.mbrPptLink ? (
-                      <a href={entry.mbrPptLink} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-700 dark:text-blue-400 font-medium hover:underline inline-flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                        PPT <ExternalLink className="h-3 w-3" />
-                      </a>
-                    ) : <span className="text-muted-foreground text-xs">—</span>}
+
+                  {/* PPT Link - editable */}
+                  <td className="py-2.5 px-3" onClick={e => e.stopPropagation()}>
+                    <InlineLinkEditor
+                      value={entry.mbrPptLink}
+                      label="PPT"
+                      onSave={v => quickUpdateMBRField(entry.id, "mbrPptLink", v)}
+                    />
                   </td>
-                  <td className="py-2.5 px-3 text-xs text-muted-foreground max-w-[150px] truncate">{entry.notes || "—"}</td>
+
+                  {/* Notes - editable */}
+                  <td className="py-2.5 px-3" onClick={e => e.stopPropagation()}>
+                    <InlineNotesEditor
+                      value={entry.notes}
+                      onSave={v => quickUpdateMBRField(entry.id, "notes", v)}
+                    />
+                  </td>
+
                   <td className="py-2.5 px-3">
                     <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={(e) => handleEdit(entry, e)} title="Edit" className="p-1 rounded hover:bg-secondary"><Pencil className="h-3.5 w-3.5 text-muted-foreground" /></button>
