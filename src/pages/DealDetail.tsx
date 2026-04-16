@@ -1312,11 +1312,16 @@ export default function DealDetail() {
                     people={people.filter(p => (p.roleTitle || "").toLowerCase().includes("vsd"))}
                     onSelect={name => {
                       handleDealFieldSave("vsd", name);
-                      const person = people.find(p => p.name === name);
-                      if (person) {
+                      if (!name) {
                         const existing = assignments.find(a => a.dealId === dealId && a.roleKey === "VSD");
-                        if (existing) updateAssignment(existing.id, { personId: person.id });
-                        else addAssignment({ id: uid(), dealId: dealId!, roleKey: "VSD", personId: person.id, allocationPct: 10 });
+                        if (existing) deleteAssignment(existing.id);
+                      } else {
+                        const person = people.find(p => p.name === name);
+                        if (person) {
+                          const existing = assignments.find(a => a.dealId === dealId && a.roleKey === "VSD");
+                          if (existing) updateAssignment(existing.id, { personId: person.id });
+                          else addAssignment({ id: uid(), dealId: dealId!, roleKey: "VSD", personId: person.id, allocationPct: 10 });
+                        }
                       }
                     }}
                   />
@@ -1327,11 +1332,16 @@ export default function DealDetail() {
                     people={people.filter(p => (p.roleTitle || "").toLowerCase().includes("principal bopm"))}
                     onSelect={name => {
                       handleDealFieldSave("principalBopm", name);
-                      const person = people.find(p => p.name === name);
-                      if (person) {
+                      if (!name) {
                         const existing = assignments.find(a => a.dealId === dealId && a.roleKey === "Principal BOPM");
-                        if (existing) updateAssignment(existing.id, { personId: person.id });
-                        else addAssignment({ id: uid(), dealId: dealId!, roleKey: "Principal BOPM", personId: person.id, allocationPct: 10 });
+                        if (existing) deleteAssignment(existing.id);
+                      } else {
+                        const person = people.find(p => p.name === name);
+                        if (person) {
+                          const existing = assignments.find(a => a.dealId === dealId && a.roleKey === "Principal BOPM");
+                          if (existing) updateAssignment(existing.id, { personId: person.id });
+                          else addAssignment({ id: uid(), dealId: dealId!, roleKey: "Principal BOPM", personId: person.id, allocationPct: 10 });
+                        }
                       }
                     }}
                   />
@@ -1342,11 +1352,16 @@ export default function DealDetail() {
                     people={people.filter(p => (p.roleTitle || "").toLowerCase().includes("senior bopm"))}
                     onSelect={name => {
                       handleDealFieldSave("seniorBopm", name);
-                      const person = people.find(p => p.name === name);
-                      if (person) {
+                      if (!name) {
                         const existing = assignments.find(a => a.dealId === dealId && a.roleKey === "Senior BOPM");
-                        if (existing) updateAssignment(existing.id, { personId: person.id });
-                        else addAssignment({ id: uid(), dealId: dealId!, roleKey: "Senior BOPM", personId: person.id, allocationPct: 10 });
+                        if (existing) deleteAssignment(existing.id);
+                      } else {
+                        const person = people.find(p => p.name === name);
+                        if (person) {
+                          const existing = assignments.find(a => a.dealId === dealId && a.roleKey === "Senior BOPM");
+                          if (existing) updateAssignment(existing.id, { personId: person.id });
+                          else addAssignment({ id: uid(), dealId: dealId!, roleKey: "Senior BOPM", personId: person.id, allocationPct: 10 });
+                        }
                       }
                     }}
                   />
@@ -1360,11 +1375,16 @@ export default function DealDetail() {
                     })}
                     onSelect={name => {
                       handleDealFieldSave("bopm", name);
-                      const person = people.find(p => p.name === name);
-                      if (person) {
+                      if (!name) {
                         const existing = assignments.find(a => a.dealId === dealId && a.roleKey === "BOPM");
-                        if (existing) updateAssignment(existing.id, { personId: person.id });
-                        else addAssignment({ id: uid(), dealId: dealId!, roleKey: "BOPM", personId: person.id, allocationPct: 10 });
+                        if (existing) deleteAssignment(existing.id);
+                      } else {
+                        const person = people.find(p => p.name === name);
+                        if (person) {
+                          const existing = assignments.find(a => a.dealId === dealId && a.roleKey === "BOPM");
+                          if (existing) updateAssignment(existing.id, { personId: person.id });
+                          else addAssignment({ id: uid(), dealId: dealId!, roleKey: "BOPM", personId: person.id, allocationPct: 10 });
+                        }
                       }
                     }}
                   />
