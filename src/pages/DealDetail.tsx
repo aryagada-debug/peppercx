@@ -765,7 +765,7 @@ export default function DealDetail() {
     sowItems, rgyWeekly, onboarding, financials, tasks, mbrEntries, loading: detailLoading,
     toggleOnboardingStep, addSoWItem, updateSoWItem, deleteSoWItem,
     addRGYWeek, updateRGYWeek, addFinancial, updateFinancial, deleteFinancial,
-    addTask, addTasksBulk, updateTask, deleteTask, seedOnboarding, upsertMBREntry, deleteMBREntry,
+    addTask, addTasksBulk, updateTask, deleteTask, seedOnboarding, upsertMBREntry, deleteMBREntry, quickUpdateMBRField,
   } = useDealDetail(dealId);
 
   const deal = useMemo(() => deals.find(d => d.id === dealId), [deals, dealId]);
