@@ -37,6 +37,7 @@ export interface CxTask {
   start_date: string | null;
   end_date: string | null;
   sort_order: number;
+  created_at?: string;
 }
 
 const DEFAULT_STATUSES = [

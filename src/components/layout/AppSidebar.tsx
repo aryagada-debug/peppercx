@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Briefcase, Users, UserCheck, DollarSign,
   Target, Activity, FileText, MessageSquare, Clock,
   CheckSquare, Settings, Building2, Calculator, BarChart3,
-  ChevronDown
+  ChevronDown, ShieldCheck
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -22,6 +22,7 @@ const navSections = [
       { to: "/staffing", icon: UserCheck, label: "Staffing & Capacity" },
       { to: "/revenue", icon: DollarSign, label: "Revenue" },
       { to: "/targets", icon: Target, label: "Targets" },
+      { to: "/central-cx", icon: ShieldCheck, label: "Central Cx" },
     ],
   },
   {

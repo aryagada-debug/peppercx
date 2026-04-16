@@ -17,6 +17,7 @@ import DealDesk from "./pages/DealDesk.tsx";
 import SEOStaffing from "./pages/SEOStaffing.tsx";
 import GM2Calculator from "./pages/GM2Calculator.tsx";
 import SettingsPage from "./pages/Settings.tsx";
+import CentralCx from "./pages/CentralCx.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -43,6 +44,7 @@ const App = () => (
           <Route path="/seo-staffing" element={<SEOStaffing />} />
           <Route path="/gm2-calculator" element={<GM2Calculator />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/central-cx" element={<CentralCx />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
