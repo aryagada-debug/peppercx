@@ -3,7 +3,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 import { ChevronDown, ChevronRight, ChevronsUpDown, Search, Loader2, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
