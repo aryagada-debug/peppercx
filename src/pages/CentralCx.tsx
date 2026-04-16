@@ -196,6 +196,9 @@ export default function CentralCx() {
               </p>
             </div>
             <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setCalendarOpen(!calendarOpen)}>
+                <CalendarDays className="h-3.5 w-3.5 mr-1.5" /> Calendar
+              </Button>
               {selectedSpaceId && (
                 <>
                   <Button variant="outline" size="sm" onClick={() => setMembersOpen(true)}>
@@ -237,6 +240,7 @@ export default function CentralCx() {
                   statuses={currentStatuses}
                   spaces={spaces}
                   selectedSpaceId={selectedSpaceId}
+                  allTags={allTags}
                   onUpdateTask={updateTask}
                   onDeleteTask={deleteTask}
                   onAddTask={addTask}
@@ -248,6 +252,7 @@ export default function CentralCx() {
                   tasks={filteredTasks}
                   statuses={currentStatuses}
                   selectedSpaceId={selectedSpaceId}
+                  allTags={allTags}
                   onAddTask={addTask}
                   onUpdateTask={updateTask}
                   onDeleteTask={deleteTask}
