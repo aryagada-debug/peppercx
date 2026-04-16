@@ -92,20 +92,35 @@ function TeamMemberSelect({ currentName, role, color, people, onSelect }: {
     ? currentName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()
     : "?";
 
+  // Deduplicate people by name
+  const uniquePeople = people.filter((v, i, arr) => arr.findIndex(x => x.name === v.name) === i);
+
   return (
     <div className="flex items-center gap-3 py-2">
       <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium text-white shrink-0", color)}>
         {initials}
       </div>
       <div className="flex-1 min-w-0">
-        <Select value={currentName || "_none"} onValueChange={v => v !== "_none" && onSelect(v)}>
+        <Select
+          value={currentName || "_none"}
+          onValueChange={v => {
+            if (v === "_none" || v === currentName) {
+              // Deselect: clicking same value or "Not assigned" clears
+              onSelect("");
+            } else {
+              onSelect(v);
+            }
+          }}
+        >
           <SelectTrigger className="h-7 text-sm border-none bg-transparent shadow-none px-0 focus:ring-0">
             <SelectValue placeholder="Not assigned" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="_none" className="text-xs text-muted-foreground">— Not assigned —</SelectItem>
-            {people.map(p => (
-              <SelectItem key={p.id} value={p.name} className="text-xs">{p.name}</SelectItem>
+            {uniquePeople.map(p => (
+              <SelectItem key={p.id} value={p.name} className="text-xs">
+                {p.name} {p.name === currentName ? "✓" : ""}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
