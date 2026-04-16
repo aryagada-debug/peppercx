@@ -95,6 +95,150 @@ export type Database = {
         }
         Relationships: []
       }
+      cx_space_members: {
+        Row: {
+          created_at: string
+          id: string
+          member_name: string
+          role: string
+          space_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          member_name: string
+          role?: string
+          space_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          member_name?: string
+          role?: string
+          space_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cx_space_members_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "cx_spaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cx_spaces: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      cx_statuses: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          label: string
+          sort_order: number
+          space_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          label: string
+          sort_order?: number
+          space_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          label?: string
+          sort_order?: number
+          space_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cx_statuses_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "cx_spaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cx_tasks: {
+        Row: {
+          assignee: string
+          created_at: string
+          description: string
+          end_date: string | null
+          id: string
+          priority: string
+          sort_order: number
+          space_id: string
+          start_date: string | null
+          status: string
+          tags: string[] | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assignee?: string
+          created_at?: string
+          description?: string
+          end_date?: string | null
+          id?: string
+          priority?: string
+          sort_order?: number
+          space_id: string
+          start_date?: string | null
+          status?: string
+          tags?: string[] | null
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          assignee?: string
+          created_at?: string
+          description?: string
+          end_date?: string | null
+          id?: string
+          priority?: string
+          sort_order?: number
+          space_id?: string
+          start_date?: string | null
+          status?: string
+          tags?: string[] | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cx_tasks_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "cx_spaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       deal_financials: {
         Row: {
           actual_gm_pct: number
