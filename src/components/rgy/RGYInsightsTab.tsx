@@ -1,11 +1,17 @@
 import React, { useMemo } from "react";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from "recharts";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, AlertCircle } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 const DIMENSIONS = [
   { key: "customer", label: "Customer" },
   { key: "internal", label: "Internal" },
+  { key: "delivery", label: "Delivery" },
+  { key: "consumption", label: "Consumption" },
+  { key: "invoicing", label: "Invoicing" },
+  { key: "receivables", label: "Receivables" },
+  { key: "margins", label: "Margins" },
   { key: "content", label: "Content" },
   { key: "seo", label: "SEO" },
   { key: "supply", label: "Supply" },
@@ -18,6 +24,24 @@ const SERVICE_LINES = ["content", "seo", "supply", "copy", "design", "video"];
 
 const COLORS = { R: "#ef4444", Y: "#f59e0b", G: "#22c55e", NA: "#94a3b8" };
 
+const ACTIVE_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
+
+const statusBadgeStyles: Record<string, string> = {
+  "Active Deal": "bg-emerald-500/15 text-emerald-700 border-emerald-500/30",
+  "Deal Disputed": "bg-amber-500/15 text-amber-700 border-amber-500/30",
+  "New Deal in SLA/PO": "bg-blue-500/15 text-blue-700 border-blue-500/30",
+  "Deal Completed Successfully": "bg-muted text-muted-foreground border-border",
+  "Deal Churned / Lost": "bg-red-500/15 text-red-700 border-red-500/30",
+};
+
+const statusShortLabels: Record<string, string> = {
+  "Active Deal": "Active",
+  "Deal Disputed": "Disputed",
+  "New Deal in SLA/PO": "New/SLA",
+  "Deal Completed Successfully": "Completed",
+  "Deal Churned / Lost": "Churned",
+};
+
 interface DealWithRGY {
   id: string;
   deal_name: string;
@@ -29,9 +53,14 @@ interface DealWithRGY {
 
 interface RGYIssue {
   deal_name: string;
+  deal_id: string;
+  pc_code: string;
+  deal_status: string;
   issue_details: string;
   issue_status: string;
-  dimension?: string;
+  action_plan: string;
+  discussed_action_plan: string;
+  red_dimensions: string[];
 }
 
 interface Props {
@@ -77,13 +106,19 @@ export function RGYInsightsTab({ deals, filteredDeals, issues }: Props) {
     })).sort((a, b) => b.red - a.red),
   [filteredDeals]);
 
-  // Full heatmap data sorted by most red
+  // Full heatmap data — active accounts only, no all-blank rows
   const heatmapData = useMemo(() => {
-    return filteredDeals.map(deal => {
-      const redCount = DIMENSIONS.filter(d => deal[d.key] === "R").length;
-      const yellowCount = DIMENSIONS.filter(d => deal[d.key] === "Y").length;
-      return { deal, redCount, yellowCount };
-    }).sort((a, b) => b.redCount - a.redCount || b.yellowCount - a.yellowCount);
+    return filteredDeals
+      .filter(d => ACTIVE_STATUSES.has(d.deal_status) && DIMENSIONS.some(dim => {
+        const v = d[dim.key] as string;
+        return v && v !== "NA";
+      }))
+      .map(deal => {
+        const redCount = DIMENSIONS.filter(d => deal[d.key] === "R").length;
+        const yellowCount = DIMENSIONS.filter(d => deal[d.key] === "Y").length;
+        return { deal, redCount, yellowCount };
+      })
+      .sort((a, b) => b.redCount - a.redCount || b.yellowCount - a.yellowCount);
   }, [filteredDeals]);
 
   // Top risk ranking
@@ -140,25 +175,65 @@ export function RGYInsightsTab({ deals, filteredDeals, issues }: Props) {
         ))}
       </div>
 
-      {/* Row 2: Critical Issues + Health Donut */}
+      {/* Row 2: Active Issues & Action Plans + Health Donut */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Critical Issues */}
+        {/* Active Issues — Screenshot-style UI */}
         <div className="bg-card border border-border rounded-lg p-4">
           <h3 className="text-sm font-semibold mb-3 flex items-center gap-1.5">
             <AlertTriangle className="h-4 w-4 text-red-500" />
-            Critical Issues & Watch List
+            Active issues & action plans
           </h3>
-          <div className="space-y-2 max-h-60 overflow-y-auto">
+          <div className="space-y-4 max-h-[400px] overflow-y-auto">
             {criticalIssues.length === 0 && <p className="text-xs text-muted-foreground">No open issues</p>}
-            {criticalIssues.map((issue, i) => (
-              <div key={i} className="flex items-start gap-2 p-2 bg-secondary/30 rounded-md">
-                <AlertCircle className={cn("h-3.5 w-3.5 mt-0.5 shrink-0", issue.issue_status === "Open" ? "text-red-500" : "text-amber-500")} />
-                <div>
-                  <p className="text-xs font-medium">{issue.deal_name}</p>
-                  <p className="text-[11px] text-muted-foreground line-clamp-2">{issue.issue_details}</p>
+            {criticalIssues.map((issue, i) => {
+              const maxBadges = 4;
+              const visibleDims = issue.red_dimensions.slice(0, maxBadges);
+              const overflowCount = issue.red_dimensions.length - maxBadges;
+
+              return (
+                <div key={i} className="border-b border-border/50 pb-3 last:border-0 last:pb-0">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      {/* Status badge + Deal name + PC code */}
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-[10px] px-1.5 py-0 font-medium border shrink-0",
+                            statusBadgeStyles[issue.deal_status] || "bg-muted text-muted-foreground border-border"
+                          )}
+                        >
+                          {statusShortLabels[issue.deal_status] || issue.deal_status || "—"}
+                        </Badge>
+                        <span className="text-xs font-semibold text-foreground">{issue.deal_name}</span>
+                        <span className="text-[11px] text-muted-foreground font-mono">{issue.deal_id}</span>
+                      </div>
+                      {/* Issue details */}
+                      <p className="text-xs text-foreground leading-relaxed">{issue.issue_details}</p>
+                      {/* Action plan in italic */}
+                      {(issue.action_plan || issue.discussed_action_plan) && (
+                        <p className="text-xs text-muted-foreground italic mt-1">
+                          {issue.discussed_action_plan || issue.action_plan}
+                        </p>
+                      )}
+                    </div>
+                    {/* Red dimension badges */}
+                    {issue.red_dimensions.length > 0 && (
+                      <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end max-w-[260px]">
+                        {visibleDims.map(dim => (
+                          <span key={dim} className="px-2 py-0.5 rounded text-[10px] font-medium text-red-700 bg-red-500/10 border border-red-500/20 whitespace-nowrap">
+                            {dim}
+                          </span>
+                        ))}
+                        {overflowCount > 0 && (
+                          <span className="text-[10px] font-medium text-red-600">+{overflowCount}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -188,24 +263,22 @@ export function RGYInsightsTab({ deals, filteredDeals, issues }: Props) {
 
       {/* Row 3: Red per dimension + Service Line Health */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Red count per dimension */}
         <div className="bg-card border border-border rounded-lg p-4">
           <h3 className="text-sm font-semibold mb-3">Red Count per Dimension</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={redPerDim} layout="vertical" margin={{ left: 60 }}>
+          <ResponsiveContainer width="100%" height={320}>
+            <BarChart data={redPerDim} layout="vertical" margin={{ left: 70 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis type="number" tick={{ fontSize: 11 }} />
-              <YAxis type="category" dataKey="dimension" tick={{ fontSize: 11 }} width={58} />
+              <YAxis type="category" dataKey="dimension" tick={{ fontSize: 11 }} width={68} />
               <RechartsTooltip />
               <Bar dataKey="red" fill={COLORS.R} radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
 
-        {/* Service Line Health */}
         <div className="bg-card border border-border rounded-lg p-4">
           <h3 className="text-sm font-semibold mb-3">Service Line Health</h3>
-          <ResponsiveContainer width="100%" height={220}>
+          <ResponsiveContainer width="100%" height={320}>
             <BarChart data={serviceLineHealth} margin={{ left: 10 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
@@ -220,38 +293,42 @@ export function RGYInsightsTab({ deals, filteredDeals, issues }: Props) {
         </div>
       </div>
 
-      {/* Full Heatmap */}
+      {/* Full Heatmap — Active accounts only, no all-blank rows */}
       <div className="bg-card border border-border rounded-lg p-4">
         <h3 className="text-sm font-semibold mb-3">Full Account × Dimension Heatmap</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="text-left py-1.5 px-2 font-medium text-muted-foreground">Account</th>
-                {DIMENSIONS.map(d => (
-                  <th key={d.key} className="text-center py-1.5 px-1 font-medium text-muted-foreground whitespace-nowrap">{d.label}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {heatmapData.map(({ deal }) => (
-                <tr key={deal.id} className="border-b border-border/50">
-                  <td className="py-1 px-2 font-medium truncate max-w-[160px]" title={deal.deal_name}>{deal.deal_name}</td>
-                  {DIMENSIONS.map(dim => {
-                    const v = deal[dim.key] as string;
-                    const bg = v === "R" ? "bg-red-500/20" : v === "Y" ? "bg-amber-500/20" : v === "G" ? "bg-emerald-500/20" : "";
-                    const textColor = v === "R" ? "text-red-700" : v === "Y" ? "text-amber-700" : v === "G" ? "text-emerald-700" : "text-muted-foreground";
-                    return (
-                      <td key={dim.key} className={cn("text-center py-1 px-1 font-semibold", bg, textColor)}>
-                        {v === "NA" ? "—" : v}
-                      </td>
-                    );
-                  })}
+        {heatmapData.length === 0 ? (
+          <p className="text-xs text-muted-foreground text-center py-6">No active accounts with RGY data</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left py-1.5 px-2 font-medium text-muted-foreground">Account</th>
+                  {DIMENSIONS.map(d => (
+                    <th key={d.key} className="text-center py-1.5 px-1 font-medium text-muted-foreground whitespace-nowrap">{d.label}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {heatmapData.map(({ deal }) => (
+                  <tr key={deal.id} className="border-b border-border/50">
+                    <td className="py-1 px-2 font-medium truncate max-w-[160px]" title={deal.deal_name}>{deal.deal_name}</td>
+                    {DIMENSIONS.map(dim => {
+                      const v = deal[dim.key] as string;
+                      const bg = v === "R" ? "bg-red-500/20" : v === "Y" ? "bg-amber-500/20" : v === "G" ? "bg-emerald-500/20" : "";
+                      const textColor = v === "R" ? "text-red-700" : v === "Y" ? "text-amber-700" : v === "G" ? "text-emerald-700" : "text-muted-foreground";
+                      return (
+                        <td key={dim.key} className={cn("text-center py-1 px-1 font-semibold", bg, textColor)}>
+                          {v === "NA" ? "—" : v}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Top Risk Ranking */}
