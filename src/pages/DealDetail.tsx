@@ -116,6 +116,74 @@ function TeamMemberSelect({ currentName, role, color, people, onSelect }: {
 }
 
 
+function InlineLinkEditor({ value, label, onSave }: { value: string | null; label: string; onSave: (v: string | null) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value || "");
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1">
+        <Input
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          className="h-6 text-xs w-[120px] px-1"
+          placeholder="https://..."
+          autoFocus
+          onKeyDown={e => {
+            if (e.key === "Enter") { onSave(draft || null); setEditing(false); }
+            if (e.key === "Escape") { setDraft(value || ""); setEditing(false); }
+          }}
+        />
+        <button onClick={() => { onSave(draft || null); setEditing(false); }} className="p-0.5"><Check className="h-3 w-3 text-positive" /></button>
+        <button onClick={() => { setDraft(value || ""); setEditing(false); }} className="p-0.5"><X className="h-3 w-3 text-muted-foreground" /></button>
+      </div>
+    );
+  }
+
+  if (value) {
+    return (
+      <div className="flex items-center gap-1">
+        <a href={value} target="_blank" rel="noopener noreferrer" className="text-xs text-primary font-medium hover:underline inline-flex items-center gap-1">
+          {label} <ExternalLink className="h-3 w-3" />
+        </a>
+        <button onClick={() => { setDraft(value); setEditing(true); }} className="p-0.5 opacity-0 group-hover:opacity-100"><Pencil className="h-3 w-3 text-muted-foreground" /></button>
+      </div>
+    );
+  }
+
+  return <button onClick={() => setEditing(true)} className="text-xs text-muted-foreground hover:text-foreground">+ Add</button>;
+}
+
+function InlineNotesEditor({ value, onSave }: { value: string | null; onSave: (v: string | null) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value || "");
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1">
+        <Input
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          className="h-6 text-xs w-[140px] px-1"
+          placeholder="Add notes..."
+          autoFocus
+          onKeyDown={e => {
+            if (e.key === "Enter") { onSave(draft || null); setEditing(false); }
+            if (e.key === "Escape") { setDraft(value || ""); setEditing(false); }
+          }}
+        />
+        <button onClick={() => { onSave(draft || null); setEditing(false); }} className="p-0.5"><Check className="h-3 w-3 text-positive" /></button>
+        <button onClick={() => { setDraft(value || ""); setEditing(false); }} className="p-0.5"><X className="h-3 w-3 text-muted-foreground" /></button>
+      </div>
+    );
+  }
+
+  return (
+    <button onClick={() => { setDraft(value || ""); setEditing(true); }} className="text-xs text-muted-foreground hover:text-foreground max-w-[150px] truncate text-left">
+      {value || "+ Add"}
+    </button>
+  );
+}
 
 
 function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry, deleteMBREntry, quickUpdateMBRField }: {
