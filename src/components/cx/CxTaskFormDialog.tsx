@@ -32,6 +32,16 @@ interface Props {
 /* ── Rich Text Editor ── */
 function RichTextEditor({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const editorRef = useRef<HTMLDivElement>(null);
+  const initializedRef = useRef(false);
+
+  // Set initial HTML only once on mount
+  React.useEffect(() => {
+    if (editorRef.current && !initializedRef.current) {
+      editorRef.current.innerHTML = value || "";
+      initializedRef.current = true;
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const exec = (cmd: string, val?: string) => {
     document.execCommand(cmd, false, val);
     if (editorRef.current) onChange(editorRef.current.innerHTML);
@@ -50,9 +60,9 @@ function RichTextEditor({ value, onChange }: { value: string; onChange: (v: stri
         <button type="button" onMouseDown={e => { e.preventDefault(); handleLink(); }} className="p-1.5 rounded hover:bg-accent"><Link className="h-3.5 w-3.5" /></button>
       </div>
       <div
-        ref={editorRef} contentEditable
+        ref={editorRef}
+        contentEditable
         className="min-h-[120px] max-h-[250px] overflow-y-auto px-3 py-2 text-sm text-foreground bg-background focus:outline-none prose prose-sm max-w-none [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:text-primary [&_a]:underline"
-        dangerouslySetInnerHTML={{ __html: value }}
         onInput={() => { if (editorRef.current) onChange(editorRef.current.innerHTML); }}
       />
     </div>
