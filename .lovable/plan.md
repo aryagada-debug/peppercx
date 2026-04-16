@@ -1,39 +1,28 @@
-# Fix MBR Status Mapping & Add Month-on-Month View
 
-## Status Mapping Fix
 
-Current logic already handles this mostly correctly (`entry?.status || "Pending"` on line 292 of MBRTracker.tsx). The issue is that "Not Done" was likely mis-mapped during the original sheet import. The fix:
+# Fix Team Member Dropdowns in Deal Overview
 
-- Verify existing DB data is correct (1 "Not Done", 184 "Done", 4 "Pending" — looks right)
-- Ensure the display logic treats all statuses as-is from the DB: "Done", "Not Done", "Not Required" render with their labels; only deals with **no entry at all** show as "Pending"
-- No code change needed for mapping — the current code is correct
+## Problem
+- VSD and other team role dropdowns show duplicate entries and don't support deselection (clicking the same person to unassign them)
+- Changes need to sync to both `staffing_deals` fields and `staffing_assignments` table
 
-## Month-on-Month View
+## Solution
 
-Add a monthly tab/toggle to MBR Tracker that shows a grid of months vs deals, so you can see MBR compliance trends over time.
+### 1. Replace `TeamMemberSelect` component with deselection support
+- Change the `Select` component so selecting the already-selected person clears the field
+- Add a dedicated "Clear" option or toggle behavior: if `onSelect` receives the current name, treat it as deselection
+- On deselect: save empty string to the deal field AND remove the corresponding `staffing_assignments` row
 
-### Implementation
+### 2. Deduplicate people in dropdowns
+- Add `.filter((v, i, arr) => arr.findIndex(x => x.name === v.name) === i)` to remove duplicate names from the people list passed to each `TeamMemberSelect`
 
-`**src/hooks/useMBRData.ts**`
-
-- Already loads `allEntries` (all months). Add a computed `entriesByMonth` map: `Map<string, Map<string, MBREntry>>` keyed by month string (e.g. "2026-02") then deal ID
-- Add a `availableMonths` computed array from distinct `week_start` months
-
-`**src/pages/MBRTracker.tsx**`
-
-- Add a view toggle: "Current, select month) (existing view) vs "Month-on-Month"
-- Month-on-Month view: a table with rows = deals (grouped by client), columns = months (e.g. Jan, Feb, Mar...)
-- Each cell shows a colored dot/badge: green for Done, red for Not Done, amber for Pending, gray for Not Required
-- KPI strip updates to show compliance % per month
-- Keep existing filters (pod, search, show closed) working in both views
-
-### Technical Details
-
-- Group `allEntries` by month using `week_start.substring(0, 7)` — take the latest entry per deal per month
-- Month columns are auto-generated from available data
-- Cell click opens the MBR detail dialog for that deal/month
+### 3. Sync staffing assignments on deselect
+- When a team member is deselected (cleared), call `handleDealFieldSave(field, "")` to clear the deal column
+- Also find and delete the corresponding `staffing_assignments` record using `deleteAssignment` (or update to remove the person)
 
 ## Files Modified
+- **`src/pages/DealDetail.tsx`**
+  - Update `TeamMemberSelect` to support deselection (clicking same value clears it)
+  - Deduplicate the `people` arrays passed to each dropdown
+  - Add deselect logic in `onSelect` callbacks to clear deal field + remove assignment
 
-- `src/hooks/useMBRData.ts` — Add `entriesByMonth` and `availableMonths` computations
-- `src/pages/MBRTracker.tsx` — Add view toggle and month-on-month grid view
