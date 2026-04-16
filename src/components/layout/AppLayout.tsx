@@ -1,6 +1,7 @@
 import { AppSidebar } from "./AppSidebar";
 import { GlobalSearch } from "@/components/dashboard/GlobalSearch";
 import { ThemeToggle } from "@/components/dashboard/ThemeToggle";
+import { UserMenu } from "@/components/auth/UserMenu";
 import type { RGYRow } from "@/types/dashboard";
 
 interface AppLayoutProps {
@@ -18,6 +19,7 @@ export function AppLayout({ children, onSearchSelectDeal }: AppLayoutProps) {
           <div className="flex items-center gap-2">
             <GlobalSearch onSelectDeal={onSearchSelectDeal} />
             <ThemeToggle />
+            <UserMenu />
           </div>
         </header>
         <main className="flex-1 overflow-y-auto">
