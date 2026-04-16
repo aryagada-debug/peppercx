@@ -580,10 +580,17 @@ export default function RGYHealth() {
             rgyMap.set(r.deal_id, r);
             if (r.issue_details && (r.issue_status === "Open" || r.issue_status === "In Progress")) {
               const dealRow = dealRows.find(d => d.id === r.deal_id);
+              const redDims = DIMENSIONS.filter(dim => (r as any)[dim.key] === "R").map(dim => dim.label);
               issuesList.push({
                 deal_name: dealRow?.deal_name || "Unknown",
+                deal_id: dealRow?.deal_id || "",
+                pc_code: dealRow?.pc_code || "",
+                deal_status: dealRow?.deal_status || "",
                 issue_details: r.issue_details,
                 issue_status: r.issue_status || "Open",
+                action_plan: (r as any).action_plan || "",
+                discussed_action_plan: (r as any).discussed_action_plan || "",
+                red_dimensions: redDims,
               });
             }
           }
