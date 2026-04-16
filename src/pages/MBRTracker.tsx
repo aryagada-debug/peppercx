@@ -376,7 +376,7 @@ export default function MBRTracker() {
                               >
                                 <td className="py-2 px-3"></td>
                                 <td className="py-2 px-3 pl-6">
-                                  <span className="text-primary text-xs font-medium">{deal.dealName}</span>
+                                  <Link to={`/deals/${deal.id}?tab=MBR`} className="text-primary hover:underline text-xs font-medium">{deal.dealName}</Link>
                                 </td>
                                 <td className="py-2 px-3 text-xs text-foreground whitespace-nowrap">{deal.vsd}</td>
                                 <td className="py-2 px-3 text-xs text-muted-foreground whitespace-nowrap">{deal.seniorBopm}</td>
@@ -506,9 +506,9 @@ export default function MBRTracker() {
                       {clientDeals.map(deal => (
                         <tr key={deal.id} className="border-b border-border/50 hover:bg-accent/10 transition-colors">
                           <td className="py-1.5 px-3 pl-6 sticky left-0 bg-card z-10">
-                            <span className="text-primary text-xs font-medium truncate block max-w-[180px]" title={deal.dealName}>
+                            <Link to={`/deals/${deal.id}?tab=MBR`} className="text-primary hover:underline text-xs font-medium truncate block max-w-[180px]" title={deal.dealName}>
                               {deal.dealName}
-                            </span>
+                            </Link>
                           </td>
                           {availableMonths.map(m => {
                             const monthData = entriesByMonth.get(m);
