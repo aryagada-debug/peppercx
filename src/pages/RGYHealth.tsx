@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { DealDetailDialog } from "@/components/rgy/DealDetailDialog";
+import { RGYInsightsTab } from "@/components/rgy/RGYInsightsTab";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
@@ -13,12 +14,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import type { RGYStatus } from "@/types/dashboard";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const PODS = ["All", "Integrated", "India B2B", "US B2B", "FMCG", "BFSI", "Unassigned"] as const;
 type Pod = typeof PODS[number];
@@ -74,6 +77,12 @@ const statusShortLabels: Record<string, string> = {
   "Deal Churned / Lost": "Churned",
 };
 
+const worstDotColor: Record<string, string> = {
+  R: "bg-red-500",
+  Y: "bg-amber-500",
+  G: "bg-emerald-500",
+};
+
 interface DealWithRGY {
   id: string;
   deal_id: string;
@@ -122,7 +131,15 @@ function getCurrentWeekStart(): string {
   return monday.toISOString().split("T")[0];
 }
 
-// ── Inline RGY Selector ──
+function getWorstRGY(deal: DealWithRGY): "R" | "Y" | "G" | null {
+  const vals = DIMENSIONS.map(d => deal[d.key as keyof DealWithRGY] as string);
+  if (vals.includes("R")) return "R";
+  if (vals.includes("Y")) return "Y";
+  if (vals.every(v => v === "NA" || !v)) return null;
+  return "G";
+}
+
+// ── Inline RGY Selector with blank-on-reclick ──
 function RGYCell({
   dealId,
   dimKey,
@@ -165,7 +182,9 @@ function RGYCell({
                 key={opt.value}
                 onClick={(e) => {
                   e.stopPropagation();
-                  onUpdate(dealId, dimKey, opt.value);
+                  // If clicking the already-selected value, clear to NA
+                  const newVal = opt.value === value ? "NA" as RGYStatus : opt.value;
+                  onUpdate(dealId, dimKey, newVal);
                   setOpen(false);
                 }}
                 className={cn(
@@ -182,6 +201,73 @@ function RGYCell({
         </>
       )}
     </div>
+  );
+}
+
+// ── Green-Gate Confirmation Dialog ──
+function GreenGateDialog({
+  pendingTasks,
+  onConfirm,
+  onCancel,
+  onMarkDone,
+}: {
+  pendingTasks: { id: string; title: string; stage: string }[];
+  onConfirm: () => void;
+  onCancel: () => void;
+  onMarkDone: (taskId: string) => Promise<void>;
+}) {
+  const [markingDone, setMarkingDone] = useState<Set<string>>(new Set());
+  const [doneTasks, setDoneTasks] = useState<Set<string>>(new Set());
+
+  const handleMarkDone = async (taskId: string) => {
+    setMarkingDone(prev => new Set(prev).add(taskId));
+    await onMarkDone(taskId);
+    setDoneTasks(prev => new Set(prev).add(taskId));
+    setMarkingDone(prev => { const n = new Set(prev); n.delete(taskId); return n; });
+  };
+
+  const allDone = pendingTasks.every(t => doneTasks.has(t.id));
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onCancel(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-amber-500" />
+            Pending Tasks Must Be Closed
+          </DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          The following [RGY Health] tasks must be marked as Done before setting this dimension to Green:
+        </p>
+        <div className="space-y-2 max-h-60 overflow-y-auto">
+          {pendingTasks.map(task => (
+            <div key={task.id} className="flex items-center justify-between p-2 bg-secondary/30 rounded-md">
+              <span className={cn("text-xs flex-1", doneTasks.has(task.id) && "line-through text-muted-foreground")}>{task.title}</span>
+              {doneTasks.has(task.id) ? (
+                <Check className="h-4 w-4 text-emerald-500" />
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  disabled={markingDone.has(task.id)}
+                  onClick={() => handleMarkDone(task.id)}
+                >
+                  {markingDone.has(task.id) ? <Loader2 className="h-3 w-3 animate-spin" /> : "Mark Done"}
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>Cancel</Button>
+          <Button onClick={onConfirm} disabled={!allDone}>
+            {allDone ? "Set to Green" : "Close all tasks first"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -276,7 +362,6 @@ function RGYIssueFormDialog({
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          {/* Non-green dimensions summary */}
           <div className="flex flex-wrap gap-1.5">
             {nonGreenDims.map(d => (
               <Badge key={d.key} variant="outline" className={cn(
@@ -438,11 +523,23 @@ export default function RGYHealth() {
   const [showClosed, setShowClosed] = useState(false);
   const [search, setSearch] = useState("");
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
+  const [rgyFilter, setRgyFilter] = useState<"All" | "Red" | "Yellow" | "Green">("All");
+  const [activeTab, setActiveTab] = useState<"health" | "insights">("health");
 
   // Issue form state
   const [issueFormDeal, setIssueFormDeal] = useState<DealWithRGY | null>(null);
   const [issueFormNonGreen, setIssueFormNonGreen] = useState<{ key: string; label: string; value: string }[]>([]);
   const [prevRGYSnapshot, setPrevRGYSnapshot] = useState<{ dealId: string; values: Record<string, string> } | null>(null);
+
+  // Green-gate state
+  const [greenGate, setGreenGate] = useState<{
+    dealId: string;
+    dimKey: string;
+    tasks: { id: string; title: string; stage: string }[];
+  } | null>(null);
+
+  // Issues for insights
+  const [rgyIssues, setRgyIssues] = useState<{ deal_name: string; issue_details: string; issue_status: string }[]>([]);
 
   const fetchData = useCallback(async () => {
     const { data: dealRows } = await supabase
@@ -454,20 +551,34 @@ export default function RGYHealth() {
 
     const dealIds = dealRows.map(d => d.id);
     const rgyMap = new Map<string, any>();
+    const issuesList: { deal_name: string; issue_details: string; issue_status: string }[] = [];
+
     for (let i = 0; i < dealIds.length; i += 500) {
       const batch = dealIds.slice(i, i + 500);
       const { data: rgyRows } = await supabase
         .from("deal_rgy_weekly")
-        .select("id, deal_id, customer, internal, content, seo, supply, copy, design, video, week_start")
+        .select("id, deal_id, customer, internal, content, seo, supply, copy, design, video, week_start, issue_details, issue_status")
         .in("deal_id", batch)
         .order("week_start", { ascending: false });
 
       if (rgyRows) {
         for (const r of rgyRows) {
-          if (!rgyMap.has(r.deal_id)) rgyMap.set(r.deal_id, r);
+          if (!rgyMap.has(r.deal_id)) {
+            rgyMap.set(r.deal_id, r);
+            if (r.issue_details && (r.issue_status === "Open" || r.issue_status === "In Progress")) {
+              const dealRow = dealRows.find(d => d.id === r.deal_id);
+              issuesList.push({
+                deal_name: dealRow?.deal_name || "Unknown",
+                issue_details: r.issue_details,
+                issue_status: r.issue_status || "Open",
+              });
+            }
+          }
         }
       }
     }
+
+    setRgyIssues(issuesList);
 
     const merged: DealWithRGY[] = dealRows.map(d => {
       const rgy = rgyMap.get(d.id);
@@ -496,6 +607,27 @@ export default function RGYHealth() {
     const deal = deals.find(d => d.id === dealId);
     if (!deal) return;
 
+    const oldValue = (deal[dimKey as keyof DealWithRGY] as string) || "NA";
+
+    // Green-gate: if going from R/Y to G, check for pending tasks
+    if (newValue === "G" && (oldValue === "R" || oldValue === "Y")) {
+      const { data: pendingTasks } = await supabase
+        .from("deal_tasks")
+        .select("id, title, stage")
+        .eq("deal_id", dealId)
+        .like("title", "[RGY Health]%")
+        .neq("stage", "Done");
+
+      if (pendingTasks && pendingTasks.length > 0) {
+        setGreenGate({ dealId, dimKey, tasks: pendingTasks });
+        return;
+      }
+    }
+
+    await applyRGYUpdate(dealId, dimKey, newValue, deal);
+  }, [deals]);
+
+  const applyRGYUpdate = useCallback(async (dealId: string, dimKey: string, newValue: RGYStatus, deal: DealWithRGY) => {
     // Save snapshot before change for potential revert
     const oldValues: Record<string, string> = {};
     DIMENSIONS.forEach(dim => {
@@ -507,7 +639,6 @@ export default function RGYHealth() {
 
     const weekStart = getCurrentWeekStart();
 
-    // Build full dimension values for insert
     const updatedDeal = { ...deal, [dimKey]: newValue };
     const rgyPayload: Record<string, string> = {};
     DIMENSIONS.forEach(dim => {
@@ -521,7 +652,6 @@ export default function RGYHealth() {
         deal_id: dealId,
         week_start: weekStart,
         ...rgyPayload,
-        // Keep legacy columns in sync
         account_health: rgyPayload.customer || "G",
         delivery: "G",
         consumption: "G",
@@ -550,24 +680,31 @@ export default function RGYHealth() {
       setIssueFormDeal(latestDeal as DealWithRGY);
       setIssueFormNonGreen(nonGreen);
     }
-  }, [deals]);
+  }, []);
+
+  const handleGreenGateConfirm = useCallback(async () => {
+    if (!greenGate) return;
+    const deal = deals.find(d => d.id === greenGate.dealId);
+    if (deal) {
+      await applyRGYUpdate(greenGate.dealId, greenGate.dimKey, "G", deal);
+    }
+    setGreenGate(null);
+  }, [greenGate, deals, applyRGYUpdate]);
+
+  const handleMarkTaskDone = useCallback(async (taskId: string) => {
+    await supabase.from("deal_tasks").update({ stage: "Done" }).eq("id", taskId);
+  }, []);
 
   const handleIssueCancel = useCallback(() => {
-    // Revert RGY to previous values
     if (prevRGYSnapshot) {
       setDeals(prev => prev.map(d => {
-        if (d.id === prevRGYSnapshot.dealId) {
-          return { ...d, ...prevRGYSnapshot.values };
-        }
+        if (d.id === prevRGYSnapshot.dealId) return { ...d, ...prevRGYSnapshot.values };
         return d;
       }));
-
-      // Also revert in DB
       const deal = deals.find(d => d.id === prevRGYSnapshot.dealId);
       if (deal?.rgy_row_id) {
         supabase.from("deal_rgy_weekly").update(prevRGYSnapshot.values as any).eq("id", deal.rgy_row_id);
       }
-
       toast.info("RGY changes reverted");
     }
     setIssueFormDeal(null);
@@ -586,7 +723,6 @@ export default function RGYHealth() {
   }) => {
     if (!issueFormDeal) return;
 
-    // Update the RGY row with issue details
     const deal = deals.find(d => d.id === issueFormDeal.id);
     if (deal?.rgy_row_id) {
       await supabase.from("deal_rgy_weekly").update({
@@ -599,7 +735,6 @@ export default function RGYHealth() {
       }).eq("id", deal.rgy_row_id);
     }
 
-    // Create tasks in deal_tasks
     for (const task of issueData.tasks) {
       for (const assignee of task.assignees) {
         await supabase.from("deal_tasks").insert({
@@ -636,8 +771,18 @@ export default function RGYHealth() {
       const s = search.toLowerCase();
       d = d.filter(deal => deal.account.toLowerCase().includes(s) || deal.deal_name.toLowerCase().includes(s) || deal.deal_id.toLowerCase().includes(s));
     }
+    // RGY status filter
+    if (rgyFilter !== "All") {
+      d = d.filter(deal => {
+        const w = getWorstRGY(deal);
+        if (rgyFilter === "Red") return w === "R";
+        if (rgyFilter === "Yellow") return w === "Y";
+        if (rgyFilter === "Green") return w === "G";
+        return true;
+      });
+    }
     return d;
-  }, [deals, activePod, search, showClosed]);
+  }, [deals, activePod, search, showClosed, rgyFilter]);
 
   // Group by Client
   const groupedDeals = useMemo(() => {
@@ -720,6 +865,21 @@ export default function RGYHealth() {
             ))}
           </div>
 
+          {/* RGY Status Filter */}
+          <div className="flex gap-1 bg-secondary rounded-lg p-1">
+            {(["All", "Red", "Yellow", "Green"] as const).map(f => (
+              <button key={f} onClick={() => setRgyFilter(f)} className={cn(
+                "px-2.5 py-1.5 rounded-md text-caption font-medium whitespace-nowrap transition-colors",
+                rgyFilter === f ? (
+                  f === "Red" ? "bg-red-500 text-white shadow-sm" :
+                  f === "Yellow" ? "bg-amber-500 text-white shadow-sm" :
+                  f === "Green" ? "bg-emerald-500 text-white shadow-sm" :
+                  "bg-primary text-primary-foreground shadow-sm"
+                ) : "text-muted-foreground hover:text-foreground"
+              )}>{f}</button>
+            ))}
+          </div>
+
           <div className="relative flex-1 max-w-xs">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input type="text" placeholder="Search clients or deals..." value={search} onChange={e => setSearch(e.target.value)}
@@ -737,107 +897,146 @@ export default function RGYHealth() {
           </Button>
         </div>
 
-        {/* Grouped Table */}
-        <TooltipProvider>
-          <div className="bg-card border border-border rounded-xl overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-ui">
-                <thead>
-                  <tr className="bg-secondary/40 border-b border-border">
-                    <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium w-8"></th>
-                    <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Deal Name</th>
-                    <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Deal ID</th>
-                    <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Status</th>
-                    {DIMENSIONS.map(d => (
-                      <th key={d.key} className="text-center py-2 px-2 text-[11px] uppercase tracking-wider text-muted-foreground font-medium whitespace-nowrap">{d.label}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {groupedDeals.map(({ client, deals: clientDeals }) => {
-                    const isExpanded = expandedClients.has(client);
-                    const clientDims = clientDeals.flatMap(d =>
-                      DIMENSIONS.map(dim => (d[dim.key as keyof DealWithRGY] as string || "NA") as RGYStatus)
-                    );
-                    const clientRed = clientDims.filter(v => v === "R").length;
-                    const clientYellow = clientDims.filter(v => v === "Y").length;
+        {/* Tab switcher */}
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="mb-4">
+          <TabsList>
+            <TabsTrigger value="health">Health Board</TabsTrigger>
+            <TabsTrigger value="insights">Insights</TabsTrigger>
+          </TabsList>
 
-                    return (
-                      <React.Fragment key={client}>
-                        <tr
-                          className="border-b border-border bg-secondary/20 hover:bg-secondary/40 cursor-pointer transition-colors"
-                          onClick={() => toggleClient(client)}
-                        >
-                          <td className="py-2 px-3">
-                            {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-                          </td>
-                          <td className="py-2 px-3" colSpan={3}>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-semibold text-foreground">{client}</span>
-                              <span className="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
-                                {clientDeals.length} deal{clientDeals.length !== 1 ? "s" : ""}
-                              </span>
-                            </div>
-                          </td>
-                          <td colSpan={DIMENSIONS.length} className="py-2 px-3">
-                            <div className="flex items-center gap-3 justify-end">
-                              {clientRed > 0 && <span className="text-[10px] font-medium text-red-600 dark:text-red-400">{clientRed} Red</span>}
-                              {clientYellow > 0 && <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">{clientYellow} Yellow</span>}
-                              {clientRed === 0 && clientYellow === 0 && <span className="text-[10px] text-muted-foreground">All Green</span>}
-                            </div>
-                          </td>
-                        </tr>
+          <TabsContent value="health">
+            {/* Grouped Table */}
+            <TooltipProvider>
+              <div className="bg-card border border-border rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-ui">
+                    <thead>
+                      <tr className="bg-secondary/40 border-b border-border">
+                        <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium w-8"></th>
+                        <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Deal Name</th>
+                        <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Deal ID</th>
+                        <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Status</th>
+                        {DIMENSIONS.map(d => (
+                          <th key={d.key} className="text-center py-2 px-2 text-[11px] uppercase tracking-wider text-muted-foreground font-medium whitespace-nowrap">{d.label}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {groupedDeals.map(({ client, deals: clientDeals }) => {
+                        const isExpanded = expandedClients.has(client);
+                        const clientDims = clientDeals.flatMap(d =>
+                          DIMENSIONS.map(dim => (d[dim.key as keyof DealWithRGY] as string || "NA") as RGYStatus)
+                        );
+                        const clientRed = clientDims.filter(v => v === "R").length;
+                        const clientYellow = clientDims.filter(v => v === "Y").length;
+                        const hasAnyRGY = clientDims.some(v => v !== "NA");
 
-                        {isExpanded && clientDeals.map(deal => (
-                          <tr key={deal.id} className="border-b border-border/50 hover:bg-accent/10 transition-colors">
-                            <td className="py-2 px-3"></td>
-                            <td className="py-2 px-3 pl-6">
-                              <Link to={`/deals/${deal.id}`} className="text-primary hover:underline text-xs font-medium">
-                                {deal.deal_name}
-                              </Link>
-                            </td>
-                            <td className="py-2 px-3 text-xs font-mono text-muted-foreground">{deal.deal_id || "—"}</td>
-                            <td className="py-2 px-3">
-                              <Badge
-                                variant="outline"
-                                className={cn(
-                                  "text-[10px] px-1.5 py-0 font-medium border",
-                                  statusBadgeStyles[deal.deal_status] || "bg-muted text-muted-foreground border-border"
-                                )}
-                              >
-                                {statusShortLabels[deal.deal_status] || deal.deal_status || "—"}
-                              </Badge>
-                            </td>
-                            {DIMENSIONS.map(dim => {
-                              const val = (deal[dim.key as keyof DealWithRGY] as string || "NA") as RGYStatus;
+                        return (
+                          <React.Fragment key={client}>
+                            <tr
+                              className="border-b border-border bg-secondary/20 hover:bg-secondary/40 cursor-pointer transition-colors"
+                              onClick={() => toggleClient(client)}
+                            >
+                              <td className="py-2 px-3">
+                                {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                              </td>
+                              <td className="py-2 px-3" colSpan={3}>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-semibold text-foreground">{client}</span>
+                                  <span className="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
+                                    {clientDeals.length} deal{clientDeals.length !== 1 ? "s" : ""}
+                                  </span>
+                                </div>
+                              </td>
+                              <td colSpan={DIMENSIONS.length} className="py-2 px-3">
+                                <div className="flex items-center gap-3 justify-end">
+                                  {clientRed > 0 && <span className="text-[10px] font-medium text-red-600 dark:text-red-400">{clientRed} Red</span>}
+                                  {clientYellow > 0 && <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">{clientYellow} Yellow</span>}
+                                  {hasAnyRGY && clientRed === 0 && clientYellow === 0 && (
+                                    <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">All Green</span>
+                                  )}
+                                  {!hasAnyRGY && <span className="text-[10px] text-muted-foreground">—</span>}
+                                </div>
+                              </td>
+                            </tr>
+
+                            {isExpanded && clientDeals.map(deal => {
+                              const worst = getWorstRGY(deal);
                               return (
-                                <td key={dim.key} className="py-2 px-2 text-center">
-                                  <RGYCell
-                                    dealId={deal.id}
-                                    dimKey={dim.key}
-                                    value={val}
-                                    label={dim.label}
-                                    onUpdate={handleRGYUpdate}
-                                  />
-                                </td>
+                                <tr key={deal.id} className="border-b border-border/50 hover:bg-accent/10 transition-colors">
+                                  <td className="py-2 px-3"></td>
+                                  <td className="py-2 px-3 pl-6">
+                                    <div className="flex items-center gap-2">
+                                      {/* Overall RGY dot */}
+                                      {worst && <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", worstDotColor[worst])} />}
+                                      <Link to={`/deals/${deal.id}`} className="text-primary hover:underline text-xs font-medium">
+                                        {deal.deal_name}
+                                      </Link>
+                                    </div>
+                                  </td>
+                                  <td className="py-2 px-3 text-xs font-mono text-muted-foreground">{deal.deal_id || "—"}</td>
+                                  <td className="py-2 px-3">
+                                    <Badge
+                                      variant="outline"
+                                      className={cn(
+                                        "text-[10px] px-1.5 py-0 font-medium border",
+                                        statusBadgeStyles[deal.deal_status] || "bg-muted text-muted-foreground border-border"
+                                      )}
+                                    >
+                                      {statusShortLabels[deal.deal_status] || deal.deal_status || "—"}
+                                    </Badge>
+                                  </td>
+                                  {DIMENSIONS.map(dim => {
+                                    const val = (deal[dim.key as keyof DealWithRGY] as string || "NA") as RGYStatus;
+                                    return (
+                                      <td key={dim.key} className="py-2 px-2 text-center">
+                                        <RGYCell
+                                          dealId={deal.id}
+                                          dimKey={dim.key}
+                                          value={val}
+                                          label={dim.label}
+                                          onUpdate={handleRGYUpdate}
+                                        />
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
                               );
                             })}
-                          </tr>
-                        ))}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                          </React.Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
 
-            {groupedDeals.length === 0 && (
-              <div className="text-center py-12">
-                <p className="text-muted-foreground">No deals found matching your filters.</p>
+                {groupedDeals.length === 0 && (
+                  <div className="text-center py-12">
+                    <p className="text-muted-foreground">No deals found matching your filters.</p>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        </TooltipProvider>
+            </TooltipProvider>
+          </TabsContent>
+
+          <TabsContent value="insights">
+            <RGYInsightsTab
+              deals={deals}
+              filteredDeals={filteredDeals}
+              issues={rgyIssues}
+            />
+          </TabsContent>
+        </Tabs>
+
+        {/* Green-Gate Dialog */}
+        {greenGate && (
+          <GreenGateDialog
+            pendingTasks={greenGate.tasks}
+            onConfirm={handleGreenGateConfirm}
+            onCancel={() => setGreenGate(null)}
+            onMarkDone={handleMarkTaskDone}
+          />
+        )}
 
         {/* Issue Form Dialog */}
         {issueFormDeal && issueFormNonGreen.length > 0 && (
