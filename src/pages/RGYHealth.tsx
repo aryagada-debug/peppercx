@@ -31,6 +31,11 @@ const ACTIVE_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disp
 const DIMENSIONS = [
   { key: "customer", label: "Overall Customer" },
   { key: "internal", label: "Internal" },
+  { key: "delivery", label: "Delivery" },
+  { key: "consumption", label: "Consumption" },
+  { key: "invoicing", label: "Invoicing" },
+  { key: "receivables", label: "Receivables" },
+  { key: "margins", label: "Margins" },
   { key: "content", label: "Content" },
   { key: "seo", label: "SEO" },
   { key: "supply", label: "Supply" },
@@ -92,6 +97,7 @@ interface DealWithRGY {
   deal_status: string;
   pod: string;
   vsd: string;
+  pc_code: string;
   mrr: number | null;
   total_deal_value: number | null;
   principal_bopm: string;
@@ -101,8 +107,15 @@ interface DealWithRGY {
   payment_terms: string;
   rgy_row_id?: string;
   rgy_week_start?: string;
+  rgy_action_plan?: string;
+  rgy_discussed_action_plan?: string;
   customer: string;
   internal: string;
+  delivery: string;
+  consumption: string;
+  invoicing: string;
+  receivables: string;
+  margins: string;
   content: string;
   seo: string;
   supply: string;
