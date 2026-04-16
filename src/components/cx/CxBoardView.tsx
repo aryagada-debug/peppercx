@@ -228,6 +228,7 @@ export function CxBoardView({ tasks, statuses, selectedSpaceId, allTags, onAddTa
                       key={task.id} task={task}
                       onClick={() => setEditingTask(task)}
                       onUpdate={updates => onUpdateTask(task.id, updates)}
+                      onDelete={() => onDeleteTask(task.id)}
                       spaceId={selectedSpaceId} allTags={allTags}
                     />
                   ))}
