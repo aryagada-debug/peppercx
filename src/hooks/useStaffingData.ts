@@ -133,6 +133,28 @@ export function useStaffingData() {
 
   useEffect(() => {
     loadAll();
+
+    // Realtime subscriptions so changes sync across pages
+    const channel = supabase
+      .channel("staffing-sync")
+      .on("postgres_changes", { event: "*", schema: "public", table: "staffing_assignments" }, () => {
+        supabase.from("staffing_assignments").select("*").then(({ data }) => {
+          if (data) setAssignments(data.map(dbToAssignment));
+        });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "staffing_people" }, () => {
+        supabase.from("staffing_people").select("*").then(({ data }) => {
+          if (data) setPeople(data.map(dbToPerson));
+        });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "staffing_deals" }, () => {
+        supabase.from("staffing_deals").select("*").then(({ data }) => {
+          if (data) setDeals(data.map(dbToDeal));
+        });
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   async function loadAll() {
