@@ -552,7 +552,7 @@ export default function RGYHealth() {
   } | null>(null);
 
   // Issues for insights
-  const [rgyIssues, setRgyIssues] = useState<{ deal_name: string; issue_details: string; issue_status: string }[]>([]);
+  const [rgyIssues, setRgyIssues] = useState<{ deal_name: string; deal_id: string; pc_code: string; deal_status: string; issue_details: string; issue_status: string; action_plan: string; discussed_action_plan: string; red_dimensions: string[] }[]>([]);
 
   const fetchData = useCallback(async () => {
     const { data: dealRows } = await supabase
@@ -564,7 +564,7 @@ export default function RGYHealth() {
 
     const dealIds = dealRows.map(d => d.id);
     const rgyMap = new Map<string, any>();
-    const issuesList: { deal_name: string; issue_details: string; issue_status: string }[] = [];
+    const issuesList: { deal_name: string; deal_id: string; pc_code: string; deal_status: string; issue_details: string; issue_status: string; action_plan: string; discussed_action_plan: string; red_dimensions: string[] }[] = [];
 
     for (let i = 0; i < dealIds.length; i += 500) {
       const batch = dealIds.slice(i, i + 500);
