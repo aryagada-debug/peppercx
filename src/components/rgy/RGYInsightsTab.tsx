@@ -132,17 +132,28 @@ export function RGYInsightsTab({ deals, filteredDeals, issues }: Props) {
     }),
   [filteredDeals]);
 
-  // VSD comparison
+  // VSD comparison — only the 5 core VSDs
+  const CORE_VSDS = new Set(["Neema Jayadas", "Sumit Shekhawat", "Aamir Khan", "Sneha Iyer", "Aditya Shaw"]);
+  const VSD_SHORT: Record<string, string> = {
+    "Neema Jayadas": "Neema",
+    "Sumit Shekhawat": "Sumit",
+    "Aamir Khan": "Aamir",
+    "Sneha Iyer": "Sneha",
+    "Aditya Shaw": "Aditya",
+  };
   const vsdComparison = useMemo(() => {
-    const map = new Map<string, { vsd: string; Red: number; Yellow: number; Green: number }>();
+    const map = new Map<string, { vsd: string; Red: number; Yellow: number; Green: number; total: number }>();
+    // Initialize all 5 VSDs so they always appear
+    CORE_VSDS.forEach(v => map.set(v, { vsd: VSD_SHORT[v] || v, Red: 0, Yellow: 0, Green: 0, total: 0 }));
     filteredDeals.forEach(deal => {
-      const v = deal.vsd || "Unknown";
-      const entry = map.get(v) || { vsd: v, Red: 0, Yellow: 0, Green: 0 };
+      const v = deal.vsd || "";
+      if (!CORE_VSDS.has(v)) return;
+      const entry = map.get(v)!;
       const w = getWorstRGY(deal);
       if (w === "R") entry.Red++;
       else if (w === "Y") entry.Yellow++;
       else if (w === "G") entry.Green++;
-      map.set(v, entry);
+      entry.total = entry.Red + entry.Yellow + entry.Green;
     });
     return Array.from(map.values()).sort((a, b) => b.Red - a.Red);
   }, [filteredDeals]);
