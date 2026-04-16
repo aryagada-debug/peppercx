@@ -20,6 +20,8 @@ interface Props {
   onToggle: () => void;
 }
 
+const GCAL_TOKEN_KEY = "cx_gcal_provider_token";
+
 export function CxCalendarPanel({ open, onToggle }: Props) {
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -29,18 +31,35 @@ export function CxCalendarPanel({ open, onToggle }: Props) {
   const [checkingAuth, setCheckingAuth] = useState(true);
 
   useEffect(() => {
-    checkConnection();
-  }, []);
+    // Listen for auth state changes to capture provider_token
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.provider_token) {
+        localStorage.setItem(GCAL_TOKEN_KEY, session.provider_token);
+        setConnected(true);
+        fetchEvents(session.provider_token);
+      }
+    });
 
-  const checkConnection = async () => {
-    setCheckingAuth(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.provider_token) {
+    // Check for existing token
+    const savedToken = localStorage.getItem(GCAL_TOKEN_KEY);
+    if (savedToken) {
       setConnected(true);
-      fetchEvents(session.provider_token);
+      fetchEvents(savedToken);
+      setCheckingAuth(false);
+    } else {
+      // Check if there's a session with provider_token
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.provider_token) {
+          localStorage.setItem(GCAL_TOKEN_KEY, session.provider_token);
+          setConnected(true);
+          fetchEvents(session.provider_token);
+        }
+        setCheckingAuth(false);
+      });
     }
-    setCheckingAuth(false);
-  };
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const handleConnect = async () => {
     setLoading(true);
@@ -49,6 +68,8 @@ export function CxCalendarPanel({ open, onToggle }: Props) {
         redirect_uri: window.location.origin + "/central-cx",
         extraParams: {
           prompt: "consent",
+          access_type: "offline",
+          scope: "openid email profile https://www.googleapis.com/auth/calendar.readonly",
         },
       });
       if (result.error) {
@@ -57,12 +78,6 @@ export function CxCalendarPanel({ open, onToggle }: Props) {
         return;
       }
       if (result.redirected) return;
-      // After redirect back, session should be set
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.provider_token) {
-        setConnected(true);
-        fetchEvents(session.provider_token);
-      }
     } catch (err) {
       console.error("Connect error:", err);
     }
@@ -70,6 +85,7 @@ export function CxCalendarPanel({ open, onToggle }: Props) {
   };
 
   const handleDisconnect = async () => {
+    localStorage.removeItem(GCAL_TOKEN_KEY);
     await supabase.auth.signOut();
     setConnected(false);
     setEvents([]);
