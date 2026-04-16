@@ -48,8 +48,7 @@ interface MBRDealWithPod extends MBRDeal {
 }
 
 export default function MBRTracker() {
-  const { deals, entries, loading, selectedWeek, setSelectedWeek, upsertEntry, vsdSummary, totals, refresh } = useMBRData();
-  const weekOptions = getWeekOptions();
+  const { deals, entries, loading, upsertEntry, vsdSummary, totals, refresh } = useMBRData();
 
   const [activePod, setActivePod] = useState<Pod>("All");
   const [search, setSearch] = useState("");
