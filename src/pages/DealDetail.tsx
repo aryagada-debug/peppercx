@@ -88,7 +88,8 @@ function FinancialMetricCard({ label, value, subLabel, onSave }: { label: string
 function TeamMemberSelect({ currentName, role, color, people, onSelect }: {
   currentName: string; role: string; color: string; people: { id: string; name: string; roleTitle: string }[]; onSelect: (name: string) => void;
 }) {
-  const initials = currentName && currentName !== "Not assigned"
+  const [open, setOpen] = useState(false);
+  const initials = currentName && currentName !== "Not assigned" && currentName !== ""
     ? currentName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()
     : "?";
 
@@ -101,29 +102,41 @@ function TeamMemberSelect({ currentName, role, color, people, onSelect }: {
         {initials}
       </div>
       <div className="flex-1 min-w-0">
-        <Select
-          value={currentName || "_none"}
-          onValueChange={v => {
-            if (v === "_none" || v === currentName) {
-              // Deselect: clicking same value or "Not assigned" clears
-              onSelect("");
-            } else {
-              onSelect(v);
-            }
-          }}
-        >
-          <SelectTrigger className="h-7 text-sm border-none bg-transparent shadow-none px-0 focus:ring-0">
-            <SelectValue placeholder="Not assigned" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="_none" className="text-xs text-muted-foreground">— Not assigned —</SelectItem>
-            {uniquePeople.map(p => (
-              <SelectItem key={p.id} value={p.name} className="text-xs">
-                {p.name} {p.name === currentName ? "✓" : ""}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <button className="h-7 text-sm bg-transparent px-0 text-left text-foreground hover:underline cursor-pointer">
+              {currentName || "Not assigned"}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-48 p-1" align="start">
+            <div className="flex flex-col">
+              {uniquePeople.map(p => (
+                <button
+                  key={p.id}
+                  className={cn(
+                    "text-xs text-left px-2 py-1.5 rounded hover:bg-muted flex items-center justify-between",
+                    p.name === currentName && "bg-muted font-medium"
+                  )}
+                  onClick={() => {
+                    onSelect(p.name === currentName ? "" : p.name);
+                    setOpen(false);
+                  }}
+                >
+                  {p.name}
+                  {p.name === currentName && <Check className="h-3 w-3 text-primary" />}
+                </button>
+              ))}
+              {currentName && (
+                <button
+                  className="text-xs text-left px-2 py-1.5 rounded hover:bg-muted text-muted-foreground border-t mt-1 pt-1.5"
+                  onClick={() => { onSelect(""); setOpen(false); }}
+                >
+                  — Clear —
+                </button>
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
       <span className="text-xs text-muted-foreground whitespace-nowrap">{role}</span>
     </div>
