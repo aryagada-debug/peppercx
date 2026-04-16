@@ -248,11 +248,14 @@ export type Database = {
           finance_billing: string
           id: string
           internal: string
+          invoicing: string
           issue_date: string | null
           issue_details: string | null
           issue_status: string | null
+          margins: string
           notes: string | null
           plan_of_action: string
+          receivables: string
           resolution_due_date: string | null
           seo: string
           supply: string
@@ -276,11 +279,14 @@ export type Database = {
           finance_billing?: string
           id?: string
           internal?: string
+          invoicing?: string
           issue_date?: string | null
           issue_details?: string | null
           issue_status?: string | null
+          margins?: string
           notes?: string | null
           plan_of_action?: string
+          receivables?: string
           resolution_due_date?: string | null
           seo?: string
           supply?: string
@@ -304,11 +310,14 @@ export type Database = {
           finance_billing?: string
           id?: string
           internal?: string
+          invoicing?: string
           issue_date?: string | null
           issue_details?: string | null
           issue_status?: string | null
+          margins?: string
           notes?: string | null
           plan_of_action?: string
+          receivables?: string
           resolution_due_date?: string | null
           seo?: string
           supply?: string

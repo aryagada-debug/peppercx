@@ -31,6 +31,11 @@ const ACTIVE_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disp
 const DIMENSIONS = [
   { key: "customer", label: "Overall Customer" },
   { key: "internal", label: "Internal" },
+  { key: "delivery", label: "Delivery" },
+  { key: "consumption", label: "Consumption" },
+  { key: "invoicing", label: "Invoicing" },
+  { key: "receivables", label: "Receivables" },
+  { key: "margins", label: "Margins" },
   { key: "content", label: "Content" },
   { key: "seo", label: "SEO" },
   { key: "supply", label: "Supply" },
@@ -92,6 +97,7 @@ interface DealWithRGY {
   deal_status: string;
   pod: string;
   vsd: string;
+  pc_code: string;
   mrr: number | null;
   total_deal_value: number | null;
   principal_bopm: string;
@@ -101,8 +107,15 @@ interface DealWithRGY {
   payment_terms: string;
   rgy_row_id?: string;
   rgy_week_start?: string;
+  rgy_action_plan?: string;
+  rgy_discussed_action_plan?: string;
   customer: string;
   internal: string;
+  delivery: string;
+  consumption: string;
+  invoicing: string;
+  receivables: string;
+  margins: string;
   content: string;
   seo: string;
   supply: string;
@@ -539,25 +552,25 @@ export default function RGYHealth() {
   } | null>(null);
 
   // Issues for insights
-  const [rgyIssues, setRgyIssues] = useState<{ deal_name: string; issue_details: string; issue_status: string }[]>([]);
+  const [rgyIssues, setRgyIssues] = useState<{ deal_name: string; deal_id: string; pc_code: string; deal_status: string; issue_details: string; issue_status: string; action_plan: string; discussed_action_plan: string; red_dimensions: string[] }[]>([]);
 
   const fetchData = useCallback(async () => {
     const { data: dealRows } = await supabase
       .from("staffing_deals")
-      .select("id, deal_id, deal_name, account, bopm, deal_status, pod, mrr, total_deal_value, vsd, principal_bopm, senior_bopm, start_date, end_date, payment_terms")
+      .select("id, deal_id, deal_name, account, bopm, deal_status, pod, mrr, total_deal_value, vsd, principal_bopm, senior_bopm, start_date, end_date, payment_terms, pc_code")
       .order("deal_name");
 
     if (!dealRows) { setLoading(false); return; }
 
     const dealIds = dealRows.map(d => d.id);
     const rgyMap = new Map<string, any>();
-    const issuesList: { deal_name: string; issue_details: string; issue_status: string }[] = [];
+    const issuesList: { deal_name: string; deal_id: string; pc_code: string; deal_status: string; issue_details: string; issue_status: string; action_plan: string; discussed_action_plan: string; red_dimensions: string[] }[] = [];
 
     for (let i = 0; i < dealIds.length; i += 500) {
       const batch = dealIds.slice(i, i + 500);
       const { data: rgyRows } = await supabase
         .from("deal_rgy_weekly")
-        .select("id, deal_id, customer, internal, content, seo, supply, copy, design, video, week_start, issue_details, issue_status")
+        .select("id, deal_id, customer, internal, delivery, consumption, invoicing, receivables, margins, content, seo, supply, copy, design, video, week_start, issue_details, issue_status, action_plan, discussed_action_plan")
         .in("deal_id", batch)
         .order("week_start", { ascending: false });
 
@@ -567,10 +580,17 @@ export default function RGYHealth() {
             rgyMap.set(r.deal_id, r);
             if (r.issue_details && (r.issue_status === "Open" || r.issue_status === "In Progress")) {
               const dealRow = dealRows.find(d => d.id === r.deal_id);
+              const redDims = DIMENSIONS.filter(dim => (r as any)[dim.key] === "R").map(dim => dim.label);
               issuesList.push({
                 deal_name: dealRow?.deal_name || "Unknown",
+                deal_id: dealRow?.deal_id || "",
+                pc_code: dealRow?.pc_code || "",
+                deal_status: dealRow?.deal_status || "",
                 issue_details: r.issue_details,
                 issue_status: r.issue_status || "Open",
+                action_plan: (r as any).action_plan || "",
+                discussed_action_plan: (r as any).discussed_action_plan || "",
+                red_dimensions: redDims,
               });
             }
           }
@@ -584,10 +604,18 @@ export default function RGYHealth() {
       const rgy = rgyMap.get(d.id);
       return {
         ...d,
+        pc_code: d.pc_code || "",
         rgy_row_id: rgy?.id,
         rgy_week_start: rgy?.week_start,
+        rgy_action_plan: rgy?.action_plan || "",
+        rgy_discussed_action_plan: rgy?.discussed_action_plan || "",
         customer: rgy?.customer || "NA",
         internal: rgy?.internal || "NA",
+        delivery: rgy?.delivery || "NA",
+        consumption: rgy?.consumption || "NA",
+        invoicing: rgy?.invoicing || "NA",
+        receivables: rgy?.receivables || "NA",
+        margins: rgy?.margins || "NA",
         content: rgy?.content || "NA",
         seo: rgy?.seo || "NA",
         supply: rgy?.supply || "NA",
@@ -653,8 +681,11 @@ export default function RGYHealth() {
         week_start: weekStart,
         ...rgyPayload,
         account_health: rgyPayload.customer || "G",
-        delivery: "G",
-        consumption: "G",
+        delivery: rgyPayload.delivery || "G",
+        consumption: rgyPayload.consumption || "G",
+        invoicing: rgyPayload.invoicing || "G",
+        receivables: rgyPayload.receivables || "G",
+        margins: rgyPayload.margins || "G",
         finance_billing: "G",
         capability_seo: rgyPayload.seo || "G",
         capability_creative: "G",
