@@ -16,9 +16,13 @@ export interface Person {
 }
 
 export const DEPARTMENTS = [
-  "Delivery Ops", "Capability - SEO Team", "Capability - Quality Team",
-  "Capability - Creative Team", "Creative Strategy Team", "Content Strategy Team",
-  "Capability - Video Production Team", "Marketing - Support"
+  "Capability - Creative Team", "Capability - Digital Strategy", "Capability - Quality Team",
+  "Capability - SEO Team", "Capability - Video Production Team", "Central COE & Planning",
+  "Delivery Ops and CS", "Engineering", "Finance, Legal and Admin", "HR & TA",
+  "Leadership", "Marketing and Demand Generation", "Product - Design, Management",
+  "Revenue - NN India Sales", "Revenue - NN India Demand Gen",
+  "Revenue - NN US Sales", "Revenue - NN US Demand Gen",
+  "Supply Acquisition and Operations",
 ] as const;
 
 export const BANDS = ["L0", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8"] as const;
@@ -34,6 +38,19 @@ export type RoleCategory =
   | "Video"
   | "Performance & Growth"
   | "Other";
+
+// Department → RoleCategory mapping
+export function departmentToRoleCategory(dept: string): RoleCategory {
+  const map: Record<string, RoleCategory> = {
+    "Capability - Creative Team": "Creative Art",
+    "Capability - Digital Strategy": "Content Strategy",
+    "Capability - Quality Team": "Content",
+    "Capability - SEO Team": "SEO",
+    "Capability - Video Production Team": "Video",
+    "Delivery Ops and CS": "Operations",
+  };
+  return map[dept] || "Other";
+}
 
 export interface RoleSlot {
   roleKey: string;
@@ -101,7 +118,6 @@ export interface BWRule {
   recommendedPct: number;
 }
 
-// ── Hiring Plan ──────────────────────────────────────────────────────────────
 export interface HiringNeed {
   id: string;
   role: string;
@@ -121,7 +137,6 @@ export const DEFAULT_HIRING_NEEDS: HiringNeed[] = [
   { id: "h5", role: "BOPM", roleCategory: "Operations", pod: "Sumit", priority: "Critical", targetDate: "2026-04-01", rationale: "Backfill for leaving team member", status: "In Progress" },
 ];
 
-// ── Revenue Capacity Targets (per designation within department) ──────────
 export interface RevenueCapacityTarget {
   department: string;
   designation: string;
@@ -129,85 +144,59 @@ export interface RevenueCapacityTarget {
 }
 
 export const DEFAULT_REVENUE_TARGETS: RevenueCapacityTarget[] = [
-  // Delivery Ops
-  { department: "Delivery Ops", designation: "Vertical Service Delivery Leader", targetDealValuePerPerson: 15000000 },
-  { department: "Delivery Ops", designation: "Group Account Manager", targetDealValuePerPerson: 8000000 },
-  { department: "Delivery Ops", designation: "Principal Account Engagement Lead", targetDealValuePerPerson: 7000000 },
-  { department: "Delivery Ops", designation: "Senior BOPM", targetDealValuePerPerson: 4000000 },
-  { department: "Delivery Ops", designation: "BOPM", targetDealValuePerPerson: 2500000 },
-  { department: "Delivery Ops", designation: "Junior BOPM", targetDealValuePerPerson: 1500000 },
-  { department: "Delivery Ops", designation: "Operations Consultant", targetDealValuePerPerson: 1000000 },
-  // SEO
+  { department: "Delivery Ops and CS", designation: "Vertical Service Delivery Leader", targetDealValuePerPerson: 15000000 },
+  { department: "Delivery Ops and CS", designation: "Group Account Manager", targetDealValuePerPerson: 8000000 },
+  { department: "Delivery Ops and CS", designation: "Principal Account Engagement Lead", targetDealValuePerPerson: 7000000 },
+  { department: "Delivery Ops and CS", designation: "Senior BOPM", targetDealValuePerPerson: 4000000 },
+  { department: "Delivery Ops and CS", designation: "BOPM", targetDealValuePerPerson: 2500000 },
+  { department: "Delivery Ops and CS", designation: "Junior BOPM", targetDealValuePerPerson: 1500000 },
   { department: "Capability - SEO Team", designation: "SEO - Practice Head", targetDealValuePerPerson: 10000000 },
   { department: "Capability - SEO Team", designation: "Group Head - SEO", targetDealValuePerPerson: 5000000 },
   { department: "Capability - SEO Team", designation: "Senior SEO Manager", targetDealValuePerPerson: 3000000 },
   { department: "Capability - SEO Team", designation: "SEO Manager", targetDealValuePerPerson: 2000000 },
   { department: "Capability - SEO Team", designation: "Senior SEO Analyst", targetDealValuePerPerson: 1500000 },
-  // Content
   { department: "Capability - Quality Team", designation: "Practice Head - Editorial", targetDealValuePerPerson: 10000000 },
-  { department: "Capability - Quality Team", designation: "Associate Director - Editorial", targetDealValuePerPerson: 5000000 },
+  { department: "Capability - Quality Team", designation: "Associate Director - Content", targetDealValuePerPerson: 5000000 },
   { department: "Capability - Quality Team", designation: "Senior Content Lead", targetDealValuePerPerson: 2500000 },
   { department: "Capability - Quality Team", designation: "Content Lead", targetDealValuePerPerson: 2000000 },
-  // Content Strategy
-  { department: "Content Strategy Team", designation: "Director of Content Strategy", targetDealValuePerPerson: 8000000 },
-  { department: "Content Strategy Team", designation: "Senior Manager - Content Strategy", targetDealValuePerPerson: 4000000 },
-  { department: "Content Strategy Team", designation: "Manager - Content Strategy", targetDealValuePerPerson: 2500000 },
-  // Creative
   { department: "Capability - Creative Team", designation: "Senior Creative Director", targetDealValuePerPerson: 8000000 },
   { department: "Capability - Creative Team", designation: "Associate Creative Director", targetDealValuePerPerson: 5000000 },
   { department: "Capability - Creative Team", designation: "Art Director", targetDealValuePerPerson: 3000000 },
-  { department: "Capability - Creative Team", designation: "Senior Copywriter", targetDealValuePerPerson: 2000000 },
-  { department: "Capability - Creative Team", designation: "Graphic Designer", targetDealValuePerPerson: 1000000 },
-  // Creative Strategy
-  { department: "Creative Strategy Team", designation: "Creative Director - Strategy and Planning", targetDealValuePerPerson: 8000000 },
-  { department: "Creative Strategy Team", designation: "Senior Creative Strategist", targetDealValuePerPerson: 4000000 },
-  { department: "Creative Strategy Team", designation: "Creative Lead", targetDealValuePerPerson: 3000000 },
-  // Video
   { department: "Capability - Video Production Team", designation: "Executive Producer", targetDealValuePerPerson: 5000000 },
   { department: "Capability - Video Production Team", designation: "Creative Producer", targetDealValuePerPerson: 3000000 },
-  { department: "Capability - Video Production Team", designation: "Associate Creative Producer", targetDealValuePerPerson: 2000000 },
 ];
 
-// ── Role Definitions ─────────────────────────────────────────────────────────
 export const ROLE_SLOTS: RoleSlot[] = [
-  // Operations
   { roleKey: "vsd", roleLabel: "VSD", category: "Operations" },
   { roleKey: "principal_bopm", roleLabel: "Principal BOPM", category: "Operations" },
   { roleKey: "senior_bopm", roleLabel: "Senior BOPM", category: "Operations" },
   { roleKey: "bopm", roleLabel: "BOPM", category: "Operations" },
-  // Content
   { roleKey: "managing_editor", roleLabel: "Managing Editor", category: "Content" },
   { roleKey: "content_lead", roleLabel: "Content Lead", category: "Content" },
   { roleKey: "senior_editor", roleLabel: "Senior Editor", category: "Content" },
-  // SEO
   { roleKey: "seo_leader", roleLabel: "SEO Leader", category: "SEO" },
   { roleKey: "seo_group_head", roleLabel: "Group Head", category: "SEO" },
   { roleKey: "sr_seo_manager", roleLabel: "Sr. SEO Manager", category: "SEO" },
   { roleKey: "seo_manager", roleLabel: "SEO Manager", category: "SEO" },
   { roleKey: "sr_seo_analyst", roleLabel: "Sr. SEO Analyst", category: "SEO" },
   { roleKey: "seo_analyst", roleLabel: "SEO Analyst", category: "SEO" },
-  // Creative Strategy
   { roleKey: "strategy_cd", roleLabel: "Strategy CD", category: "Creative Strategy" },
   { roleKey: "strategy_acd", roleLabel: "Strategy ACD", category: "Creative Strategy" },
   { roleKey: "strategy_sr", roleLabel: "Sr. Strategist", category: "Creative Strategy" },
-  // Creative Copy
   { roleKey: "cd_copy", roleLabel: "CD - Copy", category: "Creative Copy" },
   { roleKey: "acd_copy", roleLabel: "ACD - Copy", category: "Creative Copy" },
   { roleKey: "sr_copywriter", roleLabel: "Sr. Copywriter", category: "Creative Copy" },
   { roleKey: "jr_copywriter", roleLabel: "Jr. Copywriter", category: "Creative Copy" },
-  // Creative Art
   { roleKey: "sr_cd_art", roleLabel: "Sr. CD - Art", category: "Creative Art" },
   { roleKey: "acd_art", roleLabel: "ACD - Art", category: "Creative Art" },
   { roleKey: "art_director", roleLabel: "Art Director", category: "Creative Art" },
   { roleKey: "sr_designer", roleLabel: "Sr. Designer", category: "Creative Art" },
   { roleKey: "jr_designer", roleLabel: "Jr. Designer", category: "Creative Art" },
-  // Video
   { roleKey: "production_head", roleLabel: "Production Head", category: "Video" },
   { roleKey: "ad_video_pm", roleLabel: "AD - Video PM", category: "Video" },
   { roleKey: "video_pm", roleLabel: "Video PM/ACP", category: "Video" },
   { roleKey: "video_editor_1", roleLabel: "Video Editor 1", category: "Video" },
   { roleKey: "video_editor_2", roleLabel: "Video Editor 2", category: "Video" },
-  // Other
   { roleKey: "influencer", roleLabel: "Influencer Team", category: "Other" },
   { roleKey: "perf_growth", roleLabel: "Performance & Growth", category: "Performance & Growth" },
 ];
@@ -216,246 +205,277 @@ export const ROLE_CATEGORIES: RoleCategory[] = [
   "Operations", "Content", "Content Strategy", "SEO", "Creative Strategy", "Creative Copy", "Creative Art", "Video", "Performance & Growth", "Other"
 ];
 
-// ── Business Unit → Role Category Mapping ────────────────────────────────────
 export const BU_ROLE_CATEGORIES: Record<string, RoleCategory[]> = {
   "Pepper Creative": ["Operations", "Creative Strategy", "Creative Copy", "Creative Art", "Video"],
   "Pepper SEO/GEO + Content": ["Operations", "Content", "SEO"],
-  "Integrated": ROLE_CATEGORIES, // all categories
+  "Integrated": ROLE_CATEGORIES,
   "Content Studios": ["Operations", "Content", "Video"],
-  "Others": ROLE_CATEGORIES, // all by default
+  "Others": ROLE_CATEGORIES,
 };
 
 export const getBUCategories = (bu: string): RoleCategory[] => {
   return BU_ROLE_CATEGORIES[bu] || ROLE_CATEGORIES;
 };
 
-// ── Role-to-People Filter Mapping ───────────────────────────────────────────
 export const ROLE_TO_PEOPLE_FILTER: Record<string, string[]> = {
-  vsd: ["VSD"],
-  principal_bopm: ["Principal BOPM"],
-  senior_bopm: ["Senior BOPM"],
-  bopm: ["BOPM"],
-  managing_editor: ["Managing Editor"],
-  content_lead: ["Content Lead"],
-  senior_editor: ["Senior Editor"],
-  seo_leader: ["SEO Leader"],
-  seo_group_head: ["Group Head"],
-  sr_seo_manager: ["Sr. SEO Manager"],
-  seo_manager: ["SEO Manager"],
-  sr_seo_analyst: ["Sr. SEO Analyst"],
-  seo_analyst: ["SEO Analyst"],
-  strategy_cd: ["Strategy CD"],
-  strategy_acd: ["Strategy ACD"],
-  strategy_sr: ["Sr. Strategist"],
-  cd_copy: ["CD - Copy"],
-  acd_copy: ["ACD - Copy"],
-  sr_copywriter: ["Sr. Copywriter"],
-  jr_copywriter: ["Jr. Copywriter"],
-  sr_cd_art: ["Sr. CD - Art"],
-  acd_art: ["ACD - Art"],
-  art_director: ["Art Director"],
-  sr_designer: ["Sr. Designer"],
-  jr_designer: ["Jr. Designer"],
-  production_head: ["Production Head"],
-  ad_video_pm: ["AD - Video PM"],
-  video_pm: ["Video PM/ACP"],
-  video_editor_1: ["Video Editor 1"],
-  video_editor_2: ["Video Editor 2"],
-  influencer: ["Influencer Team"],
-  perf_growth: ["Performance & Growth"],
+  vsd: ["VSD"], principal_bopm: ["Principal BOPM"], senior_bopm: ["Senior BOPM"], bopm: ["BOPM"],
+  managing_editor: ["Managing Editor"], content_lead: ["Content Lead"], senior_editor: ["Senior Editor"],
+  seo_leader: ["SEO Leader"], seo_group_head: ["Group Head"], sr_seo_manager: ["Sr. SEO Manager"],
+  seo_manager: ["SEO Manager"], sr_seo_analyst: ["Sr. SEO Analyst"], seo_analyst: ["SEO Analyst"],
+  strategy_cd: ["Strategy CD"], strategy_acd: ["Strategy ACD"], strategy_sr: ["Sr. Strategist"],
+  cd_copy: ["CD - Copy"], acd_copy: ["ACD - Copy"], sr_copywriter: ["Sr. Copywriter"], jr_copywriter: ["Jr. Copywriter"],
+  sr_cd_art: ["Sr. CD - Art"], acd_art: ["ACD - Art"], art_director: ["Art Director"],
+  sr_designer: ["Sr. Designer"], jr_designer: ["Jr. Designer"],
+  production_head: ["Production Head"], ad_video_pm: ["AD - Video PM"], video_pm: ["Video PM/ACP"],
+  video_editor_1: ["Video Editor 1"], video_editor_2: ["Video Editor 2"],
+  influencer: ["Influencer Team"], perf_growth: ["Performance & Growth"],
 };
 
-// ── Helper ───────────────────────────────────────────────────────────────────
 let _uid = 0;
 export const uid = () => `id_${++_uid}_${Math.random().toString(36).slice(2, 7)}`;
 
-// ── People Data (from spreadsheet) ───────────────────────────────────────────
+// ── People Data (from Google Sheet — 185 employees) ───────────────────────
 export const DEFAULT_PEOPLE: Person[] = [
-  // ── Delivery Ops: VSDs (L6-L8) ──
-  { id: "p_neema", name: "Neema Jayadas", roleCategory: "Operations", roleTitle: "VSD", pod: "Neema", region: "US", leaving: false, tbh: false, department: "Delivery Ops", designation: "Vertical Service Delivery Leader", reportingManager: "Priya Berde", band: "L8" },
-  { id: "p_aamir", name: "Aamir Khan", roleCategory: "Operations", roleTitle: "VSD", pod: "Aamir", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "Vertical Service Delivery Leader", reportingManager: "Priya Berde", band: "L7" },
-  { id: "p_sumit", name: "Sumit Shekhawat", roleCategory: "Operations", roleTitle: "VSD", pod: "Sumit", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "Vertical Service Delivery Leader", reportingManager: "Priya Berde", band: "L6" },
-  { id: "p_aditya_shaw", name: "Aditya Shaw", roleCategory: "Operations", roleTitle: "VSD", pod: "Aditya", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "Vertical Service Delivery Leader", reportingManager: "Priya Berde", band: "L5" },
-  { id: "p_sneha", name: "Sneha Iyer", roleCategory: "Operations", roleTitle: "VSD", pod: "Sneha", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "Vertical Service Delivery Leader", reportingManager: "Priya Berde", band: "L5" },
+  // ── Capability - Creative Team ──
+  { id: "P394", name: "Nikhil Somani", roleCategory: "Creative Art", roleTitle: "Strategy CD", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Creative Director - Strategy and Planning", reportingManager: "Sneha Iyer" },
+  { id: "P397", name: "Pratyush Singh", roleCategory: "Creative Art", roleTitle: "Sr. Strategist", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Associate Group Head - Strategy", reportingManager: "Barbie Duggal" },
+  { id: "P452", name: "Ansh Bhansali", roleCategory: "Creative Art", roleTitle: "Sr. Strategist", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Associate Group Head - Strategy", reportingManager: "Nikhil Somani" },
+  { id: "P458", name: "Avantika Jain", roleCategory: "Creative Art", roleTitle: "Strategy ACD", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Associate Creative Director - Strategy", reportingManager: "Sneha Iyer" },
+  { id: "P479", name: "Barbie Duggal", roleCategory: "Creative Copy", roleTitle: "ACD - Copy", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "ACD - Copy", reportingManager: "Nikhil Somani" },
+  { id: "P512", name: "Viraj Ghodgaonkar", roleCategory: "Creative Art", roleTitle: "Sr. CD - Art", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Senior Creative Director", reportingManager: "Sneha Iyer" },
+  { id: "P520", name: "Zigyasa Tryoon", roleCategory: "Creative Art", roleTitle: "Sr. Strategist", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Group Head - Strategy", reportingManager: "Nikhil Somani" },
+  { id: "P524", name: "Ashlesh Patil", roleCategory: "Creative Art", roleTitle: "ACD - Art", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Associate Creative Director - Design", reportingManager: "Viraj Ghodgaonkar" },
+  { id: "P527", name: "Nishant Dhuriya", roleCategory: "Creative Art", roleTitle: "ACD - Art", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Associate Creative Director - Design", reportingManager: "Viraj Ghodgaonkar" },
+  { id: "P548", name: "Snigdha Parasrampuria", roleCategory: "Other", roleTitle: "Influencer Team", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Manager - Influencer Marketing", reportingManager: "Sneha Iyer" },
+  { id: "P555", name: "Viwanshu Vaibhaw", roleCategory: "Creative Copy", roleTitle: "ACD - Copy", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Group Head Copy", reportingManager: "Nikhil Somani" },
+  { id: "P568", name: "Stefan Amanna", roleCategory: "Creative Art", roleTitle: "Strategy CD", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Creative Director", reportingManager: "Sneha Iyer" },
 
-  // ── Delivery Ops: Principal BOPMs / Group Account Managers (L5) ──
-  { id: "p_vrusha", name: "Vrusha Mawani", roleCategory: "Operations", roleTitle: "Principal BOPM", pod: "Sneha", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "Group Account Manager", reportingManager: "Sneha Iyer", band: "L5" },
-  { id: "p_atharva", name: "Atharva Thorve", roleCategory: "Operations", roleTitle: "Principal BOPM", pod: "Aditya", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "Principal Account Engagement Lead", reportingManager: "Aditya Shaw", band: "L5" },
-  { id: "p_anita_bopm", name: "Anita Raghav", roleCategory: "Operations", roleTitle: "Principal BOPM", pod: "Neema", region: "US", leaving: false, tbh: false, department: "Delivery Ops", designation: "Principal Account Engagement Lead", reportingManager: "Neema Jayadas", band: "L5" },
-  { id: "p_tushar", name: "Tushar Walia", roleCategory: "Operations", roleTitle: "Principal BOPM", pod: "Aamir", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "Principal Account Engagement Lead", reportingManager: "Aamir Khan", band: "L5" },
-  { id: "p_sumitha", name: "Sumitha Shetty", roleCategory: "Operations", roleTitle: "Principal BOPM", pod: "Sneha", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "Group Account Manager", reportingManager: "Sneha Iyer", band: "L5" },
-  { id: "p_rableen", name: "Rableen Kaur", roleCategory: "Operations", roleTitle: "Principal BOPM", pod: "Sumit", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "Group Account Manager", reportingManager: "Sumit Shekhawat", band: "L5" },
-  { id: "p_sushmita_b", name: "Sushmita Balasubramanian", roleCategory: "Operations", roleTitle: "Principal BOPM", pod: "Sumit", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "Principal Account Engagement Lead", reportingManager: "Sumit Shekhawat", band: "L5" },
-  { id: "p_nishtha_bopm", name: "Nishtha Kanal", roleCategory: "Operations", roleTitle: "Principal BOPM", pod: "Neema", region: "US", leaving: false, tbh: false, department: "Delivery Ops", designation: "Principal Account Engagement Lead", reportingManager: "Neema Jayadas", band: "L5" },
-  { id: "p_paresh", name: "Paresh Patil", roleCategory: "Operations", roleTitle: "Principal BOPM", pod: "Neema", region: "US", leaving: false, tbh: false, department: "Delivery Ops", designation: "Principal Account Engagement Lead", reportingManager: "Neema Jayadas", band: "L5" },
-
-  // ── Delivery Ops: Senior BOPMs (L3) ──
-  { id: "p_karna", name: "Karna Shah", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Sumit", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "Senior BOPM", reportingManager: "Sumit Shekhawat", band: "L3" },
-  { id: "p_vanshika", name: "Vanshika Khandelia", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Aamir", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "Senior BOPM", reportingManager: "Aamir Khan", band: "L3" },
-  { id: "p_tiffany", name: "Tiffany Fernandes", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Neema", region: "US", leaving: false, tbh: false, department: "Delivery Ops", designation: "Senior BOPM", reportingManager: "Neema Jayadas", band: "L3" },
-  { id: "p_anisha", name: "Anisha Jaisinghani", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Sumit", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "Senior BOPM", reportingManager: "Sumit Shekhawat", band: "L3" },
-  { id: "p_rishabh", name: "Rishabh Agarwal", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Sumit", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "Senior BOPM", reportingManager: "Sumit Shekhawat", band: "L3" },
-  { id: "p_rahul_s", name: "Rahul Singh", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Aamir", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "Senior BOPM", reportingManager: "Aamir Khan", band: "L3" },
-  { id: "p_ketaki", name: "Ketaki Risbud", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Neema", region: "US", leaving: false, tbh: false, department: "Delivery Ops", designation: "Senior BOPM", reportingManager: "Neema Jayadas", band: "L3" },
-  { id: "p_rachel", name: "Rachel Chadha", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Neema", region: "US", leaving: false, tbh: false, department: "Delivery Ops", designation: "Senior BOPM", reportingManager: "Neema Jayadas", band: "L3" },
-  { id: "p_venkatesh", name: "Venkatesh Durgam", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Neema", region: "US", leaving: false, tbh: false, department: "Delivery Ops", designation: "Senior BOPM", reportingManager: "Neema Jayadas", band: "L3" },
-  { id: "p_disha_s", name: "Disha Suratwala", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Aditya", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "Senior BOPM", reportingManager: "Aditya Shaw", band: "L3" },
-  { id: "p_ayushi", name: "Ayushi Das", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Sumitha", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "Senior BOPM", reportingManager: "Sumitha Shetty", band: "L3" },
-  { id: "p_maleeha_sr", name: "Maleeha Mukhtar", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Neema", region: "US", leaving: false, tbh: false, department: "Delivery Ops", designation: "Senior BOPM", reportingManager: "Neema Jayadas", band: "L3" },
-  { id: "p_shreyank", name: "Shreyank Mishra", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Aamir", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "Senior BOPM", reportingManager: "Aamir Khan", band: "L3" },
-  { id: "p_yash_chauhan", name: "Yash Chauhan", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Aditya", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "Senior BOPM", reportingManager: "Aditya Shaw", band: "L3" },
-
-  // ── Delivery Ops: BOPMs (L2) ──
-  { id: "p_vivek_t", name: "Vivek Teotia", roleCategory: "Operations", roleTitle: "BOPM", pod: "Neema", region: "US", leaving: false, tbh: false, department: "Delivery Ops", designation: "BOPM", reportingManager: "Neema Jayadas", band: "L2" },
-  { id: "p_janhavi_t", name: "Janhavi Trivedi", roleCategory: "Operations", roleTitle: "BOPM", pod: "Sneha", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "BOPM", reportingManager: "Sneha Iyer", band: "L2" },
-  { id: "p_karishma", name: "Karishma Sawlani", roleCategory: "Operations", roleTitle: "BOPM", pod: "Rableen", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "BOPM", reportingManager: "Rableen Kaur", band: "L2" },
-  { id: "p_anshika", name: "Anshika Sharma", roleCategory: "Operations", roleTitle: "BOPM", pod: "Tiffany", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "Junior BOPM", reportingManager: "Tiffany Fernandes", band: "L2" },
-  { id: "p_disha_b", name: "Disha Bhanushali", roleCategory: "Operations", roleTitle: "BOPM", pod: "Vrusha", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "BOPM", reportingManager: "Vrusha Mawani", band: "L2" },
-  { id: "p_swati_v", name: "Swati Vishwakarma", roleCategory: "Operations", roleTitle: "BOPM", pod: "Yash Chauhan", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "BOPM", reportingManager: "Yash Chauhan", band: "L2" },
-  { id: "p_khushi", name: "Khushi Rajpurohit", roleCategory: "Operations", roleTitle: "BOPM", pod: "Anita", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "Junior BOPM", reportingManager: "Anita Raghav", band: "L2" },
-  { id: "p_risha", name: "Risha Sinha", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Aditya", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "Senior BOPM", reportingManager: "Aditya Shaw", band: "L2" },
-  { id: "p_haresh", name: "Haresh Phatak", roleCategory: "Operations", roleTitle: "BOPM", pod: "Sumit", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "BOPM", reportingManager: "Sumit Shekhawat", band: "L2" },
-  { id: "p_atharva_sawant", name: "Atharva Sawant", roleCategory: "Operations", roleTitle: "BOPM", pod: "Aditya", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "BOPM", reportingManager: "Aditya Shaw", band: "L2" },
-
-  // ── Delivery Ops: Junior BOPMs / Operations Consultants (L0-L1) ──
-  { id: "p_aditya_shetty", name: "Aditya Shetty", roleCategory: "Operations", roleTitle: "BOPM", pod: "Neema", region: "US", leaving: false, tbh: false, department: "Delivery Ops", designation: "Junior BOPM", reportingManager: "Neema Jayadas", band: "L1" },
-  { id: "p_hasan", name: "Hasan Kothawalaa", roleCategory: "Operations", roleTitle: "BOPM", pod: "Tiffany", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "Junior BOPM", reportingManager: "Tiffany Fernandes", band: "L1" },
-  { id: "p_sahil", name: "Sahil Singla", roleCategory: "Operations", roleTitle: "BOPM", pod: "Aamir", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "Junior BOPM", reportingManager: "Aamir Khan", band: "L1" },
-  { id: "p_mansi", name: "Mansi Velani", roleCategory: "Operations", roleTitle: "BOPM", pod: "Karna", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "Junior BOPM", reportingManager: "Karna Shah", band: "L1" },
-  { id: "p_chaitanya", name: "Chaitanya Sharma", roleCategory: "Operations", roleTitle: "BOPM", pod: "Shreyank", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "Operations Consultant", reportingManager: "Shreyank Mishra", band: "L1" },
-  { id: "p_aman", name: "Aman Jain", roleCategory: "Operations", roleTitle: "BOPM", pod: "Vanshika", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "Operations Consultant", reportingManager: "Vanshika Khandelia", band: "L1" },
-  { id: "p_shourya", name: "Shourya Jain", roleCategory: "Operations", roleTitle: "BOPM", pod: "Yash Chauhan", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "Project Management Intern", reportingManager: "Yash Chauhan", band: "L0" },
-
-  // ── Capability - SEO Team ──
-  { id: "p_mayur", name: "Mayur Varade", roleCategory: "SEO", roleTitle: "SEO Leader", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO - Practice Head", reportingManager: "Anirudh Singla", band: "L6" },
-  { id: "p_amruta", name: "Amruta Khemnar", roleCategory: "SEO", roleTitle: "Group Head", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Group Head - SEO", reportingManager: "Paresh Patil", band: "L4" },
-  { id: "p_sanket", name: "Sanket Mahure", roleCategory: "SEO", roleTitle: "Group Head", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Group Head - SEO", reportingManager: "Mayur Varade", band: "L4" },
-  { id: "p_arvind", name: "Arvind Arivazhagan", roleCategory: "SEO", roleTitle: "Group Head", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Group Head", reportingManager: "Mayur Varade", band: "L4" },
-  { id: "p_rewati", name: "Rewati Khare", roleCategory: "SEO", roleTitle: "Group Head", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Group Head - SEO", reportingManager: "Sushmita Balasubramanian", band: "L4" },
-  { id: "p_siddesh", name: "Siddesh Bobade", roleCategory: "SEO", roleTitle: "Group Head", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Group Head SEO - Senior Manager", reportingManager: "Sushmita Balasubramanian", band: "L4" },
-  { id: "p_raahul", name: "Raahul Mungekar", roleCategory: "SEO", roleTitle: "SEO Manager", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Manager", reportingManager: "Arvind Arivazhagan", band: "L3" },
-  { id: "p_swati", name: "Swati Bhingardeve", roleCategory: "SEO", roleTitle: "Sr. SEO Manager", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Senior SEO Manager", reportingManager: "Paresh Patil", band: "L3" },
-  { id: "p_taral", name: "Taral Patel", roleCategory: "SEO", roleTitle: "SEO Manager", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Manager", reportingManager: "Paresh Patil", band: "L2" },
-  { id: "p_pranali", name: "Pranali Kamble", roleCategory: "SEO", roleTitle: "SEO Manager", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Manager", reportingManager: "Siddesh Bobade", band: "L2" },
-  { id: "p_nitish", name: "Nitish Singh", roleCategory: "SEO", roleTitle: "Sr. SEO Analyst", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Senior SEO Analyst", reportingManager: "Amruta Khemnar", band: "L1" },
-  { id: "p_karan_seo", name: "Karan Shah", roleCategory: "SEO", roleTitle: "Sr. SEO Analyst", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Senior SEO Analyst", reportingManager: "Rewati Khare", band: "L1" },
-  { id: "p_yash_c", name: "Yash Chaudhari", roleCategory: "SEO", roleTitle: "Sr. SEO Analyst", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Senior SEO Analyst", reportingManager: "Swati Bhingardeve", band: "L1" },
-  { id: "p_pranay", name: "Pranay Patil", roleCategory: "SEO", roleTitle: "Sr. SEO Analyst", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Senior SEO Analyst", reportingManager: "Amruta Khemnar", band: "L1" },
-  { id: "p_sharu", name: "Sharu Paprikar", roleCategory: "SEO", roleTitle: "Sr. SEO Analyst", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Senior SEO Analyst", reportingManager: "Amruta Khemnar", band: "L1" },
-  { id: "p_swarupa", name: "Swarupa Panda", roleCategory: "SEO", roleTitle: "SEO Manager", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Manager", reportingManager: "", band: "L1" },
+  // ── Capability - Digital Strategy ──
+  { id: "P376", name: "Remya Scaria", roleCategory: "Content Strategy", roleTitle: "Sr. Content Strategist", pod: "Content Strategy", region: "India", leaving: false, tbh: false, department: "Capability - Digital Strategy", designation: "Associate Director - Digital Strategy", reportingManager: "Ekta Desai" },
+  { id: "P385", name: "Shreya Shah", roleCategory: "Content Strategy", roleTitle: "Content Strategist", pod: "Content Strategy", region: "India", leaving: false, tbh: false, department: "Capability - Digital Strategy", designation: "Manager - Content Strategy", reportingManager: "Ekta Desai" },
+  { id: "P468", name: "Ekta Desai", roleCategory: "Content Strategy", roleTitle: "Content Strategy Director", pod: "Content Strategy", region: "India", leaving: false, tbh: false, department: "Capability - Digital Strategy", designation: "Director - Digital Strategy", reportingManager: "Kishan Panpalia" },
+  { id: "P498", name: "Alisha Bhargavan", roleCategory: "Content Strategy", roleTitle: "Content Strategist", pod: "Content Strategy", region: "India", leaving: false, tbh: false, department: "Capability - Digital Strategy", designation: "Senior Associate - Digital Strategy", reportingManager: "Shreya Shah" },
+  { id: "P526", name: "Irfan Pasha I", roleCategory: "SEO", roleTitle: "Group Head", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - Digital Strategy", designation: "SEO Group Head", reportingManager: "Ekta Desai" },
+  { id: "P532", name: "Arindam Sinha", roleCategory: "Content Strategy", roleTitle: "Sr. Content Strategist", pod: "Content Strategy", region: "India", leaving: false, tbh: false, department: "Capability - Digital Strategy", designation: "Senior Manager - Digital Strategy", reportingManager: "Ekta Desai" },
 
   // ── Capability - Quality Team (Content) ──
-  { id: "p_gaurab", name: "Gaurab Chatterjee", roleCategory: "Content", roleTitle: "Managing Editor", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Practice Head - Editorial", reportingManager: "Priya Berde", band: "L6" },
-  { id: "p_pratima", name: "Pratima K", roleCategory: "Content", roleTitle: "Managing Editor", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Associate Director - Editorial", reportingManager: "Gaurab Chatterjee", band: "L5" },
-  { id: "p_pathik", name: "Pathik Bhowmik", roleCategory: "Content", roleTitle: "Managing Editor", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Associate Director - Editorial", reportingManager: "Gaurab Chatterjee", band: "L5" },
-  { id: "p_greesma", name: "Greeshma A P", roleCategory: "Content", roleTitle: "Managing Editor", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Associate Director - Editorial", reportingManager: "Gaurab Chatterjee", band: "L5" },
-  { id: "p_afshaan", name: "Afshaan Khan", roleCategory: "Content", roleTitle: "Content Lead", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Senior Content Lead", reportingManager: "Gaurab Chatterjee", band: "L3" },
-  { id: "p_jishana", name: "Jishana Balakrishnan", roleCategory: "Content", roleTitle: "Content Lead", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Senior Content Lead", reportingManager: "Pathik Bhowmik", band: "L3" },
-  { id: "p_nikita", name: "Nikita Sharma", roleCategory: "Content", roleTitle: "Content Lead", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Senior Content Lead", reportingManager: "Gaurab Chatterjee", band: "L3" },
-  { id: "p_conchita", name: "Conchita Fernandes", roleCategory: "Content", roleTitle: "Content Lead", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Content Lead", reportingManager: "Gaurab Chatterjee", band: "L2" },
-  { id: "p_sujaini", name: "Sujaini Biswas", roleCategory: "Content", roleTitle: "Content Lead", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Content Lead", reportingManager: "Gaurab Chatterjee", band: "L2" },
-  { id: "p_mitchelle", name: "Mitchelle Joseph", roleCategory: "Content", roleTitle: "Content Lead", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Senior Content Lead", reportingManager: "Gaurab Chatterjee", band: "L2" },
-  { id: "p_samritha", name: "Samritha Subashraj", roleCategory: "Content", roleTitle: "Content Lead", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Content Lead", reportingManager: "Gaurab Chatterjee", band: "L2" },
-  { id: "p_utsab", name: "Utsab Biswas", roleCategory: "Content", roleTitle: "Content Lead", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Senior Content Lead", reportingManager: "Gaurab Chatterjee", band: "L2" },
-  { id: "p_anushri", name: "Anushri Sen", roleCategory: "Content", roleTitle: "Content Lead", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Content Lead", reportingManager: "Pathik Bhowmik", band: "L2" },
-  { id: "p_ramol", name: "Ramol Chandrakant Patil", roleCategory: "Content", roleTitle: "Senior Editor", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Senior Editor Consultant", reportingManager: "Greeshma A P", band: "L2" },
-  { id: "p_rashmi_s", name: "Rashmi Sharma", roleCategory: "Content", roleTitle: "Senior Editor", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Senior Editor Consultant", reportingManager: "Anita Raghav", band: "L2" },
-  { id: "p_varsha", name: "Varsha Madagouni", roleCategory: "Content", roleTitle: "Senior Editor", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Content Editor", reportingManager: "Pratima K", band: "L1" },
-  { id: "p_shiny", name: "Shiny Atorthy", roleCategory: "Content", roleTitle: "Senior Editor", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Content Editor", reportingManager: "Gaurab Chatterjee", band: "L1" },
-  { id: "p_mamta", name: "Mamta Thatte", roleCategory: "Content", roleTitle: "Senior Editor", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Senior Editor Consultant", reportingManager: "", band: "L1" },
-  { id: "p_molly", name: "Molly Olson", roleCategory: "Content", roleTitle: "Managing Editor", pod: "Quality", region: "US", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "US Managing Editor", reportingManager: "", band: "L1" },
-  { id: "p_lynne", name: "Lynne Schur", roleCategory: "Content", roleTitle: "Managing Editor", pod: "Quality", region: "US", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "US Managing Editor", reportingManager: "", band: "L1" },
-  { id: "p_david", name: "David Dankwa", roleCategory: "Content", roleTitle: "Managing Editor", pod: "Quality", region: "US", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "US Managing Editor", reportingManager: "", band: "L1" },
-  { id: "p_nikita_b", name: "Nikita Banerjee", roleCategory: "Content", roleTitle: "Senior Editor", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Senior Content Lead", reportingManager: "Gaurab Chatterjee", band: "L3" },
-  { id: "p_sara", name: "Sara Coleman", roleCategory: "Content", roleTitle: "Managing Editor", pod: "Quality", region: "US", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "US Managing Editor", reportingManager: "", band: "L1" },
-  { id: "p_julia", name: "Julia Gerke", roleCategory: "Content", roleTitle: "Managing Editor", pod: "Quality", region: "US", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "US Managing Editor", reportingManager: "", band: "L1" },
+  { id: "P028", name: "Gaurab Chatterjee", roleCategory: "Content", roleTitle: "Managing Editor", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Senior Director - Content", reportingManager: "Anirudh Singla" },
+  { id: "P111", name: "Pratima K", roleCategory: "Content", roleTitle: "Managing Editor", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Associate Director - Content", reportingManager: "Gaurab Chatterjee" },
+  { id: "P122", name: "Pathik Bhowmik", roleCategory: "Content", roleTitle: "Managing Editor", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Associate Director - Content", reportingManager: "Gaurab Chatterjee" },
+  { id: "P285", name: "Conchita Fernandes", roleCategory: "Content", roleTitle: "Content Lead", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Senior Content Lead", reportingManager: "Pratima" },
+  { id: "P364", name: "Afshaan Khan", roleCategory: "Content", roleTitle: "Content Lead", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Senior Content Lead", reportingManager: "Pathik Bhowmik" },
+  { id: "P365", name: "Jishana Balakrishnan", roleCategory: "Content", roleTitle: "Content Lead", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Senior Content Lead", reportingManager: "Pathik Bhowmik" },
+  { id: "P366", name: "Greeshma A P", roleCategory: "Content", roleTitle: "Managing Editor", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Associate Director - Content", reportingManager: "Gaurab Chatterjee" },
+  { id: "P400", name: "Mitchelle Joseph", roleCategory: "Content", roleTitle: "Content Lead", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Quality Success Manager (BFSI)", reportingManager: "Aditya Shaw" },
+  { id: "P464", name: "Anita Raghav", roleCategory: "Content", roleTitle: "Managing Editor", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Associate Director - Content", reportingManager: "Gaurab Chatterjee" },
+  { id: "P496", name: "Utsab Biswas", roleCategory: "Content", roleTitle: "Content Lead", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Senior Content Lead", reportingManager: "Pathik Bhowmik" },
+  { id: "P503", name: "Nishtha Kanal", roleCategory: "Content", roleTitle: "Content Lead", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Senior Content Lead", reportingManager: "Pathik Bhowmik" },
+  { id: "P508", name: "Maleeha Mukhtar", roleCategory: "Content", roleTitle: "Content Lead", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Senior Content Lead", reportingManager: "Gaurab Chatterjee" },
+  { id: "P513", name: "Samritha Subashraj", roleCategory: "Content", roleTitle: "Content Lead", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Senior Content Lead", reportingManager: "Pratima" },
 
-  // ── Content Strategy Team ──
-  { id: "p_ekta", name: "Ekta Desai", roleCategory: "Content Strategy", roleTitle: "Content Strategy Director", pod: "Content Strategy", region: "India", leaving: false, tbh: false, department: "Content Strategy Team", designation: "Director of Content Strategy", reportingManager: "Paridhi Bhatiya", band: "L6" },
-  { id: "p_remya", name: "Remya Scaria", roleCategory: "Content Strategy", roleTitle: "Sr. Content Strategist", pod: "Content Strategy", region: "India", leaving: false, tbh: false, department: "Content Strategy Team", designation: "Senior Manager - Content Strategy", reportingManager: "Ekta Desai", band: "L4" },
-  { id: "p_saniya", name: "Saniya Zehra", roleCategory: "Content Strategy", roleTitle: "Sr. Content Strategist", pod: "Content Strategy", region: "India", leaving: false, tbh: false, department: "Content Strategy Team", designation: "Senior Manager - Content Strategy", reportingManager: "Ekta Desai", band: "L3" },
-  { id: "p_shreya_shah", name: "Shreya Shah", roleCategory: "Content Strategy", roleTitle: "Content Strategist", pod: "Content Strategy", region: "India", leaving: false, tbh: false, department: "Content Strategy Team", designation: "Manager - Content Strategy", reportingManager: "Ekta Desai", band: "L3" },
-  { id: "p_varun", name: "Varun Samarth", roleCategory: "Content Strategy", roleTitle: "Sr. Content Strategist", pod: "Content Strategy", region: "India", leaving: false, tbh: false, department: "Content Strategy Team", designation: "Senior Manager - Content Strategy", reportingManager: "Ekta Desai", band: "L3" },
-  { id: "p_alisha", name: "Alisha Bhargavan", roleCategory: "Content Strategy", roleTitle: "Content Strategist", pod: "Content Strategy", region: "India", leaving: false, tbh: false, department: "Content Strategy Team", designation: "Content Strategist", reportingManager: "Ekta Desai", band: "L2" },
-  { id: "p_sourabh_s", name: "Sourabh Suryavanshi", roleCategory: "Content Strategy", roleTitle: "Content Strategist", pod: "Content Strategy", region: "India", leaving: false, tbh: false, department: "Content Strategy Team", designation: "Manager Content Strategy", reportingManager: "Ekta Desai", band: "L2" },
-
-  // ── Creative Strategy Team ──
-  { id: "p_nikhil", name: "Nikhil Somani", roleCategory: "Creative Strategy", roleTitle: "Strategy CD", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Creative Strategy Team", designation: "Creative Director - Strategy and Planning", reportingManager: "Kishan Panpalia", band: "L5" },
-  { id: "p_pratyush", name: "Pratyush Singh", roleCategory: "Creative Strategy", roleTitle: "Sr. Strategist", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Creative Strategy Team", designation: "Senior Creative Strategist", reportingManager: "Nikhil Somani", band: "L3" },
-  { id: "p_barbie", name: "Barbie Duggal", roleCategory: "Creative Strategy", roleTitle: "Sr. Strategist", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Creative Strategy Team", designation: "Creative Lead", reportingManager: "Nikhil Somani", band: "L3" },
-  { id: "p_ansh", name: "Ansh Bhansali", roleCategory: "Creative Strategy", roleTitle: "Strategy ACD", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Creative Strategy Team", designation: "Content Strategist", reportingManager: "Nikhil Somani", band: "L2" },
-  { id: "p_zigyasa", name: "Zigyasa Tryoon", roleCategory: "Creative Strategy", roleTitle: "Sr. Strategist", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Creative Strategy Team", designation: "Creative Lead", reportingManager: "Nikhil Somani", band: "L2" },
-  { id: "p_ruchika", name: "Ruchika Sharma", roleCategory: "Creative Strategy", roleTitle: "Strategy ACD", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Creative Strategy Team", designation: "Creative Strategist", reportingManager: "Nikhil Somani", band: "L2" },
-  { id: "p_shreyas_j", name: "Shreyas Joshi", roleCategory: "Creative Strategy", roleTitle: "Strategy ACD", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Creative Strategy Team", designation: "Creative Strategist", reportingManager: "Nikhil Somani", band: "L2" },
-  { id: "p_hasti", name: "Hasti Vora", roleCategory: "Creative Strategy", roleTitle: "Strategy ACD", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Creative Strategy Team", designation: "Marketing Consultant", reportingManager: "Shabin George", band: "L1" },
-  { id: "p_mahek", name: "Mahek Shah", roleCategory: "Creative Strategy", roleTitle: "Strategy ACD", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Creative Strategy Team", designation: "Marketing Consultant", reportingManager: "Shabin George", band: "L1" },
-
-  // ── Capability - Creative Team (Art + Copy) ──
-  { id: "p_viraj", name: "Viraj Ghodgaonkar", roleCategory: "Creative Art", roleTitle: "Sr. CD - Art", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Senior Creative Director", reportingManager: "Paridhi Bhatiya", band: "L6" },
-  { id: "p_avantika", name: "Avantika Jain", roleCategory: "Creative Art", roleTitle: "ACD - Art", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Associate Creative Director", reportingManager: "Paridhi Bhatiya", band: "L5" },
-  { id: "p_nayan", name: "Nayan Khanore", roleCategory: "Creative Art", roleTitle: "Art Director", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Art Director", reportingManager: "Archan Basu", band: "L5" },
-  { id: "p_aditya_pathak", name: "Aditya Pathak", roleCategory: "Creative Copy", roleTitle: "Sr. Copywriter", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Senior Copywriter", reportingManager: "Avantika Jain", band: "L2" },
-  { id: "p_dhruti", name: "Dhruti Lalan", roleCategory: "Creative Copy", roleTitle: "Sr. Copywriter", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Senior Copywriter", reportingManager: "Avantika Jain", band: "L2" },
-  { id: "p_aniket", name: "Aniket More", roleCategory: "Creative Art", roleTitle: "Jr. Designer", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Graphic Designer", reportingManager: "Nikhil Somani", band: "L0" },
-  { id: "p_janhavi_d", name: "Janhavi Dave", roleCategory: "Creative Art", roleTitle: "Jr. Designer", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Graphic Designer", reportingManager: "Ahmed Chabaria", band: "L0" },
-  { id: "p_krisha", name: "Krisha Mehta", roleCategory: "Creative Art", roleTitle: "Jr. Designer", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Graphic Designer", reportingManager: "Shashwat Sood", band: "L0" },
-  { id: "p_kannan", name: "Kannan S", roleCategory: "Creative Art", roleTitle: "Jr. Designer", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Graphic Designer", reportingManager: "Karan Mishra", band: "L1" },
-  { id: "p_pal", name: "Pal Jain", roleCategory: "Creative Art", roleTitle: "Jr. Designer", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Graphic Designer", reportingManager: "Shabin George", band: "L0" },
+  // ── Capability - SEO Team ──
+  { id: "P150", name: "Nitish Singh", roleCategory: "SEO", roleTitle: "SEO Manager", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Manager", reportingManager: "Ajitesh Pandey" },
+  { id: "P476", name: "Sanket Mahure", roleCategory: "SEO", roleTitle: "SEO Manager", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Growth Lead", reportingManager: "Vaibhav Sawant" },
+  { id: "P484", name: "Mayur Varade", roleCategory: "SEO", roleTitle: "SEO Leader", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Director-SEO Growth", reportingManager: "Anirudh Singla" },
+  { id: "P493", name: "Sushmita Balasubramanian", roleCategory: "SEO", roleTitle: "SEO Manager", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Growth Lead", reportingManager: "Vedanga Bandyopadhyay" },
+  { id: "P507", name: "Karan Shah", roleCategory: "SEO", roleTitle: "SEO Analyst", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Assistant Manager-SEO", reportingManager: "Sushmita Balasubramanian" },
+  { id: "P510", name: "Rewati Khare", roleCategory: "SEO", roleTitle: "SEO Manager", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Growth Lead", reportingManager: "Vedanga Bandyopadhyay" },
+  { id: "P515", name: "Swati Bhingardeve", roleCategory: "SEO", roleTitle: "Sr. SEO Manager", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Senior SEO Manager", reportingManager: "Rewati Khare" },
+  { id: "P516", name: "Yash Chaudhari", roleCategory: "SEO", roleTitle: "SEO Analyst", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Assistant Manager SEO", reportingManager: "Anirudh Takkar" },
+  { id: "P523", name: "Prashant Singh Rawat", roleCategory: "SEO", roleTitle: "SEO Analyst", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Assistant Manager-SEO", reportingManager: "Rewati Khare" },
+  { id: "P528", name: "Onkar Gumdel", roleCategory: "SEO", roleTitle: "SEO Manager", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Manager", reportingManager: "Prithvi Pujari" },
+  { id: "P530", name: "Shahid Anwar", roleCategory: "SEO", roleTitle: "SEO Manager", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Manager", reportingManager: "Sanket Mahure" },
+  { id: "P534", name: "Ajitesh Pandey", roleCategory: "SEO", roleTitle: "SEO Leader", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Senior Director SEO", reportingManager: "Anirudh Singla" },
+  { id: "P539", name: "Prashant Singh", roleCategory: "SEO", roleTitle: "Sr. SEO Manager", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Senior SEO Manager", reportingManager: "Sushmita Balasubramanian" },
+  { id: "P542", name: "Vedanga Bandyopadhyay", roleCategory: "SEO", roleTitle: "SEO Leader", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "AVP - SEO Growth", reportingManager: "Anirudh Singla" },
+  { id: "P545", name: "Prithvi Pujari", roleCategory: "SEO", roleTitle: "Group Head", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Growth Lead", reportingManager: "Ajitesh Pandey" },
+  { id: "P546", name: "Saurabh Shinde", roleCategory: "SEO", roleTitle: "SEO Analyst", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Assistant Manager SEO", reportingManager: "Prithvi Pujari" },
+  { id: "P550", name: "Rashmi Oza", roleCategory: "SEO", roleTitle: "SEO Manager", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Manager", reportingManager: "Prithvi Pujari" },
+  { id: "P559", name: "Krishma Shah", roleCategory: "SEO", roleTitle: "SEO Manager", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Business Manager", reportingManager: "Irfan Pasha I" },
+  { id: "P563", name: "Manav Shah", roleCategory: "SEO", roleTitle: "SEO Manager", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Senior SEO Business Manager", reportingManager: "Vaibhav Sawant" },
+  { id: "P567", name: "Karthik Nair", roleCategory: "SEO", roleTitle: "Group Head", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Group Head SEO", reportingManager: "Mayur Varade" },
+  { id: "P569", name: "Vivek Chaudhary", roleCategory: "SEO", roleTitle: "SEO Manager", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Business Manager", reportingManager: "Rewati Khare" },
+  { id: "P570", name: "Vaibhav Sawant", roleCategory: "SEO", roleTitle: "Group Head", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Associate Director-SEO", reportingManager: "Vedanga Bandyopadhyay" },
+  { id: "P572", name: "Crasto Leo Raymant", roleCategory: "SEO", roleTitle: "Group Head", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Group Head - SEO", reportingManager: "Ajitesh Pandey" },
+  { id: "P574", name: "Avinash Choudhary", roleCategory: "SEO", roleTitle: "SEO Manager", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Senior SEO Business Manager", reportingManager: "Irfan Pasha I" },
+  { id: "P584", name: "Siddhesh Sawant", roleCategory: "SEO", roleTitle: "SEO Manager", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Senior SEO Business Manager", reportingManager: "Vaibhav Sawant" },
+  { id: "P585", name: "Pranav Jha", roleCategory: "SEO", roleTitle: "Sr. SEO Analyst", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Senior SEO Analyst", reportingManager: "Crasto Leo Raymant" },
+  { id: "P588", name: "Ankit Singh", roleCategory: "SEO", roleTitle: "SEO Manager", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Business Manager", reportingManager: "Rewati Khare" },
+  { id: "P589", name: "Samiran Dev", roleCategory: "SEO", roleTitle: "SEO Manager", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Business Manager", reportingManager: "Mayur Varade" },
+  { id: "P591", name: "Anirudh Takkar", roleCategory: "SEO", roleTitle: "Group Head", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Group Head - SEO", reportingManager: "Mayur Varade" },
+  { id: "P592", name: "Krunal Ambre", roleCategory: "SEO", roleTitle: "SEO Manager", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Manager", reportingManager: "Vaibhav Sawant" },
+  { id: "P593", name: "Shaunli Mukherjee", roleCategory: "SEO", roleTitle: "SEO Manager", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Senior SEO Business Manager", reportingManager: "Mayur Varade" },
+  { id: "P594", name: "Sahil Khan", roleCategory: "SEO", roleTitle: "SEO Manager", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Manager", reportingManager: "Mayur Varade" },
+  { id: "P596", name: "Dharmik Bhanushali", roleCategory: "SEO", roleTitle: "SEO Analyst", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Analyst", reportingManager: "Rewati Khare" },
+  { id: "P598", name: "Aman Jain", roleCategory: "SEO", roleTitle: "SEO Analyst", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Analyst", reportingManager: "Vaibhav Sawant" },
 
   // ── Capability - Video Production Team ──
-  { id: "p_jyotirmoyee", name: "Jyotirmoyee Ghosh", roleCategory: "Video", roleTitle: "AD - Video PM", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Video Production Team", designation: "Executive Producer", reportingManager: "Sneha Iyer", band: "L3" },
-  { id: "p_akshat", name: "Akshat Bhardwaj", roleCategory: "Video", roleTitle: "Video PM/ACP", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Video Production Team", designation: "Associate Creative Producer", reportingManager: "Jyotirmoyee Ghosh", band: "L2" },
-  { id: "p_sohini", name: "Sohini Mukherjee", roleCategory: "Video", roleTitle: "Video PM/ACP", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Video Production Team", designation: "Creative Producer", reportingManager: "Sneha Iyer", band: "L2" },
-  { id: "p_geet", name: "Geet Gangwani", roleCategory: "Video", roleTitle: "Video PM/ACP", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Video Production Team", designation: "Creative Producer", reportingManager: "Jyotirmoyee Ghosh", band: "L2" },
-  { id: "p_akshay_g", name: "Akshay Gupta", roleCategory: "Video", roleTitle: "Video Editor 1", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Video Production Team", designation: "Copywriter", reportingManager: "Avantika Jain", band: "L1" },
-  { id: "p_jigar", name: "Jigar Somani", roleCategory: "Video", roleTitle: "Video PM/ACP", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Video Production Team", designation: "Associate Creative Producer", reportingManager: "Jyotirmoyee Ghosh", band: "L1" },
-  { id: "p_samruddha", name: "Samruddha Kulkarni", roleCategory: "Video", roleTitle: "Video PM/ACP", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Video Production Team", designation: "Associate Creative Producer", reportingManager: "Jyotirmoyee Ghosh", band: "L1" },
+  { id: "P399", name: "Jyotirmoyee Ghosh", roleCategory: "Video", roleTitle: "AD - Video PM", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Video Production Team", designation: "Associate Director - Video", reportingManager: "Divya Ganapathy" },
+  { id: "P486", name: "Sohini Mukherjee", roleCategory: "Video", roleTitle: "Video PM/ACP", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Video Production Team", designation: "Creative Producer", reportingManager: "Divya Ganapathy" },
+  { id: "P504", name: "Geet Gangwani", roleCategory: "Video", roleTitle: "Video PM/ACP", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Video Production Team", designation: "Creative Producer", reportingManager: "Divya Ganapathy" },
+  { id: "P533", name: "Divya Ganapathy", roleCategory: "Video", roleTitle: "Production Head", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Video Production Team", designation: "Director of Capability - Video Production", reportingManager: "Sneha Iyer" },
+  { id: "P564", name: "Shanmathy Chackravarthi", roleCategory: "Video", roleTitle: "AD - Video PM", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Video Production Team", designation: "AD - Creative Producer", reportingManager: "Divya Ganapathy" },
+  { id: "P586", name: "Jigar Somani", roleCategory: "Video", roleTitle: "Video PM/ACP", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Video Production Team", designation: "Junior Producer", reportingManager: "Jyotirmoyee Ghosh" },
 
-  // ── Other / Consultants ──
-  { id: "p_ekta_h", name: "Ekta Handa", roleCategory: "Other", roleTitle: "Consultant", pod: "—", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "Consultant", reportingManager: "", band: "L1" },
-  { id: "p_parth", name: "Parth Pratim Bhagowati", roleCategory: "Other", roleTitle: "Consultant", pod: "—", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "Consultant", reportingManager: "", band: "L1" },
-  { id: "p_dhrishti", name: "Dhrishti Desai", roleCategory: "Other", roleTitle: "Marketing Support", pod: "—", region: "India", leaving: false, tbh: false, department: "Marketing - Support", designation: "Marketing Support", reportingManager: "Ahmed Chabaria", band: "L0" },
+  // ── Central COE & Planning ──
+  { id: "P571", name: "Arya Gada", roleCategory: "Other", roleTitle: "Manager - COE", pod: "COE", region: "India", leaving: false, tbh: false, department: "Central COE & Planning", designation: "Manager - COE", reportingManager: "Shashwat Sood" },
 
-  // ── Legacy IDs for assignment compatibility ──
-  { id: "p_ajitesh", name: "Ajitesh Pandey", roleCategory: "SEO", roleTitle: "SEO Leader", pod: "SEO", region: "US", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Leader", reportingManager: "", band: "L4" },
-  { id: "p_vedanga", name: "Vedanga Bandyopadhyay", roleCategory: "SEO", roleTitle: "SEO Leader", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Leader", reportingManager: "", band: "L4" },
-  { id: "p_prithvi", name: "Prithvi Pujari", roleCategory: "SEO", roleTitle: "Group Head", pod: "SEO", region: "US", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Group Head - SEO", reportingManager: "", band: "L4" },
-  { id: "p_karthik", name: "Karthik Nair", roleCategory: "SEO", roleTitle: "Group Head", pod: "SEO", region: "US", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Group Head - SEO", reportingManager: "", band: "L4" },
-  { id: "p_sushmita", name: "Sushmita B.", roleCategory: "SEO", roleTitle: "Group Head", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Group Head - SEO", reportingManager: "", band: "L4" },
-  { id: "p_saurabh", name: "Saurabh Shinde", roleCategory: "SEO", roleTitle: "SEO Manager", pod: "SEO", region: "US", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Manager", reportingManager: "", band: "L2" },
-  { id: "p_prashant", name: "Prashant Singh", roleCategory: "SEO", roleTitle: "Sr. SEO Manager", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Senior SEO Manager", reportingManager: "", band: "L3" },
-  { id: "p_rashmi_o", name: "Rashmi Oza", roleCategory: "SEO", roleTitle: "SEO Manager", pod: "SEO", region: "US", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Manager", reportingManager: "", band: "L2" },
-  { id: "p_yash", name: "Yash Chaudhari", roleCategory: "SEO", roleTitle: "SEO Manager", pod: "SEO", region: "US", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Manager", reportingManager: "", band: "L2" },
-  { id: "p_karan", name: "Karan Shah", roleCategory: "SEO", roleTitle: "Sr. SEO Analyst", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Senior SEO Analyst", reportingManager: "", band: "L1" },
-  { id: "p_prashant_r", name: "Prashant Singh Rawat", roleCategory: "SEO", roleTitle: "Sr. SEO Analyst", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Senior SEO Analyst", reportingManager: "", band: "L1" },
-  { id: "p_dharmik", name: "Dharmik", roleCategory: "SEO", roleTitle: "Sr. SEO Analyst", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Senior SEO Analyst", reportingManager: "", band: "L1" },
-  { id: "p_mit", name: "Mit Thakkar", roleCategory: "SEO", roleTitle: "SEO Analyst", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Analyst", reportingManager: "", band: "L1" },
-  { id: "p_onkar", name: "Onkar Gumdel", roleCategory: "SEO", roleTitle: "SEO Manager", pod: "SEO", region: "US", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Manager", reportingManager: "", band: "L2" },
-  { id: "p_justin", name: "Justin Creado", roleCategory: "SEO", roleTitle: "SEO Manager", pod: "SEO", region: "US", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Manager", reportingManager: "", band: "L2" },
-  { id: "p_nishtha", name: "Nishtha Kanal", roleCategory: "Content", roleTitle: "Managing Editor", pod: "Quality", region: "US", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Managing Editor", reportingManager: "", band: "L5" },
-  { id: "p_anita", name: "Anita Raghav", roleCategory: "Content", roleTitle: "Managing Editor", pod: "Quality", region: "US", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Managing Editor", reportingManager: "", band: "L5" },
-  { id: "p_maleeha", name: "Maleeha Mukhtar", roleCategory: "Content", roleTitle: "Managing Editor", pod: "Quality", region: "US", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Managing Editor", reportingManager: "", band: "L3" },
-  { id: "p_aditya_s", name: "Aditya Satarkar", roleCategory: "Creative Copy", roleTitle: "CD - Copy", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Creative Director - Copy", reportingManager: "", band: "L5" },
-  { id: "p_viwanshu", name: "Viwanshu Vaibhaw", roleCategory: "Creative Copy", roleTitle: "ACD - Copy", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "ACD - Copy", reportingManager: "", band: "L4" },
-  { id: "p_stefan", name: "Stefan Amanna", roleCategory: "Creative Copy", roleTitle: "Sr. Copywriter", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Senior Copywriter", reportingManager: "", band: "L3" },
-  { id: "p_vedaant", name: "Vedaant Dutt", roleCategory: "Creative Copy", roleTitle: "Sr. Copywriter", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Senior Copywriter", reportingManager: "", band: "L3" },
-  { id: "p_aditya_p", name: "Aditya Pathak", roleCategory: "Creative Copy", roleTitle: "Jr. Copywriter", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Junior Copywriter", reportingManager: "", band: "L2" },
-  { id: "p_janhavi", name: "Janhavi Dave", roleCategory: "Creative Art", roleTitle: "Sr. CD - Art", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Senior Creative Director - Art", reportingManager: "", band: "L5" },
-  { id: "p_mukul", name: "Mukul Bhatkhande", roleCategory: "Creative Art", roleTitle: "Art Director", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Art Director", reportingManager: "", band: "L4" },
-  { id: "p_nishant", name: "Nishant Dhuriya", roleCategory: "Creative Art", roleTitle: "Art Director", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Art Director", reportingManager: "", band: "L4" },
-  { id: "p_ashlesh", name: "Ashlesh Patil", roleCategory: "Creative Art", roleTitle: "Sr. Designer", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Senior Designer", reportingManager: "", band: "L3" },
-  { id: "p_neha", name: "Neha Patel", roleCategory: "Creative Art", roleTitle: "Sr. Designer", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Senior Designer", reportingManager: "", band: "L3" },
-  { id: "p_siddharth", name: "Siddharth Kedar", roleCategory: "Creative Art", roleTitle: "Jr. Designer", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Junior Designer", reportingManager: "", band: "L1" },
-  { id: "p_divya", name: "Divya Ganpathy", roleCategory: "Video", roleTitle: "Production Head", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Video Production Team", designation: "Production Head", reportingManager: "", band: "L5" },
-  { id: "p_shubham", name: "Shubham Hadkar", roleCategory: "Video", roleTitle: "Video Editor 1", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Video Production Team", designation: "Video Editor", reportingManager: "", band: "L2" },
-  { id: "p_vedanti", name: "Vedanti Ghuikhedkar", roleCategory: "Video", roleTitle: "Video PM/ACP", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Video Production Team", designation: "Video PM", reportingManager: "", band: "L2" },
-  { id: "p_shanmathy", name: "Shanmathy Chackravarthi", roleCategory: "Video", roleTitle: "Video Editor 2", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Video Production Team", designation: "Video Editor", reportingManager: "", band: "L1" },
-  { id: "p_vinaya", name: "Vinaya C", roleCategory: "Video", roleTitle: "Video Editor 2", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Video Production Team", designation: "Video Editor", reportingManager: "", band: "L1" },
-  { id: "p_rahul_r", name: "Rahul Rajeev", roleCategory: "Video", roleTitle: "Video Editor 1", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Video Production Team", designation: "Video Editor", reportingManager: "", band: "L2" },
-  { id: "p_snigdha", name: "Snigdha Parasrampuria", roleCategory: "Other", roleTitle: "Influencer Team", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Creative Strategy Team", designation: "Influencer Team", reportingManager: "", band: "L2" },
-  { id: "p_sanchit", name: "Sanchit Arora", roleCategory: "Performance & Growth", roleTitle: "Performance & Growth", pod: "Growth", region: "India", leaving: false, tbh: false, department: "Delivery Ops", designation: "Performance & Growth", reportingManager: "", band: "L3" },
+  // ── Delivery Ops and CS ──
+  { id: "P112", name: "Aamir Khan", roleCategory: "Operations", roleTitle: "VSD", pod: "Aamir", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "Senior Director - Vertical Service Delivery", reportingManager: "Anirudh Singla" },
+  { id: "P116", name: "Karna Shah", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Sumit", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "Senior BOPM", reportingManager: "Sumit Shekhawat" },
+  { id: "P127", name: "Vanshika Khandelia", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Aamir", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "Senior BOPM", reportingManager: "Aamir Khan" },
+  { id: "P148", name: "Tiffany Fernandes", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Neema", region: "US", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "Senior BOPM", reportingManager: "Neema Jayadas" },
+  { id: "P178", name: "Anisha Jaisinghani", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Sumit", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "Senior BOPM", reportingManager: "Sumit Shekhawat" },
+  { id: "P290", name: "Rishabh Agarwal", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Neema", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "Senior BOPM", reportingManager: "Neema Jayadas" },
+  { id: "P308", name: "Sumit Shekhawat", roleCategory: "Operations", roleTitle: "VSD", pod: "Sumit", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "Director - Vertical Service Delivery", reportingManager: "Anirudh Singla" },
+  { id: "P363", name: "Rahul Singh", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Aamir", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "Senior BOPM", reportingManager: "Aamir Khan" },
+  { id: "P369", name: "Vrusha Mawani", roleCategory: "Operations", roleTitle: "Principal BOPM", pod: "Sneha", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "Group BOPM", reportingManager: "Sneha Iyer" },
+  { id: "P373", name: "Janhavi Trivedi", roleCategory: "Operations", roleTitle: "BOPM", pod: "Sneha", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "BOPM", reportingManager: "Sumitha Shetty" },
+  { id: "P378", name: "Neema Jayadas", roleCategory: "Operations", roleTitle: "VSD", pod: "Neema", region: "US", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "AVP - Vertical Service Delivery", reportingManager: "Anirudh Singla" },
+  { id: "P413", name: "Venkatesh Durgam", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Neema", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "Senior BOPM", reportingManager: "Neema Jayadas" },
+  { id: "P414", name: "Sahil Singla", roleCategory: "Operations", roleTitle: "BOPM", pod: "Aamir", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "Junior BOPM", reportingManager: "Vanshika Khandelia" },
+  { id: "P415", name: "Mansi Velani", roleCategory: "Operations", roleTitle: "BOPM", pod: "Sumit", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "Junior BOPM", reportingManager: "Karna Shah" },
+  { id: "P427", name: "Vivek Teotia", roleCategory: "Operations", roleTitle: "BOPM", pod: "Neema", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "BOPM", reportingManager: "Neema Jayadas" },
+  { id: "P435", name: "Karishma Sawlani", roleCategory: "Operations", roleTitle: "BOPM", pod: "Sneha", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "BOPM", reportingManager: "Vrusha Mawani" },
+  { id: "P437", name: "Aditya Shaw", roleCategory: "Operations", roleTitle: "VSD", pod: "Aditya", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "Director - Vertical Service Delivery", reportingManager: "Anirudh Singla" },
+  { id: "P465", name: "Anshika Sharma", roleCategory: "Operations", roleTitle: "BOPM", pod: "Neema", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "Associate Project Manager", reportingManager: "Neema Jayadas" },
+  { id: "P467", name: "Disha Bhanushali", roleCategory: "Operations", roleTitle: "BOPM", pod: "Sneha", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "BOPM", reportingManager: "Vrusha Mawani" },
+  { id: "P472", name: "Khushi Rajpurohit", roleCategory: "Operations", roleTitle: "BOPM", pod: "Sumit", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "BOPM", reportingManager: "Sumit Shekhawat" },
+  { id: "P475", name: "Risha Sinha", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Operations", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "Sr. BOPM", reportingManager: "Ritu Shinde" },
+  { id: "P478", name: "Disha Suratwala", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Operations", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "Senior BOPM", reportingManager: "Ritu Shinde" },
+  { id: "P482", name: "Tushar Walia", roleCategory: "Operations", roleTitle: "Principal BOPM", pod: "Aamir", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "Principle Account Engagement Lead", reportingManager: "Aamir Khan" },
+  { id: "P487", name: "Ayushi Das", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Aamir", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "Senior BOPM", reportingManager: "Tushar Walia" },
+  { id: "P488", name: "Sumitha Shetty", roleCategory: "Operations", roleTitle: "Principal BOPM", pod: "Sneha", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "Group BOPM", reportingManager: "Sneha Iyer" },
+  { id: "P492", name: "Rableen Kaur", roleCategory: "Operations", roleTitle: "Principal BOPM", pod: "Sneha", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "Group BOPM", reportingManager: "Sneha Iyer" },
+  { id: "P501", name: "Romario Fernandes", roleCategory: "Operations", roleTitle: "Principal BOPM", pod: "Sneha", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "Group Account Manager", reportingManager: "Sneha Iyer" },
+  { id: "P522", name: "Devanshi Panibhate", roleCategory: "Operations", roleTitle: "BOPM", pod: "Operations", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "BOPM", reportingManager: "Ritu Shinde" },
+  { id: "P538", name: "Eshika Joshi", roleCategory: "Operations", roleTitle: "BOPM", pod: "Aditya", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "BOPM", reportingManager: "Shreshtha Pathak" },
+  { id: "P543", name: "Shreshtha Pathak", roleCategory: "Operations", roleTitle: "Principal BOPM", pod: "Aditya", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "Principal Account Engagement Lead", reportingManager: "Aditya Shaw" },
+  { id: "P551", name: "Sanchit Arora", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Aamir", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "Sr. BOPM", reportingManager: "Tushar Walia" },
+  { id: "P562", name: "Ritika Shetty", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Sneha", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "Sr. BOPM", reportingManager: "Sumitha Shetty" },
+  { id: "P565", name: "Preet Desai", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Aditya", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "Sr. BOPM", reportingManager: "Shreshtha Pathak" },
+  { id: "P577", name: "Nivedita Shetty", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Neema", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "Senior BOPM", reportingManager: "Neema Jayadas" },
+  { id: "P579", name: "Ritu Priya", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Neema", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "Senior BOPM", reportingManager: "Neema Jayadas" },
+  { id: "P583", name: "Priyanshi Agrawal", roleCategory: "Operations", roleTitle: "Senior BOPM", pod: "Aamir", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "Senior BOPM", reportingManager: "Aamir Khan" },
+  { id: "P595", name: "Chaitanya Sharma", roleCategory: "Operations", roleTitle: "BOPM", pod: "Aamir", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "Junior BOPM", reportingManager: "Rahul Singh" },
+  { id: "P600", name: "Unnati Thakkar", roleCategory: "Operations", roleTitle: "BOPM", pod: "Neema", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "Business Operations Project Manager", reportingManager: "Rishabh Agarwal" },
+  { id: "P601", name: "Dwayne Fernandes", roleCategory: "Operations", roleTitle: "BOPM", pod: "Sumit", region: "India", leaving: false, tbh: false, department: "Delivery Ops and CS", designation: "Junior Business Operations Project Manager", reportingManager: "Anisha Jaisinghania" },
 
-  // TBH
+  // ── Engineering ──
+  { id: "P012", name: "Aashay Shah", roleCategory: "Other", roleTitle: "Principal Engineer", pod: "Engineering", region: "India", leaving: false, tbh: false, department: "Engineering", designation: "Principal Engineer", reportingManager: "Anirudh Singla" },
+  { id: "P017", name: "Jibin Thomas", roleCategory: "Other", roleTitle: "Tech Lead - Full-Stack", pod: "Engineering", region: "India", leaving: false, tbh: false, department: "Engineering", designation: "Tech Lead - Full-Stack", reportingManager: "Aashay Shah" },
+  { id: "P082", name: "Noopur Gundawar", roleCategory: "Other", roleTitle: "Lead QA", pod: "Engineering", region: "India", leaving: false, tbh: false, department: "Engineering", designation: "Lead QA", reportingManager: "Aashay Shah" },
+  { id: "P262", name: "Varun Dedhiya", roleCategory: "Other", roleTitle: "Senior QA - Engineer", pod: "Engineering", region: "India", leaving: false, tbh: false, department: "Engineering", designation: "Senior QA - Engineer", reportingManager: "Aashay Shah" },
+  { id: "P314", name: "Karan Sheth", roleCategory: "Other", roleTitle: "Lead Product Designer", pod: "Engineering", region: "India", leaving: false, tbh: false, department: "Engineering", designation: "Lead Product Designer", reportingManager: "Aashay Shah" },
+  { id: "P347", name: "Shreyas Singh", roleCategory: "Other", roleTitle: "SDE - 2 - Back-End", pod: "Engineering", region: "India", leaving: false, tbh: false, department: "Engineering", designation: "SDE - 2 - Back-End", reportingManager: "Aashay Shah" },
+  { id: "P424", name: "Aniket Singh", roleCategory: "Other", roleTitle: "AI Engineer 2", pod: "Engineering", region: "India", leaving: false, tbh: false, department: "Engineering", designation: "AI Engineer 2", reportingManager: "Aashay Shah" },
+  { id: "P431", name: "Diparth Shah", roleCategory: "Other", roleTitle: "Tech Lead - Back-End", pod: "Engineering", region: "India", leaving: false, tbh: false, department: "Engineering", designation: "Tech Lead - Back-End", reportingManager: "Aashay Shah" },
+  { id: "P446", name: "Harsh Vijay Mali", roleCategory: "Other", roleTitle: "Devops Engineer", pod: "Engineering", region: "India", leaving: false, tbh: false, department: "Engineering", designation: "Devops Engineer", reportingManager: "Aashay Shah" },
+  { id: "P525", name: "Mit Vasani", roleCategory: "Other", roleTitle: "SDE - 2 - Front-End", pod: "Engineering", region: "India", leaving: false, tbh: false, department: "Engineering", designation: "SDE - 2 - Front-End", reportingManager: "Aashay Shah" },
+
+  // ── Finance, Legal and Admin ──
+  { id: "P218", name: "Dhruv Kotak", roleCategory: "Other", roleTitle: "Associate Director-Finance", pod: "Finance", region: "India", leaving: false, tbh: false, department: "Finance, Legal and Admin", designation: "Associate Director-Finance", reportingManager: "Apurva Dalmia" },
+  { id: "P284", name: "Rashi Musaddi", roleCategory: "Other", roleTitle: "Associate Director-Finance", pod: "Finance", region: "India", leaving: false, tbh: false, department: "Finance, Legal and Admin", designation: "Associate Director-Finance", reportingManager: "Apurva Dalmia" },
+  { id: "P286", name: "Simran Tibrewal", roleCategory: "Other", roleTitle: "Associate Director-Legal", pod: "Finance", region: "India", leaving: false, tbh: false, department: "Finance, Legal and Admin", designation: "Associate Director-Legal", reportingManager: "Apurva Dalmia" },
+  { id: "P387", name: "Sudhanshu Sikhwal", roleCategory: "Other", roleTitle: "Associate-Finance", pod: "Finance", region: "India", leaving: false, tbh: false, department: "Finance, Legal and Admin", designation: "Associate-Finance", reportingManager: "Rashi Musaddi" },
+  { id: "P401", name: "Priyanka Sharma", roleCategory: "Other", roleTitle: "Assistant Manager - Finance", pod: "Finance", region: "India", leaving: false, tbh: false, department: "Finance, Legal and Admin", designation: "Assistant Manager - Finance", reportingManager: "Rashi Musaddi" },
+  { id: "P449", name: "Niraj Pednekar", roleCategory: "Other", roleTitle: "Manager-IT & Admin", pod: "Finance", region: "India", leaving: false, tbh: false, department: "Finance, Legal and Admin", designation: "Manager-IT & Admin", reportingManager: "Apurva Dalmia" },
+  { id: "P489", name: "Vrutik Damnania", roleCategory: "Other", roleTitle: "Associate-Finance", pod: "Finance", region: "India", leaving: false, tbh: false, department: "Finance, Legal and Admin", designation: "Associate-Finance", reportingManager: "Rashi Musaddi" },
+  { id: "P517", name: "Gautami Kalekar", roleCategory: "Other", roleTitle: "Associate-Finance", pod: "Finance", region: "India", leaving: false, tbh: false, department: "Finance, Legal and Admin", designation: "Associate-Finance", reportingManager: "Dhruv Kotak" },
+  { id: "P521", name: "Rutuja Pawar", roleCategory: "Other", roleTitle: "Associate - Legal", pod: "Finance", region: "India", leaving: false, tbh: false, department: "Finance, Legal and Admin", designation: "Associate - Legal", reportingManager: "Simran Tibrewal" },
+  { id: "P536", name: "Shraddha Biyani", roleCategory: "Other", roleTitle: "Assistant Manager - Finance", pod: "Finance", region: "India", leaving: false, tbh: false, department: "Finance, Legal and Admin", designation: "Assistant Manager - Finance", reportingManager: "Apurva Dalmia" },
+  { id: "P557", name: "Divya Ranganathan", roleCategory: "Other", roleTitle: "Assistant Manager - Finance", pod: "Finance", region: "India", leaving: false, tbh: false, department: "Finance, Legal and Admin", designation: "Assistant Manager - Finance", reportingManager: "Apurva Dalmia" },
+  { id: "P566", name: "Subrat Jain", roleCategory: "Other", roleTitle: "Junior Associate - Legal", pod: "Finance", region: "India", leaving: false, tbh: false, department: "Finance, Legal and Admin", designation: "Junior Associate - Legal", reportingManager: "Simran Tibrewal" },
+  { id: "P590", name: "Gunjan Dialani", roleCategory: "Other", roleTitle: "Associate -Business Finance Analyst", pod: "Finance", region: "India", leaving: false, tbh: false, department: "Finance, Legal and Admin", designation: "Associate -Business Finance Analyst", reportingManager: "Dhruv Kotak" },
+  { id: "P597", name: "Prince Pansuriya", roleCategory: "Other", roleTitle: "Finance Associate", pod: "Finance", region: "India", leaving: false, tbh: false, department: "Finance, Legal and Admin", designation: "Finance Associate", reportingManager: "Rashi Musaddi" },
+
+  // ── HR & TA ──
+  { id: "P213", name: "Vasudha Sharma", roleCategory: "Other", roleTitle: "Senior Manager - Talent Acquisition", pod: "HR", region: "India", leaving: false, tbh: false, department: "HR & TA", designation: "Senior Manager - Talent Acquisition", reportingManager: "Sonam Saraf" },
+  { id: "P343", name: "Ankita Naik", roleCategory: "Other", roleTitle: "Manager - HR Operations", pod: "HR", region: "India", leaving: false, tbh: false, department: "HR & TA", designation: "Manager - HR Operations", reportingManager: "Sonam Saraf" },
+  { id: "P439", name: "Sanskruti Shinde", roleCategory: "Other", roleTitle: "Talent Acquisition Associate", pod: "HR", region: "India", leaving: false, tbh: false, department: "HR & TA", designation: "Talent Acquisition Associate", reportingManager: "Vasudha Sharma" },
+  { id: "P535", name: "Sonam Saraf", roleCategory: "Other", roleTitle: "Associate Director - HR", pod: "HR", region: "India", leaving: false, tbh: false, department: "HR & TA", designation: "Associate Director - HR", reportingManager: "Rishabh Shekhar" },
+
+  // ── Leadership ──
+  { id: "P001", name: "Rishabh Shekhar", roleCategory: "Other", roleTitle: "COO", pod: "Leadership", region: "India", leaving: false, tbh: false, department: "Leadership", designation: "COO", reportingManager: "" },
+  { id: "P002", name: "Anirudh Singla", roleCategory: "Other", roleTitle: "CEO", pod: "Leadership", region: "India", leaving: false, tbh: false, department: "Leadership", designation: "CEO", reportingManager: "" },
+  { id: "P064", name: "Sneha Iyer", roleCategory: "Operations", roleTitle: "VSD", pod: "Sneha", region: "India", leaving: false, tbh: false, department: "Leadership", designation: "VP - Enterprise Business", reportingManager: "Anirudh Singla" },
+  { id: "P141", name: "Apurva Dalmia", roleCategory: "Other", roleTitle: "VP Finance", pod: "Leadership", region: "India", leaving: false, tbh: false, department: "Leadership", designation: "VP Finance", reportingManager: "Anirudh Singla" },
+
+  // ── Marketing and Demand Generation ──
+  { id: "P270", name: "Shabin George", roleCategory: "Other", roleTitle: "Associate Director - Revenue Strategy and Operations", pod: "Marketing", region: "India", leaving: false, tbh: false, department: "Marketing and Demand Generation", designation: "Associate Director - Revenue Strategy and Operations", reportingManager: "Anirudh Singla" },
+  { id: "P497", name: "Rohan Pal", roleCategory: "Other", roleTitle: "Revenue Operations Associate", pod: "Marketing", region: "India", leaving: false, tbh: false, department: "Marketing and Demand Generation", designation: "Revenue Operations Associate", reportingManager: "Shabin George" },
+  { id: "P511", name: "Deepika Muchhala", roleCategory: "Other", roleTitle: "Program Manager - Revenue Strategy and Operations", pod: "Marketing", region: "India", leaving: false, tbh: false, department: "Marketing and Demand Generation", designation: "Program Manager - Revenue Strategy and Operations", reportingManager: "Shabin George" },
+
+  // ── Product - Design, Management ──
+  { id: "P182", name: "Kunal Bajpai", roleCategory: "Other", roleTitle: "Product Manager", pod: "Product", region: "India", leaving: false, tbh: false, department: "Product - Design, Management", designation: "Product Manager", reportingManager: "Anirudh Singla" },
+  { id: "P272", name: "Meghana D", roleCategory: "Other", roleTitle: "Senior Director - AI", pod: "Product", region: "India", leaving: false, tbh: false, department: "Product - Design, Management", designation: "Senior Director - AI", reportingManager: "Anirudh Singla" },
+  { id: "P433", name: "Naomi Silveira", roleCategory: "Other", roleTitle: "Manager - Gen AI Content Programs", pod: "Product", region: "India", leaving: false, tbh: false, department: "Product - Design, Management", designation: "Manager - Gen AI Content Programs", reportingManager: "Meghana D" },
+  { id: "P544", name: "Ashish Sinha", roleCategory: "Other", roleTitle: "Senior Product Manager", pod: "Product", region: "India", leaving: false, tbh: false, department: "Product - Design, Management", designation: "Senior Product Manager", reportingManager: "Anirudh Singla" },
+
+  // ── Revenue - NN India ──
+  { id: "P561", name: "Ilaya Raja", roleCategory: "Other", roleTitle: "Sales Manager - Enterprise Accounts", pod: "India Sales", region: "India", leaving: false, tbh: false, department: "Revenue - NN India Demand Gen", designation: "Sales Manager - Enterprise Accounts", reportingManager: "Tushar Singh" },
+  { id: "P014", name: "Aditya Joshi", roleCategory: "Other", roleTitle: "Associate Director - Sales", pod: "India Sales", region: "India", leaving: false, tbh: false, department: "Revenue - NN India Sales", designation: "Associate Director - Sales", reportingManager: "Sneha Iyer" },
+  { id: "P101", name: "Rahul Dhamnani", roleCategory: "Other", roleTitle: "Associate Director - Sales", pod: "India Sales", region: "India", leaving: false, tbh: false, department: "Revenue - NN India Sales", designation: "Associate Director - Sales", reportingManager: "Rishabh Shekhar" },
+  { id: "P113", name: "Tushar Singh", roleCategory: "Other", roleTitle: "Senior Director - Enterprise Sales", pod: "India Sales", region: "India", leaving: false, tbh: false, department: "Revenue - NN India Sales", designation: "Senior Director - Enterprise Sales", reportingManager: "Rishabh Shekhar" },
+  { id: "P306", name: "Hitesh Kumar Malviya", roleCategory: "Other", roleTitle: "Manager - Sales", pod: "India Sales", region: "India", leaving: false, tbh: false, department: "Revenue - NN India Sales", designation: "Manager - Sales", reportingManager: "Nakul Jambotkar" },
+  { id: "P372", name: "Debdeep Banerjee", roleCategory: "Other", roleTitle: "Director of Enterprise Sales", pod: "India Sales", region: "India", leaving: false, tbh: false, department: "Revenue - NN India Sales", designation: "Director of Enterprise Sales", reportingManager: "Sneha Iyer" },
+  { id: "P393", name: "Foram Desai", roleCategory: "Other", roleTitle: "Junior AE", pod: "India Sales", region: "India", leaving: false, tbh: false, department: "Revenue - NN India Sales", designation: "Junior AE", reportingManager: "Tushar Singh" },
+  { id: "P406", name: "Rashmi Kularia", roleCategory: "Other", roleTitle: "Junior AE", pod: "India Sales", region: "India", leaving: false, tbh: false, department: "Revenue - NN India Sales", designation: "Junior AE", reportingManager: "Sneha Iyer" },
+  { id: "P411", name: "Priyanka Jaiswal", roleCategory: "Other", roleTitle: "Associate Director - Sales", pod: "India Sales", region: "India", leaving: false, tbh: false, department: "Revenue - NN India Sales", designation: "Associate Director - Sales", reportingManager: "Sneha Iyer" },
+  { id: "P416", name: "Nakul Jambotkar", roleCategory: "Other", roleTitle: "Associate Director - Enterprise Sales", pod: "India Sales", region: "India", leaving: false, tbh: false, department: "Revenue - NN India Sales", designation: "Associate Director - Enterprise Sales", reportingManager: "Rishabh Shekhar" },
+  { id: "P451", name: "Hitansh Momaya", roleCategory: "Other", roleTitle: "Account Executive", pod: "India Sales", region: "India", leaving: false, tbh: false, department: "Revenue - NN India Sales", designation: "Account Executive", reportingManager: "Nakul Jambotkar" },
+  { id: "P529", name: "Mohini D", roleCategory: "Other", roleTitle: "Manager - Enterprise Sales", pod: "India Sales", region: "India", leaving: false, tbh: false, department: "Revenue - NN India Sales", designation: "Manager - Enterprise Sales", reportingManager: "Debdeep Banerjee" },
+  { id: "P547", name: "Angad Yadav", roleCategory: "Other", roleTitle: "Sales Development Representative", pod: "India Sales", region: "India", leaving: false, tbh: false, department: "Revenue - NN India Sales", designation: "Sales Development Representative", reportingManager: "Tushar Singh" },
+  { id: "P556", name: "Hardik Sampat", roleCategory: "Other", roleTitle: "Sales Manager - Enterprise Accounts", pod: "India Sales", region: "India", leaving: false, tbh: false, department: "Revenue - NN India Sales", designation: "Sales Manager - Enterprise Accounts", reportingManager: "Rahul Dhamnani" },
+  { id: "P558", name: "Prashant Suresh Avhad", roleCategory: "Other", roleTitle: "Sales Development Representative", pod: "India Sales", region: "India", leaving: false, tbh: false, department: "Revenue - NN India Sales", designation: "Sales Development Representative", reportingManager: "Tushar Singh" },
+  { id: "P578", name: "Eshan Kalia", roleCategory: "Other", roleTitle: "Sales Development Representative", pod: "India Sales", region: "India", leaving: false, tbh: false, department: "Revenue - NN India Sales", designation: "Sales Development Representative", reportingManager: "Tushar singh" },
+  { id: "P581", name: "Shubham Talekar", roleCategory: "Other", roleTitle: "Sales Development Representative", pod: "India Sales", region: "India", leaving: false, tbh: false, department: "Revenue - NN India Sales", designation: "Sales Development Representative", reportingManager: "Tushar Singh" },
+  { id: "P587", name: "Krishna Jain", roleCategory: "Other", roleTitle: "Sales Development Representative", pod: "India Sales", region: "India", leaving: false, tbh: false, department: "Revenue - NN India Sales", designation: "Sales Development Representative", reportingManager: "Tushar Singh" },
+  { id: "P599", name: "Madhav Sharma", roleCategory: "Other", roleTitle: "Sales Development Representative", pod: "India Sales", region: "India", leaving: false, tbh: false, department: "Revenue - NN India Sales", designation: "Sales Development Representative", reportingManager: "Tushar Singh" },
+
+  // ── Revenue - NN US ──
+  { id: "P456", name: "Manjunath NS", roleCategory: "Other", roleTitle: "BDR - US", pod: "US Sales", region: "US", leaving: false, tbh: false, department: "Revenue - NN US Demand Gen", designation: "BDR - US", reportingManager: "Kishan Panpalia" },
+  { id: "P494", name: "Snehil Saurabh", roleCategory: "Other", roleTitle: "Sales Development Representative - US", pod: "US Sales", region: "US", leaving: false, tbh: false, department: "Revenue - NN US Demand Gen", designation: "Sales Development Representative - US", reportingManager: "Kishan Panpalia" },
+  { id: "P499", name: "Janvi Rohra", roleCategory: "Other", roleTitle: "Senior Associate - GTM", pod: "US Sales", region: "US", leaving: false, tbh: false, department: "Revenue - NN US Demand Gen", designation: "Senior Associate - GTM", reportingManager: "Kishan Panpalia" },
+  { id: "P514", name: "Diya Pansari", roleCategory: "Other", roleTitle: "Senior Associate - GTM", pod: "US Sales", region: "US", leaving: false, tbh: false, department: "Revenue - NN US Demand Gen", designation: "Senior Associate - GTM", reportingManager: "Kishan Panpalia" },
+  { id: "P021", name: "Kishan Panpalia", roleCategory: "Other", roleTitle: "VP - US Business", pod: "US Sales", region: "US", leaving: false, tbh: false, department: "Revenue - NN US Sales", designation: "VP - US Business", reportingManager: "Anirudh Singla" },
+  { id: "P425", name: "Shreenath Bhat", roleCategory: "Other", roleTitle: "Account Executive-US", pod: "US Sales", region: "US", leaving: false, tbh: false, department: "Revenue - NN US Sales", designation: "Account Executive-US", reportingManager: "Kishan Panpalia" },
+  { id: "P470", name: "Mariana Cornejo", roleCategory: "Other", roleTitle: "VP - Enterprise Business", pod: "US Sales", region: "US", leaving: false, tbh: false, department: "Revenue - NN US Sales", designation: "VP - Enterprise Business", reportingManager: "Kishan Panpalia" },
+  { id: "P573", name: "Harsh Doshi", roleCategory: "Other", roleTitle: "SDR Manager", pod: "US Sales", region: "US", leaving: false, tbh: false, department: "Revenue - NN US Sales", designation: "SDR Manager", reportingManager: "Kishan Panpalia" },
+  { id: "P580", name: "Saswat Brahma", roleCategory: "Other", roleTitle: "SDR US", pod: "US Sales", region: "US", leaving: false, tbh: false, department: "Revenue - NN US Sales", designation: "SDR US", reportingManager: "Harsh Doshi" },
+  { id: "P582", name: "Samarth Mishra", roleCategory: "Other", roleTitle: "SDR US", pod: "US Sales", region: "US", leaving: false, tbh: false, department: "Revenue - NN US Sales", designation: "SDR US", reportingManager: "Harsh Doshi" },
+
+  // ── Supply Acquisition and Operations ──
+  { id: "P260", name: "Shashwat Sood", roleCategory: "Other", roleTitle: "Director - Supply Acquisition and Operations", pod: "Supply", region: "India", leaving: false, tbh: false, department: "Supply Acquisition and Operations", designation: "Director - Supply Acquisition and Operations", reportingManager: "Anirudh Singla" },
+  { id: "P390", name: "Sushmita Giri", roleCategory: "Other", roleTitle: "Manager - Supply Acquisition and Operations", pod: "Supply", region: "India", leaving: false, tbh: false, department: "Supply Acquisition and Operations", designation: "Manager - Supply Acquisition and Operations", reportingManager: "Shashwat Sood" },
+  { id: "P412", name: "Mahak Garg", roleCategory: "Other", roleTitle: "Assistant Manager - Supply Acquisition and Operations", pod: "Supply", region: "India", leaving: false, tbh: false, department: "Supply Acquisition and Operations", designation: "Assistant Manager - Supply Acquisition and Operations", reportingManager: "Shashwat Sood" },
+  { id: "P436", name: "Ankita Thakur", roleCategory: "Other", roleTitle: "Manager - Supply Acquisition and Operations", pod: "Supply", region: "India", leaving: false, tbh: false, department: "Supply Acquisition and Operations", designation: "Manager - Supply Acquisition and Operations", reportingManager: "Shashwat Sood" },
+  { id: "P461", name: "Saparya Chakraborty", roleCategory: "Other", roleTitle: "Assistant Manager- Creative Talent Acquisition", pod: "Supply", region: "India", leaving: false, tbh: false, department: "Supply Acquisition and Operations", designation: "Assistant Manager- Creative Talent Acquisition", reportingManager: "Shashwat Sood" },
+
+  // ── Legacy people (referenced by manual assignments but not in current sheet) ──
+  { id: "p_varsha", name: "Varsha Madagouni", roleCategory: "Content", roleTitle: "Senior Editor", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Content Editor", reportingManager: "Pratima K" },
+  { id: "p_aditya_s", name: "Aditya Satarkar", roleCategory: "Creative Copy", roleTitle: "CD - Copy", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Creative Director - Copy", reportingManager: "" },
+  { id: "p_aditya_p", name: "Aditya Pathak", roleCategory: "Creative Copy", roleTitle: "Jr. Copywriter", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Junior Copywriter", reportingManager: "" },
+  { id: "p_janhavi", name: "Janhavi Dave", roleCategory: "Creative Art", roleTitle: "Sr. CD - Art", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Senior Creative Director - Art", reportingManager: "" },
+  { id: "p_neha", name: "Neha Patel", roleCategory: "Creative Art", roleTitle: "Sr. Designer", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Senior Designer", reportingManager: "" },
+  { id: "p_vedanti", name: "Vedanti Ghuikhedkar", roleCategory: "Video", roleTitle: "Video PM/ACP", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Video Production Team", designation: "Video PM", reportingManager: "" },
+  { id: "p_shubham", name: "Shubham Hadkar", roleCategory: "Video", roleTitle: "Video Editor 1", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Video Production Team", designation: "Video Editor", reportingManager: "" },
+  { id: "p_mamta", name: "Mamta Thatte", roleCategory: "Content", roleTitle: "Senior Editor", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Senior Editor Consultant", reportingManager: "" },
+  { id: "p_rashmi_s", name: "Rashmi Sharma", roleCategory: "Content", roleTitle: "Senior Editor", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Senior Editor Consultant", reportingManager: "" },
+  { id: "p_mit", name: "Mit Thakkar", roleCategory: "SEO", roleTitle: "SEO Analyst", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Analyst", reportingManager: "" },
+  { id: "p_nikita", name: "Nikita Sharma", roleCategory: "Content", roleTitle: "Content Lead", pod: "Quality", region: "India", leaving: false, tbh: false, department: "Capability - Quality Team", designation: "Senior Content Lead", reportingManager: "Gaurab Chatterjee" },
+  { id: "p_mukul", name: "Mukul Bhatkhande", roleCategory: "Creative Art", roleTitle: "Art Director", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Art Director", reportingManager: "" },
+  { id: "p_rahul_r", name: "Rahul Rajeev", roleCategory: "Video", roleTitle: "Video Editor 1", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Video Production Team", designation: "Video Editor", reportingManager: "" },
+  { id: "p_amruta", name: "Amruta Khemnar", roleCategory: "SEO", roleTitle: "Group Head", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "Group Head - SEO", reportingManager: "" },
+  { id: "p_taral", name: "Taral Patel", roleCategory: "SEO", roleTitle: "SEO Manager", pod: "SEO", region: "India", leaving: false, tbh: false, department: "Capability - SEO Team", designation: "SEO Manager", reportingManager: "" },
+  { id: "p_vedaant", name: "Vedaant Dutt", roleCategory: "Creative Copy", roleTitle: "Sr. Copywriter", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Senior Copywriter", reportingManager: "" },
+  { id: "p_vinaya", name: "Vinaya C", roleCategory: "Video", roleTitle: "Video Editor 2", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Video Production Team", designation: "Video Editor", reportingManager: "" },
+  { id: "p_samruddha", name: "Samruddha Kulkarni", roleCategory: "Video", roleTitle: "Video PM/ACP", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Video Production Team", designation: "Associate Creative Producer", reportingManager: "" },
+  { id: "p_siddharth", name: "Siddharth Kedar", roleCategory: "Creative Art", roleTitle: "Jr. Designer", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Junior Designer", reportingManager: "" },
+  { id: "p_krisha", name: "Krisha Mehta", roleCategory: "Creative Art", roleTitle: "Jr. Designer", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Graphic Designer", reportingManager: "" },
+  { id: "p_aniket", name: "Aniket More", roleCategory: "Creative Art", roleTitle: "Jr. Designer", pod: "Creative", region: "India", leaving: false, tbh: false, department: "Capability - Creative Team", designation: "Graphic Designer", reportingManager: "" },
+
+  // ── TBH placeholders ──
   { id: "tbh_editor", name: "TBH - Senior Editor", roleCategory: "Content", roleTitle: "Senior Editor", pod: "—", region: "—", leaving: false, tbh: true },
   { id: "tbh_seo_analyst", name: "TBH - SEO Analyst", roleCategory: "SEO", roleTitle: "SEO Analyst", pod: "—", region: "—", leaving: false, tbh: true },
 ];

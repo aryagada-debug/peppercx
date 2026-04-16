@@ -140,9 +140,16 @@ export function useStaffingData() {
     try {
       const { count } = await supabase.from("staffing_people").select("id", { count: "exact", head: true });
       
-      if (!count || count === 0) {
+      // Force re-seed if count doesn't match expected (v2: 207 people = 185 sheet + 21 legacy + 2 TBH)
+      const EXPECTED_MIN = 200;
+      if (!count || count < EXPECTED_MIN) {
         if (seedingRef.current) return;
         seedingRef.current = true;
+        // Clear old data first
+        if (count && count > 0) {
+          await supabase.from("staffing_assignments").delete().neq("id", "");
+          await supabase.from("staffing_people").delete().neq("id", "");
+        }
         await seedDatabase();
         setSeeded(true);
         setLoading(false);
