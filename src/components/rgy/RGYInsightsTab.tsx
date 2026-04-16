@@ -362,17 +362,24 @@ export function RGYInsightsTab({ deals, filteredDeals, issues }: Props) {
 
       {/* VSD Comparison */}
       <div className="bg-card border border-border rounded-lg p-4">
-        <h3 className="text-sm font-semibold mb-3">VSD Comparison</h3>
-        <ResponsiveContainer width="100%" height={250}>
-          <BarChart data={vsdComparison} margin={{ left: 10 }}>
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-sm font-semibold">VSD Portfolio Health Comparison</h3>
+          <span className="text-[10px] text-muted-foreground">Worst RGY per deal across 8 dimensions</span>
+        </div>
+        <p className="text-xs text-muted-foreground mb-3">Stacked bar shows Red / Yellow / Green deal count for each VSD</p>
+        <ResponsiveContainer width="100%" height={280}>
+          <BarChart data={vsdComparison} margin={{ left: 10, bottom: 5 }} barSize={40}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis dataKey="vsd" tick={{ fontSize: 10 }} interval={0} angle={-15} textAnchor="end" height={50} />
-            <YAxis tick={{ fontSize: 11 }} />
-            <RechartsTooltip />
-            <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-            <Bar dataKey="Red" fill={COLORS.R} />
-            <Bar dataKey="Yellow" fill={COLORS.Y} />
-            <Bar dataKey="Green" fill={COLORS.G} />
+            <XAxis dataKey="vsd" tick={{ fontSize: 12, fontWeight: 500 }} interval={0} />
+            <YAxis tick={{ fontSize: 11 }} label={{ value: "Deal Count", angle: -90, position: "insideLeft", style: { fontSize: 11, fill: "hsl(var(--muted-foreground))" } }} />
+            <RechartsTooltip
+              contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }}
+              formatter={(value: number, name: string) => [`${value} deals`, name]}
+            />
+            <Legend iconSize={10} wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
+            <Bar dataKey="Red" stackId="vsd" fill={COLORS.R} radius={[0, 0, 0, 0]} />
+            <Bar dataKey="Yellow" stackId="vsd" fill={COLORS.Y} radius={[0, 0, 0, 0]} />
+            <Bar dataKey="Green" stackId="vsd" fill={COLORS.G} radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
