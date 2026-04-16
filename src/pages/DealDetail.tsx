@@ -88,9 +88,13 @@ function FinancialMetricCard({ label, value, subLabel, onSave }: { label: string
 function TeamMemberSelect({ currentName, role, color, people, onSelect }: {
   currentName: string; role: string; color: string; people: { id: string; name: string; roleTitle: string }[]; onSelect: (name: string) => void;
 }) {
-  const initials = currentName && currentName !== "Not assigned"
+  const [open, setOpen] = useState(false);
+  const initials = currentName && currentName !== "Not assigned" && currentName !== ""
     ? currentName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()
     : "?";
+
+  // Deduplicate people by name
+  const uniquePeople = people.filter((v, i, arr) => arr.findIndex(x => x.name === v.name) === i);
 
   return (
     <div className="flex items-center gap-3 py-2">
@@ -98,17 +102,41 @@ function TeamMemberSelect({ currentName, role, color, people, onSelect }: {
         {initials}
       </div>
       <div className="flex-1 min-w-0">
-        <Select value={currentName || "_none"} onValueChange={v => v !== "_none" && onSelect(v)}>
-          <SelectTrigger className="h-7 text-sm border-none bg-transparent shadow-none px-0 focus:ring-0">
-            <SelectValue placeholder="Not assigned" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="_none" className="text-xs text-muted-foreground">— Not assigned —</SelectItem>
-            {people.map(p => (
-              <SelectItem key={p.id} value={p.name} className="text-xs">{p.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <button className="h-7 text-sm bg-transparent px-0 text-left text-foreground hover:underline cursor-pointer">
+              {currentName || "Not assigned"}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-48 p-1" align="start">
+            <div className="flex flex-col">
+              {uniquePeople.map(p => (
+                <button
+                  key={p.id}
+                  className={cn(
+                    "text-xs text-left px-2 py-1.5 rounded hover:bg-muted flex items-center justify-between",
+                    p.name === currentName && "bg-muted font-medium"
+                  )}
+                  onClick={() => {
+                    onSelect(p.name === currentName ? "" : p.name);
+                    setOpen(false);
+                  }}
+                >
+                  {p.name}
+                  {p.name === currentName && <Check className="h-3 w-3 text-primary" />}
+                </button>
+              ))}
+              {currentName && (
+                <button
+                  className="text-xs text-left px-2 py-1.5 rounded hover:bg-muted text-muted-foreground border-t mt-1 pt-1.5"
+                  onClick={() => { onSelect(""); setOpen(false); }}
+                >
+                  — Clear —
+                </button>
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
       <span className="text-xs text-muted-foreground whitespace-nowrap">{role}</span>
     </div>
@@ -1297,11 +1325,16 @@ export default function DealDetail() {
                     people={people.filter(p => (p.roleTitle || "").toLowerCase().includes("vsd"))}
                     onSelect={name => {
                       handleDealFieldSave("vsd", name);
-                      const person = people.find(p => p.name === name);
-                      if (person) {
+                      if (!name) {
                         const existing = assignments.find(a => a.dealId === dealId && a.roleKey === "VSD");
-                        if (existing) updateAssignment(existing.id, { personId: person.id });
-                        else addAssignment({ id: uid(), dealId: dealId!, roleKey: "VSD", personId: person.id, allocationPct: 10 });
+                        if (existing) deleteAssignment(existing.id);
+                      } else {
+                        const person = people.find(p => p.name === name);
+                        if (person) {
+                          const existing = assignments.find(a => a.dealId === dealId && a.roleKey === "VSD");
+                          if (existing) updateAssignment(existing.id, { personId: person.id });
+                          else addAssignment({ id: uid(), dealId: dealId!, roleKey: "VSD", personId: person.id, allocationPct: 10 });
+                        }
                       }
                     }}
                   />
@@ -1312,11 +1345,16 @@ export default function DealDetail() {
                     people={people.filter(p => (p.roleTitle || "").toLowerCase().includes("principal bopm"))}
                     onSelect={name => {
                       handleDealFieldSave("principalBopm", name);
-                      const person = people.find(p => p.name === name);
-                      if (person) {
+                      if (!name) {
                         const existing = assignments.find(a => a.dealId === dealId && a.roleKey === "Principal BOPM");
-                        if (existing) updateAssignment(existing.id, { personId: person.id });
-                        else addAssignment({ id: uid(), dealId: dealId!, roleKey: "Principal BOPM", personId: person.id, allocationPct: 10 });
+                        if (existing) deleteAssignment(existing.id);
+                      } else {
+                        const person = people.find(p => p.name === name);
+                        if (person) {
+                          const existing = assignments.find(a => a.dealId === dealId && a.roleKey === "Principal BOPM");
+                          if (existing) updateAssignment(existing.id, { personId: person.id });
+                          else addAssignment({ id: uid(), dealId: dealId!, roleKey: "Principal BOPM", personId: person.id, allocationPct: 10 });
+                        }
                       }
                     }}
                   />
@@ -1327,11 +1365,16 @@ export default function DealDetail() {
                     people={people.filter(p => (p.roleTitle || "").toLowerCase().includes("senior bopm"))}
                     onSelect={name => {
                       handleDealFieldSave("seniorBopm", name);
-                      const person = people.find(p => p.name === name);
-                      if (person) {
+                      if (!name) {
                         const existing = assignments.find(a => a.dealId === dealId && a.roleKey === "Senior BOPM");
-                        if (existing) updateAssignment(existing.id, { personId: person.id });
-                        else addAssignment({ id: uid(), dealId: dealId!, roleKey: "Senior BOPM", personId: person.id, allocationPct: 10 });
+                        if (existing) deleteAssignment(existing.id);
+                      } else {
+                        const person = people.find(p => p.name === name);
+                        if (person) {
+                          const existing = assignments.find(a => a.dealId === dealId && a.roleKey === "Senior BOPM");
+                          if (existing) updateAssignment(existing.id, { personId: person.id });
+                          else addAssignment({ id: uid(), dealId: dealId!, roleKey: "Senior BOPM", personId: person.id, allocationPct: 10 });
+                        }
                       }
                     }}
                   />
@@ -1345,11 +1388,16 @@ export default function DealDetail() {
                     })}
                     onSelect={name => {
                       handleDealFieldSave("bopm", name);
-                      const person = people.find(p => p.name === name);
-                      if (person) {
+                      if (!name) {
                         const existing = assignments.find(a => a.dealId === dealId && a.roleKey === "BOPM");
-                        if (existing) updateAssignment(existing.id, { personId: person.id });
-                        else addAssignment({ id: uid(), dealId: dealId!, roleKey: "BOPM", personId: person.id, allocationPct: 10 });
+                        if (existing) deleteAssignment(existing.id);
+                      } else {
+                        const person = people.find(p => p.name === name);
+                        if (person) {
+                          const existing = assignments.find(a => a.dealId === dealId && a.roleKey === "BOPM");
+                          if (existing) updateAssignment(existing.id, { personId: person.id });
+                          else addAssignment({ id: uid(), dealId: dealId!, roleKey: "BOPM", personId: person.id, allocationPct: 10 });
+                        }
                       }
                     }}
                   />
