@@ -31,11 +31,6 @@ const ACTIVE_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disp
 const DIMENSIONS = [
   { key: "customer", label: "Overall Customer" },
   { key: "internal", label: "Internal" },
-  { key: "delivery", label: "Delivery" },
-  { key: "consumption", label: "Consumption" },
-  { key: "invoicing", label: "Invoicing" },
-  { key: "receivables", label: "Receivables" },
-  { key: "margins", label: "Margins" },
   { key: "content", label: "Content" },
   { key: "seo", label: "SEO" },
   { key: "supply", label: "Supply" },
@@ -111,11 +106,6 @@ interface DealWithRGY {
   rgy_discussed_action_plan?: string;
   customer: string;
   internal: string;
-  delivery: string;
-  consumption: string;
-  invoicing: string;
-  receivables: string;
-  margins: string;
   content: string;
   seo: string;
   supply: string;
@@ -570,7 +560,7 @@ export default function RGYHealth() {
       const batch = dealIds.slice(i, i + 500);
       const { data: rgyRows } = await supabase
         .from("deal_rgy_weekly")
-        .select("id, deal_id, customer, internal, delivery, consumption, invoicing, receivables, margins, content, seo, supply, copy, design, video, week_start, issue_details, issue_status, action_plan, discussed_action_plan")
+        .select("id, deal_id, customer, internal, content, seo, supply, copy, design, video, week_start, issue_details, issue_status, action_plan, discussed_action_plan")
         .in("deal_id", batch)
         .order("week_start", { ascending: false });
 
@@ -611,11 +601,6 @@ export default function RGYHealth() {
         rgy_discussed_action_plan: rgy?.discussed_action_plan || "",
         customer: rgy?.customer || "NA",
         internal: rgy?.internal || "NA",
-        delivery: rgy?.delivery || "NA",
-        consumption: rgy?.consumption || "NA",
-        invoicing: rgy?.invoicing || "NA",
-        receivables: rgy?.receivables || "NA",
-        margins: rgy?.margins || "NA",
         content: rgy?.content || "NA",
         seo: rgy?.seo || "NA",
         supply: rgy?.supply || "NA",
@@ -681,11 +666,6 @@ export default function RGYHealth() {
         week_start: weekStart,
         ...rgyPayload,
         account_health: rgyPayload.customer || "G",
-        delivery: rgyPayload.delivery || "G",
-        consumption: rgyPayload.consumption || "G",
-        invoicing: rgyPayload.invoicing || "G",
-        receivables: rgyPayload.receivables || "G",
-        margins: rgyPayload.margins || "G",
         finance_billing: "G",
         capability_seo: rgyPayload.seo || "G",
         capability_creative: "G",

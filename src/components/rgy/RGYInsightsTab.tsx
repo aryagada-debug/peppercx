@@ -7,11 +7,6 @@ import { Badge } from "@/components/ui/badge";
 const DIMENSIONS = [
   { key: "customer", label: "Customer" },
   { key: "internal", label: "Internal" },
-  { key: "delivery", label: "Delivery" },
-  { key: "consumption", label: "Consumption" },
-  { key: "invoicing", label: "Invoicing" },
-  { key: "receivables", label: "Receivables" },
-  { key: "margins", label: "Margins" },
   { key: "content", label: "Content" },
   { key: "seo", label: "SEO" },
   { key: "supply", label: "Supply" },
