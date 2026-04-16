@@ -54,10 +54,11 @@ function DroppableColumn({ statusLabel, color, children }: { statusLabel: string
 
 /* ── Draggable Task Card ── */
 function DraggableTaskCard({
-  task, onClick, onUpdate, spaceId, allTags,
+  task, onClick, onUpdate, onDelete, spaceId, allTags,
 }: {
   task: CxTask; onClick: () => void;
   onUpdate: (updates: Partial<CxTask>) => void;
+  onDelete: () => void;
   spaceId: string | null; allTags: string[];
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
