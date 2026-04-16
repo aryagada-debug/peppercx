@@ -11,6 +11,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Users, Columns3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { Json } from "@/integrations/supabase/types";
 
 export interface CxSpace {
   id: string;
@@ -23,6 +24,14 @@ export interface CxStatus {
   label: string;
   color: string;
   sort_order: number;
+}
+
+export interface CxSubTask {
+  id: string;
+  title: string;
+  completed: boolean;
+  assignee?: string;
+  description?: string;
 }
 
 export interface CxTask {
@@ -38,6 +47,11 @@ export interface CxTask {
   end_date: string | null;
   sort_order: number;
   created_at?: string;
+  estimated_hours: number;
+  logged_hours: number;
+  subtasks: CxSubTask[];
+  urgency: string;
+  auto_regen: boolean;
 }
 
 const DEFAULT_STATUSES = [
@@ -53,7 +67,7 @@ export default function CentralCx() {
   const [spaces, setSpaces] = useState<CxSpace[]>([]);
   const [statuses, setStatuses] = useState<CxStatus[]>([]);
   const [tasks, setTasks] = useState<CxTask[]>([]);
-  const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null); // null = All Tasks
+  const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [membersOpen, setMembersOpen] = useState(false);
   const [statusMgrOpen, setStatusMgrOpen] = useState(false);
@@ -67,7 +81,16 @@ export default function CentralCx() {
     ]);
     setSpaces((spaceRes.data as CxSpace[]) || []);
     setStatuses((statusRes.data as CxStatus[]) || []);
-    setTasks((taskRes.data as CxTask[]) || []);
+    // Map subtasks from Json to CxSubTask[]
+    const rawTasks = (taskRes.data || []) as any[];
+    setTasks(rawTasks.map(t => ({
+      ...t,
+      subtasks: Array.isArray(t.subtasks) ? t.subtasks : [],
+      estimated_hours: t.estimated_hours ?? 0,
+      logged_hours: t.logged_hours ?? 0,
+      urgency: t.urgency ?? "Medium",
+      auto_regen: t.auto_regen ?? false,
+    })));
     setLoading(false);
   }, []);
 
@@ -77,7 +100,6 @@ export default function CentralCx() {
     const { data } = await supabase.from("cx_spaces").insert({ name }).select("id, name").single();
     if (data) {
       const space = data as CxSpace;
-      // Insert default statuses for the new space
       const statusInserts = DEFAULT_STATUSES.map(s => ({ space_id: space.id, ...s }));
       const { data: newStatuses } = await supabase.from("cx_statuses").insert(statusInserts).select("*");
       setSpaces(prev => [...prev, space]);
@@ -100,12 +122,38 @@ export default function CentralCx() {
   };
 
   const addTask = async (task: Partial<CxTask> & { space_id: string; title: string }) => {
-    const { data } = await supabase.from("cx_tasks").insert(task as any).select("*").single();
-    if (data) setTasks(prev => [...prev, data as CxTask]);
+    const insert: any = {
+      space_id: task.space_id,
+      title: task.title,
+      status: task.status || "Open",
+      description: task.description || "",
+      assignee: task.assignee || "",
+      priority: task.priority || "None",
+      urgency: task.urgency || "Medium",
+      estimated_hours: task.estimated_hours || 0,
+      logged_hours: task.logged_hours || 0,
+      subtasks: (task.subtasks || []) as unknown as Json,
+      auto_regen: task.auto_regen || false,
+      tags: task.tags || [],
+      start_date: task.start_date || null,
+      end_date: task.end_date || null,
+    };
+    const { data } = await supabase.from("cx_tasks").insert(insert).select("*").single();
+    if (data) {
+      const t = data as any;
+      setTasks(prev => [...prev, {
+        ...t,
+        subtasks: Array.isArray(t.subtasks) ? t.subtasks : [],
+      }]);
+    }
   };
 
   const updateTask = async (id: string, updates: Partial<CxTask>) => {
-    await supabase.from("cx_tasks").update(updates as any).eq("id", id);
+    const dbUpdates: any = { ...updates };
+    if (updates.subtasks) {
+      dbUpdates.subtasks = updates.subtasks as unknown as Json;
+    }
+    await supabase.from("cx_tasks").update(dbUpdates).eq("id", id);
     setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
   };
 
@@ -118,13 +166,11 @@ export default function CentralCx() {
   const filteredTasks = selectedSpaceId ? tasks.filter(t => t.space_id === selectedSpaceId) : tasks;
   const currentStatuses = selectedSpaceId
     ? statuses.filter(s => s.space_id === selectedSpaceId).sort((a, b) => a.sort_order - b.sort_order)
-    : // For "All Tasks", merge all unique status labels
-      Array.from(new Map(statuses.sort((a, b) => a.sort_order - b.sort_order).map(s => [s.label, s])).values());
+    : Array.from(new Map(statuses.sort((a, b) => a.sort_order - b.sort_order).map(s => [s.label, s])).values());
 
   return (
     <AppLayout>
       <div className="flex h-[calc(100vh-3.5rem)]">
-        {/* Space sidebar */}
         <CxSpaceSidebar
           spaces={spaces}
           selectedSpaceId={selectedSpaceId}
@@ -134,7 +180,6 @@ export default function CentralCx() {
           onDelete={deleteSpace}
         />
 
-        {/* Main content */}
         <div className="flex-1 overflow-auto">
           <div className="px-6 pt-4 pb-2 flex items-center justify-between border-b border-border">
             <div>
