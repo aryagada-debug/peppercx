@@ -557,7 +557,7 @@ export default function RGYHealth() {
   const fetchData = useCallback(async () => {
     const { data: dealRows } = await supabase
       .from("staffing_deals")
-      .select("id, deal_id, deal_name, account, bopm, deal_status, pod, mrr, total_deal_value, vsd, principal_bopm, senior_bopm, start_date, end_date, payment_terms")
+      .select("id, deal_id, deal_name, account, bopm, deal_status, pod, mrr, total_deal_value, vsd, principal_bopm, senior_bopm, start_date, end_date, payment_terms, pc_code")
       .order("deal_name");
 
     if (!dealRows) { setLoading(false); return; }
@@ -570,7 +570,7 @@ export default function RGYHealth() {
       const batch = dealIds.slice(i, i + 500);
       const { data: rgyRows } = await supabase
         .from("deal_rgy_weekly")
-        .select("id, deal_id, customer, internal, content, seo, supply, copy, design, video, week_start, issue_details, issue_status")
+        .select("id, deal_id, customer, internal, delivery, consumption, invoicing, receivables, margins, content, seo, supply, copy, design, video, week_start, issue_details, issue_status, action_plan, discussed_action_plan")
         .in("deal_id", batch)
         .order("week_start", { ascending: false });
 
