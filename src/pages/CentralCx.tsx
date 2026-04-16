@@ -7,8 +7,9 @@ import { CxOverview } from "@/components/cx/CxOverview";
 import { CxSpaceMembersDialog } from "@/components/cx/CxSpaceMembersDialog";
 import { CxStatusManagerDialog } from "@/components/cx/CxStatusManagerDialog";
 import { supabase } from "@/integrations/supabase/client";
+import { CxCalendarPanel } from "@/components/cx/CxCalendarPanel";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Users, Columns3 } from "lucide-react";
+import { Users, Columns3, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Json } from "@/integrations/supabase/types";
@@ -71,6 +72,10 @@ export default function CentralCx() {
   const [loading, setLoading] = useState(true);
   const [membersOpen, setMembersOpen] = useState(false);
   const [statusMgrOpen, setStatusMgrOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+
+  // Collect all unique tags across tasks
+  const allTags = Array.from(new Set(tasks.flatMap(t => t.tags || [])));
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
