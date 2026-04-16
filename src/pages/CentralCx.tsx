@@ -261,6 +261,9 @@ export default function CentralCx() {
             </Tabs>
           )}
         </div>
+
+        {/* Calendar side panel */}
+        <CxCalendarPanel open={calendarOpen} onToggle={() => setCalendarOpen(!calendarOpen)} />
       </div>
 
       {selectedSpaceId && (
