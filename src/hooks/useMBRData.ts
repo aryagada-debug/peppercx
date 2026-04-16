@@ -106,9 +106,8 @@ function mapEntry(e: any): MBREntry {
 
 export function useMBRData() {
   const [deals, setDeals] = useState<MBRDeal[]>([]);
-  const [entries, setEntries] = useState<MBREntry[]>([]);
+  const [allEntries, setAllEntries] = useState<MBREntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedWeek, setSelectedWeek] = useState(getMonday(new Date()));
 
   const loadDeals = useCallback(async () => {
     const { data } = await supabase
@@ -145,25 +144,50 @@ export function useMBRData() {
     }
   }, []);
 
-  const loadEntries = useCallback(async (week: string) => {
+  const loadAllEntries = useCallback(async () => {
     const { data } = await supabase
       .from("mbr_entries")
       .select("*")
-      .eq("week_start", week);
+      .order("week_start", { ascending: false });
 
     if (data) {
-      setEntries(data.map(mapEntry));
+      setAllEntries(data.map(mapEntry));
     }
   }, []);
 
   useEffect(() => {
     (async () => {
       setLoading(true);
-      await loadDeals();
-      await loadEntries(selectedWeek);
+      await Promise.all([loadDeals(), loadAllEntries()]);
       setLoading(false);
     })();
-  }, [selectedWeek]);
+  }, []);
+
+  // Realtime sync for mbr_entries
+  useEffect(() => {
+    const channel = supabase
+      .channel("mbr-sync")
+      .on("postgres_changes", { event: "*", schema: "public", table: "mbr_entries" }, () => {
+        loadAllEntries();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [loadAllEntries]);
+
+  // Get the latest entry per deal (most recent week_start)
+  const latestEntryPerDeal = (() => {
+    const map = new Map<string, MBREntry>();
+    // allEntries is already sorted desc by week_start
+    for (const entry of allEntries) {
+      if (!map.has(entry.dealId)) {
+        map.set(entry.dealId, entry);
+      }
+    }
+    return map;
+  })();
+
+  const entries = Array.from(latestEntryPerDeal.values());
 
   const upsertEntry = useCallback(
     async (params: {
@@ -181,9 +205,10 @@ export function useMBRData() {
       anirudhAdded?: boolean;
       mbrPptLink?: string | null;
     }) => {
+      const weekStart = getMonday(new Date());
       const row: any = {
         deal_id: params.dealId,
-        week_start: selectedWeek,
+        week_start: weekStart,
         status: params.status,
         mode: params.mode,
         notes: params.notes,
@@ -199,61 +224,37 @@ export function useMBRData() {
       if (params.mbrPptLink !== undefined) row.mbr_ppt_link = params.mbrPptLink;
       if (params.status === "Done") row.input_recorded_at = new Date().toISOString();
 
-      const { data, error } = await (supabase.from("mbr_entries") as any).upsert(
+      await (supabase.from("mbr_entries") as any).upsert(
         row,
         { onConflict: "deal_id,week_start" }
       ).select();
 
-      if (!error && data?.[0]) {
-        setEntries((prev) => {
-          const existing = prev.findIndex((e) => e.dealId === params.dealId && e.weekStart === selectedWeek);
-          const newEntry = mapEntry(data[0]);
-          if (existing >= 0) {
-            const updated = [...prev];
-            updated[existing] = newEntry;
-            return updated;
-          }
-          return [...prev, newEntry];
-        });
-      }
+      // Realtime will handle refresh
     },
-    [selectedWeek]
+    []
   );
 
   const toggleAnirudhJoining = useCallback(
     async (dealId: string, joining: boolean) => {
-      const { data, error } = await (supabase.from("mbr_entries") as any).upsert(
-        { deal_id: dealId, week_start: selectedWeek, anirudh_joining: joining, status: "Pending", updated_by: "" },
+      const weekStart = getMonday(new Date());
+      await (supabase.from("mbr_entries") as any).upsert(
+        { deal_id: dealId, week_start: weekStart, anirudh_joining: joining, status: "Pending", updated_by: "" },
         { onConflict: "deal_id,week_start" }
       ).select();
-
-      if (!error && data?.[0]) {
-        setEntries((prev) => {
-          const existing = prev.findIndex((e) => e.dealId === dealId && e.weekStart === selectedWeek);
-          const newEntry = mapEntry(data[0]);
-          if (existing >= 0) {
-            const updated = [...prev];
-            updated[existing] = newEntry;
-            return updated;
-          }
-          return [...prev, newEntry];
-        });
-      }
     },
-    [selectedWeek]
+    []
   );
 
-  // Computed: VSD summary with sentiment
+  // Computed: VSD summary using latest entries
   const vsdSummary: VSDSummary[] = (() => {
     const vsdMap = new Map<string, { total: number; done: number; notDone: number; green: number; yellow: number; red: number; scheduled: number }>();
-    const entryMap = new Map(entries.map((e) => [e.dealId, e]));
 
     for (const deal of deals) {
       const v = deal.vsd || "Unknown";
       if (!vsdMap.has(v)) vsdMap.set(v, { total: 0, done: 0, notDone: 0, green: 0, yellow: 0, red: 0, scheduled: 0 });
       const s = vsdMap.get(v)!;
       s.total++;
-      const entry = entryMap.get(deal.id);
+      const entry = latestEntryPerDeal.get(deal.id);
       if (entry) {
         if (entry.status === "Done") s.done++;
         else if (entry.status === "Not Done") s.notDone++;
@@ -289,13 +290,12 @@ export function useMBRData() {
   return {
     deals,
     entries,
+    allEntries,
     loading,
-    selectedWeek,
-    setSelectedWeek,
     upsertEntry,
     toggleAnirudhJoining,
     vsdSummary,
     totals,
-    refresh: () => loadEntries(selectedWeek),
+    refresh: loadAllEntries,
   };
 }

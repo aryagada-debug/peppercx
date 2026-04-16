@@ -3,11 +3,11 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 import { ChevronDown, ChevronRight, ChevronsUpDown, Search, Loader2, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
-import { useMBRData, getWeekOptions, type MBREntry, type MBRDeal, type VSDSummary } from "@/hooks/useMBRData";
+import { useMBRData, type MBREntry, type MBRDeal, type VSDSummary } from "@/hooks/useMBRData";
 import { MBRDetailDialog } from "@/components/mbr/MBRDetailDialog";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -48,8 +48,7 @@ interface MBRDealWithPod extends MBRDeal {
 }
 
 export default function MBRTracker() {
-  const { deals, entries, loading, selectedWeek, setSelectedWeek, upsertEntry, vsdSummary, totals, refresh } = useMBRData();
-  const weekOptions = getWeekOptions();
+  const { deals, entries, loading, upsertEntry, vsdSummary, totals, refresh } = useMBRData();
 
   const [activePod, setActivePod] = useState<Pod>("All");
   const [search, setSearch] = useState("");
@@ -193,18 +192,12 @@ export default function MBRTracker() {
       <div className="p-5">
         {/* Header */}
         <div className="flex items-center justify-between mb-1">
-          <div>
+         <div>
             <h1 className="text-subhead font-bold tracking-tight text-foreground">MBR Tracker</h1>
             <p className="text-ui text-muted-foreground mt-0.5">
-              {kpis.retainerAccounts} retainer accounts • Weekly Business Review tracking
+              {kpis.retainerAccounts} retainer accounts • Latest MBR status
             </p>
           </div>
-          <Select value={selectedWeek} onValueChange={setSelectedWeek}>
-            <SelectTrigger className="w-64"><SelectValue placeholder="Select week" /></SelectTrigger>
-            <SelectContent>
-              {weekOptions.map(w => <SelectItem key={w.value} value={w.value}>{w.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
         </div>
 
         {/* KPI Strip */}

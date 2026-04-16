@@ -89,6 +89,25 @@ export function useDealDetail(dealId: string | undefined) {
   useEffect(() => {
     if (!dealId) return;
     loadAll();
+
+    // Realtime sync for MBR entries
+    const channel = supabase
+      .channel(`mbr-deal-${dealId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "mbr_entries", filter: `deal_id=eq.${dealId}` }, async () => {
+        const { data } = await supabase.from("mbr_entries").select("*").eq("deal_id", dealId).order("week_start", { ascending: false });
+        if (data) setMbrEntries(data.map((e: any) => ({
+          id: e.id, dealId: e.deal_id, weekStart: e.week_start, status: e.status, mode: e.mode,
+          notes: e.notes, updatedBy: e.updated_by, sentiment: e.sentiment || null,
+          fathomLink: e.fathom_link || null, transcript: e.transcript || null,
+          aiSummary: e.ai_summary || null, actionItems: Array.isArray(e.action_items) ? e.action_items : [],
+          scheduledDate: e.scheduled_date || null, anirudhAdded: !!e.anirudh_added,
+          anirudhJoining: !!e.anirudh_joining, inputRecordedAt: e.input_recorded_at || null,
+          mbrPptLink: e.mbr_ppt_link || null,
+        })));
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [dealId]);
 
   async function loadAll() {
