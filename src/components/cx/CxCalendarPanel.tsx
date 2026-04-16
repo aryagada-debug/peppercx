@@ -66,10 +66,10 @@ export function CxCalendarPanel({ open, onToggle }: Props) {
     try {
       const result = await lovable.auth.signInWithOAuth("google", {
         redirect_uri: window.location.origin + "/central-cx",
+        scopes: "https://www.googleapis.com/auth/calendar.readonly",
         extraParams: {
           prompt: "consent",
           access_type: "offline",
-          scope: "openid email profile https://www.googleapis.com/auth/calendar.readonly",
         },
       });
       if (result.error) {
