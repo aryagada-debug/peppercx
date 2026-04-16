@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import { cn } from "@/lib/utils";
-import { Plus, MoreHorizontal, Pencil, Trash2, FolderOpen, LayoutList } from "lucide-react";
+import { Plus, MoreHorizontal, Pencil, Trash2, FolderOpen, LayoutList, PanelLeftClose, PanelLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { CxSpace } from "@/pages/CentralCx";
 
 interface Props {
@@ -13,9 +14,11 @@ interface Props {
   onAdd: (name: string) => void;
   onRename: (id: string, name: string) => void;
   onDelete: (id: string) => void;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
 }
 
-export function CxSpaceSidebar({ spaces, selectedSpaceId, onSelect, onAdd, onRename, onDelete }: Props) {
+export function CxSpaceSidebar({ spaces, selectedSpaceId, onSelect, onAdd, onRename, onDelete, collapsed, onToggleCollapse }: Props) {
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -36,24 +39,67 @@ export function CxSpaceSidebar({ spaces, selectedSpaceId, onSelect, onAdd, onRen
     }
   };
 
+  if (collapsed) {
+    return (
+      <div className="w-12 border-r border-border bg-muted/30 flex flex-col flex-shrink-0 h-full items-center py-3 gap-1 transition-all duration-200">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button onClick={onToggleCollapse} className="h-7 w-7 flex items-center justify-center rounded hover:bg-accent mb-2">
+              <PanelLeft className="h-4 w-4 text-muted-foreground" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="right">Expand sidebar</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => onSelect(null)}
+              className={cn("h-8 w-8 flex items-center justify-center rounded transition-colors", selectedSpaceId === null ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent")}
+            >
+              <LayoutList className="h-4 w-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="right">All Tasks</TooltipContent>
+        </Tooltip>
+
+        {spaces.map(space => (
+          <Tooltip key={space.id}>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => onSelect(space.id)}
+                className={cn("h-8 w-8 flex items-center justify-center rounded transition-colors", selectedSpaceId === space.id ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent")}
+              >
+                <FolderOpen className="h-4 w-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">{space.name}</TooltipContent>
+          </Tooltip>
+        ))}
+      </div>
+    );
+  }
+
   return (
-    <div className="w-56 border-r border-border bg-muted/30 flex flex-col flex-shrink-0 h-full">
+    <div className="w-56 border-r border-border bg-muted/30 flex flex-col flex-shrink-0 h-full transition-all duration-200">
       <div className="px-3 py-3 border-b border-border flex items-center justify-between">
         <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Spaces</span>
-        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setAdding(true)}>
-          <Plus className="h-3.5 w-3.5" />
-        </Button>
+        <div className="flex items-center gap-0.5">
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setAdding(true)}>
+            <Plus className="h-3.5 w-3.5" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onToggleCollapse}>
+            <PanelLeftClose className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto py-1">
-        {/* All Tasks - admin view */}
         <button
           onClick={() => onSelect(null)}
           className={cn(
             "w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors",
-            selectedSpaceId === null
-              ? "bg-primary/10 text-primary font-medium"
-              : "text-foreground hover:bg-muted"
+            selectedSpaceId === null ? "bg-primary/10 text-primary font-medium" : "text-foreground hover:bg-muted"
           )}
         >
           <LayoutList className="h-4 w-4 text-muted-foreground" />
@@ -66,14 +112,11 @@ export function CxSpaceSidebar({ spaces, selectedSpaceId, onSelect, onAdd, onRen
             key={space.id}
             className={cn(
               "group flex items-center gap-2 px-3 py-2 text-sm cursor-pointer transition-colors",
-              selectedSpaceId === space.id
-                ? "bg-primary/10 text-primary font-medium"
-                : "text-foreground hover:bg-muted"
+              selectedSpaceId === space.id ? "bg-primary/10 text-primary font-medium" : "text-foreground hover:bg-muted"
             )}
             onClick={() => onSelect(space.id)}
           >
             <FolderOpen className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-
             {renamingId === space.id ? (
               <Input
                 autoFocus
@@ -87,7 +130,6 @@ export function CxSpaceSidebar({ spaces, selectedSpaceId, onSelect, onAdd, onRen
             ) : (
               <span className="truncate flex-1">{space.name}</span>
             )}
-
             <DropdownMenu>
               <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>
                 <button className="opacity-0 group-hover:opacity-100 transition-opacity h-5 w-5 flex items-center justify-center rounded hover:bg-muted-foreground/10">
