@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface MBRDeal {
@@ -189,6 +189,26 @@ export function useMBRData() {
 
   const entries = Array.from(latestEntryPerDeal.values());
 
+  // Group entries by month (YYYY-MM) → Map<dealId, MBREntry> (latest per deal per month)
+  const entriesByMonth = useMemo(() => {
+    const monthMap = new Map<string, Map<string, MBREntry>>();
+    for (const entry of allEntries) {
+      const month = entry.weekStart.substring(0, 7); // "YYYY-MM"
+      if (!monthMap.has(month)) monthMap.set(month, new Map());
+      const dealMap = monthMap.get(month)!;
+      // allEntries sorted desc, so first entry per deal per month is latest
+      if (!dealMap.has(entry.dealId)) {
+        dealMap.set(entry.dealId, entry);
+      }
+    }
+    return monthMap;
+  }, [allEntries]);
+
+  // Available months sorted chronologically
+  const availableMonths = useMemo(() => {
+    return Array.from(entriesByMonth.keys()).sort();
+  }, [entriesByMonth]);
+
   const upsertEntry = useCallback(
     async (params: {
       dealId: string;
@@ -296,6 +316,8 @@ export function useMBRData() {
     toggleAnirudhJoining,
     vsdSummary,
     totals,
+    entriesByMonth,
+    availableMonths,
     refresh: loadAllEntries,
   };
 }
