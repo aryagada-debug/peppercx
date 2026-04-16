@@ -118,12 +118,13 @@ function TeamMemberSelect({ currentName, role, color, people, onSelect }: {
 
 
 
-function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry, deleteMBREntry }: {
+function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry, deleteMBREntry, quickUpdateMBRField }: {
   deal: any;
   dealId: string;
   mbrEntries: MBREntry[];
   upsertMBREntry: (params: any, weekStart: string) => Promise<void>;
   deleteMBREntry: (id: string) => Promise<void>;
+  quickUpdateMBRField: (entryId: string, field: string, value: any) => Promise<void>;
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<MBREntry | null>(null);
@@ -1781,6 +1782,7 @@ export default function DealDetail() {
             mbrEntries={mbrEntries}
             upsertMBREntry={upsertMBREntry}
             deleteMBREntry={deleteMBREntry}
+            quickUpdateMBRField={quickUpdateMBRField}
           />
         )}
 
