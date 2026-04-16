@@ -84,7 +84,7 @@ function DraggableTaskCard({
         )}
         <span className="text-sm font-medium text-foreground leading-tight flex-1">{task.title}</span>
         <button
-          onClick={e => { e.stopPropagation(); }}
+          onClick={e => { e.stopPropagation(); onDelete(); }}
           className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
         >
           <Trash2 className="h-3.5 w-3.5" />
