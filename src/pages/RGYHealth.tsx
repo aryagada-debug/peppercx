@@ -597,10 +597,18 @@ export default function RGYHealth() {
       const rgy = rgyMap.get(d.id);
       return {
         ...d,
+        pc_code: d.pc_code || "",
         rgy_row_id: rgy?.id,
         rgy_week_start: rgy?.week_start,
+        rgy_action_plan: rgy?.action_plan || "",
+        rgy_discussed_action_plan: rgy?.discussed_action_plan || "",
         customer: rgy?.customer || "NA",
         internal: rgy?.internal || "NA",
+        delivery: rgy?.delivery || "NA",
+        consumption: rgy?.consumption || "NA",
+        invoicing: rgy?.invoicing || "NA",
+        receivables: rgy?.receivables || "NA",
+        margins: rgy?.margins || "NA",
         content: rgy?.content || "NA",
         seo: rgy?.seo || "NA",
         supply: rgy?.supply || "NA",
