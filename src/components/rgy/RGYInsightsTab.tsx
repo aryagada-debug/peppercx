@@ -132,17 +132,28 @@ export function RGYInsightsTab({ deals, filteredDeals, issues }: Props) {
     }),
   [filteredDeals]);
 
-  // VSD comparison
+  // VSD comparison — only the 5 core VSDs
+  const CORE_VSDS = new Set(["Neema Jayadas", "Sumit Shekhawat", "Aamir Khan", "Sneha Iyer", "Aditya Shaw"]);
+  const VSD_SHORT: Record<string, string> = {
+    "Neema Jayadas": "Neema",
+    "Sumit Shekhawat": "Sumit",
+    "Aamir Khan": "Aamir",
+    "Sneha Iyer": "Sneha",
+    "Aditya Shaw": "Aditya",
+  };
   const vsdComparison = useMemo(() => {
-    const map = new Map<string, { vsd: string; Red: number; Yellow: number; Green: number }>();
+    const map = new Map<string, { vsd: string; Red: number; Yellow: number; Green: number; total: number }>();
+    // Initialize all 5 VSDs so they always appear
+    CORE_VSDS.forEach(v => map.set(v, { vsd: VSD_SHORT[v] || v, Red: 0, Yellow: 0, Green: 0, total: 0 }));
     filteredDeals.forEach(deal => {
-      const v = deal.vsd || "Unknown";
-      const entry = map.get(v) || { vsd: v, Red: 0, Yellow: 0, Green: 0 };
+      const v = deal.vsd || "";
+      if (!CORE_VSDS.has(v)) return;
+      const entry = map.get(v)!;
       const w = getWorstRGY(deal);
       if (w === "R") entry.Red++;
       else if (w === "Y") entry.Yellow++;
       else if (w === "G") entry.Green++;
-      map.set(v, entry);
+      entry.total = entry.Red + entry.Yellow + entry.Green;
     });
     return Array.from(map.values()).sort((a, b) => b.Red - a.Red);
   }, [filteredDeals]);
@@ -351,17 +362,24 @@ export function RGYInsightsTab({ deals, filteredDeals, issues }: Props) {
 
       {/* VSD Comparison */}
       <div className="bg-card border border-border rounded-lg p-4">
-        <h3 className="text-sm font-semibold mb-3">VSD Comparison</h3>
-        <ResponsiveContainer width="100%" height={250}>
-          <BarChart data={vsdComparison} margin={{ left: 10 }}>
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-sm font-semibold">VSD Portfolio Health Comparison</h3>
+          <span className="text-[10px] text-muted-foreground">Worst RGY per deal across 8 dimensions</span>
+        </div>
+        <p className="text-xs text-muted-foreground mb-3">Stacked bar shows Red / Yellow / Green deal count for each VSD</p>
+        <ResponsiveContainer width="100%" height={280}>
+          <BarChart data={vsdComparison} margin={{ left: 10, bottom: 5 }} barSize={40}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis dataKey="vsd" tick={{ fontSize: 10 }} interval={0} angle={-15} textAnchor="end" height={50} />
-            <YAxis tick={{ fontSize: 11 }} />
-            <RechartsTooltip />
-            <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-            <Bar dataKey="Red" fill={COLORS.R} />
-            <Bar dataKey="Yellow" fill={COLORS.Y} />
-            <Bar dataKey="Green" fill={COLORS.G} />
+            <XAxis dataKey="vsd" tick={{ fontSize: 12, fontWeight: 500 }} interval={0} />
+            <YAxis tick={{ fontSize: 11 }} label={{ value: "Deal Count", angle: -90, position: "insideLeft", style: { fontSize: 11, fill: "hsl(var(--muted-foreground))" } }} />
+            <RechartsTooltip
+              contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }}
+              formatter={(value: number, name: string) => [`${value} deals`, name]}
+            />
+            <Legend iconSize={10} wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
+            <Bar dataKey="Red" stackId="vsd" fill={COLORS.R} radius={[0, 0, 0, 0]} />
+            <Bar dataKey="Yellow" stackId="vsd" fill={COLORS.Y} radius={[0, 0, 0, 0]} />
+            <Bar dataKey="Green" stackId="vsd" fill={COLORS.G} radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
