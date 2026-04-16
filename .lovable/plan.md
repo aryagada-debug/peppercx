@@ -1,73 +1,39 @@
+# Fix MBR Status Mapping & Add Month-on-Month View
 
+## Status Mapping Fix
 
-# Populate People & Reporting from Google Sheet
+Current logic already handles this mostly correctly (`entry?.status || "Pending"` on line 292 of MBRTracker.tsx). The issue is that "Not Done" was likely mis-mapped during the original sheet import. The fix:
 
-## What Changes
+- Verify existing DB data is correct (1 "Not Done", 184 "Done", 4 "Pending" — looks right)
+- Ensure the display logic treats all statuses as-is from the DB: "Done", "Not Done", "Not Required" render with their labels; only deals with **no entry at all** show as "Pending"
+- No code change needed for mapping — the current code is correct
 
-Replace the hardcoded `DEFAULT_PEOPLE` array in `src/data/staffingData.ts` with the 185 people from the published Google Sheet. Update the `DEPARTMENTS` list to match the new department names. Update department-to-roleCategory mapping so existing staffing, deals, and assignment features continue to work.
+## Month-on-Month View
 
-## Data Mapping
+Add a monthly tab/toggle to MBR Tracker that shows a grid of months vs deals, so you can see MBR compliance trends over time.
 
-The spreadsheet has 185 rows with columns: **Emp Code, Name, Department, Designation, Reporting Manager**. These map to the `Person` type as follows:
+### Implementation
 
-| Sheet Column | Person Field | Notes |
-|---|---|---|
-| Emp Code (e.g. P394) | `id` | Use as-is for stable IDs |
-| Name | `name` | Direct |
-| Department | `department` | Direct — replaces old department names |
-| Designation | `designation` | Direct |
-| Reporting Manager | `reportingManager` | Direct |
+`**src/hooks/useMBRData.ts**`
 
-Fields not in the sheet will get sensible defaults:
-- `roleCategory`: Derived from department (e.g. "Capability - SEO Team" → "SEO", "Delivery Ops and CS" → "Operations")
-- `roleTitle`: Derived from designation using existing title-to-role mapping
-- `pod`: Derived from reporting manager chain or set to department shortname
-- `region`: "India" default (US team members identified by known names)
-- `leaving`/`tbh`: `false`
-- `band`: Empty string (not in sheet)
+- Already loads `allEntries` (all months). Add a computed `entriesByMonth` map: `Map<string, Map<string, MBREntry>>` keyed by month string (e.g. "2026-02") then deal ID
+- Add a `availableMonths` computed array from distinct `week_start` months
 
-## Steps
+`**src/pages/MBRTracker.tsx**`
 
-### 1. Update `DEPARTMENTS` constant
-Replace with the actual departments from the sheet:
-- Capability - Creative Team
-- Capability - Digital Strategy
-- Capability - Quality Team
-- Capability - SEO Team
-- Capability - Video Production Team
-- Central COE & Planning
-- Delivery Ops and CS
-- Engineering
-- Finance, Legal and Admin
-- HR & TA
-- Leadership
-- Marketing and Demand Generation
-- Product - Design, Management
-- Revenue - NN India Sales
-- Revenue - NN India Demand Gen
-- Revenue - NN US Sales
-- Revenue - NN US Demand Gen
-- Supply Acquisition and Operations
+- Add a view toggle: "Current, select month) (existing view) vs "Month-on-Month"
+- Month-on-Month view: a table with rows = deals (grouped by client), columns = months (e.g. Jan, Feb, Mar...)
+- Each cell shows a colored dot/badge: green for Done, red for Not Done, amber for Pending, gray for Not Required
+- KPI strip updates to show compliance % per month
+- Keep existing filters (pod, search, show closed) working in both views
 
-### 2. Replace `DEFAULT_PEOPLE` array
-Generate all 185 Person entries from the CSV data with proper roleCategory mapping.
+### Technical Details
 
-### 3. Update role category mapping
-Add a `departmentToRoleCategory` function to map the new department names to existing `RoleCategory` values. Departments like "Engineering", "HR & TA", "Finance, Legal and Admin", "Leadership", etc. map to "Other".
-
-### 4. Fix assignment references
-The existing `MANUAL_ASSIGNMENTS` reference old person IDs (e.g. "p_neema"). Create an ID alias map so old IDs resolve to new emp-code-based IDs, or update the assignment references.
-
-### 5. Clear and re-seed database
-Since the `staffing_people` table data will change completely, the seeding logic will detect count=0 after we clear it, and re-seed with the new data. Add a version check or force re-seed.
-
-### 6. Update assignee dropdowns across the app
-Ensure that anywhere people names are used as dropdown options (deal assignees, CX task assignees, staffing views), they pull from the same `staffing_people` data source.
+- Group `allEntries` by month using `week_start.substring(0, 7)` — take the latest entry per deal per month
+- Month columns are auto-generated from available data
+- Cell click opens the MBR detail dialog for that deal/month
 
 ## Files Modified
-- `src/data/staffingData.ts` — New DEPARTMENTS, DEFAULT_PEOPLE, updated mappings
-- `src/hooks/useStaffingData.ts` — Force re-seed with new data (version bump)
 
-## Files Unchanged
-- Settings page, Staffing views, Deal detail — these already read from `useStaffingData()` hook and will automatically reflect the new people data.
-
+- `src/hooks/useMBRData.ts` — Add `entriesByMonth` and `availableMonths` computations
+- `src/pages/MBRTracker.tsx` — Add view toggle and month-on-month grid view
