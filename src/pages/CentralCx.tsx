@@ -7,8 +7,9 @@ import { CxOverview } from "@/components/cx/CxOverview";
 import { CxSpaceMembersDialog } from "@/components/cx/CxSpaceMembersDialog";
 import { CxStatusManagerDialog } from "@/components/cx/CxStatusManagerDialog";
 import { supabase } from "@/integrations/supabase/client";
+import { CxCalendarPanel } from "@/components/cx/CxCalendarPanel";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Users, Columns3 } from "lucide-react";
+import { Users, Columns3, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Json } from "@/integrations/supabase/types";
@@ -71,6 +72,10 @@ export default function CentralCx() {
   const [loading, setLoading] = useState(true);
   const [membersOpen, setMembersOpen] = useState(false);
   const [statusMgrOpen, setStatusMgrOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+
+  // Collect all unique tags across tasks
+  const allTags = Array.from(new Set(tasks.flatMap(t => t.tags || [])));
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -191,6 +196,9 @@ export default function CentralCx() {
               </p>
             </div>
             <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setCalendarOpen(!calendarOpen)}>
+                <CalendarDays className="h-3.5 w-3.5 mr-1.5" /> Calendar
+              </Button>
               {selectedSpaceId && (
                 <>
                   <Button variant="outline" size="sm" onClick={() => setMembersOpen(true)}>
@@ -232,6 +240,7 @@ export default function CentralCx() {
                   statuses={currentStatuses}
                   spaces={spaces}
                   selectedSpaceId={selectedSpaceId}
+                  allTags={allTags}
                   onUpdateTask={updateTask}
                   onDeleteTask={deleteTask}
                   onAddTask={addTask}
@@ -243,6 +252,7 @@ export default function CentralCx() {
                   tasks={filteredTasks}
                   statuses={currentStatuses}
                   selectedSpaceId={selectedSpaceId}
+                  allTags={allTags}
                   onAddTask={addTask}
                   onUpdateTask={updateTask}
                   onDeleteTask={deleteTask}
@@ -251,6 +261,9 @@ export default function CentralCx() {
             </Tabs>
           )}
         </div>
+
+        {/* Calendar side panel */}
+        <CxCalendarPanel open={calendarOpen} onToggle={() => setCalendarOpen(!calendarOpen)} />
       </div>
 
       {selectedSpaceId && (
