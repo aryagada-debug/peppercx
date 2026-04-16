@@ -12,6 +12,7 @@ interface Props {
   statuses: CxStatus[];
   spaces: CxSpace[];
   selectedSpaceId: string | null;
+  allTags: string[];
   onUpdateTask: (id: string, updates: Partial<CxTask>) => void;
   onDeleteTask: (id: string) => void;
   onAddTask: (task: Partial<CxTask> & { space_id: string; title: string }) => void;
@@ -24,7 +25,7 @@ const URGENCY_COLORS: Record<string, string> = {
   Low: "bg-muted text-muted-foreground",
 };
 
-export function CxListView({ tasks, statuses, spaces, selectedSpaceId, onUpdateTask, onDeleteTask, onAddTask }: Props) {
+export function CxListView({ tasks, statuses, spaces, selectedSpaceId, allTags, onUpdateTask, onDeleteTask, onAddTask }: Props) {
   const [addingTitle, setAddingTitle] = useState("");
   const [editingTask, setEditingTask] = useState<CxTask | null>(null);
 
@@ -126,6 +127,8 @@ export function CxListView({ tasks, statuses, spaces, selectedSpaceId, onUpdateT
           open
           task={editingTask}
           statuses={statuses}
+          spaceId={selectedSpaceId}
+          allTags={allTags}
           onClose={() => setEditingTask(null)}
           onSave={(updates) => {
             onUpdateTask(editingTask.id, updates);
