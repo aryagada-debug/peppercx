@@ -1,42 +1,83 @@
 
 
-# Central Cx Tasks — Match Deal Tasks Functionality
+# Central Cx — ClickUp-Style Task UI + Google Calendar Integration
 
 ## What Changes
 
-Upgrade Central Cx tasks to have full feature parity with deal tasks (from Clients & Deals):
+### 1. Redesigned Quick-Add Task Card (Board View)
+Replace the simple text input with an expandable inline card matching screenshot 1:
+- Title input with Save button
+- Space name label below title
+- Icon row: Add Assignee, Add Dates, Add Priority, Add Tag — each opens a small popover inline
+- If assignee not set, show greyed-out avatar placeholder (screenshot 2 style)
 
-1. **Rich text description** — replace plain textarea with the same toolbar editor (bold, italic, lists, links)
-2. **Subtasks** — add/remove subtasks with checkbox, assignee, and expandable description
-3. **Hours tracking** — estimated hours, logged hours, progress bar on cards
-4. **Urgency levels** — Low / Medium / High / Critical (matching deal tasks, replacing current None/Low/Normal/High/Urgent)
-5. **Auto-regenerate** — checkbox to auto-recreate task when marked Done
-6. **Drag-and-drop** — @dnd-kit on board view for moving tasks between columns
-7. **Enhanced card UI** — show urgency badge, subtask count, hours progress bar, description preview (matching deal task cards)
+### 2. Inline Popovers on Task Cards
+After a task is created, the card shows action icons. Clicking them opens small popovers:
+- **Assignee popover** — search/select from space members list (screenshot 2)
+- **Date picker popover** — dual panel: quick options (Today, Tomorrow, This Weekend, Next Week, etc.) on left, calendar grid on right (screenshot 3)
+- **Priority popover** — flag list: Urgent (red), High (orange), Normal (blue), Low (grey), Clear option (screenshot 4)
+- **Tags popover** — search box, list existing tags, "Create tag" option to add new ones (screenshot 5)
 
-## Database Migration
+### 3. Redesigned Task Detail Panel (Full-Page Dialog)
+When clicking a task, open a full-width dialog matching screenshot 6:
+- Breadcrumb: Space > Task
+- Inline-editable title (large heading)
+- Grid of metadata fields: Status, Assignees, Dates, Priority, Time Estimate, Track Time, Tags — all editable inline
+- Rich text description area ("Add description")
+- Subtasks section ("+ Add Task")
+- Checklists section ("+ Create checklist") — stored in subtasks JSON with a `type: "checklist"` field
+- Keep existing features: logged hours, auto-regen, urgency
 
-```sql
-ALTER TABLE cx_tasks ADD COLUMN estimated_hours numeric NOT NULL DEFAULT 0;
-ALTER TABLE cx_tasks ADD COLUMN logged_hours numeric NOT NULL DEFAULT 0;
-ALTER TABLE cx_tasks ADD COLUMN subtasks jsonb NOT NULL DEFAULT '[]'::jsonb;
-ALTER TABLE cx_tasks ADD COLUMN urgency text NOT NULL DEFAULT 'Medium';
-ALTER TABLE cx_tasks ADD COLUMN auto_regen boolean NOT NULL DEFAULT false;
-```
+### 4. Google Calendar Side Panel
+- Add a collapsible right-side panel to the Central Cx page
+- Panel shows an embedded Google Calendar iframe
+- Toggle button (calendar icon) on the toolbar to show/hide the panel
+- Panel can be minimized to a thin strip with the calendar icon
 
-## Files Modified
+### 5. Google Calendar Sync
+- This requires Google OAuth. The project already supports managed Google OAuth via Lovable Cloud.
+- Add a "Connect Google Calendar" button in the side panel
+- Once connected, use Google Calendar API to:
+  - Create calendar events from tasks (with start/end dates)
+  - Show meeting notifications
+- Store the Google connection state in localStorage for the session
+
+## Technical Details
+
+### Files Modified
 
 | File | Change |
 |------|--------|
-| `src/pages/CentralCx.tsx` | Extend `CxTask` interface with new fields. Update `addTask`/`updateTask` to handle new columns. |
-| `src/components/cx/CxTaskFormDialog.tsx` | Full rewrite — import and reuse the rich text editor and subtask components from `TaskFormDialog`. Add stages (from space statuses), urgency selector, estimated hours, logged hours display, subtasks section, auto-regen checkbox. |
-| `src/components/cx/CxBoardView.tsx` | Add @dnd-kit drag-and-drop (DndContext, DragOverlay, useDroppable, useSortable). Enhance card UI with urgency badge, subtask count, hours progress bar, description preview — matching `TaskKanban` card style. |
-| `src/components/cx/CxListView.tsx` | Add urgency and hours columns to the table. |
-| `src/components/cx/CxOverview.tsx` | Show hours summary stats if available. |
+| `src/components/cx/CxBoardView.tsx` | Redesign quick-add card with icon row popovers. Enhance task card to show inline action icons on hover. |
+| `src/components/cx/CxTaskFormDialog.tsx` | Full rewrite as a ClickUp-style detail panel: breadcrumb, inline-editable metadata grid, description, subtasks, checklists. |
+| `src/components/cx/CxListView.tsx` | Add inline popover editing for assignee/priority/dates on row hover. |
+| `src/pages/CentralCx.tsx` | Add Google Calendar side panel state. Add `cx_tags` state management (collect all unique tags from tasks). Layout: main content + collapsible right panel. |
 
-### Key Details
+### New Files
 
-- The `CxTaskFormDialog` will replicate `TaskFormDialog`'s layout: rich text editor, stage + urgency row, assignee, dates + estimated hours row, logged hours display, auto-regen checkbox, subtasks section with add/delete/expand
-- Board view cards will match `DraggableTaskCard` from `TaskKanban`: urgency initial badge, title, description preview, subtask count, hours progress bar, assignee + date footer
-- DnD uses same pattern: `PointerSensor` with 5px distance, `useDroppable` per column, `useSortable` per card, `DragOverlay` for ghost
+| File | Purpose |
+|------|---------|
+| `src/components/cx/CxCalendarPanel.tsx` | Collapsible right panel with Google Calendar embed and connect button. |
+| `src/components/cx/CxDatePickerPopover.tsx` | Reusable date picker with quick-select options (Today, Tomorrow, Next Week, etc.) + calendar grid. |
+| `src/components/cx/CxPriorityPopover.tsx` | Priority flag selector popover. |
+| `src/components/cx/CxTagsPopover.tsx` | Tag search/create popover. |
+| `src/components/cx/CxAssigneePopover.tsx` | Assignee search from space members. |
+
+### Priority Levels (matching screenshots)
+- Urgent — red flag
+- High — orange flag
+- Normal — blue flag
+- Low — grey flag
+- Clear — removes priority
+
+### Date Picker Quick Options
+Today, Later (4:12 pm), Tomorrow, This Weekend, Next Week, Next Weekend, 2 Weeks, 4 Weeks, Set Recurring
+
+### Google Calendar Integration
+- Uses Google OAuth via Lovable Cloud's managed provider
+- Embeds calendar via Google Calendar iframe URL for the authenticated user
+- Optional: Create events via Google Calendar API edge function
+
+### No database changes needed
+All new features (checklists, enhanced tags) fit within existing `subtasks` jsonb and `tags` text[] columns. Priority values change from Low/Medium/High/Critical to Urgent/High/Normal/Low but the column remains text.
 
