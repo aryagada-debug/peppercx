@@ -184,6 +184,8 @@ export default function CentralCx() {
           onAdd={addSpace}
           onRename={renameSpace}
           onDelete={deleteSpace}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed(c => !c)}
         />
 
         <div className="flex-1 overflow-auto">
