@@ -4,39 +4,83 @@ import { useState, useMemo } from "react";
 import { useStaffingData } from "@/hooks/useStaffingData";
 import { Loader2, Pencil, Check, X, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { DEPARTMENTS } from "@/data/staffingData";
 
 const tabs = ["People & Reporting", "Revenue Capacity", "Users & Roles", "Notifications"] as const;
 type SettingsTab = typeof tabs[number];
 
-const fmtCurrency = (n: number) => {
-  if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
-  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
-  if (n >= 1000) return `₹${(n / 1000).toFixed(0)}K`;
-  return `₹${n}`;
-};
-
-function InlineEdit({ value, onSave, type = "text", className: cls }: { value: string; onSave: (v: string) => void; type?: string; className?: string }) {
+function InlineEdit({
+  value,
+  onSave,
+  type = "text",
+  className: cls,
+  listId,
+  placeholder = "—",
+}: {
+  value: string;
+  onSave: (v: string) => void;
+  type?: string;
+  className?: string;
+  listId?: string;
+  placeholder?: string;
+}) {
   const [editing, setEditing] = useState(false);
   const [local, setLocal] = useState(value);
+
+  const save = () => {
+    onSave(local.trim());
+    setEditing(false);
+  };
+
   if (editing) {
     return (
       <div className="flex items-center gap-1">
-        <Input value={local} onChange={e => setLocal(e.target.value)} type={type} className="h-7 text-xs w-full min-w-[80px]" autoFocus
-          onKeyDown={e => { if (e.key === "Enter") { onSave(local); setEditing(false); } if (e.key === "Escape") { setLocal(value); setEditing(false); } }} />
-        <button onClick={() => { onSave(local); setEditing(false); }} className="text-primary"><Check className="h-3 w-3" /></button>
-        <button onClick={() => { setLocal(value); setEditing(false); }} className="text-muted-foreground"><X className="h-3 w-3" /></button>
+        <Input
+          value={local}
+          onChange={(e) => setLocal(e.target.value)}
+          type={type}
+          list={listId}
+          className="h-7 min-w-[120px] text-xs"
+          placeholder={placeholder}
+          autoFocus
+          onKeyDown={(e) => {
+            if (e.key === "Enter") save();
+            if (e.key === "Escape") {
+              setLocal(value);
+              setEditing(false);
+            }
+          }}
+        />
+        <button onClick={save} className="text-primary" type="button">
+          <Check className="h-3 w-3" />
+        </button>
+        <button
+          onClick={() => {
+            setLocal(value);
+            setEditing(false);
+          }}
+          className="text-muted-foreground"
+          type="button"
+        >
+          <X className="h-3 w-3" />
+        </button>
       </div>
     );
   }
+
   return (
-    <div className={cn("group/edit flex items-center gap-1 cursor-pointer", cls)} onClick={() => { setLocal(value); setEditing(true); }}>
-      <span className={cn("text-xs", value ? "text-foreground" : "text-muted-foreground")}>{value || "—"}</span>
-      <Pencil className="h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover/edit:opacity-100 transition-opacity" />
-    </div>
+    <button
+      type="button"
+      className={cn("group/edit flex items-center gap-1 text-left", cls)}
+      onClick={() => {
+        setLocal(value);
+        setEditing(true);
+      }}
+    >
+      <span className={cn("text-xs", value ? "text-foreground" : "text-muted-foreground")}>{value || placeholder}</span>
+      <Pencil className="h-2.5 w-2.5 text-muted-foreground opacity-0 transition-opacity group-hover/edit:opacity-100" />
+    </button>
   );
 }
 
@@ -45,32 +89,31 @@ export default function SettingsPage() {
   const { people, revenueTargets, loading, updatePerson, setRevenueTargets } = useStaffingData();
   const [search, setSearch] = useState("");
 
-  // Group people by department
-  const departments = useMemo(() => {
-    const map = new Map<string, typeof people>();
-    const sorted = [...people].sort((a, b) => a.name.localeCompare(b.name));
-    sorted.forEach(p => {
-      const dept = p.department || "Unassigned";
-      if (!map.has(dept)) map.set(dept, []);
-      map.get(dept)!.push(p);
-    });
-    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [people]);
-
   const filteredPeople = useMemo(() => {
     if (!search) return people;
     const q = search.toLowerCase();
-    return people.filter(p => p.name.toLowerCase().includes(q) || (p.department || "").toLowerCase().includes(q));
+    return people.filter((p) => p.name.toLowerCase().includes(q) || (p.department || "").toLowerCase().includes(q));
   }, [people, search]);
 
-  const handleReportingChange = (personId: string, newManager: string) => {
+  const managerNames = useMemo(
+    () => Array.from(new Set(people.filter((person) => !person.tbh).map((person) => person.name))).sort((a, b) => a.localeCompare(b)),
+    [people],
+  );
+
+  const visiblePeople = search ? filteredPeople : people;
+
+  const handleReportingChange = (personId: string, personName: string, newManager: string) => {
+    if (newManager && newManager === personName) {
+      toast.error("A person can't report to themselves");
+      return;
+    }
     updatePerson(personId, { reportingManager: newManager });
     toast.success("Reporting manager updated");
   };
 
   const handleRevTargetChange = (dept: string, desg: string, newVal: number) => {
-    const updated = revenueTargets.map(t =>
-      t.department === dept && t.designation === desg ? { ...t, targetDealValuePerPerson: newVal } : t
+    const updated = revenueTargets.map((t) =>
+      t.department === dept && t.designation === desg ? { ...t, targetDealValuePerPerson: newVal } : t,
     );
     setRevenueTargets(updated);
     toast.success("Target updated");
@@ -79,7 +122,7 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <AppLayout>
-        <div className="p-8 flex items-center justify-center min-h-[60vh]">
+        <div className="flex min-h-[60vh] items-center justify-center p-8">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       </AppLayout>
@@ -88,19 +131,32 @@ export default function SettingsPage() {
 
   return (
     <AppLayout>
-      <div className="p-8">
-        <h1 className="text-subhead font-semibold tracking-tight text-foreground mb-6">Settings</h1>
+      <datalist id="settings-departments">
+        {DEPARTMENTS.map((department) => (
+          <option key={department} value={department} />
+        ))}
+      </datalist>
 
-        <div className="border-b border-border mb-6">
-          <div className="flex gap-0 -mb-px">
-            {tabs.map(tab => (
+      <datalist id="settings-managers">
+        {managerNames.map((managerName) => (
+          <option key={managerName} value={managerName} />
+        ))}
+      </datalist>
+
+      <div className="p-8">
+        <h1 className="mb-6 text-subhead font-semibold tracking-tight text-foreground">Settings</h1>
+
+        <div className="mb-6 border-b border-border">
+          <div className="-mb-px flex gap-0">
+            {tabs.map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 className={cn(
-                  "px-4 py-2.5 text-ui font-medium transition-colors border-b-2",
-                  activeTab === tab ? "border-foreground text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+                  "border-b-2 px-4 py-2.5 text-ui font-medium transition-colors",
+                  activeTab === tab ? "border-foreground text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
                 )}
+                type="button"
               >
                 {tab}
               </button>
@@ -108,70 +164,81 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* ── People & Reporting Tab ── */}
         {activeTab === "People & Reporting" && (
           <div className="space-y-4">
             <div className="relative max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <input type="text" placeholder="Search people..." value={search} onChange={e => setSearch(e.target.value)}
-                className="w-full h-9 pl-9 pr-3 rounded-lg bg-card border border-border text-ui text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search people..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-9 w-full rounded-lg border border-border bg-card pl-9 pr-3 text-ui text-foreground transition-all placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
             </div>
 
-            <div className="bg-card border border-border rounded-xl overflow-hidden">
-              <table className="w-full text-ui">
-                <thead>
-                  <tr className="bg-secondary/40 border-b border-border">
-                    {["Name", "Department", "Designation", "Band", "Pod", "Reporting Manager"].map(h => (
-                      <th key={h} className="text-left py-2.5 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {(search ? filteredPeople : people).map(p => (
-                    <tr key={p.id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
-                      <td className="py-2 px-3">
-                        <span className={cn("text-xs font-medium", p.tbh ? "text-muted-foreground italic" : p.leaving ? "text-destructive line-through" : "text-foreground")}>
-                          {p.name} {p.tbh && "(TBH)"}
-                        </span>
-                      </td>
-                      <td className="py-2 px-3">
-                        <Select value={p.department || "_none"} onValueChange={v => updatePerson(p.id, { department: v === "_none" ? "" : v })}>
-                          <SelectTrigger className="h-7 text-xs border-none bg-transparent shadow-none px-0 focus:ring-0 w-[180px]">
-                            <SelectValue placeholder="—" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="_none" className="text-xs text-muted-foreground">— None —</SelectItem>
-                            {DEPARTMENTS.map(d => <SelectItem key={d} value={d} className="text-xs">{d}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </td>
-                      <td className="py-2 px-3">
-                        <InlineEdit value={p.designation || ""} onSave={v => updatePerson(p.id, { designation: v })} />
-                      </td>
-                      <td className="py-2 px-3 text-xs text-muted-foreground">{p.band || "—"}</td>
-                      <td className="py-2 px-3 text-xs text-muted-foreground">{p.pod || "—"}</td>
-                      <td className="py-2 px-3">
-                        <Select value={p.reportingManager || "_none"} onValueChange={v => handleReportingChange(p.id, v === "_none" ? "" : v)}>
-                          <SelectTrigger className="h-7 text-xs border-none bg-transparent shadow-none px-0 focus:ring-0 w-[180px]">
-                            <SelectValue placeholder="— None —" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="_none" className="text-xs text-muted-foreground">— None —</SelectItem>
-                            {people.filter(pp => pp.id !== p.id && !pp.tbh).map(pp => (
-                              <SelectItem key={pp.id} value={pp.name} className="text-xs">{pp.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </td>
+            <div className="overflow-hidden rounded-xl border border-border bg-card">
+              <div className="overflow-x-auto">
+                <table className="w-full text-ui">
+                  <thead>
+                    <tr className="border-b border-border bg-secondary/40">
+                      {["Name", "Department", "Designation", "Band", "Pod", "Reporting Manager"].map((heading) => (
+                        <th
+                          key={heading}
+                          className="px-3 py-2.5 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground"
+                        >
+                          {heading}
+                        </th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {visiblePeople.map((person) => (
+                      <tr key={person.id} className="border-b border-border/50 transition-colors hover:bg-secondary/30">
+                        <td className="px-3 py-2">
+                          <span
+                            className={cn(
+                              "text-xs font-medium",
+                              person.tbh
+                                ? "italic text-muted-foreground"
+                                : person.leaving
+                                  ? "text-destructive line-through"
+                                  : "text-foreground",
+                            )}
+                          >
+                            {person.name} {person.tbh && "(TBH)"}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2">
+                          <InlineEdit
+                            value={person.department || ""}
+                            onSave={(value) => updatePerson(person.id, { department: value })}
+                            listId="settings-departments"
+                            placeholder="— None —"
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <InlineEdit value={person.designation || ""} onSave={(value) => updatePerson(person.id, { designation: value })} />
+                        </td>
+                        <td className="px-3 py-2 text-xs text-muted-foreground">{person.band || "—"}</td>
+                        <td className="px-3 py-2 text-xs text-muted-foreground">{person.pod || "—"}</td>
+                        <td className="px-3 py-2">
+                          <InlineEdit
+                            value={person.reportingManager || ""}
+                            onSave={(value) => handleReportingChange(person.id, person.name, value)}
+                            listId="settings-managers"
+                            placeholder="— None —"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
 
-        {/* ── Revenue Capacity Tab ── */}
         {activeTab === "Revenue Capacity" && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
@@ -179,30 +246,35 @@ export default function SettingsPage() {
             </p>
             {(() => {
               const grouped = new Map<string, typeof revenueTargets>();
-              revenueTargets.forEach(t => {
-                if (!grouped.has(t.department)) grouped.set(t.department, []);
-                grouped.get(t.department)!.push(t);
+              revenueTargets.forEach((target) => {
+                if (!grouped.has(target.department)) grouped.set(target.department, []);
+                grouped.get(target.department)!.push(target);
               });
-              return Array.from(grouped.entries()).map(([dept, targets]) => (
-                <div key={dept} className="bg-card border border-border rounded-xl overflow-hidden">
-                  <div className="px-4 py-3 bg-secondary/30 border-b border-border">
-                    <h3 className="text-sm font-semibold text-foreground">{dept}</h3>
+
+              return Array.from(grouped.entries()).map(([department, targets]) => (
+                <div key={department} className="overflow-hidden rounded-xl border border-border bg-card">
+                  <div className="border-b border-border bg-secondary/30 px-4 py-3">
+                    <h3 className="text-sm font-semibold text-foreground">{department}</h3>
                   </div>
                   <table className="w-full text-ui">
                     <thead>
                       <tr className="border-b border-border">
-                        <th className="text-left py-2 px-4 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Designation</th>
-                        <th className="text-right py-2 px-4 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Target Deal Value / Person</th>
+                        <th className="px-4 py-2 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                          Designation
+                        </th>
+                        <th className="px-4 py-2 text-right text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                          Target Deal Value / Person
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {targets.map(t => (
-                        <tr key={`${t.department}_${t.designation}`} className="border-b border-border/50 hover:bg-secondary/20">
-                          <td className="py-2 px-4 text-xs text-foreground">{t.designation}</td>
-                          <td className="py-2 px-4 text-right">
+                      {targets.map((target) => (
+                        <tr key={`${target.department}_${target.designation}`} className="border-b border-border/50 hover:bg-secondary/20">
+                          <td className="px-4 py-2 text-xs text-foreground">{target.designation}</td>
+                          <td className="px-4 py-2 text-right">
                             <InlineEdit
-                              value={String(t.targetDealValuePerPerson)}
-                              onSave={v => handleRevTargetChange(t.department, t.designation, Number(v) || 0)}
+                              value={String(target.targetDealValuePerPerson)}
+                              onSave={(value) => handleRevTargetChange(target.department, target.designation, Number(value) || 0)}
                               type="number"
                             />
                           </td>
@@ -216,16 +288,14 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {/* ── Users & Roles Tab (placeholder) ── */}
         {activeTab === "Users & Roles" && (
-          <div className="bg-card border border-border rounded-xl p-8 text-center">
+          <div className="rounded-xl border border-border bg-card p-8 text-center">
             <p className="text-sm text-muted-foreground">User & role management coming soon.</p>
           </div>
         )}
 
-        {/* ── Notifications Tab (placeholder) ── */}
         {activeTab === "Notifications" && (
-          <div className="bg-card border border-border rounded-xl p-8 text-center">
+          <div className="rounded-xl border border-border bg-card p-8 text-center">
             <p className="text-sm text-muted-foreground">Notification settings coming soon.</p>
           </div>
         )}
