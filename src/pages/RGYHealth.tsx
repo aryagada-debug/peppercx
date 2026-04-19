@@ -588,7 +588,7 @@ export default function RGYHealth() {
       }
     }
 
-    setRgyIssues(issuesList);
+    setRgyIssues(issuesList as any);
 
     const merged: DealWithRGY[] = dealRows.map(d => {
       const rgy = rgyMap.get(d.id);
