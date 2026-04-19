@@ -1,6 +1,6 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useParams, Link, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Loader2, Plus, Trash2, Pencil, Check, X, Calendar, Users, Eye, Edit2, ExternalLink, AlertTriangle, ChevronDown, ChevronUp, ChevronRight } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, Trash2, Pencil, Check, X, Calendar, Users, Eye, Edit2, ExternalLink, AlertTriangle, ChevronDown, ChevronUp, ChevronRight, Upload } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import React, { useState, useMemo, useCallback } from "react";
@@ -16,6 +16,7 @@ import { MBRInputDrawer } from "@/components/mbr/MBRInputDrawer";
 import { MBRDetailDialog } from "@/components/mbr/MBRDetailDialog";
 import { AddStaffingMemberDialog } from "@/components/staffing/AddStaffingMemberDialog";
 import { WeeklyStaffingGrid } from "@/components/deals/WeeklyStaffingGrid";
+import { SoWImportDialog } from "@/components/deals/SoWImportDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -1146,6 +1147,7 @@ export default function DealDetail() {
 
   // SoW add
   const [addingSoW, setAddingSoW] = useState(false);
+  const [sowImportOpen, setSowImportOpen] = useState(false);
   const [newSoW, setNewSoW] = useState({ scope: "", revenueShare: 0, teamCapability: "", teams: [] as string[], lineItemValue: 0 });
 
   if (staffLoading || detailLoading) {
@@ -1520,13 +1522,27 @@ export default function DealDetail() {
                 {/* Header */}
                 <div className="flex items-center justify-between px-5 py-3 border-b border-border">
                   <h3 className="text-sm font-medium text-foreground">SoW Items</h3>
-                  <button
-                    onClick={() => setAddingSoW(true)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 transition-colors"
-                  >
-                    <Plus className="h-3.5 w-3.5" /> Add item
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setSowImportOpen(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-secondary text-secondary-foreground border border-border hover:bg-secondary/80 transition-colors"
+                    >
+                      <Upload className="h-3.5 w-3.5" /> Import from Excel
+                    </button>
+                    <button
+                      onClick={() => setAddingSoW(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 transition-colors"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Add item
+                    </button>
+                  </div>
                 </div>
+                <SoWImportDialog
+                  open={sowImportOpen}
+                  onOpenChange={setSowImportOpen}
+                  dealId={dealId!}
+                  onImport={addSoWItem}
+                />
 
                 {/* Column headers */}
                 <div className="grid grid-cols-[1fr_120px_200px_80px_32px] items-center px-5 py-2 bg-secondary/40 border-b border-border gap-2">
