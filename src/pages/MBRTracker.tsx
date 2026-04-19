@@ -438,10 +438,29 @@ export default function MBRTracker() {
                                     {!entry?.anirudhAdded && !entry?.anirudhJoining && <span className="text-muted-foreground text-xs">—</span>}
                                   </div>
                                 </td>
-                                <td className="py-2 px-3">
-                                  <span className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <Eye className="h-4 w-4 text-muted-foreground" />
-                                  </span>
+                                <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
+                                  <div className="flex items-center gap-1 justify-end">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 px-2 text-[10px] gap-1"
+                                      onClick={() => setScheduleDeal({ deal, entry: entry || null })}
+                                      title="Schedule only"
+                                    >
+                                      <CalendarDays className="h-3 w-3" />
+                                      Schedule
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 px-2 text-[10px] gap-1"
+                                      onClick={() => handleRowClick(deal, entry)}
+                                      title="Record MBR"
+                                    >
+                                      <Eye className="h-3 w-3" />
+                                      Record
+                                    </Button>
+                                  </div>
                                 </td>
                               </tr>
                             );
