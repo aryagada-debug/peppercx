@@ -15,6 +15,7 @@ import { PhaseTasksView } from "@/components/deals/PhaseTasksView";
 import { MBRInputDrawer } from "@/components/mbr/MBRInputDrawer";
 import { MBRDetailDialog } from "@/components/mbr/MBRDetailDialog";
 import { AddStaffingMemberDialog } from "@/components/staffing/AddStaffingMemberDialog";
+import { WeeklyStaffingGrid } from "@/components/deals/WeeklyStaffingGrid";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -1743,6 +1744,15 @@ export default function DealDetail() {
                   <Plus className="h-3.5 w-3.5 mr-1" /> Add First Member
                 </Button>
               </div>
+            )}
+
+            {/* Weekly Allocation Grid */}
+            {dealPeople.length > 0 && (
+              <WeeklyStaffingGrid
+                dealId={dealId!}
+                dealPeople={dealPeople}
+                dealAssignments={dealAssignments}
+              />
             )}
 
             {/* Add Member Dialog */}
