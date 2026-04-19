@@ -1,8 +1,10 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from "recharts";
 import { cn } from "@/lib/utils";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Flag, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { TeamCountDrillDialog } from "./TeamCountDrillDialog";
+import { VSDDrillDialog } from "./VSDDrillDialog";
 
 const DIMENSIONS = [
   { key: "customer", label: "Customer" },
@@ -39,115 +41,184 @@ const statusShortLabels: Record<string, string> = {
 
 interface DealWithRGY {
   id: string;
+  deal_id: string;
   deal_name: string;
   account: string;
   deal_status: string;
   vsd: string;
+  pod?: string;
   [key: string]: any;
 }
 
 interface RGYIssue {
+  deal_id: string;          // FK to staffing_deals.id
+  deal_id_code: string;     // human deal_id code
   deal_name: string;
-  deal_id: string;
   pc_code: string;
+  account: string;
+  pod: string;
   deal_status: string;
   issue_details: string;
   issue_status: string;
   action_plan: string;
   discussed_action_plan: string;
   red_dimensions: string[];
+  worst: "R" | "Y" | "G" | null;
+  issue_date: string | null;
+  created_at: string;
 }
 
 interface Props {
   deals: DealWithRGY[];
   filteredDeals: DealWithRGY[];
   issues: RGYIssue[];
+  activePod: string;
 }
 
 function getWorstRGY(deal: DealWithRGY): "R" | "Y" | "G" | null {
-  const vals = DIMENSIONS.map(d => deal[d.key] as string);
+  const vals = DIMENSIONS.map((d) => deal[d.key] as string);
   if (vals.includes("R")) return "R";
   if (vals.includes("Y")) return "Y";
-  if (vals.every(v => v === "NA" || !v)) return null;
+  if (vals.every((v) => v === "NA" || !v)) return null;
   return "G";
 }
 
-export function RGYInsightsTab({ deals, filteredDeals, issues }: Props) {
-  // KPI row
+function daysSince(dateStr: string | null): number {
+  if (!dateStr) return 0;
+  const start = new Date(dateStr).getTime();
+  if (Number.isNaN(start)) return 0;
+  return Math.floor((Date.now() - start) / (1000 * 60 * 60 * 24));
+}
+
+const CORE_VSDS_LIST = ["Neema Jayadas", "Sumit Shekhawat", "Aamir Khan", "Sneha Iyer", "Aditya Shaw"];
+const VSD_SHORT: Record<string, string> = {
+  "Neema Jayadas": "Neema",
+  "Sumit Shekhawat": "Sumit",
+  "Aamir Khan": "Aamir",
+  "Sneha Iyer": "Sneha",
+  "Aditya Shaw": "Aditya",
+};
+
+export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Props) {
+  const [teamDrill, setTeamDrill] = useState<{ team: string; severity: "R" | "Y" } | null>(null);
+  const [vsdDrill, setVsdDrill] = useState<string | null>(null);
+
+  // ── KPIs ──
   const kpis = useMemo(() => {
     let red = 0, yellow = 0, green = 0, churned = 0;
-    filteredDeals.forEach(d => {
+    filteredDeals.forEach((d) => {
       if (d.deal_status === "Deal Churned / Lost") { churned++; return; }
       const w = getWorstRGY(d);
       if (w === "R") red++;
       else if (w === "Y") yellow++;
       else if (w === "G") green++;
     });
-    return { total: filteredDeals.length, red, yellow, green, churned };
-  }, [filteredDeals]);
 
-  // Health donut data
+    // Avg days open across active issues (in current POD scope)
+    const podIssues = issues.filter((i) =>
+      activePod === "All" ? true : i.pod === activePod,
+    );
+    const openDays = podIssues
+      .filter((i) => i.issue_status === "Open" || i.issue_status === "In Progress")
+      .map((i) => daysSince(i.issue_date || i.created_at));
+    const avgDaysOpen = openDays.length > 0
+      ? Math.round(openDays.reduce((a, b) => a + b, 0) / openDays.length)
+      : 0;
+
+    return { total: filteredDeals.length, red, yellow, green, churned, avgDaysOpen };
+  }, [filteredDeals, issues, activePod]);
+
+  // ── Health donut ──
   const donutData = useMemo(() => [
     { name: "Red", value: kpis.red, fill: COLORS.R },
     { name: "Yellow", value: kpis.yellow, fill: COLORS.Y },
     { name: "Green", value: kpis.green, fill: COLORS.G },
-  ].filter(d => d.value > 0), [kpis]);
+  ].filter((d) => d.value > 0), [kpis]);
 
-  // Red count per dimension
-  const redPerDim = useMemo(() =>
-    DIMENSIONS.map(dim => ({
-      dimension: dim.label,
-      red: filteredDeals.filter(d => d[dim.key] === "R").length,
-    })).sort((a, b) => b.red - a.red),
-  [filteredDeals]);
+  // ── Per-team Red / Yellow counts ──
+  const redPerTeam = useMemo(
+    () =>
+      DIMENSIONS.map((dim) => ({
+        team: dim.label,
+        key: dim.key,
+        count: filteredDeals.filter((d) => d[dim.key] === "R").length,
+      })).sort((a, b) => b.count - a.count),
+    [filteredDeals],
+  );
 
-  // Full heatmap data — active accounts only, no all-blank rows
+  const yellowPerTeam = useMemo(
+    () =>
+      DIMENSIONS.map((dim) => ({
+        team: dim.label,
+        key: dim.key,
+        count: filteredDeals.filter((d) => d[dim.key] === "Y").length,
+      })).sort((a, b) => b.count - a.count),
+    [filteredDeals],
+  );
+
+  // Drill data for team-count
+  const teamDrillDeals = useMemo(() => {
+    if (!teamDrill) return [];
+    const dim = DIMENSIONS.find((d) => d.label === teamDrill.team);
+    if (!dim) return [];
+    return filteredDeals
+      .filter((d) => d[dim.key] === teamDrill.severity)
+      .map((d) => {
+        const issue = issues.find((i) => i.deal_id === d.id);
+        return {
+          id: d.id,
+          deal_id: d.deal_id,
+          deal_name: d.deal_name,
+          account: d.account,
+          rgy_value: teamDrill.severity,
+          issue_details: issue?.issue_details || "",
+        };
+      });
+  }, [teamDrill, filteredDeals, issues]);
+
+  // ── Heatmap: Account, Deal Name, Deal ID + dimensions ──
   const heatmapData = useMemo(() => {
     return filteredDeals
-      .filter(d => ACTIVE_STATUSES.has(d.deal_status) && DIMENSIONS.some(dim => {
-        const v = d[dim.key] as string;
-        return v && v !== "NA";
-      }))
-      .map(deal => {
-        const redCount = DIMENSIONS.filter(d => deal[d.key] === "R").length;
-        const yellowCount = DIMENSIONS.filter(d => deal[d.key] === "Y").length;
+      .filter(
+        (d) =>
+          ACTIVE_STATUSES.has(d.deal_status) &&
+          DIMENSIONS.some((dim) => {
+            const v = d[dim.key] as string;
+            return v && v !== "NA";
+          }),
+      )
+      .map((deal) => {
+        const redCount = DIMENSIONS.filter((d) => deal[d.key] === "R").length;
+        const yellowCount = DIMENSIONS.filter((d) => deal[d.key] === "Y").length;
         return { deal, redCount, yellowCount };
       })
       .sort((a, b) => b.redCount - a.redCount || b.yellowCount - a.yellowCount);
   }, [filteredDeals]);
 
-  // Top risk ranking
-  const riskRanking = useMemo(() =>
-    heatmapData.filter(d => d.redCount > 0 || d.yellowCount > 0).slice(0, 15),
-  [heatmapData]);
+  // ── Service line health ──
+  const serviceLineHealth = useMemo(
+    () =>
+      SERVICE_LINES.map((key) => {
+        const dim = DIMENSIONS.find((d) => d.key === key)!;
+        const r = filteredDeals.filter((d) => d[key] === "R").length;
+        const y = filteredDeals.filter((d) => d[key] === "Y").length;
+        const g = filteredDeals.filter((d) => d[key] === "G").length;
+        return { name: dim.label, Red: r, Yellow: y, Green: g };
+      }),
+    [filteredDeals],
+  );
 
-  // Service line health
-  const serviceLineHealth = useMemo(() =>
-    SERVICE_LINES.map(key => {
-      const dim = DIMENSIONS.find(d => d.key === key)!;
-      const r = filteredDeals.filter(d => d[key] === "R").length;
-      const y = filteredDeals.filter(d => d[key] === "Y").length;
-      const g = filteredDeals.filter(d => d[key] === "G").length;
-      return { name: dim.label, Red: r, Yellow: y, Green: g };
-    }),
-  [filteredDeals]);
-
-  // VSD comparison — only the 5 core VSDs
-  const CORE_VSDS = new Set(["Neema Jayadas", "Sumit Shekhawat", "Aamir Khan", "Sneha Iyer", "Aditya Shaw"]);
-  const VSD_SHORT: Record<string, string> = {
-    "Neema Jayadas": "Neema",
-    "Sumit Shekhawat": "Sumit",
-    "Aamir Khan": "Aamir",
-    "Sneha Iyer": "Sneha",
-    "Aditya Shaw": "Aditya",
-  };
+  // ── VSD Comparison: ALWAYS uses ALL deals (ignore POD filter) ──
   const vsdComparison = useMemo(() => {
-    const map = new Map<string, { vsd: string; Red: number; Yellow: number; Green: number; total: number }>();
-    // Initialize all 5 VSDs so they always appear
-    CORE_VSDS.forEach(v => map.set(v, { vsd: VSD_SHORT[v] || v, Red: 0, Yellow: 0, Green: 0, total: 0 }));
-    filteredDeals.forEach(deal => {
+    const map = new Map<string, { vsd: string; vsdFull: string; Red: number; Yellow: number; Green: number; total: number }>();
+    CORE_VSDS_LIST.forEach((v) =>
+      map.set(v, { vsd: VSD_SHORT[v] || v, vsdFull: v, Red: 0, Yellow: 0, Green: 0, total: 0 }),
+    );
+    deals.forEach((deal) => {
       const v = deal.vsd || "";
-      if (!CORE_VSDS.has(v)) return;
+      if (!map.has(v)) return;
+      // Only count active deals
+      if (!ACTIVE_STATUSES.has(deal.deal_status)) return;
       const entry = map.get(v)!;
       const w = getWorstRGY(deal);
       if (w === "R") entry.Red++;
@@ -155,25 +226,56 @@ export function RGYInsightsTab({ deals, filteredDeals, issues }: Props) {
       else if (w === "G") entry.Green++;
       entry.total = entry.Red + entry.Yellow + entry.Green;
     });
-    return Array.from(map.values()).sort((a, b) => b.Red - a.Red);
-  }, [filteredDeals]);
+    return Array.from(map.values());
+  }, [deals]);
 
-  // Critical issues
-  const criticalIssues = useMemo(() =>
-    issues.filter(i => i.issue_status === "Open" || i.issue_status === "In Progress"),
-  [issues]);
+  const vsdDrillDeals = useMemo(() => {
+    if (!vsdDrill) return [];
+    return deals
+      .filter((d) => d.vsd === vsdDrill && ACTIVE_STATUSES.has(d.deal_status))
+      .map((d) => ({
+        id: d.id,
+        deal_id: d.deal_id,
+        deal_name: d.deal_name,
+        account: d.account,
+        worst: getWorstRGY(d),
+      }));
+  }, [vsdDrill, deals]);
+
+  // ── Active Issues — POD-filtered, with timeline + flags ──
+  const activeIssues = useMemo(() => {
+    const filtered = issues
+      .filter((i) => i.issue_status === "Open" || i.issue_status === "In Progress")
+      .filter((i) => (activePod === "All" ? true : i.pod === activePod))
+      .map((i) => {
+        const days = daysSince(i.issue_date || i.created_at);
+        const flagged =
+          (i.worst === "R" && days > 10) ||
+          (i.worst === "Y" && days > 15);
+        return { ...i, days, flagged };
+      });
+    // Sort: flagged first, then by days desc
+    return filtered.sort((a, b) => {
+      if (a.flagged !== b.flagged) return a.flagged ? -1 : 1;
+      return b.days - a.days;
+    });
+  }, [issues, activePod]);
+
+  // ── Aging issues (top 8 oldest open) ──
+  const agingIssues = useMemo(() => activeIssues.slice(0, 8), [activeIssues]);
 
   return (
     <div className="space-y-6">
       {/* KPI Row */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
         {[
           { label: "Total Deals", value: kpis.total, color: "" },
           { label: "Red / Hot-Red", value: kpis.red, color: "text-red-600" },
           { label: "Yellow", value: kpis.yellow, color: "text-amber-600" },
           { label: "Green", value: kpis.green, color: "text-emerald-600" },
           { label: "Churned", value: kpis.churned, color: "text-muted-foreground" },
-        ].map(k => (
+          { label: "Avg Days Open", value: kpis.avgDaysOpen, color: "text-foreground" },
+        ].map((k) => (
           <div key={k.label} className="bg-card border border-border rounded-lg p-3">
             <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{k.label}</p>
             <p className={cn("text-2xl font-bold", k.color)}>{k.value}</p>
@@ -181,52 +283,62 @@ export function RGYInsightsTab({ deals, filteredDeals, issues }: Props) {
         ))}
       </div>
 
-      {/* Row 2: Active Issues & Action Plans + Health Donut */}
+      {/* Row 2: Active Issues (POD-filtered) + Health Donut */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Active Issues — Screenshot-style UI */}
         <div className="bg-card border border-border rounded-lg p-4">
           <h3 className="text-sm font-semibold mb-3 flex items-center gap-1.5">
             <AlertTriangle className="h-4 w-4 text-red-500" />
             Active issues & action plans
+            <span className="ml-auto text-[10px] font-normal text-muted-foreground">
+              {activePod === "All" ? "All Pods" : activePod} · {activeIssues.length} open
+            </span>
           </h3>
-          <div className="space-y-4 max-h-[400px] overflow-y-auto">
-            {criticalIssues.length === 0 && <p className="text-xs text-muted-foreground">No open issues</p>}
-            {criticalIssues.map((issue, i) => {
+          <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+            {activeIssues.length === 0 && <p className="text-xs text-muted-foreground">No open issues</p>}
+            {activeIssues.map((issue, i) => {
               const maxBadges = 4;
               const visibleDims = issue.red_dimensions.slice(0, maxBadges);
               const overflowCount = issue.red_dimensions.length - maxBadges;
 
               return (
-                <div key={i} className="border-b border-border/50 pb-3 last:border-0 last:pb-0">
+                <div key={i} className={cn(
+                  "border-b border-border/50 pb-3 last:border-0 last:pb-0",
+                  issue.flagged && "bg-red-500/5 -mx-2 px-2 rounded",
+                )}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      {/* Status badge + Deal name + PC code */}
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <Badge
                           variant="outline"
                           className={cn(
                             "text-[10px] px-1.5 py-0 font-medium border shrink-0",
-                            statusBadgeStyles[issue.deal_status] || "bg-muted text-muted-foreground border-border"
+                            statusBadgeStyles[issue.deal_status] || "bg-muted text-muted-foreground border-border",
                           )}
                         >
                           {statusShortLabels[issue.deal_status] || issue.deal_status || "—"}
                         </Badge>
                         <span className="text-xs font-semibold text-foreground">{issue.deal_name}</span>
-                        <span className="text-[11px] text-muted-foreground font-mono">{issue.deal_id}</span>
+                        <span className="text-[11px] text-muted-foreground font-mono">{issue.deal_id_code}</span>
+                        {/* Timeline + flag */}
+                        <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                          <Clock className="h-3 w-3" />
+                          {issue.days}d open
+                        </span>
+                        {issue.flagged && (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-500/15 text-red-700 border border-red-500/30">
+                            <Flag className="h-3 w-3" />
+                            {issue.worst === "R" ? "10+ days" : "15+ days"}
+                          </span>
+                        )}
                       </div>
-                      {/* Issue details */}
                       <p className="text-xs text-foreground leading-relaxed">{issue.issue_details}</p>
-                      {/* Action plan in italic */}
-                      {(issue.action_plan || issue.discussed_action_plan) && (
-                        <p className="text-xs text-muted-foreground italic mt-1">
-                          {issue.discussed_action_plan || issue.action_plan}
-                        </p>
+                      {issue.action_plan && (
+                        <p className="text-xs text-muted-foreground italic mt-1">{issue.action_plan}</p>
                       )}
                     </div>
-                    {/* Red dimension badges */}
                     {issue.red_dimensions.length > 0 && (
-                      <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end max-w-[260px]">
-                        {visibleDims.map(dim => (
+                      <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end max-w-[200px]">
+                        {visibleDims.map((dim) => (
                           <span key={dim} className="px-2 py-0.5 rounded text-[10px] font-medium text-red-700 bg-red-500/10 border border-red-500/20 whitespace-nowrap">
                             {dim}
                           </span>
@@ -243,23 +355,47 @@ export function RGYInsightsTab({ deals, filteredDeals, issues }: Props) {
           </div>
         </div>
 
-        {/* Health Donut */}
-        <div className="bg-card border border-border rounded-lg p-4">
-          <h3 className="text-sm font-semibold mb-3">Health Distribution (Worst RGY)</h3>
-          <div className="flex items-center justify-center">
-            <ResponsiveContainer width={220} height={200}>
-              <PieChart>
-                <Pie data={donutData} dataKey="value" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2}>
-                  {donutData.map((d, i) => <Cell key={i} fill={d.fill} />)}
-                </Pie>
-                <RechartsTooltip />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="space-y-1.5 ml-4">
-              {donutData.map(d => (
-                <div key={d.name} className="flex items-center gap-2 text-xs">
-                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: d.fill }} />
-                  <span>{d.name}: <strong>{d.value}</strong></span>
+        {/* Health Donut + Aging Issues */}
+        <div className="space-y-4">
+          <div className="bg-card border border-border rounded-lg p-4">
+            <h3 className="text-sm font-semibold mb-3">Health Distribution (Worst RGY)</h3>
+            <div className="flex items-center justify-center">
+              <ResponsiveContainer width={220} height={180}>
+                <PieChart>
+                  <Pie data={donutData} dataKey="value" cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={2}>
+                    {donutData.map((d, i) => <Cell key={i} fill={d.fill} />)}
+                  </Pie>
+                  <RechartsTooltip />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="space-y-1.5 ml-4">
+                {donutData.map((d) => (
+                  <div key={d.name} className="flex items-center gap-2 text-xs">
+                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: d.fill }} />
+                    <span>{d.name}: <strong>{d.value}</strong></span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-card border border-border rounded-lg p-4">
+            <h3 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
+              <Clock className="h-4 w-4 text-amber-500" />
+              Aging Issues (oldest first)
+            </h3>
+            <div className="space-y-1">
+              {agingIssues.length === 0 && <p className="text-xs text-muted-foreground py-2">No aging open issues.</p>}
+              {agingIssues.map((i) => (
+                <div key={`${i.deal_id}-${i.created_at}`} className="flex items-center justify-between gap-2 text-xs py-1 border-b border-border/30 last:border-0">
+                  <span className="truncate flex-1 text-foreground">{i.deal_name}</span>
+                  <span className={cn(
+                    "font-semibold tabular-nums",
+                    i.flagged ? "text-red-600" : i.worst === "R" ? "text-red-500" : "text-amber-600",
+                  )}>
+                    {i.days}d
+                  </span>
+                  {i.flagged && <Flag className="h-3 w-3 text-red-500" />}
                 </div>
               ))}
             </div>
@@ -267,39 +403,67 @@ export function RGYInsightsTab({ deals, filteredDeals, issues }: Props) {
         </div>
       </div>
 
-      {/* Row 3: Red per dimension + Service Line Health */}
+      {/* Row 3: Red per Team + Yellow per Team (clickable) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-card border border-border rounded-lg p-4">
-          <h3 className="text-sm font-semibold mb-3">Red Count per Dimension</h3>
-          <ResponsiveContainer width="100%" height={320}>
-            <BarChart data={redPerDim} layout="vertical" margin={{ left: 70 }}>
+          <h3 className="text-sm font-semibold mb-1">Red Count per Team</h3>
+          <p className="text-[11px] text-muted-foreground mb-2">Click a bar to see the deals</p>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={redPerTeam} layout="vertical" margin={{ left: 70 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis type="number" tick={{ fontSize: 11 }} />
-              <YAxis type="category" dataKey="dimension" tick={{ fontSize: 11 }} width={68} />
-              <RechartsTooltip />
-              <Bar dataKey="red" fill={COLORS.R} radius={[0, 4, 4, 0]} />
+              <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+              <YAxis type="category" dataKey="team" tick={{ fontSize: 11 }} width={68} />
+              <RechartsTooltip cursor={{ fill: "hsl(var(--accent))", opacity: 0.15 }} />
+              <Bar
+                dataKey="count"
+                fill={COLORS.R}
+                radius={[0, 4, 4, 0]}
+                cursor="pointer"
+                onClick={(d: any) => d.count > 0 && setTeamDrill({ team: d.team, severity: "R" })}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>
 
         <div className="bg-card border border-border rounded-lg p-4">
-          <h3 className="text-sm font-semibold mb-3">Service Line Health</h3>
-          <ResponsiveContainer width="100%" height={320}>
-            <BarChart data={serviceLineHealth} margin={{ left: 10 }}>
+          <h3 className="text-sm font-semibold mb-1">Yellow Count per Team</h3>
+          <p className="text-[11px] text-muted-foreground mb-2">Click a bar to see the deals</p>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={yellowPerTeam} layout="vertical" margin={{ left: 70 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <RechartsTooltip />
-              <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-              <Bar dataKey="Red" stackId="a" fill={COLORS.R} />
-              <Bar dataKey="Yellow" stackId="a" fill={COLORS.Y} />
-              <Bar dataKey="Green" stackId="a" fill={COLORS.G} />
+              <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+              <YAxis type="category" dataKey="team" tick={{ fontSize: 11 }} width={68} />
+              <RechartsTooltip cursor={{ fill: "hsl(var(--accent))", opacity: 0.15 }} />
+              <Bar
+                dataKey="count"
+                fill={COLORS.Y}
+                radius={[0, 4, 4, 0]}
+                cursor="pointer"
+                onClick={(d: any) => d.count > 0 && setTeamDrill({ team: d.team, severity: "Y" })}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      {/* Full Heatmap — Active accounts only, no all-blank rows */}
+      {/* Service Line Health */}
+      <div className="bg-card border border-border rounded-lg p-4">
+        <h3 className="text-sm font-semibold mb-3">Service Line Health</h3>
+        <ResponsiveContainer width="100%" height={280}>
+          <BarChart data={serviceLineHealth} margin={{ left: 10 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+            <RechartsTooltip />
+            <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
+            <Bar dataKey="Red" stackId="a" fill={COLORS.R} />
+            <Bar dataKey="Yellow" stackId="a" fill={COLORS.Y} />
+            <Bar dataKey="Green" stackId="a" fill={COLORS.G} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Heatmap: Account, Deal Name, Deal ID + 8 dimensions */}
       <div className="bg-card border border-border rounded-lg p-4">
         <h3 className="text-sm font-semibold mb-3">Full Account × Dimension Heatmap</h3>
         {heatmapData.length === 0 ? (
@@ -308,18 +472,22 @@ export function RGYInsightsTab({ deals, filteredDeals, issues }: Props) {
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-border">
+                <tr className="border-b border-border bg-secondary/30">
                   <th className="text-left py-1.5 px-2 font-medium text-muted-foreground">Account</th>
-                  {DIMENSIONS.map(d => (
+                  <th className="text-left py-1.5 px-2 font-medium text-muted-foreground">Deal Name</th>
+                  <th className="text-left py-1.5 px-2 font-medium text-muted-foreground">Deal ID</th>
+                  {DIMENSIONS.map((d) => (
                     <th key={d.key} className="text-center py-1.5 px-1 font-medium text-muted-foreground whitespace-nowrap">{d.label}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {heatmapData.map(({ deal }) => (
-                  <tr key={deal.id} className="border-b border-border/50">
+                  <tr key={deal.id} className="border-b border-border/50 hover:bg-secondary/20">
+                    <td className="py-1 px-2 truncate max-w-[140px] text-muted-foreground" title={deal.account}>{deal.account}</td>
                     <td className="py-1 px-2 font-medium truncate max-w-[160px]" title={deal.deal_name}>{deal.deal_name}</td>
-                    {DIMENSIONS.map(dim => {
+                    <td className="py-1 px-2 font-mono text-[11px] text-muted-foreground">{deal.deal_id || "—"}</td>
+                    {DIMENSIONS.map((dim) => {
                       const v = deal[dim.key] as string;
                       const bg = v === "R" ? "bg-red-500/20" : v === "Y" ? "bg-amber-500/20" : v === "G" ? "bg-emerald-500/20" : "";
                       const textColor = v === "R" ? "text-red-700" : v === "Y" ? "text-amber-700" : v === "G" ? "text-emerald-700" : "text-muted-foreground";
@@ -337,52 +505,48 @@ export function RGYInsightsTab({ deals, filteredDeals, issues }: Props) {
         )}
       </div>
 
-      {/* Top Risk Ranking */}
-      {riskRanking.length > 0 && (
-        <div className="bg-card border border-border rounded-lg p-4">
-          <h3 className="text-sm font-semibold mb-3">Top Risk Ranking</h3>
-          <div className="space-y-1.5">
-            {riskRanking.map(({ deal, redCount, yellowCount }) => (
-              <div key={deal.id} className="flex items-center gap-3">
-                <span className="text-xs font-medium w-40 truncate" title={deal.deal_name}>{deal.deal_name}</span>
-                <div className="flex gap-0.5">
-                  {Array.from({ length: redCount }).map((_, i) => (
-                    <span key={`r${i}`} className="w-3 h-3 rounded-full bg-red-500" />
-                  ))}
-                  {Array.from({ length: yellowCount }).map((_, i) => (
-                    <span key={`y${i}`} className="w-3 h-3 rounded-full bg-amber-500" />
-                  ))}
-                </div>
-                <span className="text-[10px] text-muted-foreground">{redCount}R / {yellowCount}Y</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* VSD Comparison */}
+      {/* VSD Comparison — ALWAYS all 5 VSDs, ignores POD filter */}
       <div className="bg-card border border-border rounded-lg p-4">
         <div className="flex items-center justify-between mb-1">
           <h3 className="text-sm font-semibold">VSD Portfolio Health Comparison</h3>
-          <span className="text-[10px] text-muted-foreground">Worst RGY per deal across 8 dimensions</span>
+          <span className="text-[10px] text-muted-foreground">All Pods · Click bar to drill in</span>
         </div>
-        <p className="text-xs text-muted-foreground mb-3">Stacked bar shows Red / Yellow / Green deal count for each VSD</p>
+        <p className="text-xs text-muted-foreground mb-3">Stacked R / Y / G deal count per VSD across active deals</p>
         <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={vsdComparison} margin={{ left: 10, bottom: 5 }} barSize={40}>
+          <BarChart data={vsdComparison} margin={{ left: 10, bottom: 5 }} barSize={50}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
             <XAxis dataKey="vsd" tick={{ fontSize: 12, fontWeight: 500 }} interval={0} />
-            <YAxis tick={{ fontSize: 11 }} label={{ value: "Deal Count", angle: -90, position: "insideLeft", style: { fontSize: 11, fill: "hsl(var(--muted-foreground))" } }} />
+            <YAxis tick={{ fontSize: 11 }} allowDecimals={false} label={{ value: "Deal Count", angle: -90, position: "insideLeft", style: { fontSize: 11, fill: "hsl(var(--muted-foreground))" } }} />
             <RechartsTooltip
               contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }}
               formatter={(value: number, name: string) => [`${value} deals`, name]}
             />
             <Legend iconSize={10} wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
-            <Bar dataKey="Red" stackId="vsd" fill={COLORS.R} radius={[0, 0, 0, 0]} />
-            <Bar dataKey="Yellow" stackId="vsd" fill={COLORS.Y} radius={[0, 0, 0, 0]} />
-            <Bar dataKey="Green" stackId="vsd" fill={COLORS.G} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="Red" stackId="vsd" fill={COLORS.R} cursor="pointer" onClick={(d: any) => setVsdDrill(d.vsdFull)} />
+            <Bar dataKey="Yellow" stackId="vsd" fill={COLORS.Y} cursor="pointer" onClick={(d: any) => setVsdDrill(d.vsdFull)} />
+            <Bar dataKey="Green" stackId="vsd" fill={COLORS.G} radius={[4, 4, 0, 0]} cursor="pointer" onClick={(d: any) => setVsdDrill(d.vsdFull)} />
           </BarChart>
         </ResponsiveContainer>
       </div>
+
+      {/* Drill dialogs */}
+      {teamDrill && (
+        <TeamCountDrillDialog
+          open
+          onClose={() => setTeamDrill(null)}
+          team={teamDrill.team}
+          severity={teamDrill.severity}
+          deals={teamDrillDeals}
+        />
+      )}
+      {vsdDrill && (
+        <VSDDrillDialog
+          open
+          onClose={() => setVsdDrill(null)}
+          vsd={vsdDrill}
+          deals={vsdDrillDeals}
+        />
+      )}
     </div>
   );
 }
