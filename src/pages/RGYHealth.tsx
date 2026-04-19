@@ -1035,6 +1035,7 @@ export default function RGYHealth() {
               deals={deals}
               filteredDeals={filteredDeals}
               issues={rgyIssues}
+              activePod={activePod}
             />
           </TabsContent>
         </Tabs>
