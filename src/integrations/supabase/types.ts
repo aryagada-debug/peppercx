@@ -1081,6 +1081,39 @@ export type Database = {
         }
         Relationships: []
       }
+      staffing_weekly_allocations: {
+        Row: {
+          actual_hours: number
+          allocation_pct: number
+          created_at: string
+          deal_id: string
+          id: string
+          person_id: string
+          updated_at: string
+          week_start: string
+        }
+        Insert: {
+          actual_hours?: number
+          allocation_pct?: number
+          created_at?: string
+          deal_id: string
+          id?: string
+          person_id: string
+          updated_at?: string
+          week_start: string
+        }
+        Update: {
+          actual_hours?: number
+          allocation_pct?: number
+          created_at?: string
+          deal_id?: string
+          id?: string
+          person_id?: string
+          updated_at?: string
+          week_start?: string
+        }
+        Relationships: []
+      }
       task_templates: {
         Row: {
           created_at: string
