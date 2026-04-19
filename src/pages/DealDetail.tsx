@@ -1746,6 +1746,15 @@ export default function DealDetail() {
               </div>
             )}
 
+            {/* Weekly Allocation Grid */}
+            {dealPeople.length > 0 && (
+              <WeeklyStaffingGrid
+                dealId={dealId!}
+                dealPeople={dealPeople}
+                dealAssignments={dealAssignments}
+              />
+            )}
+
             {/* Add Member Dialog */}
             <AddStaffingMemberDialog
               open={addMemberOpen}
