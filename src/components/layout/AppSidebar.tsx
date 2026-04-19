@@ -7,45 +7,46 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { useUserRole } from "@/hooks/useUserRole";
 
 const navSections = [
   {
     label: "Core",
     items: [
-      { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-      { to: "/clients", icon: Building2, label: "Clients & Deals" },
+      { to: "/", icon: LayoutDashboard, label: "Dashboard", routeKey: "dashboard" },
+      { to: "/clients", icon: Building2, label: "Clients & Deals", routeKey: "clients" },
     ],
   },
   {
     label: "Operations",
     items: [
-      { to: "/staffing", icon: UserCheck, label: "Staffing & Capacity" },
-      { to: "/revenue", icon: DollarSign, label: "Revenue" },
-      { to: "/targets", icon: Target, label: "Targets" },
-      { to: "/central-cx", icon: ShieldCheck, label: "Central Cx" },
+      { to: "/staffing", icon: UserCheck, label: "Staffing & Capacity", routeKey: "staffing" },
+      { to: "/revenue", icon: DollarSign, label: "Revenue", routeKey: "revenue" },
+      { to: "/targets", icon: Target, label: "Targets", routeKey: "targets" },
+      { to: "/central-cx", icon: ShieldCheck, label: "Central Cx", routeKey: "central-cx" },
     ],
   },
   {
     label: "Health & Reviews",
     items: [
-      { to: "/rgy-health", icon: Activity, label: "RGY Health" },
-      { to: "/mbr-tracker", icon: FileText, label: "MBR Tracker" },
-      { to: "/slack-health", icon: MessageSquare, label: "Slack Health" },
-      { to: "/onboarding", icon: CheckSquare, label: "Onboarding" },
+      { to: "/rgy-health", icon: Activity, label: "RGY Health", routeKey: "rgy-health" },
+      { to: "/mbr-tracker", icon: FileText, label: "MBR Tracker", routeKey: "mbr-tracker" },
+      { to: "/slack-health", icon: MessageSquare, label: "Slack Health", routeKey: "slack-health" },
+      { to: "/onboarding", icon: CheckSquare, label: "Onboarding", routeKey: "onboarding" },
     ],
   },
   {
     label: "Tools",
     items: [
-      { to: "/deal-desk", icon: BarChart3, label: "Deal Desk" },
-      { to: "/seo-staffing", icon: Users, label: "SEO Staffing" },
-      { to: "/gm2-calculator", icon: Calculator, label: "GM2 Calculator" },
+      { to: "/deal-desk", icon: BarChart3, label: "Deal Desk", routeKey: "deal-desk" },
+      { to: "/seo-staffing", icon: Users, label: "SEO Staffing", routeKey: "seo-staffing" },
+      { to: "/gm2-calculator", icon: Calculator, label: "GM2 Calculator", routeKey: "gm2-calculator" },
     ],
   },
   {
     label: "System",
     items: [
-      { to: "/settings", icon: Settings, label: "Settings" },
+      { to: "/settings", icon: Settings, label: "Settings", routeKey: "settings" },
     ],
   },
 ];
@@ -53,10 +54,19 @@ const navSections = [
 export function AppSidebar() {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const { visibleRoutes, loading } = useUserRole();
 
   const toggle = (label: string) => {
     setCollapsed(prev => ({ ...prev, [label]: !prev[label] }));
   };
+
+  // Filter sections based on role visibility
+  const filteredSections = navSections
+    .map(section => ({
+      ...section,
+      items: section.items.filter(item => loading || visibleRoutes.has(item.routeKey)),
+    }))
+    .filter(section => section.items.length > 0);
 
   return (
     <aside className="w-60 h-screen border-r border-sidebar-border bg-sidebar flex flex-col flex-shrink-0 overflow-y-auto">
@@ -66,7 +76,7 @@ export function AppSidebar() {
       </div>
 
       <nav className="flex-1 py-3 px-3 space-y-1">
-        {navSections.map((section) => (
+        {filteredSections.map((section) => (
           <div key={section.label}>
             <button
               onClick={() => toggle(section.label)}
