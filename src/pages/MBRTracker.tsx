@@ -582,6 +582,17 @@ export default function MBRTracker() {
           onSave={handleSave}
         />
       )}
+
+      {/* Schedule-only Dialog */}
+      {scheduleDeal && (
+        <ScheduleOnlyDialog
+          open={!!scheduleDeal}
+          onClose={() => setScheduleDeal(null)}
+          deal={scheduleDeal.deal}
+          entry={scheduleDeal.entry}
+          onSave={handleSave}
+        />
+      )}
     </AppLayout>
   );
 }
