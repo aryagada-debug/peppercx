@@ -425,10 +425,6 @@ function RGYIssueFormDialog({
             <Textarea value={issueDetails} onChange={e => setIssueDetails(e.target.value)} placeholder="Describe the issue..." className="text-sm min-h-[60px]" />
           </div>
 
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">Discussed Action Plan</label>
-            <Textarea value={discussedActionPlan} onChange={e => setDiscussedActionPlan(e.target.value)} placeholder="What was discussed..." className="text-sm min-h-[60px]" />
-          </div>
 
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Action Plan</label>
