@@ -79,6 +79,7 @@ export default function MBRTracker() {
   const [showClosed, setShowClosed] = useState(false);
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
   const [viewDeal, setViewDeal] = useState<{ deal: MBRDeal; entry: MBREntry | null } | null>(null);
+  const [scheduleDeal, setScheduleDeal] = useState<{ deal: MBRDeal; entry: MBREntry | null } | null>(null);
   const [viewMode, setViewMode] = useState<"current" | "mom">("current");
   const [selectedMonth, setSelectedMonth] = useState<string>("");
 
