@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import { useMBRData, type MBREntry, type MBRDeal, type VSDSummary } from "@/hooks/useMBRData";
 import { MBRDetailDialog } from "@/components/mbr/MBRDetailDialog";
+import { ScheduleOnlyDialog } from "@/components/mbr/ScheduleOnlyDialog";
 import { supabase } from "@/integrations/supabase/client";
 
 const PODS = ["All", "Integrated", "India B2B", "US B2B", "FMCG", "BFSI", "Unassigned"] as const;
@@ -78,6 +79,7 @@ export default function MBRTracker() {
   const [showClosed, setShowClosed] = useState(false);
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
   const [viewDeal, setViewDeal] = useState<{ deal: MBRDeal; entry: MBREntry | null } | null>(null);
+  const [scheduleDeal, setScheduleDeal] = useState<{ deal: MBRDeal; entry: MBREntry | null } | null>(null);
   const [viewMode, setViewMode] = useState<"current" | "mom">("current");
   const [selectedMonth, setSelectedMonth] = useState<string>("");
 
@@ -270,6 +272,43 @@ export default function MBRTracker() {
           <MetricCard label="Compliance" value={`${kpis.compliance}%`} />
         </div>
 
+        {/* VSD Insights — moved to top */}
+        <div className="mb-4">
+          <h2 className="text-sm font-semibold text-foreground mb-2">VSD Insights</h2>
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <table className="w-full text-ui">
+              <thead>
+                <tr className="bg-secondary/40 border-b border-border">
+                  {["VSD", "Accounts", "Done", "Not Done", "Pending", "🟢", "🟡", "🔴", "Scheduled"].map(h => (
+                    <th key={h} className="text-left py-2.5 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {vsdInsights.map(v => {
+                  const schedCompliance = v.total > 0 ? `${v.scheduled}/${v.total}` : "—";
+                  return (
+                    <tr key={v.vsd} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
+                      <td className="py-2.5 px-3 font-semibold text-foreground text-xs">{v.vsd}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-foreground text-xs">{v.total}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-positive font-semibold text-xs">{v.done}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-destructive font-semibold text-xs">{v.notDone}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-warning font-semibold text-xs">{v.pending}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-positive text-xs">{v.green}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-warning text-xs">{v.yellow}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-destructive text-xs">{v.red}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-foreground text-xs">{schedCompliance}</td>
+                    </tr>
+                  );
+                })}
+                {vsdInsights.length === 0 && (
+                  <tr><td colSpan={9} className="text-center py-8 text-muted-foreground">No data</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         {/* Filters */}
         <div className="flex items-center gap-4 mb-3 flex-wrap">
           <div className="flex gap-1 bg-secondary rounded-lg p-1">
@@ -399,10 +438,29 @@ export default function MBRTracker() {
                                     {!entry?.anirudhAdded && !entry?.anirudhJoining && <span className="text-muted-foreground text-xs">—</span>}
                                   </div>
                                 </td>
-                                <td className="py-2 px-3">
-                                  <span className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <Eye className="h-4 w-4 text-muted-foreground" />
-                                  </span>
+                                <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
+                                  <div className="flex items-center gap-1 justify-end">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 px-2 text-[10px] gap-1"
+                                      onClick={() => setScheduleDeal({ deal, entry: entry || null })}
+                                      title="Schedule only"
+                                    >
+                                      <CalendarDays className="h-3 w-3" />
+                                      Schedule
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 px-2 text-[10px] gap-1"
+                                      onClick={() => handleRowClick(deal, entry)}
+                                      title="Record MBR"
+                                    >
+                                      <Eye className="h-3 w-3" />
+                                      Record
+                                    </Button>
+                                  </div>
                                 </td>
                               </tr>
                             );
@@ -419,43 +477,6 @@ export default function MBRTracker() {
                   <p className="text-muted-foreground">No deals found matching your filters.</p>
                 </div>
               )}
-            </div>
-
-            {/* VSD Insights Table */}
-            <div>
-              <h2 className="text-sm font-semibold text-foreground mb-2">VSD Insights</h2>
-              <div className="bg-card border border-border rounded-xl overflow-hidden">
-                <table className="w-full text-ui">
-                  <thead>
-                    <tr className="bg-secondary/40 border-b border-border">
-                      {["VSD", "Accounts", "Done", "Not Done", "Pending", "🟢", "🟡", "🔴", "Scheduled"].map(h => (
-                        <th key={h} className="text-left py-2.5 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {vsdInsights.map(v => {
-                      const schedCompliance = v.total > 0 ? `${v.scheduled}/${v.total}` : "—";
-                      return (
-                        <tr key={v.vsd} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
-                          <td className="py-2.5 px-3 font-semibold text-foreground text-xs">{v.vsd}</td>
-                          <td className="py-2.5 px-3 font-mono tabular-nums text-foreground text-xs">{v.total}</td>
-                          <td className="py-2.5 px-3 font-mono tabular-nums text-positive font-semibold text-xs">{v.done}</td>
-                          <td className="py-2.5 px-3 font-mono tabular-nums text-destructive font-semibold text-xs">{v.notDone}</td>
-                          <td className="py-2.5 px-3 font-mono tabular-nums text-warning font-semibold text-xs">{v.pending}</td>
-                          <td className="py-2.5 px-3 font-mono tabular-nums text-positive text-xs">{v.green}</td>
-                          <td className="py-2.5 px-3 font-mono tabular-nums text-warning text-xs">{v.yellow}</td>
-                          <td className="py-2.5 px-3 font-mono tabular-nums text-destructive text-xs">{v.red}</td>
-                          <td className="py-2.5 px-3 font-mono tabular-nums text-foreground text-xs">{schedCompliance}</td>
-                        </tr>
-                      );
-                    })}
-                    {vsdInsights.length === 0 && (
-                      <tr><td colSpan={9} className="text-center py-8 text-muted-foreground">No data</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
             </div>
           </>
         )}
@@ -558,6 +579,17 @@ export default function MBRTracker() {
           onClose={() => setViewDeal(null)}
           deal={viewDeal.deal}
           entry={viewDeal.entry}
+          onSave={handleSave}
+        />
+      )}
+
+      {/* Schedule-only Dialog */}
+      {scheduleDeal && (
+        <ScheduleOnlyDialog
+          open={!!scheduleDeal}
+          onClose={() => setScheduleDeal(null)}
+          deal={scheduleDeal.deal}
+          entry={scheduleDeal.entry}
           onSave={handleSave}
         />
       )}
