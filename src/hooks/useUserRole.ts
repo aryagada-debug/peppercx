@@ -40,13 +40,15 @@ interface UserRoleState {
 export function useUserRole(): UserRoleState {
   const { user, loading: authLoading } = useAuth();
   const [actualRole, setActualRole] = useState<AppRole | null>(null);
-  const [viewAsRole, setViewAsRoleState] = useState<AppRole | null>(() => {
-    if (typeof window === "undefined") return null;
-    const v = localStorage.getItem(VIEW_AS_KEY);
-    return v === "vsd" || v === "admin" ? (v as AppRole) : null;
-  });
+  const [viewAsRole, setViewAsRoleState] = useState<AppRole | null>(null);
   const [visibleRoutes, setVisibleRoutes] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const v = localStorage.getItem(VIEW_AS_KEY);
+    if (v === "vsd" || v === "admin") setViewAsRoleState(v as AppRole);
+  }, []);
 
   const effectiveRole: AppRole | null = (() => {
     if (!actualRole) return null;
