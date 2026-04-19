@@ -542,7 +542,7 @@ export default function RGYHealth() {
   } | null>(null);
 
   // Issues for insights
-  const [rgyIssues, setRgyIssues] = useState<{ deal_name: string; deal_id: string; pc_code: string; deal_status: string; issue_details: string; issue_status: string; action_plan: string; discussed_action_plan: string; red_dimensions: string[] }[]>([]);
+  const [rgyIssues, setRgyIssues] = useState<any[]>([]);
 
   const fetchData = useCallback(async () => {
     const { data: dealRows } = await supabase
@@ -1035,6 +1035,7 @@ export default function RGYHealth() {
               deals={deals}
               filteredDeals={filteredDeals}
               issues={rgyIssues}
+              activePod={activePod}
             />
           </TabsContent>
         </Tabs>
