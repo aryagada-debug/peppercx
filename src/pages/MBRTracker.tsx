@@ -272,6 +272,43 @@ export default function MBRTracker() {
           <MetricCard label="Compliance" value={`${kpis.compliance}%`} />
         </div>
 
+        {/* VSD Insights — moved to top */}
+        <div className="mb-4">
+          <h2 className="text-sm font-semibold text-foreground mb-2">VSD Insights</h2>
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <table className="w-full text-ui">
+              <thead>
+                <tr className="bg-secondary/40 border-b border-border">
+                  {["VSD", "Accounts", "Done", "Not Done", "Pending", "🟢", "🟡", "🔴", "Scheduled"].map(h => (
+                    <th key={h} className="text-left py-2.5 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {vsdInsights.map(v => {
+                  const schedCompliance = v.total > 0 ? `${v.scheduled}/${v.total}` : "—";
+                  return (
+                    <tr key={v.vsd} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
+                      <td className="py-2.5 px-3 font-semibold text-foreground text-xs">{v.vsd}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-foreground text-xs">{v.total}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-positive font-semibold text-xs">{v.done}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-destructive font-semibold text-xs">{v.notDone}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-warning font-semibold text-xs">{v.pending}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-positive text-xs">{v.green}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-warning text-xs">{v.yellow}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-destructive text-xs">{v.red}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-foreground text-xs">{schedCompliance}</td>
+                    </tr>
+                  );
+                })}
+                {vsdInsights.length === 0 && (
+                  <tr><td colSpan={9} className="text-center py-8 text-muted-foreground">No data</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         {/* Filters */}
         <div className="flex items-center gap-4 mb-3 flex-wrap">
           <div className="flex gap-1 bg-secondary rounded-lg p-1">
