@@ -431,21 +431,33 @@ export default function Clients() {
           ))}
         </div>
 
-        <DataTable
-          rows={visibleDeals as DealRow[]}
-          columns={columns}
-          rowKey={(d) => d.id}
-          enableGlobalSearch
-          initialGroupBy="pod"
-          title="Deals"
-          toolbarRight={
-            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-              <input type="checkbox" checked={showClosed} onChange={(e) => setShowClosed(e.target.checked)} className="rounded border-border" />
-              Show closed/completed
-            </label>
-          }
-          emptyMessage="No deals match your filters."
-        />
+        <div className="space-y-4">
+          <DataTable
+            rows={visibleDeals as DealRow[]}
+            columns={columns}
+            rowKey={(d) => d.id}
+            enableGlobalSearch
+            title="All Deals"
+            toolbarRight={
+              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                <input type="checkbox" checked={showClosed} onChange={(e) => setShowClosed(e.target.checked)} className="rounded border-border" />
+                Show closed/completed
+              </label>
+            }
+            emptyMessage="No deals match your filters."
+          />
+
+          {podSections.map((section) => (
+            <DataTable
+              key={section.pod}
+              rows={section.rows}
+              columns={columns}
+              rowKey={(d) => d.id}
+              title={`${section.pod} Pod`}
+              emptyMessage={`No deals in ${section.pod}.`}
+            />
+          ))}
+        </div>
       </div>
 
       {/* Delete Confirmation */}
