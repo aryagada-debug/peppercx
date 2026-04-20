@@ -1,7 +1,7 @@
 import React from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Link } from "react-router-dom";
-import { Search, Plus, Loader2, Trash2, Pencil, Check, X, ChevronRight, ChevronDown, ChevronsUpDown } from "lucide-react";
+import { Search, Plus, Loader2, Trash2, Pencil, Check, X, Filter, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useStaffingData } from "@/hooks/useStaffingData";
 import { useClients } from "@/hooks/useClients";
@@ -92,19 +92,21 @@ export default function Clients() {
   const [dealWizardClientId, setDealWizardClientId] = useState<string | undefined>();
 
   const [deleteTarget, setDeleteTarget] = useState<{ type: "client" | "deal"; id: string; name: string } | null>(null);
-  const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
   const [staffingDialog, setStaffingDialog] = useState<{ open: boolean; dealId: string; roleFilter?: "Operations"; preSelectedName?: string } | null>(null);
 
-  const toggleClient = (client: string) => {
-    setExpandedClients(prev => {
-      const next = new Set(prev);
-      if (next.has(client)) next.delete(client); else next.add(client);
-      return next;
-    });
-  };
+  // Per-column filters (text values; numeric filters use min input)
+  const [colFilters, setColFilters] = useState<Record<string, string>>({});
+  const [openFilter, setOpenFilter] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
-  const expandAll = () => setExpandedClients(new Set(groupedDeals.map(g => g.client)));
-  const collapseAll = () => setExpandedClients(new Set());
+  const setFilter = (key: string, val: string) => setColFilters(prev => ({ ...prev, [key]: val }));
+  const clearFilter = (key: string) => setColFilters(prev => { const n = { ...prev }; delete n[key]; return n; });
+
+  const toggleSort = (key: string) => {
+    if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortKey(key); setSortDir("asc"); }
+  };
 
   // People filtered by role for dropdowns
   const vsdPeople = useMemo(() => people.filter(p => (p.roleTitle || "").toLowerCase().includes("vsd")), [people]);
@@ -125,16 +127,34 @@ export default function Clients() {
     return d;
   }, [deals, activePod, search, showClosed]);
 
-  const groupedDeals = useMemo(() => {
-    const map = new Map<string, typeof filteredDeals>();
-    filteredDeals.forEach(deal => {
-      const existing = map.get(deal.account) || [];
-      map.set(deal.account, [...existing, deal]);
+  // Apply per-column filters + sort to produce flat row list
+  const tableRows = useMemo(() => {
+    const matches = (val: any, q: string) => String(val ?? "").toLowerCase().includes(q.toLowerCase());
+    let rows = filteredDeals.filter(d => {
+      if (colFilters.account && !matches(d.account, colFilters.account)) return false;
+      if (colFilters.dealName && !matches(d.dealName, colFilters.dealName)) return false;
+      if (colFilters.dealId && !matches(d.dealId, colFilters.dealId)) return false;
+      if (colFilters.dealType && d.dealType !== colFilters.dealType) return false;
+      if (colFilters.dealStatus && (d.dealStatus || "Active Deal") !== colFilters.dealStatus) return false;
+      if (colFilters.vsd && !matches(d.vsd, colFilters.vsd)) return false;
+      if (colFilters.bopm && !matches(`${d.principalBopm || ""} ${d.seniorBopm || ""}`, colFilters.bopm)) return false;
+      if (colFilters.mrr && (Number(d.mrr) || 0) < Number(colFilters.mrr)) return false;
+      if (colFilters.totalDealValue && (Number(d.totalDealValue) || 0) < Number(colFilters.totalDealValue)) return false;
+      if (colFilters.rag && (d.rag || "green") !== colFilters.rag) return false;
+      return true;
     });
-    return Array.from(map.entries())
-      .map(([client, deals]) => ({ client, deals }))
-      .sort((a, b) => a.client.localeCompare(b.client));
-  }, [filteredDeals]);
+    if (sortKey) {
+      const dir = sortDir === "asc" ? 1 : -1;
+      rows = [...rows].sort((a: any, b: any) => {
+        const av = a[sortKey] ?? ""; const bv = b[sortKey] ?? "";
+        if (typeof av === "number" || typeof bv === "number") return ((Number(av) || 0) - (Number(bv) || 0)) * dir;
+        return String(av).localeCompare(String(bv)) * dir;
+      });
+    } else {
+      rows = [...rows].sort((a, b) => a.account.localeCompare(b.account) || a.dealName.localeCompare(b.dealName));
+    }
+    return rows;
+  }, [filteredDeals, colFilters, sortKey, sortDir]);
 
   const kpis = useMemo(() => {
     const clientSet = new Set(filteredDeals.map(d => d.account));
@@ -348,10 +368,11 @@ export default function Clients() {
             Show closed/completed
           </label>
 
-          <Button variant="ghost" size="sm" onClick={() => expandedClients.size === groupedDeals.length ? collapseAll() : expandAll()} className="text-xs gap-1 text-muted-foreground">
-            <ChevronsUpDown className="h-3.5 w-3.5" />
-            {expandedClients.size === groupedDeals.length ? "Collapse All" : "Expand All"}
-          </Button>
+          {Object.keys(colFilters).length > 0 && (
+            <Button variant="ghost" size="sm" onClick={() => setColFilters({})} className="text-xs gap-1 text-muted-foreground">
+              <X className="h-3.5 w-3.5" /> Clear filters ({Object.keys(colFilters).length})
+            </Button>
+          )}
         </div>
 
         {/* Grouped Table */}
