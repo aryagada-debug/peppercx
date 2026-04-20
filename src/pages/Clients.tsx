@@ -1,7 +1,7 @@
 import React from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Link } from "react-router-dom";
-import { Search, Plus, Loader2, Trash2, Pencil, Check, X, ChevronRight, ChevronDown, ChevronsUpDown } from "lucide-react";
+import { Search, Plus, Loader2, Trash2, Pencil, Check, X, Filter, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useStaffingData } from "@/hooks/useStaffingData";
 import { useClients } from "@/hooks/useClients";
@@ -31,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 const PODS = ["All", "Integrated", "India B2B", "US B2B", "FMCG", "BFSI", "Unassigned"] as const;
 type Pod = typeof PODS[number];
@@ -80,6 +81,77 @@ function InlineEditCell({ value, onSave, type = "text", prefix = "", placeholder
   );
 }
 
+// ── Sortable + filterable column header ──
+function ColHeader({
+  label, colKey, sortKey, align = "left", sortState, onSort,
+  colFilters, openFilter, setOpenFilter, setFilter, clearFilter,
+  options, numeric, placeholder,
+}: {
+  label: string; colKey: string; sortKey?: string; align?: "left" | "right" | "center";
+  sortState: { sortKey: string | null; sortDir: "asc" | "desc" };
+  onSort: (k: string) => void;
+  colFilters: Record<string, string>; openFilter: string | null;
+  setOpenFilter: (k: string | null) => void;
+  setFilter: (k: string, v: string) => void; clearFilter: (k: string) => void;
+  options?: string[]; numeric?: boolean; placeholder?: string;
+}) {
+  const active = !!colFilters[colKey];
+  const isSorted = sortKey && sortState.sortKey === sortKey;
+  const SortIcon = !isSorted ? ArrowUpDown : sortState.sortDir === "asc" ? ArrowUp : ArrowDown;
+  const alignCls = align === "right" ? "text-right justify-end" : align === "center" ? "text-center justify-center" : "text-left";
+  return (
+    <th className={cn("py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium", align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left")}>
+      <div className={cn("flex items-center gap-1", alignCls)}>
+        {sortKey ? (
+          <button onClick={() => onSort(sortKey)} className="flex items-center gap-1 hover:text-foreground transition-colors">
+            <span>{label}</span>
+            <SortIcon className={cn("h-3 w-3", isSorted ? "text-foreground" : "opacity-50")} />
+          </button>
+        ) : (
+          <span>{label}</span>
+        )}
+        <Popover open={openFilter === colKey} onOpenChange={(o) => setOpenFilter(o ? colKey : null)}>
+          <PopoverTrigger asChild>
+            <button className={cn("p-0.5 rounded hover:bg-secondary", active && "text-primary")} title="Filter">
+              <Filter className="h-3 w-3" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-56 p-2" align="start">
+            {options ? (
+              <div className="space-y-1">
+                <button
+                  onClick={() => { clearFilter(colKey); setOpenFilter(null); }}
+                  className={cn("w-full text-left text-xs px-2 py-1 rounded hover:bg-secondary", !active && "bg-secondary")}
+                >All</button>
+                {options.map(opt => (
+                  <button key={opt}
+                    onClick={() => { setFilter(colKey, opt); setOpenFilter(null); }}
+                    className={cn("w-full text-left text-xs px-2 py-1 rounded hover:bg-secondary capitalize", colFilters[colKey] === opt && "bg-primary text-primary-foreground")}
+                  >{opt}</button>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Input
+                  autoFocus
+                  type={numeric ? "number" : "text"}
+                  placeholder={placeholder || `Filter ${label.toLowerCase()}...`}
+                  value={colFilters[colKey] || ""}
+                  onChange={(e) => setFilter(colKey, e.target.value)}
+                  className="h-7 text-xs"
+                />
+                {active && (
+                  <button onClick={() => { clearFilter(colKey); setOpenFilter(null); }} className="text-[11px] text-muted-foreground hover:text-foreground">Clear</button>
+                )}
+              </div>
+            )}
+          </PopoverContent>
+        </Popover>
+      </div>
+    </th>
+  );
+}
+
 export default function Clients() {
   const { deals, people, assignments, loading: staffLoading, refresh: refreshStaffing, updateDeal, addAssignment, updateAssignment } = useStaffingData();
   const { clients, loading: clientsLoading, addClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
@@ -92,19 +164,21 @@ export default function Clients() {
   const [dealWizardClientId, setDealWizardClientId] = useState<string | undefined>();
 
   const [deleteTarget, setDeleteTarget] = useState<{ type: "client" | "deal"; id: string; name: string } | null>(null);
-  const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
   const [staffingDialog, setStaffingDialog] = useState<{ open: boolean; dealId: string; roleFilter?: "Operations"; preSelectedName?: string } | null>(null);
 
-  const toggleClient = (client: string) => {
-    setExpandedClients(prev => {
-      const next = new Set(prev);
-      if (next.has(client)) next.delete(client); else next.add(client);
-      return next;
-    });
-  };
+  // Per-column filters (text values; numeric filters use min input)
+  const [colFilters, setColFilters] = useState<Record<string, string>>({});
+  const [openFilter, setOpenFilter] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
-  const expandAll = () => setExpandedClients(new Set(groupedDeals.map(g => g.client)));
-  const collapseAll = () => setExpandedClients(new Set());
+  const setFilter = (key: string, val: string) => setColFilters(prev => ({ ...prev, [key]: val }));
+  const clearFilter = (key: string) => setColFilters(prev => { const n = { ...prev }; delete n[key]; return n; });
+
+  const toggleSort = (key: string) => {
+    if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortKey(key); setSortDir("asc"); }
+  };
 
   // People filtered by role for dropdowns
   const vsdPeople = useMemo(() => people.filter(p => (p.roleTitle || "").toLowerCase().includes("vsd")), [people]);
@@ -125,16 +199,34 @@ export default function Clients() {
     return d;
   }, [deals, activePod, search, showClosed]);
 
-  const groupedDeals = useMemo(() => {
-    const map = new Map<string, typeof filteredDeals>();
-    filteredDeals.forEach(deal => {
-      const existing = map.get(deal.account) || [];
-      map.set(deal.account, [...existing, deal]);
+  // Apply per-column filters + sort to produce flat row list
+  const tableRows = useMemo(() => {
+    const matches = (val: any, q: string) => String(val ?? "").toLowerCase().includes(q.toLowerCase());
+    let rows = filteredDeals.filter(d => {
+      if (colFilters.account && !matches(d.account, colFilters.account)) return false;
+      if (colFilters.dealName && !matches(d.dealName, colFilters.dealName)) return false;
+      if (colFilters.dealId && !matches(d.dealId, colFilters.dealId)) return false;
+      if (colFilters.dealType && d.dealType !== colFilters.dealType) return false;
+      if (colFilters.dealStatus && (d.dealStatus || "Active Deal") !== colFilters.dealStatus) return false;
+      if (colFilters.vsd && !matches(d.vsd, colFilters.vsd)) return false;
+      if (colFilters.bopm && !matches(`${d.principalBopm || ""} ${d.seniorBopm || ""}`, colFilters.bopm)) return false;
+      if (colFilters.mrr && (Number(d.mrr) || 0) < Number(colFilters.mrr)) return false;
+      if (colFilters.totalDealValue && (Number(d.totalDealValue) || 0) < Number(colFilters.totalDealValue)) return false;
+      if (colFilters.rag && (d.rag || "green") !== colFilters.rag) return false;
+      return true;
     });
-    return Array.from(map.entries())
-      .map(([client, deals]) => ({ client, deals }))
-      .sort((a, b) => a.client.localeCompare(b.client));
-  }, [filteredDeals]);
+    if (sortKey) {
+      const dir = sortDir === "asc" ? 1 : -1;
+      rows = [...rows].sort((a: any, b: any) => {
+        const av = a[sortKey] ?? ""; const bv = b[sortKey] ?? "";
+        if (typeof av === "number" || typeof bv === "number") return ((Number(av) || 0) - (Number(bv) || 0)) * dir;
+        return String(av).localeCompare(String(bv)) * dir;
+      });
+    } else {
+      rows = [...rows].sort((a, b) => a.account.localeCompare(b.account) || a.dealName.localeCompare(b.dealName));
+    }
+    return rows;
+  }, [filteredDeals, colFilters, sortKey, sortDir]);
 
   const kpis = useMemo(() => {
     const clientSet = new Set(filteredDeals.map(d => d.account));
@@ -348,165 +440,104 @@ export default function Clients() {
             Show closed/completed
           </label>
 
-          <Button variant="ghost" size="sm" onClick={() => expandedClients.size === groupedDeals.length ? collapseAll() : expandAll()} className="text-xs gap-1 text-muted-foreground">
-            <ChevronsUpDown className="h-3.5 w-3.5" />
-            {expandedClients.size === groupedDeals.length ? "Collapse All" : "Expand All"}
-          </Button>
+          {Object.keys(colFilters).length > 0 && (
+            <Button variant="ghost" size="sm" onClick={() => setColFilters({})} className="text-xs gap-1 text-muted-foreground">
+              <X className="h-3.5 w-3.5" /> Clear filters ({Object.keys(colFilters).length})
+            </Button>
+          )}
         </div>
 
-        {/* Grouped Table */}
+        {/* Flat Table with column filters */}
         <div className="bg-card border border-border rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-ui">
               <thead>
                 <tr className="bg-secondary/40 border-b border-border">
-                  <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium w-8"></th>
-                  <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Deal Name</th>
-                  <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Deal ID</th>
-                  <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Type</th>
-                  <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Status</th>
-                  <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">VSD</th>
-                  <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">P.BOPM / Sr BOPM</th>
-                  <th className="text-right py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">MRR</th>
-                  <th className="text-right py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Total Revenue</th>
-                  <th className="text-center py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">RGY</th>
+                  <ColHeader label="Client" sortKey="account" colKey="account" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
+                  <ColHeader label="Deal Name" sortKey="dealName" colKey="dealName" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
+                  <ColHeader label="Deal ID" sortKey="dealId" colKey="dealId" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
+                  <ColHeader label="Type" sortKey="dealType" colKey="dealType" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["Retainer","Non-Retainer"]} />
+                  <ColHeader label="Status" sortKey="dealStatus" colKey="dealStatus" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={[...DEAL_STATUSES]} />
+                  <ColHeader label="VSD" sortKey="vsd" colKey="vsd" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
+                  <ColHeader label="P.BOPM / Sr BOPM" colKey="bopm" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
+                  <ColHeader label="MRR" align="right" sortKey="mrr" colKey="mrr" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} numeric placeholder="≥ amount" />
+                  <ColHeader label="Total Revenue" align="right" sortKey="totalDealValue" colKey="totalDealValue" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} numeric placeholder="≥ amount" />
+                  <ColHeader label="RGY" align="center" colKey="rag" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["green","amber","red"]} />
                   <th className="w-8"></th>
                 </tr>
               </thead>
               <tbody>
-                {groupedDeals.map(({ client, deals: clientDeals }) => {
-                  const isExpanded = expandedClients.has(client);
-                  const totalMRR = clientDeals.reduce((s, d) => s + (d.mrr || 0), 0);
-                  const totalRev = clientDeals.reduce((s, d) => s + (d.totalDealValue || 0), 0);
-                  const clientObj = clients.find(c => c.name === client);
-
+                {tableRows.map(deal => {
+                  const clientObj = clients.find(c => c.name === deal.account);
                   return (
-                    <React.Fragment key={client}>
-                      {/* Client parent row */}
-                      <tr
-                        className="border-b border-border bg-secondary/20 hover:bg-secondary/40 cursor-pointer transition-colors group/client"
-                        onClick={() => toggleClient(client)}
-                      >
-                        <td className="py-2 px-3">
-                          {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-                        </td>
-                        <td className="py-2 px-3" colSpan={3}>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-semibold text-foreground">{client}</span>
-                            <span className="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
-                              {clientDeals.length} deal{clientDeals.length !== 1 ? "s" : ""}
-                            </span>
-                          </div>
-                        </td>
-                        <td colSpan={3}></td>
-                        <td className="py-2 px-3 text-right text-xs font-mono font-medium text-foreground">{fmtCurrency(totalMRR)}</td>
-                        <td className="py-2 px-3 text-right text-xs font-mono font-medium text-foreground">{fmtCurrency(totalRev)}</td>
-                        <td></td>
-                        <td className="py-2 px-1" onClick={e => e.stopPropagation()}>
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => { setDealWizardClientId(clientObj?.id); setDealWizardOpen(true); }}
-                              className="text-muted-foreground/40 hover:text-primary opacity-0 group-hover/client:opacity-100 transition-opacity"
-                              title="Add deal"
-                            >
-                              <Plus className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              onClick={() => setDeleteTarget({ type: "client", id: clientObj?.id || "", name: client })}
-                              className="text-muted-foreground/40 hover:text-destructive opacity-0 group-hover/client:opacity-100 transition-opacity"
-                              title="Delete client"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-
-                      {/* Deal child rows */}
-                      {isExpanded && clientDeals.map(deal => (
-                        <tr key={deal.id} className="border-b border-border/50 hover:bg-accent/10 transition-colors group/row">
-                          <td className="py-2 px-3"></td>
-                          <td className="py-2 px-3 pl-6">
-                            <Link to={`/deals/${deal.id}`} className="text-primary hover:underline text-xs font-medium">
-                              {deal.dealName}
-                            </Link>
-                          </td>
-                          <td className="py-2 px-3 text-xs font-mono text-muted-foreground">{deal.dealId}</td>
-                          <td className="py-2 px-3">
-                            <span className={cn(
-                              "inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium",
-                              deal.dealType === "Retainer" ? "bg-accent text-accent-foreground" : "bg-secondary text-secondary-foreground"
-                            )}>{deal.dealType}</span>
-                          </td>
-                          <td className="py-2 px-3">
-                            <Select
-                              value={deal.dealStatus || "Active Deal"}
-                              onValueChange={(v) => handleStatusChange(deal.id, v)}
-                            >
-                              <SelectTrigger className="h-6 w-[85px] text-[11px] border-none bg-transparent shadow-none px-1 focus:ring-0">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {DEAL_STATUSES.map(s => (
-                                  <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </td>
-                          <td className="py-2 px-3">
-                            <button
-                              onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "Operations", preSelectedName: deal.vsd || undefined })}
-                              className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate max-w-[110px] block text-left"
-                            >
-                              {deal.vsd || <span className="text-muted-foreground">— None —</span>}
-                            </button>
-                          </td>
-                          <td className="py-2 px-3">
-                            <button
-                              onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "Operations", preSelectedName: deal.principalBopm || deal.seniorBopm || undefined })}
-                              className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate max-w-[120px] block text-left"
-                            >
-                              {deal.principalBopm || deal.seniorBopm || <span className="text-muted-foreground">— None —</span>}
-                            </button>
-                          </td>
-                          <td className="py-2 px-3 text-right">
-                            <InlineEditCell
-                              value={String(deal.mrr || "")}
-                              onSave={v => handleMRRSave(deal.id, v)}
-                              type="number"
-                              prefix="₹"
-                              placeholder="—"
-                            />
-                          </td>
-                          <td className="py-2 px-3 text-right">
-                            <InlineEditCell
-                              value={String(deal.totalDealValue || "")}
-                              onSave={v => handleTotalRevenueSave(deal.id, v)}
-                              type="number"
-                              prefix="₹"
-                              placeholder="—"
-                            />
-                          </td>
-                          <td className="py-2 px-3 text-center">{ragDot(deal.rag || "green")}</td>
-                          <td className="py-2 px-1">
-                            <button
-                              onClick={() => setDeleteTarget({ type: "deal", id: deal.id, name: deal.dealName })}
-                              className="text-muted-foreground/40 hover:text-destructive opacity-0 group-hover/row:opacity-100 transition-opacity"
-                              title="Delete deal"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </React.Fragment>
+                    <tr key={deal.id} className="border-b border-border/50 hover:bg-accent/10 transition-colors group/row">
+                      <td className="py-2 px-3">
+                        <span className="text-xs font-medium text-foreground truncate max-w-[140px] block" title={deal.account}>{deal.account}</span>
+                      </td>
+                      <td className="py-2 px-3">
+                        <Link to={`/deals/${deal.id}`} className="text-primary hover:underline text-xs font-medium">
+                          {deal.dealName}
+                        </Link>
+                      </td>
+                      <td className="py-2 px-3 text-xs font-mono text-muted-foreground">{deal.dealId}</td>
+                      <td className="py-2 px-3">
+                        <span className={cn(
+                          "inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium",
+                          deal.dealType === "Retainer" ? "bg-accent text-accent-foreground" : "bg-secondary text-secondary-foreground"
+                        )}>{deal.dealType}</span>
+                      </td>
+                      <td className="py-2 px-3">
+                        <Select value={deal.dealStatus || "Active Deal"} onValueChange={(v) => handleStatusChange(deal.id, v)}>
+                          <SelectTrigger className="h-6 w-[85px] text-[11px] border-none bg-transparent shadow-none px-1 focus:ring-0">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {DEAL_STATUSES.map(s => (
+                              <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </td>
+                      <td className="py-2 px-3">
+                        <button
+                          onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "Operations", preSelectedName: deal.vsd || undefined })}
+                          className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate max-w-[110px] block text-left"
+                        >
+                          {deal.vsd || <span className="text-muted-foreground">— None —</span>}
+                        </button>
+                      </td>
+                      <td className="py-2 px-3">
+                        <button
+                          onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "Operations", preSelectedName: deal.principalBopm || deal.seniorBopm || undefined })}
+                          className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate max-w-[120px] block text-left"
+                        >
+                          {deal.principalBopm || deal.seniorBopm || <span className="text-muted-foreground">— None —</span>}
+                        </button>
+                      </td>
+                      <td className="py-2 px-3 text-right">
+                        <InlineEditCell value={String(deal.mrr || "")} onSave={v => handleMRRSave(deal.id, v)} type="number" prefix="₹" placeholder="—" />
+                      </td>
+                      <td className="py-2 px-3 text-right">
+                        <InlineEditCell value={String(deal.totalDealValue || "")} onSave={v => handleTotalRevenueSave(deal.id, v)} type="number" prefix="₹" placeholder="—" />
+                      </td>
+                      <td className="py-2 px-3 text-center">{ragDot(deal.rag || "green")}</td>
+                      <td className="py-2 px-1">
+                        <button
+                          onClick={() => setDeleteTarget({ type: "deal", id: deal.id, name: deal.dealName })}
+                          className="text-muted-foreground/40 hover:text-destructive opacity-0 group-hover/row:opacity-100 transition-opacity"
+                          title="Delete deal"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </td>
+                    </tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
 
-          {groupedDeals.length === 0 && (
+          {tableRows.length === 0 && (
             <div className="text-center py-12">
               <p className="text-muted-foreground">No deals found matching your filters.</p>
             </div>
