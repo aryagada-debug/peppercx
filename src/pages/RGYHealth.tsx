@@ -522,9 +522,19 @@ export default function RGYHealth() {
   const [activePod, setActivePod] = useState<Pod>("All");
   const [showClosed, setShowClosed] = useState(false);
   const [search, setSearch] = useState("");
-  const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
   const [rgyFilter, setRgyFilter] = useState<"All" | "Red" | "Yellow" | "Green">("All");
   const [activeTab, setActiveTab] = useState<"health" | "insights">("health");
+  // Column filter/sort state
+  const [colFilters, setColFilters] = useState<Record<string, string>>({});
+  const [openFilter, setOpenFilter] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const setFilter = (k: string, v: string) => setColFilters(p => ({ ...p, [k]: v }));
+  const clearFilter = (k: string) => setColFilters(p => { const n = { ...p }; delete n[k]; return n; });
+  const toggleSort = (k: string) => {
+    if (sortKey === k) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortKey(k); setSortDir("asc"); }
+  };
 
   // Issue form state
   const [issueFormDeal, setIssueFormDeal] = useState<DealWithRGY | null>(null);
