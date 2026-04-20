@@ -802,28 +802,35 @@ export default function RGYHealth() {
     return d;
   }, [deals, activePod, search, showClosed, rgyFilter]);
 
-  // Group by Client
-  const groupedDeals = useMemo(() => {
-    const map = new Map<string, DealWithRGY[]>();
-    filteredDeals.forEach(deal => {
-      const existing = map.get(deal.account) || [];
-      map.set(deal.account, [...existing, deal]);
+  // Apply per-column filters + sort to produce flat row list
+  const tableRows = useMemo(() => {
+    const matches = (val: any, q: string) => String(val ?? "").toLowerCase().includes(q.toLowerCase());
+    let rows = filteredDeals.filter(d => {
+      if (colFilters.account && !matches(d.account, colFilters.account)) return false;
+      if (colFilters.deal_name && !matches(d.deal_name, colFilters.deal_name)) return false;
+      if (colFilters.deal_id && !matches(d.deal_id, colFilters.deal_id)) return false;
+      if (colFilters.deal_status && (d.deal_status || "") !== colFilters.deal_status) return false;
+      for (const dim of DIMENSIONS) {
+        const f = colFilters[dim.key];
+        if (f) {
+          const v = ((d as any)[dim.key] || "NA");
+          if (v !== f) return false;
+        }
+      }
+      return true;
     });
-    return Array.from(map.entries())
-      .map(([client, deals]) => ({ client, deals }))
-      .sort((a, b) => a.client.localeCompare(b.client));
-  }, [filteredDeals]);
-
-  const toggleClient = (client: string) => {
-    setExpandedClients(prev => {
-      const next = new Set(prev);
-      if (next.has(client)) next.delete(client); else next.add(client);
-      return next;
-    });
-  };
-
-  const expandAll = () => setExpandedClients(new Set(groupedDeals.map(g => g.client)));
-  const collapseAll = () => setExpandedClients(new Set());
+    if (sortKey) {
+      const dir = sortDir === "asc" ? 1 : -1;
+      rows = [...rows].sort((a: any, b: any) => {
+        const av = a[sortKey] ?? ""; const bv = b[sortKey] ?? "";
+        if (typeof av === "number" || typeof bv === "number") return ((Number(av) || 0) - (Number(bv) || 0)) * dir;
+        return String(av).localeCompare(String(bv)) * dir;
+      });
+    } else {
+      rows = [...rows].sort((a, b) => a.account.localeCompare(b.account) || a.deal_name.localeCompare(b.deal_name));
+    }
+    return rows;
+  }, [filteredDeals, colFilters, sortKey, sortDir]);
 
   // KPIs
   const kpis = useMemo(() => {
