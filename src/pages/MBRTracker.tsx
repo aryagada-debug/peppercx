@@ -6,13 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-import { ChevronDown, ChevronRight, ChevronsUpDown, Search, Loader2, Eye, CalendarDays, List } from "lucide-react";
+import { Search, Loader2, Eye, CalendarDays, List, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import { useMBRData, type MBREntry, type MBRDeal, type VSDSummary } from "@/hooks/useMBRData";
 import { MBRDetailDialog } from "@/components/mbr/MBRDetailDialog";
 import { ScheduleOnlyDialog } from "@/components/mbr/ScheduleOnlyDialog";
 import { supabase } from "@/integrations/supabase/client";
+import { ColHeader } from "@/components/table/ColHeader";
 
 const PODS = ["All", "Integrated", "India B2B", "US B2B", "FMCG", "BFSI", "Unassigned"] as const;
 type Pod = typeof PODS[number];
@@ -77,11 +78,21 @@ export default function MBRTracker() {
   const [activePod, setActivePod] = useState<Pod>("All");
   const [search, setSearch] = useState("");
   const [showClosed, setShowClosed] = useState(false);
-  const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
   const [viewDeal, setViewDeal] = useState<{ deal: MBRDeal; entry: MBREntry | null } | null>(null);
   const [scheduleDeal, setScheduleDeal] = useState<{ deal: MBRDeal; entry: MBREntry | null } | null>(null);
   const [viewMode, setViewMode] = useState<"current" | "mom">("current");
   const [selectedMonth, setSelectedMonth] = useState<string>("");
+  // Column filter/sort state
+  const [colFilters, setColFilters] = useState<Record<string, string>>({});
+  const [openFilter, setOpenFilter] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const setFilter = (k: string, v: string) => setColFilters(p => ({ ...p, [k]: v }));
+  const clearFilter = (k: string) => setColFilters(p => { const n = { ...p }; delete n[k]; return n; });
+  const toggleSort = (k: string) => {
+    if (sortKey === k) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortKey(k); setSortDir("asc"); }
+  };
 
   // Set default selected month to the latest available
   useEffect(() => {
@@ -160,16 +171,34 @@ export default function MBRTracker() {
       .sort((a, b) => a.client.localeCompare(b.client));
   }, [filteredDeals]);
 
-  const toggleClient = (client: string) => {
-    setExpandedClients(prev => {
-      const next = new Set(prev);
-      if (next.has(client)) next.delete(client); else next.add(client);
-      return next;
+  // Apply per-column filters + sort to produce flat row list (current view)
+  const tableRows = useMemo(() => {
+    const matches = (val: any, q: string) => String(val ?? "").toLowerCase().includes(q.toLowerCase());
+    let rows = filteredDeals.map(d => ({ deal: d, entry: activeEntryMap.get(d.id) || null }));
+    rows = rows.filter(({ deal, entry }) => {
+      if (colFilters.account && !matches(deal.account, colFilters.account)) return false;
+      if (colFilters.dealName && !matches(deal.dealName, colFilters.dealName)) return false;
+      if (colFilters.vsd && !matches(deal.vsd, colFilters.vsd)) return false;
+      if (colFilters.seniorBopm && !matches(deal.seniorBopm, colFilters.seniorBopm)) return false;
+      if (colFilters.mrr && (Number(deal.mrr) || 0) < Number(colFilters.mrr)) return false;
+      if (colFilters.status && (entry?.status || "Pending") !== colFilters.status) return false;
+      if (colFilters.sentiment && (entry?.sentiment || "") !== colFilters.sentiment) return false;
+      if (colFilters.scheduledDate && !matches(entry?.scheduledDate, colFilters.scheduledDate)) return false;
+      return true;
     });
-  };
-
-  const expandAll = () => setExpandedClients(new Set(groupedDeals.map(g => g.client)));
-  const collapseAll = () => setExpandedClients(new Set());
+    if (sortKey) {
+      const dir = sortDir === "asc" ? 1 : -1;
+      rows = [...rows].sort((a, b) => {
+        const av = (a.deal as any)[sortKey] ?? (a.entry as any)?.[sortKey] ?? "";
+        const bv = (b.deal as any)[sortKey] ?? (b.entry as any)?.[sortKey] ?? "";
+        if (typeof av === "number" || typeof bv === "number") return ((Number(av) || 0) - (Number(bv) || 0)) * dir;
+        return String(av).localeCompare(String(bv)) * dir;
+      });
+    } else {
+      rows = [...rows].sort((a, b) => a.deal.account.localeCompare(b.deal.account) || a.deal.dealName.localeCompare(b.deal.dealName));
+    }
+    return rows;
+  }, [filteredDeals, activeEntryMap, colFilters, sortKey, sortDir]);
 
   // KPIs from filtered deals (use activeEntryMap for current view)
   const kpis = useMemo(() => {
@@ -345,10 +374,11 @@ export default function MBRTracker() {
           </label>
 
           {viewMode === "current" && (
-            <Button variant="ghost" size="sm" onClick={() => expandedClients.size === groupedDeals.length ? collapseAll() : expandAll()} className="text-xs gap-1 text-muted-foreground">
-              <ChevronsUpDown className="h-3.5 w-3.5" />
-              {expandedClients.size === groupedDeals.length ? "Collapse All" : "Expand All"}
-            </Button>
+            Object.keys(colFilters).length > 0 && (
+              <Button variant="ghost" size="sm" onClick={() => setColFilters({})} className="text-xs gap-1 text-muted-foreground">
+                <X className="h-3.5 w-3.5" /> Clear filters ({Object.keys(colFilters).length})
+              </Button>
+            )
           )}
         </div>
 
@@ -360,66 +390,36 @@ export default function MBRTracker() {
                 <table className="w-full text-ui">
                   <thead>
                     <tr className="bg-secondary/40 border-b border-border">
-                      <th className="w-8 py-2 px-3"></th>
-                      <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Deal Name</th>
-                      <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">VSD</th>
-                      <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Sr. BOPM</th>
-                      <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">MRR</th>
-                      <th className="text-center py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Status</th>
-                      <th className="text-center py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Sentiment</th>
-                      <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Scheduled</th>
+                      <ColHeader label="Client" colKey="account" sortKey="account" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
+                      <ColHeader label="Deal Name" colKey="dealName" sortKey="dealName" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
+                      <ColHeader label="VSD" colKey="vsd" sortKey="vsd" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
+                      <ColHeader label="Sr. BOPM" colKey="seniorBopm" sortKey="seniorBopm" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
+                      <ColHeader label="MRR" colKey="mrr" sortKey="mrr" align="right" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} numeric placeholder="≥ amount" />
+                      <ColHeader label="Status" colKey="status" align="center" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["Done","Not Done","Pending","Not Required"]} />
+                      <ColHeader label="Sentiment" colKey="sentiment" align="center" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["Green","Yellow","Red"]} />
+                      <ColHeader label="Scheduled" colKey="scheduledDate" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} placeholder="YYYY-MM-DD" />
                       <th className="text-center py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Anirudh</th>
                       <th className="w-8"></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {groupedDeals.map(({ client, deals: clientDeals }) => {
-                      const isExpanded = expandedClients.has(client);
-                      const clientDone = clientDeals.filter(d => activeEntryMap.get(d.id)?.status === "Done").length;
-                      const clientNotDone = clientDeals.filter(d => activeEntryMap.get(d.id)?.status === "Not Done").length;
-
+                    {tableRows.map(({ deal, entry }) => {
+                      const status = entry?.status || "Pending";
                       return (
-                        <React.Fragment key={client}>
-                          <tr
-                            className="border-b border-border bg-secondary/20 hover:bg-secondary/40 cursor-pointer transition-colors"
-                            onClick={() => toggleClient(client)}
-                          >
-                            <td className="py-2 px-3">
-                              {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-                            </td>
-                            <td className="py-2 px-3" colSpan={4}>
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-semibold text-foreground">{client}</span>
-                                <span className="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
-                                  {clientDeals.length} deal{clientDeals.length !== 1 ? "s" : ""}
-                                </span>
-                              </div>
-                            </td>
-                            <td colSpan={5} className="py-2 px-3">
-                              <div className="flex items-center gap-3 justify-end">
-                                {clientDone > 0 && <span className="text-[10px] font-medium text-positive">{clientDone} Done</span>}
-                                {clientNotDone > 0 && <span className="text-[10px] font-medium text-destructive">{clientNotDone} Not Done</span>}
-                                {clientDone === 0 && clientNotDone === 0 && <span className="text-[10px] text-muted-foreground">Pending</span>}
-                              </div>
-                            </td>
-                          </tr>
-
-                          {isExpanded && clientDeals.map(deal => {
-                            const entry = activeEntryMap.get(deal.id);
-                            const status = entry?.status || "Pending";
-                            return (
-                              <tr
+                        <tr
                                 key={deal.id}
                                 className="border-b border-border/50 hover:bg-accent/10 transition-colors cursor-pointer group"
                                 onClick={() => handleRowClick(deal, entry)}
                               >
-                                <td className="py-2 px-3"></td>
-                                <td className="py-2 px-3 pl-6">
+                                <td className="py-2 px-3">
+                                  <span className="text-xs font-medium text-foreground truncate max-w-[140px] block" title={deal.account}>{deal.account}</span>
+                                </td>
+                                <td className="py-2 px-3">
                                   <Link to={`/deals/${deal.id}?tab=MBR`} className="text-primary hover:underline text-xs font-medium">{deal.dealName}</Link>
                                 </td>
                                 <td className="py-2 px-3 text-xs text-foreground whitespace-nowrap">{deal.vsd}</td>
                                 <td className="py-2 px-3 text-xs text-muted-foreground whitespace-nowrap">{deal.seniorBopm}</td>
-                                <td className="py-2 px-3 text-xs font-mono tabular-nums text-foreground">{formatCurrency(deal.mrr)}</td>
+                                <td className="py-2 px-3 text-xs font-mono tabular-nums text-foreground text-right">{formatCurrency(deal.mrr)}</td>
                                 <td className="py-2 px-3 text-center">
                                   <span className={cn(
                                     "text-[10px] font-semibold rounded px-2 py-1 inline-block",
@@ -463,16 +463,13 @@ export default function MBRTracker() {
                                   </div>
                                 </td>
                               </tr>
-                            );
-                          })}
-                        </React.Fragment>
                       );
                     })}
                   </tbody>
                 </table>
               </div>
 
-              {groupedDeals.length === 0 && (
+              {tableRows.length === 0 && (
                 <div className="text-center py-12">
                   <p className="text-muted-foreground">No deals found matching your filters.</p>
                 </div>
