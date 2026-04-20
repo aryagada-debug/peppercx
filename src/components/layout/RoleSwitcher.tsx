@@ -10,11 +10,11 @@ export function RoleSwitcher() {
   const viewingAsVSD = viewAsRole === "vsd";
 
   return (
-    <div className="flex items-center gap-1 rounded-md border border-border bg-card p-0.5 text-xs">
+    <div className="flex items-center gap-1 rounded-md border border-border bg-card p-0.5 text-xs w-full">
       <button
         onClick={() => setViewAsRole(null)}
         className={cn(
-          "flex items-center gap-1.5 px-2.5 py-1 rounded-sm transition-colors",
+          "flex-1 flex items-center justify-center gap-1.5 px-2 py-1 rounded-sm transition-colors",
           !viewingAsVSD ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
         )}
         title="View as Admin"
@@ -25,7 +25,7 @@ export function RoleSwitcher() {
       <button
         onClick={() => setViewAsRole("vsd")}
         className={cn(
-          "flex items-center gap-1.5 px-2.5 py-1 rounded-sm transition-colors",
+          "flex-1 flex items-center justify-center gap-1.5 px-2 py-1 rounded-sm transition-colors",
           viewingAsVSD ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
         )}
         title="Preview the VSD experience"
