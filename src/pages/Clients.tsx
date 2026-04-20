@@ -105,6 +105,20 @@ export default function Clients() {
     };
   }, [visibleDeals]);
 
+  const podSections = useMemo(() => {
+    const grouped = new Map<string, DealRow[]>();
+
+    for (const deal of visibleDeals as DealRow[]) {
+      const pod = deal.pod || "Unassigned";
+      if (!grouped.has(pod)) grouped.set(pod, []);
+      grouped.get(pod)!.push(deal);
+    }
+
+    return Array.from(grouped.entries())
+      .map(([pod, rows]) => ({ pod, rows }))
+      .sort((a, b) => a.pod.localeCompare(b.pod, undefined, { numeric: true }));
+  }, [visibleDeals]);
+
   const handleCreateDeal = async (clientId: string, data: any) => {
     const client = clients.find(c => c.id === clientId);
     const newId = uid();
@@ -417,21 +431,33 @@ export default function Clients() {
           ))}
         </div>
 
-        <DataTable
-          rows={visibleDeals as DealRow[]}
-          columns={columns}
-          rowKey={(d) => d.id}
-          enableGlobalSearch
-          initialGroupBy="pod"
-          title="Deals"
-          toolbarRight={
-            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-              <input type="checkbox" checked={showClosed} onChange={(e) => setShowClosed(e.target.checked)} className="rounded border-border" />
-              Show closed/completed
-            </label>
-          }
-          emptyMessage="No deals match your filters."
-        />
+        <div className="space-y-4">
+          <DataTable
+            rows={visibleDeals as DealRow[]}
+            columns={columns}
+            rowKey={(d) => d.id}
+            enableGlobalSearch
+            title="All Deals"
+            toolbarRight={
+              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                <input type="checkbox" checked={showClosed} onChange={(e) => setShowClosed(e.target.checked)} className="rounded border-border" />
+                Show closed/completed
+              </label>
+            }
+            emptyMessage="No deals match your filters."
+          />
+
+          {podSections.map((section) => (
+            <DataTable
+              key={section.pod}
+              rows={section.rows}
+              columns={columns}
+              rowKey={(d) => d.id}
+              title={`${section.pod} Pod`}
+              emptyMessage={`No deals in ${section.pod}.`}
+            />
+          ))}
+        </div>
       </div>
 
       {/* Delete Confirmation */}
