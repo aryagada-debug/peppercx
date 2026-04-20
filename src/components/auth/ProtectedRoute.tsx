@@ -23,7 +23,7 @@ export function ProtectedRoute({ children, routeKey }: Props) {
     return <Navigate to="/login" replace />;
   }
 
-  // Route-level visibility check
+  // Route-level visibility check (admins always allowed)
   if (routeKey && !isAdmin && !visibleRoutes.has(routeKey)) {
     return <Navigate to="/clients" replace />;
   }
