@@ -18,6 +18,7 @@ export function AppLayout({ children, onSearchSelectDeal }: AppLayoutProps) {
         <header className="flex items-center justify-between px-4 md:px-8 h-12 border-b border-border shrink-0">
           <div />
           <div className="flex items-center gap-2">
+            <RoleSwitcher />
             <GlobalSearch onSelectDeal={onSearchSelectDeal} />
             <ThemeToggle />
             <UserMenu />

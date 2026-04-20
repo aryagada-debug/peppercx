@@ -8,7 +8,6 @@ import {
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { useUserRole } from "@/hooks/useUserRole";
-import { RoleSwitcher } from "./RoleSwitcher";
 
 const navSections = [
   {
@@ -55,18 +54,17 @@ const navSections = [
 export function AppSidebar() {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  const { visibleRoutes, loading, isAdmin } = useUserRole();
+  const { visibleRoutes, loading } = useUserRole();
 
   const toggle = (label: string) => {
     setCollapsed(prev => ({ ...prev, [label]: !prev[label] }));
   };
 
-  // Admins (when not viewing-as another role) see everything.
-  // isAdmin reflects the EFFECTIVE role, so view-as-VSD will correctly filter.
+  // Filter sections based on role visibility
   const filteredSections = navSections
     .map(section => ({
       ...section,
-      items: section.items.filter(item => loading || isAdmin || visibleRoutes.has(item.routeKey)),
+      items: section.items.filter(item => loading || visibleRoutes.has(item.routeKey)),
     }))
     .filter(section => section.items.length > 0);
 
@@ -113,8 +111,7 @@ export function AppSidebar() {
         ))}
       </nav>
 
-      <div className="p-3 border-t border-sidebar-border space-y-2">
-        <RoleSwitcher />
+      <div className="p-4 border-t border-sidebar-border">
         <div className="flex items-center gap-2.5">
           <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-caption font-semibold">
             AK

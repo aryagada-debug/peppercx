@@ -1,6 +1,7 @@
+import React from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Link } from "react-router-dom";
-import { Plus, Loader2, Trash2, Pencil, Check, X } from "lucide-react";
+import { Search, Plus, Loader2, Trash2, Pencil, Check, X, ChevronRight, ChevronDown, ChevronsUpDown } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useStaffingData } from "@/hooks/useStaffingData";
 import { useClients } from "@/hooks/useClients";
@@ -30,12 +31,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { DataTable, DataTableColumn } from "@/components/data-table/DataTable";
+
+const PODS = ["All", "Integrated", "India B2B", "US B2B", "FMCG", "BFSI", "Unassigned"] as const;
+type Pod = typeof PODS[number];
 
 const DEAL_STATUSES = ["Active Deal", "New Deal in SLA/PO", "Deal Disputed", "Deal Completed Successfully", "Deal Churned / Lost"] as const;
 const ACTIVE_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
+const CLOSED_STATUSES = new Set(["Deal Completed Successfully", "Deal Churned / Lost"]);
 
-const fmtCurrency = (n: number | undefined | null) => {
+const fmtCurrency = (n: number | undefined) => {
   if (!n) return "—";
   if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
   if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
@@ -59,7 +63,7 @@ function InlineEditCell({ value, onSave, type = "text", prefix = "", placeholder
 
   if (editing) {
     return (
-      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-center gap-1">
         <Input value={local} onChange={e => setLocal(e.target.value)} type={type} className="h-6 text-xs w-full min-w-[60px]" autoFocus
           onKeyDown={e => { if (e.key === "Enter") { onSave(local); setEditing(false); } if (e.key === "Escape") { setLocal(value); setEditing(false); } }} />
         <button onClick={() => { onSave(local); setEditing(false); }} className="text-primary"><Check className="h-3 w-3" /></button>
@@ -69,42 +73,79 @@ function InlineEditCell({ value, onSave, type = "text", prefix = "", placeholder
   }
 
   return (
-    <div className="group/edit inline-flex items-center gap-1 cursor-pointer" onClick={(e) => { e.stopPropagation(); setLocal(value); setEditing(true); }}>
+    <div className="group/edit flex items-center gap-1 cursor-pointer" onClick={() => { setLocal(value); setEditing(true); }}>
       <span className={cn("text-xs font-medium font-mono tabular-nums", value ? "text-foreground" : "text-muted-foreground")}>{prefix}{value || placeholder}</span>
       <Pencil className="h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover/edit:opacity-100 transition-opacity" />
     </div>
   );
 }
 
-type DealRow = ReturnType<typeof useStaffingData>["deals"][number];
-
 export default function Clients() {
   const { deals, people, assignments, loading: staffLoading, refresh: refreshStaffing, updateDeal, addAssignment, updateAssignment } = useStaffingData();
-  const { clients, loading: clientsLoading, addClient, deleteClient, deleteDeal } = useClients();
-
+  const { clients, loading: clientsLoading, addClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
+  const [search, setSearch] = useState("");
+  const [activePod, setActivePod] = useState<Pod>("All");
   const [showClosed, setShowClosed] = useState(false);
+
   const [clientDialogOpen, setClientDialogOpen] = useState(false);
   const [dealWizardOpen, setDealWizardOpen] = useState(false);
   const [dealWizardClientId, setDealWizardClientId] = useState<string | undefined>();
+
   const [deleteTarget, setDeleteTarget] = useState<{ type: "client" | "deal"; id: string; name: string } | null>(null);
+  const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
   const [staffingDialog, setStaffingDialog] = useState<{ open: boolean; dealId: string; roleFilter?: "Operations"; preSelectedName?: string } | null>(null);
 
-  const visibleDeals = useMemo(
-    () => (showClosed ? deals : deals.filter((d) => ACTIVE_STATUSES.has(d.dealStatus))),
-    [deals, showClosed]
-  );
+  const toggleClient = (client: string) => {
+    setExpandedClients(prev => {
+      const next = new Set(prev);
+      if (next.has(client)) next.delete(client); else next.add(client);
+      return next;
+    });
+  };
+
+  const expandAll = () => setExpandedClients(new Set(groupedDeals.map(g => g.client)));
+  const collapseAll = () => setExpandedClients(new Set());
+
+  // People filtered by role for dropdowns
+  const vsdPeople = useMemo(() => people.filter(p => (p.roleTitle || "").toLowerCase().includes("vsd")), [people]);
+  const bopmPeople = useMemo(() => people.filter(p => {
+    const rt = (p.roleTitle || "").toLowerCase();
+    return rt.includes("principal bopm") || rt.includes("senior bopm");
+  }), [people]);
+
+  const filteredDeals = useMemo(() => {
+    let d = deals;
+    if (!showClosed) d = d.filter(deal => ACTIVE_STATUSES.has(deal.dealStatus));
+    if (activePod === "Unassigned") {
+      d = d.filter(deal => !deal.vsd || deal.vsd === "Not Assigned" || deal.vsd === "Unassigned" || deal.vsd === "Not Applicable");
+    } else if (activePod !== "All") {
+      d = d.filter(deal => (deal.pod || "") === activePod);
+    }
+    if (search) d = d.filter(deal => deal.account.toLowerCase().includes(search.toLowerCase()) || deal.dealName.toLowerCase().includes(search.toLowerCase()));
+    return d;
+  }, [deals, activePod, search, showClosed]);
+
+  const groupedDeals = useMemo(() => {
+    const map = new Map<string, typeof filteredDeals>();
+    filteredDeals.forEach(deal => {
+      const existing = map.get(deal.account) || [];
+      map.set(deal.account, [...existing, deal]);
+    });
+    return Array.from(map.entries())
+      .map(([client, deals]) => ({ client, deals }))
+      .sort((a, b) => a.client.localeCompare(b.client));
+  }, [filteredDeals]);
 
   const kpis = useMemo(() => {
-    const clientSet = new Set(visibleDeals.map((d) => d.account));
+    const clientSet = new Set(filteredDeals.map(d => d.account));
     return {
       clients: clientSet.size,
-      deals: visibleDeals.length,
-      activeDeals: visibleDeals.filter((d) => ACTIVE_STATUSES.has(d.dealStatus)).length,
-      totalMRR: visibleDeals.reduce((s, d) => s + (d.mrr || 0), 0),
-      totalValue: visibleDeals.reduce((s, d) => s + (d.totalDealValue || 0), 0),
+      deals: filteredDeals.length,
+      activeDeals: filteredDeals.filter(d => ACTIVE_STATUSES.has(d.dealStatus)).length,
+      totalMRR: filteredDeals.reduce((s, d) => s + (d.mrr || 0), 0),
+      totalValue: filteredDeals.reduce((s, d) => s + (d.totalDealValue || 0), 0),
     };
-  }, [visibleDeals]);
-
+  }, [filteredDeals]);
 
   const handleCreateDeal = async (clientId: string, data: any) => {
     const client = clients.find(c => c.id === clientId);
@@ -143,12 +184,21 @@ export default function Clients() {
       client_id: clientId,
     } as any);
 
-    if (error) { toast.error("Failed to create deal"); return; }
+    if (error) {
+      console.error("Failed to create deal:", error);
+      toast.error("Failed to create deal");
+      return;
+    }
 
     const validSow = data.sowItems.filter((s: any) => s.scope);
     if (validSow.length > 0) {
       await supabase.from("deal_sow_items").insert(
-        validSow.map((s: any) => ({ deal_id: newId, scope: s.scope, revenue_share: s.revenueShare, team_capability: s.teamCapability }))
+        validSow.map((s: any) => ({
+          deal_id: newId,
+          scope: s.scope,
+          revenue_share: s.revenueShare,
+          team_capability: s.teamCapability,
+        }))
       );
     }
 
@@ -162,13 +212,21 @@ export default function Clients() {
       const client = clients.find(c => c.name === deleteTarget.name);
       if (client) {
         const ok = await deleteClient(client.id);
-        if (ok) { toast.success(`Client "${deleteTarget.name}" deleted`); refreshStaffing(); }
-        else toast.error("Failed to delete client");
+        if (ok) {
+          toast.success(`Client "${deleteTarget.name}" deleted`);
+          refreshStaffing();
+        } else {
+          toast.error("Failed to delete client");
+        }
       }
     } else {
       const ok = await deleteDeal(deleteTarget.id);
-      if (ok) { toast.success(`Deal "${deleteTarget.name}" deleted`); refreshStaffing(); }
-      else toast.error("Failed to delete deal");
+      if (ok) {
+        toast.success(`Deal "${deleteTarget.name}" deleted`);
+        refreshStaffing();
+      } else {
+        toast.error("Failed to delete deal");
+      }
     }
     setDeleteTarget(null);
   };
@@ -180,11 +238,15 @@ export default function Clients() {
 
   const handleVSDChange = (dealId: string, personName: string) => {
     updateDeal(dealId, { vsd: personName });
+    // Find or create staffing assignment
     const person = people.find(p => p.name === personName);
     if (person) {
       const existing = assignments.find(a => a.dealId === dealId && a.roleKey === "VSD");
-      if (existing) updateAssignment(existing.id, { personId: person.id });
-      else addAssignment({ id: uid(), dealId, roleKey: "VSD", personId: person.id, allocationPct: 10 });
+      if (existing) {
+        updateAssignment(existing.id, { personId: person.id });
+      } else {
+        addAssignment({ id: uid(), dealId, roleKey: "VSD", personId: person.id, allocationPct: 10 });
+      }
     }
     toast.success("VSD updated");
   };
@@ -192,188 +254,34 @@ export default function Clients() {
   const handleBOPMChange = (dealId: string, personName: string) => {
     const person = people.find(p => p.name === personName);
     const rt = (person?.roleTitle || "").toLowerCase();
-    if (rt.includes("principal")) updateDeal(dealId, { principalBopm: personName });
-    else updateDeal(dealId, { seniorBopm: personName });
+    if (rt.includes("principal")) {
+      updateDeal(dealId, { principalBopm: personName });
+    } else {
+      updateDeal(dealId, { seniorBopm: personName });
+    }
     if (person) {
       const existing = assignments.find(a => a.dealId === dealId && (a.roleKey === "Principal BOPM" || a.roleKey === "Senior BOPM"));
-      if (existing) updateAssignment(existing.id, { personId: person.id, roleKey: person.roleTitle || "Senior BOPM" });
-      else addAssignment({ id: uid(), dealId, roleKey: person.roleTitle || "Senior BOPM", personId: person.id, allocationPct: 10 });
+      if (existing) {
+        updateAssignment(existing.id, { personId: person.id, roleKey: person.roleTitle || "Senior BOPM" });
+      } else {
+        addAssignment({ id: uid(), dealId, roleKey: person.roleTitle || "Senior BOPM", personId: person.id, allocationPct: 10 });
+      }
     }
     toast.success("BOPM updated");
   };
 
-  // ── Columns ──
-  const columns: DataTableColumn<DealRow>[] = useMemo(() => [
-    {
-      id: "account",
-      header: "Account",
-      accessor: (d) => d.account,
-      filterable: true,
-      sortable: true,
-      groupable: true,
-      cell: (d) => <span className="font-medium text-foreground truncate max-w-[180px] inline-block">{d.account}</span>,
-    },
-    {
-      id: "dealName",
-      header: "Deal Name",
-      accessor: (d) => d.dealName,
-      sortable: true,
-      cell: (d) => (
-        <Link to={`/deals/${d.id}`} onClick={(e) => e.stopPropagation()} className="text-primary hover:underline font-medium">
-          {d.dealName}
-        </Link>
-      ),
-    },
-    {
-      id: "dealId",
-      header: "Deal ID",
-      accessor: (d) => d.dealId,
-      sortable: true,
-      cell: (d) => <span className="font-mono text-muted-foreground">{d.dealId}</span>,
-    },
-    {
-      id: "pcCode",
-      header: "PC Code",
-      accessor: (d) => (d as any).pcCode || "",
-      filterable: true,
-      cell: (d) => <span className="font-mono text-muted-foreground">{(d as any).pcCode || "—"}</span>,
-    },
-    {
-      id: "dealType",
-      header: "Type",
-      accessor: (d) => d.dealType,
-      filterable: true,
-      cell: (d) => (
-        <span className={cn(
-          "inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium",
-          d.dealType === "Retainer" ? "bg-accent text-accent-foreground" : "bg-secondary text-secondary-foreground"
-        )}>{d.dealType}</span>
-      ),
-    },
-    {
-      id: "dealStatus",
-      header: "Status",
-      accessor: (d) => d.dealStatus,
-      filterable: true,
-      groupable: true,
-      cell: (d) => (
-        <div onClick={(e) => e.stopPropagation()}>
-          <Select value={d.dealStatus || "Active Deal"} onValueChange={(v) => handleStatusChange(d.id, v)}>
-            <SelectTrigger className="h-6 w-[110px] text-[11px] border-none bg-transparent shadow-none px-1 focus:ring-0">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {DEAL_STATUSES.map(s => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-      ),
-    },
-    {
-      id: "vsd",
-      header: "VSD",
-      accessor: (d) => d.vsd || "—",
-      filterable: true,
-      groupable: true,
-      cell: (d) => (
-        <button
-          onClick={(e) => { e.stopPropagation(); setStaffingDialog({ open: true, dealId: d.id, roleFilter: "Operations", preSelectedName: d.vsd || undefined }); }}
-          className="text-foreground hover:text-primary hover:underline cursor-pointer truncate max-w-[120px] block text-left"
-        >
-          {d.vsd || <span className="text-muted-foreground">— None —</span>}
-        </button>
-      ),
-    },
-    {
-      id: "bopm",
-      header: "P.BOPM / Sr BOPM",
-      accessor: (d) => d.principalBopm || d.seniorBopm || "—",
-      filterable: true,
-      cell: (d) => (
-        <button
-          onClick={(e) => { e.stopPropagation(); setStaffingDialog({ open: true, dealId: d.id, roleFilter: "Operations", preSelectedName: d.principalBopm || d.seniorBopm || undefined }); }}
-          className="text-foreground hover:text-primary hover:underline cursor-pointer truncate max-w-[140px] block text-left"
-        >
-          {d.principalBopm || d.seniorBopm || <span className="text-muted-foreground">— None —</span>}
-        </button>
-      ),
-    },
-    {
-      id: "pod",
-      header: "Pod",
-      accessor: (d) => d.pod || "Unassigned",
-      filterable: true,
-      groupable: true,
-      cell: (d) => <span className="text-muted-foreground">{d.pod || "Unassigned"}</span>,
-    },
-    {
-      id: "mrr",
-      header: "MRR",
-      accessor: (d) => d.mrr || 0,
-      sortable: true,
-      align: "right",
-      cell: (d) => (
-        <InlineEditCell
-          value={String(d.mrr || "")}
-          onSave={(v) => { updateDeal(d.id, { mrr: Number(v) || undefined }); toast.success("MRR updated"); }}
-          type="number" prefix="₹" placeholder="—"
-        />
-      ),
-    },
-    {
-      id: "totalValue",
-      header: "Total Revenue",
-      accessor: (d) => d.totalDealValue || 0,
-      sortable: true,
-      align: "right",
-      cell: (d) => (
-        <InlineEditCell
-          value={String(d.totalDealValue || "")}
-          onSave={(v) => { updateDeal(d.id, { totalDealValue: Number(v) || undefined }); toast.success("Total Revenue updated"); }}
-          type="number" prefix="₹" placeholder="—"
-        />
-      ),
-    },
-    {
-      id: "startDate",
-      header: "Start",
-      accessor: (d) => (d as any).startDate || "",
-      sortable: true,
-      cell: (d) => <span className="font-mono text-muted-foreground">{(d as any).startDate || "—"}</span>,
-    },
-    {
-      id: "endDate",
-      header: "End",
-      accessor: (d) => (d as any).endDate || "",
-      sortable: true,
-      cell: (d) => <span className="font-mono text-muted-foreground">{(d as any).endDate || "—"}</span>,
-    },
-    {
-      id: "rag",
-      header: "RGY",
-      accessor: (d) => d.rag || "green",
-      filterable: true,
-      align: "center",
-      cell: (d) => ragDot(d.rag || "green"),
-    },
-    {
-      id: "actions",
-      header: "",
-      sortable: false,
-      width: "40px",
-      cell: (d) => (
-        <button
-          onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: "deal", id: d.id, name: d.dealName }); }}
-          className="text-muted-foreground/40 hover:text-destructive transition-colors"
-          title="Delete deal"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
-      ),
-    },
-  ], [people, assignments, updateDeal, addAssignment, updateAssignment]);
+  const handleMRRSave = (dealId: string, value: string) => {
+    updateDeal(dealId, { mrr: Number(value) || undefined });
+    toast.success("MRR updated");
+  };
+
+  const handleTotalRevenueSave = (dealId: string, value: string) => {
+    updateDeal(dealId, { totalDealValue: Number(value) || undefined });
+    toast.success("Total Revenue updated");
+  };
 
   const loading = staffLoading || clientsLoading;
+
   if (loading) {
     return (
       <AppLayout>
@@ -418,27 +326,201 @@ export default function Clients() {
           ))}
         </div>
 
-        <DataTable
-          rows={visibleDeals as DealRow[]}
-          columns={columns}
-          rowKey={(d) => d.id}
-          enableGlobalSearch
-          title="Deals"
-          toolbarRight={
-            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-              <input type="checkbox" checked={showClosed} onChange={(e) => setShowClosed(e.target.checked)} className="rounded border-border" />
-              Show closed/completed
-            </label>
-          }
-          emptyMessage="No deals match your filters."
-        />
+        {/* Filters */}
+        <div className="flex items-center gap-4 mb-3 flex-wrap">
+          <div className="flex gap-1 bg-secondary rounded-lg p-1">
+            {PODS.map(pod => (
+              <button key={pod} onClick={() => setActivePod(pod)} className={cn(
+                "px-3 py-1.5 rounded-md text-caption font-medium whitespace-nowrap transition-colors",
+                activePod === pod ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}>{pod}</button>
+            ))}
+          </div>
+
+          <div className="relative flex-1 max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input type="text" placeholder="Search clients or deals..." value={search} onChange={e => setSearch(e.target.value)}
+              className="w-full h-9 pl-9 pr-3 rounded-lg bg-card border border-border text-ui text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all" />
+          </div>
+
+          <label className="flex items-center gap-2 text-ui text-muted-foreground cursor-pointer">
+            <input type="checkbox" checked={showClosed} onChange={e => setShowClosed(e.target.checked)} className="rounded border-border" />
+            Show closed/completed
+          </label>
+
+          <Button variant="ghost" size="sm" onClick={() => expandedClients.size === groupedDeals.length ? collapseAll() : expandAll()} className="text-xs gap-1 text-muted-foreground">
+            <ChevronsUpDown className="h-3.5 w-3.5" />
+            {expandedClients.size === groupedDeals.length ? "Collapse All" : "Expand All"}
+          </Button>
+        </div>
+
+        {/* Grouped Table */}
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-ui">
+              <thead>
+                <tr className="bg-secondary/40 border-b border-border">
+                  <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium w-8"></th>
+                  <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Deal Name</th>
+                  <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Deal ID</th>
+                  <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Type</th>
+                  <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Status</th>
+                  <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">VSD</th>
+                  <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">P.BOPM / Sr BOPM</th>
+                  <th className="text-right py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">MRR</th>
+                  <th className="text-right py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Total Revenue</th>
+                  <th className="text-center py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">RGY</th>
+                  <th className="w-8"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {groupedDeals.map(({ client, deals: clientDeals }) => {
+                  const isExpanded = expandedClients.has(client);
+                  const totalMRR = clientDeals.reduce((s, d) => s + (d.mrr || 0), 0);
+                  const totalRev = clientDeals.reduce((s, d) => s + (d.totalDealValue || 0), 0);
+                  const clientObj = clients.find(c => c.name === client);
+
+                  return (
+                    <React.Fragment key={client}>
+                      {/* Client parent row */}
+                      <tr
+                        className="border-b border-border bg-secondary/20 hover:bg-secondary/40 cursor-pointer transition-colors group/client"
+                        onClick={() => toggleClient(client)}
+                      >
+                        <td className="py-2 px-3">
+                          {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                        </td>
+                        <td className="py-2 px-3" colSpan={3}>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-foreground">{client}</span>
+                            <span className="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
+                              {clientDeals.length} deal{clientDeals.length !== 1 ? "s" : ""}
+                            </span>
+                          </div>
+                        </td>
+                        <td colSpan={3}></td>
+                        <td className="py-2 px-3 text-right text-xs font-mono font-medium text-foreground">{fmtCurrency(totalMRR)}</td>
+                        <td className="py-2 px-3 text-right text-xs font-mono font-medium text-foreground">{fmtCurrency(totalRev)}</td>
+                        <td></td>
+                        <td className="py-2 px-1" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => { setDealWizardClientId(clientObj?.id); setDealWizardOpen(true); }}
+                              className="text-muted-foreground/40 hover:text-primary opacity-0 group-hover/client:opacity-100 transition-opacity"
+                              title="Add deal"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setDeleteTarget({ type: "client", id: clientObj?.id || "", name: client })}
+                              className="text-muted-foreground/40 hover:text-destructive opacity-0 group-hover/client:opacity-100 transition-opacity"
+                              title="Delete client"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* Deal child rows */}
+                      {isExpanded && clientDeals.map(deal => (
+                        <tr key={deal.id} className="border-b border-border/50 hover:bg-accent/10 transition-colors group/row">
+                          <td className="py-2 px-3"></td>
+                          <td className="py-2 px-3 pl-6">
+                            <Link to={`/deals/${deal.id}`} className="text-primary hover:underline text-xs font-medium">
+                              {deal.dealName}
+                            </Link>
+                          </td>
+                          <td className="py-2 px-3 text-xs font-mono text-muted-foreground">{deal.dealId}</td>
+                          <td className="py-2 px-3">
+                            <span className={cn(
+                              "inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium",
+                              deal.dealType === "Retainer" ? "bg-accent text-accent-foreground" : "bg-secondary text-secondary-foreground"
+                            )}>{deal.dealType}</span>
+                          </td>
+                          <td className="py-2 px-3">
+                            <Select
+                              value={deal.dealStatus || "Active Deal"}
+                              onValueChange={(v) => handleStatusChange(deal.id, v)}
+                            >
+                              <SelectTrigger className="h-6 w-[85px] text-[11px] border-none bg-transparent shadow-none px-1 focus:ring-0">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {DEAL_STATUSES.map(s => (
+                                  <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </td>
+                          <td className="py-2 px-3">
+                            <button
+                              onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "Operations", preSelectedName: deal.vsd || undefined })}
+                              className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate max-w-[110px] block text-left"
+                            >
+                              {deal.vsd || <span className="text-muted-foreground">— None —</span>}
+                            </button>
+                          </td>
+                          <td className="py-2 px-3">
+                            <button
+                              onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "Operations", preSelectedName: deal.principalBopm || deal.seniorBopm || undefined })}
+                              className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate max-w-[120px] block text-left"
+                            >
+                              {deal.principalBopm || deal.seniorBopm || <span className="text-muted-foreground">— None —</span>}
+                            </button>
+                          </td>
+                          <td className="py-2 px-3 text-right">
+                            <InlineEditCell
+                              value={String(deal.mrr || "")}
+                              onSave={v => handleMRRSave(deal.id, v)}
+                              type="number"
+                              prefix="₹"
+                              placeholder="—"
+                            />
+                          </td>
+                          <td className="py-2 px-3 text-right">
+                            <InlineEditCell
+                              value={String(deal.totalDealValue || "")}
+                              onSave={v => handleTotalRevenueSave(deal.id, v)}
+                              type="number"
+                              prefix="₹"
+                              placeholder="—"
+                            />
+                          </td>
+                          <td className="py-2 px-3 text-center">{ragDot(deal.rag || "green")}</td>
+                          <td className="py-2 px-1">
+                            <button
+                              onClick={() => setDeleteTarget({ type: "deal", id: deal.id, name: deal.dealName })}
+                              className="text-muted-foreground/40 hover:text-destructive opacity-0 group-hover/row:opacity-100 transition-opacity"
+                              title="Delete deal"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {groupedDeals.length === 0 && (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">No deals found matching your filters.</p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Delete Confirmation */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete {deleteTarget?.type === "client" ? "client" : "deal"}?</AlertDialogTitle>
+            <AlertDialogTitle>
+              Delete {deleteTarget?.type === "client" ? "client" : "deal"}?
+            </AlertDialogTitle>
             <AlertDialogDescription>
               {deleteTarget?.type === "client"
                 ? `This will permanently delete "${deleteTarget.name}" and all associated deals, financials, tasks, and MBR entries.`
@@ -469,7 +551,10 @@ export default function Clients() {
         onOpenChange={setDealWizardOpen}
         clients={clients}
         preSelectedClientId={dealWizardClientId}
-        onCreateClient={() => { setDealWizardOpen(false); setClientDialogOpen(true); }}
+        onCreateClient={() => {
+          setDealWizardOpen(false);
+          setClientDialogOpen(true);
+        }}
         onSubmit={handleCreateDeal}
       />
 
@@ -486,8 +571,11 @@ export default function Clients() {
             const person = people.find(p => p.id === assignment.personId);
             if (!person) return;
             const rt = (person.roleTitle || "").toLowerCase();
-            if (rt.includes("vsd")) handleVSDChange(staffingDialog.dealId, person.name);
-            else handleBOPMChange(staffingDialog.dealId, person.name);
+            if (rt.includes("vsd")) {
+              handleVSDChange(staffingDialog.dealId, person.name);
+            } else {
+              handleBOPMChange(staffingDialog.dealId, person.name);
+            }
             setStaffingDialog(null);
           }}
         />
