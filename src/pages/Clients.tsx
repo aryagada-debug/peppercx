@@ -105,6 +105,20 @@ export default function Clients() {
     };
   }, [visibleDeals]);
 
+  const podSections = useMemo(() => {
+    const grouped = new Map<string, DealRow[]>();
+
+    for (const deal of visibleDeals as DealRow[]) {
+      const pod = deal.pod || "Unassigned";
+      if (!grouped.has(pod)) grouped.set(pod, []);
+      grouped.get(pod)!.push(deal);
+    }
+
+    return Array.from(grouped.entries())
+      .map(([pod, rows]) => ({ pod, rows }))
+      .sort((a, b) => a.pod.localeCompare(b.pod, undefined, { numeric: true }));
+  }, [visibleDeals]);
+
   const handleCreateDeal = async (clientId: string, data: any) => {
     const client = clients.find(c => c.id === clientId);
     const newId = uid();
