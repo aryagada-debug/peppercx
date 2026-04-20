@@ -54,17 +54,18 @@ const navSections = [
 export function AppSidebar() {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  const { visibleRoutes, loading } = useUserRole();
+  const { visibleRoutes, loading, isAdmin } = useUserRole();
 
   const toggle = (label: string) => {
     setCollapsed(prev => ({ ...prev, [label]: !prev[label] }));
   };
 
-  // Filter sections based on role visibility
+  // Admins (when not viewing-as another role) see everything.
+  // isAdmin reflects the EFFECTIVE role, so view-as-VSD will correctly filter.
   const filteredSections = navSections
     .map(section => ({
       ...section,
-      items: section.items.filter(item => loading || visibleRoutes.has(item.routeKey)),
+      items: section.items.filter(item => loading || isAdmin || visibleRoutes.has(item.routeKey)),
     }))
     .filter(section => section.items.length > 0);
 
