@@ -44,6 +44,8 @@ export interface DataTableProps<T> {
   dense?: boolean;
   /** Empty state */
   emptyMessage?: string;
+  /** Initial group-by column id */
+  initialGroupBy?: string | null;
 }
 
 function ColumnFilterPopover({
