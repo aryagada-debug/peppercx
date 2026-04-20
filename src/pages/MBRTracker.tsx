@@ -374,10 +374,11 @@ export default function MBRTracker() {
           </label>
 
           {viewMode === "current" && (
-            <Button variant="ghost" size="sm" onClick={() => expandedClients.size === groupedDeals.length ? collapseAll() : expandAll()} className="text-xs gap-1 text-muted-foreground">
-              <ChevronsUpDown className="h-3.5 w-3.5" />
-              {expandedClients.size === groupedDeals.length ? "Collapse All" : "Expand All"}
-            </Button>
+            Object.keys(colFilters).length > 0 && (
+              <Button variant="ghost" size="sm" onClick={() => setColFilters({})} className="text-xs gap-1 text-muted-foreground">
+                <X className="h-3.5 w-3.5" /> Clear filters ({Object.keys(colFilters).length})
+              </Button>
+            )
           )}
         </div>
 
