@@ -163,6 +163,7 @@ export function DataTable<T>({
   enableGlobalSearch = false,
   dense = true,
   emptyMessage = "No results match your filters.",
+  initialGroupBy = null,
 }: DataTableProps<T>) {
   const [globalSearch, setGlobalSearch] = useState("");
 
@@ -198,7 +199,7 @@ export function DataTable<T>({
     rows: processed,
     grouped,
     activeFilterCount,
-  } = useTableFilters({ rows: searched, accessors });
+  } = useTableFilters({ rows: searched, accessors, initialGroupBy });
 
   const colCount = columns.length;
   const cellPad = dense ? "py-1.5 px-3" : "py-2.5 px-3";
