@@ -422,6 +422,7 @@ export default function Clients() {
           columns={columns}
           rowKey={(d) => d.id}
           enableGlobalSearch
+          initialGroupBy="pod"
           title="Deals"
           toolbarRight={
             <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
