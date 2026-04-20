@@ -171,16 +171,34 @@ export default function MBRTracker() {
       .sort((a, b) => a.client.localeCompare(b.client));
   }, [filteredDeals]);
 
-  const toggleClient = (client: string) => {
-    setExpandedClients(prev => {
-      const next = new Set(prev);
-      if (next.has(client)) next.delete(client); else next.add(client);
-      return next;
+  // Apply per-column filters + sort to produce flat row list (current view)
+  const tableRows = useMemo(() => {
+    const matches = (val: any, q: string) => String(val ?? "").toLowerCase().includes(q.toLowerCase());
+    let rows = filteredDeals.map(d => ({ deal: d, entry: activeEntryMap.get(d.id) || null }));
+    rows = rows.filter(({ deal, entry }) => {
+      if (colFilters.account && !matches(deal.account, colFilters.account)) return false;
+      if (colFilters.dealName && !matches(deal.dealName, colFilters.dealName)) return false;
+      if (colFilters.vsd && !matches(deal.vsd, colFilters.vsd)) return false;
+      if (colFilters.seniorBopm && !matches(deal.seniorBopm, colFilters.seniorBopm)) return false;
+      if (colFilters.mrr && (Number(deal.mrr) || 0) < Number(colFilters.mrr)) return false;
+      if (colFilters.status && (entry?.status || "Pending") !== colFilters.status) return false;
+      if (colFilters.sentiment && (entry?.sentiment || "") !== colFilters.sentiment) return false;
+      if (colFilters.scheduledDate && !matches(entry?.scheduledDate, colFilters.scheduledDate)) return false;
+      return true;
     });
-  };
-
-  const expandAll = () => setExpandedClients(new Set(groupedDeals.map(g => g.client)));
-  const collapseAll = () => setExpandedClients(new Set());
+    if (sortKey) {
+      const dir = sortDir === "asc" ? 1 : -1;
+      rows = [...rows].sort((a, b) => {
+        const av = (a.deal as any)[sortKey] ?? (a.entry as any)?.[sortKey] ?? "";
+        const bv = (b.deal as any)[sortKey] ?? (b.entry as any)?.[sortKey] ?? "";
+        if (typeof av === "number" || typeof bv === "number") return ((Number(av) || 0) - (Number(bv) || 0)) * dir;
+        return String(av).localeCompare(String(bv)) * dir;
+      });
+    } else {
+      rows = [...rows].sort((a, b) => a.deal.account.localeCompare(b.deal.account) || a.deal.dealName.localeCompare(b.deal.dealName));
+    }
+    return rows;
+  }, [filteredDeals, activeEntryMap, colFilters, sortKey, sortDir]);
 
   // KPIs from filtered deals (use activeEntryMap for current view)
   const kpis = useMemo(() => {
