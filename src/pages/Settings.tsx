@@ -6,8 +6,17 @@ import { Loader2, Pencil, Check, X, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { DEPARTMENTS } from "@/data/staffingData";
+import { UsersTab } from "@/pages/admin/UsersTab";
+import { AccessControlsTab } from "@/pages/admin/AccessControlsTab";
+import { useUserRole } from "@/hooks/useUserRole";
 
-const tabs = ["People & Reporting", "Revenue Capacity", "Users & Roles", "Notifications"] as const;
+const tabs = [
+  "People & Reporting",
+  "Revenue Capacity",
+  "Users & Roles",
+  "Access Controls",
+  "Notifications",
+] as const;
 type SettingsTab = typeof tabs[number];
 
 function InlineEdit({
@@ -87,6 +96,7 @@ function InlineEdit({
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>("People & Reporting");
   const { people, revenueTargets, loading, updatePerson, setRevenueTargets } = useStaffingData();
+  const { isActuallyAdmin } = useUserRole();
   const [search, setSearch] = useState("");
 
   const filteredPeople = useMemo(() => {
@@ -289,9 +299,23 @@ export default function SettingsPage() {
         )}
 
         {activeTab === "Users & Roles" && (
-          <div className="rounded-xl border border-border bg-card p-8 text-center">
-            <p className="text-sm text-muted-foreground">User & role management coming soon.</p>
-          </div>
+          isActuallyAdmin ? (
+            <UsersTab />
+          ) : (
+            <div className="rounded-xl border border-border bg-card p-8 text-center">
+              <p className="text-sm text-muted-foreground">Admin access required.</p>
+            </div>
+          )
+        )}
+
+        {activeTab === "Access Controls" && (
+          isActuallyAdmin ? (
+            <AccessControlsTab />
+          ) : (
+            <div className="rounded-xl border border-border bg-card p-8 text-center">
+              <p className="text-sm text-muted-foreground">Admin access required.</p>
+            </div>
+          )
         )}
 
         {activeTab === "Notifications" && (
