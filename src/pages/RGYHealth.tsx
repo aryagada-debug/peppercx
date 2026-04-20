@@ -6,7 +6,7 @@ import { RGYInsightsTab } from "@/components/rgy/RGYInsightsTab";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
-import { ChevronDown, ChevronRight, ChevronsUpDown, Search, AlertTriangle, Plus, Trash2, Check, X, Calendar, Loader2 } from "lucide-react";
+import { Search, AlertTriangle, Plus, Trash2, Check, X, Calendar, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,6 +22,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ColHeader } from "@/components/table/ColHeader";
 
 const PODS = ["All", "Integrated", "India B2B", "US B2B", "FMCG", "BFSI", "Unassigned"] as const;
 type Pod = typeof PODS[number];
