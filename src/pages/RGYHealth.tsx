@@ -916,10 +916,11 @@ export default function RGYHealth() {
             Show closed/completed
           </label>
 
-          <Button variant="ghost" size="sm" onClick={() => expandedClients.size === groupedDeals.length ? collapseAll() : expandAll()} className="text-xs gap-1 text-muted-foreground">
-            <ChevronsUpDown className="h-3.5 w-3.5" />
-            {expandedClients.size === groupedDeals.length ? "Collapse All" : "Expand All"}
-          </Button>
+          {Object.keys(colFilters).length > 0 && (
+            <Button variant="ghost" size="sm" onClick={() => setColFilters({})} className="text-xs gap-1 text-muted-foreground">
+              <X className="h-3.5 w-3.5" /> Clear filters ({Object.keys(colFilters).length})
+            </Button>
+          )}
         </div>
 
         {/* Tab switcher */}
@@ -930,112 +931,58 @@ export default function RGYHealth() {
           </TabsList>
 
           <TabsContent value="health">
-            {/* Grouped Table */}
+            {/* Flat Table with column filters */}
             <TooltipProvider>
               <div className="bg-card border border-border rounded-xl overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-ui">
                     <thead>
                       <tr className="bg-secondary/40 border-b border-border">
-                        <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium w-8"></th>
-                        <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Deal Name</th>
-                        <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Deal ID</th>
-                        <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Status</th>
+                        <ColHeader label="Client" colKey="account" sortKey="account" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
+                        <ColHeader label="Deal Name" colKey="deal_name" sortKey="deal_name" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
+                        <ColHeader label="Deal ID" colKey="deal_id" sortKey="deal_id" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
+                        <ColHeader label="Status" colKey="deal_status" sortKey="deal_status" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={Object.keys(statusBadgeStyles)} />
                         {DIMENSIONS.map(d => (
-                          <th key={d.key} className="text-center py-2 px-2 text-[11px] uppercase tracking-wider text-muted-foreground font-medium whitespace-nowrap">{d.label}</th>
+                          <ColHeader key={d.key} label={d.label} colKey={d.key} align="center" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["G","Y","R","NA"]} />
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {groupedDeals.map(({ client, deals: clientDeals }) => {
-                        const isExpanded = expandedClients.has(client);
-                        const clientDims = clientDeals.flatMap(d =>
-                          DIMENSIONS.map(dim => (d[dim.key as keyof DealWithRGY] as string || "NA") as RGYStatus)
-                        );
-                        const clientRed = clientDims.filter(v => v === "R").length;
-                        const clientYellow = clientDims.filter(v => v === "Y").length;
-                        const hasAnyRGY = clientDims.some(v => v !== "NA");
-
+                      {tableRows.map(deal => {
+                        const worst = getWorstRGY(deal);
                         return (
-                          <React.Fragment key={client}>
-                            <tr
-                              className="border-b border-border bg-secondary/20 hover:bg-secondary/40 cursor-pointer transition-colors"
-                              onClick={() => toggleClient(client)}
-                            >
-                              <td className="py-2 px-3">
-                                {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-                              </td>
-                              <td className="py-2 px-3" colSpan={3}>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs font-semibold text-foreground">{client}</span>
-                                  <span className="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
-                                    {clientDeals.length} deal{clientDeals.length !== 1 ? "s" : ""}
-                                  </span>
-                                </div>
-                              </td>
-                              <td colSpan={DIMENSIONS.length} className="py-2 px-3">
-                                <div className="flex items-center gap-3 justify-end">
-                                  {clientRed > 0 && <span className="text-[10px] font-medium text-red-600 dark:text-red-400">{clientRed} Red</span>}
-                                  {clientYellow > 0 && <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">{clientYellow} Yellow</span>}
-                                  {hasAnyRGY && clientRed === 0 && clientYellow === 0 && (
-                                    <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">All Green</span>
-                                  )}
-                                  {!hasAnyRGY && <span className="text-[10px] text-muted-foreground">—</span>}
-                                </div>
-                              </td>
-                            </tr>
-
-                            {isExpanded && clientDeals.map(deal => {
-                              const worst = getWorstRGY(deal);
+                          <tr key={deal.id} className="border-b border-border/50 hover:bg-accent/10 transition-colors">
+                            <td className="py-2 px-3">
+                              <span className="text-xs font-medium text-foreground truncate max-w-[140px] block" title={deal.account}>{deal.account}</span>
+                            </td>
+                            <td className="py-2 px-3">
+                              <div className="flex items-center gap-2">
+                                {worst && <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", worstDotColor[worst])} />}
+                                <Link to={`/deals/${deal.id}`} className="text-primary hover:underline text-xs font-medium">{deal.deal_name}</Link>
+                              </div>
+                            </td>
+                            <td className="py-2 px-3 text-xs font-mono text-muted-foreground">{deal.deal_id || "—"}</td>
+                            <td className="py-2 px-3">
+                              <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 font-medium border", statusBadgeStyles[deal.deal_status] || "bg-muted text-muted-foreground border-border")}>
+                                {statusShortLabels[deal.deal_status] || deal.deal_status || "—"}
+                              </Badge>
+                            </td>
+                            {DIMENSIONS.map(dim => {
+                              const val = (deal[dim.key as keyof DealWithRGY] as string || "NA") as RGYStatus;
                               return (
-                                <tr key={deal.id} className="border-b border-border/50 hover:bg-accent/10 transition-colors">
-                                  <td className="py-2 px-3"></td>
-                                  <td className="py-2 px-3 pl-6">
-                                    <div className="flex items-center gap-2">
-                                      {/* Overall RGY dot */}
-                                      {worst && <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", worstDotColor[worst])} />}
-                                      <Link to={`/deals/${deal.id}`} className="text-primary hover:underline text-xs font-medium">
-                                        {deal.deal_name}
-                                      </Link>
-                                    </div>
-                                  </td>
-                                  <td className="py-2 px-3 text-xs font-mono text-muted-foreground">{deal.deal_id || "—"}</td>
-                                  <td className="py-2 px-3">
-                                    <Badge
-                                      variant="outline"
-                                      className={cn(
-                                        "text-[10px] px-1.5 py-0 font-medium border",
-                                        statusBadgeStyles[deal.deal_status] || "bg-muted text-muted-foreground border-border"
-                                      )}
-                                    >
-                                      {statusShortLabels[deal.deal_status] || deal.deal_status || "—"}
-                                    </Badge>
-                                  </td>
-                                  {DIMENSIONS.map(dim => {
-                                    const val = (deal[dim.key as keyof DealWithRGY] as string || "NA") as RGYStatus;
-                                    return (
-                                      <td key={dim.key} className="py-2 px-2 text-center">
-                                        <RGYCell
-                                          dealId={deal.id}
-                                          dimKey={dim.key}
-                                          value={val}
-                                          label={dim.label}
-                                          onUpdate={handleRGYUpdate}
-                                        />
-                                      </td>
-                                    );
-                                  })}
-                                </tr>
+                                <td key={dim.key} className="py-2 px-2 text-center">
+                                  <RGYCell dealId={deal.id} dimKey={dim.key} value={val} label={dim.label} onUpdate={handleRGYUpdate} />
+                                </td>
                               );
                             })}
-                          </React.Fragment>
+                          </tr>
                         );
                       })}
                     </tbody>
                   </table>
                 </div>
 
-                {groupedDeals.length === 0 && (
+                {tableRows.length === 0 && (
                   <div className="text-center py-12">
                     <p className="text-muted-foreground">No deals found matching your filters.</p>
                   </div>
