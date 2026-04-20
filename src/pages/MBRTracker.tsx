@@ -6,13 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-import { ChevronDown, ChevronRight, ChevronsUpDown, Search, Loader2, Eye, CalendarDays, List } from "lucide-react";
+import { Search, Loader2, Eye, CalendarDays, List, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import { useMBRData, type MBREntry, type MBRDeal, type VSDSummary } from "@/hooks/useMBRData";
 import { MBRDetailDialog } from "@/components/mbr/MBRDetailDialog";
 import { ScheduleOnlyDialog } from "@/components/mbr/ScheduleOnlyDialog";
 import { supabase } from "@/integrations/supabase/client";
+import { ColHeader } from "@/components/table/ColHeader";
 
 const PODS = ["All", "Integrated", "India B2B", "US B2B", "FMCG", "BFSI", "Unassigned"] as const;
 type Pod = typeof PODS[number];
@@ -77,11 +78,21 @@ export default function MBRTracker() {
   const [activePod, setActivePod] = useState<Pod>("All");
   const [search, setSearch] = useState("");
   const [showClosed, setShowClosed] = useState(false);
-  const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
   const [viewDeal, setViewDeal] = useState<{ deal: MBRDeal; entry: MBREntry | null } | null>(null);
   const [scheduleDeal, setScheduleDeal] = useState<{ deal: MBRDeal; entry: MBREntry | null } | null>(null);
   const [viewMode, setViewMode] = useState<"current" | "mom">("current");
   const [selectedMonth, setSelectedMonth] = useState<string>("");
+  // Column filter/sort state
+  const [colFilters, setColFilters] = useState<Record<string, string>>({});
+  const [openFilter, setOpenFilter] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const setFilter = (k: string, v: string) => setColFilters(p => ({ ...p, [k]: v }));
+  const clearFilter = (k: string) => setColFilters(p => { const n = { ...p }; delete n[k]; return n; });
+  const toggleSort = (k: string) => {
+    if (sortKey === k) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortKey(k); setSortDir("asc"); }
+  };
 
   // Set default selected month to the latest available
   useEffect(() => {
