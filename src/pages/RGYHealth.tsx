@@ -813,8 +813,13 @@ export default function RGYHealth() {
       for (const dim of DIMENSIONS) {
         const f = colFilters[dim.key];
         if (f) {
-          const v = ((d as any)[dim.key] || "NA");
-          if (v !== f) return false;
+          const raw = (d as any)[dim.key];
+          if (f === "Pending") {
+            if (raw) return false;
+          } else {
+            const v = raw || "NA";
+            if (v !== f) return false;
+          }
         }
       }
       return true;
