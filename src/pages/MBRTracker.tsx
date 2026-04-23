@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-import { Search, Loader2, Eye, CalendarDays, List, X } from "lucide-react";
+import { Search, Loader2, Eye, CalendarDays, List, X, Bell } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import { useMBRData, type MBREntry, type MBRDeal, type VSDSummary } from "@/hooks/useMBRData";
@@ -267,6 +268,27 @@ export default function MBRTracker() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                const t = toast.loading("Sending MBR reminders…");
+                const { data, error } = await supabase.functions.invoke("mbr-reminders", { body: {} });
+                toast.dismiss(t);
+                if (error) {
+                  toast.error(error.message || "Failed to run reminders");
+                  return;
+                }
+                const sent = data?.sent?.length || 0;
+                const skipped = data?.skipped?.length || 0;
+                const errs = data?.errors?.length || 0;
+                toast.success(`Reminders run: ${sent} sent, ${skipped} skipped, ${errs} errors`);
+              }}
+              className="h-8 gap-1.5"
+            >
+              <Bell className="h-3.5 w-3.5" />
+              Run reminders
+            </Button>
             <div className="flex gap-1 bg-secondary rounded-lg p-1">
               <button
                 onClick={() => setViewMode("current")}

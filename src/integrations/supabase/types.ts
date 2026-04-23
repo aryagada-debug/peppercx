@@ -683,6 +683,33 @@ export type Database = {
         }
         Relationships: []
       }
+      mbr_reminder_log: {
+        Row: {
+          channel_id: string
+          created_at: string
+          id: string
+          mbr_entry_id: string
+          reminder_type: string
+          sent_date: string
+        }
+        Insert: {
+          channel_id?: string
+          created_at?: string
+          id?: string
+          mbr_entry_id: string
+          reminder_type: string
+          sent_date: string
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          id?: string
+          mbr_entry_id?: string
+          reminder_type?: string
+          sent_date?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
