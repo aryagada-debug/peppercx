@@ -1,1 +1,4 @@
 project_id = "gdklfxqbocvoxcfthysy"
+
+[functions.slack-events]
+verify_jwt = false
