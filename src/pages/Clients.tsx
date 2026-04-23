@@ -1,7 +1,7 @@
 import React from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Link } from "react-router-dom";
-import { Search, Plus, Loader2, Trash2, Pencil, Check, X } from "lucide-react";
+import { Search, Plus, Loader2, Trash2, Pencil, Check, X, MessageSquare } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useStaffingData } from "@/hooks/useStaffingData";
 import { useClients } from "@/hooks/useClients";
@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ColHeader } from "@/components/table/ColHeader";
+import { SlackChatDrawer } from "@/components/deals/SlackChatDrawer";
 
 const PODS = ["All", "Integrated", "India B2B", "US B2B", "FMCG", "BFSI", "Unassigned"] as const;
 type Pod = typeof PODS[number];
@@ -94,6 +95,12 @@ export default function Clients() {
 
   const [deleteTarget, setDeleteTarget] = useState<{ type: "client" | "deal"; id: string; name: string } | null>(null);
   const [staffingDialog, setStaffingDialog] = useState<{ open: boolean; dealId: string; roleFilter?: "Operations"; preSelectedName?: string } | null>(null);
+  const [slackDrawer, setSlackDrawer] = useState<{ dealId: string; dealName: string; channelId: string } | null>(null);
+
+  const openSlackDrawer = async (dealId: string, dealName: string) => {
+    const { data } = await supabase.from("staffing_deals").select("slack_channel_id").eq("id", dealId).maybeSingle();
+    setSlackDrawer({ dealId, dealName, channelId: (data as any)?.slack_channel_id || "" });
+  };
 
   // Per-column filters (text values; numeric filters use min input)
   const [colFilters, setColFilters] = useState<Record<string, string>>({});
@@ -458,13 +465,22 @@ export default function Clients() {
                       </td>
                       <td className="py-2 px-3 text-center">{ragDot(deal.rag || "green")}</td>
                       <td className="py-2 px-1">
-                        <button
-                          onClick={() => setDeleteTarget({ type: "deal", id: deal.id, name: deal.dealName })}
-                          className="text-muted-foreground/40 hover:text-destructive opacity-0 group-hover/row:opacity-100 transition-opacity"
-                          title="Delete deal"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        <div className="flex items-center gap-1.5 justify-end">
+                          <button
+                            onClick={() => openSlackDrawer(deal.id, deal.dealName)}
+                            className="text-muted-foreground/60 hover:text-primary transition-colors"
+                            title="Open Slack chat"
+                          >
+                            <MessageSquare className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setDeleteTarget({ type: "deal", id: deal.id, name: deal.dealName })}
+                            className="text-muted-foreground/40 hover:text-destructive opacity-0 group-hover/row:opacity-100 transition-opacity"
+                            title="Delete deal"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -545,6 +561,17 @@ export default function Clients() {
             }
             setStaffingDialog(null);
           }}
+        />
+      )}
+
+      {slackDrawer && (
+        <SlackChatDrawer
+          open={!!slackDrawer}
+          onOpenChange={(v) => { if (!v) setSlackDrawer(null); }}
+          dealId={slackDrawer.dealId}
+          dealName={slackDrawer.dealName}
+          channelId={slackDrawer.channelId}
+          onChannelLinked={(channelId) => setSlackDrawer(prev => prev ? { ...prev, channelId } : prev)}
         />
       )}
     </AppLayout>
