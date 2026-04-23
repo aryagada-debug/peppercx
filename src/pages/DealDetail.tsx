@@ -17,6 +17,7 @@ import { MBRDetailDialog } from "@/components/mbr/MBRDetailDialog";
 import { AddStaffingMemberDialog } from "@/components/staffing/AddStaffingMemberDialog";
 import { WeeklyStaffingGrid } from "@/components/deals/WeeklyStaffingGrid";
 import { SoWImportDialog } from "@/components/deals/SoWImportDialog";
+import { SlackChatBot } from "@/components/deals/SlackChatBot";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -2080,6 +2081,7 @@ export default function DealDetail() {
           </div>
         )}
       </div>
+      {dealId && deal && <SlackChatBot dealId={dealId} dealName={deal.dealName} />}
     </AppLayout>
   );
 }
