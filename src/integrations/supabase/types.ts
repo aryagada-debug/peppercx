@@ -740,6 +740,54 @@ export type Database = {
         }
         Relationships: []
       }
+      slack_messages: {
+        Row: {
+          channel_id: string
+          created_at: string
+          deal_id: string
+          id: string
+          raw: Json
+          sent_by_app_user: string | null
+          sent_by_display_name: string
+          slack_ts: string
+          source: string
+          text: string
+          thread_ts: string | null
+          user_id: string
+          user_name: string
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          deal_id: string
+          id?: string
+          raw?: Json
+          sent_by_app_user?: string | null
+          sent_by_display_name?: string
+          slack_ts: string
+          source?: string
+          text?: string
+          thread_ts?: string | null
+          user_id?: string
+          user_name?: string
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          deal_id?: string
+          id?: string
+          raw?: Json
+          sent_by_app_user?: string | null
+          sent_by_display_name?: string
+          slack_ts?: string
+          source?: string
+          text?: string
+          thread_ts?: string | null
+          user_id?: string
+          user_name?: string
+        }
+        Relationships: []
+      }
       staffing_assignments: {
         Row: {
           allocation_pct: number
@@ -859,6 +907,7 @@ export type Database = {
           senior_bopm: string
           seo_staffing: boolean
           service_line_tagging: string
+          slack_channel_id: string
           staffing_status: string
           start_date: string | null
           success_metrics: Json | null
@@ -901,6 +950,7 @@ export type Database = {
           senior_bopm?: string
           seo_staffing?: boolean
           service_line_tagging?: string
+          slack_channel_id?: string
           staffing_status?: string
           start_date?: string | null
           success_metrics?: Json | null
@@ -943,6 +993,7 @@ export type Database = {
           senior_bopm?: string
           seo_staffing?: boolean
           service_line_tagging?: string
+          slack_channel_id?: string
           staffing_status?: string
           start_date?: string | null
           success_metrics?: Json | null
