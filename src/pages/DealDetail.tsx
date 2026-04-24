@@ -1420,7 +1420,27 @@ export default function DealDetail() {
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">Service Line</span>
-                    <EditableCell value={deal.serviceLineTagging || deal.capabilityLine || ""} onSave={v => handleDealFieldSave("serviceLineTagging", v)} placeholder="Not set" />
+                    {(() => {
+                      const current = deal.serviceLineTagging || deal.capabilityLine || "";
+                      const isLegacy = current && !(SERVICE_LINE_OPTIONS as readonly string[]).includes(current);
+                      return (
+                        <Select value={current || undefined} onValueChange={(v) => handleDealFieldSave("serviceLineTagging", v)}>
+                          <SelectTrigger className="h-7 text-xs w-[280px] max-w-[280px] truncate">
+                            <SelectValue placeholder="Not set">
+                              <span className="truncate inline-flex items-center gap-1">
+                                {current || "Not set"}
+                                {isLegacy && <span className="text-[9px] text-muted-foreground">(legacy)</span>}
+                              </span>
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent className="max-w-[360px]">
+                            {SERVICE_LINE_OPTIONS.map(opt => (
+                              <SelectItem key={opt} value={opt} className="text-xs">{opt}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      );
+                    })()}
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">Start Date</span>
