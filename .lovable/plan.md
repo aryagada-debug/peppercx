@@ -1,71 +1,67 @@
-## MBR Slack Reminder Triggers
 
-Add automated Slack reminders that post into each deal's linked Slack channel, driven by the `mbr_entries.scheduled_date` field.
 
-### Trigger rules
+## Connect Google Sheets to Power Deals Dashboard
 
-**Trigger A — "Fill MBR details" reminder (10 days before MBR)**
+Wire a live Google Sheet into the app so the Deals dashboard reads from the sheet instead of (or in addition to) static mock data and the `staffing_deals` table.
 
-- Condition: `scheduled_date = today - 10 days` AND status is `Pending` (details not yet filled)
-- Message: `📝 Reminder: MBR for *<Deal Name>* scheduled on <date>. Please fill in the MBR details: <app link to deal MBR tab>`
-- Sent once per MBR entry.
+### Approach
 
-**Trigger B — "MBR in 2 days" countdown (T-2 and T-1)**
+Use the **Google Sheets connector** (gateway-based, OAuth handled by Lovable) to read the sheet server-side from an edge function, then either:
+- **A) Sync into Supabase** (`staffing_deals`) on demand + on a schedule, so the dashboard stays fast and offline-tolerant, OR
+- **B) Read live** on every dashboard load (slower, always fresh, no DB writes).
 
-- Condition: `scheduled_date = today + 2 days` OR `scheduled_date = today + 1 day`
-- Message T-2: `⏰ Reminder: MBR for *<Deal Name>* in 2 days (<date>).`
-- Message T-1: `⏰ Reminder: MBR for *<Deal Name>* tomorrow (<date>).`
-- Sent on each of the two days.
+Recommended: **A — Sync to DB**. Dashboard stays snappy and existing pages keep working unchanged.
 
-Reminders only post to deals with a linked `slack_channel_id`. Identical reminders won't be re-sent on the same day (deduped by a log table).
+### Steps
 
-### Implementation
+1. **Connect Google Sheets**
+   - Use the connector tool to link a Google Sheets connection to this project. You'll be prompted to authorize Google.
+   - Note: connector authenticates *your* Google account. The sheet must be accessible to that account (or shared with it).
 
-**1. New table `mbr_reminder_log**`
-Tracks which reminders have been sent to prevent duplicates if the cron runs more than once per day.
-Columns: `id`, `mbr_entry_id`, `reminder_type` (`fill_details` | `t_minus_2` | `t_minus_1`), `sent_date`, `channel_id`, `created_at`. Unique constraint on `(mbr_entry_id, reminder_type, sent_date)`. RLS: authenticated read/insert.
+2. **Capture sheet config**
+   - You provide: the sheet URL (we extract `spreadsheetId`), tab name, and header row.
+   - Stored in a small `integration_config` table (key/value) so it can be changed from the UI later without redeploying.
 
-**2. New edge function `mbr-reminders**` (`verify_jwt = false`, called by cron)
-Logic:
+3. **Column mapping UI** (Settings → Integrations → Google Sheets)
+   - Auto-fetch the header row from the sheet.
+   - Let you map each sheet column to a `staffing_deals` field (deal_id, account, deal_name, mrr, total_deal_value, vsd, pod, deal_status, rag, start_date, end_date, slack_channel_id, etc.).
+   - Save mapping to `integration_config`.
 
-- Query `mbr_entries` joined with `staffing_deals` where `scheduled_date` in `{today+1, today+2, today+10}` and `staffing_deals.slack_channel_id` is non-empty.
-- For each match:
-  - Determine reminder type from date offset.
-  - Skip if already logged in `mbr_reminder_log` for today.
-  - For `fill_details`, also skip if `status != 'Pending'`.
-  - Post message to Slack via `chat.postMessage` using `SLACK_BOT_TOKEN`, with `username: "VSD-OS"` so it appears as the app.
-  - Insert into `slack_messages` (so it shows in the in-app chatbot too).
-  - Insert into `mbr_reminder_log`.
-- Returns summary `{ sent, skipped, errors }`.
+4. **Edge function `sheets-sync-deals`**
+   - Calls Google Sheets API via gateway: `GET /spreadsheets/{id}/values/{tab}`.
+   - Applies the saved column mapping, normalizes types (numbers, dates).
+   - Upserts into `staffing_deals` keyed by `deal_id`.
+   - Returns `{ inserted, updated, skipped, errors }`.
 
-App link format for fill-details message: `<preview-url>/deals/<deal_id>` (uses the deal detail route — MBR is a tab there).
+5. **Trigger options**
+   - **Manual**: "Sync from Google Sheet" button on the Deals page header.
+   - **Auto**: pg_cron job hits the function every 15 min (configurable).
 
-**3. Cron schedule (pg_cron + pg_net)**
-Enable `pg_cron` and `pg_net` extensions. Schedule daily at 09:00 IST (03:30 UTC):
+6. **Dashboard wiring**
+   - `Deals.tsx` already shows hardcoded mock deals — switch it to read from `staffing_deals` (same source of truth other pages use).
+   - `Index.tsx` KPIs/RGY remain on existing data; once sync runs, they reflect the sheet.
 
-```sql
-select cron.schedule('mbr-reminders-daily', '30 3 * * *',
-  $$ select net.http_post(
-       url:='https://gdklfxqbocvoxcfthysy.supabase.co/functions/v1/mbr-reminders',
-       headers:='{"Content-Type":"application/json"}'::jsonb,
-       body:='{}'::jsonb) $$);
-```
+7. **Status surface**
+   - Show last sync time + row count + any row-level errors on the Deals page header.
 
-Inserted via the supabase insert tool (not migration) since URL is project-specific.
+### What I'll need from you (after approval)
 
-**4. Manual "Run now" trigger (optional, recommended)**
-Add a small **"Send test reminders now"** button on the MBR Tracker header (admin-only) that calls the edge function on demand for verification.
+- The Google Sheet URL.
+- Confirmation that the Google account you'll authorize has access to it.
+- Tab name (e.g. `Deals`) and header row number (usually 1).
 
 ### Files
 
-- New: `supabase/functions/mbr-reminders/index.ts`
-- New migration: create `mbr_reminder_log` table + RLS, enable `pg_cron`, `pg_net`
-- SQL insert (via insert tool): cron schedule
-- Edit: `supabase/config.toml` — add `[functions.mbr-reminders] verify_jwt = false`
-- Edit: `src/pages/MBRTracker.tsx` — add "Run reminders now" button
+- New: `supabase/functions/sheets-sync-deals/index.ts`
+- New migration: `integration_config` table (key text PK, value jsonb), `sheet_sync_log` table (run_at, summary jsonb)
+- New: `src/pages/admin/GoogleSheetsTab.tsx` — connect URL, map columns, run sync
+- Edit: `src/pages/Settings.tsx` — add tab
+- Edit: `src/pages/Deals.tsx` — read from `staffing_deals` + add "Sync now" button + last-sync indicator
+- Edit: `supabase/config.toml` — add `[functions.sheets-sync-deals] verify_jwt = false` (called by cron)
 
-### Verification steps after deploy
+### Open questions
 
-1. Manually invoke the function once and check `mbr_reminder_log` + the Slack channel of a test deal.
-2. Inspect edge function logs for any Slack errors (channel not found, bot not invited, etc.).
-3. Cron will then run automatically each morning.
+1. **Sync direction** — read-only from sheet → app (recommended), or two-way? Two-way is significantly more complex (conflict handling).
+2. **Which dashboard surfaces should switch to sheet data?** Just the Deals table, or also KPIs / RGY heatmap on the home page?
+3. **Auto-sync cadence** — every 15 min, hourly, or manual only?
+
