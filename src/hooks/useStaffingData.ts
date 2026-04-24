@@ -53,6 +53,20 @@ function dbToDeal(row: any): Deal {
     successMetrics: row.success_metrics || [],
     baselineMetrics: row.baseline_metrics || '',
     clientId: row.client_id || undefined,
+    newDealIdFormulated: row.new_deal_id_formulated || '',
+    newDealIdTemp: row.new_deal_id_temp || '',
+    validationCentralCx: row.validation_central_cx || '',
+    monthClosedWon: row.month_closed_won || '',
+    dealTargetStatus: row.deal_target_status || '',
+    totalMisRecognition: row.total_mis_recognition ? Number(row.total_mis_recognition) : 0,
+    totalPendingRecognition: row.total_pending_recognition ? Number(row.total_pending_recognition) : 0,
+    consumptionValue: row.consumption_value ? Number(row.consumption_value) : 0,
+    misVsConsumption: row.mis_vs_consumption ? Number(row.mis_vs_consumption) : 0,
+    invoicedDealValue: row.invoiced_deal_value ? Number(row.invoiced_deal_value) : 0,
+    undeliveredFunnel: row.undelivered_funnel ? Number(row.undelivered_funnel) : 0,
+    tcvUsd: row.tcv_usd ? Number(row.tcv_usd) : 0,
+    strategyBandwidthRequired: row.strategy_bandwidth_required || '',
+    pepperBuL2: row.pepper_bu_l2 || '',
   };
 }
 
