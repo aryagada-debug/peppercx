@@ -431,23 +431,10 @@ export default function Clients() {
   return (
     <AppLayout>
       <div className="p-5">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h1 className="text-subhead font-bold tracking-tight text-foreground">Clients & Deals</h1>
-            <p className="text-ui text-muted-foreground mt-0.5">{kpis.clients} clients • {kpis.deals} deals</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setClientDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" /> Add Client
-            </Button>
-            <Button size="sm" onClick={() => { setDealWizardClientId(undefined); setDealWizardOpen(true); }}>
-              <Plus className="h-4 w-4 mr-1" /> Add Deal
-            </Button>
-          </div>
-        </div>
-
-        {/* KPI Strip — compact modern cards */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3">
+        {/* Row 1: Title + KPIs + Actions */}
+        <div className="flex items-center gap-3 mb-2 flex-wrap">
+          <h1 className="text-subhead font-bold tracking-tight text-foreground whitespace-nowrap">Clients & Deals</h1>
+          <div className="flex flex-1 min-w-0 gap-1.5 flex-wrap">
           {[
             { label: "Clients", value: String(kpis.clients), Icon: Building2, tint: "sky" },
             { label: "Total Deals", value: String(kpis.deals), Icon: Briefcase, tint: "violet" },
@@ -467,53 +454,62 @@ export default function Clients() {
               <div
                 key={label}
                 className={cn(
-                  "flex items-center gap-2.5 px-3 py-2 rounded-xl border bg-gradient-to-br to-transparent backdrop-blur-sm transition-all hover:shadow-sm hover:-translate-y-0.5",
+                  "flex flex-1 min-w-[120px] items-center gap-2 px-2 py-1 rounded-lg border bg-gradient-to-br to-transparent backdrop-blur-sm transition-all hover:shadow-sm",
                   t.bg, t.ring,
                 )}
               >
-                <div className={cn("rounded-lg p-1.5", t.chip)}>
-                  <Icon className={cn("h-4 w-4", t.icon)} />
+                <div className={cn("rounded-md p-1", t.chip)}>
+                  <Icon className={cn("h-3.5 w-3.5", t.icon)} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground leading-tight">{label}</p>
-                  <p className="text-base font-semibold tracking-tight text-foreground font-mono leading-tight truncate">{value}</p>
+                  <p className="text-[9px] uppercase tracking-wide text-muted-foreground leading-tight">{label}</p>
+                  <p className="text-sm font-semibold tracking-tight text-foreground font-mono leading-tight truncate">{value}</p>
                 </div>
               </div>
             );
           })}
+          </div>
+          <div className="flex items-center gap-2 ml-auto">
+            <Button variant="outline" size="sm" onClick={() => setClientDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" /> Add Client
+            </Button>
+            <Button size="sm" onClick={() => { setDealWizardClientId(undefined); setDealWizardOpen(true); }}>
+              <Plus className="h-4 w-4 mr-1" /> Add Deal
+            </Button>
+          </div>
         </div>
 
-        {/* Filters */}
-        <div className="flex items-center gap-4 mb-3 flex-wrap">
-          <div className="flex gap-1 bg-secondary rounded-lg p-1">
+        {/* Row 2: Filters + Search + Closed + Columns */}
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
             {VSD_FILTERS.map(v => (
               <button key={v.key} onClick={() => setActiveVsd(v.key)} className={cn(
-                "px-3 py-1.5 rounded-md text-caption font-medium whitespace-nowrap transition-colors",
+                "px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
                 activeVsd === v.key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
               )}>{v.label}</button>
             ))}
           </div>
 
-          <div className="relative flex-1 max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <div className="relative max-w-[220px] flex-1">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <input type="text" placeholder="Search clients or deals..." value={search} onChange={e => setSearch(e.target.value)}
-              className="w-full h-9 pl-9 pr-3 rounded-lg bg-card border border-border text-ui text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all" />
+              className="w-full h-8 pl-8 pr-2 rounded-lg bg-card border border-border text-[12px] text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all" />
           </div>
 
-          <label className="flex items-center gap-2 text-ui text-muted-foreground cursor-pointer">
+          <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer whitespace-nowrap" title="Show closed / completed deals">
             <input type="checkbox" checked={showClosed} onChange={e => setShowClosed(e.target.checked)} className="rounded border-border" />
-            Show closed/completed
+            Closed
           </label>
 
           {Object.keys(colFilters).length > 0 && (
-            <Button variant="ghost" size="sm" onClick={() => setColFilters({})} className="text-xs gap-1 text-muted-foreground">
+            <Button variant="ghost" size="sm" onClick={() => setColFilters({})} className="h-8 text-xs gap-1 text-muted-foreground">
               <X className="h-3.5 w-3.5" /> Clear filters ({Object.keys(colFilters).length})
             </Button>
           )}
 
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="text-xs gap-1.5 ml-auto">
+              <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 ml-auto">
                 <Settings2 className="h-3.5 w-3.5" /> Columns
               </Button>
             </PopoverTrigger>
