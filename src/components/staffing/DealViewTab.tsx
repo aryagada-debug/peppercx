@@ -1,11 +1,52 @@
 import React, { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, Search, Users } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import type { Deal, StaffingAssignment, Person } from "@/data/staffingData";
 
 const STAFFING_BUCKETS = ["Already Staffed", "No Staffing Needed", "Staffing Needed"] as const;
 type StaffingBucket = typeof STAFFING_BUCKETS[number];
+
+// Human-readable role labels for the staffing drill-down (mirrors MatrixTab ROLE_COLS)
+const ROLE_LABELS: Record<string, string> = {
+  vsd: "VSD",
+  principal_bopm: "Principal BOPM",
+  senior_bopm: "Senior BOPM",
+  bopm: "BOPM",
+  content_lead_2026: "Content Lead (2026)",
+  senior_editor: "Senior Editor",
+  managing_editor: "Managing Editor",
+  content_lead: "Content Lead",
+  seo_leader: "SEO Leader",
+  seo_group_head: "Group Head",
+  sr_seo_manager: "Sr SEO Manager",
+  seo_manager: "SEO Manager",
+  sr_seo_analyst: "Sr SEO Analyst",
+  seo_analyst: "SEO Analyst",
+  strategy_cd: "Strategy CD",
+  strategy_acd: "Strategy ACD",
+  strategy_sr: "Sr Strategist",
+  cd_copy: "CD - Copy",
+  acd_copy: "ACD - Copy",
+  sr_copywriter: "Sr Copywriter",
+  jr_copywriter: "Jr Copywriter",
+  sr_cd_art: "Sr CD - Art",
+  acd_art: "ACD - Art",
+  art_director: "Art Director",
+  sr_designer: "Sr Designer",
+  jr_designer: "Jr Designer",
+  production_head: "Production Head",
+  ad_video_pm: "AD - Video PM",
+  video_pm: "Video PM/ACPPM",
+  video_editor_1: "Video Editor 1",
+  video_editor_2: "Video Editor 2",
+  video_editor_3: "Video Editor 3",
+  video_editor_4: "Video Editor 4",
+  video_editor_5: "Video Editor 5",
+  influencer: "Influencer Team",
+  perf_growth: "Performance & Growth",
+};
+const roleLabel = (key: string) => ROLE_LABELS[key] || key.replace(/_/g, " ");
 
 const fmtCurrency = (n: number | undefined) => {
   if (!n) return "—";
@@ -28,16 +69,21 @@ interface Props {
   deals: Deal[];
   people: Person[];
   assignments: StaffingAssignment[];
+  onUpdateDeal?: (dealId: string, updates: Partial<Deal>) => void;
 }
 
 const ALL = "All";
 const DEAL_TYPE_OPTIONS = [ALL, "Retainer", "Non-Retainer", "Pilot"] as const;
 const DEAL_STATUS_OPTIONS = [ALL, "Active Deal", "New Deal in SLA/PO", "Deal Disputed", "Deal Completed Successfully", "Deal Churned / Lost"] as const;
+const TYPE_EDIT_OPTIONS = ["Retainer", "Non-Retainer", "Pilot"] as const;
+const STATUS_EDIT_OPTIONS = ["Active Deal", "New Deal in SLA/PO", "Deal Disputed", "Deal Completed Successfully", "Deal Churned / Lost"] as const;
+const STAFFING_EDIT_OPTIONS: StaffingBucket[] = ["Already Staffed", "Staffing Needed", "No Staffing Needed"];
 
-export function DealViewTab({ deals, people, assignments }: Props) {
+export function DealViewTab({ deals, people, assignments, onUpdateDeal }: Props) {
   const [dealType, setDealType] = useState<typeof DEAL_TYPE_OPTIONS[number]>(ALL);
   const [dealStatus, setDealStatus] = useState<typeof DEAL_STATUS_OPTIONS[number]>("Active Deal");
   const [expandedVsd, setExpandedVsd] = useState<Set<string>>(new Set());
+  const [expandedDeal, setExpandedDeal] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
 
   const personMap = useMemo(() => {
