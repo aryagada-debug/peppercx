@@ -2169,14 +2169,7 @@ export default function DealDetail() {
 
             {/* Historic Timeline — Grouped by Week */}
             <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">RGY History</p>
-              {rgyWeekly.length > 0 ? (
-                <GroupedRGYHistory rgyWeekly={rgyWeekly} />
-              ) : (
-                <div className="bg-card border border-border rounded-xl text-center py-8 px-5">
-                  <p className="text-muted-foreground">No weekly RGY data recorded yet. Use the editor above to set health status.</p>
-                </div>
-              )}
+              <RGYHistorySection rgyWeekly={rgyWeekly} />
             </div>
           </div>
         )}
