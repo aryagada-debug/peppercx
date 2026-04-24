@@ -294,6 +294,35 @@ export function useStaffingData() {
     await supabase.from("staffing_assignments").delete().eq("id", id);
   }, []);
 
+  // Upsert by (dealId, roleKey) — used by Matrix view.
+  // If personId is empty, removes any existing assignment for that role on the deal.
+  const upsertAssignmentByRole = useCallback(async (
+    dealId: string,
+    roleKey: string,
+    personId: string,
+    allocationPct: number,
+  ) => {
+    const existing = assignments.find(a => a.dealId === dealId && a.roleKey === roleKey);
+    if (!personId) {
+      if (existing) {
+        setAssignments(prev => prev.filter(a => a.id !== existing.id));
+        await supabase.from("staffing_assignments").delete().eq("id", existing.id);
+      }
+      return;
+    }
+    if (existing) {
+      setAssignments(prev => prev.map(a => a.id === existing.id ? { ...a, personId, allocationPct } : a));
+      await supabase.from("staffing_assignments").update({
+        person_id: personId, allocation_pct: allocationPct,
+      }).eq("id", existing.id);
+    } else {
+      const id = uid();
+      const newAssignment: StaffingAssignment = { id, dealId, roleKey, personId, allocationPct };
+      setAssignments(prev => [...prev, newAssignment]);
+      await supabase.from("staffing_assignments").insert(assignmentToDb(newAssignment));
+    }
+  }, [assignments]);
+
   // ── CRUD: Deals ──
   const updateDeal = useCallback(async (dealId: string, updates: Partial<Deal>) => {
     setDeals(prev => prev.map(d => d.id === dealId ? { ...d, ...updates } : d));
@@ -353,6 +382,7 @@ export function useStaffingData() {
     addPerson, updatePerson, deletePerson, bulkUpdatePeople, setPeople,
     addAssignment, updateAssignment, deleteAssignment, setAssignments,
     updateDeal, setDeals,
+    upsertAssignmentByRole,
     setHiringNeeds: setHiringNeedsAndSync, setRevenueTargets: setRevenueTargetsAndSync,
     updateBWRule, addBWRule, deleteBWRule, setBwRules,
     refresh: loadAll,
