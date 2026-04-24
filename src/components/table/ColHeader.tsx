@@ -21,12 +21,14 @@ export interface ColHeaderProps {
   numeric?: boolean;
   placeholder?: string;
   className?: string;
+  width?: number;
+  onResizeStart?: (e: React.MouseEvent) => void;
 }
 
 export function ColHeader({
   label, colKey, sortKey, align = "left", sortState, onSort,
   colFilters, openFilter, setOpenFilter, setFilter, clearFilter,
-  options, numeric, placeholder, className,
+  options, numeric, placeholder, className, width, onResizeStart,
 }: ColHeaderProps) {
   const active = !!colFilters[colKey];
   const isSorted = sortKey && sortState.sortKey === sortKey;
@@ -34,10 +36,10 @@ export function ColHeader({
   const alignCls = align === "right" ? "justify-end" : align === "center" ? "justify-center" : "justify-start";
   return (
     <th className={cn(
-      "py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium",
+      "relative py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium",
       align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left",
       className,
-    )}>
+    )} style={width ? { width, minWidth: width, maxWidth: width } : undefined}>
       <div className={cn("flex items-center gap-1", alignCls)}>
         {sortKey ? (
           <button onClick={() => onSort(sortKey)} className="flex items-center gap-1 hover:text-foreground transition-colors">
@@ -85,6 +87,13 @@ export function ColHeader({
           </PopoverContent>
         </Popover>
       </div>
+      {onResizeStart && (
+        <div
+          onMouseDown={onResizeStart}
+          className="absolute top-0 right-0 h-full w-1 cursor-col-resize select-none hover:bg-primary/40 active:bg-primary"
+          title="Drag to resize"
+        />
+      )}
     </th>
   );
 }
