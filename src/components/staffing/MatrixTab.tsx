@@ -58,6 +58,70 @@ const ROLE_BY_KEY: Record<string, { label: string; group: string }> = Object.fro
 
 const GROUP_ORDER = Array.from(new Set(ROLE_COLS.map(r => r.group)));
 
+// Map role-key → which role_category(ies) and designation keywords are eligible.
+// `categories` filters by staffing_people.role_category; `match` further refines by designation keyword.
+const ROLE_FILTER: Record<string, { categories?: string[]; match?: RegExp }> = {
+  vsd: { categories: ["Operations"], match: /vertical service delivery|vsd|avp|vp -|director - vertical/i },
+  principal_bopm: { categories: ["Operations"], match: /principal|principle/i },
+  senior_bopm: { categories: ["Operations"], match: /senior|sr\.?|group|director|avp|vp /i },
+  bopm: { categories: ["Operations"], match: /bopm|business operations|account|project manager/i },
+
+  content_lead_2026: { categories: ["Content"] },
+  senior_editor: { categories: ["Content"], match: /senior editor|senior director|senior content/i },
+  managing_editor: { categories: ["Content"], match: /editor|content lead|associate director/i },
+  content_lead: { categories: ["Content"], match: /lead|manager|director/i },
+
+  seo_leader: { categories: ["SEO"], match: /lead|director|head|vp|principal/i },
+  seo_group_head: { categories: ["SEO"], match: /group head|head|principal/i },
+  sr_seo_manager: { categories: ["SEO"], match: /senior|sr\.?|lead/i },
+  seo_manager: { categories: ["SEO"], match: /manager/i },
+  sr_seo_analyst: { categories: ["SEO"], match: /senior|sr\.?/i },
+  seo_analyst: { categories: ["SEO"], match: /analyst|associate|executive/i },
+
+  strategy_cd: { categories: ["Content Strategy", "Creative Art"], match: /director|cd|head/i },
+  strategy_acd: { categories: ["Content Strategy", "Creative Art"], match: /associate|acd|manager/i },
+  strategy_sr: { categories: ["Content Strategy"], match: /senior|sr\.?/i },
+
+  cd_copy: { categories: ["Creative Copy"], match: /creative director|cd|director|head/i },
+  acd_copy: { categories: ["Creative Copy"], match: /acd|associate|group head/i },
+  sr_copywriter: { categories: ["Creative Copy"], match: /senior|sr\.?/i },
+  jr_copywriter: { categories: ["Creative Copy"], match: /junior|jr\.?|copywriter/i },
+
+  sr_cd_art: { categories: ["Creative Art"], match: /senior creative director|senior cd|senior director/i },
+  acd_art: { categories: ["Creative Art"], match: /acd|associate creative/i },
+  art_director: { categories: ["Creative Art"], match: /art director|creative director/i },
+  sr_designer: { categories: ["Creative Art"], match: /senior designer|sr\.? designer/i },
+  jr_designer: { categories: ["Creative Art"], match: /junior|jr\.?|graphic designer|designer/i },
+
+  production_head: { categories: ["Video"], match: /head|director|lead/i },
+  ad_video_pm: { categories: ["Video"], match: /associate director|ad |associate/i },
+  video_pm: { categories: ["Video"], match: /pm|project manager|acppm|manager/i },
+  video_editor_1: { categories: ["Video"], match: /editor/i },
+  video_editor_2: { categories: ["Video"], match: /editor/i },
+  video_editor_3: { categories: ["Video"], match: /editor/i },
+  video_editor_4: { categories: ["Video"], match: /editor/i },
+  video_editor_5: { categories: ["Video"], match: /editor/i },
+
+  influencer: { match: /influencer/i },
+  perf_growth: { match: /performance|growth|revenue|gtm|sales/i },
+};
+
+/** Filter eligible people for a given role key. Falls back to all people if no filter is defined. */
+export function filterPeopleByRole(people: Person[], roleKey: string): Person[] {
+  const f = ROLE_FILTER[roleKey];
+  if (!f) return people;
+  return people.filter(p => {
+    if (f.categories && f.categories.length) {
+      if (!p.roleCategory || !f.categories.includes(p.roleCategory)) return false;
+    }
+    if (f.match) {
+      const hay = `${p.designation || ""} ${p.roleTitle || ""}`;
+      if (!f.match.test(hay)) return false;
+    }
+    return true;
+  });
+}
+
 // ── Helpers ─────────────────────────────────────────────────────────────────
 const fmtCurrency = (n?: number) => {
   if (!n) return "—";
@@ -419,6 +483,7 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
                                 occupancy={occupancyByPerson}
                                 vsdOptions={vsdOptions}
                                 peopleByVsd={peopleByVsd}
+                                roleKey={a.roleKey}
                               />
                               <div className="flex items-center gap-1 ml-auto shrink-0">
                                 <input
@@ -520,7 +585,7 @@ function SelectChip({
 }
 
 function PersonPicker({
-  people, selectedPersonId, onSelect, occupancy = {}, vsdOptions = ["All"], peopleByVsd = {},
+  people, selectedPersonId, onSelect, occupancy = {}, vsdOptions = ["All"], peopleByVsd = {}, roleKey,
 }: {
   people: Person[];
   selectedPersonId: string;
@@ -528,10 +593,12 @@ function PersonPicker({
   occupancy?: Record<string, number>;
   vsdOptions?: string[];
   peopleByVsd?: Record<string, Set<string>>;
+  roleKey?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [vsd, setVsd] = useState<string>("All");
+  const [showAllRoles, setShowAllRoles] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const selected = people.find(p => p.id === selectedPersonId);
@@ -554,10 +621,16 @@ function PersonPicker({
   const filtered = useMemo(() => {
     const lq = q.toLowerCase().trim();
     let base = people;
+    // Role-based filter (e.g. only show designers when role = Sr Designer)
+    if (roleKey && !showAllRoles) {
+      const narrowed = filterPeopleByRole(people, roleKey);
+      // Safety net: if filter yields nothing, fall back to all so picker isn't empty
+      if (narrowed.length > 0) base = narrowed;
+    }
     if (vsd !== "All") {
       const allowed = peopleByVsd[vsd];
       if (allowed && allowed.size > 0) {
-        base = people.filter(p => allowed.has(p.id));
+        base = base.filter(p => allowed.has(p.id));
       } else {
         base = [];
       }
@@ -568,7 +641,7 @@ function PersonPicker({
       (p.designation || "").toLowerCase().includes(lq) ||
       (p.department || "").toLowerCase().includes(lq)
     ).slice(0, 80);
-  }, [people, q, vsd, peopleByVsd]);
+  }, [people, q, vsd, peopleByVsd, roleKey, showAllRoles]);
 
   return (
     <div className="relative flex-1 min-w-0">
@@ -622,6 +695,22 @@ function PersonPicker({
                     <option key={v} value={v}>{v === "All" ? "All VSDs" : `VSD: ${v}`}</option>
                   ))}
                 </select>
+              )}
+              {roleKey && ROLE_FILTER[roleKey] && (
+                <label className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground px-0.5">
+                  <span className="truncate">
+                    {showAllRoles
+                      ? "Showing all people"
+                      : `Filtered to ${ROLE_BY_KEY[roleKey]?.label || roleKey}`}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowAllRoles(s => !s)}
+                    className="shrink-0 h-5 px-1.5 rounded border border-border text-[10px] hover:border-primary/40 hover:text-foreground transition-colors"
+                  >
+                    {showAllRoles ? "Filter by role" : "Show all"}
+                  </button>
+                </label>
               )}
             </div>
             <div className="overflow-y-auto">
@@ -703,6 +792,7 @@ function AddRoleRow({
           occupancy={occupancy}
           vsdOptions={vsdOptions}
           peopleByVsd={peopleByVsd}
+          roleKey={roleKey}
         />
         <button
           type="button"
