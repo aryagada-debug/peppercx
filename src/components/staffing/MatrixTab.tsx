@@ -235,6 +235,13 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
               >{t.label}</button>
             ))}
           </div>
+          <select
+            value={vsdFilter}
+            onChange={e => setVsdFilter(e.target.value)}
+            className="w-full h-8 px-2 rounded-md bg-background border border-border text-[11px] text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none"
+          >
+            {vsdOptions.map(o => <option key={o} value={o}>{o === "All" ? "All VSDs" : `VSD: ${o}`}</option>)}
+          </select>
           <div className="text-[10px] text-muted-foreground uppercase tracking-wider px-1">
             {filteredDeals.length} deals
           </div>
