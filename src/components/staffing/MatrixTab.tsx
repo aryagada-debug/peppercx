@@ -396,6 +396,7 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
                                 people={personOptions}
                                 selectedPersonId={a.personId}
                                 onSelect={pid => handleChangePerson(a.roleKey, pid, a.allocationPct)}
+                                occupancy={occupancyByPerson}
                               />
                               <div className="flex items-center gap-1 ml-auto shrink-0">
                                 <input
@@ -430,6 +431,7 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
                             people={personOptions}
                             onCancel={() => { setAdding(null); }}
                             onConfirm={(roleKey, personId) => handlePickPerson(roleKey, personId)}
+                            occupancy={occupancyByPerson}
                           />
                         ) : (
                           <button
