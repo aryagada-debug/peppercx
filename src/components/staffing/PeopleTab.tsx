@@ -30,6 +30,7 @@ export function PeopleTab({ people, allPeople, assignments, deals, editMode, onA
   const [newPerson, setNewPerson] = useState<Omit<Person, "id" | "leaving" | "tbh">>({
     name: "", roleCategory: "Content", roleTitle: "", pod: "", region: "India",
     department: "", designation: "", reportingManager: "", band: "",
+    email: "", slackUserId: "",
   });
 
   const allDesignations = useMemo(() => [...new Set(allPeople.map(p => p.designation).filter(Boolean))].sort(), [allPeople]);
@@ -75,7 +76,7 @@ export function PeopleTab({ people, allPeople, assignments, deals, editMode, onA
   const addNewPerson = () => {
     const id = `p_new_${uid()}`;
     onAddPerson({ id, ...newPerson, leaving: false, tbh: false });
-    setNewPerson({ name: "", roleCategory: categoryTab, roleTitle: "", pod: "", region: "India", department: "", designation: "", reportingManager: "", band: "" });
+    setNewPerson({ name: "", roleCategory: categoryTab, roleTitle: "", pod: "", region: "India", department: "", designation: "", reportingManager: "", band: "", email: "", slackUserId: "" });
     setAddModal(false);
   };
 
@@ -91,6 +92,7 @@ export function PeopleTab({ people, allPeople, assignments, deals, editMode, onA
     setNewPerson({
       name: p.name, roleCategory: p.roleCategory, roleTitle: p.roleTitle, pod: p.pod, region: p.region,
       department: p.department || "", designation: p.designation || "", reportingManager: p.reportingManager || "", band: p.band || "",
+      email: p.email || "", slackUserId: p.slackUserId || "",
     });
     setAddModal(true);
   };
@@ -230,7 +232,7 @@ export function PeopleTab({ people, allPeople, assignments, deals, editMode, onA
                 </button>
               </div>
             )}
-            <button onClick={() => { setEditPersonId(null); setNewPerson({ name: "", roleCategory: categoryTab, roleTitle: "", pod: "", region: "India", department: "", designation: "", reportingManager: "", band: "" }); setAddModal(true); }}
+            <button onClick={() => { setEditPersonId(null); setNewPerson({ name: "", roleCategory: categoryTab, roleTitle: "", pod: "", region: "India", department: "", designation: "", reportingManager: "", band: "", email: "", slackUserId: "" }); setAddModal(true); }}
               className="h-8 px-3 rounded-md bg-foreground text-primary-foreground text-caption font-medium hover:opacity-90 flex items-center gap-1.5">
               <Plus className="h-3.5 w-3.5" /> Add
             </button>
@@ -336,6 +338,18 @@ export function PeopleTab({ people, allPeople, assignments, deals, editMode, onA
                   <label className="text-caption text-muted-foreground font-medium">Role Title</label>
                   <input type="text" value={newPerson.roleTitle} onChange={e => setNewPerson(p => ({ ...p, roleTitle: e.target.value }))}
                     className="w-full h-9 px-3 rounded-md bg-muted/50 border-0 text-ui text-foreground mt-1 focus:bg-card focus:ring-1 focus:ring-accent focus:outline-none" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-caption text-muted-foreground font-medium">Work Email <span className="text-muted-foreground/70">(for Slack DMs)</span></label>
+                  <input type="email" placeholder="name@company.com" value={newPerson.email || ""} onChange={e => setNewPerson(p => ({ ...p, email: e.target.value }))}
+                    className="w-full h-9 px-3 rounded-md bg-muted/50 border-0 text-ui text-foreground mt-1 focus:bg-card focus:ring-1 focus:ring-accent focus:outline-none" />
+                </div>
+                <div>
+                  <label className="text-caption text-muted-foreground font-medium">Slack ID <span className="text-muted-foreground/70">(optional override)</span></label>
+                  <input type="text" placeholder="U01234ABCDE" value={newPerson.slackUserId || ""} onChange={e => setNewPerson(p => ({ ...p, slackUserId: e.target.value }))}
+                    className="w-full h-9 px-3 rounded-md bg-muted/50 border-0 text-ui text-foreground mt-1 focus:bg-card focus:ring-1 focus:ring-accent focus:outline-none font-mono" />
                 </div>
               </div>
               <button onClick={editPersonId ? saveEditPerson : addNewPerson} disabled={!newPerson.name}

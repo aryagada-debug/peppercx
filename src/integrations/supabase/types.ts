@@ -1126,6 +1126,7 @@ export type Database = {
           created_at: string
           department: string | null
           designation: string | null
+          email: string
           hourly_rate: number
           id: string
           leaving: boolean
@@ -1135,6 +1136,7 @@ export type Database = {
           reporting_manager: string | null
           role_category: string
           role_title: string
+          slack_user_id: string
           tbh: boolean
           updated_at: string
         }
@@ -1143,6 +1145,7 @@ export type Database = {
           created_at?: string
           department?: string | null
           designation?: string | null
+          email?: string
           hourly_rate?: number
           id: string
           leaving?: boolean
@@ -1152,6 +1155,7 @@ export type Database = {
           reporting_manager?: string | null
           role_category: string
           role_title?: string
+          slack_user_id?: string
           tbh?: boolean
           updated_at?: string
         }
@@ -1160,6 +1164,7 @@ export type Database = {
           created_at?: string
           department?: string | null
           designation?: string | null
+          email?: string
           hourly_rate?: number
           id?: string
           leaving?: boolean
@@ -1169,6 +1174,7 @@ export type Database = {
           reporting_manager?: string | null
           role_category?: string
           role_title?: string
+          slack_user_id?: string
           tbh?: boolean
           updated_at?: string
         }

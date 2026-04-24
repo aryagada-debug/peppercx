@@ -14,6 +14,8 @@ function dbToPerson(row: any): Person {
     department: row.department || "", designation: row.designation || "",
     reportingManager: row.reporting_manager || "", band: row.band || "",
     hourlyRate: row.hourly_rate ? Number(row.hourly_rate) : 0,
+    email: row.email || "",
+    slackUserId: row.slack_user_id || "",
   };
 }
 
@@ -24,6 +26,8 @@ function personToDb(p: Person): TablesInsert<"staffing_people"> {
     department: p.department || "", designation: p.designation || "",
     reporting_manager: p.reportingManager || "", band: p.band || "",
     hourly_rate: p.hourlyRate || 0,
+    email: p.email || "",
+    slack_user_id: p.slackUserId || "",
   };
 }
 
@@ -256,6 +260,8 @@ export function useStaffingData() {
     if (updates.reportingManager !== undefined) dbUpdates.reporting_manager = updates.reportingManager;
     if (updates.band !== undefined) dbUpdates.band = updates.band;
     if (updates.hourlyRate !== undefined) dbUpdates.hourly_rate = updates.hourlyRate;
+    if (updates.email !== undefined) dbUpdates.email = updates.email;
+    if (updates.slackUserId !== undefined) dbUpdates.slack_user_id = updates.slackUserId;
     await supabase.from("staffing_people").update(dbUpdates).eq("id", personId);
   }, []);
 
@@ -274,20 +280,38 @@ export function useStaffingData() {
   }, []);
 
   // ── CRUD: Assignments ──
+  // Fire a Slack DM to the assignee (best-effort, non-blocking).
+  const notifyStaffing = useCallback((personId: string, dealId: string, roleKey: string, allocationPct: number) => {
+    if (!personId || !dealId) return;
+    void supabase.functions.invoke("notify-assignment", {
+      body: { kind: "staffing", personId, dealId, roleKey, allocationPct },
+    }).catch(err => console.warn("[notify-assignment] staffing failed", err));
+  }, []);
+
   const addAssignment = useCallback(async (assignment: StaffingAssignment) => {
     setAssignments(prev => [...prev, assignment]);
     await supabase.from("staffing_assignments").insert(assignmentToDb(assignment));
-  }, []);
+    notifyStaffing(assignment.personId, assignment.dealId, assignment.roleKey, assignment.allocationPct);
+  }, [notifyStaffing]);
 
   const updateAssignment = useCallback(async (id: string, updates: Partial<StaffingAssignment>) => {
-    setAssignments(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a));
+    let next: StaffingAssignment | undefined;
+    setAssignments(prev => prev.map(a => {
+      if (a.id !== id) return a;
+      next = { ...a, ...updates };
+      return next;
+    }));
     const dbUpdates: TablesUpdate<"staffing_assignments"> = {};
     if (updates.personId !== undefined) dbUpdates.person_id = updates.personId;
     if (updates.allocationPct !== undefined) dbUpdates.allocation_pct = updates.allocationPct;
     if (updates.roleKey !== undefined) dbUpdates.role_key = updates.roleKey;
     if (updates.dealId !== undefined) dbUpdates.deal_id = updates.dealId;
     await supabase.from("staffing_assignments").update(dbUpdates).eq("id", id);
-  }, []);
+    // If the assignee was changed, notify the new person.
+    if (next && updates.personId) {
+      notifyStaffing(next.personId, next.dealId, next.roleKey, next.allocationPct);
+    }
+  }, [notifyStaffing]);
 
   const deleteAssignment = useCallback(async (id: string) => {
     setAssignments(prev => prev.filter(a => a.id !== id));
@@ -315,13 +339,18 @@ export function useStaffingData() {
       await supabase.from("staffing_assignments").update({
         person_id: personId, allocation_pct: allocationPct,
       }).eq("id", existing.id);
+      // Notify only when the assignee actually changed (avoid spam on % edits).
+      if (existing.personId !== personId) {
+        notifyStaffing(personId, dealId, roleKey, allocationPct);
+      }
     } else {
       const id = uid();
       const newAssignment: StaffingAssignment = { id, dealId, roleKey, personId, allocationPct };
       setAssignments(prev => [...prev, newAssignment]);
       await supabase.from("staffing_assignments").insert(assignmentToDb(newAssignment));
+      notifyStaffing(personId, dealId, roleKey, allocationPct);
     }
-  }, [assignments]);
+  }, [assignments, notifyStaffing]);
 
   // ── CRUD: Deals ──
   const updateDeal = useCallback(async (dealId: string, updates: Partial<Deal>) => {
