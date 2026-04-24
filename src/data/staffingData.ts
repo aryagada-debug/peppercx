@@ -13,6 +13,8 @@ export interface Person {
   reportingManager?: string;
   band?: string;
   hourlyRate?: number;
+  email?: string;
+  slackUserId?: string;
 }
 
 export const DEPARTMENTS = [

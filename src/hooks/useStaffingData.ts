@@ -14,6 +14,8 @@ function dbToPerson(row: any): Person {
     department: row.department || "", designation: row.designation || "",
     reportingManager: row.reporting_manager || "", band: row.band || "",
     hourlyRate: row.hourly_rate ? Number(row.hourly_rate) : 0,
+    email: row.email || "",
+    slackUserId: row.slack_user_id || "",
   };
 }
 
@@ -24,6 +26,8 @@ function personToDb(p: Person): TablesInsert<"staffing_people"> {
     department: p.department || "", designation: p.designation || "",
     reporting_manager: p.reportingManager || "", band: p.band || "",
     hourly_rate: p.hourlyRate || 0,
+    email: p.email || "",
+    slack_user_id: p.slackUserId || "",
   };
 }
 
@@ -256,6 +260,8 @@ export function useStaffingData() {
     if (updates.reportingManager !== undefined) dbUpdates.reporting_manager = updates.reportingManager;
     if (updates.band !== undefined) dbUpdates.band = updates.band;
     if (updates.hourlyRate !== undefined) dbUpdates.hourly_rate = updates.hourlyRate;
+    if (updates.email !== undefined) dbUpdates.email = updates.email;
+    if (updates.slackUserId !== undefined) dbUpdates.slack_user_id = updates.slackUserId;
     await supabase.from("staffing_people").update(dbUpdates).eq("id", personId);
   }, []);
 
