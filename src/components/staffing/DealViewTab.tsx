@@ -1,0 +1,261 @@
+import React, { useMemo, useState } from "react";
+import { ChevronDown, ChevronRight, Search } from "lucide-react";
+import { Link } from "react-router-dom";
+import { cn } from "@/lib/utils";
+import type { Deal, StaffingAssignment, Person } from "@/data/staffingData";
+
+const STAFFING_BUCKETS = ["Already Staffed", "No Staffing Needed", "Staffing Needed"] as const;
+type StaffingBucket = typeof STAFFING_BUCKETS[number];
+
+const fmtCurrency = (n: number | undefined) => {
+  if (!n) return "—";
+  if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
+  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
+  if (n >= 1000) return `₹${(n / 1000).toFixed(0)}K`;
+  return `₹${n}`;
+};
+
+function classifyStaffing(deal: Deal): StaffingBucket {
+  const s = (deal.staffingStatus || "").toLowerCase().trim();
+  if (s.includes("already") || s.includes("staffed")) return "Already Staffed";
+  if (s.includes("not needed") || s.includes("no staffing") || s === "no") return "No Staffing Needed";
+  if (s.includes("needed") || s.includes("required") || s.includes("open")) return "Staffing Needed";
+  // Fallback: infer from assignments later — handled by caller
+  return "Staffing Needed";
+}
+
+interface Props {
+  deals: Deal[];
+  people: Person[];
+  assignments: StaffingAssignment[];
+}
+
+const ALL = "All";
+const DEAL_TYPE_OPTIONS = [ALL, "Retainer", "Non-Retainer", "Pilot"] as const;
+const DEAL_STATUS_OPTIONS = [ALL, "Active Deal", "New Deal in SLA/PO", "Deal Disputed", "Deal Completed Successfully", "Deal Churned / Lost"] as const;
+
+export function DealViewTab({ deals, people, assignments }: Props) {
+  const [dealType, setDealType] = useState<typeof DEAL_TYPE_OPTIONS[number]>(ALL);
+  const [dealStatus, setDealStatus] = useState<typeof DEAL_STATUS_OPTIONS[number]>("Active Deal");
+  const [expandedVsd, setExpandedVsd] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState("");
+
+  const personMap = useMemo(() => {
+    const m: Record<string, Person> = {};
+    people.forEach(p => { m[p.id] = p; });
+    return m;
+  }, [people]);
+
+  const filteredDeals = useMemo(() => {
+    return deals.filter(d => {
+      if (dealType !== ALL && d.dealType !== dealType) return false;
+      if (dealStatus !== ALL && d.dealStatus !== dealStatus) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        if (!(d.dealName.toLowerCase().includes(q) || d.account.toLowerCase().includes(q) || (d.vsd || "").toLowerCase().includes(q))) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [deals, dealType, dealStatus, search]);
+
+  // Compute deal bucket — prefer explicit staffingStatus, fall back to assignments presence
+  const dealBucket = (d: Deal): StaffingBucket => {
+    const explicit = classifyStaffing(d);
+    if (d.staffingStatus) return explicit;
+    const has = assignments.some(a => a.dealId === d.id);
+    return has ? "Already Staffed" : "Staffing Needed";
+  };
+
+  // Group by VSD
+  const vsdGroups = useMemo(() => {
+    const map = new Map<string, Deal[]>();
+    filteredDeals.forEach(d => {
+      const v = d.vsd?.trim() || "Yet to be assigned";
+      if (!map.has(v)) map.set(v, []);
+      map.get(v)!.push(d);
+    });
+    return Array.from(map.entries()).sort((a, b) => {
+      if (a[0] === "Yet to be assigned") return 1;
+      if (b[0] === "Yet to be assigned") return -1;
+      return a[0].localeCompare(b[0]);
+    });
+  }, [filteredDeals]);
+
+  const rows = useMemo(() => {
+    return vsdGroups.map(([vsd, list]) => {
+      const counts: Record<StaffingBucket, number> = {
+        "Already Staffed": 0,
+        "No Staffing Needed": 0,
+        "Staffing Needed": 0,
+      };
+      list.forEach(d => { counts[dealBucket(d)]++; });
+      return { vsd, deals: list, counts, total: list.length };
+    });
+  }, [vsdGroups, assignments]);
+
+  const totals = useMemo(() => {
+    const t: Record<StaffingBucket, number> = { "Already Staffed": 0, "No Staffing Needed": 0, "Staffing Needed": 0 };
+    let total = 0;
+    rows.forEach(r => {
+      STAFFING_BUCKETS.forEach(b => { t[b] += r.counts[b]; });
+      total += r.total;
+    });
+    return { counts: t, total };
+  }, [rows]);
+
+  const toggle = (vsd: string) => {
+    setExpandedVsd(prev => {
+      const next = new Set(prev);
+      if (next.has(vsd)) next.delete(vsd); else next.add(vsd);
+      return next;
+    });
+  };
+
+  const colorFor = (bucket: StaffingBucket, value: number) => {
+    if (value === 0) return "text-muted-foreground/40";
+    if (bucket === "Already Staffed") return "text-positive font-semibold";
+    if (bucket === "Staffing Needed") return "text-destructive font-semibold";
+    return "text-foreground";
+  };
+
+  return (
+    <div className="animate-fade-in space-y-4">
+      {/* VSD Pivot Table */}
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <table className="w-full text-ui">
+          <thead>
+            <tr className="border-b border-border bg-secondary/30">
+              <th className="text-left py-3 px-4 text-caption font-medium text-muted-foreground uppercase tracking-wider">VSD</th>
+              {STAFFING_BUCKETS.map(b => (
+                <th key={b} className={cn(
+                  "text-center py-3 px-4 text-caption font-medium uppercase tracking-wider",
+                  b === "Already Staffed" ? "text-positive" : b === "Staffing Needed" ? "text-destructive" : "text-muted-foreground"
+                )}>{b}</th>
+              ))}
+              <th className="text-right py-3 px-4 text-caption font-medium text-muted-foreground uppercase tracking-wider">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => {
+              const isExp = expandedVsd.has(r.vsd);
+              return (
+                <React.Fragment key={r.vsd}>
+                  <tr className="border-b border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer" onClick={() => toggle(r.vsd)}>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2">
+                        {isExp ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+                        <span className={cn("text-foreground", r.vsd === "Yet to be assigned" && "italic text-muted-foreground")}>{r.vsd}</span>
+                      </div>
+                    </td>
+                    {STAFFING_BUCKETS.map(b => (
+                      <td key={b} className="text-center py-3 px-4 font-mono tabular-nums">
+                        <span className={colorFor(b, r.counts[b])}>{r.counts[b]}</span>
+                      </td>
+                    ))}
+                    <td className="text-right py-3 px-4 font-mono tabular-nums font-medium text-foreground">{r.total}</td>
+                  </tr>
+                  {isExp && (
+                    <tr>
+                      <td colSpan={5} className="p-0 bg-accent/5">
+                        <div className="px-8 py-3">
+                          <table className="w-full text-caption">
+                            <thead>
+                              <tr className="text-muted-foreground">
+                                <th className="text-left py-1 pr-4 font-medium">Deal</th>
+                                <th className="text-left py-1 pr-4 font-medium">Account</th>
+                                <th className="text-left py-1 pr-4 font-medium">Type</th>
+                                <th className="text-left py-1 pr-4 font-medium">Status</th>
+                                <th className="text-right py-1 pr-4 font-medium">MRR</th>
+                                <th className="text-center py-1 font-medium">Staffing</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {r.deals.map(d => {
+                                const b = dealBucket(d);
+                                return (
+                                  <tr key={d.id} className="border-t border-border/30">
+                                    <td className="py-1.5 pr-4">
+                                      <Link to={`/deals/${d.id}`} className="text-primary hover:underline">{d.dealName}</Link>
+                                    </td>
+                                    <td className="py-1.5 pr-4 text-muted-foreground">{d.account}</td>
+                                    <td className="py-1.5 pr-4 text-muted-foreground">{d.dealType}</td>
+                                    <td className="py-1.5 pr-4 text-muted-foreground">{d.dealStatus}</td>
+                                    <td className="py-1.5 pr-4 text-right font-mono text-foreground">{fmtCurrency(d.mrr)}</td>
+                                    <td className="py-1.5 text-center">
+                                      <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium",
+                                        b === "Already Staffed" ? "bg-[hsl(var(--success-bg))] text-positive" :
+                                        b === "Staffing Needed" ? "bg-[hsl(var(--danger-bg))] text-destructive" :
+                                        "bg-secondary text-muted-foreground"
+                                      )}>{b}</span>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+            {/* Totals row */}
+            <tr className="border-t-2 border-border bg-secondary/40 font-medium">
+              <td className="py-3 px-4 text-foreground">Total</td>
+              {STAFFING_BUCKETS.map(b => (
+                <td key={b} className={cn(
+                  "text-center py-3 px-4 font-mono tabular-nums font-semibold",
+                  b === "Already Staffed" ? "text-positive" : b === "Staffing Needed" ? "text-destructive" : "text-foreground"
+                )}>{totals.counts[b]}</td>
+              ))}
+              <td className="text-right py-3 px-4 font-mono tabular-nums font-semibold text-foreground">{totals.total}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {/* Filters below the table */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative max-w-xs flex-1 min-w-[220px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search deals, accounts, VSDs..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full h-9 pl-9 pr-3 rounded-lg bg-card border border-border text-ui text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all"
+          />
+        </div>
+
+        <div className="flex items-center gap-2">
+          <label className="text-caption text-muted-foreground">Deal Type</label>
+          <select
+            value={dealType}
+            onChange={e => setDealType(e.target.value as typeof DEAL_TYPE_OPTIONS[number])}
+            className="h-9 px-3 rounded-lg bg-card border border-border text-ui text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none"
+          >
+            {DEAL_TYPE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <label className="text-caption text-muted-foreground">Deal Status</label>
+          <select
+            value={dealStatus}
+            onChange={e => setDealStatus(e.target.value as typeof DEAL_STATUS_OPTIONS[number])}
+            className="h-9 px-3 rounded-lg bg-card border border-border text-ui text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none"
+          >
+            {DEAL_STATUS_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {rows.length === 0 && (
+        <div className="text-center py-8 text-muted-foreground">No deals match the current filters.</div>
+      )}
+    </div>
+  );
+}

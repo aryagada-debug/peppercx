@@ -907,6 +907,7 @@ export type Database = {
           business_unit: string
           capability_line: string
           client_id: string | null
+          consumption_value: number
           created_at: string
           creative_staffing: boolean
           customer_status: string
@@ -915,16 +916,23 @@ export type Database = {
           deal_name: string
           deal_status: string
           deal_status_cx: string
+          deal_target_status: string
           deal_type: string
           deal_value_lost: number | null
           duration: string | null
           end_date: string | null
           id: string
+          invoiced_deal_value: number
+          mis_vs_consumption: number
+          month_closed_won: string
           mrr: number | null
           net_deal_value: number | null
+          new_deal_id_formulated: string
+          new_deal_id_temp: string
           non_retainer_deal_value: number | null
           payment_terms: string
           pc_code: string
+          pepper_bu_l2: string
           pepper_business_unit: string
           pod: string
           principal_bopm: string
@@ -937,10 +945,16 @@ export type Database = {
           slack_channel_id: string
           staffing_status: string
           start_date: string | null
+          strategy_bandwidth_required: string
           success_metrics: Json | null
+          tcv_usd: number
           total_deal_value: number | null
+          total_mis_recognition: number
+          total_pending_recognition: number
+          undelivered_funnel: number
           updated_at: string
           validation: string
+          validation_central_cx: string
           vsd: string
         }
         Insert: {
@@ -950,6 +964,7 @@ export type Database = {
           business_unit?: string
           capability_line?: string
           client_id?: string | null
+          consumption_value?: number
           created_at?: string
           creative_staffing?: boolean
           customer_status?: string
@@ -958,16 +973,23 @@ export type Database = {
           deal_name?: string
           deal_status?: string
           deal_status_cx?: string
+          deal_target_status?: string
           deal_type?: string
           deal_value_lost?: number | null
           duration?: string | null
           end_date?: string | null
           id: string
+          invoiced_deal_value?: number
+          mis_vs_consumption?: number
+          month_closed_won?: string
           mrr?: number | null
           net_deal_value?: number | null
+          new_deal_id_formulated?: string
+          new_deal_id_temp?: string
           non_retainer_deal_value?: number | null
           payment_terms?: string
           pc_code?: string
+          pepper_bu_l2?: string
           pepper_business_unit?: string
           pod?: string
           principal_bopm?: string
@@ -980,10 +1002,16 @@ export type Database = {
           slack_channel_id?: string
           staffing_status?: string
           start_date?: string | null
+          strategy_bandwidth_required?: string
           success_metrics?: Json | null
+          tcv_usd?: number
           total_deal_value?: number | null
+          total_mis_recognition?: number
+          total_pending_recognition?: number
+          undelivered_funnel?: number
           updated_at?: string
           validation?: string
+          validation_central_cx?: string
           vsd?: string
         }
         Update: {
@@ -993,6 +1021,7 @@ export type Database = {
           business_unit?: string
           capability_line?: string
           client_id?: string | null
+          consumption_value?: number
           created_at?: string
           creative_staffing?: boolean
           customer_status?: string
@@ -1001,16 +1030,23 @@ export type Database = {
           deal_name?: string
           deal_status?: string
           deal_status_cx?: string
+          deal_target_status?: string
           deal_type?: string
           deal_value_lost?: number | null
           duration?: string | null
           end_date?: string | null
           id?: string
+          invoiced_deal_value?: number
+          mis_vs_consumption?: number
+          month_closed_won?: string
           mrr?: number | null
           net_deal_value?: number | null
+          new_deal_id_formulated?: string
+          new_deal_id_temp?: string
           non_retainer_deal_value?: number | null
           payment_terms?: string
           pc_code?: string
+          pepper_bu_l2?: string
           pepper_business_unit?: string
           pod?: string
           principal_bopm?: string
@@ -1023,10 +1059,16 @@ export type Database = {
           slack_channel_id?: string
           staffing_status?: string
           start_date?: string | null
+          strategy_bandwidth_required?: string
           success_metrics?: Json | null
+          tcv_usd?: number
           total_deal_value?: number | null
+          total_mis_recognition?: number
+          total_pending_recognition?: number
+          undelivered_funnel?: number
           updated_at?: string
           validation?: string
+          validation_central_cx?: string
           vsd?: string
         }
         Relationships: [

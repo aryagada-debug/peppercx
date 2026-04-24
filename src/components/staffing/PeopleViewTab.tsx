@@ -1,0 +1,401 @@
+import React, { useMemo, useState } from "react";
+import { ChevronDown, ChevronRight, Search } from "lucide-react";
+import { Link } from "react-router-dom";
+import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
+import type { Deal, Person, StaffingAssignment, RevenueCapacityTarget } from "@/data/staffingData";
+
+const ACTIVE_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
+
+const fmtCurrency = (n: number | undefined) => {
+  if (!n) return "—";
+  if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
+  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
+  if (n >= 1000) return `₹${(n / 1000).toFixed(0)}K`;
+  return `₹${n}`;
+};
+
+type Bucket = "overloaded" | "nearFull" | "healthy" | "underUtil";
+
+function getBucket(pct: number): Bucket {
+  if (pct > 100) return "overloaded";
+  if (pct >= 85) return "nearFull";
+  if (pct >= 30) return "healthy";
+  return "underUtil";
+}
+
+const BUCKET_CONFIG: Record<Bucket, { label: string; dot: string; bar: string; text: string }> = {
+  overloaded:   { label: "Overloaded",     dot: "bg-destructive", bar: "bg-destructive", text: "text-destructive" },
+  nearFull:     { label: "Near Full",      dot: "bg-warning",     bar: "bg-warning",     text: "text-warning" },
+  healthy:      { label: "Healthy",        dot: "bg-positive",    bar: "bg-positive",    text: "text-positive" },
+  underUtil:    { label: "Under-utilised", dot: "bg-info",        bar: "bg-info",        text: "text-info" },
+};
+
+interface Props {
+  people: Person[];
+  deals: Deal[];
+  assignments: StaffingAssignment[];
+  revenueTargets?: RevenueCapacityTarget[];
+  onUpdateAssignment?: (id: string, updates: Partial<StaffingAssignment>) => void;
+}
+
+export function PeopleViewTab({ people, deals, assignments, revenueTargets = [], onUpdateAssignment }: Props) {
+  const [search, setSearch] = useState("");
+  const [bucketFilter, setBucketFilter] = useState<Bucket | null>(null);
+  const [expandedDept, setExpandedDept] = useState<Set<string>>(new Set());
+  const [expandedPerson, setExpandedPerson] = useState<Set<string>>(new Set());
+  const [editingAlloc, setEditingAlloc] = useState<string | null>(null);
+  const [allocDraft, setAllocDraft] = useState<string>("");
+
+  const dealMap = useMemo(() => {
+    const m: Record<string, Deal> = {};
+    deals.forEach(d => { m[d.id] = d; });
+    return m;
+  }, [deals]);
+
+  const activeDealIds = useMemo(() => new Set(deals.filter(d => ACTIVE_STATUSES.has(d.dealStatus)).map(d => d.id)), [deals]);
+
+  const personUtil = useMemo(() => {
+    const m: Record<string, { totalPct: number; assigns: StaffingAssignment[]; mrr: number; rev: number; hours: number }> = {};
+    assignments.forEach(a => {
+      if (!m[a.personId]) m[a.personId] = { totalPct: 0, assigns: [], mrr: 0, rev: 0, hours: 0 };
+      m[a.personId].assigns.push(a);
+      const d = dealMap[a.dealId];
+      const isActive = activeDealIds.has(a.dealId);
+      if (isActive) {
+        m[a.personId].totalPct += a.allocationPct;
+        m[a.personId].mrr += (d?.mrr || 0) * (a.allocationPct / 100);
+        m[a.personId].rev += (d?.totalDealValue || 0) * (a.allocationPct / 100);
+        m[a.personId].hours += (a.allocationPct / 100) * 160;
+      }
+    });
+    return m;
+  }, [assignments, dealMap, activeDealIds]);
+
+  const targetFor = (p: Person): number => {
+    const t = revenueTargets.find(rt => rt.department === p.department && rt.designation === p.designation);
+    return t?.targetDealValuePerPerson || 0;
+  };
+
+  // Hierarchy: department → reporting tree
+  const peopleByDept = useMemo(() => {
+    const m = new Map<string, Person[]>();
+    people.forEach(p => {
+      const dept = p.department || "Other";
+      if (!m.has(dept)) m.set(dept, []);
+      m.get(dept)!.push(p);
+    });
+    return m;
+  }, [people]);
+
+  const childrenMap = useMemo(() => {
+    const m: Record<string, Person[]> = {};
+    people.forEach(p => {
+      const mgr = p.reportingManager?.trim().toLowerCase();
+      if (!mgr) return;
+      const mgrPerson = people.find(x => x.name.toLowerCase() === mgr);
+      if (!mgrPerson) return;
+      if (!m[mgrPerson.id]) m[mgrPerson.id] = [];
+      m[mgrPerson.id].push(p);
+    });
+    return m;
+  }, [people]);
+
+  // Bucket counts (whole portfolio)
+  const bucketCounts = useMemo(() => {
+    const c: Record<Bucket, number> = { overloaded: 0, nearFull: 0, healthy: 0, underUtil: 0 };
+    people.filter(p => !p.tbh).forEach(p => {
+      const pct = personUtil[p.id]?.totalPct || 0;
+      c[getBucket(pct)]++;
+    });
+    return c;
+  }, [people, personUtil]);
+
+  const matchSearch = (p: Person) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return p.name.toLowerCase().includes(q) || (p.designation || "").toLowerCase().includes(q);
+  };
+
+  const matchBucket = (p: Person) => {
+    if (!bucketFilter) return true;
+    if (p.tbh) return false;
+    return getBucket(personUtil[p.id]?.totalPct || 0) === bucketFilter;
+  };
+
+  // Determine which depts to show + dept aggregates
+  const deptSummary = useMemo(() => {
+    return Array.from(peopleByDept.entries()).map(([dept, members]) => {
+      const visible = members.filter(p => matchSearch(p) && matchBucket(p));
+      const active = members.filter(p => !p.tbh);
+      const dist: Record<Bucket, number> = { overloaded: 0, nearFull: 0, healthy: 0, underUtil: 0 };
+      let totalPct = 0;
+      active.forEach(p => {
+        const pct = personUtil[p.id]?.totalPct || 0;
+        dist[getBucket(pct)]++;
+        totalPct += pct;
+      });
+      const avg = active.length ? Math.round(totalPct / active.length) : 0;
+      return { dept, members, visible, active, dist, avg };
+    }).filter(d => d.visible.length > 0)
+      .sort((a, b) => a.dept.localeCompare(b.dept));
+  }, [peopleByDept, search, bucketFilter, personUtil]);
+
+  const toggleDept = (d: string) => setExpandedDept(prev => {
+    const n = new Set(prev); n.has(d) ? n.delete(d) : n.add(d); return n;
+  });
+  const togglePerson = (id: string) => setExpandedPerson(prev => {
+    const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;
+  });
+
+  const collapseAll = () => { setExpandedDept(new Set()); setExpandedPerson(new Set()); };
+
+  const startAllocEdit = (a: StaffingAssignment) => {
+    setEditingAlloc(a.id);
+    setAllocDraft(String(a.allocationPct));
+  };
+
+  const saveAllocEdit = (a: StaffingAssignment) => {
+    const v = Number(allocDraft);
+    if (Number.isNaN(v) || v < 0 || v > 100) {
+      toast.error("Allocation must be 0–100");
+      return;
+    }
+    onUpdateAssignment?.(a.id, { allocationPct: v });
+    setEditingAlloc(null);
+    toast.success("Allocation updated");
+  };
+
+  // Render person + descendants — but only emit those that pass filters
+  const renderPerson = (p: Person, depth: number, visibleSet: Set<string>): React.ReactNode => {
+    if (!visibleSet.has(p.id)) return null;
+    const u = personUtil[p.id];
+    const totalPct = u?.totalPct || 0;
+    const bucket = getBucket(totalPct);
+    const cfg = BUCKET_CONFIG[bucket];
+    const hours = Math.round(u?.hours || 0);
+    const deals = u?.assigns || [];
+    const activeCount = deals.filter(a => activeDealIds.has(a.dealId)).length;
+    const target = targetFor(p);
+    const revPct = target > 0 ? Math.round((u?.rev || 0) / target * 100) : 0;
+    const isExp = expandedPerson.has(p.id);
+    const kids = (childrenMap[p.id] || []).filter(k => visibleSet.has(k.id));
+
+    return (
+      <React.Fragment key={p.id}>
+        <tr className="border-b border-border/30 hover:bg-secondary/20 cursor-pointer transition-colors" onClick={() => togglePerson(p.id)}>
+          <td className="py-2 px-3" style={{ paddingLeft: `${12 + depth * 20}px` }}>
+            <div className="flex items-center gap-1.5">
+              {(deals.length > 0 || kids.length > 0)
+                ? (isExp ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />)
+                : <span className="w-3.5" />}
+              <span className={cn("text-xs font-medium",
+                p.tbh ? "italic text-muted-foreground" : p.leaving ? "text-destructive line-through" : "text-foreground"
+              )}>
+                {p.name}{p.tbh && " (TBH)"}
+              </span>
+            </div>
+          </td>
+          <td className="py-2 px-3 text-xs text-muted-foreground">{p.designation || p.roleTitle}</td>
+          <td className="py-2 px-3 text-right font-mono tabular-nums text-xs">{activeCount}</td>
+          <td className="py-2 px-3 text-right font-mono tabular-nums text-xs text-foreground">{fmtCurrency(u?.mrr)}</td>
+          <td className="py-2 px-3 text-right font-mono tabular-nums text-xs text-foreground">{fmtCurrency(u?.rev)}</td>
+          <td className="py-2 px-3 text-right font-mono tabular-nums text-xs text-muted-foreground">{target ? fmtCurrency(target) : "—"}</td>
+          <td className="py-2 px-3">
+            <div className="flex items-center gap-1.5" title={`${revPct}%`}>
+              <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden min-w-[40px]">
+                <div className={cn("h-full", revPct > 100 ? "bg-destructive" : revPct >= 70 ? "bg-positive" : "bg-warning")} style={{ width: `${Math.min(revPct, 100)}%` }} />
+              </div>
+              <span className="text-[10px] font-mono text-muted-foreground w-9 text-right">{revPct}%</span>
+            </div>
+          </td>
+          <td className="py-2 px-3">
+            <div className="flex items-center gap-1.5" title={`${hours}h / 160h`}>
+              <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden min-w-[60px]">
+                <div className={cn("h-full", cfg.bar)} style={{ width: `${Math.min(totalPct, 100)}%` }} />
+              </div>
+              <span className={cn("text-[10px] font-mono tabular-nums w-16 text-right", cfg.text)}>{hours}h · {Math.round(totalPct)}%</span>
+            </div>
+          </td>
+        </tr>
+
+        {isExp && deals.length > 0 && (
+          <tr>
+            <td colSpan={8} className="p-0 bg-accent/5">
+              <div className="px-12 py-2 border-y border-border/40">
+                <table className="w-full text-caption">
+                  <thead>
+                    <tr className="text-muted-foreground">
+                      <th className="text-left py-1 pr-4 font-medium uppercase tracking-wider text-[10px]">Deal</th>
+                      <th className="text-left py-1 pr-4 font-medium uppercase tracking-wider text-[10px]">Account</th>
+                      <th className="text-right py-1 pr-4 font-medium uppercase tracking-wider text-[10px]">Alloc</th>
+                      <th className="text-right py-1 pr-4 font-medium uppercase tracking-wider text-[10px]">Hrs</th>
+                      <th className="text-right py-1 font-medium uppercase tracking-wider text-[10px]">MRR</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {deals.map(a => {
+                      const d = dealMap[a.dealId];
+                      const isActive = activeDealIds.has(a.dealId);
+                      const isEditing = editingAlloc === a.id;
+                      return (
+                        <tr key={a.id} className={cn("border-t border-border/30", !isActive && "opacity-60")}>
+                          <td className="py-1.5 pr-4">
+                            {d ? <Link to={`/deals/${d.id}`} className="text-primary hover:underline">{d.dealName}</Link> : <span>{a.dealId}</span>}
+                          </td>
+                          <td className="py-1.5 pr-4 text-muted-foreground">{d?.account}</td>
+                          <td className="py-1.5 pr-4 text-right" onClick={e => e.stopPropagation()}>
+                            {isEditing ? (
+                              <div className="flex items-center justify-end gap-1">
+                                <Input
+                                  value={allocDraft}
+                                  onChange={e => setAllocDraft(e.target.value)}
+                                  type="number"
+                                  className="h-6 w-16 text-xs"
+                                  autoFocus
+                                  onKeyDown={e => {
+                                    if (e.key === "Enter") saveAllocEdit(a);
+                                    if (e.key === "Escape") setEditingAlloc(null);
+                                  }}
+                                  onBlur={() => saveAllocEdit(a)}
+                                />
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => startAllocEdit(a)}
+                                className="font-mono tabular-nums text-foreground hover:text-primary"
+                              >
+                                {a.allocationPct}%
+                              </button>
+                            )}
+                          </td>
+                          <td className="py-1.5 pr-4 text-right font-mono tabular-nums text-muted-foreground">{Math.round(a.allocationPct / 100 * 160)}h</td>
+                          <td className="py-1.5 text-right font-mono tabular-nums text-foreground">{fmtCurrency(d?.mrr)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </td>
+          </tr>
+        )}
+
+        {isExp && kids.map(k => renderPerson(k, depth + 1, visibleSet))}
+      </React.Fragment>
+    );
+  };
+
+  return (
+    <div className="animate-fade-in space-y-4">
+      {/* Filter chips + search + collapse */}
+      <div className="flex flex-wrap items-center gap-3">
+        {(Object.keys(BUCKET_CONFIG) as Bucket[]).map(b => {
+          const cfg = BUCKET_CONFIG[b];
+          const active = bucketFilter === b;
+          return (
+            <button
+              key={b}
+              onClick={() => setBucketFilter(active ? null : b)}
+              className={cn(
+                "inline-flex items-center gap-2 px-3 h-8 rounded-full border text-caption transition-colors",
+                active ? "border-foreground bg-foreground/5" : "border-border bg-card hover:bg-secondary/30"
+              )}
+            >
+              <span className={cn("h-2 w-2 rounded-full", cfg.dot)} />
+              <span className="text-foreground">{cfg.label}</span>
+              <span className="text-muted-foreground font-mono">{bucketCounts[b]}</span>
+            </button>
+          );
+        })}
+
+        <div className="relative max-w-xs flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search people..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full h-9 pl-9 pr-3 rounded-lg bg-card border border-border text-ui text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all"
+          />
+        </div>
+
+        <button
+          onClick={collapseAll}
+          className="ml-auto h-9 px-3 rounded-lg border border-border text-ui text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+        >Collapse all</button>
+      </div>
+
+      {/* Departments */}
+      <div className="space-y-3">
+        {deptSummary.map(({ dept, visible, active, dist, avg }) => {
+          const isOpen = expandedDept.has(dept);
+          const visibleSet = new Set(visible.map(p => p.id));
+          // roots within this dept = visible people whose manager is NOT in visible set
+          const roots = visible.filter(p => {
+            const mgr = p.reportingManager?.trim().toLowerCase();
+            if (!mgr) return true;
+            const mgrPerson = people.find(x => x.name.toLowerCase() === mgr);
+            if (!mgrPerson) return true;
+            // if manager is in same dept and visible, treat current as a child
+            if (mgrPerson.department === dept && visibleSet.has(mgrPerson.id)) return false;
+            return true;
+          });
+          const total = dist.overloaded + dist.nearFull + dist.healthy + dist.underUtil || 1;
+
+          return (
+            <div key={dept} className="bg-card border border-border rounded-xl overflow-hidden">
+              <button
+                onClick={() => toggleDept(dept)}
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-secondary/30 transition-colors"
+              >
+                <span className="h-2 w-2 rounded-full bg-primary" />
+                <span className="text-sm font-semibold text-foreground">{dept}</span>
+                <span className="ml-auto flex items-center gap-3">
+                  <span className="text-caption text-muted-foreground">{active.length} active</span>
+                  <div className="flex h-2 w-32 overflow-hidden rounded-full bg-secondary">
+                    {(["overloaded","nearFull","healthy","underUtil"] as Bucket[]).map(b => (
+                      <div key={b} className={BUCKET_CONFIG[b].bar} style={{ width: `${(dist[b] / total) * 100}%` }} />
+                    ))}
+                  </div>
+                  <span className={cn("text-caption font-mono tabular-nums w-10 text-right",
+                    avg > 100 ? "text-destructive" : avg >= 85 ? "text-warning" : "text-positive"
+                  )}>{avg}%</span>
+                  {isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                </span>
+              </button>
+
+              {isOpen && (
+                <div className="border-t border-border overflow-x-auto">
+                  <table className="w-full text-ui">
+                    <thead>
+                      <tr className="bg-secondary/30 border-b border-border">
+                        <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider font-medium text-muted-foreground">Name</th>
+                        <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider font-medium text-muted-foreground">Designation</th>
+                        <th className="text-right py-2 px-3 text-[10px] uppercase tracking-wider font-medium text-muted-foreground">Deals</th>
+                        <th className="text-right py-2 px-3 text-[10px] uppercase tracking-wider font-medium text-muted-foreground">MRR</th>
+                        <th className="text-right py-2 px-3 text-[10px] uppercase tracking-wider font-medium text-muted-foreground">Total Rev</th>
+                        <th className="text-right py-2 px-3 text-[10px] uppercase tracking-wider font-medium text-muted-foreground">Target</th>
+                        <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider font-medium text-muted-foreground">Rev %</th>
+                        <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider font-medium text-muted-foreground">Hours</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {roots.map(p => renderPerson(p, 0, visibleSet))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {deptSummary.length === 0 && (
+          <div className="text-center py-8 text-muted-foreground">No people match the current filters.</div>
+        )}
+      </div>
+    </div>
+  );
+}

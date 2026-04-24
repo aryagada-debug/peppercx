@@ -53,6 +53,20 @@ function dbToDeal(row: any): Deal {
     successMetrics: row.success_metrics || [],
     baselineMetrics: row.baseline_metrics || '',
     clientId: row.client_id || undefined,
+    newDealIdFormulated: row.new_deal_id_formulated || '',
+    newDealIdTemp: row.new_deal_id_temp || '',
+    validationCentralCx: row.validation_central_cx || '',
+    monthClosedWon: row.month_closed_won || '',
+    dealTargetStatus: row.deal_target_status || '',
+    totalMisRecognition: row.total_mis_recognition ? Number(row.total_mis_recognition) : 0,
+    totalPendingRecognition: row.total_pending_recognition ? Number(row.total_pending_recognition) : 0,
+    consumptionValue: row.consumption_value ? Number(row.consumption_value) : 0,
+    misVsConsumption: row.mis_vs_consumption ? Number(row.mis_vs_consumption) : 0,
+    invoicedDealValue: row.invoiced_deal_value ? Number(row.invoiced_deal_value) : 0,
+    undeliveredFunnel: row.undelivered_funnel ? Number(row.undelivered_funnel) : 0,
+    tcvUsd: row.tcv_usd ? Number(row.tcv_usd) : 0,
+    strategyBandwidthRequired: row.strategy_bandwidth_required || '',
+    pepperBuL2: row.pepper_bu_l2 || '',
   };
 }
 
@@ -280,6 +294,35 @@ export function useStaffingData() {
     await supabase.from("staffing_assignments").delete().eq("id", id);
   }, []);
 
+  // Upsert by (dealId, roleKey) — used by Matrix view.
+  // If personId is empty, removes any existing assignment for that role on the deal.
+  const upsertAssignmentByRole = useCallback(async (
+    dealId: string,
+    roleKey: string,
+    personId: string,
+    allocationPct: number,
+  ) => {
+    const existing = assignments.find(a => a.dealId === dealId && a.roleKey === roleKey);
+    if (!personId) {
+      if (existing) {
+        setAssignments(prev => prev.filter(a => a.id !== existing.id));
+        await supabase.from("staffing_assignments").delete().eq("id", existing.id);
+      }
+      return;
+    }
+    if (existing) {
+      setAssignments(prev => prev.map(a => a.id === existing.id ? { ...a, personId, allocationPct } : a));
+      await supabase.from("staffing_assignments").update({
+        person_id: personId, allocation_pct: allocationPct,
+      }).eq("id", existing.id);
+    } else {
+      const id = uid();
+      const newAssignment: StaffingAssignment = { id, dealId, roleKey, personId, allocationPct };
+      setAssignments(prev => [...prev, newAssignment]);
+      await supabase.from("staffing_assignments").insert(assignmentToDb(newAssignment));
+    }
+  }, [assignments]);
+
   // ── CRUD: Deals ──
   const updateDeal = useCallback(async (dealId: string, updates: Partial<Deal>) => {
     setDeals(prev => prev.map(d => d.id === dealId ? { ...d, ...updates } : d));
@@ -339,6 +382,7 @@ export function useStaffingData() {
     addPerson, updatePerson, deletePerson, bulkUpdatePeople, setPeople,
     addAssignment, updateAssignment, deleteAssignment, setAssignments,
     updateDeal, setDeals,
+    upsertAssignmentByRole,
     setHiringNeeds: setHiringNeedsAndSync, setRevenueTargets: setRevenueTargetsAndSync,
     updateBWRule, addBWRule, deleteBWRule, setBwRules,
     refresh: loadAll,

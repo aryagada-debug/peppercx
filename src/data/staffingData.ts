@@ -105,6 +105,21 @@ export interface Deal {
   successMetrics?: any[];
   baselineMetrics?: string;
   clientId?: string;
+  // Matrix-only fields
+  newDealIdFormulated?: string;
+  newDealIdTemp?: string;
+  validationCentralCx?: string;
+  monthClosedWon?: string;
+  dealTargetStatus?: string;
+  totalMisRecognition?: number;
+  totalPendingRecognition?: number;
+  consumptionValue?: number;
+  misVsConsumption?: number;
+  invoicedDealValue?: number;
+  undeliveredFunnel?: number;
+  tcvUsd?: number;
+  strategyBandwidthRequired?: string;
+  pepperBuL2?: string;
 }
 
 export interface BWRule {
