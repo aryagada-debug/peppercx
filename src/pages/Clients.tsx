@@ -33,8 +33,19 @@ import {
 } from "@/components/ui/select";
 import { ColHeader } from "@/components/table/ColHeader";
 
-const PODS = ["All", "Integrated", "India B2B", "US B2B", "FMCG", "BFSI", "Unassigned"] as const;
-type Pod = typeof PODS[number];
+const VSD_FILTERS = [
+  { key: "All", label: "All" },
+  { key: "Neema Jayadas", label: "Neema Jayadas (US)" },
+  { key: "Aamir Khan", label: "Aamir Khan" },
+  { key: "Aditya Shaw", label: "Aditya Shaw (BFSI)" },
+  { key: "Sneha Iyer", label: "Sneha Iyer (FMCG)" },
+  { key: "Sumit Shekhawat", label: "Sumit Shekhawat" },
+  { key: "Other", label: "Other" },
+  { key: "Unassigned", label: "Unassigned" },
+] as const;
+type VsdFilterKey = typeof VSD_FILTERS[number]["key"];
+const NAMED_VSDS = new Set(["Neema Jayadas", "Aamir Khan", "Aditya Shaw", "Sneha Iyer", "Sumit Shekhawat"]);
+const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
 
 const DEAL_STATUSES = ["Active Deal", "New Deal in SLA/PO", "Deal Disputed", "Deal Completed Successfully", "Deal Churned / Lost"] as const;
 const ACTIVE_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
@@ -85,7 +96,7 @@ export default function Clients() {
   const { deals, people, assignments, loading: staffLoading, refresh: refreshStaffing, updateDeal, addAssignment, updateAssignment } = useStaffingData();
   const { clients, loading: clientsLoading, addClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
   const [search, setSearch] = useState("");
-  const [activePod, setActivePod] = useState<Pod>("All");
+  const [activeVsd, setActiveVsd] = useState<VsdFilterKey>("All");
   const [showClosed, setShowClosed] = useState(false);
 
   const [clientDialogOpen, setClientDialogOpen] = useState(false);
@@ -119,14 +130,19 @@ export default function Clients() {
   const filteredDeals = useMemo(() => {
     let d = deals;
     if (!showClosed) d = d.filter(deal => ACTIVE_STATUSES.has(deal.dealStatus));
-    if (activePod === "Unassigned") {
-      d = d.filter(deal => !deal.vsd || deal.vsd === "Not Assigned" || deal.vsd === "Unassigned" || deal.vsd === "Not Applicable");
-    } else if (activePod !== "All") {
-      d = d.filter(deal => (deal.pod || "") === activePod);
+    if (activeVsd === "Unassigned") {
+      d = d.filter(deal => UNASSIGNED_VSD_VALUES.has((deal.vsd || "").trim()));
+    } else if (activeVsd === "Other") {
+      d = d.filter(deal => {
+        const v = (deal.vsd || "").trim();
+        return v && !UNASSIGNED_VSD_VALUES.has(v) && !NAMED_VSDS.has(v);
+      });
+    } else if (activeVsd !== "All") {
+      d = d.filter(deal => (deal.vsd || "").trim() === activeVsd);
     }
     if (search) d = d.filter(deal => deal.account.toLowerCase().includes(search.toLowerCase()) || deal.dealName.toLowerCase().includes(search.toLowerCase()));
     return d;
-  }, [deals, activePod, search, showClosed]);
+  }, [deals, activeVsd, search, showClosed]);
 
   // Apply per-column filters + sort to produce flat row list
   const tableRows = useMemo(() => {
@@ -357,11 +373,11 @@ export default function Clients() {
         {/* Filters */}
         <div className="flex items-center gap-4 mb-3 flex-wrap">
           <div className="flex gap-1 bg-secondary rounded-lg p-1">
-            {PODS.map(pod => (
-              <button key={pod} onClick={() => setActivePod(pod)} className={cn(
+            {VSD_FILTERS.map(v => (
+              <button key={v.key} onClick={() => setActiveVsd(v.key)} className={cn(
                 "px-3 py-1.5 rounded-md text-caption font-medium whitespace-nowrap transition-colors",
-                activePod === pod ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-              )}>{pod}</button>
+                activeVsd === v.key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}>{v.label}</button>
             ))}
           </div>
 

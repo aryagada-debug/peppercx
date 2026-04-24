@@ -1,44 +1,61 @@
-## Make Deal view inline-editable + add per-deal staffing drill-down
+# Clients & Deals: VSD filter + Google Sheet sync
 
-### Changes in `src/components/staffing/DealViewTab.tsx`
+## Part 1 — Replace the Pod filter with a VSD filter
 
-**1. Pass `onUpdateDeal` from parent**
-- Update the `Props` interface to accept `onUpdateDeal: (dealId: string, updates: Partial<Deal>) => void`.
-- In `src/pages/Staffing.tsx`, pass the existing `updateDeal` from `useStaffingData()` to `DealViewTab`.
+In `src/pages/Clients.tsx`, the top filter chip strip currently shows Pods (`Integrated`, `India B2B`, `US B2B`, `FMCG`, `BFSI`, `Unassigned`). Replace it with VSD chips.
 
-**2. Make Type, Status, Staffing columns editable inline**
-Each VSD-expanded row currently renders read-only `<td>` cells. Convert these three columns to compact inline `<select>` dropdowns (styled to look like text by default, with chevron on hover) that call `onUpdateDeal` on change:
-- **Type** → options: `Retainer`, `Non-Retainer`, `Pilot` (writes to `dealType`)
-- **Status** → options: `Active Deal`, `New Deal in SLA/PO`, `Deal Disputed`, `Deal Completed Successfully`, `Deal Churned / Lost` (writes to `dealStatus`)
-- **Staffing** → options: `Already Staffed`, `Staffing Needed`, `No Staffing Needed` (writes to `staffingStatus`)
+**New chip list:**
+- All
+- Neema Jayadas (US)
+- Aamir Khan
+- Aditya Shaw (BFSI)
+- Sneha Iyer (FMCG)
+- Sumit Shekhawat
+- Other (everyone else, e.g. Veena Lobo, etc.)
+- Unassigned (blank / "To Be Assigned" / "Not Applicable")
 
-The existing colored badge styling for Staffing is preserved (color of select adapts to bucket).
+Filter logic switches from `deal.pod` to `deal.vsd` matching. Search box, "show closed", per-column filters and KPIs all stay as-is.
 
-**3. Add a new "Details" column with an expand chevron per deal**
-Add a new column at the end of each deal row inside the VSD drill-down. Clicking the chevron toggles a sub-row that shows the **staffing roster** for that deal:
+The per-column **VSD** filter inside the table (column header) stays — it's a free-text contains-match, so it still works alongside the new chip strip.
 
-```text
-┌─ Person ──────────── Role ───────────── Allocation % ─── Hours / month ─┐
-│ Aditya Pathak       Content Lead         20%             32 h           │
-│ Janhavi Dave        Sr Editor            10%             16 h           │
-│ ...                                                                     │
-└─────────────────────────────────────────────────────────────────────────┘
-Total: 4 people · 47.5% combined · 76 h
-```
+## Part 2 — Connect Google Sheets and sync
 
-Hours computed as `allocationPct / 100 * 160` (same formula already used in PeopleViewTab). Person name resolved via `personMap[a.personId]?.name`. Role label resolved from a small `ROLE_LABELS` map (mirroring `MatrixTab`'s `ROLE_COLS`).
+The sheet `1geonDCJpM-3qVWEx1g34xmTMXK37Vy6UsmgbhNJqpRc` is private and needs OAuth, so I'll connect the Google Sheets connector first. Once connected, I'll read all tabs and identify:
 
-If a deal has no assignments, show: *"No team members assigned yet."*
+1. **The deals master tab** — to upsert into `staffing_deals` (matched by `deal_id` or `pc_code`). Fields likely covered: account, deal name, deal id, pc code, deal type, deal status, vsd, principal/senior bopm, mrr, total/retainer/non-retainer deal value, start/end dates, pod, business unit, capability line.
+2. **The financial summary tab (gid=2042069)** — to upsert per-deal monthly rows into `deal_financials` and/or `deal_revenue_monthly` (contracted, invoiced, received, outstanding, consumption, planned & actual GM%, MRR, delivered, contraction).
 
-**4. Local state additions**
-- `expandedDeal: Set<string>` to track which deal rows are showing the staffing drill-down (independent of VSD expansion).
+### Sync approach
 
-### Technical notes
-- All dropdowns use the existing `<select>` with `bg-card border-border` tokens — no new shadcn components needed.
-- Edits propagate through `useStaffingData.updateDeal` → Supabase `staffing_deals` table → realtime channel re-syncs across tabs.
-- No DB schema changes required (all 3 columns already exist on `staffing_deals`).
-- No performance regression: rows render the same number of cells; the drill-down sub-table only mounts when expanded.
+A one-time Node script run via `code--exec`:
+1. Fetch every tab via the gateway `GET /spreadsheets/{id}` then `GET /spreadsheets/{id}/values/{tab}`.
+2. Print the header rows of each tab so I can confirm column → DB-field mapping before writing.
+3. Generate a SQL migration that:
+   - Updates `staffing_deals` for matched rows (by `deal_id` or `pc_code`, case-insensitive). Only writes columns where the sheet has a value (no nulling out existing data).
+   - Inserts rows into `deal_financials` keyed by `(deal_id, month)`. Existing rows for the same `(deal_id, month)` are deleted first to keep the sheet authoritative.
+   - Same for `deal_revenue_monthly` if the sheet has MRR / delivered / contraction columns.
+4. Skip rows where the deal cannot be matched and print a summary list at the end so you can decide whether to create them as new deals.
 
-### Files edited
-- `src/components/staffing/DealViewTab.tsx` — add inline selects, expand-chevron column, staffing drill-down sub-row
-- `src/pages/Staffing.tsx` — pass `updateDeal` prop to `DealViewTab`
+### What I will confirm with you before writing data
+
+After I read the sheet, I'll come back with:
+- The exact list of tabs found and which one I'll treat as deals master vs financial summary.
+- A short sample of unmapped deals (sheet rows that don't match an existing `deal_id` / `pc_code`).
+- Whether to insert those unmapped deals as new `staffing_deals` rows or skip them.
+
+## Files to change
+
+- `src/pages/Clients.tsx` — replace `PODS` constant + chip strip + filter logic with VSD equivalents.
+
+## Database writes (after sheet read confirms shape)
+
+- `UPDATE staffing_deals` (matched rows only).
+- `DELETE` + `INSERT` into `deal_financials` per `(deal_id, month)`.
+- Optional: `DELETE` + `INSERT` into `deal_revenue_monthly` per `(deal_id, month)` if the sheet covers MRR / delivered / contraction.
+
+No schema changes required — both tables already exist with the right columns.
+
+## Out of scope
+
+- Recurring auto-sync (this is a one-shot import; can be added later as an edge function on a schedule if you want).
+- Creating brand-new deals from sheet rows that don't match — I'll list them and confirm before creating.
