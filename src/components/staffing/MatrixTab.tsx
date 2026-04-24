@@ -585,7 +585,7 @@ function SelectChip({
 }
 
 function PersonPicker({
-  people, selectedPersonId, onSelect, occupancy = {}, vsdOptions = ["All"], peopleByVsd = {},
+  people, selectedPersonId, onSelect, occupancy = {}, vsdOptions = ["All"], peopleByVsd = {}, roleKey,
 }: {
   people: Person[];
   selectedPersonId: string;
@@ -593,10 +593,12 @@ function PersonPicker({
   occupancy?: Record<string, number>;
   vsdOptions?: string[];
   peopleByVsd?: Record<string, Set<string>>;
+  roleKey?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [vsd, setVsd] = useState<string>("All");
+  const [showAllRoles, setShowAllRoles] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const selected = people.find(p => p.id === selectedPersonId);
@@ -619,10 +621,16 @@ function PersonPicker({
   const filtered = useMemo(() => {
     const lq = q.toLowerCase().trim();
     let base = people;
+    // Role-based filter (e.g. only show designers when role = Sr Designer)
+    if (roleKey && !showAllRoles) {
+      const narrowed = filterPeopleByRole(people, roleKey);
+      // Safety net: if filter yields nothing, fall back to all so picker isn't empty
+      if (narrowed.length > 0) base = narrowed;
+    }
     if (vsd !== "All") {
       const allowed = peopleByVsd[vsd];
       if (allowed && allowed.size > 0) {
-        base = people.filter(p => allowed.has(p.id));
+        base = base.filter(p => allowed.has(p.id));
       } else {
         base = [];
       }
@@ -633,7 +641,7 @@ function PersonPicker({
       (p.designation || "").toLowerCase().includes(lq) ||
       (p.department || "").toLowerCase().includes(lq)
     ).slice(0, 80);
-  }, [people, q, vsd, peopleByVsd]);
+  }, [people, q, vsd, peopleByVsd, roleKey, showAllRoles]);
 
   return (
     <div className="relative flex-1 min-w-0">
