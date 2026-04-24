@@ -46,6 +46,13 @@ export function DealViewTab({ deals, people, assignments }: Props) {
     return m;
   }, [people]);
 
+  // Pre-compute set of dealIds that have at least one assignment — avoids O(deals × assignments) per render
+  const dealIdsWithAssignments = useMemo(() => {
+    const s = new Set<string>();
+    assignments.forEach(a => s.add(a.dealId));
+    return s;
+  }, [assignments]);
+
   const filteredDeals = useMemo(() => {
     return deals.filter(d => {
       if (dealType !== ALL && d.dealType !== dealType) return false;
@@ -62,10 +69,8 @@ export function DealViewTab({ deals, people, assignments }: Props) {
 
   // Compute deal bucket — prefer explicit staffingStatus, fall back to assignments presence
   const dealBucket = (d: Deal): StaffingBucket => {
-    const explicit = classifyStaffing(d);
-    if (d.staffingStatus) return explicit;
-    const has = assignments.some(a => a.dealId === d.id);
-    return has ? "Already Staffed" : "Staffing Needed";
+    if (d.staffingStatus) return classifyStaffing(d);
+    return dealIdsWithAssignments.has(d.id) ? "Already Staffed" : "Staffing Needed";
   };
 
   // Group by VSD
@@ -93,7 +98,7 @@ export function DealViewTab({ deals, people, assignments }: Props) {
       list.forEach(d => { counts[dealBucket(d)]++; });
       return { vsd, deals: list, counts, total: list.length };
     });
-  }, [vsdGroups, assignments]);
+  }, [vsdGroups, dealIdsWithAssignments]);
 
   const totals = useMemo(() => {
     const t: Record<StaffingBucket, number> = { "Already Staffed": 0, "No Staffing Needed": 0, "Staffing Needed": 0 };

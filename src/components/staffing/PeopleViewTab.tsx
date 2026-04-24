@@ -89,18 +89,25 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
     return m;
   }, [people]);
 
+  // Build a name→Person lookup once to avoid O(P²) scans below.
+  const peopleByNameLower = useMemo(() => {
+    const m = new Map<string, Person>();
+    people.forEach(p => { m.set(p.name.toLowerCase(), p); });
+    return m;
+  }, [people]);
+
   const childrenMap = useMemo(() => {
     const m: Record<string, Person[]> = {};
     people.forEach(p => {
       const mgr = p.reportingManager?.trim().toLowerCase();
       if (!mgr) return;
-      const mgrPerson = people.find(x => x.name.toLowerCase() === mgr);
+      const mgrPerson = peopleByNameLower.get(mgr);
       if (!mgrPerson) return;
       if (!m[mgrPerson.id]) m[mgrPerson.id] = [];
       m[mgrPerson.id].push(p);
     });
     return m;
-  }, [people]);
+  }, [people, peopleByNameLower]);
 
   // Bucket counts (whole portfolio)
   const bucketCounts = useMemo(() => {
@@ -337,7 +344,7 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
           const roots = visible.filter(p => {
             const mgr = p.reportingManager?.trim().toLowerCase();
             if (!mgr) return true;
-            const mgrPerson = people.find(x => x.name.toLowerCase() === mgr);
+            const mgrPerson = peopleByNameLower.get(mgr);
             if (!mgrPerson) return true;
             // if manager is in same dept and visible, treat current as a child
             if (mgrPerson.department === dept && visibleSet.has(mgrPerson.id)) return false;
