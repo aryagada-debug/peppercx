@@ -61,7 +61,7 @@ export default function Staffing() {
         </div>
 
         {tab === "deals" && (
-          <DealViewTab deals={deals} people={people} assignments={assignments} />
+          <DealViewTab deals={deals} people={people} assignments={assignments} onUpdateDeal={updateDeal} />
         )}
         {tab === "people" && (
           <PeopleViewTab

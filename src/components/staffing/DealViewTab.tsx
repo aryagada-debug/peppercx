@@ -1,11 +1,52 @@
 import React, { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, Search, Users } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import type { Deal, StaffingAssignment, Person } from "@/data/staffingData";
 
 const STAFFING_BUCKETS = ["Already Staffed", "No Staffing Needed", "Staffing Needed"] as const;
 type StaffingBucket = typeof STAFFING_BUCKETS[number];
+
+// Human-readable role labels for the staffing drill-down (mirrors MatrixTab ROLE_COLS)
+const ROLE_LABELS: Record<string, string> = {
+  vsd: "VSD",
+  principal_bopm: "Principal BOPM",
+  senior_bopm: "Senior BOPM",
+  bopm: "BOPM",
+  content_lead_2026: "Content Lead (2026)",
+  senior_editor: "Senior Editor",
+  managing_editor: "Managing Editor",
+  content_lead: "Content Lead",
+  seo_leader: "SEO Leader",
+  seo_group_head: "Group Head",
+  sr_seo_manager: "Sr SEO Manager",
+  seo_manager: "SEO Manager",
+  sr_seo_analyst: "Sr SEO Analyst",
+  seo_analyst: "SEO Analyst",
+  strategy_cd: "Strategy CD",
+  strategy_acd: "Strategy ACD",
+  strategy_sr: "Sr Strategist",
+  cd_copy: "CD - Copy",
+  acd_copy: "ACD - Copy",
+  sr_copywriter: "Sr Copywriter",
+  jr_copywriter: "Jr Copywriter",
+  sr_cd_art: "Sr CD - Art",
+  acd_art: "ACD - Art",
+  art_director: "Art Director",
+  sr_designer: "Sr Designer",
+  jr_designer: "Jr Designer",
+  production_head: "Production Head",
+  ad_video_pm: "AD - Video PM",
+  video_pm: "Video PM/ACPPM",
+  video_editor_1: "Video Editor 1",
+  video_editor_2: "Video Editor 2",
+  video_editor_3: "Video Editor 3",
+  video_editor_4: "Video Editor 4",
+  video_editor_5: "Video Editor 5",
+  influencer: "Influencer Team",
+  perf_growth: "Performance & Growth",
+};
+const roleLabel = (key: string) => ROLE_LABELS[key] || key.replace(/_/g, " ");
 
 const fmtCurrency = (n: number | undefined) => {
   if (!n) return "—";
@@ -28,16 +69,21 @@ interface Props {
   deals: Deal[];
   people: Person[];
   assignments: StaffingAssignment[];
+  onUpdateDeal?: (dealId: string, updates: Partial<Deal>) => void;
 }
 
 const ALL = "All";
 const DEAL_TYPE_OPTIONS = [ALL, "Retainer", "Non-Retainer", "Pilot"] as const;
 const DEAL_STATUS_OPTIONS = [ALL, "Active Deal", "New Deal in SLA/PO", "Deal Disputed", "Deal Completed Successfully", "Deal Churned / Lost"] as const;
+const TYPE_EDIT_OPTIONS = ["Retainer", "Non-Retainer", "Pilot"] as const;
+const STATUS_EDIT_OPTIONS = ["Active Deal", "New Deal in SLA/PO", "Deal Disputed", "Deal Completed Successfully", "Deal Churned / Lost"] as const;
+const STAFFING_EDIT_OPTIONS: StaffingBucket[] = ["Already Staffed", "Staffing Needed", "No Staffing Needed"];
 
-export function DealViewTab({ deals, people, assignments }: Props) {
+export function DealViewTab({ deals, people, assignments, onUpdateDeal }: Props) {
   const [dealType, setDealType] = useState<typeof DEAL_TYPE_OPTIONS[number]>(ALL);
   const [dealStatus, setDealStatus] = useState<typeof DEAL_STATUS_OPTIONS[number]>("Active Deal");
   const [expandedVsd, setExpandedVsd] = useState<Set<string>>(new Set());
+  const [expandedDeal, setExpandedDeal] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
 
   const personMap = useMemo(() => {
@@ -174,28 +220,124 @@ export function DealViewTab({ deals, people, assignments }: Props) {
                                 <th className="text-left py-1 pr-4 font-medium">Status</th>
                                 <th className="text-right py-1 pr-4 font-medium">MRR</th>
                                 <th className="text-center py-1 font-medium">Staffing</th>
+                                <th className="text-center py-1 font-medium w-8">Team</th>
                               </tr>
                             </thead>
                             <tbody>
                               {r.deals.map(d => {
                                 const b = dealBucket(d);
+                                const dealAssigns = assignments.filter(a => a.dealId === d.id);
+                                const isDealExp = expandedDeal.has(d.id);
+                                const totalPct = dealAssigns.reduce((s, a) => s + (a.allocationPct || 0), 0);
+                                const totalHours = Math.round(totalPct / 100 * 160);
                                 return (
-                                  <tr key={d.id} className="border-t border-border/30">
-                                    <td className="py-1.5 pr-4">
-                                      <Link to={`/deals/${d.id}`} className="text-primary hover:underline">{d.dealName}</Link>
-                                    </td>
-                                    <td className="py-1.5 pr-4 text-muted-foreground">{d.account}</td>
-                                    <td className="py-1.5 pr-4 text-muted-foreground">{d.dealType}</td>
-                                    <td className="py-1.5 pr-4 text-muted-foreground">{d.dealStatus}</td>
-                                    <td className="py-1.5 pr-4 text-right font-mono text-foreground">{fmtCurrency(d.mrr)}</td>
-                                    <td className="py-1.5 text-center">
-                                      <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium",
-                                        b === "Already Staffed" ? "bg-[hsl(var(--success-bg))] text-positive" :
-                                        b === "Staffing Needed" ? "bg-[hsl(var(--danger-bg))] text-destructive" :
-                                        "bg-secondary text-muted-foreground"
-                                      )}>{b}</span>
-                                    </td>
-                                  </tr>
+                                  <React.Fragment key={d.id}>
+                                    <tr className="border-t border-border/30">
+                                      <td className="py-1.5 pr-4">
+                                        <Link to={`/deals/${d.id}`} className="text-primary hover:underline">{d.dealName}</Link>
+                                      </td>
+                                      <td className="py-1.5 pr-4 text-muted-foreground">{d.account}</td>
+                                      <td className="py-1.5 pr-4">
+                                        <select
+                                          value={d.dealType || ""}
+                                          onChange={e => onUpdateDeal?.(d.id, { dealType: e.target.value as Deal["dealType"] })}
+                                          className="h-6 px-1 -ml-1 text-caption bg-transparent border border-transparent hover:border-border focus:border-primary rounded text-foreground focus:outline-none"
+                                        >
+                                          {!TYPE_EDIT_OPTIONS.includes(d.dealType as any) && d.dealType && (
+                                            <option value={d.dealType}>{d.dealType}</option>
+                                          )}
+                                          {!d.dealType && <option value="">—</option>}
+                                          {TYPE_EDIT_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                                        </select>
+                                      </td>
+                                      <td className="py-1.5 pr-4">
+                                        <select
+                                          value={d.dealStatus || ""}
+                                          onChange={e => onUpdateDeal?.(d.id, { dealStatus: e.target.value })}
+                                          className="h-6 px-1 -ml-1 text-caption bg-transparent border border-transparent hover:border-border focus:border-primary rounded text-foreground focus:outline-none max-w-[180px]"
+                                        >
+                                          {!STATUS_EDIT_OPTIONS.includes(d.dealStatus as any) && d.dealStatus && (
+                                            <option value={d.dealStatus}>{d.dealStatus}</option>
+                                          )}
+                                          {!d.dealStatus && <option value="">—</option>}
+                                          {STATUS_EDIT_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                                        </select>
+                                      </td>
+                                      <td className="py-1.5 pr-4 text-right font-mono text-foreground">{fmtCurrency(d.mrr)}</td>
+                                      <td className="py-1.5 text-center">
+                                        <select
+                                          value={STAFFING_EDIT_OPTIONS.includes(d.staffingStatus as StaffingBucket) ? d.staffingStatus : b}
+                                          onChange={e => onUpdateDeal?.(d.id, { staffingStatus: e.target.value })}
+                                          className={cn(
+                                            "h-6 px-1.5 text-[10px] font-medium rounded border border-transparent hover:border-border focus:border-primary focus:outline-none cursor-pointer",
+                                            b === "Already Staffed" ? "bg-[hsl(var(--success-bg))] text-positive" :
+                                            b === "Staffing Needed" ? "bg-[hsl(var(--danger-bg))] text-destructive" :
+                                            "bg-secondary text-muted-foreground"
+                                          )}
+                                        >
+                                          {STAFFING_EDIT_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                                        </select>
+                                      </td>
+                                      <td className="py-1.5 text-center">
+                                        <button
+                                          type="button"
+                                          onClick={() => setExpandedDeal(prev => {
+                                            const n = new Set(prev);
+                                            if (n.has(d.id)) n.delete(d.id); else n.add(d.id);
+                                            return n;
+                                          })}
+                                          className="inline-flex items-center gap-1 px-1.5 h-6 rounded text-[10px] text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                                          title="Show staffing details"
+                                        >
+                                          <Users className="h-3 w-3" />
+                                          <span className="font-mono tabular-nums">{dealAssigns.length}</span>
+                                          {isDealExp ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                                        </button>
+                                      </td>
+                                    </tr>
+                                    {isDealExp && (
+                                      <tr>
+                                        <td colSpan={7} className="p-0 bg-secondary/20">
+                                          <div className="px-6 py-3">
+                                            {dealAssigns.length === 0 ? (
+                                              <div className="text-caption text-muted-foreground italic">No team members assigned yet.</div>
+                                            ) : (
+                                              <table className="w-full text-[11px]">
+                                                <thead>
+                                                  <tr className="text-muted-foreground border-b border-border/40">
+                                                    <th className="text-left py-1 pr-4 font-medium uppercase tracking-wider text-[10px]">Person</th>
+                                                    <th className="text-left py-1 pr-4 font-medium uppercase tracking-wider text-[10px]">Role</th>
+                                                    <th className="text-right py-1 pr-4 font-medium uppercase tracking-wider text-[10px]">Allocation %</th>
+                                                    <th className="text-right py-1 font-medium uppercase tracking-wider text-[10px]">Hours / month</th>
+                                                  </tr>
+                                                </thead>
+                                                <tbody>
+                                                  {dealAssigns.map(a => {
+                                                    const p = personMap[a.personId];
+                                                    const hours = Math.round((a.allocationPct || 0) / 100 * 160);
+                                                    return (
+                                                      <tr key={a.id} className="border-b border-border/20">
+                                                        <td className="py-1.5 pr-4 text-foreground">{p?.name || <span className="text-muted-foreground italic">Unknown</span>}</td>
+                                                        <td className="py-1.5 pr-4 text-muted-foreground">{roleLabel(a.roleKey)}</td>
+                                                        <td className="py-1.5 pr-4 text-right font-mono tabular-nums text-foreground">{a.allocationPct}%</td>
+                                                        <td className="py-1.5 text-right font-mono tabular-nums text-muted-foreground">{hours} h</td>
+                                                      </tr>
+                                                    );
+                                                  })}
+                                                  <tr className="bg-secondary/30 font-medium">
+                                                    <td className="py-1.5 pr-4 text-muted-foreground uppercase tracking-wider text-[10px]">Total</td>
+                                                    <td className="py-1.5 pr-4 text-muted-foreground">{dealAssigns.length} {dealAssigns.length === 1 ? "person" : "people"}</td>
+                                                    <td className="py-1.5 pr-4 text-right font-mono tabular-nums text-foreground">{totalPct.toFixed(1)}%</td>
+                                                    <td className="py-1.5 text-right font-mono tabular-nums text-foreground">{totalHours} h</td>
+                                                  </tr>
+                                                </tbody>
+                                              </table>
+                                            )}
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    )}
+                                  </React.Fragment>
                                 );
                               })}
                             </tbody>
