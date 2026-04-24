@@ -16,7 +16,8 @@ type NotifyKind = "staffing" | "task";
 
 interface Body {
   kind: NotifyKind;
-  personId: string;        // staffing_people.id
+  personId?: string;       // staffing_people.id (preferred)
+  assigneeName?: string;   // fallback lookup by exact name (used by tasks)
   dealId: string;          // staffing_deals.id
   // staffing
   roleKey?: string;
@@ -72,17 +73,21 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json() as Body;
-    if (!body || !body.kind || !body.personId || !body.dealId) {
-      return new Response(JSON.stringify({ error: "kind, personId, dealId required" }), {
+    if (!body || !body.kind || !body.dealId || (!body.personId && !body.assigneeName)) {
+      return new Response(JSON.stringify({ error: "kind, dealId and (personId or assigneeName) required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-    // Load person + deal
+    // Resolve person — by id when available, else by exact name match.
+    let personQuery = admin.from("staffing_people").select("id,name,email,slack_user_id").limit(1);
+    if (body.personId) personQuery = personQuery.eq("id", body.personId);
+    else personQuery = personQuery.ilike("name", body.assigneeName!.trim());
+
     const [personRes, dealRes] = await Promise.all([
-      admin.from("staffing_people").select("id,name,email,slack_user_id").eq("id", body.personId).maybeSingle(),
+      personQuery.maybeSingle(),
       admin.from("staffing_deals").select("id,deal_name,account,vsd").eq("id", body.dealId).maybeSingle(),
     ]);
 
