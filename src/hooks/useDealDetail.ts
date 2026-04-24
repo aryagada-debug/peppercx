@@ -416,6 +416,21 @@ export function useDealDetail(dealId: string | undefined) {
   }, []);
 
   // ── Tasks CRUD ──
+  // Best-effort Slack DM to a task assignee.
+  const notifyTask = (assigneeName: string | undefined, dealId: string, task: { title?: string; urgency?: string; endDate?: string }) => {
+    if (!assigneeName || !assigneeName.trim() || !dealId) return;
+    void supabase.functions.invoke("notify-assignment", {
+      body: {
+        kind: "task",
+        assigneeName: assigneeName.trim(),
+        dealId,
+        taskTitle: task.title || "",
+        taskUrgency: task.urgency || "",
+        taskDueDate: task.endDate || "",
+      },
+    }).catch(err => console.warn("[notify-assignment] task failed", err));
+  };
+
   const addTask = useCallback(async (task: Omit<DealTask, "id">) => {
     const { data } = await (supabase.from("deal_tasks") as any).insert({
       deal_id: task.dealId, title: task.title, description: task.description,
@@ -426,6 +441,7 @@ export function useDealDetail(dealId: string | undefined) {
       auto_regen: task.autoRegen || false,
     }).select().single();
     if (data) setTasks(prev => [...prev, { id: data.id, ...task }]);
+    notifyTask(task.assignee, task.dealId, { title: task.title, urgency: task.urgency, endDate: task.endDate });
   }, []);
 
   const addTasksBulk = useCallback(async (taskRows: Omit<DealTask, "id">[]) => {
@@ -453,7 +469,14 @@ export function useDealDetail(dealId: string | undefined) {
   }, []);
 
   const updateTask = useCallback(async (id: string, updates: Partial<DealTask>) => {
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+    let prevAssignee: string | undefined;
+    let nextTask: DealTask | undefined;
+    setTasks(prev => prev.map(t => {
+      if (t.id !== id) return t;
+      prevAssignee = t.assignee;
+      nextTask = { ...t, ...updates };
+      return nextTask;
+    }));
     const db: any = {};
     if (updates.title !== undefined) db.title = updates.title;
     if (updates.description !== undefined) db.description = updates.description;
@@ -470,6 +493,15 @@ export function useDealDetail(dealId: string | undefined) {
     if ((updates as any).tags !== undefined) db.tags = (updates as any).tags;
     if (updates.autoRegen !== undefined) db.auto_regen = updates.autoRegen;
     await (supabase.from("deal_tasks") as any).update(db).eq("id", id);
+    // Notify only when assignee actually changed to a non-empty value.
+    if (
+      nextTask &&
+      updates.assignee !== undefined &&
+      (updates.assignee || "").trim() !== "" &&
+      (prevAssignee || "").trim() !== (updates.assignee || "").trim()
+    ) {
+      notifyTask(nextTask.assignee, nextTask.dealId, { title: nextTask.title, urgency: nextTask.urgency, endDate: nextTask.endDate });
+    }
   }, []);
 
   const deleteTask = useCallback(async (id: string) => {
