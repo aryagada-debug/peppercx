@@ -618,7 +618,7 @@ function SelectChip({
 }
 
 function PersonPicker({
-  people, selectedPersonId, onSelect, occupancy = {}, vsdOptions = ["All"], peopleByVsd = {}, roleKey,
+  people, selectedPersonId, onSelect, occupancy = {}, vsdOptions = ["All"], peopleByVsd = {}, roleKey, allocationsByPerson = {},
 }: {
   people: Person[];
   selectedPersonId: string;
@@ -627,11 +627,13 @@ function PersonPicker({
   vsdOptions?: string[];
   peopleByVsd?: Record<string, Set<string>>;
   roleKey?: string;
+  allocationsByPerson?: Record<string, { dealId: string; dealName: string; pct: number }[]>;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [vsd, setVsd] = useState<string>("All");
   const [showAllRoles, setShowAllRoles] = useState(false);
+  const [expandedPersonId, setExpandedPersonId] = useState<string | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const selected = people.find(p => p.id === selectedPersonId);
