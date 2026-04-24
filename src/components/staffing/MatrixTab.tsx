@@ -696,6 +696,22 @@ function PersonPicker({
                   ))}
                 </select>
               )}
+              {roleKey && ROLE_FILTER[roleKey] && (
+                <label className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground px-0.5">
+                  <span className="truncate">
+                    {showAllRoles
+                      ? "Showing all people"
+                      : `Filtered to ${ROLE_BY_KEY[roleKey]?.label || roleKey}`}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowAllRoles(s => !s)}
+                    className="shrink-0 h-5 px-1.5 rounded border border-border text-[10px] hover:border-primary/40 hover:text-foreground transition-colors"
+                  >
+                    {showAllRoles ? "Filter by role" : "Show all"}
+                  </button>
+                </label>
+              )}
             </div>
             <div className="overflow-y-auto">
               {filtered.length === 0 ? (
