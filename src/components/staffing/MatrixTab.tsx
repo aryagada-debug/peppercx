@@ -58,6 +58,70 @@ const ROLE_BY_KEY: Record<string, { label: string; group: string }> = Object.fro
 
 const GROUP_ORDER = Array.from(new Set(ROLE_COLS.map(r => r.group)));
 
+// Map role-key → which role_category(ies) and designation keywords are eligible.
+// `categories` filters by staffing_people.role_category; `match` further refines by designation keyword.
+const ROLE_FILTER: Record<string, { categories?: string[]; match?: RegExp }> = {
+  vsd: { categories: ["Operations"], match: /vertical service delivery|vsd|avp|vp -|director - vertical/i },
+  principal_bopm: { categories: ["Operations"], match: /principal|principle/i },
+  senior_bopm: { categories: ["Operations"], match: /senior|sr\.?|group|director|avp|vp /i },
+  bopm: { categories: ["Operations"], match: /bopm|business operations|account|project manager/i },
+
+  content_lead_2026: { categories: ["Content"] },
+  senior_editor: { categories: ["Content"], match: /senior editor|senior director|senior content/i },
+  managing_editor: { categories: ["Content"], match: /editor|content lead|associate director/i },
+  content_lead: { categories: ["Content"], match: /lead|manager|director/i },
+
+  seo_leader: { categories: ["SEO"], match: /lead|director|head|vp|principal/i },
+  seo_group_head: { categories: ["SEO"], match: /group head|head|principal/i },
+  sr_seo_manager: { categories: ["SEO"], match: /senior|sr\.?|lead/i },
+  seo_manager: { categories: ["SEO"], match: /manager/i },
+  sr_seo_analyst: { categories: ["SEO"], match: /senior|sr\.?/i },
+  seo_analyst: { categories: ["SEO"], match: /analyst|associate|executive/i },
+
+  strategy_cd: { categories: ["Content Strategy", "Creative Art"], match: /director|cd|head/i },
+  strategy_acd: { categories: ["Content Strategy", "Creative Art"], match: /associate|acd|manager/i },
+  strategy_sr: { categories: ["Content Strategy"], match: /senior|sr\.?/i },
+
+  cd_copy: { categories: ["Creative Copy"], match: /creative director|cd|director|head/i },
+  acd_copy: { categories: ["Creative Copy"], match: /acd|associate|group head/i },
+  sr_copywriter: { categories: ["Creative Copy"], match: /senior|sr\.?/i },
+  jr_copywriter: { categories: ["Creative Copy"], match: /junior|jr\.?|copywriter/i },
+
+  sr_cd_art: { categories: ["Creative Art"], match: /senior creative director|senior cd|senior director/i },
+  acd_art: { categories: ["Creative Art"], match: /acd|associate creative/i },
+  art_director: { categories: ["Creative Art"], match: /art director|creative director/i },
+  sr_designer: { categories: ["Creative Art"], match: /senior designer|sr\.? designer/i },
+  jr_designer: { categories: ["Creative Art"], match: /junior|jr\.?|graphic designer|designer/i },
+
+  production_head: { categories: ["Video"], match: /head|director|lead/i },
+  ad_video_pm: { categories: ["Video"], match: /associate director|ad |associate/i },
+  video_pm: { categories: ["Video"], match: /pm|project manager|acppm|manager/i },
+  video_editor_1: { categories: ["Video"], match: /editor/i },
+  video_editor_2: { categories: ["Video"], match: /editor/i },
+  video_editor_3: { categories: ["Video"], match: /editor/i },
+  video_editor_4: { categories: ["Video"], match: /editor/i },
+  video_editor_5: { categories: ["Video"], match: /editor/i },
+
+  influencer: { match: /influencer/i },
+  perf_growth: { match: /performance|growth|revenue|gtm|sales/i },
+};
+
+/** Filter eligible people for a given role key. Falls back to all people if no filter is defined. */
+export function filterPeopleByRole(people: Person[], roleKey: string): Person[] {
+  const f = ROLE_FILTER[roleKey];
+  if (!f) return people;
+  return people.filter(p => {
+    if (f.categories && f.categories.length) {
+      if (!p.roleCategory || !f.categories.includes(p.roleCategory)) return false;
+    }
+    if (f.match) {
+      const hay = `${p.designation || ""} ${p.roleTitle || ""}`;
+      if (!f.match.test(hay)) return false;
+    }
+    return true;
+  });
+}
+
 // ── Helpers ─────────────────────────────────────────────────────────────────
 const fmtCurrency = (n?: number) => {
   if (!n) return "—";
