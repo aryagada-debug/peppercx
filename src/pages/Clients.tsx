@@ -434,7 +434,7 @@ export default function Clients() {
         {/* Row 1: Title + KPIs + Actions */}
         <div className="flex items-center gap-3 mb-2 flex-wrap">
           <h1 className="text-subhead font-bold tracking-tight text-foreground whitespace-nowrap">Clients & Deals</h1>
-          <div className="flex flex-1 min-w-0 gap-1.5 flex-wrap">
+          <div className="flex flex-none gap-1.5 flex-wrap">
           {[
             { label: "Clients", value: String(kpis.clients), Icon: Building2, tint: "sky" },
             { label: "Total Deals", value: String(kpis.deals), Icon: Briefcase, tint: "violet" },
@@ -454,12 +454,12 @@ export default function Clients() {
               <div
                 key={label}
                 className={cn(
-                  "flex flex-1 min-w-[120px] items-center gap-2 px-2 py-1 rounded-lg border bg-gradient-to-br to-transparent backdrop-blur-sm transition-all hover:shadow-sm",
+                  "flex items-center gap-1.5 px-1.5 py-0.5 rounded-lg border bg-gradient-to-br to-transparent backdrop-blur-sm transition-all hover:shadow-sm",
                   t.bg, t.ring,
                 )}
               >
-                <div className={cn("rounded-md p-1", t.chip)}>
-                  <Icon className={cn("h-3.5 w-3.5", t.icon)} />
+                <div className={cn("rounded-md p-0.5", t.chip)}>
+                  <Icon className={cn("h-3 w-3", t.icon)} />
                 </div>
                 <div className="min-w-0">
                   <p className="text-[9px] uppercase tracking-wide text-muted-foreground leading-tight">{label}</p>
@@ -588,10 +588,23 @@ export default function Clients() {
                       {isVisible("dealId") && <td className="py-2 px-3 text-xs font-mono text-muted-foreground truncate">{deal.dealId}</td>}
                       {isVisible("dealType") && (
                         <td className="py-2 px-3">
-                          <span className={cn(
-                            "inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium",
-                            deal.dealType === "Retainer" ? "bg-accent text-accent-foreground" : "bg-secondary text-secondary-foreground"
-                          )}>{deal.dealType}</span>
+                          <Select
+                            value={deal.dealType === "Retainer" ? "Retainer" : "Non-Retainer"}
+                            onValueChange={(v) => { updateDeal(deal.id, { dealType: v as any }); toast.success("Type updated"); }}
+                          >
+                            <SelectTrigger
+                              className={cn(
+                                "h-6 w-auto inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium border-none shadow-none focus:ring-0 gap-1",
+                                (deal.dealType === "Retainer") ? "bg-accent text-accent-foreground" : "bg-secondary text-secondary-foreground"
+                              )}
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Retainer" className="text-xs">Retainer</SelectItem>
+                              <SelectItem value="Non-Retainer" className="text-xs">Non-Retainer</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </td>
                       )}
                       {isVisible("dealStatus") && (
