@@ -137,15 +137,24 @@ interface Props {
   assignments: StaffingAssignment[];
   onUpdateDeal: (dealId: string, updates: Partial<Deal>) => void;
   onUpsertAssignment: (dealId: string, roleKey: string, personId: string, pct: number) => void;
+  initialDealId?: string;
 }
 
-export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAssignment }: Props) {
+export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAssignment, initialDealId }: Props) {
   const [dealSearch, setDealSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "needs" | "staffed">("all");
   const [vsdFilter, setVsdFilter] = useState<string>("All");
-  const [selectedDealId, setSelectedDealId] = useState<string | null>(deals[0]?.id || null);
+  const [selectedDealId, setSelectedDealId] = useState<string | null>(initialDealId || deals[0]?.id || null);
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set(GROUP_ORDER));
   const [adding, setAdding] = useState<string | null>(null); // group key being added to
+
+  // React to incoming initialDealId (e.g., navigated from Deal view "Add team" link)
+  useEffect(() => {
+    if (initialDealId && initialDealId !== selectedDealId) {
+      setSelectedDealId(initialDealId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialDealId]);
 
   // Auto-select first deal if current selection becomes invalid
   useEffect(() => {
