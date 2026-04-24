@@ -1,39 +1,43 @@
-import React, { useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import React, { useMemo, useState, useEffect } from "react";
+import { Search, Users, Building2, Plus, Trash2, ChevronDown, ChevronRight, Check, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Deal, Person, StaffingAssignment } from "@/data/staffingData";
 
-const NA = "Not Applicable";
-
-// Matrix role columns: maps a column to a staffing_assignments.role_key
+// ── Role catalog ────────────────────────────────────────────────────────────
 const ROLE_COLS: { key: string; label: string; group: string }[] = [
-  { key: "vsd", label: "VSD", group: "VSD & BOPM" },
-  { key: "principal_bopm", label: "Principal BOPM", group: "VSD & BOPM" },
-  { key: "senior_bopm", label: "Senior BOPM", group: "VSD & BOPM" },
-  { key: "bopm", label: "BOPM", group: "VSD & BOPM" },
+  { key: "vsd", label: "VSD", group: "Leadership & PM" },
+  { key: "principal_bopm", label: "Principal BOPM", group: "Leadership & PM" },
+  { key: "senior_bopm", label: "Senior BOPM", group: "Leadership & PM" },
+  { key: "bopm", label: "BOPM", group: "Leadership & PM" },
+
   { key: "content_lead_2026", label: "Content Lead (2026)", group: "Content" },
   { key: "senior_editor", label: "Senior Editor", group: "Content" },
   { key: "managing_editor", label: "Managing Editor", group: "Content" },
   { key: "content_lead", label: "Content Lead", group: "Content" },
+
   { key: "seo_leader", label: "SEO Leader", group: "SEO" },
   { key: "seo_group_head", label: "Group Head", group: "SEO" },
   { key: "sr_seo_manager", label: "Sr SEO Manager", group: "SEO" },
   { key: "seo_manager", label: "SEO Manager", group: "SEO" },
   { key: "sr_seo_analyst", label: "Sr SEO Analyst", group: "SEO" },
   { key: "seo_analyst", label: "SEO Analyst", group: "SEO" },
+
   { key: "strategy_cd", label: "Strategy CD", group: "Creative — Strategy" },
   { key: "strategy_acd", label: "Strategy ACD", group: "Creative — Strategy" },
   { key: "strategy_sr", label: "Sr Strategist", group: "Creative — Strategy" },
+
   { key: "cd_copy", label: "CD - Copy", group: "Creative — Copy" },
   { key: "acd_copy", label: "ACD - Copy", group: "Creative — Copy" },
   { key: "sr_copywriter", label: "Sr Copywriter", group: "Creative — Copy" },
   { key: "jr_copywriter", label: "Jr Copywriter", group: "Creative — Copy" },
+
   { key: "sr_cd_art", label: "Sr CD - Art", group: "Creative — Art" },
   { key: "acd_art", label: "ACD - Art", group: "Creative — Art" },
   { key: "art_director", label: "Art Director", group: "Creative — Art" },
   { key: "sr_designer", label: "Sr Designer", group: "Creative — Art" },
   { key: "jr_designer", label: "Jr Designer", group: "Creative — Art" },
+
   { key: "production_head", label: "Production Head", group: "Production / Video" },
   { key: "ad_video_pm", label: "AD - Video PM", group: "Production / Video" },
   { key: "video_pm", label: "Video PM/ACPPM", group: "Production / Video" },
@@ -42,49 +46,25 @@ const ROLE_COLS: { key: string; label: string; group: string }[] = [
   { key: "video_editor_3", label: "Video Editor 3", group: "Production / Video" },
   { key: "video_editor_4", label: "Video Editor 4", group: "Production / Video" },
   { key: "video_editor_5", label: "Video Editor 5", group: "Production / Video" },
+
   { key: "influencer", label: "Influencer Team", group: "Other Resources" },
   { key: "perf_growth", label: "Performance & Growth", group: "Other Resources" },
 ];
 
-const DEAL_FIELD_GROUPS: { group: string; fields: { key: keyof Deal; label: string; type: "text" | "number" | "currency" }[] }[] = [
-  {
-    group: "Deal Identity",
-    fields: [
-      { key: "pepperBusinessUnit", label: "Pepper BU", type: "text" },
-      { key: "capabilityLine", label: "Capability Line", type: "text" },
-      { key: "pcCode", label: "PC Code", type: "text" },
-      { key: "newDealIdFormulated", label: "Deal ID (Formulated)", type: "text" },
-      { key: "newDealIdTemp", label: "Deal ID / Temp", type: "text" },
-      { key: "dealType", label: "Deal Type", type: "text" },
-      { key: "dealStatus", label: "Master Status", type: "text" },
-      { key: "staffingStatus", label: "Staffing Status", type: "text" },
-      { key: "validationCentralCx", label: "Validation by Central CX", type: "text" },
-    ],
-  },
-  {
-    group: "Financials",
-    fields: [
-      { key: "monthClosedWon", label: "Month of Closed Won", type: "text" },
-      { key: "mrr", label: "MRR", type: "currency" },
-      { key: "duration", label: "Duration", type: "text" },
-      { key: "retainerDealValue", label: "Retainer Value", type: "currency" },
-      { key: "nonRetainerDealValue", label: "Non-Retainer Value", type: "currency" },
-      { key: "totalDealValue", label: "Total Deal Value", type: "currency" },
-      { key: "dealValueLost", label: "Deal Value Lost", type: "currency" },
-      { key: "netDealValue", label: "Net Deal Value", type: "currency" },
-      { key: "totalMisRecognition", label: "Total MIS Recognition", type: "currency" },
-      { key: "totalPendingRecognition", label: "Total Pending Recognition", type: "currency" },
-      { key: "consumptionValue", label: "Consumption", type: "currency" },
-      { key: "misVsConsumption", label: "MIS vs Consumption", type: "currency" },
-      { key: "invoicedDealValue", label: "Invoiced Deal Value", type: "currency" },
-      { key: "undeliveredFunnel", label: "Undelivered Funnel", type: "currency" },
-      { key: "tcvUsd", label: "TCV (USD)", type: "number" },
-      { key: "startDate", label: "Start Month", type: "text" },
-      { key: "endDate", label: "End Month", type: "text" },
-      { key: "dealTargetStatus", label: "Deal Target Status", type: "text" },
-    ],
-  },
-];
+const ROLE_BY_KEY: Record<string, { label: string; group: string }> = Object.fromEntries(
+  ROLE_COLS.map(r => [r.key, { label: r.label, group: r.group }])
+);
+
+const GROUP_ORDER = Array.from(new Set(ROLE_COLS.map(r => r.group)));
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+const fmtCurrency = (n?: number) => {
+  if (!n) return "—";
+  if (n >= 10000000) return `₹${(n / 10000000).toFixed(2)} Cr`;
+  if (n >= 100000) return `₹${(n / 100000).toFixed(1)} L`;
+  if (n >= 1000) return `₹${(n / 1000).toFixed(0)} K`;
+  return `₹${n}`;
+};
 
 interface Props {
   deals: Deal[];
@@ -95,290 +75,529 @@ interface Props {
 }
 
 export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAssignment }: Props) {
-  const [search, setSearch] = useState("");
-  // Default-hide all role groups except the first to keep initial DOM small; users can toggle them on.
-  const [hiddenGroups, setHiddenGroups] = useState<Set<string>>(() => {
-    const s = new Set<string>();
-    const roleGroups = Array.from(new Set(ROLE_COLS.map(r => r.group)));
-    roleGroups.forEach((g, i) => { if (i > 0) s.add(g); });
-    // Also collapse the verbose Financials group by default
-    s.add("Financials");
-    return s;
-  });
-  const [editing, setEditing] = useState<{ dealId: string; field: string } | null>(null);
-  const [draft, setDraft] = useState<string>("");
-  // Tracks which role-cell is actively being edited; only that cell mounts a heavy <select>.
-  const [editingRoleCell, setEditingRoleCell] = useState<{ dealId: string; roleKey: string } | null>(null);
-  const [page, setPage] = useState(0);
-  const PAGE_SIZE = 25;
+  const [dealSearch, setDealSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "needs" | "staffed">("all");
+  const [selectedDealId, setSelectedDealId] = useState<string | null>(deals[0]?.id || null);
+  const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set(GROUP_ORDER));
+  const [adding, setAdding] = useState<string | null>(null); // group key being added to
+  const [pickerSearch, setPickerSearch] = useState("");
 
-  const personOptions = useMemo(() => {
-    return [{ id: "", name: NA }, ...people.filter(p => !p.tbh && !p.leaving).map(p => ({ id: p.id, name: p.name }))];
-  }, [people]);
+  // Auto-select first deal if current selection becomes invalid
+  useEffect(() => {
+    if (!selectedDealId && deals.length > 0) setSelectedDealId(deals[0].id);
+  }, [deals, selectedDealId]);
 
+  const personOptions = useMemo(
+    () => people.filter(p => !p.tbh && !p.leaving),
+    [people]
+  );
   const personMap = useMemo(() => {
     const m: Record<string, Person> = {};
     people.forEach(p => { m[p.id] = p; });
     return m;
   }, [people]);
 
-  const assignmentBy = useMemo(() => {
-    const m: Record<string, StaffingAssignment> = {};
-    assignments.forEach(a => { m[`${a.dealId}::${a.roleKey}`] = a; });
+  // Index assignments by deal
+  const assignmentsByDeal = useMemo(() => {
+    const m: Record<string, StaffingAssignment[]> = {};
+    assignments.forEach(a => {
+      if (!m[a.dealId]) m[a.dealId] = [];
+      m[a.dealId].push(a);
+    });
     return m;
   }, [assignments]);
 
-  const filtered = useMemo(() => {
-    if (!search) return deals;
-    const q = search.toLowerCase();
-    return deals.filter(d =>
-      d.dealName.toLowerCase().includes(q) ||
-      d.account.toLowerCase().includes(q) ||
-      (d.vsd || "").toLowerCase().includes(q) ||
-      (d.pcCode || "").toLowerCase().includes(q)
-    );
-  }, [deals, search]);
+  // Filter deals
+  const filteredDeals = useMemo(() => {
+    const q = dealSearch.toLowerCase().trim();
+    return deals.filter(d => {
+      const has = (assignmentsByDeal[d.id] || []).length > 0;
+      if (statusFilter === "needs" && has) return false;
+      if (statusFilter === "staffed" && !has) return false;
+      if (!q) return true;
+      return (
+        d.dealName.toLowerCase().includes(q) ||
+        d.account.toLowerCase().includes(q) ||
+        (d.pcCode || "").toLowerCase().includes(q) ||
+        (d.vsd || "").toLowerCase().includes(q)
+      );
+    });
+  }, [deals, dealSearch, statusFilter, assignmentsByDeal]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages - 1);
-  const pageRows = useMemo(
-    () => filtered.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE),
-    [filtered, currentPage]
+  const selectedDeal = useMemo(
+    () => deals.find(d => d.id === selectedDealId) || null,
+    [deals, selectedDealId]
   );
 
-  const allGroups = useMemo(() => {
-    const set = new Set<string>();
-    DEAL_FIELD_GROUPS.forEach(g => set.add(g.group));
-    ROLE_COLS.forEach(r => set.add(r.group));
-    return Array.from(set);
-  }, []);
+  const dealAssignments = selectedDeal ? (assignmentsByDeal[selectedDeal.id] || []) : [];
+  const totalAlloc = dealAssignments.reduce((s, a) => s + (a.allocationPct || 0), 0);
+  const totalHours = Math.round((totalAlloc / 100) * 160);
 
-  const fmtNum = (n?: number) => (n === undefined || n === null || Number.isNaN(n)) ? "" : n.toLocaleString();
+  // Group assignments by role group
+  const assignmentsByGroup = useMemo(() => {
+    const m: Record<string, StaffingAssignment[]> = {};
+    GROUP_ORDER.forEach(g => { m[g] = []; });
+    dealAssignments.forEach(a => {
+      const g = ROLE_BY_KEY[a.roleKey]?.group || "Other Resources";
+      if (!m[g]) m[g] = [];
+      m[g].push(a);
+    });
+    return m;
+  }, [dealAssignments]);
 
-  const startEdit = (dealId: string, field: string, current: string) => {
-    setEditing({ dealId, field });
-    setDraft(current);
-  };
-
-  const saveDealField = (deal: Deal, field: keyof Deal, type: "text" | "number" | "currency") => {
-    let value: any = draft;
-    if (type === "number" || type === "currency") {
-      const n = Number(draft.replace(/,/g, ""));
-      value = Number.isNaN(n) ? 0 : n;
-    }
-    onUpdateDeal(deal.id, { [field]: value } as Partial<Deal>);
-    setEditing(null);
-    toast.success("Saved");
-  };
-
-  const toggleGroup = (g: string) => setHiddenGroups(prev => {
+  const toggleGroup = (g: string) => setOpenGroups(prev => {
     const n = new Set(prev); n.has(g) ? n.delete(g) : n.add(g); return n;
   });
 
+  const handlePickPerson = (roleKey: string, personId: string) => {
+    if (!selectedDeal) return;
+    onUpsertAssignment(selectedDeal.id, roleKey, personId, 50); // sensible default 50%
+    toast.success(`${personMap[personId]?.name || "Person"} assigned`);
+    setAdding(null);
+    setPickerSearch("");
+  };
+
+  const handleChangePerson = (roleKey: string, personId: string, currentPct: number) => {
+    if (!selectedDeal) return;
+    onUpsertAssignment(selectedDeal.id, roleKey, personId, currentPct || 50);
+  };
+
+  const handleChangePct = (a: StaffingAssignment, pct: number) => {
+    if (!selectedDeal) return;
+    const clean = Math.max(0, Math.min(100, Number.isNaN(pct) ? 0 : pct));
+    onUpsertAssignment(selectedDeal.id, a.roleKey, a.personId, clean);
+  };
+
+  const handleRemove = (a: StaffingAssignment) => {
+    if (!selectedDeal) return;
+    onUpsertAssignment(selectedDeal.id, a.roleKey, "", 0);
+    toast.success("Assignment removed");
+  };
+
+  // Roles in this group not yet assigned (avoid duplicates in picker UI)
+  const availableRolesForGroup = (group: string, currentRoleKey?: string) => {
+    const usedKeys = new Set(dealAssignments.map(a => a.roleKey));
+    return ROLE_COLS.filter(r => r.group === group && (r.key === currentRoleKey || !usedKeys.has(r.key)));
+  };
+
   return (
-    <div className="animate-fade-in space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative max-w-xs flex-1 min-w-[220px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search deals..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full h-9 pl-9 pr-3 rounded-lg bg-card border border-border text-ui text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none"
-          />
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-caption text-muted-foreground mr-1">Groups:</span>
-          {allGroups.map(g => {
-            const hidden = hiddenGroups.has(g);
-            return (
+    <div className="animate-fade-in grid grid-cols-12 gap-4 h-[calc(100vh-200px)]">
+      {/* ── Left: Deal list ─────────────────────────────────────── */}
+      <aside className="col-span-4 lg:col-span-3 bg-card border border-border rounded-xl flex flex-col overflow-hidden">
+        <div className="p-3 border-b border-border space-y-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search deals…"
+              value={dealSearch}
+              onChange={e => setDealSearch(e.target.value)}
+              className="w-full h-8 pl-8 pr-3 rounded-md bg-background border border-border text-ui text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none"
+            />
+          </div>
+          <div className="flex gap-1">
+            {([
+              { k: "all", label: "All" },
+              { k: "needs", label: "Needs staffing" },
+              { k: "staffed", label: "Staffed" },
+            ] as const).map(t => (
               <button
-                key={g}
-                onClick={() => toggleGroup(g)}
+                key={t.k}
+                onClick={() => setStatusFilter(t.k)}
                 className={cn(
-                  "h-7 px-2 rounded-md text-[11px] border transition-colors",
-                  hidden ? "bg-secondary text-muted-foreground border-border" : "bg-card text-foreground border-border hover:bg-secondary/50"
+                  "flex-1 h-7 px-2 rounded text-[11px] border transition-colors",
+                  statusFilter === t.k
+                    ? "bg-primary/10 border-primary/40 text-primary font-medium"
+                    : "bg-background border-border text-muted-foreground hover:text-foreground"
                 )}
-              >
-                {hidden ? "+ " : "− "}{g}
-              </button>
-            );
-          })}
+              >{t.label}</button>
+            ))}
+          </div>
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wider px-1">
+            {filteredDeals.length} deals
+          </div>
         </div>
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-caption text-muted-foreground">
-            {filtered.length === 0 ? 0 : currentPage * PAGE_SIZE + 1}–
-            {Math.min((currentPage + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
-          </span>
-          <button
-            onClick={() => setPage(p => Math.max(0, p - 1))}
-            disabled={currentPage === 0}
-            className="h-7 px-2 rounded-md text-[11px] border border-border bg-card hover:bg-secondary/50 disabled:opacity-40"
-          >Prev</button>
-          <button
-            onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-            disabled={currentPage >= totalPages - 1}
-            className="h-7 px-2 rounded-md text-[11px] border border-border bg-card hover:bg-secondary/50 disabled:opacity-40"
-          >Next</button>
-        </div>
-      </div>
 
-      <div className="bg-card border border-border rounded-xl overflow-auto" style={{ maxHeight: "calc(100vh - 240px)" }}>
-        <table className="text-[11px] border-collapse">
-          {/* Group header row */}
-          <thead className="sticky top-0 z-30 bg-card">
-            <tr>
-              <th colSpan={3} className="sticky left-0 z-40 bg-secondary/40 border border-border px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Deal</th>
-              {DEAL_FIELD_GROUPS.filter(g => !hiddenGroups.has(g.group)).map(g => (
-                <th key={g.group} colSpan={g.fields.length} className="bg-secondary/40 border border-border px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{g.group}</th>
-              ))}
-              {Array.from(new Set(ROLE_COLS.map(r => r.group))).filter(g => !hiddenGroups.has(g)).map(g => {
-                const cols = ROLE_COLS.filter(r => r.group === g);
-                return <th key={g} colSpan={cols.length * 2} className="bg-secondary/40 border border-border px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{g}</th>;
-              })}
-              <th colSpan={2} className="bg-secondary/40 border border-border px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Other</th>
-            </tr>
-            <tr>
-              <th className="sticky left-0 z-30 bg-card border border-border px-2 py-1.5 text-left font-medium text-muted-foreground min-w-[60px]">PC Code</th>
-              <th className="sticky left-[60px] z-30 bg-card border border-border px-2 py-1.5 text-left font-medium text-muted-foreground min-w-[140px]">Account</th>
-              <th className="sticky left-[200px] z-30 bg-card border border-border px-2 py-1.5 text-left font-medium text-muted-foreground min-w-[200px]">Deal Name</th>
-              {DEAL_FIELD_GROUPS.filter(g => !hiddenGroups.has(g.group)).flatMap(g => g.fields).map(f => (
-                <th key={String(f.key)} className="bg-card border border-border px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">{f.label}</th>
-              ))}
-              {ROLE_COLS.filter(r => !hiddenGroups.has(r.group)).map(r => (
-                <React.Fragment key={r.key}>
-                  <th className="bg-card border border-border px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">{r.label}</th>
-                  <th className="bg-card border border-border px-2 py-1.5 text-right font-medium text-muted-foreground whitespace-nowrap">% Mapping</th>
-                </React.Fragment>
-              ))}
-              <th className="bg-card border border-border px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">Strategy BW Required</th>
-              <th className="bg-card border border-border px-2 py-1.5 text-right font-medium text-muted-foreground whitespace-nowrap">TCV (USD)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pageRows.map(d => (
-              <tr key={d.id} className="hover:bg-secondary/20">
-                <td className="sticky left-0 z-10 bg-card border border-border px-2 py-1 font-mono text-foreground">{d.pcCode || "—"}</td>
-                <td className="sticky left-[60px] z-10 bg-card border border-border px-2 py-1 text-foreground whitespace-nowrap">{d.account}</td>
-                <td className="sticky left-[200px] z-10 bg-card border border-border px-2 py-1 text-foreground whitespace-nowrap">{d.dealName}</td>
-
-                {DEAL_FIELD_GROUPS.filter(g => !hiddenGroups.has(g.group)).flatMap(g => g.fields).map(f => {
-                  const isEditing = editing?.dealId === d.id && editing.field === String(f.key);
-                  const raw = d[f.key];
-                  const display = f.type === "currency" || f.type === "number"
-                    ? fmtNum(raw as number | undefined)
-                    : (raw as string | undefined) || "";
-                  return (
-                    <td key={String(f.key)} className="border border-border px-1 py-0.5 text-foreground whitespace-nowrap min-w-[80px]">
-                      {isEditing ? (
-                        <input
-                          autoFocus
-                          value={draft}
-                          onChange={e => setDraft(e.target.value)}
-                          onBlur={() => saveDealField(d, f.key, f.type)}
-                          onKeyDown={e => {
-                            if (e.key === "Enter") saveDealField(d, f.key, f.type);
-                            if (e.key === "Escape") setEditing(null);
-                          }}
-                          type={f.type === "text" ? "text" : "number"}
-                          className="w-full h-6 px-1 text-[11px] bg-background border border-primary rounded outline-none"
-                        />
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => startEdit(d.id, String(f.key), f.type === "text" ? (display as string) : String(raw ?? ""))}
-                          className="w-full text-left hover:bg-accent/20 px-1 rounded"
-                        >
-                          {display || <span className="text-muted-foreground/50">—</span>}
-                        </button>
+        <div className="flex-1 overflow-y-auto">
+          {filteredDeals.length === 0 ? (
+            <div className="p-6 text-center text-caption text-muted-foreground">No deals match.</div>
+          ) : (
+            <ul>
+              {filteredDeals.slice(0, 200).map(d => {
+                const isActive = d.id === selectedDealId;
+                const count = (assignmentsByDeal[d.id] || []).length;
+                return (
+                  <li key={d.id}>
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedDealId(d.id); setAdding(null); }}
+                      className={cn(
+                        "w-full text-left px-3 py-2 border-b border-border/40 transition-colors",
+                        isActive ? "bg-primary/10 border-l-2 border-l-primary" : "hover:bg-secondary/40 border-l-2 border-l-transparent"
                       )}
-                    </td>
-                  );
-                })}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className={cn("text-ui font-medium truncate", isActive ? "text-foreground" : "text-foreground")}>
+                            {d.dealName || "(unnamed)"}
+                          </div>
+                          <div className="text-caption text-muted-foreground truncate">{d.account}</div>
+                        </div>
+                        <span className={cn(
+                          "shrink-0 inline-flex items-center gap-1 h-5 px-1.5 rounded text-[10px] font-mono tabular-nums",
+                          count === 0
+                            ? "bg-[hsl(var(--danger-bg))] text-destructive"
+                            : "bg-[hsl(var(--success-bg))] text-positive"
+                        )}>
+                          <Users className="h-2.5 w-2.5" /> {count}
+                        </span>
+                      </div>
+                      {(d.pcCode || d.vsd) && (
+                        <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
+                          {d.pcCode && <span className="font-mono">{d.pcCode}</span>}
+                          {d.vsd && <span className="truncate">· {d.vsd}</span>}
+                        </div>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+              {filteredDeals.length > 200 && (
+                <li className="px-3 py-2 text-[10px] text-muted-foreground italic border-t border-border">
+                  Showing first 200. Refine search to see more.
+                </li>
+              )}
+            </ul>
+          )}
+        </div>
+      </aside>
 
-                {ROLE_COLS.filter(r => !hiddenGroups.has(r.group)).map(r => {
-                  const a = assignmentBy[`${d.id}::${r.key}`];
-                  const personName = a?.personId ? (personMap[a.personId]?.name || "—") : NA;
-                  const isEditingCell = editingRoleCell?.dealId === d.id && editingRoleCell?.roleKey === r.key;
-                  return (
-                    <React.Fragment key={r.key}>
-                      <td className="border border-border px-1 py-0.5 min-w-[140px]">
-                        {isEditingCell ? (
-                          <select
-                            autoFocus
-                            value={a?.personId || ""}
-                            onChange={e => {
-                              onUpsertAssignment(d.id, r.key, e.target.value, a?.allocationPct || 0);
-                              setEditingRoleCell(null);
-                            }}
-                            onBlur={() => setEditingRoleCell(null)}
-                            className="w-full h-6 text-[11px] bg-background border border-primary outline-none rounded"
-                          >
-                            {personOptions.map(p => (
-                              <option key={p.id} value={p.id}>{p.name}</option>
-                            ))}
-                          </select>
+      {/* ── Right: Deal detail / staffing builder ───────────────────── */}
+      <section className="col-span-8 lg:col-span-9 bg-card border border-border rounded-xl flex flex-col overflow-hidden">
+        {!selectedDeal ? (
+          <div className="flex-1 flex items-center justify-center text-muted-foreground text-ui">
+            Select a deal to staff
+          </div>
+        ) : (
+          <>
+            {/* Deal header */}
+            <div className="px-6 py-4 border-b border-border">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 text-caption text-muted-foreground">
+                    <Building2 className="h-3.5 w-3.5" />
+                    <span>{selectedDeal.account}</span>
+                    {selectedDeal.pcCode && <span className="font-mono">· {selectedDeal.pcCode}</span>}
+                  </div>
+                  <h2 className="text-subhead font-bold text-foreground truncate mt-0.5">{selectedDeal.dealName || "(unnamed deal)"}</h2>
+                </div>
+                <div className="flex flex-wrap gap-3 text-right shrink-0">
+                  <Stat label="MRR" value={fmtCurrency(selectedDeal.mrr)} />
+                  <Stat label="TCV" value={fmtCurrency(selectedDeal.totalDealValue)} />
+                  <Stat
+                    label="Allocated"
+                    value={`${totalAlloc.toFixed(0)}% · ${totalHours}h`}
+                    tone={totalAlloc > 100 ? "warn" : totalAlloc > 0 ? "ok" : "muted"}
+                  />
+                </div>
+              </div>
+
+              {/* Inline editable selectors */}
+              <div className="flex flex-wrap items-center gap-2 mt-3">
+                <SelectChip
+                  label="Type"
+                  value={selectedDeal.dealType || ""}
+                  options={["Retainer", "Non-Retainer", "Pilot"]}
+                  onChange={v => onUpdateDeal(selectedDeal.id, { dealType: v as Deal["dealType"] })}
+                />
+                <SelectChip
+                  label="Status"
+                  value={selectedDeal.dealStatus || ""}
+                  options={["Active Deal", "New Deal in SLA/PO", "Deal Disputed", "Deal Completed Successfully", "Deal Churned / Lost"]}
+                  onChange={v => onUpdateDeal(selectedDeal.id, { dealStatus: v })}
+                />
+                <SelectChip
+                  label="Staffing"
+                  value={selectedDeal.staffingStatus || ""}
+                  options={["Already Staffed", "Staffing Needed", "No Staffing Needed"]}
+                  onChange={v => onUpdateDeal(selectedDeal.id, { staffingStatus: v })}
+                />
+                <SelectChip
+                  label="Strategy BW"
+                  value={selectedDeal.strategyBandwidthRequired || ""}
+                  options={["Yes", "No", "Yes - Ad Hoc Strategy", "Not Applicable"]}
+                  onChange={v => onUpdateDeal(selectedDeal.id, { strategyBandwidthRequired: v })}
+                />
+              </div>
+            </div>
+
+            {/* Role groups */}
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+              {GROUP_ORDER.map(group => {
+                const isOpen = openGroups.has(group);
+                const groupAssigns = assignmentsByGroup[group] || [];
+                const isAddingHere = adding === group;
+                return (
+                  <div key={group} className="border border-border rounded-lg bg-background/40 overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup(group)}
+                      className="w-full flex items-center gap-2 px-3 py-2 hover:bg-secondary/30 transition-colors"
+                    >
+                      {isOpen ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+                      <span className="text-ui font-semibold text-foreground">{group}</span>
+                      <span className="text-caption text-muted-foreground">
+                        {groupAssigns.length === 0 ? "no roles assigned" : `${groupAssigns.length} ${groupAssigns.length === 1 ? "person" : "people"}`}
+                      </span>
+                      <span className="ml-auto text-caption text-muted-foreground font-mono tabular-nums">
+                        {groupAssigns.reduce((s, a) => s + (a.allocationPct || 0), 0)}%
+                      </span>
+                    </button>
+
+                    {isOpen && (
+                      <div className="px-3 pb-3 space-y-2">
+                        {groupAssigns.map(a => {
+                          const role = ROLE_BY_KEY[a.roleKey];
+                          return (
+                            <div key={a.id} className="flex items-center gap-2 bg-card border border-border rounded-md px-2 py-1.5">
+                              <div className="w-40 text-caption text-muted-foreground shrink-0 truncate" title={role?.label || a.roleKey}>
+                                {role?.label || a.roleKey}
+                              </div>
+                              <PersonPicker
+                                people={personOptions}
+                                selectedPersonId={a.personId}
+                                onSelect={pid => handleChangePerson(a.roleKey, pid, a.allocationPct)}
+                              />
+                              <div className="flex items-center gap-1 ml-auto shrink-0">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={100}
+                                  value={a.allocationPct || 0}
+                                  onChange={e => handleChangePct(a, Number(e.target.value))}
+                                  className="w-14 h-7 text-ui text-right font-mono tabular-nums bg-background border border-border rounded px-1.5 focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none"
+                                />
+                                <span className="text-caption text-muted-foreground w-4">%</span>
+                                <span className="text-caption text-muted-foreground font-mono tabular-nums w-10 text-right">
+                                  {Math.round(((a.allocationPct || 0) / 100) * 160)}h
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemove(a)}
+                                  className="ml-1 h-7 w-7 inline-flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                  title="Remove assignment"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {/* Add-role row */}
+                        {isAddingHere ? (
+                          <AddRoleRow
+                            roles={availableRolesForGroup(group)}
+                            people={personOptions}
+                            search={pickerSearch}
+                            setSearch={setPickerSearch}
+                            onCancel={() => { setAdding(null); setPickerSearch(""); }}
+                            onConfirm={(roleKey, personId) => handlePickPerson(roleKey, personId)}
+                          />
                         ) : (
                           <button
                             type="button"
-                            onClick={() => setEditingRoleCell({ dealId: d.id, roleKey: r.key })}
-                            className={cn(
-                              "w-full h-6 px-1 text-left text-[11px] truncate rounded hover:bg-accent/20",
-                              !a?.personId && "text-muted-foreground/60"
-                            )}
-                            title={personName}
+                            onClick={() => { setAdding(group); setPickerSearch(""); }}
+                            disabled={availableRolesForGroup(group).length === 0}
+                            className="w-full inline-flex items-center justify-center gap-1.5 h-8 rounded-md border border-dashed border-border text-caption text-muted-foreground hover:border-primary hover:text-primary hover:bg-primary/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                           >
-                            {personName}
+                            <Plus className="h-3.5 w-3.5" />
+                            {availableRolesForGroup(group).length === 0 ? "All roles in this group are filled" : `Add ${group} role`}
                           </button>
                         )}
-                      </td>
-                      <td className="border border-border px-1 py-0.5 text-right min-w-[60px]">
-                        <input
-                          type="number"
-                          value={a?.allocationPct ?? ""}
-                          onChange={e => {
-                            const v = Number(e.target.value);
-                            if (a?.personId) {
-                              onUpsertAssignment(d.id, r.key, a.personId, Number.isNaN(v) ? 0 : v);
-                            }
-                          }}
-                          disabled={!a?.personId}
-                          className="w-full h-6 px-1 text-[11px] text-right bg-transparent border-0 outline-none focus:ring-1 focus:ring-primary rounded font-mono tabular-nums disabled:opacity-30"
-                          placeholder="0"
-                        />
-                      </td>
-                    </React.Fragment>
-                  );
-                })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
 
-                {/* Other resources */}
-                <td className="border border-border px-1 py-0.5 min-w-[140px]">
-                  {editing?.dealId === d.id && editing.field === "strategyBandwidthRequired" ? (
-                    <input autoFocus value={draft} onChange={e => setDraft(e.target.value)} onBlur={() => saveDealField(d, "strategyBandwidthRequired", "text")}
-                      onKeyDown={e => { if (e.key === "Enter") saveDealField(d, "strategyBandwidthRequired", "text"); if (e.key === "Escape") setEditing(null); }}
-                      className="w-full h-6 px-1 text-[11px] bg-background border border-primary rounded outline-none" />
-                  ) : (
-                    <button type="button" onClick={() => startEdit(d.id, "strategyBandwidthRequired", d.strategyBandwidthRequired || "")} className="w-full text-left hover:bg-accent/20 px-1 rounded">
-                      {d.strategyBandwidthRequired || <span className="text-muted-foreground/50">—</span>}
-                    </button>
-                  )}
-                </td>
-                <td className="border border-border px-1 py-0.5 text-right min-w-[80px]">
-                  {editing?.dealId === d.id && editing.field === "tcvUsd" ? (
-                    <input autoFocus type="number" value={draft} onChange={e => setDraft(e.target.value)} onBlur={() => saveDealField(d, "tcvUsd", "number")}
-                      onKeyDown={e => { if (e.key === "Enter") saveDealField(d, "tcvUsd", "number"); if (e.key === "Escape") setEditing(null); }}
-                      className="w-full h-6 px-1 text-[11px] text-right bg-background border border-primary rounded outline-none font-mono" />
-                  ) : (
-                    <button type="button" onClick={() => startEdit(d.id, "tcvUsd", String(d.tcvUsd ?? ""))} className="w-full text-right hover:bg-accent/20 px-1 rounded font-mono tabular-nums">
-                      {fmtNum(d.tcvUsd) || <span className="text-muted-foreground/50">—</span>}
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+              {totalAlloc === 0 && (
+                <div className="flex items-center gap-2 text-caption text-muted-foreground p-3 rounded-md bg-secondary/30 border border-dashed border-border">
+                  <AlertCircle className="h-4 w-4" />
+                  No one is staffed on this deal yet. Expand a section above and click <em>Add role</em> to begin.
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </section>
+    </div>
+  );
+}
+
+// ── Sub-components ─────────────────────────────────────────────────────────
+function Stat({ label, value, tone = "muted" }: { label: string; value: string; tone?: "muted" | "ok" | "warn" }) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className={cn(
+        "text-ui font-mono tabular-nums font-semibold",
+        tone === "warn" ? "text-destructive" : tone === "ok" ? "text-positive" : "text-foreground"
+      )}>{value}</div>
+    </div>
+  );
+}
+
+function SelectChip({
+  label, value, options, onChange,
+}: { label: string; value: string; options: string[]; onChange: (v: string) => void }) {
+  return (
+    <label className="inline-flex items-center gap-1.5 h-8 px-2 rounded-md border border-border bg-background hover:border-primary/40 transition-colors">
+      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</span>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="bg-transparent text-caption text-foreground outline-none focus:ring-0 border-0 cursor-pointer"
+      >
+        {!options.includes(value) && <option value={value}>{value || "—"}</option>}
+        {options.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
+    </label>
+  );
+}
+
+function PersonPicker({
+  people, selectedPersonId, onSelect,
+}: { people: Person[]; selectedPersonId: string; onSelect: (id: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const selected = people.find(p => p.id === selectedPersonId);
+
+  const filtered = useMemo(() => {
+    const lq = q.toLowerCase().trim();
+    if (!lq) return people.slice(0, 60);
+    return people.filter(p =>
+      p.name.toLowerCase().includes(lq) ||
+      (p.designation || "").toLowerCase().includes(lq) ||
+      (p.department || "").toLowerCase().includes(lq)
+    ).slice(0, 60);
+  }, [people, q]);
+
+  return (
+    <div className="relative flex-1 min-w-0">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className={cn(
+          "w-full text-left h-7 px-2 rounded-md border border-border bg-background hover:border-primary/40 transition-colors flex items-center gap-2",
+          !selected && "text-muted-foreground"
+        )}
+      >
+        <span className="truncate text-ui">{selected?.name || "Select person…"}</span>
+        {selected?.designation && (
+          <span className="ml-auto truncate text-caption text-muted-foreground hidden md:inline">
+            {selected.designation}
+          </span>
+        )}
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          <div className="absolute z-40 mt-1 left-0 right-0 min-w-[260px] bg-card border border-border rounded-md shadow-lg max-h-80 overflow-hidden flex flex-col">
+            <div className="p-2 border-b border-border">
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <input
+                  autoFocus
+                  value={q}
+                  onChange={e => setQ(e.target.value)}
+                  placeholder="Search by name, designation…"
+                  className="w-full h-7 pl-7 pr-2 text-caption bg-background border border-border rounded outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                />
+              </div>
+            </div>
+            <div className="overflow-y-auto">
+              {filtered.length === 0 ? (
+                <div className="px-3 py-4 text-caption text-muted-foreground text-center">No people match</div>
+              ) : (
+                filtered.map(p => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => { onSelect(p.id); setOpen(false); setQ(""); }}
+                    className={cn(
+                      "w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-secondary/40 transition-colors",
+                      p.id === selectedPersonId && "bg-primary/10"
+                    )}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="text-ui text-foreground truncate">{p.name}</div>
+                      {(p.designation || p.department) && (
+                        <div className="text-[10px] text-muted-foreground truncate">
+                          {p.designation}{p.designation && p.department ? " · " : ""}{p.department}
+                        </div>
+                      )}
+                    </div>
+                    {p.id === selectedPersonId && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function AddRoleRow({
+  roles, people, search, setSearch, onCancel, onConfirm,
+}: {
+  roles: { key: string; label: string }[];
+  people: Person[];
+  search: string;
+  setSearch: (s: string) => void;
+  onCancel: () => void;
+  onConfirm: (roleKey: string, personId: string) => void;
+}) {
+  const [roleKey, setRoleKey] = useState(roles[0]?.key || "");
+  const [personId, setPersonId] = useState("");
+
+  const filteredPeople = useMemo(() => {
+    const lq = search.toLowerCase().trim();
+    if (!lq) return people.slice(0, 60);
+    return people.filter(p =>
+      p.name.toLowerCase().includes(lq) ||
+      (p.designation || "").toLowerCase().includes(lq)
+    ).slice(0, 60);
+  }, [people, search]);
+
+  return (
+    <div className="bg-primary/5 border border-primary/30 rounded-md p-2 space-y-2">
+      <div className="flex items-center gap-2">
+        <select
+          value={roleKey}
+          onChange={e => setRoleKey(e.target.value)}
+          className="h-7 px-2 text-caption bg-background border border-border rounded outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary min-w-[160px]"
+        >
+          {roles.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}
+        </select>
+        <PersonPicker
+          people={people}
+          selectedPersonId={personId}
+          onSelect={setPersonId}
+        />
+        <button
+          type="button"
+          onClick={() => { if (roleKey && personId) onConfirm(roleKey, personId); }}
+          disabled={!roleKey || !personId}
+          className="h-7 px-3 rounded-md bg-primary text-primary-foreground text-caption font-medium hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >Add</button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="h-7 px-2 rounded-md border border-border text-caption text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+        >Cancel</button>
       </div>
     </div>
   );
