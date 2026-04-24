@@ -58,6 +58,65 @@ const ROLE_BY_KEY: Record<string, { label: string; group: string }> = Object.fro
 
 const GROUP_ORDER = Array.from(new Set(ROLE_COLS.map(r => r.group)));
 
+// ── Service-line × Capability matrix ────────────────────────────────────────
+type Capability =
+  | "Strategy" | "Content" | "SEO" | "Design" | "Video"
+  | "Social" | "Performance" | "Influencer" | "CRM" | "ProjectMgmt";
+
+const SERVICE_LINE_CAPS: Record<string, Set<Capability>> = {
+  "Integrated Retainers - Content + SEO + Social or Content Hubs":
+    new Set(["Strategy","Content","SEO","Design","Social","ProjectMgmt"]),
+  "Content Studio - Talent Onsite/Virtual":
+    new Set(["Content","ProjectMgmt"]),
+  "Pepper SEO - SEO + Content Retainer":
+    new Set(["Strategy","Content","SEO","ProjectMgmt"]),
+  "Pepper Content - Website/SEO Content":
+    new Set(["Strategy","Content","SEO","ProjectMgmt"]),
+  "Campaign Assets - Statics, Adapts, Asset Creation":
+    new Set(["Design","ProjectMgmt"]),
+  "Pepper Content - B2B Full Funnel":
+    new Set(["Strategy","Content","SEO","Design","Performance","CRM","ProjectMgmt"]),
+  "Light Video Production - Reels/YouTube/Podcast":
+    new Set(["Strategy","Content","Video","Social","ProjectMgmt"]),
+  "Creative/Social Media Retainer":
+    new Set(["Strategy","Content","Design","Social","ProjectMgmt"]),
+  "CRM/CLM Content - Lifecycle Marketing":
+    new Set(["Strategy","Content","Design","CRM","ProjectMgmt"]),
+  "Campaigns - Influencer Marketing/Social":
+    new Set(["Strategy","Design","Social","Performance","Influencer","ProjectMgmt"]),
+  "Heavy Video Production- Films/DVCs/TVCs":
+    new Set(["Strategy","Content","Design","Video","ProjectMgmt"]),
+  "Translation/Localisation":
+    new Set(["Content","ProjectMgmt"]),
+  "Other": new Set(["Strategy","Content","SEO","Design","Video","Social","Performance","Influencer","CRM","ProjectMgmt"]),
+};
+
+const ROLE_GROUP_CAP: Record<string, Capability> = {
+  "Leadership & PM": "ProjectMgmt",
+  "Content": "Content",
+  "SEO": "SEO",
+  "Creative — Strategy": "Strategy",
+  "Creative — Copy": "Content",
+  "Creative — Art": "Design",
+  "Production / Video": "Video",
+};
+const ROLE_CAP_OVERRIDE: Record<string, Capability> = {
+  influencer: "Influencer",
+  perf_growth: "Performance",
+};
+
+function isRoleAllowedForServiceLine(roleKey: string, serviceLine: string): boolean {
+  if (!serviceLine) return true;
+  const caps = SERVICE_LINE_CAPS[serviceLine];
+  if (!caps) return true; // legacy/unknown SL → don't restrict
+  const grp = ROLE_BY_KEY[roleKey]?.group || "";
+  const cap = ROLE_CAP_OVERRIDE[roleKey] || ROLE_GROUP_CAP[grp];
+  if (!cap) return true;
+  return caps.has(cap);
+}
+
+const POD_ROLE_KEYS = new Set(["vsd", "principal_bopm", "senior_bopm", "bopm"]);
+
 // Map role-key → which role_category(ies) and designation keywords are eligible.
 // `categories` filters by staffing_people.role_category; `match` further refines by designation keyword.
 const ROLE_FILTER: Record<string, { categories?: string[]; match?: RegExp }> = {
@@ -220,6 +279,18 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
     });
     return m;
   }, [assignments, vsdByDealId]);
+
+  // True pod membership from the people directory (independent of assignments)
+  const peopleByPod = useMemo(() => {
+    const m: Record<string, Set<string>> = {};
+    people.forEach(p => {
+      const pod = (p.pod || "").trim();
+      if (!pod) return;
+      if (!m[pod]) m[pod] = new Set();
+      m[pod].add(p.id);
+    });
+    return m;
+  }, [people]);
 
   // Index assignments by deal
   const assignmentsByDeal = useMemo(() => {
@@ -507,6 +578,9 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
                                 peopleByVsd={peopleByVsd}
                                 roleKey={a.roleKey}
                                 allocationsByPerson={allocationsByPerson}
+                                dealPod={selectedDeal?.pod || ""}
+                                dealServiceLine={selectedDeal?.serviceLineTagging || selectedDeal?.capabilityLine || ""}
+                                peopleByPod={peopleByPod}
                               />
                               <div className="flex items-center gap-1 ml-auto shrink-0">
                                 <input
@@ -537,7 +611,9 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
                         {/* Add-role row */}
                         {isAddingHere ? (
                           <AddRoleRow
-                            roles={availableRolesForGroup(group)}
+                            roles={availableRolesForGroup(group).filter(r =>
+                              isRoleAllowedForServiceLine(r.key, selectedDeal?.serviceLineTagging || selectedDeal?.capabilityLine || "")
+                            )}
                             people={personOptions}
                             onCancel={() => { setAdding(null); }}
                             onConfirm={(roleKey, personId) => handlePickPerson(roleKey, personId)}
@@ -545,6 +621,9 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
                             vsdOptions={vsdOptions}
                             peopleByVsd={peopleByVsd}
                             allocationsByPerson={allocationsByPerson}
+                            dealPod={selectedDeal?.pod || ""}
+                            dealServiceLine={selectedDeal?.serviceLineTagging || selectedDeal?.capabilityLine || ""}
+                            peopleByPod={peopleByPod}
                           />
                         ) : (
                           <button
@@ -610,6 +689,7 @@ function SelectChip({
 
 function PersonPicker({
   people, selectedPersonId, onSelect, occupancy = {}, vsdOptions = ["All"], peopleByVsd = {}, roleKey, allocationsByPerson = {},
+  dealPod = "", dealServiceLine = "", peopleByPod = {},
 }: {
   people: Person[];
   selectedPersonId: string;
@@ -619,6 +699,9 @@ function PersonPicker({
   peopleByVsd?: Record<string, Set<string>>;
   roleKey?: string;
   allocationsByPerson?: Record<string, { dealId: string; dealName: string; pct: number }[]>;
+  dealPod?: string;
+  dealServiceLine?: string;
+  peopleByPod?: Record<string, Set<string>>;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -653,6 +736,20 @@ function PersonPicker({
       // Safety net: if filter yields nothing, fall back to all so picker isn't empty
       if (narrowed.length > 0) base = narrowed;
     }
+    // Pod restriction for VSD/BOPM roles when the deal has a pod set
+    if (!showAllRoles && roleKey && POD_ROLE_KEYS.has(roleKey) && dealPod) {
+      const podSet = peopleByPod[dealPod];
+      if (podSet && podSet.size > 0) {
+        const restricted = base.filter(p => podSet.has(p.id));
+        if (restricted.length > 0) base = restricted;
+      }
+    }
+    // Service-line capability gate (applies to all roles)
+    if (!showAllRoles && roleKey && dealServiceLine) {
+      if (!isRoleAllowedForServiceLine(roleKey, dealServiceLine)) {
+        // role itself isn't allowed by SL → keep base; the role-picker side already warns.
+      }
+    }
     if (vsd !== "All") {
       const allowed = peopleByVsd[vsd];
       if (allowed && allowed.size > 0) {
@@ -667,7 +764,7 @@ function PersonPicker({
       (p.designation || "").toLowerCase().includes(lq) ||
       (p.department || "").toLowerCase().includes(lq)
     ).slice(0, 80);
-  }, [people, q, vsd, peopleByVsd, roleKey, showAllRoles]);
+  }, [people, q, vsd, peopleByVsd, roleKey, showAllRoles, dealPod, peopleByPod, dealServiceLine]);
 
   return (
     <div className="relative flex-1 min-w-0">
@@ -727,7 +824,12 @@ function PersonPicker({
                   <span className="truncate">
                     {showAllRoles
                       ? "Showing all people"
-                      : `Filtered to ${ROLE_BY_KEY[roleKey]?.label || roleKey}`}
+                      : (() => {
+                          const parts = [`Role: ${ROLE_BY_KEY[roleKey]?.label || roleKey}`];
+                          if (POD_ROLE_KEYS.has(roleKey) && dealPod) parts.push(`Pod: ${dealPod}`);
+                          if (dealServiceLine && SERVICE_LINE_CAPS[dealServiceLine]) parts.push("SL match");
+                          return parts.join(" · ");
+                        })()}
                   </span>
                   <button
                     type="button"
@@ -823,6 +925,7 @@ function PersonPicker({
 
 function AddRoleRow({
   roles, people, onCancel, onConfirm, occupancy, vsdOptions, peopleByVsd, allocationsByPerson,
+  dealPod = "", dealServiceLine = "", peopleByPod = {},
 }: {
   roles: { key: string; label: string }[];
   people: Person[];
@@ -832,6 +935,9 @@ function AddRoleRow({
   vsdOptions?: string[];
   peopleByVsd?: Record<string, Set<string>>;
   allocationsByPerson?: Record<string, { dealId: string; dealName: string; pct: number }[]>;
+  dealPod?: string;
+  dealServiceLine?: string;
+  peopleByPod?: Record<string, Set<string>>;
 }) {
   const [roleKey, setRoleKey] = useState(roles[0]?.key || "");
   const [personId, setPersonId] = useState("");
@@ -844,7 +950,9 @@ function AddRoleRow({
           onChange={e => setRoleKey(e.target.value)}
           className="h-7 px-2 text-caption bg-background border border-border rounded outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary min-w-[160px]"
         >
-          {roles.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}
+          {roles.length === 0
+            ? <option value="">No roles available for this service line</option>
+            : roles.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}
         </select>
         <PersonPicker
           people={people}
@@ -855,6 +963,9 @@ function AddRoleRow({
           peopleByVsd={peopleByVsd}
           roleKey={roleKey}
           allocationsByPerson={allocationsByPerson}
+          dealPod={dealPod}
+          dealServiceLine={dealServiceLine}
+          peopleByPod={peopleByPod}
         />
         <button
           type="button"
