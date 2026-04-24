@@ -792,6 +792,7 @@ function AddRoleRow({
           occupancy={occupancy}
           vsdOptions={vsdOptions}
           peopleByVsd={peopleByVsd}
+          roleKey={roleKey}
         />
         <button
           type="button"
