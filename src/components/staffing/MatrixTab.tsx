@@ -137,15 +137,24 @@ interface Props {
   assignments: StaffingAssignment[];
   onUpdateDeal: (dealId: string, updates: Partial<Deal>) => void;
   onUpsertAssignment: (dealId: string, roleKey: string, personId: string, pct: number) => void;
+  initialDealId?: string;
 }
 
-export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAssignment }: Props) {
+export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAssignment, initialDealId }: Props) {
   const [dealSearch, setDealSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "needs" | "staffed">("all");
   const [vsdFilter, setVsdFilter] = useState<string>("All");
-  const [selectedDealId, setSelectedDealId] = useState<string | null>(deals[0]?.id || null);
+  const [selectedDealId, setSelectedDealId] = useState<string | null>(initialDealId || deals[0]?.id || null);
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set(GROUP_ORDER));
   const [adding, setAdding] = useState<string | null>(null); // group key being added to
+
+  // React to incoming initialDealId (e.g., navigated from Deal view "Add team" link)
+  useEffect(() => {
+    if (initialDealId && initialDealId !== selectedDealId) {
+      setSelectedDealId(initialDealId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialDealId]);
 
   // Auto-select first deal if current selection becomes invalid
   useEffect(() => {
@@ -170,6 +179,28 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
     });
     return m;
   }, [assignments]);
+
+  // Per-person breakdown of allocation across deals (for picker drill-down)
+  const dealNameById = useMemo(() => {
+    const m: Record<string, string> = {};
+    deals.forEach(d => { m[d.id] = d.dealName || d.account || d.id; });
+    return m;
+  }, [deals]);
+
+  const allocationsByPerson = useMemo(() => {
+    const m: Record<string, { dealId: string; dealName: string; pct: number }[]> = {};
+    assignments.forEach(a => {
+      if (!a.allocationPct) return;
+      if (!m[a.personId]) m[a.personId] = [];
+      m[a.personId].push({
+        dealId: a.dealId,
+        dealName: dealNameById[a.dealId] || a.dealId,
+        pct: a.allocationPct || 0,
+      });
+    });
+    Object.values(m).forEach(list => list.sort((a, b) => b.pct - a.pct));
+    return m;
+  }, [assignments, dealNameById]);
 
   // Map dealId -> VSD (so we can group people by VSD for the picker filter)
   const vsdByDealId = useMemo(() => {
@@ -484,6 +515,7 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
                                 vsdOptions={vsdOptions}
                                 peopleByVsd={peopleByVsd}
                                 roleKey={a.roleKey}
+                                allocationsByPerson={allocationsByPerson}
                               />
                               <div className="flex items-center gap-1 ml-auto shrink-0">
                                 <input
@@ -521,6 +553,7 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
                             occupancy={occupancyByPerson}
                             vsdOptions={vsdOptions}
                             peopleByVsd={peopleByVsd}
+                            allocationsByPerson={allocationsByPerson}
                           />
                         ) : (
                           <button
@@ -585,7 +618,7 @@ function SelectChip({
 }
 
 function PersonPicker({
-  people, selectedPersonId, onSelect, occupancy = {}, vsdOptions = ["All"], peopleByVsd = {}, roleKey,
+  people, selectedPersonId, onSelect, occupancy = {}, vsdOptions = ["All"], peopleByVsd = {}, roleKey, allocationsByPerson = {},
 }: {
   people: Person[];
   selectedPersonId: string;
@@ -594,11 +627,13 @@ function PersonPicker({
   vsdOptions?: string[];
   peopleByVsd?: Record<string, Set<string>>;
   roleKey?: string;
+  allocationsByPerson?: Record<string, { dealId: string; dealName: string; pct: number }[]>;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [vsd, setVsd] = useState<string>("All");
   const [showAllRoles, setShowAllRoles] = useState(false);
+  const [expandedPersonId, setExpandedPersonId] = useState<string | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const selected = people.find(p => p.id === selectedPersonId);
@@ -723,32 +758,66 @@ function PersonPicker({
                     : occ >= 80 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
                     : occ > 0 ? "bg-[hsl(var(--success-bg))] text-positive"
                     : "bg-secondary text-muted-foreground";
+                  const breakdown = allocationsByPerson[p.id] || [];
+                  const isExpanded = expandedPersonId === p.id;
                   return (
-                  <button
+                  <div
                     key={p.id}
-                    type="button"
-                    onClick={() => { onSelect(p.id); setOpen(false); setQ(""); }}
                     className={cn(
-                      "w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-secondary/40 transition-colors",
+                      "border-b border-border/40 last:border-b-0",
                       p.id === selectedPersonId && "bg-primary/10"
                     )}
                   >
-                    <div className="flex-1 min-w-0">
-                      <div className="text-ui text-foreground truncate">{p.name}</div>
-                      {(p.designation || p.department) && (
-                        <div className="text-[10px] text-muted-foreground truncate">
-                          {p.designation}{p.designation && p.department ? " · " : ""}{p.department}
+                    <div className="flex items-center gap-1 px-1 hover:bg-secondary/40 transition-colors">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedPersonId(isExpanded ? null : p.id)}
+                        disabled={breakdown.length === 0}
+                        className="shrink-0 h-6 w-5 inline-flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-default"
+                        title={breakdown.length === 0 ? "No current allocations" : "Show allocations across deals"}
+                      >
+                        {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { onSelect(p.id); setOpen(false); setQ(""); }}
+                        className="flex-1 flex items-center gap-2 px-1 py-1.5 text-left min-w-0"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="text-ui text-foreground truncate">{p.name}</div>
+                          {(p.designation || p.department) && (
+                            <div className="text-[10px] text-muted-foreground truncate">
+                              {p.designation}{p.designation && p.department ? " · " : ""}{p.department}
+                            </div>
+                          )}
                         </div>
-                      )}
+                        <span
+                          className={cn("shrink-0 text-[10px] font-mono tabular-nums px-1.5 py-0.5 rounded", occTone)}
+                          title="Current total allocation across all deals"
+                        >
+                          {occ.toFixed(0)}%
+                        </span>
+                        {p.id === selectedPersonId && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                      </button>
                     </div>
-                    <span
-                      className={cn("shrink-0 text-[10px] font-mono tabular-nums px-1.5 py-0.5 rounded", occTone)}
-                      title="Current total allocation across all deals"
-                    >
-                      {occ.toFixed(0)}%
-                    </span>
-                    {p.id === selectedPersonId && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
-                  </button>
+                    {isExpanded && breakdown.length > 0 && (
+                      <div className="px-3 pb-2 pt-1 bg-secondary/30">
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+                          Allocations across {breakdown.length} deal{breakdown.length === 1 ? "" : "s"}
+                        </div>
+                        <ul className="space-y-0.5">
+                          {breakdown.map((b, i) => (
+                            <li key={`${b.dealId}-${i}`} className="flex items-center justify-between gap-2 text-[11px]">
+                              <span className="truncate text-foreground/90" title={b.dealName}>{b.dealName}</span>
+                              <span className="shrink-0 font-mono tabular-nums text-muted-foreground">
+                                {b.pct.toFixed(0)}% · {Math.round((b.pct / 100) * 160)}h
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
                   );
                 })
               )}
@@ -762,7 +831,7 @@ function PersonPicker({
 }
 
 function AddRoleRow({
-  roles, people, onCancel, onConfirm, occupancy, vsdOptions, peopleByVsd,
+  roles, people, onCancel, onConfirm, occupancy, vsdOptions, peopleByVsd, allocationsByPerson,
 }: {
   roles: { key: string; label: string }[];
   people: Person[];
@@ -771,6 +840,7 @@ function AddRoleRow({
   occupancy?: Record<string, number>;
   vsdOptions?: string[];
   peopleByVsd?: Record<string, Set<string>>;
+  allocationsByPerson?: Record<string, { dealId: string; dealName: string; pct: number }[]>;
 }) {
   const [roleKey, setRoleKey] = useState(roles[0]?.key || "");
   const [personId, setPersonId] = useState("");
@@ -793,6 +863,7 @@ function AddRoleRow({
           vsdOptions={vsdOptions}
           peopleByVsd={peopleByVsd}
           roleKey={roleKey}
+          allocationsByPerson={allocationsByPerson}
         />
         <button
           type="button"
