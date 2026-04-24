@@ -1055,7 +1055,7 @@ function GroupedRGYHistory({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
         </td>
         {[r.customer || "G", r.internal || "G", r.content || "G", r.seo || "G", r.supply || "G", r.copy || "G", r.design || "G", r.video || "G"].map((val, i) => (
           <td key={i} className="py-2 px-2 text-center">
-            <span className={cn("inline-flex items-center justify-center w-6 h-6 rounded-md text-[10px] font-bold", rgyColors[val] || "rgy-na")}>{val}</span>
+            <span className={cn("inline-flex items-center justify-center w-6 h-6 rounded-md text-[10px] font-bold", rgyColors[val] || "rgy-na")} title={val === "NA" ? "Not Required" : val === "TBU" ? "To Be Updated" : val}>{rgySymbol[val] ?? val}</span>
           </td>
         ))}
         <td className="py-2 px-3 text-xs text-muted-foreground max-w-[120px] truncate">{r.issueDetails || "—"}</td>
@@ -1114,7 +1114,7 @@ function GroupedRGYHistory({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
                   </td>
                   {[latest.customer || "G", latest.internal || "G", latest.content || "G", latest.seo || "G", latest.supply || "G", latest.copy || "G", latest.design || "G", latest.video || "G"].map((val, i) => (
                     <td key={i} className="py-2 px-2 text-center">
-                      <span className={cn("inline-flex items-center justify-center w-6 h-6 rounded-md text-[10px] font-bold", rgyColors[val] || "rgy-na")}>{val}</span>
+                      <span className={cn("inline-flex items-center justify-center w-6 h-6 rounded-md text-[10px] font-bold", rgyColors[val] || "rgy-na")} title={val === "NA" ? "Not Required" : val === "TBU" ? "To Be Updated" : val}>{rgySymbol[val] ?? val}</span>
                     </td>
                   ))}
                   <td className="py-2 px-3 text-xs text-muted-foreground max-w-[120px] truncate">{latest.issueDetails || "—"}</td>
