@@ -82,6 +82,36 @@ const RGY_DIMENSIONS: { key: keyof RGYWeekly; label: string }[] = [
 
 const rgyScore: Record<string, number> = { G: 3, Y: 2, R: 1, NA: 0 };
 
+function RGYHistorySection({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
+  const [view, setView] = useState<"trend" | "log">("trend");
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">RGY History</p>
+        <div className="inline-flex bg-secondary rounded-md p-0.5">
+          <button
+            onClick={() => setView("trend")}
+            className={cn("px-2 py-0.5 rounded text-[11px] font-medium transition-colors", view === "trend" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
+          >Trend</button>
+          <button
+            onClick={() => setView("log")}
+            className={cn("px-2 py-0.5 rounded text-[11px] font-medium transition-colors", view === "log" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
+          >Weekly log</button>
+        </div>
+      </div>
+      {rgyWeekly.length === 0 ? (
+        <div className="bg-card border border-border rounded-xl text-center py-8 px-5">
+          <p className="text-muted-foreground">No weekly RGY data recorded yet. Use the editor above to set health status.</p>
+        </div>
+      ) : view === "trend" ? (
+        <RGYTrendView rgyWeekly={rgyWeekly} />
+      ) : (
+        <GroupedRGYHistory rgyWeekly={rgyWeekly} />
+      )}
+    </div>
+  );
+}
+
 function RGYTrendView({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
   const { weeks, snapshotByWeek, movers, latestWeek, prevWeek } = useMemo(() => {
     // Latest snapshot per week
