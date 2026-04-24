@@ -797,7 +797,7 @@ function PersonPicker({
 }
 
 function AddRoleRow({
-  roles, people, onCancel, onConfirm, occupancy, vsdOptions, peopleByVsd,
+  roles, people, onCancel, onConfirm, occupancy, vsdOptions, peopleByVsd, allocationsByPerson,
 }: {
   roles: { key: string; label: string }[];
   people: Person[];
@@ -806,6 +806,7 @@ function AddRoleRow({
   occupancy?: Record<string, number>;
   vsdOptions?: string[];
   peopleByVsd?: Record<string, Set<string>>;
+  allocationsByPerson?: Record<string, { dealId: string; dealName: string; pct: number }[]>;
 }) {
   const [roleKey, setRoleKey] = useState(roles[0]?.key || "");
   const [personId, setPersonId] = useState("");
@@ -828,6 +829,7 @@ function AddRoleRow({
           vsdOptions={vsdOptions}
           peopleByVsd={peopleByVsd}
           roleKey={roleKey}
+          allocationsByPerson={allocationsByPerson}
         />
         <button
           type="button"
