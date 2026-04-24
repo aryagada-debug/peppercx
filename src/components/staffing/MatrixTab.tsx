@@ -689,6 +689,7 @@ function SelectChip({
 
 function PersonPicker({
   people, selectedPersonId, onSelect, occupancy = {}, vsdOptions = ["All"], peopleByVsd = {}, roleKey, allocationsByPerson = {},
+  dealPod = "", dealServiceLine = "", peopleByPod = {},
 }: {
   people: Person[];
   selectedPersonId: string;
@@ -698,6 +699,9 @@ function PersonPicker({
   peopleByVsd?: Record<string, Set<string>>;
   roleKey?: string;
   allocationsByPerson?: Record<string, { dealId: string; dealName: string; pct: number }[]>;
+  dealPod?: string;
+  dealServiceLine?: string;
+  peopleByPod?: Record<string, Set<string>>;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -732,6 +736,20 @@ function PersonPicker({
       // Safety net: if filter yields nothing, fall back to all so picker isn't empty
       if (narrowed.length > 0) base = narrowed;
     }
+    // Pod restriction for VSD/BOPM roles when the deal has a pod set
+    if (!showAllRoles && roleKey && POD_ROLE_KEYS.has(roleKey) && dealPod) {
+      const podSet = peopleByPod[dealPod];
+      if (podSet && podSet.size > 0) {
+        const restricted = base.filter(p => podSet.has(p.id));
+        if (restricted.length > 0) base = restricted;
+      }
+    }
+    // Service-line capability gate (applies to all roles)
+    if (!showAllRoles && roleKey && dealServiceLine) {
+      if (!isRoleAllowedForServiceLine(roleKey, dealServiceLine)) {
+        // role itself isn't allowed by SL → keep base; the role-picker side already warns.
+      }
+    }
     if (vsd !== "All") {
       const allowed = peopleByVsd[vsd];
       if (allowed && allowed.size > 0) {
@@ -746,7 +764,7 @@ function PersonPicker({
       (p.designation || "").toLowerCase().includes(lq) ||
       (p.department || "").toLowerCase().includes(lq)
     ).slice(0, 80);
-  }, [people, q, vsd, peopleByVsd, roleKey, showAllRoles]);
+  }, [people, q, vsd, peopleByVsd, roleKey, showAllRoles, dealPod, peopleByPod, dealServiceLine]);
 
   return (
     <div className="relative flex-1 min-w-0">
@@ -806,7 +824,12 @@ function PersonPicker({
                   <span className="truncate">
                     {showAllRoles
                       ? "Showing all people"
-                      : `Filtered to ${ROLE_BY_KEY[roleKey]?.label || roleKey}`}
+                      : (() => {
+                          const parts = [`Role: ${ROLE_BY_KEY[roleKey]?.label || roleKey}`];
+                          if (POD_ROLE_KEYS.has(roleKey) && dealPod) parts.push(`Pod: ${dealPod}`);
+                          if (dealServiceLine && SERVICE_LINE_CAPS[dealServiceLine]) parts.push("SL match");
+                          return parts.join(" · ");
+                        })()}
                   </span>
                   <button
                     type="button"
