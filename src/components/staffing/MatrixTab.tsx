@@ -280,6 +280,18 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
     return m;
   }, [assignments, vsdByDealId]);
 
+  // True pod membership from the people directory (independent of assignments)
+  const peopleByPod = useMemo(() => {
+    const m: Record<string, Set<string>> = {};
+    people.forEach(p => {
+      const pod = (p.pod || "").trim();
+      if (!pod) return;
+      if (!m[pod]) m[pod] = new Set();
+      m[pod].add(p.id);
+    });
+    return m;
+  }, [people]);
+
   // Index assignments by deal
   const assignmentsByDeal = useMemo(() => {
     const m: Record<string, StaffingAssignment[]> = {};
