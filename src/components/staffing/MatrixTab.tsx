@@ -80,7 +80,6 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
   const [selectedDealId, setSelectedDealId] = useState<string | null>(deals[0]?.id || null);
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set(GROUP_ORDER));
   const [adding, setAdding] = useState<string | null>(null); // group key being added to
-  const [pickerSearch, setPickerSearch] = useState("");
 
   // Auto-select first deal if current selection becomes invalid
   useEffect(() => {
@@ -154,7 +153,6 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
     onUpsertAssignment(selectedDeal.id, roleKey, personId, 50); // sensible default 50%
     toast.success(`${personMap[personId]?.name || "Person"} assigned`);
     setAdding(null);
-    setPickerSearch("");
   };
 
   const handleChangePerson = (roleKey: string, personId: string, currentPct: number) => {
@@ -399,15 +397,13 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
                           <AddRoleRow
                             roles={availableRolesForGroup(group)}
                             people={personOptions}
-                            search={pickerSearch}
-                            setSearch={setPickerSearch}
-                            onCancel={() => { setAdding(null); setPickerSearch(""); }}
+                            onCancel={() => { setAdding(null); }}
                             onConfirm={(roleKey, personId) => handlePickPerson(roleKey, personId)}
                           />
                         ) : (
                           <button
                             type="button"
-                            onClick={() => { setAdding(group); setPickerSearch(""); }}
+                            onClick={() => { setAdding(group); }}
                             disabled={availableRolesForGroup(group).length === 0}
                             className="w-full inline-flex items-center justify-center gap-1.5 h-8 rounded-md border border-dashed border-border text-caption text-muted-foreground hover:border-primary hover:text-primary hover:bg-primary/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                           >
@@ -551,26 +547,15 @@ function PersonPicker({
 }
 
 function AddRoleRow({
-  roles, people, search, setSearch, onCancel, onConfirm,
+  roles, people, onCancel, onConfirm,
 }: {
   roles: { key: string; label: string }[];
   people: Person[];
-  search: string;
-  setSearch: (s: string) => void;
   onCancel: () => void;
   onConfirm: (roleKey: string, personId: string) => void;
 }) {
   const [roleKey, setRoleKey] = useState(roles[0]?.key || "");
   const [personId, setPersonId] = useState("");
-
-  const filteredPeople = useMemo(() => {
-    const lq = search.toLowerCase().trim();
-    if (!lq) return people.slice(0, 60);
-    return people.filter(p =>
-      p.name.toLowerCase().includes(lq) ||
-      (p.designation || "").toLowerCase().includes(lq)
-    ).slice(0, 60);
-  }, [people, search]);
 
   return (
     <div className="bg-primary/5 border border-primary/30 rounded-md p-2 space-y-2">
