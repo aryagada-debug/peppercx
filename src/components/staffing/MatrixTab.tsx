@@ -180,6 +180,28 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
     return m;
   }, [assignments]);
 
+  // Per-person breakdown of allocation across deals (for picker drill-down)
+  const dealNameById = useMemo(() => {
+    const m: Record<string, string> = {};
+    deals.forEach(d => { m[d.id] = d.dealName || d.account || d.id; });
+    return m;
+  }, [deals]);
+
+  const allocationsByPerson = useMemo(() => {
+    const m: Record<string, { dealId: string; dealName: string; pct: number }[]> = {};
+    assignments.forEach(a => {
+      if (!a.allocationPct) return;
+      if (!m[a.personId]) m[a.personId] = [];
+      m[a.personId].push({
+        dealId: a.dealId,
+        dealName: dealNameById[a.dealId] || a.dealId,
+        pct: a.allocationPct || 0,
+      });
+    });
+    Object.values(m).forEach(list => list.sort((a, b) => b.pct - a.pct));
+    return m;
+  }, [assignments, dealNameById]);
+
   // Map dealId -> VSD (so we can group people by VSD for the picker filter)
   const vsdByDealId = useMemo(() => {
     const m: Record<string, string> = {};
