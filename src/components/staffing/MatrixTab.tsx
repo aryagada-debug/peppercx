@@ -515,6 +515,7 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
                                 vsdOptions={vsdOptions}
                                 peopleByVsd={peopleByVsd}
                                 roleKey={a.roleKey}
+                                allocationsByPerson={allocationsByPerson}
                               />
                               <div className="flex items-center gap-1 ml-auto shrink-0">
                                 <input
@@ -552,6 +553,7 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
                             occupancy={occupancyByPerson}
                             vsdOptions={vsdOptions}
                             peopleByVsd={peopleByVsd}
+                            allocationsByPerson={allocationsByPerson}
                           />
                         ) : (
                           <button
