@@ -1455,9 +1455,11 @@ export default function DealDetail() {
                       const isLegacy = current && !(SERVICE_LINE_OPTIONS as readonly string[]).includes(current);
                       return (
                         <Select value={current || undefined} onValueChange={(v) => handleDealFieldSave("serviceLineTagging", v)}>
-                          <SelectTrigger className="h-7 text-xs w-[280px] max-w-[280px] truncate">
+                          <SelectTrigger
+                            className="h-auto p-0 border-0 bg-transparent shadow-none focus:ring-0 hover:text-primary text-xs text-foreground gap-1 w-auto max-w-[280px] [&>svg]:h-3 [&>svg]:w-3 [&>svg]:opacity-60"
+                          >
                             <SelectValue placeholder="Not set">
-                              <span className="truncate inline-flex items-center gap-1">
+                              <span className={cn("truncate inline-flex items-center gap-1", !current && "text-muted-foreground")}>
                                 {current || "Not set"}
                                 {isLegacy && <span className="text-[9px] text-muted-foreground">(legacy)</span>}
                               </span>
