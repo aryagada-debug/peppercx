@@ -168,4 +168,9 @@
   .rgy-na {
     @apply bg-muted text-muted-foreground;
   }
+  .rgy-tbu {
+    @apply text-muted-foreground;
+    background: transparent;
+    border: 1px dashed hsl(var(--border));
+  }
 }

@@ -1,7 +1,7 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useParams, Link, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Loader2, Plus, Trash2, Pencil, Check, X, Calendar, Users, Eye, Edit2, ExternalLink, AlertTriangle, ChevronDown, ChevronUp, ChevronRight, Upload } from "lucide-react";
-import { format } from "date-fns";
+import { ArrowLeft, Loader2, Plus, Trash2, Pencil, Check, X, Calendar, Users, Eye, Edit2, ExternalLink, AlertTriangle, ChevronDown, ChevronUp, ChevronRight, Upload, CalendarCheck, Smile, TrendingUp } from "lucide-react";
+import { format, differenceInCalendarMonths } from "date-fns";
 import { cn } from "@/lib/utils";
 import React, { useState, useMemo, useCallback } from "react";
 import { useStaffingData } from "@/hooks/useStaffingData";
@@ -51,7 +51,10 @@ const fmtDate = (d: string | undefined) => {
 const TABS = ["Overview", "Staffing", "Financials", "Tasks", "RGY Health", "MBR", "Onboarding"] as const;
 type TabKey = typeof TABS[number];
 
-const rgyColors: Record<string, string> = { G: "rgy-green", R: "rgy-red", Y: "rgy-yellow" };
+const rgyColors: Record<string, string> = { G: "rgy-green", R: "rgy-red", Y: "rgy-yellow", NA: "rgy-na", TBU: "rgy-tbu" };
+const rgySymbol: Record<string, string> = { G: "G", Y: "Y", R: "R", NA: "⊘", TBU: "⋯" };
+// Comparable scale for trend logic. NA / TBU are non-comparable (null).
+const rgyCompare: Record<string, number | null> = { G: 3, Y: 2, R: 1, NA: null, TBU: null };
 
 const SERVICE_LINE_OPTIONS = [
   "Integrated Retainers - Content + SEO + Social or Content Hubs",
@@ -129,7 +132,11 @@ function RGYTrendView({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
         const a = (byWeek[prevWeek] as any)[key] || "G";
         const b = (byWeek[latestWeek] as any)[key] || "G";
         if (a !== b) {
-          const dir = (rgyScore[b] ?? 0) > (rgyScore[a] ?? 0) ? "up" : "down";
+          const sa = rgyCompare[a];
+          const sb = rgyCompare[b];
+          // Skip transitions involving NA/TBU on either side — non-comparable.
+          if (sa == null || sb == null) return;
+          const dir = sb > sa ? "up" : "down";
           movers.push({ dim: label, from: a, to: b, dir });
         }
       });
@@ -197,8 +204,14 @@ function RGYTrendView({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
                   const a = vals[vals.length - 2];
                   const b = vals[vals.length - 1];
                   if (a !== b) {
-                    delta = (rgyScore[b] ?? 0) > (rgyScore[a] ?? 0) ? "up" : "down";
-                    tip = `Was ${a} last week, now ${b}`;
+                    const sa = rgyCompare[a];
+                    const sb = rgyCompare[b];
+                    if (sa != null && sb != null) {
+                      delta = sb > sa ? "up" : "down";
+                      tip = `Was ${a} last week, now ${b}`;
+                    } else {
+                      tip = `Was ${a} last week, now ${b} (non-comparable)`;
+                    }
                   }
                 }
                 return (
@@ -206,7 +219,7 @@ function RGYTrendView({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
                     <td className="py-2 px-3 text-xs font-medium text-foreground whitespace-nowrap">{label}</td>
                     {vals.map((v, i) => (
                       <td key={i} className="py-2 px-2 text-center">
-                        <span className={cn("inline-flex items-center justify-center w-6 h-6 rounded-md text-[10px] font-bold", rgyColors[v] || "rgy-na")}>{v}</span>
+                        <span className={cn("inline-flex items-center justify-center w-6 h-6 rounded-md text-[10px] font-bold", rgyColors[v] || "rgy-na")} title={v === "NA" ? "Not Required" : v === "TBU" ? "To Be Updated" : v}>{rgySymbol[v] ?? v}</span>
                       </td>
                     ))}
                     <td className="py-2 px-3 text-xs whitespace-nowrap" title={tip}>
@@ -494,25 +507,89 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry, deleteMBREntry, 
   const currentMonthPrefix = format(new Date(), "yyyy-MM");
   const hasMBRThisMonth = doneEntries.some(e => e.weekStart.startsWith(currentMonthPrefix));
 
+  // Contract month math for MBR coverage KPI
+  const totalMonths = useMemo(() => {
+    if (deal?.startDate && deal?.endDate) {
+      const m = differenceInCalendarMonths(new Date(deal.endDate), new Date(deal.startDate)) + 1;
+      return m > 0 ? m : 0;
+    }
+    if (deal?.duration) {
+      const n = parseInt(String(deal.duration).match(/\d+/)?.[0] || "0", 10);
+      return n > 0 ? n : 0;
+    }
+    return 0;
+  }, [deal?.startDate, deal?.endDate, deal?.duration]);
+
+  const elapsedMonths = useMemo(() => {
+    if (!deal?.startDate) return 0;
+    const m = differenceInCalendarMonths(new Date(), new Date(deal.startDate)) + 1;
+    if (totalMonths > 0) return Math.max(0, Math.min(m, totalMonths));
+    return Math.max(0, m);
+  }, [deal?.startDate, totalMonths]);
+
+  const mbrHealth = useMemo(() => {
+    const behind = elapsedMonths - doneEntries.length;
+    if (behind <= 0) return { label: "On Track", tone: "positive" as const };
+    return { label: `Behind by ${behind}`, tone: "warning" as const };
+  }, [elapsedMonths, doneEntries.length]);
+
+  const mbrKpis = [
+    {
+      label: "MBR Coverage",
+      value: `${doneEntries.length}/${totalMonths || "—"}`,
+      caption: "MBRs done",
+      icon: CalendarCheck,
+    },
+    {
+      label: "Last Sentiment",
+      value: lastDone?.sentiment || "—",
+      caption: lastDone ? format(new Date(lastDone.weekStart), "dd MMM") : "no data",
+      icon: Smile,
+      isSentiment: true,
+    },
+    {
+      label: "MBR Health",
+      value: mbrHealth.label,
+      caption: `${elapsedMonths}/${totalMonths || "—"} mo elapsed`,
+      icon: mbrHealth.tone === "positive" ? TrendingUp : AlertTriangle,
+      tone: mbrHealth.tone,
+    },
+  ];
+
   return (
     <div className="animate-fade-in space-y-4">
       {/* Snapshot */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[
-          { label: "Total MBRs Done", value: String(doneEntries.length) },
-          { label: "Last Sentiment", value: lastDone?.sentiment || "—", isSentiment: true },
-          { label: "Next MBR Date", value: sorted[0]?.scheduledDate ? format(new Date(sorted[0].scheduledDate), "dd MMM yyyy") : "Not scheduled" },
-          { label: "Last Mode", value: lastDone?.mode || "—" },
-        ].map(card => (
-          <div key={card.label} className="rounded-lg bg-[#E8E6DF] dark:bg-secondary/60 border-l-4 border-l-[#534AB7] p-4">
-            <p className="text-xs uppercase tracking-widest text-muted-foreground font-medium">{card.label}</p>
-            <p className="mt-1 text-lg font-semibold text-foreground">
-              {(card as any).isSentiment && lastDone?.sentiment ? (
-                <Badge className={cn("text-xs", sentimentColors[lastDone.sentiment] || "")}>{lastDone.sentiment}</Badge>
-              ) : card.value}
-            </p>
-          </div>
-        ))}
+      <div className="grid grid-cols-3 gap-2">
+        {mbrKpis.map(card => {
+          const Icon = card.icon;
+          const tone = (card as any).tone as "positive" | "warning" | undefined;
+          return (
+            <div key={card.label} className="rounded-lg border border-border bg-card px-3 py-2.5 flex items-center gap-2.5">
+              <div className={cn(
+                "h-8 w-8 rounded-md grid place-items-center shrink-0",
+                tone === "warning" ? "bg-warning/15" : tone === "positive" ? "bg-positive/15" : "bg-secondary/60"
+              )}>
+                <Icon className={cn(
+                  "h-4 w-4",
+                  tone === "warning" ? "text-warning" : tone === "positive" ? "text-positive" : "text-primary"
+                )} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium leading-tight">{card.label}</p>
+                <div className="mt-0.5 flex items-baseline gap-1.5">
+                  {(card as any).isSentiment && lastDone?.sentiment ? (
+                    <Badge className={cn("text-xs", sentimentColors[lastDone.sentiment] || "")}>{lastDone.sentiment}</Badge>
+                  ) : (
+                    <span className="text-sm font-semibold text-foreground font-mono tabular-nums truncate">{card.value}</span>
+                  )}
+                  {card.caption && (
+                    <span className="text-[10px] text-muted-foreground truncate">{card.caption}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Missing month warning */}
@@ -1042,7 +1119,7 @@ function GroupedRGYHistory({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
         </td>
         {[r.customer || "G", r.internal || "G", r.content || "G", r.seo || "G", r.supply || "G", r.copy || "G", r.design || "G", r.video || "G"].map((val, i) => (
           <td key={i} className="py-2 px-2 text-center">
-            <span className={cn("inline-flex items-center justify-center w-6 h-6 rounded-md text-[10px] font-bold", rgyColors[val] || "rgy-na")}>{val}</span>
+            <span className={cn("inline-flex items-center justify-center w-6 h-6 rounded-md text-[10px] font-bold", rgyColors[val] || "rgy-na")} title={val === "NA" ? "Not Required" : val === "TBU" ? "To Be Updated" : val}>{rgySymbol[val] ?? val}</span>
           </td>
         ))}
         <td className="py-2 px-3 text-xs text-muted-foreground max-w-[120px] truncate">{r.issueDetails || "—"}</td>
@@ -1101,7 +1178,7 @@ function GroupedRGYHistory({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
                   </td>
                   {[latest.customer || "G", latest.internal || "G", latest.content || "G", latest.seo || "G", latest.supply || "G", latest.copy || "G", latest.design || "G", latest.video || "G"].map((val, i) => (
                     <td key={i} className="py-2 px-2 text-center">
-                      <span className={cn("inline-flex items-center justify-center w-6 h-6 rounded-md text-[10px] font-bold", rgyColors[val] || "rgy-na")}>{val}</span>
+                      <span className={cn("inline-flex items-center justify-center w-6 h-6 rounded-md text-[10px] font-bold", rgyColors[val] || "rgy-na")} title={val === "NA" ? "Not Required" : val === "TBU" ? "To Be Updated" : val}>{rgySymbol[val] ?? val}</span>
                     </td>
                   ))}
                   <td className="py-2 px-3 text-xs text-muted-foreground max-w-[120px] truncate">{latest.issueDetails || "—"}</td>
