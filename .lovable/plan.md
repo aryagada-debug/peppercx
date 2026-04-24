@@ -1,71 +1,100 @@
-## MBR Slack Reminder Triggers
+## Staffing & Capacity — 3-Tab Restructure (Deal View / People View / Matrix)
 
-Add automated Slack reminders that post into each deal's linked Slack channel, driven by the `mbr_entries.scheduled_date` field.
+Restructure the Staffing & Capacity page into three tabs with new layouts and a powerful Matrix grid that becomes the source of truth for allocations across the app.
 
-### Trigger rules
+### Tab 1 — Deal View
 
-**Trigger A — "Fill MBR details" reminder (10 days before MBR)**
+Replace existing KPI cards + table with a single VSD-pivoted summary table.
 
-- Condition: `scheduled_date = today - 10 days` AND status is `Pending` (details not yet filled)
-- Message: `📝 Reminder: MBR for *<Deal Name>* scheduled on <date>. Please fill in the MBR details: <app link to deal MBR tab>`
-- Sent once per MBR entry.
+**Columns**: VSD | Already Staffed | No Staffing Needed | Staffing Needed | Total
 
-**Trigger B — "MBR in 2 days" countdown (T-2 and T-1)**
+- One row per VSD (sourced from `staffing_deals.vsd`)
+- One row "Yet to be assigned" for deals with no VSD
+- Totals row at bottom
+- Counts colored: Already Staffed = green, Staffing Needed = red, zeros muted
+- Numbers computed live from `staffing_deals.staffing_status` field
 
-- Condition: `scheduled_date = today + 2 days` OR `scheduled_date = today + 1 day`
-- Message T-2: `⏰ Reminder: MBR for *<Deal Name>* in 2 days (<date>).`
-- Message T-1: `⏰ Reminder: MBR for *<Deal Name>* tomorrow (<date>).`
-- Sent on each of the two days.
+**Below the table** — two editable dropdown filters:
 
-Reminders only post to deals with a linked `slack_channel_id`. Identical reminders won't be re-sent on the same day (deduped by a log table).
+- **Deal Type** filter: `Retainer` / `Non-Retainer` / `Pilot` / `All` (filters the table)
+- **Deal Status** filter: `Active Deal` / `Completed` / `Churned` / `All` (filters the table)
+Both persist in URL query params.
 
-### Implementation
+Clicking a VSD row expands to a list of their deals (account, deal name, MRR, status) — keeps the existing deal-drill-down logic from current `DealLevelView`.
 
-**1. New table `mbr_reminder_log**`
-Tracks which reminders have been sent to prevent duplicates if the cron runs more than once per day.
-Columns: `id`, `mbr_entry_id`, `reminder_type` (`fill_details` | `t_minus_2` | `t_minus_1`), `sent_date`, `channel_id`, `created_at`. Unique constraint on `(mbr_entry_id, reminder_type, sent_date)`. RLS: authenticated read/insert.
+### Tab 2 — People View
 
-**2. New edge function `mbr-reminders**` (`verify_jwt = false`, called by cron)
-Logic:
+Replace KPI cards with a hierarchical org-tree table grouped by Department (Operations, Content, SEO, Creative, Video, etc.).
 
-- Query `mbr_entries` joined with `staffing_deals` where `scheduled_date` in `{today+1, today+2, today+10}` and `staffing_deals.slack_channel_id` is non-empty.
-- For each match:
-  - Determine reminder type from date offset.
-  - Skip if already logged in `mbr_reminder_log` for today.
-  - For `fill_details`, also skip if `status != 'Pending'`.
-  - Post message to Slack via `chat.postMessage` using `SLACK_BOT_TOKEN`, with `username: "VSD-OS"` so it appears as the app.
-  - Insert into `slack_messages` (so it shows in the in-app chatbot too).
-  - Insert into `mbr_reminder_log`.
-- Returns summary `{ sent, skipped, errors }`.
+**Columns**: Name | Designation | Deals | MRR | Total Rev | Target | Rev % | Hours (with utilization bar)
 
-App link format for fill-details message: `<preview-url>/deals/<deal_id>` (uses the deal detail route — MBR is a tab there).
+- Department group headers show: active count, health distribution mini-bar (Overloaded / Near Full / Healthy / Under-utilised), and avg utilisation %
+- Within each department, people are nested by reporting manager (Leader → Manager → Junior) — reuse the existing reporting-manager tree from `PeopleTab.tsx`
+- Top filter chips: **Overloaded / Near Full / Healthy / Under-utilised** (with counts), search box, "Collapse all"
+- Click a person → expand row to show their deals table:
+  - Sub-columns: Deal | Account | Alloc % | Hrs | MRR
+  - Sourced from `staffing_assignments` joined with `staffing_deals`
+  - Editable allocation % inline (writes back to `staffing_assignments.allocation_pct`)
 
-**3. Cron schedule (pg_cron + pg_net)**
-Enable `pg_cron` and `pg_net` extensions. Schedule daily at 09:00 IST (03:30 UTC):
+### Tab 3 — Matrix
 
-```sql
-select cron.schedule('mbr-reminders-daily', '30 3 * * *',
-  $$ select net.http_post(
-       url:='https://gdklfxqbocvoxcfthysy.supabase.co/functions/v1/mbr-reminders',
-       headers:='{"Content-Type":"application/json"}'::jsonb,
-       body:='{}'::jsonb) $$);
-```
+Big editable spreadsheet replicating the master sheet structure. One row per deal.
 
-Inserted via the supabase insert tool (not migration) since URL is project-specific.
+**Column groups** (collapsible group headers):
 
-**4. Manual "Run now" trigger (optional, recommended)**
-Add a small **"Send test reminders now"** button on the MBR Tracker header (admin-only) that calls the edge function on demand for verification.
+1. **Deal Identity** — Pepper BU, Capability Line, PC Code, Deal ID (Formulated), Deal ID (Temp), Account, Deal Name, Deal Type, Master Status, Staffing Status, Validation by Central CX
+2. **Financials** — Month of Closed Won, MRR, Duration, Retainer Value, Non-Retainer Value, Total Deal Value, Deal Value Lost, Net Deal Value, Total MIS Recognition, Total Pending Recognition, Consumption, Under/Over (×2), MIS vs Consumption, Invoiced, Net − Invoiced, Undelivered Funnel, Start Month, End Month, Deal-Target Status, Deal Status
+3. **VSD & BOPM** — VSD + %, Principal BOPM + %, Senior BOPM + %, BOPM + %
+4. **Content** — Content Lead 2026 + %, Senior Editor + %, Managing Editor + %, Content Lead + %
+5. **SEO** — SEO Staffing flag, SEO Leader + %, Group Head + %, Sr SEO Manager + %, SEO Manager + %, Sr SEO Analyst + %, SEO Analyst + %
+6. **Creative — Strategy** — Strategy CD/ACD/Sr Strategist (name + bandwidth)
+7. **Creative — Copy** — CD-Copy, ACD-Copy, Sr Copywriter, Jr Copywriter (each with %)
+8. **Creative — Art** — Sr CD-Art, ACD-Art, Art Director, Sr Designer, Jr Designer (each with %)
+9. **Production / Video** — Production Head, AD-Video PM, Current AD, Video PM/ACPPM, Video Editor 1–5 (each with %)
+10. **Other Resources** — Influencer Team, Freelance Ecosystem, Performance & Growth, Strategy Team Bandwidth Required, TCV (USD)
+
+**UX**:
+
+- Sticky first 3 columns (Account, Deal Name, Deal Type)
+- Sticky group-header row above column headers
+- Group toggles to collapse irrelevant column groups
+- Inline edit on every cell (text / number / % / dropdown for staff names — populated from `staffing_people`)
+- Person dropdowns include "Not Applicable" sentinel
+- "Add row" creates a new deal stub
+- Toolbar: search, column-group visibility, export CSV
+- Row colored by Master Status (Active = subtle green tint, Churned = red, etc.)
+
+**Sync rules** (the critical part):
+
+- Editing a person + % in Matrix → upsert into `staffing_assignments` (deal_id, role_key=column, person_id, allocation_pct)
+- Conversely, edits in Deal Detail → Staffing tab and People View → expanded deals also write the same `staffing_assignments` rows
+- People View's hours/utilisation, Deal View's "Already Staffed/Staffing Needed" counts, and Matrix all read from the same `staffing_assignments` + `staffing_deals` joined query
+- Matrix uses optimistic updates with toast on save; debounced batch writes (500ms)
+
+### Data model
+
+- All needed columns already exist on `staffing_deals` and `staffing_assignments`. No migration required.
+- Add a small `MATRIX_ROLE_COLUMNS` constant in `src/data/staffingData.ts` mapping each Matrix person column to a `role_key` (e.g. `vsd`, `principal_bopm`, `senior_bopm`, `content_lead_2026`, `seo_leader`, `cd_copy`, `video_editor_1`, etc.) — these `role_key`s become the link between Matrix cells and `staffing_assignments` rows.
+- A few non-staffing free-text/number fields on Matrix (Strategy Bandwidth Required, TCV USD, MIS Recognition, Consumption, Under/Over, etc.) need columns on `staffing_deals`. Will add via one migration:
+  - `total_mis_recognition`, `total_pending_recognition`, `consumption`, `mis_vs_consumption`, `invoiced_deal_value`, `undelivered_funnel`, `tcv_usd`, `strategy_bandwidth_required`, `month_closed_won`, `deal_target_status`, `pepper_bu_l2` (all numeric/text/date as appropriate; nullable, default null/0/'')
 
 ### Files
 
-- New: `supabase/functions/mbr-reminders/index.ts`
-- New migration: create `mbr_reminder_log` table + RLS, enable `pg_cron`, `pg_net`
-- SQL insert (via insert tool): cron schedule
-- Edit: `supabase/config.toml` — add `[functions.mbr-reminders] verify_jwt = false`
-- Edit: `src/pages/MBRTracker.tsx` — add "Run reminders now" button
+- Edit: `src/pages/Staffing.tsx` — replace tab structure with the 3 new tabs (Deal View / People View / Matrix)
+- New: `src/components/staffing/DealViewTab.tsx` — VSD pivot table + filter dropdowns + expandable rows
+- Edit: `src/components/staffing/PeopleLevelView.tsx` → renamed/refactored to `PeopleViewTab.tsx` — strip KPI cards, add column headers, inline person→deals expansion with editable allocation
+- New: `src/components/staffing/MatrixTab.tsx` — virtualised grid (use existing table primitives + sticky CSS), inline-edit cells, group collapse
+- New: `src/components/staffing/MatrixCell.tsx` — typed editable cell (text / number / % / person-picker)
+- Edit: `src/data/staffingData.ts` — add `MATRIX_ROLE_COLUMNS` map and column-group definitions
+- Edit: `src/hooks/useStaffingData.ts` — add `updateDealField`, `upsertAssignment`, `removeAssignment` helpers if not present
+- New migration: add the missing financial/metadata columns on `staffing_deals` listed above
+- Remove/retire: existing `SummaryTab.tsx`, `AccountsTab.tsx`, `CapacityTab.tsx`, `BWRulesTab.tsx`, `HiringGapTab.tsx`, `RevenueCapacityTab.tsx` from the Staffing page tabs (keep files for now; just unlink from nav). User can confirm if we should fully delete in a follow-up.
 
-### Verification steps after deploy
+### Open questions before build
 
-1. Manually invoke the function once and check `mbr_reminder_log` + the Slack channel of a test deal.
-2. Inspect edge function logs for any Slack errors (channel not found, bot not invited, etc.).
-3. Cron will then run automatically each morning.
+1. **Retired tabs** — the current Staffing page has many sub-tabs (Summary, Accounts, Capacity, BW Rules, Hiring Gap, Revenue Capacity). Confirm: collapse them all under the new 3-tab structure, or keep them accessible somewhere (e.g. a "More" menu)?  
+remove them
+2. **Retainer / Active Deal dropdowns** — confirmed these are filters above/below the table that change which deals are counted. Or did you mean two new editable columns inside the VSD table (one per deal-type)?  
+editable columns
+3. **Matrix scale** — ~550 deals × ~80 columns. OK with horizontal scroll + sticky columns + virtualisation? (Alternative: one row per deal but split person-roles into a separate side panel that opens per row.)  
+one row per deal but split person-roles into a separate side panel that opens per row
