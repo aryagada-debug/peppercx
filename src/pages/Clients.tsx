@@ -114,6 +114,74 @@ export default function Clients() {
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
+  // Column visibility (Client + Deal Name are always on)
+  const ALL_COLS = useMemo(() => ([
+    { key: "account", label: "Client", required: true },
+    { key: "dealName", label: "Deal Name", required: true },
+    { key: "dealId", label: "Deal ID" },
+    { key: "dealType", label: "Type" },
+    { key: "dealStatus", label: "Status" },
+    { key: "vsd", label: "VSD" },
+    { key: "bopm", label: "P.BOPM / Sr BOPM" },
+    { key: "contentLead", label: "Content Lead" },
+    { key: "seoLead", label: "SEO Lead" },
+    { key: "mrr", label: "MRR" },
+    { key: "totalDealValue", label: "Total Revenue" },
+    { key: "rag", label: "RGY" },
+  ]), []);
+
+  const DEFAULT_VISIBLE = ["account","dealName","dealId","dealType","dealStatus","vsd","bopm","mrr","totalDealValue","rag"];
+  const [visibleCols, setVisibleCols] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem("clients-visible-cols");
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return DEFAULT_VISIBLE;
+  });
+  useEffect(() => {
+    try { localStorage.setItem("clients-visible-cols", JSON.stringify(visibleCols)); } catch {}
+  }, [visibleCols]);
+  const isVisible = (k: string) => visibleCols.includes(k);
+  const toggleCol = (k: string, required?: boolean) => {
+    if (required) return;
+    setVisibleCols(prev => prev.includes(k) ? prev.filter(c => c !== k) : [...prev, k]);
+  };
+
+  // Column widths (resizable)
+  const DEFAULT_WIDTHS: Record<string, number> = {
+    account: 160, dealName: 200, dealId: 100, dealType: 100, dealStatus: 130,
+    vsd: 130, bopm: 150, contentLead: 140, seoLead: 140, mrr: 110, totalDealValue: 130, rag: 70, actions: 40,
+  };
+  const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
+    try {
+      const raw = localStorage.getItem("clients-col-widths");
+      if (raw) return { ...DEFAULT_WIDTHS, ...JSON.parse(raw) };
+    } catch {}
+    return DEFAULT_WIDTHS;
+  });
+  useEffect(() => {
+    try { localStorage.setItem("clients-col-widths", JSON.stringify(colWidths)); } catch {}
+  }, [colWidths]);
+  const resizingRef = useRef<{ key: string; startX: number; startW: number } | null>(null);
+  const startResize = useCallback((key: string) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    resizingRef.current = { key, startX: e.clientX, startW: colWidths[key] || 120 };
+    const onMove = (ev: MouseEvent) => {
+      const r = resizingRef.current;
+      if (!r) return;
+      const next = Math.max(60, Math.min(500, r.startW + (ev.clientX - r.startX)));
+      setColWidths(prev => ({ ...prev, [r.key]: next }));
+    };
+    const onUp = () => {
+      resizingRef.current = null;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, [colWidths]);
+
   const setFilter = (key: string, val: string) => setColFilters(prev => ({ ...prev, [key]: val }));
   const clearFilter = (key: string) => setColFilters(prev => { const n = { ...prev }; delete n[key]; return n; });
 
@@ -128,6 +196,28 @@ export default function Clients() {
     const rt = (p.roleTitle || "").toLowerCase();
     return rt.includes("principal bopm") || rt.includes("senior bopm");
   }), [people]);
+
+  // Resolve Content / SEO leads per deal from assignments
+  const leadByDeal = useMemo(() => {
+    const map: Record<string, { content?: string; seo?: string }> = {};
+    const peopleById = new Map(people.map(p => [p.id, p]));
+    const grouped: Record<string, typeof assignments> = {};
+    for (const a of assignments) {
+      (grouped[a.dealId] = grouped[a.dealId] || []).push(a);
+    }
+    for (const dealId of Object.keys(grouped)) {
+      const list = grouped[dealId];
+      const pick = (cat: string) => {
+        const matches = list
+          .map(a => ({ a, p: peopleById.get(a.personId) }))
+          .filter(({ p }) => p && (p.roleCategory || "").toLowerCase() === cat.toLowerCase())
+          .sort((x, y) => (Number(y.a.allocationPct) || 0) - (Number(x.a.allocationPct) || 0));
+        return matches[0]?.p?.name;
+      };
+      map[dealId] = { content: pick("Content"), seo: pick("SEO") };
+    }
+    return map;
+  }, [assignments, people]);
 
   const filteredDeals = useMemo(() => {
     let d = deals;
