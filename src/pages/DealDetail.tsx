@@ -1,7 +1,7 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useParams, Link, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Loader2, Plus, Trash2, Pencil, Check, X, Calendar, Users, Eye, Edit2, ExternalLink, AlertTriangle, ChevronDown, ChevronUp, ChevronRight, Upload } from "lucide-react";
-import { format } from "date-fns";
+import { ArrowLeft, Loader2, Plus, Trash2, Pencil, Check, X, Calendar, Users, Eye, Edit2, ExternalLink, AlertTriangle, ChevronDown, ChevronUp, ChevronRight, Upload, CalendarCheck, Smile, TrendingUp } from "lucide-react";
+import { format, differenceInCalendarMonths } from "date-fns";
 import { cn } from "@/lib/utils";
 import React, { useState, useMemo, useCallback } from "react";
 import { useStaffingData } from "@/hooks/useStaffingData";
@@ -51,7 +51,10 @@ const fmtDate = (d: string | undefined) => {
 const TABS = ["Overview", "Staffing", "Financials", "Tasks", "RGY Health", "MBR", "Onboarding"] as const;
 type TabKey = typeof TABS[number];
 
-const rgyColors: Record<string, string> = { G: "rgy-green", R: "rgy-red", Y: "rgy-yellow" };
+const rgyColors: Record<string, string> = { G: "rgy-green", R: "rgy-red", Y: "rgy-yellow", NA: "rgy-na", TBU: "rgy-tbu" };
+const rgySymbol: Record<string, string> = { G: "G", Y: "Y", R: "R", NA: "⊘", TBU: "⋯" };
+// Comparable scale for trend logic. NA / TBU are non-comparable (null).
+const rgyCompare: Record<string, number | null> = { G: 3, Y: 2, R: 1, NA: null, TBU: null };
 
 const SERVICE_LINE_OPTIONS = [
   "Integrated Retainers - Content + SEO + Social or Content Hubs",
