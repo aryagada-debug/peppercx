@@ -77,6 +77,7 @@ interface Props {
 export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAssignment }: Props) {
   const [dealSearch, setDealSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "needs" | "staffed">("all");
+  const [vsdFilter, setVsdFilter] = useState<string>("All");
   const [selectedDealId, setSelectedDealId] = useState<string | null>(deals[0]?.id || null);
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set(GROUP_ORDER));
   const [adding, setAdding] = useState<string | null>(null); // group key being added to
@@ -96,6 +97,15 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
     return m;
   }, [people]);
 
+  // Total current allocation % per person across all deals (occupancy)
+  const occupancyByPerson = useMemo(() => {
+    const m: Record<string, number> = {};
+    assignments.forEach(a => {
+      m[a.personId] = (m[a.personId] || 0) + (a.allocationPct || 0);
+    });
+    return m;
+  }, [assignments]);
+
   // Index assignments by deal
   const assignmentsByDeal = useMemo(() => {
     const m: Record<string, StaffingAssignment[]> = {};
@@ -106,6 +116,16 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
     return m;
   }, [assignments]);
 
+  const vsdOptions = useMemo(() => {
+    const set = new Set<string>();
+    deals.forEach(d => set.add(d.vsd?.trim() || "Yet to be assigned"));
+    return ["All", ...Array.from(set).sort((a, b) => {
+      if (a === "Yet to be assigned") return 1;
+      if (b === "Yet to be assigned") return -1;
+      return a.localeCompare(b);
+    })];
+  }, [deals]);
+
   // Filter deals
   const filteredDeals = useMemo(() => {
     const q = dealSearch.toLowerCase().trim();
@@ -113,6 +133,10 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
       const has = (assignmentsByDeal[d.id] || []).length > 0;
       if (statusFilter === "needs" && has) return false;
       if (statusFilter === "staffed" && !has) return false;
+      if (vsdFilter !== "All") {
+        const v = d.vsd?.trim() || "Yet to be assigned";
+        if (v !== vsdFilter) return false;
+      }
       if (!q) return true;
       return (
         d.dealName.toLowerCase().includes(q) ||
@@ -121,7 +145,7 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
         (d.vsd || "").toLowerCase().includes(q)
       );
     });
-  }, [deals, dealSearch, statusFilter, assignmentsByDeal]);
+  }, [deals, dealSearch, statusFilter, vsdFilter, assignmentsByDeal]);
 
   const selectedDeal = useMemo(
     () => deals.find(d => d.id === selectedDealId) || null,
@@ -211,6 +235,13 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
               >{t.label}</button>
             ))}
           </div>
+          <select
+            value={vsdFilter}
+            onChange={e => setVsdFilter(e.target.value)}
+            className="w-full h-8 px-2 rounded-md bg-background border border-border text-[11px] text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none"
+          >
+            {vsdOptions.map(o => <option key={o} value={o}>{o === "All" ? "All VSDs" : `VSD: ${o}`}</option>)}
+          </select>
           <div className="text-[10px] text-muted-foreground uppercase tracking-wider px-1">
             {filteredDeals.length} deals
           </div>
@@ -365,6 +396,7 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
                                 people={personOptions}
                                 selectedPersonId={a.personId}
                                 onSelect={pid => handleChangePerson(a.roleKey, pid, a.allocationPct)}
+                                occupancy={occupancyByPerson}
                               />
                               <div className="flex items-center gap-1 ml-auto shrink-0">
                                 <input
@@ -399,6 +431,7 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
                             people={personOptions}
                             onCancel={() => { setAdding(null); }}
                             onConfirm={(roleKey, personId) => handlePickPerson(roleKey, personId)}
+                            occupancy={occupancyByPerson}
                           />
                         ) : (
                           <button
@@ -463,8 +496,8 @@ function SelectChip({
 }
 
 function PersonPicker({
-  people, selectedPersonId, onSelect,
-}: { people: Person[]; selectedPersonId: string; onSelect: (id: string) => void }) {
+  people, selectedPersonId, onSelect, occupancy = {},
+}: { people: Person[]; selectedPersonId: string; onSelect: (id: string) => void; occupancy?: Record<string, number> }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const selected = people.find(p => p.id === selectedPersonId);
@@ -490,9 +523,14 @@ function PersonPicker({
         )}
       >
         <span className="truncate text-ui">{selected?.name || "Select person…"}</span>
-        {selected?.designation && (
-          <span className="ml-auto truncate text-caption text-muted-foreground hidden md:inline">
-            {selected.designation}
+        {selected && (
+          <span className={cn(
+            "ml-auto shrink-0 text-[10px] font-mono tabular-nums px-1.5 py-0.5 rounded",
+            (occupancy[selected.id] || 0) > 100 ? "bg-[hsl(var(--danger-bg))] text-destructive"
+              : (occupancy[selected.id] || 0) >= 80 ? "bg-[hsl(var(--warning-bg,var(--danger-bg)))] text-amber-600 dark:text-amber-400"
+              : "bg-secondary text-muted-foreground"
+          )} title="Current total allocation across all deals">
+            {(occupancy[selected.id] || 0).toFixed(0)}%
           </span>
         )}
       </button>
@@ -516,7 +554,13 @@ function PersonPicker({
               {filtered.length === 0 ? (
                 <div className="px-3 py-4 text-caption text-muted-foreground text-center">No people match</div>
               ) : (
-                filtered.map(p => (
+                filtered.map(p => {
+                  const occ = occupancy[p.id] || 0;
+                  const occTone = occ > 100 ? "bg-[hsl(var(--danger-bg))] text-destructive"
+                    : occ >= 80 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                    : occ > 0 ? "bg-[hsl(var(--success-bg))] text-positive"
+                    : "bg-secondary text-muted-foreground";
+                  return (
                   <button
                     key={p.id}
                     type="button"
@@ -534,9 +578,16 @@ function PersonPicker({
                         </div>
                       )}
                     </div>
+                    <span
+                      className={cn("shrink-0 text-[10px] font-mono tabular-nums px-1.5 py-0.5 rounded", occTone)}
+                      title="Current total allocation across all deals"
+                    >
+                      {occ.toFixed(0)}%
+                    </span>
                     {p.id === selectedPersonId && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
                   </button>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
@@ -547,12 +598,13 @@ function PersonPicker({
 }
 
 function AddRoleRow({
-  roles, people, onCancel, onConfirm,
+  roles, people, onCancel, onConfirm, occupancy,
 }: {
   roles: { key: string; label: string }[];
   people: Person[];
   onCancel: () => void;
   onConfirm: (roleKey: string, personId: string) => void;
+  occupancy?: Record<string, number>;
 }) {
   const [roleKey, setRoleKey] = useState(roles[0]?.key || "");
   const [personId, setPersonId] = useState("");
@@ -571,6 +623,7 @@ function AddRoleRow({
           people={people}
           selectedPersonId={personId}
           onSelect={setPersonId}
+          occupancy={occupancy}
         />
         <button
           type="button"

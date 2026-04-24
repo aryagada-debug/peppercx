@@ -82,6 +82,7 @@ const STAFFING_EDIT_OPTIONS: StaffingBucket[] = ["Already Staffed", "Staffing Ne
 export function DealViewTab({ deals, people, assignments, onUpdateDeal }: Props) {
   const [dealType, setDealType] = useState<typeof DEAL_TYPE_OPTIONS[number]>(ALL);
   const [dealStatus, setDealStatus] = useState<typeof DEAL_STATUS_OPTIONS[number]>("Active Deal");
+  const [vsdFilter, setVsdFilter] = useState<string>(ALL);
   const [expandedVsd, setExpandedVsd] = useState<Set<string>>(new Set());
   const [expandedDeal, setExpandedDeal] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
@@ -103,6 +104,10 @@ export function DealViewTab({ deals, people, assignments, onUpdateDeal }: Props)
     return deals.filter(d => {
       if (dealType !== ALL && d.dealType !== dealType) return false;
       if (dealStatus !== ALL && d.dealStatus !== dealStatus) return false;
+      if (vsdFilter !== ALL) {
+        const v = d.vsd?.trim() || "Yet to be assigned";
+        if (v !== vsdFilter) return false;
+      }
       if (search) {
         const q = search.toLowerCase();
         if (!(d.dealName.toLowerCase().includes(q) || d.account.toLowerCase().includes(q) || (d.vsd || "").toLowerCase().includes(q))) {
@@ -111,7 +116,17 @@ export function DealViewTab({ deals, people, assignments, onUpdateDeal }: Props)
       }
       return true;
     });
-  }, [deals, dealType, dealStatus, search]);
+  }, [deals, dealType, dealStatus, vsdFilter, search]);
+
+  const vsdOptions = useMemo(() => {
+    const set = new Set<string>();
+    deals.forEach(d => set.add(d.vsd?.trim() || "Yet to be assigned"));
+    return [ALL, ...Array.from(set).sort((a, b) => {
+      if (a === "Yet to be assigned") return 1;
+      if (b === "Yet to be assigned") return -1;
+      return a.localeCompare(b);
+    })];
+  }, [deals]);
 
   // Compute deal bucket — prefer explicit staffingStatus, fall back to assignments presence
   const dealBucket = (d: Deal): StaffingBucket => {
@@ -173,6 +188,53 @@ export function DealViewTab({ deals, people, assignments, onUpdateDeal }: Props)
 
   return (
     <div className="animate-fade-in space-y-4">
+      {/* Filters on top */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative max-w-xs flex-1 min-w-[220px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search deals, accounts, VSDs..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full h-9 pl-9 pr-3 rounded-lg bg-card border border-border text-ui text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all"
+          />
+        </div>
+
+        <div className="flex items-center gap-2">
+          <label className="text-caption text-muted-foreground">VSD</label>
+          <select
+            value={vsdFilter}
+            onChange={e => setVsdFilter(e.target.value)}
+            className="h-9 px-3 rounded-lg bg-card border border-border text-ui text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none max-w-[200px]"
+          >
+            {vsdOptions.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <label className="text-caption text-muted-foreground">Deal Type</label>
+          <select
+            value={dealType}
+            onChange={e => setDealType(e.target.value as typeof DEAL_TYPE_OPTIONS[number])}
+            className="h-9 px-3 rounded-lg bg-card border border-border text-ui text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none"
+          >
+            {DEAL_TYPE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <label className="text-caption text-muted-foreground">Deal Status</label>
+          <select
+            value={dealStatus}
+            onChange={e => setDealStatus(e.target.value as typeof DEAL_STATUS_OPTIONS[number])}
+            className="h-9 px-3 rounded-lg bg-card border border-border text-ui text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none"
+          >
+            {DEAL_STATUS_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </div>
+      </div>
+
       {/* VSD Pivot Table */}
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <table className="w-full text-ui">
@@ -362,42 +424,6 @@ export function DealViewTab({ deals, people, assignments, onUpdateDeal }: Props)
             </tr>
           </tbody>
         </table>
-      </div>
-
-      {/* Filters below the table */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative max-w-xs flex-1 min-w-[220px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search deals, accounts, VSDs..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full h-9 pl-9 pr-3 rounded-lg bg-card border border-border text-ui text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all"
-          />
-        </div>
-
-        <div className="flex items-center gap-2">
-          <label className="text-caption text-muted-foreground">Deal Type</label>
-          <select
-            value={dealType}
-            onChange={e => setDealType(e.target.value as typeof DEAL_TYPE_OPTIONS[number])}
-            className="h-9 px-3 rounded-lg bg-card border border-border text-ui text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none"
-          >
-            {DEAL_TYPE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-          </select>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <label className="text-caption text-muted-foreground">Deal Status</label>
-          <select
-            value={dealStatus}
-            onChange={e => setDealStatus(e.target.value as typeof DEAL_STATUS_OPTIONS[number])}
-            className="h-9 px-3 rounded-lg bg-card border border-border text-ui text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none"
-          >
-            {DEAL_STATUS_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-          </select>
-        </div>
       </div>
 
       {rows.length === 0 && (

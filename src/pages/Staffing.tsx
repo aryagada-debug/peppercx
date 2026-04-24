@@ -29,7 +29,7 @@ export default function Staffing() {
   const TABS: { key: Tab; label: string }[] = [
     { key: "deals", label: "Deal view" },
     { key: "people", label: "People view" },
-    { key: "matrix", label: "Matrix" },
+    { key: "matrix", label: "Staffing" },
   ];
 
   return (
