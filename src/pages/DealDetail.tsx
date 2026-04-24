@@ -132,7 +132,11 @@ function RGYTrendView({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
         const a = (byWeek[prevWeek] as any)[key] || "G";
         const b = (byWeek[latestWeek] as any)[key] || "G";
         if (a !== b) {
-          const dir = (rgyScore[b] ?? 0) > (rgyScore[a] ?? 0) ? "up" : "down";
+          const sa = rgyCompare[a];
+          const sb = rgyCompare[b];
+          // Skip transitions involving NA/TBU on either side — non-comparable.
+          if (sa == null || sb == null) return;
+          const dir = sb > sa ? "up" : "down";
           movers.push({ dim: label, from: a, to: b, dir });
         }
       });
@@ -200,8 +204,14 @@ function RGYTrendView({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
                   const a = vals[vals.length - 2];
                   const b = vals[vals.length - 1];
                   if (a !== b) {
-                    delta = (rgyScore[b] ?? 0) > (rgyScore[a] ?? 0) ? "up" : "down";
-                    tip = `Was ${a} last week, now ${b}`;
+                    const sa = rgyCompare[a];
+                    const sb = rgyCompare[b];
+                    if (sa != null && sb != null) {
+                      delta = sb > sa ? "up" : "down";
+                      tip = `Was ${a} last week, now ${b}`;
+                    } else {
+                      tip = `Was ${a} last week, now ${b} (non-comparable)`;
+                    }
                   }
                 }
                 return (
@@ -209,7 +219,7 @@ function RGYTrendView({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
                     <td className="py-2 px-3 text-xs font-medium text-foreground whitespace-nowrap">{label}</td>
                     {vals.map((v, i) => (
                       <td key={i} className="py-2 px-2 text-center">
-                        <span className={cn("inline-flex items-center justify-center w-6 h-6 rounded-md text-[10px] font-bold", rgyColors[v] || "rgy-na")}>{v}</span>
+                        <span className={cn("inline-flex items-center justify-center w-6 h-6 rounded-md text-[10px] font-bold", rgyColors[v] || "rgy-na")} title={v === "NA" ? "Not Required" : v === "TBU" ? "To Be Updated" : v}>{rgySymbol[v] ?? v}</span>
                       </td>
                     ))}
                     <td className="py-2 px-3 text-xs whitespace-nowrap" title={tip}>
