@@ -578,6 +578,9 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
                                 peopleByVsd={peopleByVsd}
                                 roleKey={a.roleKey}
                                 allocationsByPerson={allocationsByPerson}
+                                dealPod={selectedDeal?.pod || ""}
+                                dealServiceLine={selectedDeal?.serviceLineTagging || selectedDeal?.capabilityLine || ""}
+                                peopleByPod={peopleByPod}
                               />
                               <div className="flex items-center gap-1 ml-auto shrink-0">
                                 <input
@@ -608,7 +611,9 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
                         {/* Add-role row */}
                         {isAddingHere ? (
                           <AddRoleRow
-                            roles={availableRolesForGroup(group)}
+                            roles={availableRolesForGroup(group).filter(r =>
+                              isRoleAllowedForServiceLine(r.key, selectedDeal?.serviceLineTagging || selectedDeal?.capabilityLine || "")
+                            )}
                             people={personOptions}
                             onCancel={() => { setAdding(null); }}
                             onConfirm={(roleKey, personId) => handlePickPerson(roleKey, personId)}
@@ -616,6 +621,9 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
                             vsdOptions={vsdOptions}
                             peopleByVsd={peopleByVsd}
                             allocationsByPerson={allocationsByPerson}
+                            dealPod={selectedDeal?.pod || ""}
+                            dealServiceLine={selectedDeal?.serviceLineTagging || selectedDeal?.capabilityLine || ""}
+                            peopleByPod={peopleByPod}
                           />
                         ) : (
                           <button
