@@ -96,11 +96,21 @@ interface Props {
 
 export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAssignment }: Props) {
   const [search, setSearch] = useState("");
-  const [hiddenGroups, setHiddenGroups] = useState<Set<string>>(new Set());
+  // Default-hide all role groups except the first to keep initial DOM small; users can toggle them on.
+  const [hiddenGroups, setHiddenGroups] = useState<Set<string>>(() => {
+    const s = new Set<string>();
+    const roleGroups = Array.from(new Set(ROLE_COLS.map(r => r.group)));
+    roleGroups.forEach((g, i) => { if (i > 0) s.add(g); });
+    // Also collapse the verbose Financials group by default
+    s.add("Financials");
+    return s;
+  });
   const [editing, setEditing] = useState<{ dealId: string; field: string } | null>(null);
   const [draft, setDraft] = useState<string>("");
+  // Tracks which role-cell is actively being edited; only that cell mounts a heavy <select>.
+  const [editingRoleCell, setEditingRoleCell] = useState<{ dealId: string; roleKey: string } | null>(null);
   const [page, setPage] = useState(0);
-  const PAGE_SIZE = 50;
+  const PAGE_SIZE = 25;
 
   const personOptions = useMemo(() => {
     return [{ id: "", name: NA }, ...people.filter(p => !p.tbh && !p.leaving).map(p => ({ id: p.id, name: p.name }))];
@@ -289,18 +299,39 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
 
                 {ROLE_COLS.filter(r => !hiddenGroups.has(r.group)).map(r => {
                   const a = assignmentBy[`${d.id}::${r.key}`];
+                  const personName = a?.personId ? (personMap[a.personId]?.name || "—") : NA;
+                  const isEditingCell = editingRoleCell?.dealId === d.id && editingRoleCell?.roleKey === r.key;
                   return (
                     <React.Fragment key={r.key}>
                       <td className="border border-border px-1 py-0.5 min-w-[140px]">
-                        <select
-                          value={a?.personId || ""}
-                          onChange={e => onUpsertAssignment(d.id, r.key, e.target.value, a?.allocationPct || 0)}
-                          className="w-full h-6 text-[11px] bg-transparent border-0 outline-none focus:ring-1 focus:ring-primary rounded"
-                        >
-                          {personOptions.map(p => (
-                            <option key={p.id} value={p.id}>{p.name}</option>
-                          ))}
-                        </select>
+                        {isEditingCell ? (
+                          <select
+                            autoFocus
+                            value={a?.personId || ""}
+                            onChange={e => {
+                              onUpsertAssignment(d.id, r.key, e.target.value, a?.allocationPct || 0);
+                              setEditingRoleCell(null);
+                            }}
+                            onBlur={() => setEditingRoleCell(null)}
+                            className="w-full h-6 text-[11px] bg-background border border-primary outline-none rounded"
+                          >
+                            {personOptions.map(p => (
+                              <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setEditingRoleCell({ dealId: d.id, roleKey: r.key })}
+                            className={cn(
+                              "w-full h-6 px-1 text-left text-[11px] truncate rounded hover:bg-accent/20",
+                              !a?.personId && "text-muted-foreground/60"
+                            )}
+                            title={personName}
+                          >
+                            {personName}
+                          </button>
+                        )}
                       </td>
                       <td className="border border-border px-1 py-0.5 text-right min-w-[60px]">
                         <input
