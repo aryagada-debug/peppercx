@@ -99,6 +99,8 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
   const [hiddenGroups, setHiddenGroups] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<{ dealId: string; field: string } | null>(null);
   const [draft, setDraft] = useState<string>("");
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 50;
 
   const personOptions = useMemo(() => {
     return [{ id: "", name: NA }, ...people.filter(p => !p.tbh && !p.leaving).map(p => ({ id: p.id, name: p.name }))];
@@ -126,6 +128,13 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
       (d.pcCode || "").toLowerCase().includes(q)
     );
   }, [deals, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages - 1);
+  const pageRows = useMemo(
+    () => filtered.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE),
+    [filtered, currentPage]
+  );
 
   const allGroups = useMemo(() => {
     const set = new Set<string>();
@@ -187,7 +196,22 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
             );
           })}
         </div>
-        <span className="ml-auto text-caption text-muted-foreground">{filtered.length} deals</span>
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-caption text-muted-foreground">
+            {filtered.length === 0 ? 0 : currentPage * PAGE_SIZE + 1}–
+            {Math.min((currentPage + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
+          </span>
+          <button
+            onClick={() => setPage(p => Math.max(0, p - 1))}
+            disabled={currentPage === 0}
+            className="h-7 px-2 rounded-md text-[11px] border border-border bg-card hover:bg-secondary/50 disabled:opacity-40"
+          >Prev</button>
+          <button
+            onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+            disabled={currentPage >= totalPages - 1}
+            className="h-7 px-2 rounded-md text-[11px] border border-border bg-card hover:bg-secondary/50 disabled:opacity-40"
+          >Next</button>
+        </div>
       </div>
 
       <div className="bg-card border border-border rounded-xl overflow-auto" style={{ maxHeight: "calc(100vh - 240px)" }}>
@@ -223,7 +247,7 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
             </tr>
           </thead>
           <tbody>
-            {filtered.map(d => (
+            {pageRows.map(d => (
               <tr key={d.id} className="hover:bg-secondary/20">
                 <td className="sticky left-0 z-10 bg-card border border-border px-2 py-1 font-mono text-foreground">{d.pcCode || "—"}</td>
                 <td className="sticky left-[60px] z-10 bg-card border border-border px-2 py-1 text-foreground whitespace-nowrap">{d.account}</td>
