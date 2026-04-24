@@ -1,8 +1,8 @@
 import React from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Link } from "react-router-dom";
-import { Search, Plus, Loader2, Trash2, Pencil, Check, X } from "lucide-react";
-import { useState, useMemo } from "react";
+import { Search, Plus, Loader2, Trash2, Pencil, Check, X, Building2, Briefcase, Activity, TrendingUp, DollarSign, Settings2 } from "lucide-react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useStaffingData } from "@/hooks/useStaffingData";
 import { useClients } from "@/hooks/useClients";
 import { cn } from "@/lib/utils";
@@ -31,14 +31,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ColHeader } from "@/components/table/ColHeader";
 
 const VSD_FILTERS = [
   { key: "All", label: "All" },
-  { key: "Neema Jayadas", label: "Neema Jayadas (US)" },
+  { key: "Neema Jayadas", label: "Neema Jayadas" },
   { key: "Aamir Khan", label: "Aamir Khan" },
-  { key: "Aditya Shaw", label: "Aditya Shaw (BFSI)" },
-  { key: "Sneha Iyer", label: "Sneha Iyer (FMCG)" },
+  { key: "Aditya Shaw", label: "Aditya Shaw" },
+  { key: "Sneha Iyer", label: "Sneha Iyer" },
   { key: "Sumit Shekhawat", label: "Sumit Shekhawat" },
   { key: "Other", label: "Other" },
   { key: "Unassigned", label: "Unassigned" },
@@ -112,6 +114,74 @@ export default function Clients() {
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
+  // Column visibility (Client + Deal Name are always on)
+  const ALL_COLS = useMemo(() => ([
+    { key: "account", label: "Client", required: true },
+    { key: "dealName", label: "Deal Name", required: true },
+    { key: "dealId", label: "Deal ID" },
+    { key: "dealType", label: "Type" },
+    { key: "dealStatus", label: "Status" },
+    { key: "vsd", label: "VSD" },
+    { key: "bopm", label: "P.BOPM / Sr BOPM" },
+    { key: "contentLead", label: "Content Lead" },
+    { key: "seoLead", label: "SEO Lead" },
+    { key: "mrr", label: "MRR" },
+    { key: "totalDealValue", label: "Total Revenue" },
+    { key: "rag", label: "RGY" },
+  ]), []);
+
+  const DEFAULT_VISIBLE = ["account","dealName","dealId","dealType","dealStatus","vsd","bopm","mrr","totalDealValue","rag"];
+  const [visibleCols, setVisibleCols] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem("clients-visible-cols");
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return DEFAULT_VISIBLE;
+  });
+  useEffect(() => {
+    try { localStorage.setItem("clients-visible-cols", JSON.stringify(visibleCols)); } catch {}
+  }, [visibleCols]);
+  const isVisible = (k: string) => visibleCols.includes(k);
+  const toggleCol = (k: string, required?: boolean) => {
+    if (required) return;
+    setVisibleCols(prev => prev.includes(k) ? prev.filter(c => c !== k) : [...prev, k]);
+  };
+
+  // Column widths (resizable)
+  const DEFAULT_WIDTHS: Record<string, number> = {
+    account: 160, dealName: 200, dealId: 100, dealType: 100, dealStatus: 130,
+    vsd: 130, bopm: 150, contentLead: 140, seoLead: 140, mrr: 110, totalDealValue: 130, rag: 70, actions: 40,
+  };
+  const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
+    try {
+      const raw = localStorage.getItem("clients-col-widths");
+      if (raw) return { ...DEFAULT_WIDTHS, ...JSON.parse(raw) };
+    } catch {}
+    return DEFAULT_WIDTHS;
+  });
+  useEffect(() => {
+    try { localStorage.setItem("clients-col-widths", JSON.stringify(colWidths)); } catch {}
+  }, [colWidths]);
+  const resizingRef = useRef<{ key: string; startX: number; startW: number } | null>(null);
+  const startResize = useCallback((key: string) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    resizingRef.current = { key, startX: e.clientX, startW: colWidths[key] || 120 };
+    const onMove = (ev: MouseEvent) => {
+      const r = resizingRef.current;
+      if (!r) return;
+      const next = Math.max(60, Math.min(500, r.startW + (ev.clientX - r.startX)));
+      setColWidths(prev => ({ ...prev, [r.key]: next }));
+    };
+    const onUp = () => {
+      resizingRef.current = null;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, [colWidths]);
+
   const setFilter = (key: string, val: string) => setColFilters(prev => ({ ...prev, [key]: val }));
   const clearFilter = (key: string) => setColFilters(prev => { const n = { ...prev }; delete n[key]; return n; });
 
@@ -126,6 +196,28 @@ export default function Clients() {
     const rt = (p.roleTitle || "").toLowerCase();
     return rt.includes("principal bopm") || rt.includes("senior bopm");
   }), [people]);
+
+  // Resolve Content / SEO leads per deal from assignments
+  const leadByDeal = useMemo(() => {
+    const map: Record<string, { content?: string; seo?: string }> = {};
+    const peopleById = new Map(people.map(p => [p.id, p]));
+    const grouped: Record<string, typeof assignments> = {};
+    for (const a of assignments) {
+      (grouped[a.dealId] = grouped[a.dealId] || []).push(a);
+    }
+    for (const dealId of Object.keys(grouped)) {
+      const list = grouped[dealId];
+      const pick = (cat: string) => {
+        const matches = list
+          .map(a => ({ a, p: peopleById.get(a.personId) }))
+          .filter(({ p }) => p && (p.roleCategory || "").toLowerCase() === cat.toLowerCase())
+          .sort((x, y) => (Number(y.a.allocationPct) || 0) - (Number(x.a.allocationPct) || 0));
+        return matches[0]?.p?.name;
+      };
+      map[dealId] = { content: pick("Content"), seo: pick("SEO") };
+    }
+    return map;
+  }, [assignments, people]);
 
   const filteredDeals = useMemo(() => {
     let d = deals;
@@ -354,20 +446,41 @@ export default function Clients() {
           </div>
         </div>
 
-        {/* KPI Strip */}
+        {/* KPI Strip — compact modern cards */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3">
           {[
-            { label: "Clients", value: String(kpis.clients) },
-            { label: "Total Deals", value: String(kpis.deals) },
-            { label: "Active Deals", value: String(kpis.activeDeals) },
-            { label: "Total MRR", value: fmtCurrency(kpis.totalMRR) },
-            { label: "Total Value", value: fmtCurrency(kpis.totalValue) },
-          ].map(k => (
-            <div key={k.label} className="data-card">
-              <p className="metric-label">{k.label}</p>
-              <p className="text-xl font-semibold font-mono tracking-tight mt-1 text-foreground">{k.value}</p>
-            </div>
-          ))}
+            { label: "Clients", value: String(kpis.clients), Icon: Building2, tint: "sky" },
+            { label: "Total Deals", value: String(kpis.deals), Icon: Briefcase, tint: "violet" },
+            { label: "Active Deals", value: String(kpis.activeDeals), Icon: Activity, tint: "emerald" },
+            { label: "Total MRR", value: fmtCurrency(kpis.totalMRR), Icon: TrendingUp, tint: "amber" },
+            { label: "Total Value", value: fmtCurrency(kpis.totalValue), Icon: DollarSign, tint: "rose" },
+          ].map(({ label, value, Icon, tint }) => {
+            const tintMap: Record<string, { bg: string; ring: string; chip: string; icon: string }> = {
+              sky: { bg: "from-sky-500/10", ring: "border-sky-500/20", chip: "bg-sky-500/15", icon: "text-sky-500" },
+              violet: { bg: "from-violet-500/10", ring: "border-violet-500/20", chip: "bg-violet-500/15", icon: "text-violet-500" },
+              emerald: { bg: "from-emerald-500/10", ring: "border-emerald-500/20", chip: "bg-emerald-500/15", icon: "text-emerald-500" },
+              amber: { bg: "from-amber-500/10", ring: "border-amber-500/20", chip: "bg-amber-500/15", icon: "text-amber-500" },
+              rose: { bg: "from-rose-500/10", ring: "border-rose-500/20", chip: "bg-rose-500/15", icon: "text-rose-500" },
+            };
+            const t = tintMap[tint];
+            return (
+              <div
+                key={label}
+                className={cn(
+                  "flex items-center gap-2.5 px-3 py-2 rounded-xl border bg-gradient-to-br to-transparent backdrop-blur-sm transition-all hover:shadow-sm hover:-translate-y-0.5",
+                  t.bg, t.ring,
+                )}
+              >
+                <div className={cn("rounded-lg p-1.5", t.chip)}>
+                  <Icon className={cn("h-4 w-4", t.icon)} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground leading-tight">{label}</p>
+                  <p className="text-base font-semibold tracking-tight text-foreground font-mono leading-tight truncate">{value}</p>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         {/* Filters */}
@@ -397,82 +510,153 @@ export default function Clients() {
               <X className="h-3.5 w-3.5" /> Clear filters ({Object.keys(colFilters).length})
             </Button>
           )}
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="text-xs gap-1.5 ml-auto">
+                <Settings2 className="h-3.5 w-3.5" /> Columns
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-56 p-2">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground px-2 pb-1">Show columns</p>
+              <div className="space-y-0.5 max-h-80 overflow-y-auto">
+                {ALL_COLS.map(c => (
+                  <label
+                    key={c.key}
+                    className={cn(
+                      "flex items-center gap-2 px-2 py-1.5 rounded text-xs",
+                      c.required ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:bg-secondary"
+                    )}
+                  >
+                    <Checkbox
+                      checked={isVisible(c.key) || !!c.required}
+                      disabled={c.required}
+                      onCheckedChange={() => toggleCol(c.key, c.required)}
+                    />
+                    <span className="flex-1">{c.label}</span>
+                    {c.required && <span className="text-[9px] text-muted-foreground">locked</span>}
+                  </label>
+                ))}
+              </div>
+              <div className="border-t border-border mt-1 pt-1">
+                <button
+                  onClick={() => setVisibleCols(DEFAULT_VISIBLE)}
+                  className="w-full text-left text-[11px] px-2 py-1 rounded hover:bg-secondary text-muted-foreground"
+                >
+                  Reset to defaults
+                </button>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
 
         {/* Flat Table with column filters */}
         <div className="bg-card border border-border rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-ui">
+            <table className="text-ui table-fixed" style={{ width: "100%" }}>
               <thead>
                 <tr className="bg-secondary/40 border-b border-border">
-                  <ColHeader label="Client" sortKey="account" colKey="account" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
-                  <ColHeader label="Deal Name" sortKey="dealName" colKey="dealName" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
-                  <ColHeader label="Deal ID" sortKey="dealId" colKey="dealId" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
-                  <ColHeader label="Type" sortKey="dealType" colKey="dealType" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["Retainer","Non-Retainer"]} />
-                  <ColHeader label="Status" sortKey="dealStatus" colKey="dealStatus" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={[...DEAL_STATUSES]} />
-                  <ColHeader label="VSD" sortKey="vsd" colKey="vsd" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
-                  <ColHeader label="P.BOPM / Sr BOPM" colKey="bopm" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
-                  <ColHeader label="MRR" align="right" sortKey="mrr" colKey="mrr" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} numeric placeholder="≥ amount" />
-                  <ColHeader label="Total Revenue" align="right" sortKey="totalDealValue" colKey="totalDealValue" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} numeric placeholder="≥ amount" />
-                  <ColHeader label="RGY" align="center" colKey="rag" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["green","amber","red","na","pending"]} />
-                  <th className="w-8"></th>
+                  {isVisible("account") && <ColHeader label="Client" sortKey="account" colKey="account" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.account} onResizeStart={startResize("account")} />}
+                  {isVisible("dealName") && <ColHeader label="Deal Name" sortKey="dealName" colKey="dealName" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.dealName} onResizeStart={startResize("dealName")} />}
+                  {isVisible("dealId") && <ColHeader label="Deal ID" sortKey="dealId" colKey="dealId" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.dealId} onResizeStart={startResize("dealId")} />}
+                  {isVisible("dealType") && <ColHeader label="Type" sortKey="dealType" colKey="dealType" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["Retainer","Non-Retainer"]} width={colWidths.dealType} onResizeStart={startResize("dealType")} />}
+                  {isVisible("dealStatus") && <ColHeader label="Status" sortKey="dealStatus" colKey="dealStatus" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={[...DEAL_STATUSES]} width={colWidths.dealStatus} onResizeStart={startResize("dealStatus")} />}
+                  {isVisible("vsd") && <ColHeader label="VSD" sortKey="vsd" colKey="vsd" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.vsd} onResizeStart={startResize("vsd")} />}
+                  {isVisible("bopm") && <ColHeader label="P.BOPM / Sr BOPM" colKey="bopm" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.bopm} onResizeStart={startResize("bopm")} />}
+                  {isVisible("contentLead") && <ColHeader label="Content Lead" colKey="contentLead" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.contentLead} onResizeStart={startResize("contentLead")} />}
+                  {isVisible("seoLead") && <ColHeader label="SEO Lead" colKey="seoLead" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.seoLead} onResizeStart={startResize("seoLead")} />}
+                  {isVisible("mrr") && <ColHeader label="MRR" align="right" sortKey="mrr" colKey="mrr" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} numeric placeholder="≥ amount" width={colWidths.mrr} onResizeStart={startResize("mrr")} />}
+                  {isVisible("totalDealValue") && <ColHeader label="Total Revenue" align="right" sortKey="totalDealValue" colKey="totalDealValue" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} numeric placeholder="≥ amount" width={colWidths.totalDealValue} onResizeStart={startResize("totalDealValue")} />}
+                  {isVisible("rag") && <ColHeader label="RGY" align="center" colKey="rag" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["green","amber","red","na","pending"]} width={colWidths.rag} onResizeStart={startResize("rag")} />}
+                  <th style={{ width: colWidths.actions, minWidth: colWidths.actions }}></th>
                 </tr>
               </thead>
               <tbody>
                 {tableRows.map(deal => {
                   const clientObj = clients.find(c => c.name === deal.account);
+                  const leads = leadByDeal[deal.id] || {};
                   return (
                     <tr key={deal.id} className="border-b border-border/50 hover:bg-accent/10 transition-colors group/row">
-                      <td className="py-2 px-3">
-                        <span className="text-xs font-medium text-foreground truncate max-w-[140px] block" title={deal.account}>{deal.account}</span>
-                      </td>
-                      <td className="py-2 px-3">
-                        <Link to={`/deals/${deal.id}`} className="text-primary hover:underline text-xs font-medium">
-                          {deal.dealName}
-                        </Link>
-                      </td>
-                      <td className="py-2 px-3 text-xs font-mono text-muted-foreground">{deal.dealId}</td>
-                      <td className="py-2 px-3">
-                        <span className={cn(
-                          "inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium",
-                          deal.dealType === "Retainer" ? "bg-accent text-accent-foreground" : "bg-secondary text-secondary-foreground"
-                        )}>{deal.dealType}</span>
-                      </td>
-                      <td className="py-2 px-3">
-                        <Select value={deal.dealStatus || "Active Deal"} onValueChange={(v) => handleStatusChange(deal.id, v)}>
-                          <SelectTrigger className="h-6 w-[85px] text-[11px] border-none bg-transparent shadow-none px-1 focus:ring-0">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {DEAL_STATUSES.map(s => (
-                              <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </td>
-                      <td className="py-2 px-3">
-                        <button
-                          onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "Operations", preSelectedName: deal.vsd || undefined })}
-                          className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate max-w-[110px] block text-left"
-                        >
-                          {deal.vsd || <span className="text-muted-foreground">— None —</span>}
-                        </button>
-                      </td>
-                      <td className="py-2 px-3">
-                        <button
-                          onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "Operations", preSelectedName: deal.principalBopm || deal.seniorBopm || undefined })}
-                          className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate max-w-[120px] block text-left"
-                        >
-                          {deal.principalBopm || deal.seniorBopm || <span className="text-muted-foreground">— None —</span>}
-                        </button>
-                      </td>
-                      <td className="py-2 px-3 text-right">
-                        <InlineEditCell value={String(deal.mrr || "")} onSave={v => handleMRRSave(deal.id, v)} type="number" prefix="₹" placeholder="—" />
-                      </td>
-                      <td className="py-2 px-3 text-right">
-                        <InlineEditCell value={String(deal.totalDealValue || "")} onSave={v => handleTotalRevenueSave(deal.id, v)} type="number" prefix="₹" placeholder="—" />
-                      </td>
-                      <td className="py-2 px-3 text-center">{ragDot(deal.rag || "green")}</td>
+                      {isVisible("account") && (
+                        <td className="py-2 px-3 truncate" title={deal.account}>
+                          <span className="text-xs font-medium text-foreground truncate block">{deal.account}</span>
+                        </td>
+                      )}
+                      {isVisible("dealName") && (
+                        <td className="py-2 px-3 truncate">
+                          <Link to={`/deals/${deal.id}`} className="text-primary hover:underline text-xs font-medium truncate block" title={deal.dealName}>
+                            {deal.dealName}
+                          </Link>
+                        </td>
+                      )}
+                      {isVisible("dealId") && <td className="py-2 px-3 text-xs font-mono text-muted-foreground truncate">{deal.dealId}</td>}
+                      {isVisible("dealType") && (
+                        <td className="py-2 px-3">
+                          <span className={cn(
+                            "inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium",
+                            deal.dealType === "Retainer" ? "bg-accent text-accent-foreground" : "bg-secondary text-secondary-foreground"
+                          )}>{deal.dealType}</span>
+                        </td>
+                      )}
+                      {isVisible("dealStatus") && (
+                        <td className="py-2 px-3">
+                          <Select value={deal.dealStatus || "Active Deal"} onValueChange={(v) => handleStatusChange(deal.id, v)}>
+                            <SelectTrigger className="h-6 w-full text-[11px] border-none bg-transparent shadow-none px-1 focus:ring-0">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {DEAL_STATUSES.map(s => (
+                                <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </td>
+                      )}
+                      {isVisible("vsd") && (
+                        <td className="py-2 px-3 truncate">
+                          <button
+                            onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "Operations", preSelectedName: deal.vsd || undefined })}
+                            className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate block text-left w-full"
+                          >
+                            {deal.vsd || <span className="text-muted-foreground">— None —</span>}
+                          </button>
+                        </td>
+                      )}
+                      {isVisible("bopm") && (
+                        <td className="py-2 px-3 truncate">
+                          <button
+                            onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "Operations", preSelectedName: deal.principalBopm || deal.seniorBopm || undefined })}
+                            className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate block text-left w-full"
+                          >
+                            {deal.principalBopm || deal.seniorBopm || <span className="text-muted-foreground">— None —</span>}
+                          </button>
+                        </td>
+                      )}
+                      {isVisible("contentLead") && (
+                        <td className="py-2 px-3 truncate">
+                          <Link to={`/deals/${deal.id}`} className="text-xs text-foreground hover:text-primary hover:underline truncate block" title={leads.content || ""}>
+                            {leads.content || <span className="text-muted-foreground">— None —</span>}
+                          </Link>
+                        </td>
+                      )}
+                      {isVisible("seoLead") && (
+                        <td className="py-2 px-3 truncate">
+                          <Link to={`/deals/${deal.id}`} className="text-xs text-foreground hover:text-primary hover:underline truncate block" title={leads.seo || ""}>
+                            {leads.seo || <span className="text-muted-foreground">— None —</span>}
+                          </Link>
+                        </td>
+                      )}
+                      {isVisible("mrr") && (
+                        <td className="py-2 px-3 text-right">
+                          <InlineEditCell value={String(deal.mrr || "")} onSave={v => handleMRRSave(deal.id, v)} type="number" prefix="₹" placeholder="—" />
+                        </td>
+                      )}
+                      {isVisible("totalDealValue") && (
+                        <td className="py-2 px-3 text-right">
+                          <InlineEditCell value={String(deal.totalDealValue || "")} onSave={v => handleTotalRevenueSave(deal.id, v)} type="number" prefix="₹" placeholder="—" />
+                        </td>
+                      )}
+                      {isVisible("rag") && <td className="py-2 px-3 text-center">{ragDot(deal.rag || "green")}</td>}
                       <td className="py-2 px-1">
                         <div className="flex items-center gap-1.5 justify-end">
                           <button

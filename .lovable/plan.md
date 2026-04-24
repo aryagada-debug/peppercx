@@ -1,61 +1,48 @@
-# Clients & Deals: VSD filter + Google Sheet sync
+## Clients & Deals — UI Refinements
 
-## Part 1 — Replace the Pod filter with a VSD filter
+### 1. VSD Filter Labels
+In `src/pages/Clients.tsx`, simplify `VSD_FILTERS` labels by removing the region brackets:
+- "Neema Jayadas (US)" → "Neema Jayadas"
+- "Aditya Shaw (BFSI)" → "Aditya Shaw"
+- "Sneha Iyer (FMCG)" → "Sneha Iyer"
 
-In `src/pages/Clients.tsx`, the top filter chip strip currently shows Pods (`Integrated`, `India B2B`, `US B2B`, `FMCG`, `BFSI`, `Unassigned`). Replace it with VSD chips.
+### 2. Modern Compact KPI Cards
+Replace the current 5 KPI cards with smaller, icon-driven cards:
+- Each card: ~64px tall, gradient/tinted background, lucide icon in a rounded square, label + value stacked compactly.
+- Icons & accent colors:
+  - Clients → `Building2` (blue tint)
+  - Total Deals → `Briefcase` (violet tint)
+  - Active Deals → `Activity` (green tint)
+  - Total MRR → `TrendingUp` (amber tint)
+  - Total Value → `DollarSign` (emerald tint)
+- Layout: `grid-cols-2 md:grid-cols-5 gap-2`, each card uses `bg-gradient-to-br from-{color}/10 to-transparent border border-{color}/20`, icon in a `rounded-lg p-1.5 bg-{color}/15` chip.
+- Smaller text: label `text-[10px] uppercase tracking-wide`, value `text-base font-semibold`.
 
-**New chip list:**
-- All
-- Neema Jayadas (US)
-- Aamir Khan
-- Aditya Shaw (BFSI)
-- Sneha Iyer (FMCG)
-- Sumit Shekhawat
-- Other (everyone else, e.g. Veena Lobo, etc.)
-- Unassigned (blank / "To Be Assigned" / "Not Applicable")
+### 3. Resizable Table Columns
+Add user-adjustable column widths:
+- Switch table to `table-fixed` with explicit widths held in state: `colWidths: Record<string, number>`.
+- Add a resize handle (`<div>` absolutely positioned on the right edge of each `<th>`) that listens to `mousedown` → tracks `mousemove` to update width (min 60px, max 500px). Persist to `localStorage` key `clients-col-widths`.
+- Update `ColHeader` (or wrap it) to include the resize grip — a 4px wide vertical bar with `cursor-col-resize` that highlights on hover.
 
-Filter logic switches from `deal.pod` to `deal.vsd` matching. Search box, "show closed", per-column filters and KPIs all stay as-is.
+### 4. Column Picker (Show/Hide Columns)
+Add a "Columns" button (next to "Clear filters") that opens a popover with checkboxes:
+- **Always-on (disabled checkboxes, locked)**: Client, Deal Name.
+- **Toggleable**: Deal ID, Type, Status, VSD, P.BOPM/Sr BOPM, **Content Lead** (new), **SEO Lead** (new), MRR, Total Revenue, RGY.
+- Visible columns persist in `localStorage` (`clients-visible-cols`). Default visible: all existing + Content Lead + SEO Lead off by default to avoid surprise.
+- Render `<th>` and matching `<td>` conditionally based on `visibleCols` set.
 
-The per-column **VSD** filter inside the table (column header) stays — it's a free-text contains-match, so it still works alongside the new chip strip.
+### 5. New Columns: Content Lead & SEO Lead
+Compute per-deal from `assignments` + `people`:
+- **Content Lead**: highest-allocation person whose `roleCategory === "Content"` (fallback role title contains "content lead/manager").
+- **SEO Lead**: highest-allocation person whose `roleCategory === "SEO"`.
+- Cell renders the person name (or "— None —"). Clicking opens the existing `AddStaffingMemberDialog` pre-filtered to that category, so the user can assign/change.
+- Add a helper `getLeadByCategory(dealId, category)` near the top of the component.
 
-## Part 2 — Connect Google Sheets and sync
+### Technical Notes
+- All state additions live in `Clients.tsx`; no DB schema changes (Content/SEO leads derived from existing `staffing_assignments`).
+- New imports: `Building2, Briefcase, Activity, TrendingUp, DollarSign, Settings2, GripVertical` from lucide-react; `Popover, PopoverTrigger, PopoverContent` and `Checkbox`.
+- `ColHeader` will receive an optional `width` and `onResize` prop; existing call sites unaffected when omitted.
 
-The sheet `1geonDCJpM-3qVWEx1g34xmTMXK37Vy6UsmgbhNJqpRc` is private and needs OAuth, so I'll connect the Google Sheets connector first. Once connected, I'll read all tabs and identify:
-
-1. **The deals master tab** — to upsert into `staffing_deals` (matched by `deal_id` or `pc_code`). Fields likely covered: account, deal name, deal id, pc code, deal type, deal status, vsd, principal/senior bopm, mrr, total/retainer/non-retainer deal value, start/end dates, pod, business unit, capability line.
-2. **The financial summary tab (gid=2042069)** — to upsert per-deal monthly rows into `deal_financials` and/or `deal_revenue_monthly` (contracted, invoiced, received, outstanding, consumption, planned & actual GM%, MRR, delivered, contraction).
-
-### Sync approach
-
-A one-time Node script run via `code--exec`:
-1. Fetch every tab via the gateway `GET /spreadsheets/{id}` then `GET /spreadsheets/{id}/values/{tab}`.
-2. Print the header rows of each tab so I can confirm column → DB-field mapping before writing.
-3. Generate a SQL migration that:
-   - Updates `staffing_deals` for matched rows (by `deal_id` or `pc_code`, case-insensitive). Only writes columns where the sheet has a value (no nulling out existing data).
-   - Inserts rows into `deal_financials` keyed by `(deal_id, month)`. Existing rows for the same `(deal_id, month)` are deleted first to keep the sheet authoritative.
-   - Same for `deal_revenue_monthly` if the sheet has MRR / delivered / contraction columns.
-4. Skip rows where the deal cannot be matched and print a summary list at the end so you can decide whether to create them as new deals.
-
-### What I will confirm with you before writing data
-
-After I read the sheet, I'll come back with:
-- The exact list of tabs found and which one I'll treat as deals master vs financial summary.
-- A short sample of unmapped deals (sheet rows that don't match an existing `deal_id` / `pc_code`).
-- Whether to insert those unmapped deals as new `staffing_deals` rows or skip them.
-
-## Files to change
-
-- `src/pages/Clients.tsx` — replace `PODS` constant + chip strip + filter logic with VSD equivalents.
-
-## Database writes (after sheet read confirms shape)
-
-- `UPDATE staffing_deals` (matched rows only).
-- `DELETE` + `INSERT` into `deal_financials` per `(deal_id, month)`.
-- Optional: `DELETE` + `INSERT` into `deal_revenue_monthly` per `(deal_id, month)` if the sheet covers MRR / delivered / contraction.
-
-No schema changes required — both tables already exist with the right columns.
-
-## Out of scope
-
-- Recurring auto-sync (this is a one-shot import; can be added later as an edge function on a schedule if you want).
-- Creating brand-new deals from sheet rows that don't match — I'll list them and confirm before creating.
+### Files to Edit
+- `src/pages/Clients.tsx` — labels, KPI redesign, column picker, resizing logic, new lead columns.
+- `src/components/table/ColHeader.tsx` — accept width + resize handle.
