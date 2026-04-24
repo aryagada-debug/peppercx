@@ -496,8 +496,8 @@ function SelectChip({
 }
 
 function PersonPicker({
-  people, selectedPersonId, onSelect,
-}: { people: Person[]; selectedPersonId: string; onSelect: (id: string) => void }) {
+  people, selectedPersonId, onSelect, occupancy = {},
+}: { people: Person[]; selectedPersonId: string; onSelect: (id: string) => void; occupancy?: Record<string, number> }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const selected = people.find(p => p.id === selectedPersonId);
@@ -523,9 +523,14 @@ function PersonPicker({
         )}
       >
         <span className="truncate text-ui">{selected?.name || "Select person…"}</span>
-        {selected?.designation && (
-          <span className="ml-auto truncate text-caption text-muted-foreground hidden md:inline">
-            {selected.designation}
+        {selected && (
+          <span className={cn(
+            "ml-auto shrink-0 text-[10px] font-mono tabular-nums px-1.5 py-0.5 rounded",
+            (occupancy[selected.id] || 0) > 100 ? "bg-[hsl(var(--danger-bg))] text-destructive"
+              : (occupancy[selected.id] || 0) >= 80 ? "bg-[hsl(var(--warning-bg,var(--danger-bg)))] text-amber-600 dark:text-amber-400"
+              : "bg-secondary text-muted-foreground"
+          )} title="Current total allocation across all deals">
+            {(occupancy[selected.id] || 0).toFixed(0)}%
           </span>
         )}
       </button>
@@ -549,7 +554,13 @@ function PersonPicker({
               {filtered.length === 0 ? (
                 <div className="px-3 py-4 text-caption text-muted-foreground text-center">No people match</div>
               ) : (
-                filtered.map(p => (
+                filtered.map(p => {
+                  const occ = occupancy[p.id] || 0;
+                  const occTone = occ > 100 ? "bg-[hsl(var(--danger-bg))] text-destructive"
+                    : occ >= 80 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                    : occ > 0 ? "bg-[hsl(var(--success-bg))] text-positive"
+                    : "bg-secondary text-muted-foreground";
+                  return (
                   <button
                     key={p.id}
                     type="button"
@@ -567,9 +578,16 @@ function PersonPicker({
                         </div>
                       )}
                     </div>
+                    <span
+                      className={cn("shrink-0 text-[10px] font-mono tabular-nums px-1.5 py-0.5 rounded", occTone)}
+                      title="Current total allocation across all deals"
+                    >
+                      {occ.toFixed(0)}%
+                    </span>
                     {p.id === selectedPersonId && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
                   </button>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
@@ -580,12 +598,13 @@ function PersonPicker({
 }
 
 function AddRoleRow({
-  roles, people, onCancel, onConfirm,
+  roles, people, onCancel, onConfirm, occupancy,
 }: {
   roles: { key: string; label: string }[];
   people: Person[];
   onCancel: () => void;
   onConfirm: (roleKey: string, personId: string) => void;
+  occupancy?: Record<string, number>;
 }) {
   const [roleKey, setRoleKey] = useState(roles[0]?.key || "");
   const [personId, setPersonId] = useState("");
@@ -604,6 +623,7 @@ function AddRoleRow({
           people={people}
           selectedPersonId={personId}
           onSelect={setPersonId}
+          occupancy={occupancy}
         />
         <button
           type="button"
