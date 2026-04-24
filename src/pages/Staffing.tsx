@@ -1,5 +1,6 @@
 import { AppLayout } from "@/components/layout/AppLayout";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
 import { useStaffingData } from "@/hooks/useStaffingData";
@@ -10,7 +11,24 @@ import { MatrixTab } from "@/components/staffing/MatrixTab";
 type Tab = "deals" | "people" | "matrix";
 
 export default function Staffing() {
-  const [tab, setTab] = useState<Tab>("deals");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab") as Tab | null;
+  const dealParam = searchParams.get("deal");
+  const [tab, setTab] = useState<Tab>(tabParam || "deals");
+
+  useEffect(() => {
+    if (tabParam && tabParam !== tab) setTab(tabParam);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabParam]);
+
+  const switchTab = (t: Tab) => {
+    setTab(t);
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", t);
+    if (t !== "matrix") next.delete("deal");
+    setSearchParams(next, { replace: true });
+  };
+
   const {
     people, deals, assignments, revenueTargets, loading,
     updateAssignment, updateDeal, upsertAssignmentByRole,
@@ -46,7 +64,7 @@ export default function Staffing() {
             {TABS.map(t => (
               <button
                 key={t.key}
-                onClick={() => setTab(t.key)}
+                onClick={() => switchTab(t.key)}
                 className={cn(
                   "px-4 py-1.5 rounded-md text-ui font-medium transition-colors",
                   tab === t.key
@@ -79,6 +97,7 @@ export default function Staffing() {
             assignments={assignments}
             onUpdateDeal={updateDeal}
             onUpsertAssignment={upsertAssignmentByRole}
+            initialDealId={dealParam || undefined}
           />
         )}
       </div>
