@@ -53,6 +53,148 @@ type TabKey = typeof TABS[number];
 
 const rgyColors: Record<string, string> = { G: "rgy-green", R: "rgy-red", Y: "rgy-yellow" };
 
+const SERVICE_LINE_OPTIONS = [
+  "Integrated Retainers - Content + SEO + Social or Content Hubs",
+  "Content Studio - Talent Onsite/Virtual",
+  "Pepper SEO - SEO + Content Retainer",
+  "Pepper Content - Website/SEO Content",
+  "Campaign Assets - Statics, Adapts, Asset Creation",
+  "Pepper Content - B2B Full Funnel",
+  "Light Video Production - Reels/YouTube/Podcast",
+  "Creative/Social Media Retainer",
+  "CRM/CLM Content - Lifecycle Marketing",
+  "Campaigns - Influencer Marketing/Social",
+  "Heavy Video Production - Films/DVCs/TVCs",
+  "Translation/Localisation",
+  "Other",
+] as const;
+
+const RGY_DIMENSIONS: { key: keyof RGYWeekly; label: string }[] = [
+  { key: "customer", label: "Customer" },
+  { key: "internal", label: "Internal" },
+  { key: "content", label: "Content" },
+  { key: "seo", label: "SEO" },
+  { key: "supply", label: "Supply" },
+  { key: "copy", label: "Copy" },
+  { key: "design", label: "Design" },
+  { key: "video", label: "Video" },
+];
+
+const rgyScore: Record<string, number> = { G: 3, Y: 2, R: 1, NA: 0 };
+
+function RGYTrendView({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
+  const { weeks, snapshotByWeek, movers, latestWeek, prevWeek } = useMemo(() => {
+    // Latest snapshot per week
+    const byWeek: Record<string, RGYWeekly> = {};
+    [...rgyWeekly]
+      .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))
+      .forEach(r => { if (!byWeek[r.weekStart]) byWeek[r.weekStart] = r; });
+    const sortedWeeks = Object.keys(byWeek).sort(); // ascending
+    const lastN = sortedWeeks.slice(-8);
+    const latestWeek = lastN[lastN.length - 1];
+    const prevWeek = lastN[lastN.length - 2];
+    const movers: { dim: string; from: string; to: string; dir: "up" | "down" }[] = [];
+    if (latestWeek && prevWeek) {
+      RGY_DIMENSIONS.forEach(({ key, label }) => {
+        const a = (byWeek[prevWeek] as any)[key] || "G";
+        const b = (byWeek[latestWeek] as any)[key] || "G";
+        if (a !== b) {
+          const dir = (rgyScore[b] ?? 0) > (rgyScore[a] ?? 0) ? "up" : "down";
+          movers.push({ dim: label, from: a, to: b, dir });
+        }
+      });
+    }
+    return { weeks: lastN, snapshotByWeek: byWeek, movers, latestWeek, prevWeek };
+  }, [rgyWeekly]);
+
+  const fmtWeekHeader = (w: string, idx: number, total: number) => {
+    const d = new Date(w);
+    const m = d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+    if (idx === total - 1) return `This wk\n${m}`;
+    return `W-${total - 1 - idx}\n${m}`;
+  };
+
+  if (weeks.length === 0) return null;
+
+  return (
+    <div className="space-y-3">
+      {/* Movers strip */}
+      <div className="bg-card border border-border rounded-xl p-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Movers this week</span>
+          {movers.length === 0 ? (
+            <span className="text-xs text-muted-foreground">No changes vs last week</span>
+          ) : (
+            movers.map((m, i) => (
+              <span
+                key={i}
+                className={cn(
+                  "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border",
+                  m.dir === "up"
+                    ? "border-positive/40 text-positive bg-positive/5"
+                    : "border-destructive/40 text-destructive bg-destructive/5"
+                )}
+              >
+                {m.dir === "up" ? "↑" : "↓"} {m.dim}: {m.from} → {m.to}
+              </span>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Trend heatmap */}
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-secondary/40 border-b border-border">
+                <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Dimension</th>
+                {weeks.map((w, i) => (
+                  <th key={w} className="text-center py-2 px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-medium whitespace-pre-line">
+                    {fmtWeekHeader(w, i, weeks.length)}
+                  </th>
+                ))}
+                <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Δ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {RGY_DIMENSIONS.map(({ key, label }) => {
+                const vals = weeks.map(w => ((snapshotByWeek[w] as any)?.[key] as string) || "G");
+                // Δ vs previous populated week
+                let delta: "up" | "down" | "stable" = "stable";
+                let tip = "Stable";
+                if (weeks.length >= 2) {
+                  const a = vals[vals.length - 2];
+                  const b = vals[vals.length - 1];
+                  if (a !== b) {
+                    delta = (rgyScore[b] ?? 0) > (rgyScore[a] ?? 0) ? "up" : "down";
+                    tip = `Was ${a} last week, now ${b}`;
+                  }
+                }
+                return (
+                  <tr key={String(key)} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
+                    <td className="py-2 px-3 text-xs font-medium text-foreground whitespace-nowrap">{label}</td>
+                    {vals.map((v, i) => (
+                      <td key={i} className="py-2 px-2 text-center">
+                        <span className={cn("inline-flex items-center justify-center w-6 h-6 rounded-md text-[10px] font-bold", rgyColors[v] || "rgy-na")}>{v}</span>
+                      </td>
+                    ))}
+                    <td className="py-2 px-3 text-xs whitespace-nowrap" title={tip}>
+                      {delta === "up" && <span className="text-positive">↑ improved</span>}
+                      {delta === "down" && <span className="text-destructive">↓ worsened</span>}
+                      {delta === "stable" && <span className="text-muted-foreground">— stable</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Editable Cell ──
 function EditableCell({ value, onSave, type = "text", prefix = "", placeholder = "—" }: { value: string; onSave: (v: string) => void; type?: string; prefix?: string; placeholder?: string }) {
   const [editing, setEditing] = useState(false);
