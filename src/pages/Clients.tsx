@@ -510,82 +510,153 @@ export default function Clients() {
               <X className="h-3.5 w-3.5" /> Clear filters ({Object.keys(colFilters).length})
             </Button>
           )}
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="text-xs gap-1.5 ml-auto">
+                <Settings2 className="h-3.5 w-3.5" /> Columns
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-56 p-2">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground px-2 pb-1">Show columns</p>
+              <div className="space-y-0.5 max-h-80 overflow-y-auto">
+                {ALL_COLS.map(c => (
+                  <label
+                    key={c.key}
+                    className={cn(
+                      "flex items-center gap-2 px-2 py-1.5 rounded text-xs",
+                      c.required ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:bg-secondary"
+                    )}
+                  >
+                    <Checkbox
+                      checked={isVisible(c.key) || !!c.required}
+                      disabled={c.required}
+                      onCheckedChange={() => toggleCol(c.key, c.required)}
+                    />
+                    <span className="flex-1">{c.label}</span>
+                    {c.required && <span className="text-[9px] text-muted-foreground">locked</span>}
+                  </label>
+                ))}
+              </div>
+              <div className="border-t border-border mt-1 pt-1">
+                <button
+                  onClick={() => setVisibleCols(DEFAULT_VISIBLE)}
+                  className="w-full text-left text-[11px] px-2 py-1 rounded hover:bg-secondary text-muted-foreground"
+                >
+                  Reset to defaults
+                </button>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
 
         {/* Flat Table with column filters */}
         <div className="bg-card border border-border rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-ui">
+            <table className="text-ui table-fixed" style={{ width: "100%" }}>
               <thead>
                 <tr className="bg-secondary/40 border-b border-border">
-                  <ColHeader label="Client" sortKey="account" colKey="account" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
-                  <ColHeader label="Deal Name" sortKey="dealName" colKey="dealName" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
-                  <ColHeader label="Deal ID" sortKey="dealId" colKey="dealId" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
-                  <ColHeader label="Type" sortKey="dealType" colKey="dealType" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["Retainer","Non-Retainer"]} />
-                  <ColHeader label="Status" sortKey="dealStatus" colKey="dealStatus" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={[...DEAL_STATUSES]} />
-                  <ColHeader label="VSD" sortKey="vsd" colKey="vsd" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
-                  <ColHeader label="P.BOPM / Sr BOPM" colKey="bopm" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
-                  <ColHeader label="MRR" align="right" sortKey="mrr" colKey="mrr" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} numeric placeholder="≥ amount" />
-                  <ColHeader label="Total Revenue" align="right" sortKey="totalDealValue" colKey="totalDealValue" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} numeric placeholder="≥ amount" />
-                  <ColHeader label="RGY" align="center" colKey="rag" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["green","amber","red","na","pending"]} />
-                  <th className="w-8"></th>
+                  {isVisible("account") && <ColHeader label="Client" sortKey="account" colKey="account" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.account} onResizeStart={startResize("account")} />}
+                  {isVisible("dealName") && <ColHeader label="Deal Name" sortKey="dealName" colKey="dealName" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.dealName} onResizeStart={startResize("dealName")} />}
+                  {isVisible("dealId") && <ColHeader label="Deal ID" sortKey="dealId" colKey="dealId" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.dealId} onResizeStart={startResize("dealId")} />}
+                  {isVisible("dealType") && <ColHeader label="Type" sortKey="dealType" colKey="dealType" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["Retainer","Non-Retainer"]} width={colWidths.dealType} onResizeStart={startResize("dealType")} />}
+                  {isVisible("dealStatus") && <ColHeader label="Status" sortKey="dealStatus" colKey="dealStatus" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={[...DEAL_STATUSES]} width={colWidths.dealStatus} onResizeStart={startResize("dealStatus")} />}
+                  {isVisible("vsd") && <ColHeader label="VSD" sortKey="vsd" colKey="vsd" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.vsd} onResizeStart={startResize("vsd")} />}
+                  {isVisible("bopm") && <ColHeader label="P.BOPM / Sr BOPM" colKey="bopm" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.bopm} onResizeStart={startResize("bopm")} />}
+                  {isVisible("contentLead") && <ColHeader label="Content Lead" colKey="contentLead" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.contentLead} onResizeStart={startResize("contentLead")} />}
+                  {isVisible("seoLead") && <ColHeader label="SEO Lead" colKey="seoLead" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.seoLead} onResizeStart={startResize("seoLead")} />}
+                  {isVisible("mrr") && <ColHeader label="MRR" align="right" sortKey="mrr" colKey="mrr" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} numeric placeholder="≥ amount" width={colWidths.mrr} onResizeStart={startResize("mrr")} />}
+                  {isVisible("totalDealValue") && <ColHeader label="Total Revenue" align="right" sortKey="totalDealValue" colKey="totalDealValue" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} numeric placeholder="≥ amount" width={colWidths.totalDealValue} onResizeStart={startResize("totalDealValue")} />}
+                  {isVisible("rag") && <ColHeader label="RGY" align="center" colKey="rag" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["green","amber","red","na","pending"]} width={colWidths.rag} onResizeStart={startResize("rag")} />}
+                  <th style={{ width: colWidths.actions, minWidth: colWidths.actions }}></th>
                 </tr>
               </thead>
               <tbody>
                 {tableRows.map(deal => {
                   const clientObj = clients.find(c => c.name === deal.account);
+                  const leads = leadByDeal[deal.id] || {};
                   return (
                     <tr key={deal.id} className="border-b border-border/50 hover:bg-accent/10 transition-colors group/row">
-                      <td className="py-2 px-3">
-                        <span className="text-xs font-medium text-foreground truncate max-w-[140px] block" title={deal.account}>{deal.account}</span>
-                      </td>
-                      <td className="py-2 px-3">
-                        <Link to={`/deals/${deal.id}`} className="text-primary hover:underline text-xs font-medium">
-                          {deal.dealName}
-                        </Link>
-                      </td>
-                      <td className="py-2 px-3 text-xs font-mono text-muted-foreground">{deal.dealId}</td>
-                      <td className="py-2 px-3">
-                        <span className={cn(
-                          "inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium",
-                          deal.dealType === "Retainer" ? "bg-accent text-accent-foreground" : "bg-secondary text-secondary-foreground"
-                        )}>{deal.dealType}</span>
-                      </td>
-                      <td className="py-2 px-3">
-                        <Select value={deal.dealStatus || "Active Deal"} onValueChange={(v) => handleStatusChange(deal.id, v)}>
-                          <SelectTrigger className="h-6 w-[85px] text-[11px] border-none bg-transparent shadow-none px-1 focus:ring-0">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {DEAL_STATUSES.map(s => (
-                              <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </td>
-                      <td className="py-2 px-3">
-                        <button
-                          onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "Operations", preSelectedName: deal.vsd || undefined })}
-                          className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate max-w-[110px] block text-left"
-                        >
-                          {deal.vsd || <span className="text-muted-foreground">— None —</span>}
-                        </button>
-                      </td>
-                      <td className="py-2 px-3">
-                        <button
-                          onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "Operations", preSelectedName: deal.principalBopm || deal.seniorBopm || undefined })}
-                          className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate max-w-[120px] block text-left"
-                        >
-                          {deal.principalBopm || deal.seniorBopm || <span className="text-muted-foreground">— None —</span>}
-                        </button>
-                      </td>
-                      <td className="py-2 px-3 text-right">
-                        <InlineEditCell value={String(deal.mrr || "")} onSave={v => handleMRRSave(deal.id, v)} type="number" prefix="₹" placeholder="—" />
-                      </td>
-                      <td className="py-2 px-3 text-right">
-                        <InlineEditCell value={String(deal.totalDealValue || "")} onSave={v => handleTotalRevenueSave(deal.id, v)} type="number" prefix="₹" placeholder="—" />
-                      </td>
-                      <td className="py-2 px-3 text-center">{ragDot(deal.rag || "green")}</td>
+                      {isVisible("account") && (
+                        <td className="py-2 px-3 truncate" title={deal.account}>
+                          <span className="text-xs font-medium text-foreground truncate block">{deal.account}</span>
+                        </td>
+                      )}
+                      {isVisible("dealName") && (
+                        <td className="py-2 px-3 truncate">
+                          <Link to={`/deals/${deal.id}`} className="text-primary hover:underline text-xs font-medium truncate block" title={deal.dealName}>
+                            {deal.dealName}
+                          </Link>
+                        </td>
+                      )}
+                      {isVisible("dealId") && <td className="py-2 px-3 text-xs font-mono text-muted-foreground truncate">{deal.dealId}</td>}
+                      {isVisible("dealType") && (
+                        <td className="py-2 px-3">
+                          <span className={cn(
+                            "inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium",
+                            deal.dealType === "Retainer" ? "bg-accent text-accent-foreground" : "bg-secondary text-secondary-foreground"
+                          )}>{deal.dealType}</span>
+                        </td>
+                      )}
+                      {isVisible("dealStatus") && (
+                        <td className="py-2 px-3">
+                          <Select value={deal.dealStatus || "Active Deal"} onValueChange={(v) => handleStatusChange(deal.id, v)}>
+                            <SelectTrigger className="h-6 w-full text-[11px] border-none bg-transparent shadow-none px-1 focus:ring-0">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {DEAL_STATUSES.map(s => (
+                                <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </td>
+                      )}
+                      {isVisible("vsd") && (
+                        <td className="py-2 px-3 truncate">
+                          <button
+                            onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "Operations", preSelectedName: deal.vsd || undefined })}
+                            className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate block text-left w-full"
+                          >
+                            {deal.vsd || <span className="text-muted-foreground">— None —</span>}
+                          </button>
+                        </td>
+                      )}
+                      {isVisible("bopm") && (
+                        <td className="py-2 px-3 truncate">
+                          <button
+                            onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "Operations", preSelectedName: deal.principalBopm || deal.seniorBopm || undefined })}
+                            className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate block text-left w-full"
+                          >
+                            {deal.principalBopm || deal.seniorBopm || <span className="text-muted-foreground">— None —</span>}
+                          </button>
+                        </td>
+                      )}
+                      {isVisible("contentLead") && (
+                        <td className="py-2 px-3 truncate">
+                          <Link to={`/deals/${deal.id}`} className="text-xs text-foreground hover:text-primary hover:underline truncate block" title={leads.content || ""}>
+                            {leads.content || <span className="text-muted-foreground">— None —</span>}
+                          </Link>
+                        </td>
+                      )}
+                      {isVisible("seoLead") && (
+                        <td className="py-2 px-3 truncate">
+                          <Link to={`/deals/${deal.id}`} className="text-xs text-foreground hover:text-primary hover:underline truncate block" title={leads.seo || ""}>
+                            {leads.seo || <span className="text-muted-foreground">— None —</span>}
+                          </Link>
+                        </td>
+                      )}
+                      {isVisible("mrr") && (
+                        <td className="py-2 px-3 text-right">
+                          <InlineEditCell value={String(deal.mrr || "")} onSave={v => handleMRRSave(deal.id, v)} type="number" prefix="₹" placeholder="—" />
+                        </td>
+                      )}
+                      {isVisible("totalDealValue") && (
+                        <td className="py-2 px-3 text-right">
+                          <InlineEditCell value={String(deal.totalDealValue || "")} onSave={v => handleTotalRevenueSave(deal.id, v)} type="number" prefix="₹" placeholder="—" />
+                        </td>
+                      )}
+                      {isVisible("rag") && <td className="py-2 px-3 text-center">{ragDot(deal.rag || "green")}</td>}
                       <td className="py-2 px-1">
                         <div className="flex items-center gap-1.5 justify-end">
                           <button
