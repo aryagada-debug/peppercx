@@ -465,6 +465,9 @@ export function useDealDetail(dealId: string | undefined) {
         autoRegen: !!r.auto_regen,
       }));
       setTasks(prev => [...prev, ...mapped]);
+      mapped.forEach((t: DealTask) =>
+        notifyTask(t.assignee, t.dealId, { title: t.title, urgency: t.urgency, endDate: t.endDate })
+      );
     }
   }, []);
 
