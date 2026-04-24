@@ -758,32 +758,66 @@ function PersonPicker({
                     : occ >= 80 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
                     : occ > 0 ? "bg-[hsl(var(--success-bg))] text-positive"
                     : "bg-secondary text-muted-foreground";
+                  const breakdown = allocationsByPerson[p.id] || [];
+                  const isExpanded = expandedPersonId === p.id;
                   return (
-                  <button
+                  <div
                     key={p.id}
-                    type="button"
-                    onClick={() => { onSelect(p.id); setOpen(false); setQ(""); }}
                     className={cn(
-                      "w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-secondary/40 transition-colors",
+                      "border-b border-border/40 last:border-b-0",
                       p.id === selectedPersonId && "bg-primary/10"
                     )}
                   >
-                    <div className="flex-1 min-w-0">
-                      <div className="text-ui text-foreground truncate">{p.name}</div>
-                      {(p.designation || p.department) && (
-                        <div className="text-[10px] text-muted-foreground truncate">
-                          {p.designation}{p.designation && p.department ? " · " : ""}{p.department}
+                    <div className="flex items-center gap-1 px-1 hover:bg-secondary/40 transition-colors">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedPersonId(isExpanded ? null : p.id)}
+                        disabled={breakdown.length === 0}
+                        className="shrink-0 h-6 w-5 inline-flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-default"
+                        title={breakdown.length === 0 ? "No current allocations" : "Show allocations across deals"}
+                      >
+                        {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { onSelect(p.id); setOpen(false); setQ(""); }}
+                        className="flex-1 flex items-center gap-2 px-1 py-1.5 text-left min-w-0"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="text-ui text-foreground truncate">{p.name}</div>
+                          {(p.designation || p.department) && (
+                            <div className="text-[10px] text-muted-foreground truncate">
+                              {p.designation}{p.designation && p.department ? " · " : ""}{p.department}
+                            </div>
+                          )}
                         </div>
-                      )}
+                        <span
+                          className={cn("shrink-0 text-[10px] font-mono tabular-nums px-1.5 py-0.5 rounded", occTone)}
+                          title="Current total allocation across all deals"
+                        >
+                          {occ.toFixed(0)}%
+                        </span>
+                        {p.id === selectedPersonId && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                      </button>
                     </div>
-                    <span
-                      className={cn("shrink-0 text-[10px] font-mono tabular-nums px-1.5 py-0.5 rounded", occTone)}
-                      title="Current total allocation across all deals"
-                    >
-                      {occ.toFixed(0)}%
-                    </span>
-                    {p.id === selectedPersonId && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
-                  </button>
+                    {isExpanded && breakdown.length > 0 && (
+                      <div className="px-3 pb-2 pt-1 bg-secondary/30">
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+                          Allocations across {breakdown.length} deal{breakdown.length === 1 ? "" : "s"}
+                        </div>
+                        <ul className="space-y-0.5">
+                          {breakdown.map((b, i) => (
+                            <li key={`${b.dealId}-${i}`} className="flex items-center justify-between gap-2 text-[11px]">
+                              <span className="truncate text-foreground/90" title={b.dealName}>{b.dealName}</span>
+                              <span className="shrink-0 font-mono tabular-nums text-muted-foreground">
+                                {b.pct.toFixed(0)}% · {Math.round((b.pct / 100) * 160)}h
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
                   );
                 })
               )}
