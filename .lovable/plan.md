@@ -1,96 +1,141 @@
-## Goals
+# Plan: Service Line UI polish + Staffing picker filters by VSD pod & service-line eligibility
 
-1. **Clients & Deals page**: Slim down the KPI strip (cards take less width).
-2. **Type column**: Make it an inline editable Retainer / Non-Retainer dropdown.
-3. **Deal Detail → Contract Details**: Convert "Service Line" from free text to a fixed-list dropdown.
-4. **Deal Detail → RGY History**: Replace/augment the current week-list table with a trend-oriented view that shows what moved week-over-week.
+## 1. Deal Detail – "Service Line" row (Contract Details)
 
----
+File: `src/pages/DealDetail.tsx` (~line 1451)
 
-## 1. Smaller KPI cards (`src/pages/Clients.tsx`)
+Match the row to the rest of the panel (Payment Terms / Duration / Start Date) — text only, no Select-trigger background or border. Add a small inline icon to indicate it is an editable dropdown.
 
-Current KPI tiles use `flex-1 min-w-[120px]` so they stretch to fill all free space in row 1. We will:
-- Drop `flex-1` and reduce `min-w-[120px]` → `min-w` ~88px so each card sizes to its content.
-- Wrap the KPI group in `flex-none` (not `flex-1`), so the row can give extra space back to the title and action buttons.
-- Tighten paddings: `px-2 py-1` → `px-1.5 py-0.5`; icon chip `p-1` → `p-0.5`; icon `h-3.5 w-3.5` → `h-3 w-3`.
-- Keep the same tints, labels, and values — purely a sizing change.
+- Replace the current `<Select><SelectTrigger className="h-7 ... w-[280px]">…</SelectTrigger></Select>` with a borderless trigger:
+  - Use `SelectTrigger` with classes `h-auto p-0 border-0 bg-transparent shadow-none focus:ring-0 hover:text-primary text-xs text-foreground gap-1 w-auto max-w-[280px]` so it visually matches the `EditableCell` rows.
+  - Place a small `<ChevronsUpDown className="h-3 w-3 text-muted-foreground" />` (or `Pencil` 3×3) at the right of the value as the affordance icon. Hide the default chevron by overriding `[&>svg]:hidden` or by using `<SelectPrimitive.Trigger>` directly. Simpler: keep `SelectTrigger`, but shrink default icon to `h-3 w-3` via `[&>svg]:h-3 [&>svg]:w-3 [&>svg]:opacity-60`.
+  - Truncate long values with `truncate` and keep the `(legacy)` tag.
+- Keep `SelectContent` and the `SERVICE_LINE_OPTIONS` list unchanged.
 
----
+Result: the row reads as plain text aligned right, with a faint chevron icon — identical visual weight to Payment Terms / Duration cells.
 
-## 2. Editable Type column (`src/pages/Clients.tsx`)
+## 2. Staffing – Filter person picker by VSD's pod & by service-line eligibility
 
-Currently the `dealType` cell is a static pill. Replace with a `Select` (same compact style as the Status cell already in the table):
-- Options: `Retainer`, `Non-Retainer`.
-- On change → call existing `updateDeal(deal.id, { dealType: v })` and toast "Type updated".
-- Style preserved as a small pill (`text-[10px]`, accent for Retainer, secondary for Non-Retainer) by rendering the trigger as a borderless button colored to match the current pill.
+Files:
+- `src/components/staffing/MatrixTab.tsx` (PersonPicker, AddRoleRow, MatrixTab)
+- (read-only reference) `src/data/staffingData.ts` for `Deal.serviceLineTagging`, `Deal.pod`, `Deal.vsd`
 
----
+### 2a. Pass selected deal context to the picker
 
-## 3. Service Line dropdown in Deal Detail (`src/pages/DealDetail.tsx`)
+In `MatrixTab`, pass two new props down to every `<PersonPicker>` and `<AddRoleRow>`:
+- `dealPod: string` — `selectedDeal?.pod || ""`
+- `dealServiceLine: string` — `selectedDeal?.serviceLineTagging || selectedDeal?.capabilityLine || ""`
+- `dealVsd: string` — `selectedDeal?.vsd || ""`
 
-Replace the free-text `EditableCell` for Service Line in Contract Details (line ~1280) with a `Select` bound to `serviceLineTagging`. Options (exact list, in order):
+### 2b. Pod-restricted Sr/Principal BOPM and BOPM lists
 
-```
-Integrated Retainers - Content + SEO + Social or Content Hubs
-Content Studio - Talent Onsite/Virtual
-Pepper SEO - SEO + Content Retainer
-Pepper Content - Website/SEO Content
-Campaign Assets - Statics, Adapts, Asset Creation
-Pepper Content - B2B Full Funnel
-Light Video Production - Reels/YouTube/Podcast
-Creative/Social Media Retainer
-CRM/CLM Content - Lifecycle Marketing
-Campaigns - Influencer Marketing/Social
-Heavy Video Production - Films/DVCs/TVCs
-Translation/Localisation
-Other
-```
+Currently `peopleByVsd` is built only from existing assignments, so it misses unassigned BOPMs. Replace/augment with a true pod-membership map:
 
-- Defined as a shared constant `SERVICE_LINE_OPTIONS` near the top of `DealDetail.tsx` so it can be reused if needed elsewhere.
-- If the existing value is not in the list (legacy data), it is still shown as the current selection and a one-time "(legacy)" badge is appended in the trigger; selecting any new value migrates it via existing `handleDealFieldSave("serviceLineTagging", v)`.
-- The trigger uses the same compact styling as other dropdowns on the page (h-7, text-xs, right-aligned).
-
----
-
-## 4. RGY History → Trend view (`src/pages/DealDetail.tsx`)
-
-Today `GroupedRGYHistory` renders one row per week with the latest snapshot per dimension. To answer "what moved", we will pivot the data: **rows = dimensions (Customer, Internal, Content, SEO, Supply, Copy, Design, Video), columns = weeks (most recent N on the right)**. This is a small heatmap that makes movement obvious at a glance.
-
-### Layout
-
-```text
-Dimension   W-7  W-6  W-5  W-4  W-3  W-2  W-1  This wk   Δ
-Customer     G    G    Y    Y    R    Y    G     G       ↑ improved
-Internal     G    G    G    G    G    G    G     G       — stable
-Content      Y    G    G    G    G    Y    Y     R       ↓ worsened
-SEO          G    G    G    G    G    G    G     G       — stable
-Supply       G    G    G    Y    G    G    G     G       — stable
-Copy         G    G    G    G    G    G    G     G       — stable
-Design       Y    Y    Y    G    G    G    G     G       ↑ improved
-Video        G    G    G    G    G    G    G     G       — stable
+```ts
+// In MatrixTab
+const peopleByPod = useMemo(() => {
+  const m: Record<string, Set<string>> = {};
+  people.forEach(p => {
+    const pod = (p.pod || "").trim();
+    if (!pod) return;
+    if (!m[pod]) m[pod] = new Set();
+    m[pod].add(p.id);
+  });
+  return m;
+}, [people]);
 ```
 
-- Each cell is the small G/Y/R/NA chip already used.
-- Δ column compares this week vs the previous non-empty week using a numeric mapping G=3, Y=2, R=1, NA=0: `↑ improved` (green), `↓ worsened` (red), `— stable` (muted). Hover tooltip: "Was Y last week, now R".
-- A second compact strip above the heatmap shows **"Movers this week"**: only the dimensions whose status changed vs the previous week, e.g. `Content: Y → R`, `Design: Y → G`. Empty state: "No changes this week".
-- A view toggle at the top right of the RGY History card lets the user switch between **Trend** (new default) and **Weekly log** (the existing `GroupedRGYHistory` table), so historical drill-down with issue/action plan/status is still one click away.
-- Issue / Action Plan / Due / Status columns are not lost — they remain available in the **Weekly log** view and are also surfaced as a small expander under any week column the user clicks in the trend heatmap (popover with that week's issueDetails / actionPlan / issueStatus).
+In `PersonPicker.filtered` (and `AddRoleRow`), when the role is one of `vsd | principal_bopm | senior_bopm | bopm` AND `dealPod` is set, intersect the candidate list with `peopleByPod[dealPod]`. Fall back gracefully if empty (show full list with a small note "No pod match — showing all").
 
-### Data shape
+### 2c. Service-line → designation/category eligibility
 
-Build a memoized structure from the existing `rgyWeekly` array:
-1. Group by `weekStart`, keep the latest entry per week (sorted by `created_at desc`, take first).
-2. Sort weeks ascending; take the last 8 (configurable) for the heatmap.
-3. For each dimension key (`customer, internal, content, seo, supply, copy, design, video`), build an array of statuses aligned to the week list.
-4. Compute Δ from the last two populated weeks per dimension.
+Add a Service-Line × Capability matrix (keys correspond to existing `ROLE_FILTER` group buckets). Booleans from the user's table:
 
-No DB changes required.
+```ts
+// columns: Strategy, Content, SEO, Design, Video, Social, Performance, Influencer, CRM/Automation, ProjectMgmt
+const SERVICE_LINE_CAPS: Record<string, Set<Capability>> = {
+  "Integrated Retainers - Content + SEO + Social or Content Hubs":
+      new Set(["Strategy","Content","SEO","Design","Social","ProjectMgmt"]),
+  "Content Studio - Talent Onsite/Virtual":
+      new Set(["Content","ProjectMgmt"]),
+  "Pepper SEO - SEO + Content Retainer":
+      new Set(["Strategy","Content","SEO","ProjectMgmt"]),
+  "Pepper Content - Website/SEO Content":
+      new Set(["Strategy","Content","SEO","ProjectMgmt"]),
+  "Campaign Assets - Statics, Adapts, Asset Creation":
+      new Set(["Design","ProjectMgmt"]),
+  "Pepper Content - B2B Full Funnel":
+      new Set(["Strategy","Content","SEO","Design","Performance","CRM","ProjectMgmt"]),
+  "Light Video Production - Reels/YouTube/Podcast":
+      new Set(["Strategy","Content","Video","Social","ProjectMgmt"]),
+  "Creative/Social Media Retainer":
+      new Set(["Strategy","Content","Design","Social","ProjectMgmt"]),
+  "CRM/CLM Content - Lifecycle Marketing":
+      new Set(["Strategy","Content","Design","CRM","ProjectMgmt"]),
+  "Campaigns - Influencer Marketing/Social":
+      new Set(["Strategy","Design","Social","Performance","Influencer","ProjectMgmt"]),
+  "Heavy Video Production- Films/DVCs/TVCs":
+      new Set(["Strategy","Content","Design","Video","ProjectMgmt"]),
+  "Translation/Localisation":
+      new Set(["Content","ProjectMgmt"]),
+  "Other": new Set(["Strategy","Content","SEO","Design","Video","Social","Performance","Influencer","CRM","ProjectMgmt"]),
+};
+```
 
----
+Map each `ROLE_COLS` group → capability bucket once:
 
-## Files to edit
+```ts
+const ROLE_GROUP_CAP: Record<string, Capability> = {
+  "Leadership & PM": "ProjectMgmt",
+  "Content": "Content",
+  "SEO": "SEO",
+  "Creative — Strategy": "Strategy",
+  "Creative — Copy": "Content",
+  "Creative — Art": "Design",
+  "Production / Video": "Video",
+  // Influencer Team → Influencer; Performance & Growth → Performance handled per-role
+};
+const ROLE_CAP_OVERRIDE: Record<string, Capability> = {
+  influencer: "Influencer",
+  perf_growth: "Performance",
+};
+```
 
-- `src/pages/Clients.tsx` — KPI sizing + editable Type cell.
-- `src/pages/DealDetail.tsx` — Service Line dropdown + new `RGYTrendView` component and toggle in the RGY History section. `GroupedRGYHistory` is kept for the Weekly log view.
+Helper:
+```ts
+function isRoleAllowedForServiceLine(roleKey: string, serviceLine: string): boolean {
+  if (!serviceLine) return true;                         // no SL set → don't restrict
+  const caps = SERVICE_LINE_CAPS[serviceLine];
+  if (!caps) return true;                                // legacy/unknown → don't restrict
+  const grp = ROLE_BY_KEY[roleKey]?.group || "";
+  const cap = ROLE_CAP_OVERRIDE[roleKey] || ROLE_GROUP_CAP[grp];
+  if (!cap) return true;
+  return caps.has(cap);
+}
+```
 
-No database, hooks, or types changes are required.
+### 2d. Apply the filters
+
+1. **AddRoleRow role dropdown** — filter `roles` prop through `isRoleAllowedForServiceLine(r.key, dealServiceLine)` so users can't pick a role outside the service-line scope. When the filter empties the list, show "No roles available for this service line".
+
+2. **PersonPicker person list** — in `filtered`, after current `roleKey` narrowing:
+   - For BOPM/VSD roles: intersect with `peopleByPod[dealPod]` when present.
+   - For all roles: when service line is set, additionally restrict by capability. We already have category-based filtering via `ROLE_FILTER`; the SL check is an extra gate that only acts on the role's capability bucket (keeps existing designation matching intact).
+
+3. Keep the existing "Show all" toggle (`showAllRoles`) — extend it to also bypass the pod and service-line restrictions, so users can override when needed.
+
+### 2e. Visual cue
+
+Below the picker search input, when filtering is active show a tiny muted line:
+`Filtered by pod "<pod>" and service line "<short label>"` with a `Reset` link that toggles `showAllRoles`.
+
+## Out of scope
+
+- No DB schema changes.
+- No changes to the matrix grid layout, only to the picker behavior.
+- "Other" service line keeps the picker fully unrestricted.
+
+## Files touched
+
+- `src/pages/DealDetail.tsx` — Service Line row restyle.
+- `src/components/staffing/MatrixTab.tsx` — pod map, SL→capability map, prop drilling, picker filtering, AddRoleRow filtering, visual cue.
