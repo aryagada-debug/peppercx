@@ -240,7 +240,7 @@ export function DealViewTab({ deals, people, assignments, onUpdateDeal }: Props)
                                       <td className="py-1.5 pr-4">
                                         <select
                                           value={d.dealType || ""}
-                                          onChange={e => onUpdateDeal?.(d.id, { dealType: e.target.value })}
+                                          onChange={e => onUpdateDeal?.(d.id, { dealType: e.target.value as Deal["dealType"] })}
                                           className="h-6 px-1 -ml-1 text-caption bg-transparent border border-transparent hover:border-border focus:border-primary rounded text-foreground focus:outline-none"
                                         >
                                           {!TYPE_EDIT_OPTIONS.includes(d.dealType as any) && d.dealType && (
