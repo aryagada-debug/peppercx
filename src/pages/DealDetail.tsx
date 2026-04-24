@@ -48,7 +48,7 @@ const fmtDate = (d: string | undefined) => {
   return date.toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" });
 };
 
-const TABS = ["Overview", "Staffing", "Financials", "Tasks", "RGY Health", "MBR", "Onboarding"] as const;
+const TABS = ["Overview", "Staffing", "Financials", "Tasks", "RGY Health", "MBR"] as const;
 type TabKey = typeof TABS[number];
 
 const rgyColors: Record<string, string> = { G: "rgy-green", R: "rgy-red", Y: "rgy-yellow", NA: "rgy-na", TBU: "rgy-tbu" };
@@ -2295,55 +2295,6 @@ export default function DealDetail() {
           />
         )}
 
-        {/* ══════════ Onboarding ══════════ */}
-        {activeTab === "Onboarding" && (
-          <div className="animate-fade-in space-y-4">
-            <div className="bg-card border border-border rounded-xl p-5">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-semibold text-foreground">Onboarding Progress</p>
-                <span className={cn("text-sm font-semibold font-mono", onboardingPct === 100 ? "text-positive" : "text-foreground")}>{onboardingPct}%</span>
-              </div>
-              <Progress value={onboardingPct} className="h-2" />
-              <p className="text-xs text-muted-foreground mt-1">{onboarding.filter(s => s.completed).length} of {onboarding.length} steps completed</p>
-            </div>
-            {onboarding.length > 0 ? (
-              <div className="bg-card border border-border rounded-xl overflow-hidden">
-                {(() => {
-                  const categories = [...new Set(onboarding.map(s => s.category))];
-                  return categories.map(cat => (
-                    <div key={cat}>
-                      <div className="px-4 py-2 bg-accent/20 border-b border-border">
-                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{cat}</span>
-                      </div>
-                      {onboarding.filter(s => s.category === cat).map(step => (
-                        <div key={step.id} className="flex items-center gap-3 px-4 py-2.5 border-b border-border/50 hover:bg-accent/10 transition-colors">
-                          <button onClick={() => toggleOnboardingStep(step.id)} className={cn(
-                            "w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors flex-shrink-0",
-                            step.completed ? "bg-primary border-primary text-primary-foreground" : "border-border hover:border-primary"
-                          )}>
-                            {step.completed && <span className="text-[10px]">✓</span>}
-                          </button>
-                          <div className="flex-1 min-w-0">
-                            <span className={cn("text-sm", step.completed ? "line-through text-muted-foreground" : "text-foreground")}>{step.stepName}</span>
-                          </div>
-                          {step.owner && <span className="text-xs text-muted-foreground">{step.owner}</span>}
-                          {step.dueDate && <span className="text-xs font-mono text-muted-foreground">{step.dueDate}</span>}
-                        </div>
-                      ))}
-                    </div>
-                  ));
-                })()}
-              </div>
-            ) : (
-              <div className="bg-card border border-border rounded-xl text-center py-8 px-5">
-                <p className="text-muted-foreground mb-3">No onboarding steps configured yet.</p>
-                <Button variant="outline" onClick={() => { seedOnboarding(deal.dealType); toast.success("Onboarding checklist generated"); }}>
-                  <Plus className="h-4 w-4 mr-1" /> Generate Checklist for {deal.dealType}
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
       </div>
       {dealId && deal && <SlackChatBot dealId={dealId} dealName={deal.dealName} />}
     </AppLayout>
