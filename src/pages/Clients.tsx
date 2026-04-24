@@ -1,8 +1,8 @@
 import React from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Link } from "react-router-dom";
-import { Search, Plus, Loader2, Trash2, Pencil, Check, X } from "lucide-react";
-import { useState, useMemo } from "react";
+import { Search, Plus, Loader2, Trash2, Pencil, Check, X, Building2, Briefcase, Activity, TrendingUp, DollarSign, Settings2 } from "lucide-react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useStaffingData } from "@/hooks/useStaffingData";
 import { useClients } from "@/hooks/useClients";
 import { cn } from "@/lib/utils";
@@ -31,14 +31,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ColHeader } from "@/components/table/ColHeader";
 
 const VSD_FILTERS = [
   { key: "All", label: "All" },
-  { key: "Neema Jayadas", label: "Neema Jayadas (US)" },
+  { key: "Neema Jayadas", label: "Neema Jayadas" },
   { key: "Aamir Khan", label: "Aamir Khan" },
-  { key: "Aditya Shaw", label: "Aditya Shaw (BFSI)" },
-  { key: "Sneha Iyer", label: "Sneha Iyer (FMCG)" },
+  { key: "Aditya Shaw", label: "Aditya Shaw" },
+  { key: "Sneha Iyer", label: "Sneha Iyer" },
   { key: "Sumit Shekhawat", label: "Sumit Shekhawat" },
   { key: "Other", label: "Other" },
   { key: "Unassigned", label: "Unassigned" },
