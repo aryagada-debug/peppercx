@@ -321,45 +321,36 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
     <div className="animate-fade-in grid grid-cols-12 gap-4 h-[calc(100vh-200px)]">
       {/* ── Left: Deal list ─────────────────────────────────────── */}
       <aside className="col-span-4 lg:col-span-3 bg-card border border-border rounded-xl flex flex-col overflow-hidden">
-        <div className="p-3 border-b border-border space-y-2">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+        <div className="px-2 py-1.5 border-b border-border flex items-center gap-1.5">
+          <div className="relative flex-1 min-w-0">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
             <input
               type="text"
               placeholder="Search deals…"
               value={dealSearch}
               onChange={e => setDealSearch(e.target.value)}
-              className="w-full h-8 pl-8 pr-3 rounded-md bg-background border border-border text-ui text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none"
+              className="w-full h-7 pl-6 pr-2 rounded bg-background border border-border text-[11px] text-foreground placeholder:text-muted-foreground focus:ring-1 focus:ring-primary/30 focus:border-primary focus:outline-none"
             />
           </div>
-          <div className="flex gap-1">
-            {([
-              { k: "all", label: "All" },
-              { k: "needs", label: "Needs staffing" },
-              { k: "staffed", label: "Staffed" },
-            ] as const).map(t => (
-              <button
-                key={t.k}
-                onClick={() => setStatusFilter(t.k)}
-                className={cn(
-                  "flex-1 h-7 px-2 rounded text-[11px] border transition-colors",
-                  statusFilter === t.k
-                    ? "bg-primary/10 border-primary/40 text-primary font-medium"
-                    : "bg-background border-border text-muted-foreground hover:text-foreground"
-                )}
-              >{t.label}</button>
-            ))}
-          </div>
+          <select
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value as "all" | "needs" | "staffed")}
+            className="h-7 px-1.5 rounded bg-background border border-border text-[11px] text-foreground focus:ring-1 focus:ring-primary/30 focus:border-primary focus:outline-none max-w-[90px]"
+            title="Status filter"
+          >
+            <option value="all">All</option>
+            <option value="needs">Needs</option>
+            <option value="staffed">Staffed</option>
+          </select>
           <select
             value={vsdFilter}
             onChange={e => setVsdFilter(e.target.value)}
-            className="w-full h-8 px-2 rounded-md bg-background border border-border text-[11px] text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none"
+            className="h-7 px-1.5 rounded bg-background border border-border text-[11px] text-foreground focus:ring-1 focus:ring-primary/30 focus:border-primary focus:outline-none max-w-[110px]"
+            title="VSD filter"
           >
-            {vsdOptions.map(o => <option key={o} value={o}>{o === "All" ? "All VSDs" : `VSD: ${o}`}</option>)}
+            {vsdOptions.map(o => <option key={o} value={o}>{o === "All" ? "All VSDs" : o}</option>)}
           </select>
-          <div className="text-[10px] text-muted-foreground uppercase tracking-wider px-1">
-            {filteredDeals.length} deals
-          </div>
+          <span className="shrink-0 text-[10px] text-muted-foreground tabular-nums px-1">{filteredDeals.length}</span>
         </div>
 
         <div className="flex-1 overflow-y-auto">
