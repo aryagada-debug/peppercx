@@ -520,25 +520,60 @@ function SelectChip({
 }
 
 function PersonPicker({
-  people, selectedPersonId, onSelect, occupancy = {},
-}: { people: Person[]; selectedPersonId: string; onSelect: (id: string) => void; occupancy?: Record<string, number> }) {
+  people, selectedPersonId, onSelect, occupancy = {}, vsdOptions = ["All"], peopleByVsd = {},
+}: {
+  people: Person[];
+  selectedPersonId: string;
+  onSelect: (id: string) => void;
+  occupancy?: Record<string, number>;
+  vsdOptions?: string[];
+  peopleByVsd?: Record<string, Set<string>>;
+}) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
+  const [vsd, setVsd] = useState<string>("All");
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const selected = people.find(p => p.id === selectedPersonId);
+
+  useEffect(() => {
+    if (!open || !triggerRef.current) return;
+    const update = () => {
+      const r = triggerRef.current!.getBoundingClientRect();
+      setPos({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 280) });
+    };
+    update();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [open]);
 
   const filtered = useMemo(() => {
     const lq = q.toLowerCase().trim();
-    if (!lq) return people.slice(0, 60);
-    return people.filter(p =>
+    let base = people;
+    if (vsd !== "All") {
+      const allowed = peopleByVsd[vsd];
+      if (allowed && allowed.size > 0) {
+        base = people.filter(p => allowed.has(p.id));
+      } else {
+        base = [];
+      }
+    }
+    if (!lq) return base.slice(0, 80);
+    return base.filter(p =>
       p.name.toLowerCase().includes(lq) ||
       (p.designation || "").toLowerCase().includes(lq) ||
       (p.department || "").toLowerCase().includes(lq)
-    ).slice(0, 60);
-  }, [people, q]);
+    ).slice(0, 80);
+  }, [people, q, vsd, peopleByVsd]);
 
   return (
     <div className="relative flex-1 min-w-0">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen(o => !o)}
         className={cn(
@@ -558,11 +593,15 @@ function PersonPicker({
           </span>
         )}
       </button>
-      {open && (
+      {open && pos && createPortal(
         <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute z-40 mt-1 left-0 right-0 min-w-[260px] bg-card border border-border rounded-md shadow-lg max-h-80 overflow-hidden flex flex-col">
-            <div className="p-2 border-b border-border">
+          <div className="fixed inset-0 z-[60]" onClick={() => setOpen(false)} />
+          <div
+            className="fixed z-[61] bg-card border border-border rounded-md shadow-lg max-h-80 overflow-hidden flex flex-col"
+            style={{ top: pos.top, left: pos.left, width: pos.width }}
+            onMouseDown={e => e.stopPropagation()}
+          >
+            <div className="p-2 border-b border-border space-y-2">
               <div className="relative">
                 <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <input
@@ -573,6 +612,17 @@ function PersonPicker({
                   className="w-full h-7 pl-7 pr-2 text-caption bg-background border border-border rounded outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 />
               </div>
+              {vsdOptions.length > 1 && (
+                <select
+                  value={vsd}
+                  onChange={e => setVsd(e.target.value)}
+                  className="w-full h-7 px-2 text-caption bg-background border border-border rounded outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                >
+                  {vsdOptions.map(v => (
+                    <option key={v} value={v}>{v === "All" ? "All VSDs" : `VSD: ${v}`}</option>
+                  ))}
+                </select>
+              )}
             </div>
             <div className="overflow-y-auto">
               {filtered.length === 0 ? (
@@ -615,20 +665,23 @@ function PersonPicker({
               )}
             </div>
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   );
 }
 
 function AddRoleRow({
-  roles, people, onCancel, onConfirm, occupancy,
+  roles, people, onCancel, onConfirm, occupancy, vsdOptions, peopleByVsd,
 }: {
   roles: { key: string; label: string }[];
   people: Person[];
   onCancel: () => void;
   onConfirm: (roleKey: string, personId: string) => void;
   occupancy?: Record<string, number>;
+  vsdOptions?: string[];
+  peopleByVsd?: Record<string, Set<string>>;
 }) {
   const [roleKey, setRoleKey] = useState(roles[0]?.key || "");
   const [personId, setPersonId] = useState("");
@@ -648,6 +701,8 @@ function AddRoleRow({
           selectedPersonId={personId}
           onSelect={setPersonId}
           occupancy={occupancy}
+          vsdOptions={vsdOptions}
+          peopleByVsd={peopleByVsd}
         />
         <button
           type="button"
