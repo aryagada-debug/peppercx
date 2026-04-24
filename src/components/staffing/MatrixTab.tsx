@@ -77,6 +77,7 @@ interface Props {
 export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAssignment }: Props) {
   const [dealSearch, setDealSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "needs" | "staffed">("all");
+  const [vsdFilter, setVsdFilter] = useState<string>("All");
   const [selectedDealId, setSelectedDealId] = useState<string | null>(deals[0]?.id || null);
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set(GROUP_ORDER));
   const [adding, setAdding] = useState<string | null>(null); // group key being added to
@@ -96,6 +97,15 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
     return m;
   }, [people]);
 
+  // Total current allocation % per person across all deals (occupancy)
+  const occupancyByPerson = useMemo(() => {
+    const m: Record<string, number> = {};
+    assignments.forEach(a => {
+      m[a.personId] = (m[a.personId] || 0) + (a.allocationPct || 0);
+    });
+    return m;
+  }, [assignments]);
+
   // Index assignments by deal
   const assignmentsByDeal = useMemo(() => {
     const m: Record<string, StaffingAssignment[]> = {};
@@ -106,6 +116,16 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
     return m;
   }, [assignments]);
 
+  const vsdOptions = useMemo(() => {
+    const set = new Set<string>();
+    deals.forEach(d => set.add(d.vsd?.trim() || "Yet to be assigned"));
+    return ["All", ...Array.from(set).sort((a, b) => {
+      if (a === "Yet to be assigned") return 1;
+      if (b === "Yet to be assigned") return -1;
+      return a.localeCompare(b);
+    })];
+  }, [deals]);
+
   // Filter deals
   const filteredDeals = useMemo(() => {
     const q = dealSearch.toLowerCase().trim();
@@ -113,6 +133,10 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
       const has = (assignmentsByDeal[d.id] || []).length > 0;
       if (statusFilter === "needs" && has) return false;
       if (statusFilter === "staffed" && !has) return false;
+      if (vsdFilter !== "All") {
+        const v = d.vsd?.trim() || "Yet to be assigned";
+        if (v !== vsdFilter) return false;
+      }
       if (!q) return true;
       return (
         d.dealName.toLowerCase().includes(q) ||
@@ -121,7 +145,7 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
         (d.vsd || "").toLowerCase().includes(q)
       );
     });
-  }, [deals, dealSearch, statusFilter, assignmentsByDeal]);
+  }, [deals, dealSearch, statusFilter, vsdFilter, assignmentsByDeal]);
 
   const selectedDeal = useMemo(
     () => deals.find(d => d.id === selectedDealId) || null,
