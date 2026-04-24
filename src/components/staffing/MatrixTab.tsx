@@ -58,6 +58,65 @@ const ROLE_BY_KEY: Record<string, { label: string; group: string }> = Object.fro
 
 const GROUP_ORDER = Array.from(new Set(ROLE_COLS.map(r => r.group)));
 
+// ── Service-line × Capability matrix ────────────────────────────────────────
+type Capability =
+  | "Strategy" | "Content" | "SEO" | "Design" | "Video"
+  | "Social" | "Performance" | "Influencer" | "CRM" | "ProjectMgmt";
+
+const SERVICE_LINE_CAPS: Record<string, Set<Capability>> = {
+  "Integrated Retainers - Content + SEO + Social or Content Hubs":
+    new Set(["Strategy","Content","SEO","Design","Social","ProjectMgmt"]),
+  "Content Studio - Talent Onsite/Virtual":
+    new Set(["Content","ProjectMgmt"]),
+  "Pepper SEO - SEO + Content Retainer":
+    new Set(["Strategy","Content","SEO","ProjectMgmt"]),
+  "Pepper Content - Website/SEO Content":
+    new Set(["Strategy","Content","SEO","ProjectMgmt"]),
+  "Campaign Assets - Statics, Adapts, Asset Creation":
+    new Set(["Design","ProjectMgmt"]),
+  "Pepper Content - B2B Full Funnel":
+    new Set(["Strategy","Content","SEO","Design","Performance","CRM","ProjectMgmt"]),
+  "Light Video Production - Reels/YouTube/Podcast":
+    new Set(["Strategy","Content","Video","Social","ProjectMgmt"]),
+  "Creative/Social Media Retainer":
+    new Set(["Strategy","Content","Design","Social","ProjectMgmt"]),
+  "CRM/CLM Content - Lifecycle Marketing":
+    new Set(["Strategy","Content","Design","CRM","ProjectMgmt"]),
+  "Campaigns - Influencer Marketing/Social":
+    new Set(["Strategy","Design","Social","Performance","Influencer","ProjectMgmt"]),
+  "Heavy Video Production- Films/DVCs/TVCs":
+    new Set(["Strategy","Content","Design","Video","ProjectMgmt"]),
+  "Translation/Localisation":
+    new Set(["Content","ProjectMgmt"]),
+  "Other": new Set(["Strategy","Content","SEO","Design","Video","Social","Performance","Influencer","CRM","ProjectMgmt"]),
+};
+
+const ROLE_GROUP_CAP: Record<string, Capability> = {
+  "Leadership & PM": "ProjectMgmt",
+  "Content": "Content",
+  "SEO": "SEO",
+  "Creative — Strategy": "Strategy",
+  "Creative — Copy": "Content",
+  "Creative — Art": "Design",
+  "Production / Video": "Video",
+};
+const ROLE_CAP_OVERRIDE: Record<string, Capability> = {
+  influencer: "Influencer",
+  perf_growth: "Performance",
+};
+
+function isRoleAllowedForServiceLine(roleKey: string, serviceLine: string): boolean {
+  if (!serviceLine) return true;
+  const caps = SERVICE_LINE_CAPS[serviceLine];
+  if (!caps) return true; // legacy/unknown SL → don't restrict
+  const grp = ROLE_BY_KEY[roleKey]?.group || "";
+  const cap = ROLE_CAP_OVERRIDE[roleKey] || ROLE_GROUP_CAP[grp];
+  if (!cap) return true;
+  return caps.has(cap);
+}
+
+const POD_ROLE_KEYS = new Set(["vsd", "principal_bopm", "senior_bopm", "bopm"]);
+
 // Map role-key → which role_category(ies) and designation keywords are eligible.
 // `categories` filters by staffing_people.role_category; `match` further refines by designation keyword.
 const ROLE_FILTER: Record<string, { categories?: string[]; match?: RegExp }> = {
