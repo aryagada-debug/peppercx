@@ -925,6 +925,7 @@ function PersonPicker({
 
 function AddRoleRow({
   roles, people, onCancel, onConfirm, occupancy, vsdOptions, peopleByVsd, allocationsByPerson,
+  dealPod = "", dealServiceLine = "", peopleByPod = {},
 }: {
   roles: { key: string; label: string }[];
   people: Person[];
@@ -934,6 +935,9 @@ function AddRoleRow({
   vsdOptions?: string[];
   peopleByVsd?: Record<string, Set<string>>;
   allocationsByPerson?: Record<string, { dealId: string; dealName: string; pct: number }[]>;
+  dealPod?: string;
+  dealServiceLine?: string;
+  peopleByPod?: Record<string, Set<string>>;
 }) {
   const [roleKey, setRoleKey] = useState(roles[0]?.key || "");
   const [personId, setPersonId] = useState("");
@@ -946,7 +950,9 @@ function AddRoleRow({
           onChange={e => setRoleKey(e.target.value)}
           className="h-7 px-2 text-caption bg-background border border-border rounded outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary min-w-[160px]"
         >
-          {roles.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}
+          {roles.length === 0
+            ? <option value="">No roles available for this service line</option>
+            : roles.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}
         </select>
         <PersonPicker
           people={people}
@@ -957,6 +963,9 @@ function AddRoleRow({
           peopleByVsd={peopleByVsd}
           roleKey={roleKey}
           allocationsByPerson={allocationsByPerson}
+          dealPod={dealPod}
+          dealServiceLine={dealServiceLine}
+          peopleByPod={peopleByPod}
         />
         <button
           type="button"
