@@ -56,6 +56,41 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
 
   const activeDealIds = useMemo(() => new Set(deals.filter(d => ACTIVE_STATUSES.has(d.dealStatus)).map(d => d.id)), [deals]);
 
+  // People with at least one assignment — only these are shown in this view.
+  const assignedPersonIds = useMemo(() => {
+    const set = new Set<string>();
+    assignments.forEach(a => { if (a.personId) set.add(a.personId); });
+    return set;
+  }, [assignments]);
+
+  // Departments that are never assigned to deals — hidden entirely.
+  const EXCLUDED_DEPARTMENTS = useMemo(() => new Set([
+    "hr and ta", "hr & ta",
+    "marketing",
+    "product", "all product",
+    "supply acquisition",
+    "operations",
+  ]), []);
+
+  const isExcludedDept = (dept?: string) => {
+    if (!dept) return false;
+    return EXCLUDED_DEPARTMENTS.has(dept.trim().toLowerCase());
+  };
+
+  // Collapse all "Capability - …" departments into a single bucket.
+  const normalizeDept = (dept?: string): string => {
+    const d = (dept || "Other").trim();
+    if (d.toLowerCase().startsWith("capability")) return "Capability — All Teams";
+    return d || "Other";
+  };
+
+  // The working population for this view: assigned, not in excluded depts, not TBH.
+  const visiblePeople = useMemo(
+    () => people.filter(p => !p.tbh && assignedPersonIds.has(p.id) && !isExcludedDept(p.department)),
+    [people, assignedPersonIds, EXCLUDED_DEPARTMENTS]
+  );
+
+
   const personUtil = useMemo(() => {
     const m: Record<string, { totalPct: number; assigns: StaffingAssignment[]; mrr: number; rev: number; hours: number }> = {};
     assignments.forEach(a => {
@@ -78,27 +113,27 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
     return t?.targetDealValuePerPerson || 0;
   };
 
-  // Hierarchy: department → reporting tree
+  // Hierarchy: normalized-department → reporting tree (only assigned people in non-excluded depts)
   const peopleByDept = useMemo(() => {
     const m = new Map<string, Person[]>();
-    people.forEach(p => {
-      const dept = p.department || "Other";
+    visiblePeople.forEach(p => {
+      const dept = normalizeDept(p.department);
       if (!m.has(dept)) m.set(dept, []);
       m.get(dept)!.push(p);
     });
     return m;
-  }, [people]);
+  }, [visiblePeople]);
 
   // Build a name→Person lookup once to avoid O(P²) scans below.
   const peopleByNameLower = useMemo(() => {
     const m = new Map<string, Person>();
-    people.forEach(p => { m.set(p.name.toLowerCase(), p); });
+    visiblePeople.forEach(p => { m.set(p.name.toLowerCase(), p); });
     return m;
-  }, [people]);
+  }, [visiblePeople]);
 
   const childrenMap = useMemo(() => {
     const m: Record<string, Person[]> = {};
-    people.forEach(p => {
+    visiblePeople.forEach(p => {
       const mgr = p.reportingManager?.trim().toLowerCase();
       if (!mgr) return;
       const mgrPerson = peopleByNameLower.get(mgr);
@@ -107,17 +142,17 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
       m[mgrPerson.id].push(p);
     });
     return m;
-  }, [people, peopleByNameLower]);
+  }, [visiblePeople, peopleByNameLower]);
 
   // Bucket counts (whole portfolio)
   const bucketCounts = useMemo(() => {
     const c: Record<Bucket, number> = { overloaded: 0, nearFull: 0, healthy: 0, underUtil: 0 };
-    people.filter(p => !p.tbh).forEach(p => {
+    visiblePeople.forEach(p => {
       const pct = personUtil[p.id]?.totalPct || 0;
       c[getBucket(pct)]++;
     });
     return c;
-  }, [people, personUtil]);
+  }, [visiblePeople, personUtil]);
 
   const matchSearch = (p: Person) => {
     if (!search) return true;
@@ -347,7 +382,7 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
             const mgrPerson = peopleByNameLower.get(mgr);
             if (!mgrPerson) return true;
             // if manager is in same dept and visible, treat current as a child
-            if (mgrPerson.department === dept && visibleSet.has(mgrPerson.id)) return false;
+            if (normalizeDept(mgrPerson.department) === dept && visibleSet.has(mgrPerson.id)) return false;
             return true;
           });
           const total = dist.overloaded + dist.nearFull + dist.healthy + dist.underUtil || 1;
