@@ -382,7 +382,7 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
             const mgrPerson = peopleByNameLower.get(mgr);
             if (!mgrPerson) return true;
             // if manager is in same dept and visible, treat current as a child
-            if (mgrPerson.department === dept && visibleSet.has(mgrPerson.id)) return false;
+            if (normalizeDept(mgrPerson.department) === dept && visibleSet.has(mgrPerson.id)) return false;
             return true;
           });
           const total = dist.overloaded + dist.nearFull + dist.healthy + dist.underUtil || 1;
