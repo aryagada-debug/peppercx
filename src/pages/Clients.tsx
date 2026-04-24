@@ -446,20 +446,41 @@ export default function Clients() {
           </div>
         </div>
 
-        {/* KPI Strip */}
+        {/* KPI Strip — compact modern cards */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3">
           {[
-            { label: "Clients", value: String(kpis.clients) },
-            { label: "Total Deals", value: String(kpis.deals) },
-            { label: "Active Deals", value: String(kpis.activeDeals) },
-            { label: "Total MRR", value: fmtCurrency(kpis.totalMRR) },
-            { label: "Total Value", value: fmtCurrency(kpis.totalValue) },
-          ].map(k => (
-            <div key={k.label} className="data-card">
-              <p className="metric-label">{k.label}</p>
-              <p className="text-xl font-semibold font-mono tracking-tight mt-1 text-foreground">{k.value}</p>
-            </div>
-          ))}
+            { label: "Clients", value: String(kpis.clients), Icon: Building2, tint: "sky" },
+            { label: "Total Deals", value: String(kpis.deals), Icon: Briefcase, tint: "violet" },
+            { label: "Active Deals", value: String(kpis.activeDeals), Icon: Activity, tint: "emerald" },
+            { label: "Total MRR", value: fmtCurrency(kpis.totalMRR), Icon: TrendingUp, tint: "amber" },
+            { label: "Total Value", value: fmtCurrency(kpis.totalValue), Icon: DollarSign, tint: "rose" },
+          ].map(({ label, value, Icon, tint }) => {
+            const tintMap: Record<string, { bg: string; ring: string; chip: string; icon: string }> = {
+              sky: { bg: "from-sky-500/10", ring: "border-sky-500/20", chip: "bg-sky-500/15", icon: "text-sky-500" },
+              violet: { bg: "from-violet-500/10", ring: "border-violet-500/20", chip: "bg-violet-500/15", icon: "text-violet-500" },
+              emerald: { bg: "from-emerald-500/10", ring: "border-emerald-500/20", chip: "bg-emerald-500/15", icon: "text-emerald-500" },
+              amber: { bg: "from-amber-500/10", ring: "border-amber-500/20", chip: "bg-amber-500/15", icon: "text-amber-500" },
+              rose: { bg: "from-rose-500/10", ring: "border-rose-500/20", chip: "bg-rose-500/15", icon: "text-rose-500" },
+            };
+            const t = tintMap[tint];
+            return (
+              <div
+                key={label}
+                className={cn(
+                  "flex items-center gap-2.5 px-3 py-2 rounded-xl border bg-gradient-to-br to-transparent backdrop-blur-sm transition-all hover:shadow-sm hover:-translate-y-0.5",
+                  t.bg, t.ring,
+                )}
+              >
+                <div className={cn("rounded-lg p-1.5", t.chip)}>
+                  <Icon className={cn("h-4 w-4", t.icon)} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground leading-tight">{label}</p>
+                  <p className="text-base font-semibold tracking-tight text-foreground font-mono leading-tight truncate">{value}</p>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         {/* Filters */}
