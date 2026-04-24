@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Search, Users } from "lucide-react";
+import { ChevronDown, ChevronRight, Search, Users, UserPlus } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import type { Deal, StaffingAssignment, Person } from "@/data/staffingData";
@@ -361,9 +361,18 @@ export function DealViewTab({ deals, people, assignments, onUpdateDeal }: Props)
                                       <tr>
                                         <td colSpan={7} className="p-0 bg-secondary/20">
                                           <div className="px-6 py-3">
-                                            {dealAssigns.length === 0 ? (
-                                              <div className="text-caption text-muted-foreground italic">No team members assigned yet.</div>
-                                            ) : (
+                                             {dealAssigns.length === 0 ? (
+                                               <div className="flex items-center justify-between gap-3 flex-wrap">
+                                                 <div className="text-caption text-muted-foreground italic">No team members assigned yet.</div>
+                                                 <Link
+                                                   to={`/staffing?tab=matrix&deal=${encodeURIComponent(d.id)}`}
+                                                   className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md bg-primary/10 text-primary hover:bg-primary/15 border border-primary/20 text-[11px] font-medium transition-colors"
+                                                 >
+                                                   <UserPlus className="h-3 w-3" />
+                                                   Add team in Staffing
+                                                 </Link>
+                                               </div>
+                                             ) : (
                                               <table className="w-full text-[11px]">
                                                 <thead>
                                                   <tr className="text-muted-foreground border-b border-border/40">
