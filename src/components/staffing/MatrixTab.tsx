@@ -107,6 +107,25 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
     return m;
   }, [assignments]);
 
+  // Map dealId -> VSD (so we can group people by VSD for the picker filter)
+  const vsdByDealId = useMemo(() => {
+    const m: Record<string, string> = {};
+    deals.forEach(d => { m[d.id] = d.vsd?.trim() || "Yet to be assigned"; });
+    return m;
+  }, [deals]);
+
+  // For each VSD, set of personIds currently assigned to any of their deals
+  const peopleByVsd = useMemo(() => {
+    const m: Record<string, Set<string>> = {};
+    assignments.forEach(a => {
+      const v = vsdByDealId[a.dealId];
+      if (!v) return;
+      if (!m[v]) m[v] = new Set();
+      m[v].add(a.personId);
+    });
+    return m;
+  }, [assignments, vsdByDealId]);
+
   // Index assignments by deal
   const assignmentsByDeal = useMemo(() => {
     const m: Record<string, StaffingAssignment[]> = {};
@@ -398,6 +417,8 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
                                 selectedPersonId={a.personId}
                                 onSelect={pid => handleChangePerson(a.roleKey, pid, a.allocationPct)}
                                 occupancy={occupancyByPerson}
+                                vsdOptions={vsdOptions}
+                                peopleByVsd={peopleByVsd}
                               />
                               <div className="flex items-center gap-1 ml-auto shrink-0">
                                 <input
@@ -433,6 +454,8 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
                             onCancel={() => { setAdding(null); }}
                             onConfirm={(roleKey, personId) => handlePickPerson(roleKey, personId)}
                             occupancy={occupancyByPerson}
+                            vsdOptions={vsdOptions}
+                            peopleByVsd={peopleByVsd}
                           />
                         ) : (
                           <button
