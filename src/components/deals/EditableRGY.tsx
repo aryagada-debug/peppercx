@@ -33,10 +33,27 @@ const RGY_BUTTONS = [
     active: "bg-[hsl(0_80%_95%)] text-[hsl(0_60%_30%)] border-[hsl(0_65%_76%)]",
     dot: "bg-[hsl(0_65%_76%)]",
   },
+  {
+    value: "NA",
+    label: "⊘",
+    active: "bg-muted text-muted-foreground border-border",
+    dot: "bg-muted-foreground/40",
+  },
+  {
+    value: "TBU",
+    label: "⋯",
+    active: "bg-secondary/40 text-muted-foreground border-dashed border-border",
+    dot: "bg-transparent border border-dashed border-muted-foreground",
+  },
 ] as const;
 
 const dotColor = (v: string) =>
-  v === "G" ? "bg-[hsl(95_50%_55%)]" : v === "Y" ? "bg-[hsl(35_87%_55%)]" : "bg-[hsl(0_65%_76%)]";
+  v === "G" ? "bg-[hsl(95_50%_55%)]"
+  : v === "Y" ? "bg-[hsl(35_87%_55%)]"
+  : v === "R" ? "bg-[hsl(0_65%_76%)]"
+  : v === "NA" ? "bg-muted-foreground/40"
+  : v === "TBU" ? "bg-transparent border border-dashed border-muted-foreground"
+  : "bg-muted-foreground/40";
 
 export function EditableRGY({ dimensions, onSave }: Props) {
   const [local, setLocal] = useState<RGYDimension[]>(dimensions);
@@ -73,6 +90,8 @@ export function EditableRGY({ dimensions, onSave }: Props) {
                 { label: "Green", color: "bg-[hsl(95_50%_55%)]" },
                 { label: "Yellow", color: "bg-[hsl(35_87%_55%)]" },
                 { label: "Red", color: "bg-[hsl(0_65%_76%)]" },
+                { label: "Not Required (⊘)", color: "bg-muted-foreground/40" },
+                { label: "To Be Updated (⋯)", color: "bg-transparent border border-dashed border-muted-foreground" },
               ].map(l => (
                 <span key={l.label} className="flex items-center gap-1.5">
                   <span className={cn("w-2.5 h-2.5 rounded-full", l.color)} />
@@ -110,7 +129,7 @@ export function EditableRGY({ dimensions, onSave }: Props) {
             </div>
 
             {/* Toggle buttons */}
-            <div className="flex gap-1.5 shrink-0">
+            <div className="flex gap-1 shrink-0 flex-wrap justify-end">
               {RGY_BUTTONS.map(btn => {
                 const isActive = dim.value === btn.value;
                 return (
@@ -118,11 +137,12 @@ export function EditableRGY({ dimensions, onSave }: Props) {
                     key={btn.value}
                     onClick={() => update(dim.key, btn.value)}
                     className={cn(
-                      "w-8 h-8 rounded-full text-xs font-medium border transition-all",
+                      "w-7 h-7 rounded-full text-xs font-medium border transition-all flex items-center justify-center leading-none",
                       isActive
                         ? btn.active
                         : "bg-secondary/60 text-muted-foreground border-border hover:bg-secondary"
                     )}
+                    title={btn.value === "NA" ? "Not Required" : btn.value === "TBU" ? "To Be Updated" : btn.value}
                   >
                     {btn.label}
                   </button>
