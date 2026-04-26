@@ -1,62 +1,84 @@
-## RGY Trend — NA/TBU handling + new statuses
+## Goal
 
-**Add two new RGY statuses** alongside R/G/Y:
-- **NA** — "Not Required" — symbol: `⊘` (slashed circle), neutral grey
-- **TBU** — "To Be Updated" — symbol: `⋯` (ellipsis), muted/dotted style
-
-### Files & changes
-
-**`src/components/deals/EditableRGY.tsx`**
-- Extend `RGY_BUTTONS` with two more buttons:
-  - `NA` — slashed-circle icon, grey palette (`bg-muted text-muted-foreground border-border`)
-  - `TBU` — ellipsis icon, dashed border + muted bg (`bg-secondary/40 border-dashed text-muted-foreground`)
-- Update `dotColor()` to return grey for `NA` and a striped/dashed indicator for `TBU`.
-- Add the two new entries to the legend strip.
-- Make the toggle row wider (it currently fits 3 buttons; will need `flex-wrap` or smaller buttons `w-7 h-7`).
-
-**`src/pages/DealDetail.tsx`**
-- Extend `rgyColors` map: `NA: "rgy-na"`, `TBU: "rgy-tbu"`.
-- Extend `rgyScore` so NA/TBU are treated as **non-comparable** (use `null` instead of a number).
-- In `RGYTrendView` — **fix Movers + Δ logic**:
-  - Skip transition if `prev` OR `current` is `NA` or `TBU` (i.e. either side is non-comparable). No mover badge, no Δ arrow — show `— stable` (or `— n/a`) instead.
-  - Only compare R↔Y↔G transitions for "improved/worsened".
-- In the heatmap cell, render the symbol when value is NA (`⊘`) or TBU (`⋯`) instead of the letters.
-
-**`src/index.css`**
-- Add utility classes `.rgy-na` (grey bg, muted fg) and `.rgy-tbu` (dashed border, transparent bg, muted fg) — mirror existing `.rgy-green/.rgy-red/.rgy-yellow` conventions.
+Replace the current 2-role system (`admin`, `vsd`) with a **4-role hierarchy** plus **per-user route overrides**, and provision auth accounts for every person in `staffing_people`.
 
 ---
 
-## MBR Tab — KPI redesign
+## 1. Database changes (migration)
 
-**File:** `src/pages/DealDetail.tsx` (`DealMBRTab`, lines ~497–516)
+**Expand `app_role` enum:**
 
-### New KPI set (3 cards instead of 4)
+- Add `view_only`, `user`, `member` (keep `admin`).
+- Migrate existing rows: `vsd` → `user`. Drop `vsd` value at the end (Postgres-safe path: rename old enum, create new, alter column, drop old).
 
-Compute total contract months from `deal.startDate`/`deal.endDate` (fall back to `deal.duration` parsing if dates missing). Use `differenceInCalendarMonths` from `date-fns` (already a dep via existing `format` import).
+**New table `user_route_overrides`:**
 
-| KPI | Value | Icon (lucide) |
-|---|---|---|
-| MBR Coverage | `{doneCount}/{totalMonths}` (e.g. `4/12`) with small caption `MBRs done` | `CalendarCheck` |
-| Last Sentiment | Sentiment badge or `—` | `Smile` (or `Activity`) |
-| MBR Health | Computed: `On Track` if `doneCount >= elapsedMonths`, else `Behind by N` | `TrendingUp` / `AlertTriangle` |
+```
+user_id uuid, route_key text, visible boolean, PRIMARY KEY (user_id, route_key)
+```
 
-### Visual style — modern, smaller
-- Container: `grid grid-cols-3 gap-2` (down from `gap-3` and 4 cols).
-- Card: `rounded-lg border border-border bg-card px-3 py-2.5 flex items-center gap-2.5` (compact, ~half current height).
-- Left: `h-8 w-8 rounded-md bg-secondary/60 grid place-items-center` containing the lucide icon (`h-4 w-4 text-primary`).
-- Right: stacked label (`text-[10px] uppercase tracking-wider text-muted-foreground`) + value (`text-sm font-semibold` — bigger emphasis on the `x/y` number using `font-mono tabular-nums`).
-- Drop the heavy `bg-[#E8E6DF]` and `border-l-4 border-l-[#534AB7]` styling.
+RLS: admins manage all rows; users read only their own.
 
-### Removed
-- "Next MBR Date" card — already shown in the banner below.
-- "Last Mode" card — low value at-a-glance.
+**Update `route_visibility` seed** to include defaults for all 4 roles:
 
-The "Next MBR scheduled" banner and "No MBR recorded for {month}" warning remain unchanged.
+- `admin`: every route visible
+- `member`: every route visible (but action-level edit perms still apply via UI)
+- `user`: same as today's `vsd` defaults (Clients, RGY, MBR visible)
+- `view_only`: same routes as `user` (read-only behavior comes from UI gating)
+
+**Update `handle_new_user()` trigger:** default new signups → `user` (was `vsd`).
+
+**Update `profiles` link:** ensure `staffing_person_id` is populated when we backfill.
 
 ---
 
-## Acceptance
-- RGY editor shows 5 status options (G, Y, R, NA-⊘, TBU-⋯) with legend.
-- Switching from NA→G (or anything→TBU, TBU→anything) does **not** appear as "improved/worsened" in Movers strip or Δ column.
-- MBR tab shows 3 compact KPI tiles; first reads e.g. "3/12 MBRs done".
+## 2. Backfill auth accounts for staffing_people (~120)
+
+Extend the existing `admin-user-mgmt` edge function with a `bulk_provision` action:
+
+- For each row in `staffing_people` where `email` is non-empty AND no auth user exists with that email:
+  - Create auth user via service-role admin API (random password, email confirmed)
+  - Insert/update `profiles` with `display_name = name`, `staffing_person_id = id`
+  - Insert `user_roles` with role `user`
+- Skip people with blank email; surface a list of skipped names so admin can fill emails first.
+- Add a **"Provision all from People"** button at the top of the Users tab that calls this action and reports `{created, skipped, errors}`.
+
+---
+
+## 3. Frontend — `useUserRole.ts`
+
+- Update `AppRole` to `"admin" | "member" | "user" | "view_only"`.
+- Compute `visibleRoutes` as: **role defaults from `route_visibility**` ⊕ **per-user overrides** (override wins when present).
+- Add `canEditAll` (member+admin), `canEditOwn` (user+), `isReadOnly` (view_only) booleans to consumers — actual edit-gating in components is a follow-up; this PR exposes the flags so the structure is in place.
+
+---
+
+## 4. Frontend — `UsersTab.tsx`
+
+- Replace the 2-state Admin/VSD badge + "Make Admin / Demote" buttons with a **role dropdown** (View Only / User / Member / Admin) per row. Saves by deleting old role row and inserting new one.
+- Add **"Provision from People"** button (calls bulk action above).
+- Add **"Customize Access"** button per row → opens a dialog showing all `ALL_ROUTE_KEYS` with three states each: **Inherit (role default) / Show / Hide**. Persists to `user_route_overrides`. "Inherit" deletes the override row.
+
+---
+
+## 5. Frontend — `AccessControlsTab.tsx`
+
+- Expand the table from 2 role columns to **4 columns**: View Only, User, Member, Admin. Existing toggle logic works unchanged against `route_visibility`.
+
+---
+
+## 6. Files touched
+
+- **New migration** — enum expansion, `user_route_overrides` table + RLS, trigger update, route_visibility reseed for new roles
+- `supabase/functions/admin-user-mgmt/index.ts` — add `bulk_provision` and `set_role` actions
+- `src/hooks/useUserRole.ts` — new role union, override merging
+- `src/pages/admin/UsersTab.tsx` — role dropdown, provision button, customize-access dialog
+- `src/pages/admin/AccessControlsTab.tsx` — 4-column layout
+- `src/integrations/supabase/types.ts` — auto-regenerated after migration
+
+---
+
+## Out of scope (call out for later)
+
+- Enforcing **read-only / edit-own** behavior across every page — this plan only adds the role flags; UI-level write gating across Clients, Deals, Staffing, etc. is a separate pass.
+- Notifying provisioned users by email with a password reset link — can be added on top of the bulk action if you want. - Do this  
