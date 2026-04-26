@@ -425,3 +425,41 @@ export function UsersTab() {
     </div>
   );
 }
+
+function EmailRow({
+  person,
+  saving,
+  onSave,
+}: {
+  person: { id: string; name: string; email: string };
+  saving: boolean;
+  onSave: (email: string) => void;
+}) {
+  const [value, setValue] = useState(person.email || "");
+  const dirty = value.trim() !== (person.email || "").trim();
+  return (
+    <tr className="border-b border-border/50">
+      <td className="px-3 py-2 text-foreground w-[200px]">{person.name}</td>
+      <td className="px-3 py-2">
+        <Input
+          type="email"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="name@company.com"
+          className="h-7 text-xs"
+        />
+      </td>
+      <td className="px-3 py-2 w-[100px] text-right">
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-[11px]"
+          disabled={!dirty || saving}
+          onClick={() => onSave(value)}
+        >
+          {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
+        </Button>
+      </td>
+    </tr>
+  );
+}
