@@ -245,6 +245,17 @@ export function UsersTab() {
           <p className="text-xs text-muted-foreground mt-0.5">Manage who can access the portal, their role, and per-user section access.</p>
         </div>
         <div className="flex items-center gap-2">
+          {missingPeople.length > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1.5 text-xs"
+              onClick={() => setShowMissing((s) => !s)}
+            >
+              {missingPeople.filter((p) => !p.email.trim()).length} missing email
+              {missingPeople.filter((p) => !p.email.trim()).length === 1 ? "" : "s"}
+            </Button>
+          )}
           <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" disabled={provisioning} onClick={provisionFromPeople}>
             {provisioning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Users className="h-3.5 w-3.5" />}
             Provision from People
@@ -254,6 +265,36 @@ export function UsersTab() {
           </a>
         </div>
       </div>
+
+      {showMissing && missingPeople.length > 0 && (
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="px-3 py-2 bg-secondary/40 border-b border-border flex items-center justify-between">
+            <div>
+              <div className="text-xs font-semibold text-foreground">People needing email</div>
+              <div className="text-[11px] text-muted-foreground">
+                Add work emails so they can be provisioned.
+              </div>
+            </div>
+            <Button size="sm" variant="ghost" className="h-7 text-[11px]" onClick={() => setShowMissing(false)}>
+              Hide
+            </Button>
+          </div>
+          <div className="max-h-[300px] overflow-y-auto">
+            <table className="w-full text-xs">
+              <tbody>
+                {missingPeople.map((p) => (
+                  <EmailRow
+                    key={p.id}
+                    person={p}
+                    saving={savingEmail === p.id}
+                    onSave={(email) => saveEmail(p.id, email)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <div className="overflow-hidden rounded-xl border border-border bg-card">
         <table className="w-full text-ui">
