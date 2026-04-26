@@ -85,8 +85,13 @@ export function AccessControlsTab() {
       <div>
         <h2 className="text-base font-semibold text-foreground">Access Controls</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Toggle which sections each role can see by default. You can override these for specific people in Users & Roles → Customize Access.
+          Toggle which sections each role can see by default.
         </p>
+      </div>
+      <div className="rounded-lg border border-border bg-secondary/30 px-3 py-2 text-xs text-muted-foreground">
+        Need to grant a single person <strong>edit</strong> access on a section their role can only read (or vice-versa)?
+        Open <strong>Users &amp; Roles</strong> → <strong>Customize</strong> next to that user. Per-user overrides support
+        Hidden / Read-only / Editable per section without changing their role.
       </div>
 
       <div className="overflow-hidden rounded-xl border border-border bg-card">
