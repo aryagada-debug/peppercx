@@ -1285,6 +1285,30 @@ export type Database = {
         }
         Relationships: []
       }
+      user_route_overrides: {
+        Row: {
+          created_at: string
+          route_key: string
+          updated_at: string
+          user_id: string
+          visible: boolean
+        }
+        Insert: {
+          created_at?: string
+          route_key: string
+          updated_at?: string
+          user_id: string
+          visible: boolean
+        }
+        Update: {
+          created_at?: string
+          route_key?: string
+          updated_at?: string
+          user_id?: string
+          visible?: boolean
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -1299,7 +1323,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "vsd"
+      app_role: "admin" | "member" | "user" | "view_only"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1427,7 +1451,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "vsd"],
+      app_role: ["admin", "member", "user", "view_only"],
     },
   },
 } as const

@@ -2,7 +2,16 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
 
-export type AppRole = "admin" | "vsd";
+export type AppRole = "admin" | "member" | "user" | "view_only";
+
+export const ROLE_LABELS: Record<AppRole, string> = {
+  admin: "Admin",
+  member: "Member",
+  user: "User",
+  view_only: "View Only",
+};
+
+export const ROLE_ORDER: AppRole[] = ["view_only", "user", "member", "admin"];
 
 export const ALL_ROUTE_KEYS = [
   "dashboard",
@@ -35,6 +44,9 @@ interface UserRoleState {
   visibleRoutes: Set<string>;
   loading: boolean;
   refresh: () => Promise<void>;
+  canEditAll: boolean;
+  canEditOwn: boolean;
+  isReadOnly: boolean;
 }
 
 export function useUserRole(): UserRoleState {
@@ -47,7 +59,9 @@ export function useUserRole(): UserRoleState {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const v = localStorage.getItem(VIEW_AS_KEY);
-    if (v === "vsd" || v === "admin") setViewAsRoleState(v as AppRole);
+    if (v === "admin" || v === "member" || v === "user" || v === "view_only") {
+      setViewAsRoleState(v as AppRole);
+    }
   }, []);
 
   const effectiveRole: AppRole | null = (() => {
@@ -80,7 +94,12 @@ export function useUserRole(): UserRoleState {
       .eq("user_id", user.id);
 
     const userRoles = (roleRows || []).map((r) => r.role as AppRole);
-    const trueRole: AppRole = userRoles.includes("admin") ? "admin" : "vsd";
+    // Pick the highest role the user has
+    const trueRole: AppRole =
+      userRoles.includes("admin") ? "admin"
+      : userRoles.includes("member") ? "member"
+      : userRoles.includes("view_only") ? "view_only"
+      : "user";
     setActualRole(trueRole);
 
     const roleForVisibility: AppRole =
@@ -95,6 +114,17 @@ export function useUserRole(): UserRoleState {
     (visRows || []).forEach((r) => {
       if (r.visible) visible.add(r.route_key);
     });
+
+    // Apply per-user overrides on top
+    const { data: overrides } = await supabase
+      .from("user_route_overrides")
+      .select("route_key, visible")
+      .eq("user_id", user.id);
+    (overrides || []).forEach((o) => {
+      if (o.visible) visible.add(o.route_key);
+      else visible.delete(o.route_key);
+    });
+
     setVisibleRoutes(visible);
     setLoading(false);
   }, [user, viewAsRole]);
@@ -113,5 +143,8 @@ export function useUserRole(): UserRoleState {
     visibleRoutes,
     loading: authLoading || loading,
     refresh: load,
+    canEditAll: effectiveRole === "admin" || effectiveRole === "member",
+    canEditOwn: effectiveRole === "admin" || effectiveRole === "member" || effectiveRole === "user",
+    isReadOnly: effectiveRole === "view_only",
   };
 }

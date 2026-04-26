@@ -102,6 +102,106 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (action === "bulk_provision") {
+      const sendInvite = body.send_invite !== false;
+      // Load all staffing_people with non-empty email
+      const { data: people, error: pErr } = await adminClient
+        .from("staffing_people")
+        .select("id, name, email")
+        .neq("email", "")
+        .not("email", "is", null);
+      if (pErr) {
+        return new Response(JSON.stringify({ error: pErr.message }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // List existing auth users to skip duplicates
+      const { data: authList } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
+      const existingByEmail = new Map<string, string>();
+      (authList?.users || []).forEach((u) => {
+        if (u.email) existingByEmail.set(u.email.toLowerCase(), u.id);
+      });
+
+      // List skipped people (no email or whitespace)
+      const { data: allPeople } = await adminClient
+        .from("staffing_people")
+        .select("id, name, email");
+      const skipped_names = (allPeople || [])
+        .filter((p) => !p.email || !p.email.trim())
+        .map((p) => p.name);
+
+      let created = 0;
+      const errors: { name: string; error: string }[] = [];
+      const linked: { name: string; email: string }[] = [];
+
+      for (const person of people || []) {
+        const email = person.email!.trim().toLowerCase();
+        if (!email) continue;
+
+        let userId = existingByEmail.get(email);
+
+        if (!userId) {
+          const tempPassword = crypto.randomUUID() + "Aa1!";
+          const { data: newUser, error: cErr } = await adminClient.auth.admin.createUser({
+            email,
+            password: tempPassword,
+            email_confirm: true,
+            user_metadata: { full_name: person.name },
+          });
+          if (cErr || !newUser?.user) {
+            errors.push({ name: person.name, error: cErr?.message || "create failed" });
+            continue;
+          }
+          userId = newUser.user.id;
+          created++;
+
+          if (sendInvite) {
+            // Send password-setup email (non-blocking on failure)
+            const redirectTo = `${new URL(req.url).origin.replace("/functions/v1", "")}`;
+            await adminClient.auth.admin.generateLink({
+              type: "recovery",
+              email,
+              options: { redirectTo: `${SUPABASE_URL.replace(".supabase.co", ".lovable.app")}/reset-password` },
+            }).catch(() => {});
+            // Use the user-friendly resetPasswordForEmail via a public client
+            await userClient.auth.resetPasswordForEmail(email, {
+              redirectTo: req.headers.get("origin")
+                ? `${req.headers.get("origin")}/reset-password`
+                : undefined,
+            }).catch(() => {});
+          }
+        } else {
+          linked.push({ name: person.name, email });
+        }
+
+        // Upsert profile with staffing_person_id
+        await adminClient.from("profiles").upsert(
+          { user_id: userId, display_name: person.name, staffing_person_id: person.id },
+          { onConflict: "user_id" },
+        );
+
+        // Ensure 'user' role exists
+        await adminClient
+          .from("user_roles")
+          .insert({ user_id: userId, role: "user" })
+          .select()
+          .then((r) => r, () => null);
+      }
+
+      return new Response(
+        JSON.stringify({
+          created,
+          linked: linked.length,
+          skipped: skipped_names.length,
+          skipped_names,
+          errors,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     return new Response(JSON.stringify({ error: "Unknown action" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
