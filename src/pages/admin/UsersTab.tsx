@@ -394,14 +394,15 @@ export function UsersTab() {
             <DialogTitle>Customize access — {overrideUser?.display_name}</DialogTitle>
           </DialogHeader>
           <p className="text-xs text-muted-foreground -mt-2">
-            Override role defaults for this user. "Inherit" uses the {overrideUser ? ROLE_LABELS[overrideUser.role] : ""} role default.
+            Override the {overrideUser ? ROLE_LABELS[overrideUser.role] : ""} role defaults for this user. "Inherit" keeps the role default.
+            Read-only keeps the section visible but disables edits for this user.
           </p>
           <div className="max-h-[400px] overflow-y-auto rounded-lg border border-border">
             <table className="w-full text-xs">
               <thead className="sticky top-0 bg-secondary/60 backdrop-blur">
                 <tr className="border-b border-border">
                   <th className="px-3 py-2 text-left font-medium text-muted-foreground">Section</th>
-                  <th className="px-3 py-2 text-center font-medium text-muted-foreground w-[260px]">Access</th>
+                  <th className="px-3 py-2 text-center font-medium text-muted-foreground w-[320px]">Access</th>
                 </tr>
               </thead>
               <tbody>
@@ -410,25 +411,30 @@ export function UsersTab() {
                     <td className="px-3 py-2 text-foreground">{ROUTE_LABELS[route] || route}</td>
                     <td className="px-3 py-2">
                       <div className="flex justify-center gap-1">
-                        {(["inherit", "show", "hide"] as const).map((opt) => (
-                          <button
-                            key={opt}
-                            type="button"
-                            onClick={() => setOverrides((prev) => ({ ...prev, [route]: opt }))}
-                            className={
-                              "px-2 py-0.5 rounded border text-[11px] capitalize " +
-                              (overrides[route] === opt
-                                ? opt === "show"
-                                  ? "border-primary bg-primary/10 text-primary"
-                                  : opt === "hide"
-                                  ? "border-destructive bg-destructive/10 text-destructive"
-                                  : "border-foreground/40 bg-foreground/5 text-foreground"
-                                : "border-border bg-card text-muted-foreground hover:text-foreground")
-                            }
-                          >
-                            {opt}
-                          </button>
-                        ))}
+                        {OVERRIDE_OPTIONS.map((opt) => {
+                          const active = overrides[route] === opt;
+                          const colorClass = active
+                            ? opt === "edit"
+                              ? "border-primary bg-primary/10 text-primary"
+                              : opt === "read"
+                              ? "border-blue-500/40 bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                              : opt === "hidden"
+                              ? "border-destructive bg-destructive/10 text-destructive"
+                              : "border-foreground/40 bg-foreground/5 text-foreground"
+                            : "border-border bg-card text-muted-foreground hover:text-foreground";
+                          return (
+                            <button
+                              key={opt}
+                              type="button"
+                              onClick={() =>
+                                setOverrides((prev) => ({ ...prev, [route]: opt }))
+                              }
+                              className={"px-2 py-0.5 rounded border text-[11px] " + colorClass}
+                            >
+                              {OVERRIDE_LABELS[opt]}
+                            </button>
+                          );
+                        })}
                       </div>
                     </td>
                   </tr>
