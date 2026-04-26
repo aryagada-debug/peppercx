@@ -6,6 +6,7 @@ import { Loader2, KeyRound, Trash2, UserPlus, Sliders, Users } from "lucide-reac
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { ALL_ROUTE_KEYS, ROLE_LABELS, ROLE_ORDER, type AppRole } from "@/hooks/useUserRole";
 
 const ROUTE_LABELS: Record<string, string> = {
@@ -33,6 +34,12 @@ interface UserRow {
   role: AppRole;
 }
 
+interface MissingPerson {
+  id: string;
+  name: string;
+  email: string;
+}
+
 type OverrideMap = Record<string, "show" | "hide" | "inherit">;
 
 export function UsersTab() {
@@ -45,6 +52,9 @@ export function UsersTab() {
   const [overrideUser, setOverrideUser] = useState<UserRow | null>(null);
   const [overrides, setOverrides] = useState<OverrideMap>({});
   const [savingOverrides, setSavingOverrides] = useState(false);
+  const [missingPeople, setMissingPeople] = useState<MissingPerson[]>([]);
+  const [savingEmail, setSavingEmail] = useState<string | null>(null);
+  const [showMissing, setShowMissing] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -79,6 +89,19 @@ export function UsersTab() {
     }));
     built.sort((a, b) => a.display_name.localeCompare(b.display_name));
     setRows(built);
+
+    // Load staffing_people without emails (or whose email isn't in auth)
+    const { data: people } = await supabase
+      .from("staffing_people")
+      .select("id, name, email")
+      .order("name");
+    const authEmails = new Set(
+      (emailData?.users || []).map((u: any) => (u.email || "").toLowerCase()).filter(Boolean),
+    );
+    const missing = (people || [])
+      .filter((p) => !p.email?.trim() || !authEmails.has(p.email.trim().toLowerCase()))
+      .map((p) => ({ id: p.id, name: p.name, email: p.email || "" }));
+    setMissingPeople(missing);
     setLoading(false);
   }, []);
 
@@ -129,6 +152,13 @@ export function UsersTab() {
   };
 
   const provisionFromPeople = async () => {
+    // Block if any missing emails to nudge admin to fix first
+    const blanks = missingPeople.filter((p) => !p.email.trim()).length;
+    if (blanks > 0) {
+      toast.error(`${blanks} people have no email. Add emails below first.`);
+      setShowMissing(true);
+      return;
+    }
     setProvisioning(true);
     const { data, error } = await supabase.functions.invoke("admin-user-mgmt", {
       body: { action: "bulk_provision", send_invite: true },
@@ -143,6 +173,27 @@ export function UsersTab() {
       await load();
     }
     setProvisioning(false);
+  };
+
+  const saveEmail = async (personId: string, email: string) => {
+    const trimmed = email.trim();
+    if (trimmed && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      toast.error("Invalid email format");
+      return;
+    }
+    setSavingEmail(personId);
+    const { error } = await supabase
+      .from("staffing_people")
+      .update({ email: trimmed })
+      .eq("id", personId);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Email saved");
+      setMissingPeople((prev) =>
+        prev.map((p) => (p.id === personId ? { ...p, email: trimmed } : p)),
+      );
+    }
+    setSavingEmail(null);
   };
 
   const openOverrides = async (row: UserRow) => {
@@ -194,6 +245,17 @@ export function UsersTab() {
           <p className="text-xs text-muted-foreground mt-0.5">Manage who can access the portal, their role, and per-user section access.</p>
         </div>
         <div className="flex items-center gap-2">
+          {missingPeople.length > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1.5 text-xs"
+              onClick={() => setShowMissing((s) => !s)}
+            >
+              {missingPeople.filter((p) => !p.email.trim()).length} missing email
+              {missingPeople.filter((p) => !p.email.trim()).length === 1 ? "" : "s"}
+            </Button>
+          )}
           <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" disabled={provisioning} onClick={provisionFromPeople}>
             {provisioning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Users className="h-3.5 w-3.5" />}
             Provision from People
@@ -203,6 +265,36 @@ export function UsersTab() {
           </a>
         </div>
       </div>
+
+      {showMissing && missingPeople.length > 0 && (
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="px-3 py-2 bg-secondary/40 border-b border-border flex items-center justify-between">
+            <div>
+              <div className="text-xs font-semibold text-foreground">People needing email</div>
+              <div className="text-[11px] text-muted-foreground">
+                Add work emails so they can be provisioned.
+              </div>
+            </div>
+            <Button size="sm" variant="ghost" className="h-7 text-[11px]" onClick={() => setShowMissing(false)}>
+              Hide
+            </Button>
+          </div>
+          <div className="max-h-[300px] overflow-y-auto">
+            <table className="w-full text-xs">
+              <tbody>
+                {missingPeople.map((p) => (
+                  <EmailRow
+                    key={p.id}
+                    person={p}
+                    saving={savingEmail === p.id}
+                    onSave={(email) => saveEmail(p.id, email)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <div className="overflow-hidden rounded-xl border border-border bg-card">
         <table className="w-full text-ui">
@@ -331,5 +423,43 @@ export function UsersTab() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function EmailRow({
+  person,
+  saving,
+  onSave,
+}: {
+  person: { id: string; name: string; email: string };
+  saving: boolean;
+  onSave: (email: string) => void;
+}) {
+  const [value, setValue] = useState(person.email || "");
+  const dirty = value.trim() !== (person.email || "").trim();
+  return (
+    <tr className="border-b border-border/50">
+      <td className="px-3 py-2 text-foreground w-[200px]">{person.name}</td>
+      <td className="px-3 py-2">
+        <Input
+          type="email"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="name@company.com"
+          className="h-7 text-xs"
+        />
+      </td>
+      <td className="px-3 py-2 w-[100px] text-right">
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-[11px]"
+          disabled={!dirty || saving}
+          onClick={() => onSave(value)}
+        >
+          {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
+        </Button>
+      </td>
+    </tr>
   );
 }
