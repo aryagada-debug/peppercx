@@ -40,7 +40,16 @@ interface MissingPerson {
   email: string;
 }
 
-type OverrideMap = Record<string, "show" | "hide" | "inherit">;
+type OverrideOption = "inherit" | "hidden" | "read" | "edit";
+type OverrideMap = Record<string, OverrideOption>;
+
+const OVERRIDE_OPTIONS: OverrideOption[] = ["inherit", "hidden", "read", "edit"];
+const OVERRIDE_LABELS: Record<OverrideOption, string> = {
+  inherit: "Inherit",
+  hidden: "Hidden",
+  read: "Read-only",
+  edit: "Editable",
+};
 
 export function UsersTab() {
   const { user: currentUser } = useAuth();
@@ -200,11 +209,19 @@ export function UsersTab() {
     setOverrideUser(row);
     const { data } = await supabase
       .from("user_route_overrides")
-      .select("route_key, visible")
+      .select("route_key, visible, access_mode")
       .eq("user_id", row.user_id);
     const map: OverrideMap = {};
     ALL_ROUTE_KEYS.forEach((k) => (map[k] = "inherit"));
-    (data || []).forEach((o) => (map[o.route_key] = o.visible ? "show" : "hide"));
+    (data || []).forEach((o: any) => {
+      const m: OverrideOption =
+        o.access_mode === "hidden" || o.access_mode === "read" || o.access_mode === "edit"
+          ? o.access_mode
+          : o.visible
+          ? "edit"
+          : "hidden";
+      map[o.route_key] = m;
+    });
     setOverrides(map);
   };
 
@@ -215,7 +232,12 @@ export function UsersTab() {
     await supabase.from("user_route_overrides").delete().eq("user_id", overrideUser.user_id);
     const toInsert = Object.entries(overrides)
       .filter(([, v]) => v !== "inherit")
-      .map(([route_key, v]) => ({ user_id: overrideUser.user_id, route_key, visible: v === "show" }));
+      .map(([route_key, v]) => ({
+        user_id: overrideUser.user_id,
+        route_key,
+        access_mode: v as "hidden" | "read" | "edit",
+        visible: v !== "hidden",
+      }));
     if (toInsert.length > 0) {
       const { error } = await supabase.from("user_route_overrides").insert(toInsert);
       if (error) {
