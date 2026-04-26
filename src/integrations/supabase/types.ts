@@ -1287,6 +1287,7 @@ export type Database = {
       }
       user_route_overrides: {
         Row: {
+          access_mode: string
           created_at: string
           route_key: string
           updated_at: string
@@ -1294,6 +1295,7 @@ export type Database = {
           visible: boolean
         }
         Insert: {
+          access_mode: string
           created_at?: string
           route_key: string
           updated_at?: string
@@ -1301,6 +1303,7 @@ export type Database = {
           visible: boolean
         }
         Update: {
+          access_mode?: string
           created_at?: string
           route_key?: string
           updated_at?: string

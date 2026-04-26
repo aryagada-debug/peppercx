@@ -40,7 +40,16 @@ interface MissingPerson {
   email: string;
 }
 
-type OverrideMap = Record<string, "show" | "hide" | "inherit">;
+type OverrideOption = "inherit" | "hidden" | "read" | "edit";
+type OverrideMap = Record<string, OverrideOption>;
+
+const OVERRIDE_OPTIONS: OverrideOption[] = ["inherit", "hidden", "read", "edit"];
+const OVERRIDE_LABELS: Record<OverrideOption, string> = {
+  inherit: "Inherit",
+  hidden: "Hidden",
+  read: "Read-only",
+  edit: "Editable",
+};
 
 export function UsersTab() {
   const { user: currentUser } = useAuth();
@@ -200,11 +209,19 @@ export function UsersTab() {
     setOverrideUser(row);
     const { data } = await supabase
       .from("user_route_overrides")
-      .select("route_key, visible")
+      .select("route_key, visible, access_mode")
       .eq("user_id", row.user_id);
     const map: OverrideMap = {};
     ALL_ROUTE_KEYS.forEach((k) => (map[k] = "inherit"));
-    (data || []).forEach((o) => (map[o.route_key] = o.visible ? "show" : "hide"));
+    (data || []).forEach((o: any) => {
+      const m: OverrideOption =
+        o.access_mode === "hidden" || o.access_mode === "read" || o.access_mode === "edit"
+          ? o.access_mode
+          : o.visible
+          ? "edit"
+          : "hidden";
+      map[o.route_key] = m;
+    });
     setOverrides(map);
   };
 
@@ -215,7 +232,12 @@ export function UsersTab() {
     await supabase.from("user_route_overrides").delete().eq("user_id", overrideUser.user_id);
     const toInsert = Object.entries(overrides)
       .filter(([, v]) => v !== "inherit")
-      .map(([route_key, v]) => ({ user_id: overrideUser.user_id, route_key, visible: v === "show" }));
+      .map(([route_key, v]) => ({
+        user_id: overrideUser.user_id,
+        route_key,
+        access_mode: v as "hidden" | "read" | "edit",
+        visible: v !== "hidden",
+      }));
     if (toInsert.length > 0) {
       const { error } = await supabase.from("user_route_overrides").insert(toInsert);
       if (error) {
@@ -372,14 +394,15 @@ export function UsersTab() {
             <DialogTitle>Customize access — {overrideUser?.display_name}</DialogTitle>
           </DialogHeader>
           <p className="text-xs text-muted-foreground -mt-2">
-            Override role defaults for this user. "Inherit" uses the {overrideUser ? ROLE_LABELS[overrideUser.role] : ""} role default.
+            Override the {overrideUser ? ROLE_LABELS[overrideUser.role] : ""} role defaults for this user. "Inherit" keeps the role default.
+            Read-only keeps the section visible but disables edits for this user.
           </p>
           <div className="max-h-[400px] overflow-y-auto rounded-lg border border-border">
             <table className="w-full text-xs">
               <thead className="sticky top-0 bg-secondary/60 backdrop-blur">
                 <tr className="border-b border-border">
                   <th className="px-3 py-2 text-left font-medium text-muted-foreground">Section</th>
-                  <th className="px-3 py-2 text-center font-medium text-muted-foreground w-[260px]">Access</th>
+                  <th className="px-3 py-2 text-center font-medium text-muted-foreground w-[320px]">Access</th>
                 </tr>
               </thead>
               <tbody>
@@ -388,25 +411,30 @@ export function UsersTab() {
                     <td className="px-3 py-2 text-foreground">{ROUTE_LABELS[route] || route}</td>
                     <td className="px-3 py-2">
                       <div className="flex justify-center gap-1">
-                        {(["inherit", "show", "hide"] as const).map((opt) => (
-                          <button
-                            key={opt}
-                            type="button"
-                            onClick={() => setOverrides((prev) => ({ ...prev, [route]: opt }))}
-                            className={
-                              "px-2 py-0.5 rounded border text-[11px] capitalize " +
-                              (overrides[route] === opt
-                                ? opt === "show"
-                                  ? "border-primary bg-primary/10 text-primary"
-                                  : opt === "hide"
-                                  ? "border-destructive bg-destructive/10 text-destructive"
-                                  : "border-foreground/40 bg-foreground/5 text-foreground"
-                                : "border-border bg-card text-muted-foreground hover:text-foreground")
-                            }
-                          >
-                            {opt}
-                          </button>
-                        ))}
+                        {OVERRIDE_OPTIONS.map((opt) => {
+                          const active = overrides[route] === opt;
+                          const colorClass = active
+                            ? opt === "edit"
+                              ? "border-primary bg-primary/10 text-primary"
+                              : opt === "read"
+                              ? "border-blue-500/40 bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                              : opt === "hidden"
+                              ? "border-destructive bg-destructive/10 text-destructive"
+                              : "border-foreground/40 bg-foreground/5 text-foreground"
+                            : "border-border bg-card text-muted-foreground hover:text-foreground";
+                          return (
+                            <button
+                              key={opt}
+                              type="button"
+                              onClick={() =>
+                                setOverrides((prev) => ({ ...prev, [route]: opt }))
+                              }
+                              className={"px-2 py-0.5 rounded border text-[11px] " + colorClass}
+                            >
+                              {OVERRIDE_LABELS[opt]}
+                            </button>
+                          );
+                        })}
                       </div>
                     </td>
                   </tr>

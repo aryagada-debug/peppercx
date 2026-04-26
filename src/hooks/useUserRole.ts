@@ -4,6 +4,8 @@ import { useAuth } from "@/components/auth/AuthProvider";
 
 export type AppRole = "admin" | "member" | "user" | "view_only";
 
+export type AccessMode = "hidden" | "read" | "edit";
+
 export const ROLE_LABELS: Record<AppRole, string> = {
   admin: "Admin",
   member: "Member",
@@ -42,6 +44,9 @@ interface UserRoleState {
   viewAsRole: AppRole | null;    // current override, or null
   setViewAsRole: (r: AppRole | null) => void;
   visibleRoutes: Set<string>;
+  routeAccess: Map<string, AccessMode>;
+  canEditRoute: (routeKey: string) => boolean;
+  isRouteReadOnly: (routeKey: string) => boolean;
   loading: boolean;
   refresh: () => Promise<void>;
   canEditAll: boolean;
@@ -54,6 +59,7 @@ export function useUserRole(): UserRoleState {
   const [actualRole, setActualRole] = useState<AppRole | null>(null);
   const [viewAsRole, setViewAsRoleState] = useState<AppRole | null>(null);
   const [visibleRoutes, setVisibleRoutes] = useState<Set<string>>(new Set());
+  const [routeAccess, setRouteAccess] = useState<Map<string, AccessMode>>(new Map());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -110,21 +116,33 @@ export function useUserRole(): UserRoleState {
       .select("route_key, visible")
       .eq("role", roleForVisibility);
 
-    const visible = new Set<string>();
+    // Role-default access mode per route
+    const defaultMode: AccessMode = roleForVisibility === "view_only" ? "read" : "edit";
+    const access = new Map<string, AccessMode>();
     (visRows || []).forEach((r) => {
-      if (r.visible) visible.add(r.route_key);
+      access.set(r.route_key, r.visible ? defaultMode : "hidden");
     });
 
     // Apply per-user overrides on top
     const { data: overrides } = await supabase
       .from("user_route_overrides")
-      .select("route_key, visible")
+      .select("route_key, visible, access_mode")
       .eq("user_id", user.id);
-    (overrides || []).forEach((o) => {
-      if (o.visible) visible.add(o.route_key);
-      else visible.delete(o.route_key);
+    (overrides || []).forEach((o: any) => {
+      const mode: AccessMode =
+        o.access_mode === "hidden" || o.access_mode === "read" || o.access_mode === "edit"
+          ? o.access_mode
+          : o.visible
+          ? "edit"
+          : "hidden";
+      access.set(o.route_key, mode);
     });
 
+    const visible = new Set<string>();
+    access.forEach((mode, key) => {
+      if (mode !== "hidden") visible.add(key);
+    });
+    setRouteAccess(access);
     setVisibleRoutes(visible);
     setLoading(false);
   }, [user, viewAsRole]);
@@ -141,6 +159,9 @@ export function useUserRole(): UserRoleState {
     viewAsRole,
     setViewAsRole,
     visibleRoutes,
+    routeAccess,
+    canEditRoute: (routeKey: string) => (routeAccess.get(routeKey) ?? "hidden") === "edit",
+    isRouteReadOnly: (routeKey: string) => routeAccess.get(routeKey) === "read",
     loading: authLoading || loading,
     refresh: load,
     canEditAll: effectiveRole === "admin" || effectiveRole === "member",
