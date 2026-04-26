@@ -1,84 +1,113 @@
 ## Goal
+Add a third access layer: **per-user permission overrides** that change a user's effective access (Hidden / Read-only / Editable) on a per-section basis, while keeping their role label unchanged.
 
-Replace the current 2-role system (`admin`, `vsd`) with a **4-role hierarchy** plus **per-user route overrides**, and provision auth accounts for every person in `staffing_people`.
+Today the system has:
+- **Layer 1**: Role default visibility (`route_visibility` — show/hide per role)
+- **Layer 2**: Per-user route overrides (`user_route_overrides` — show/hide per user)
+
+This adds:
+- **Layer 3**: Per-user *access mode* per section: `hidden` | `read` | `edit` | `inherit`
+
+`inherit` falls back to the role's default behavior. `read` keeps the section visible but disables all writes for that user on that section. `edit` grants editing even if the role is otherwise read-only.
 
 ---
 
-## 1. Database changes (migration)
+## 1. Database changes (new migration)
 
-**Expand `app_role` enum:**
+**Extend `user_route_overrides`** to carry an access mode instead of just a boolean:
 
-- Add `view_only`, `user`, `member` (keep `admin`).
-- Migrate existing rows: `vsd` → `user`. Drop `vsd` value at the end (Postgres-safe path: rename old enum, create new, alter column, drop old).
+```sql
+-- Add access_mode column ('hidden' | 'read' | 'edit')
+ALTER TABLE public.user_route_overrides
+  ADD COLUMN access_mode text;
 
-**New table `user_route_overrides`:**
+-- Backfill from existing visible flag so nothing breaks:
+--   visible=true  -> 'edit' (current behavior preserves write access)
+--   visible=false -> 'hidden'
+UPDATE public.user_route_overrides
+SET access_mode = CASE WHEN visible THEN 'edit' ELSE 'hidden' END
+WHERE access_mode IS NULL;
 
+ALTER TABLE public.user_route_overrides
+  ALTER COLUMN access_mode SET NOT NULL,
+  ADD CONSTRAINT user_route_overrides_access_mode_chk
+    CHECK (access_mode IN ('hidden','read','edit'));
+
+-- Make (user_id, route_key) unique so upserts work cleanly
+ALTER TABLE public.user_route_overrides
+  ADD CONSTRAINT user_route_overrides_user_route_uniq UNIQUE (user_id, route_key);
 ```
-user_id uuid, route_key text, visible boolean, PRIMARY KEY (user_id, route_key)
-```
 
-RLS: admins manage all rows; users read only their own.
+`visible` stays for backward compatibility (kept in sync: `visible = (access_mode <> 'hidden')`).
 
-**Update `route_visibility` seed** to include defaults for all 4 roles:
-
-- `admin`: every route visible
-- `member`: every route visible (but action-level edit perms still apply via UI)
-- `user`: same as today's `vsd` defaults (Clients, RGY, MBR visible)
-- `view_only`: same routes as `user` (read-only behavior comes from UI gating)
-
-**Update `handle_new_user()` trigger:** default new signups → `user` (was `vsd`).
-
-**Update `profiles` link:** ensure `staffing_person_id` is populated when we backfill.
+RLS policies stay as-is (admin manage, user reads own).
 
 ---
 
-## 2. Backfill auth accounts for staffing_people (~120)
+## 2. `useUserRole.ts` — compute effective access
 
-Extend the existing `admin-user-mgmt` edge function with a `bulk_provision` action:
+Add a new `routeAccess: Map<string, 'hidden' | 'read' | 'edit'>` to the hook's return value.
 
-- For each row in `staffing_people` where `email` is non-empty AND no auth user exists with that email:
-  - Create auth user via service-role admin API (random password, email confirmed)
-  - Insert/update `profiles` with `display_name = name`, `staffing_person_id = id`
-  - Insert `user_roles` with role `user`
-- Skip people with blank email; surface a list of skipped names so admin can fill emails first.
-- Add a **"Provision all from People"** button at the top of the Users tab that calls this action and reports `{created, skipped, errors}`.
+Logic:
+1. Start from role defaults: each route in the role's `route_visibility` set → `'edit'` if role is admin/member/user, `'read'` if role is `view_only`. Routes not in the role's visible set → `'hidden'`.
+2. Apply `user_route_overrides`: for each row, set `routeAccess[route_key] = access_mode`.
+3. `visibleRoutes` = routes whose effective access is not `'hidden'`.
+4. Add helpers:
+   - `canEditRoute(routeKey)` → `routeAccess.get(routeKey) === 'edit'`
+   - `isRouteReadOnly(routeKey)` → `routeAccess.get(routeKey) === 'read'`
 
----
-
-## 3. Frontend — `useUserRole.ts`
-
-- Update `AppRole` to `"admin" | "member" | "user" | "view_only"`.
-- Compute `visibleRoutes` as: **role defaults from `route_visibility**` ⊕ **per-user overrides** (override wins when present).
-- Add `canEditAll` (member+admin), `canEditOwn` (user+), `isReadOnly` (view_only) booleans to consumers — actual edit-gating in components is a follow-up; this PR exposes the flags so the structure is in place.
+Keep existing `canEditAll` / `canEditOwn` / `isReadOnly` flags for back-compat (derived from role), but new code should use the per-route helpers when enforcement matters.
 
 ---
 
-## 4. Frontend — `UsersTab.tsx`
+## 3. UI — "Customize Access" dialog in `UsersTab.tsx`
 
-- Replace the 2-state Admin/VSD badge + "Make Admin / Demote" buttons with a **role dropdown** (View Only / User / Member / Admin) per row. Saves by deleting old role row and inserting new one.
-- Add **"Provision from People"** button (calls bulk action above).
-- Add **"Customize Access"** button per row → opens a dialog showing all `ALL_ROUTE_KEYS` with three states each: **Inherit (role default) / Show / Hide**. Persists to `user_route_overrides`. "Inherit" deletes the override row.
+Replace the current 2-state (Inherit / Show / Hide) per-route control with a **3-state segmented control per section**:
 
----
+| Section | Inherit | Hidden | Read-only | Editable |
+|---|---|---|---|---|
+| Dashboard | ● | ○ | ○ | ○ |
+| Clients & Deals | ○ | ○ | ● | ○ |
+| Revenue | ○ | ○ | ○ | ● |
+| … | | | | |
 
-## 5. Frontend — `AccessControlsTab.tsx`
+- **Inherit** → delete the override row (falls back to role default).
+- **Hidden / Read-only / Editable** → upsert `user_route_overrides` with corresponding `access_mode` (and `visible = access_mode !== 'hidden'`).
 
-- Expand the table from 2 role columns to **4 columns**: View Only, User, Member, Admin. Existing toggle logic works unchanged against `route_visibility`.
+Header of the dialog shows the user's role + a hint: *"Role default shown in grey. Pick a custom access to override."*
 
----
-
-## 6. Files touched
-
-- **New migration** — enum expansion, `user_route_overrides` table + RLS, trigger update, route_visibility reseed for new roles
-- `supabase/functions/admin-user-mgmt/index.ts` — add `bulk_provision` and `set_role` actions
-- `src/hooks/useUserRole.ts` — new role union, override merging
-- `src/pages/admin/UsersTab.tsx` — role dropdown, provision button, customize-access dialog
-- `src/pages/admin/AccessControlsTab.tsx` — 4-column layout
-- `src/integrations/supabase/types.ts` — auto-regenerated after migration
+Each row shows the role's default mode in muted text under the section name (e.g. "Default: Editable") so admin sees what they're overriding.
 
 ---
 
-## Out of scope (call out for later)
+## 4. Enforce read-only in the UI
 
-- Enforcing **read-only / edit-own** behavior across every page — this plan only adds the role flags; UI-level write gating across Clients, Deals, Staffing, etc. is a separate pass.
-- Notifying provisioned users by email with a password reset link — can be added on top of the bulk action if you want. - Do this  
+Read-only enforcement is opt-in per page. As a first pass:
+- `ProtectedRoute` keeps using `visibleRoutes` for hide.
+- New helper `useRouteAccess(routeKey)` returns `{ mode, isReadOnly, canEdit }` — pages already checking `isReadOnly` (the global flag) can switch to the per-route version where it matters most:
+  - **Clients & Deals**, **Revenue**, **Targets**, **Staffing**, **MBR Tracker**, **RGY Health** — wrap their primary edit buttons / inline-edit triggers with `disabled={isRouteReadOnly}`.
+- Full enforcement across every dialog is out of scope for this change; we'll wire the high-traffic edit surfaces and leave a follow-up note for niche editors.
+
+---
+
+## 5. AccessControlsTab — small clarifying tweak
+
+Add a help banner: *"These are role defaults. To grant a single person edit access on a section their role can only read (or vice-versa), use Users & Roles → Customize Access."*
+
+No schema/logic change here — it's still the global role show/hide matrix.
+
+---
+
+## Files touched
+
+- **New migration**: `user_route_overrides.access_mode` + unique constraint + backfill
+- `src/hooks/useUserRole.ts` — add `routeAccess`, `canEditRoute`, `isRouteReadOnly`
+- `src/pages/admin/UsersTab.tsx` — 3-state segmented control in Customize Access dialog
+- `src/pages/admin/AccessControlsTab.tsx` — add help banner
+- A handful of high-traffic edit surfaces (Clients, Revenue, Targets, Staffing, MBR, RGY) — disable edit affordances when `isRouteReadOnly` for that route
+
+---
+
+## Out of scope
+- Per-action permissions (delete vs edit vs admin-action) — the new layer is mode-per-section only.
+- Server-side RLS enforcement of read-only — current tables use permissive RLS; read-only is enforced in the UI. Hardening RLS would be a separate, larger effort.
