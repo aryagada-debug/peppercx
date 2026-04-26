@@ -767,6 +767,33 @@ export type Database = {
         }
         Relationships: []
       }
+      slack_inactivity_nudges: {
+        Row: {
+          channel_id: string
+          deal_id: string
+          id: string
+          message_count: number
+          sent_at: string
+          week_start: string
+        }
+        Insert: {
+          channel_id: string
+          deal_id: string
+          id?: string
+          message_count?: number
+          sent_at?: string
+          week_start: string
+        }
+        Update: {
+          channel_id?: string
+          deal_id?: string
+          id?: string
+          message_count?: number
+          sent_at?: string
+          week_start?: string
+        }
+        Relationships: []
+      }
       slack_messages: {
         Row: {
           channel_id: string

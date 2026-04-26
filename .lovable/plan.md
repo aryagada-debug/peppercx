@@ -1,113 +1,107 @@
-## Goal
-Add a third access layer: **per-user permission overrides** that change a user's effective access (Hidden / Read-only / Editable) on a per-section basis, while keeping their role label unchanged.
+## Slack Channel Inactivity Flag
 
-Today the system has:
-- **Layer 1**: Role default visibility (`route_visibility` — show/hide per role)
-- **Layer 2**: Per-user route overrides (`user_route_overrides` — show/hide per user)
+Detect deals whose linked Slack channel has fewer than **2 human messages in the last 7 days** (deal must be Active), surface a warning in the **MBR tab**, and post a one-time weekly nudge to the channel.
 
-This adds:
-- **Layer 3**: Per-user *access mode* per section: `hidden` | `read` | `edit` | `inherit`
+### Definition of "human message"
 
-`inherit` falls back to the role's default behavior. `read` keeps the section visible but disables all writes for that user on that section. `edit` grants editing even if the role is otherwise read-only.
+From `slack_messages`, count rows where:
+
+- `deal_id = <deal>`
+- `created_at >= now() - 7 days`
+- `source = 'slack'` (excludes app-sent messages where `source='app'`)
+- Bot messages are already filtered at ingestion (`slack-events` skips `ev.bot_id`), so no extra filter needed.
+
+Threshold: `< 2` messages → **inactive**.
+
+Deal must be Active: `staffing_deals.deal_status = 'Active Deal'` AND `slack_channel_id` is non-empty.
 
 ---
 
-## 1. Database changes (new migration)
+### 1. Database — add nudge log table
 
-**Extend `user_route_overrides`** to carry an access mode instead of just a boolean:
+New migration creates `slack_inactivity_nudges` to ensure we send the Slack notice **at most once per deal per ISO week** (idempotent).
 
 ```sql
--- Add access_mode column ('hidden' | 'read' | 'edit')
-ALTER TABLE public.user_route_overrides
-  ADD COLUMN access_mode text;
-
--- Backfill from existing visible flag so nothing breaks:
---   visible=true  -> 'edit' (current behavior preserves write access)
---   visible=false -> 'hidden'
-UPDATE public.user_route_overrides
-SET access_mode = CASE WHEN visible THEN 'edit' ELSE 'hidden' END
-WHERE access_mode IS NULL;
-
-ALTER TABLE public.user_route_overrides
-  ALTER COLUMN access_mode SET NOT NULL,
-  ADD CONSTRAINT user_route_overrides_access_mode_chk
-    CHECK (access_mode IN ('hidden','read','edit'));
-
--- Make (user_id, route_key) unique so upserts work cleanly
-ALTER TABLE public.user_route_overrides
-  ADD CONSTRAINT user_route_overrides_user_route_uniq UNIQUE (user_id, route_key);
+CREATE TABLE public.slack_inactivity_nudges (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  deal_id text NOT NULL,
+  channel_id text NOT NULL,
+  week_start date NOT NULL,
+  message_count int NOT NULL,
+  sent_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (deal_id, week_start)
+);
+ALTER TABLE public.slack_inactivity_nudges ENABLE ROW LEVEL SECURITY;
+-- authenticated read; only edge function (service role) writes
+CREATE POLICY "Auth read nudges" ON public.slack_inactivity_nudges
+  FOR SELECT TO authenticated USING (true);
 ```
 
-`visible` stays for backward compatibility (kept in sync: `visible = (access_mode <> 'hidden')`).
+### 2. New edge function — `slack-activity-check`
 
-RLS policies stay as-is (admin manage, user reads own).
+Path: `supabase/functions/slack-activity-check/index.ts` (config: `verify_jwt = false` so it can be cron-invoked; verifies a shared secret or callable from client with auth).
 
----
+Two modes via POST body:
 
-## 2. `useUserRole.ts` — compute effective access
+- `{ mode: "scan" }` — iterates all active deals with `slack_channel_id`, computes 7-day human msg count, for each `< 2` inserts into `slack_inactivity_nudges` (skips on conflict) and posts a Slack message:
+  > ⚠️ *Low activity flag* — This channel had only N message(s) from the team in the last 7 days. Per VSD-OS, active deals should see ≥ 2 weekly updates. This has been flagged in the MBR tab.
+- `{ mode: "status", deal_id }` — returns `{ count, isInactive, lastMessageAt }` for live UI display (no side effect).
 
-Add a new `routeAccess: Map<string, 'hidden' | 'read' | 'edit'>` to the hook's return value.
+Slack post uses existing `SLACK_BOT_TOKEN` via `chat.postMessage` (same pattern as `slack-send`).
 
-Logic:
-1. Start from role defaults: each route in the role's `route_visibility` set → `'edit'` if role is admin/member/user, `'read'` if role is `view_only`. Routes not in the role's visible set → `'hidden'`.
-2. Apply `user_route_overrides`: for each row, set `routeAccess[route_key] = access_mode`.
-3. `visibleRoutes` = routes whose effective access is not `'hidden'`.
-4. Add helpers:
-   - `canEditRoute(routeKey)` → `routeAccess.get(routeKey) === 'edit'`
-   - `isRouteReadOnly(routeKey)` → `routeAccess.get(routeKey) === 'read'`
+### 3. Frontend — MBR tab inactivity banner
 
-Keep existing `canEditAll` / `canEditOwn` / `isReadOnly` flags for back-compat (derived from role), but new code should use the per-route helpers when enforcement matters.
+Edit `src/pages/DealDetail.tsx` `DealMBRTab`:
 
----
+- On mount, if `deal.slackChannelId` and deal status is Active, call `supabase.functions.invoke('slack-activity-check', { body: { mode: 'status', deal_id: dealId } })`.
+- Add a 4th KPI card / inline alert: **"Slack Activity"** showing one of:
+  - ✅ Active — N msgs / 7d
+  - ⚠️ Inactive — only N msg(s) / 7d (red tone)
+  - — Not linked (muted, when no channel)
+- Show a dismissible alert above the MBR table when inactive: *"Slack channel flagged as inactive (<2 team messages this week)."*
 
-## 3. UI — "Customize Access" dialog in `UsersTab.tsx`
+Also surface the same flag as a small badge on the **Slack** column of the deals list:
 
-Replace the current 2-state (Inherit / Show / Hide) per-route control with a **3-state segmented control per section**:
+- `src/pages/Deals.tsx` (or wherever the deal rows render) — add a tiny `🔴 Inactive` chip when applicable. (One bulk fetch of last-7-day counts grouped by `deal_id`.)
 
-| Section | Inherit | Hidden | Read-only | Editable |
-|---|---|---|---|---|
-| Dashboard | ● | ○ | ○ | ○ |
-| Clients & Deals | ○ | ○ | ● | ○ |
-| Revenue | ○ | ○ | ○ | ● |
-| … | | | | |
+### 4. Scheduled scan (weekly)
 
-- **Inherit** → delete the override row (falls back to role default).
-- **Hidden / Read-only / Editable** → upsert `user_route_overrides` with corresponding `access_mode` (and `visible = access_mode !== 'hidden'`).
+Add a `pg_cron` job in the migration to invoke the edge function every Monday 09:00 IST:
 
-Header of the dialog shows the user's role + a hint: *"Role default shown in grey. Pick a custom access to override."*
+```sql
+SELECT cron.schedule(
+  'slack-inactivity-weekly',
+  '30 3 * * 1',  -- 09:00 IST Monday
+  $$ SELECT net.http_post(
+       url := 'https://gdklfxqbocvoxcfthysy.supabase.co/functions/v1/slack-activity-check',
+       headers := '{"Content-Type":"application/json","Authorization":"Bearer <SERVICE_ROLE>"}'::jsonb,
+       body := '{"mode":"scan"}'::jsonb
+     ); $$
+);
+```
 
-Each row shows the role's default mode in muted text under the section name (e.g. "Default: Editable") so admin sees what they're overriding.
+(Uses existing `pg_net` + `pg_cron` extensions; will enable in migration if not already.)
 
----
+### 5. Files touched
 
-## 4. Enforce read-only in the UI
+- **New** `supabase/migrations/<ts>_slack_inactivity.sql` — table + cron
+- **New** `supabase/functions/slack-activity-check/index.ts`
+- **Edit** `supabase/config.toml` — add `[functions.slack-activity-check] verify_jwt = false`
+- **Edit** `src/pages/DealDetail.tsx` — MBR tab Slack activity KPI + alert
+- **Edit** `src/pages/Deals.tsx` — optional inactive chip in deal list
 
-Read-only enforcement is opt-in per page. As a first pass:
-- `ProtectedRoute` keeps using `visibleRoutes` for hide.
-- New helper `useRouteAccess(routeKey)` returns `{ mode, isReadOnly, canEdit }` — pages already checking `isReadOnly` (the global flag) can switch to the per-route version where it matters most:
-  - **Clients & Deals**, **Revenue**, **Targets**, **Staffing**, **MBR Tracker**, **RGY Health** — wrap their primary edit buttons / inline-edit triggers with `disabled={isRouteReadOnly}`.
-- Full enforcement across every dialog is out of scope for this change; we'll wire the high-traffic edit surfaces and leave a follow-up note for niche editors.
+### Edge cases handled
 
----
+- Deal not Active → skipped entirely.
+- No `slack_channel_id` → UI shows "Not linked", no Slack post.
+- Already nudged this ISO week → unique constraint blocks duplicate Slack post.
+- All messages from `source='app'` (sent via VSD-OS UI) → still counted as inactive, since these are app/bot-originated, not organic Slack engagement.
+- Bot messages from the Lovable Slack app → already excluded at ingest time.
 
-## 5. AccessControlsTab — small clarifying tweak
+### What you'll see after approval
 
-Add a help banner: *"These are role defaults. To grant a single person edit access on a section their role can only read (or vice-versa), use Users & Roles → Customize Access."*
-
-No schema/logic change here — it's still the global role show/hide matrix.
-
----
-
-## Files touched
-
-- **New migration**: `user_route_overrides.access_mode` + unique constraint + backfill
-- `src/hooks/useUserRole.ts` — add `routeAccess`, `canEditRoute`, `isRouteReadOnly`
-- `src/pages/admin/UsersTab.tsx` — 3-state segmented control in Customize Access dialog
-- `src/pages/admin/AccessControlsTab.tsx` — add help banner
-- A handful of high-traffic edit surfaces (Clients, Revenue, Targets, Staffing, MBR, RGY) — disable edit affordances when `isRouteReadOnly` for that route
-
----
-
-## Out of scope
-- Per-action permissions (delete vs edit vs admin-action) — the new layer is mode-per-section only.
-- Server-side RLS enforcement of read-only — current tables use permissive RLS; read-only is enforced in the UI. Hardening RLS would be a separate, larger effort.
+1. Open any active deal → **MBR** tab shows a Slack Activity card with a red "Inactive" badge if low.
+2. Mondays 09:00 IST, the system auto-posts the warning to flagged channels (one nudge per channel per week).
+3. The deals list gets a subtle "🔴 Slack channel Inactive" chip on rows where the Slack channel is silent.  
+  
+Add another chip that will say clack channel not connected. 
