@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.mbr-reminders]
 verify_jwt = false
+
+[functions.slack-activity-check]
+verify_jwt = false

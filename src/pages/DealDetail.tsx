@@ -1,9 +1,10 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useParams, Link, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Loader2, Plus, Trash2, Pencil, Check, X, Calendar, Users, Eye, Edit2, ExternalLink, AlertTriangle, ChevronDown, ChevronUp, ChevronRight, Upload, CalendarCheck, Smile, TrendingUp } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, Trash2, Pencil, Check, X, Calendar, Users, Eye, Edit2, ExternalLink, AlertTriangle, ChevronDown, ChevronUp, ChevronRight, Upload, CalendarCheck, Smile, TrendingUp, MessageSquare } from "lucide-react";
 import { format, differenceInCalendarMonths } from "date-fns";
 import { cn } from "@/lib/utils";
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { useStaffingData } from "@/hooks/useStaffingData";
 import { uid } from "@/data/staffingData";
 import type { StaffingAssignment, Person, Deal, RoleCategory } from "@/data/staffingData";
@@ -533,6 +534,40 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry, deleteMBREntry, 
     return { label: `Behind by ${behind}`, tone: "warning" as const };
   }, [elapsedMonths, doneEntries.length]);
 
+  // Slack activity flag
+  const [slackActivity, setSlackActivity] = useState<{ count: number; isInactive: boolean; loading: boolean }>(
+    { count: 0, isInactive: false, loading: true },
+  );
+  const slackChannelId = (deal as any)?.slackChannelId || "";
+  const isActiveDeal = (deal as any)?.dealStatus === "Active Deal";
+  useEffect(() => {
+    let cancel = false;
+    if (!dealId || !slackChannelId || !isActiveDeal) {
+      setSlackActivity({ count: 0, isInactive: false, loading: false });
+      return;
+    }
+    setSlackActivity((s) => ({ ...s, loading: true }));
+    supabase.functions
+      .invoke("slack-activity-check", { body: { mode: "status", deal_id: dealId } })
+      .then(({ data }) => {
+        if (cancel) return;
+        setSlackActivity({
+          count: data?.count ?? 0,
+          isInactive: Boolean(data?.isInactive),
+          loading: false,
+        });
+      })
+      .catch(() => !cancel && setSlackActivity({ count: 0, isInactive: false, loading: false }));
+    return () => { cancel = true; };
+  }, [dealId, slackChannelId, isActiveDeal]);
+
+  const slackKpi = (() => {
+    if (!slackChannelId) return { label: "Slack Activity", value: "Not linked", caption: "no channel", icon: MessageSquare, tone: undefined };
+    if (slackActivity.loading) return { label: "Slack Activity", value: "…", caption: "checking", icon: MessageSquare, tone: undefined };
+    if (slackActivity.isInactive) return { label: "Slack Activity", value: "Inactive", caption: `${slackActivity.count} msg / 7d`, icon: AlertTriangle, tone: "warning" as const };
+    return { label: "Slack Activity", value: "Active", caption: `${slackActivity.count} msgs / 7d`, icon: MessageSquare, tone: "positive" as const };
+  })();
+
   const mbrKpis = [
     {
       label: "MBR Coverage",
@@ -554,12 +589,13 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry, deleteMBREntry, 
       icon: mbrHealth.tone === "positive" ? TrendingUp : AlertTriangle,
       tone: mbrHealth.tone,
     },
+    slackKpi,
   ];
 
   return (
     <div className="animate-fade-in space-y-4">
       {/* Snapshot */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         {mbrKpis.map(card => {
           const Icon = card.icon;
           const tone = (card as any).tone as "positive" | "warning" | undefined;
@@ -591,6 +627,18 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry, deleteMBREntry, 
           );
         })}
       </div>
+
+      {/* Slack inactivity alert */}
+      {isActiveDeal && slackChannelId && slackActivity.isInactive && !slackActivity.loading && (
+        <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
+          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+          <span>
+            <span className="font-semibold">Slack channel flagged as inactive</span> — only {slackActivity.count} team
+            message{slackActivity.count === 1 ? "" : "s"} in the last 7 days (bot messages excluded). The team will be
+            notified in the channel.
+          </span>
+        </div>
+      )}
 
       {/* Missing month warning */}
       {!hasMBRThisMonth && (
