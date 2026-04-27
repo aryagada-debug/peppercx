@@ -710,6 +710,45 @@ export type Database = {
         }
         Relationships: []
       }
+      personal_todos: {
+        Row: {
+          created_at: string
+          done: boolean
+          due_date: string | null
+          id: string
+          notes: string
+          priority: string
+          sort_order: number
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          done?: boolean
+          due_date?: string | null
+          id?: string
+          notes?: string
+          priority?: string
+          sort_order?: number
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          done?: boolean
+          due_date?: string | null
+          id?: string
+          notes?: string
+          priority?: string
+          sort_order?: number
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
