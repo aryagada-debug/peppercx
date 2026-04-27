@@ -5,8 +5,10 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import {
-  Trash2, Bold, Italic, List, CheckSquare, Link, Plus, Clock, ChevronDown, ChevronRight, X,
+  Trash2, Bold, Italic, List, CheckSquare, Link, Plus, Clock, ChevronDown, ChevronRight, X, Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SubTask } from "./TaskKanban";
@@ -31,7 +33,7 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: TaskData) => void;
-  assignees: { id: string; name: string; staffed?: boolean }[];
+  assignees: { id: string; name: string; staffed?: boolean; designation?: string }[];
   defaultStage?: string;
   initial?: TaskData & { loggedHours?: number };
   title?: string;
@@ -101,7 +103,7 @@ function SubtaskRow({
   onDelete,
 }: {
   subtask: SubTask;
-  assignees: { id: string; name: string; staffed?: boolean }[];
+  assignees: { id: string; name: string; staffed?: boolean; designation?: string }[];
   onUpdate: (updates: Partial<SubTask>) => void;
   onDelete: () => void;
 }) {
