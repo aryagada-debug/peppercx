@@ -2188,8 +2188,8 @@ export default function DealDetail() {
                               <th className="text-left py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Pod</th>
                               <th className="text-right py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Allocation</th>
                               <th className="text-right py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Hrs/Week</th>
-                              <th className="text-right py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Rate/Hr</th>
-                              <th className="text-right py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Cost/Week</th>
+                              {isAdmin && <th className="text-right py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Rate/Hr</th>}
+                              {isAdmin && <th className="text-right py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Cost/Week</th>}
                               <th className="text-right py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Rev Managed</th>
                               <th className="w-16"></th>
                             </tr>
