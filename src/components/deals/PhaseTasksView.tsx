@@ -459,7 +459,7 @@ interface Props {
   tasks: DealTask[];
   dealId: string;
   deal: any;
-  assignees: { id: string; name: string }[];
+  assignees: { id: string; name: string; staffed?: boolean }[];
   onAdd: (task: Omit<DealTask, "id">) => void;
   onAddBulk: (tasks: Omit<DealTask, "id">[]) => void;
   onUpdate: (id: string, updates: Partial<DealTask>) => void;
