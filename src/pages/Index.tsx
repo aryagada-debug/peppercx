@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils";
 import { KPISkeleton, AlertsSkeleton, PodTableSkeleton, HeatmapSkeleton } from "@/components/dashboard/DashboardSkeleton";
 import { supabase } from "@/integrations/supabase/client";
 import type { RGYRow, RGYStatus, KPI, DashboardAlert, PodMember } from "@/types/dashboard";
+import { FinanceTargetsCard } from "@/components/targets/FinanceTargetsCard";
+import { DealTargetsTable } from "@/components/targets/DealTargetsTable";
 
 const ACTIVE_STATUSES = ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"];
 const RGY_DIMS = ["Internal", "Customer", "Delivery", "Consumption"] as const;
@@ -277,6 +279,12 @@ export default function Dashboard() {
               {kpis.map((kpi) => <MetricCard key={kpi.id} {...kpi} />)}
             </div>
           )}
+        </div>
+
+        {/* Finance Targets */}
+        <div className="mb-8 space-y-4">
+          <FinanceTargetsCard monthYYYYMM={selectedMonth} />
+          <DealTargetsTable monthYYYYMM={selectedMonth} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
