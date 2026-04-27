@@ -604,6 +604,9 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry, deleteMBREntry, 
 
   return (
     <div className="animate-fade-in space-y-4">
+      {/* AI 2-line summary of latest MBR notes */}
+      <LatestMBRSummaryCard entries={sorted} />
+
       {/* Snapshot */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         {mbrKpis.map(card => {
