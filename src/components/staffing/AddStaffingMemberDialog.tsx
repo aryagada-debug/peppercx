@@ -328,6 +328,7 @@ export function AddStaffingMemberDialog({
                                 <Progress value={a.allocationPct} className="h-1.5" />
                               </div>
                               <span className="text-xs font-mono text-foreground w-10 text-right shrink-0">{a.allocationPct}%</span>
+                              <span className="text-[10px] font-mono text-muted-foreground w-10 text-right shrink-0">{(a.allocationPct / 100 * 40).toFixed(1)}h</span>
                               <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-positive border-positive/30 shrink-0">
                                 {assignDeal?.dealStatus === "Deal Completed Successfully" ? "Completed" : "Active"}
                               </Badge>
