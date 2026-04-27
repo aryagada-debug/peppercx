@@ -31,7 +31,7 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: TaskData) => void;
-  assignees: { id: string; name: string }[];
+  assignees: { id: string; name: string; staffed?: boolean }[];
   defaultStage?: string;
   initial?: TaskData & { loggedHours?: number };
   title?: string;
@@ -101,7 +101,7 @@ function SubtaskRow({
   onDelete,
 }: {
   subtask: SubTask;
-  assignees: { id: string; name: string }[];
+  assignees: { id: string; name: string; staffed?: boolean }[];
   onUpdate: (updates: Partial<SubTask>) => void;
   onDelete: () => void;
 }) {
