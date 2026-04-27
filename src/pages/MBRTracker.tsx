@@ -15,6 +15,7 @@ import { MBRDetailDialog } from "@/components/mbr/MBRDetailDialog";
 import { ScheduleOnlyDialog } from "@/components/mbr/ScheduleOnlyDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { ColHeader } from "@/components/table/ColHeader";
+import { CalendarConnectButton } from "@/components/calendar/CalendarConnectButton";
 
 const PODS = ["All", "Integrated", "India B2B", "US B2B", "FMCG", "BFSI", "Unassigned"] as const;
 type Pod = typeof PODS[number];
@@ -268,6 +269,7 @@ export default function MBRTracker() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <CalendarConnectButton />
             <Button
               variant="outline"
               size="sm"
