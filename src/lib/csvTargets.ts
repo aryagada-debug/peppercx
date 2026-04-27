@@ -337,12 +337,11 @@ export function attainmentTone(pct: number | null): string {
   return "text-destructive";
 }
 
-// Backwards-compatible: name kept as `formatINR` but it now respects the
-// user's globally-selected display currency (INR or USD). The underlying
-// data is always stored in INR.
-import { formatMoneyActive } from "./currency";
+// Format an INR amount (always in ₹). Currency conversion happens only
+// at the per-input level via <CurrencyInput>; display values stay in INR.
+import { formatMoney } from "./currency";
 export function formatINR(n: number): string {
-  return formatMoneyActive(n, { compact: true });
+  return formatMoney(n, "INR", { compact: true });
 }
 
 export const METRIC_LABELS: Record<Metric, string> = {

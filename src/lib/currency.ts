@@ -59,27 +59,6 @@ export function formatMoney(
   return currency === "USD" ? formatUsdFull(v) : formatInrFull(v);
 }
 
-// ---------------------------------------------------------------------------
-// Active currency (module-level mirror of CurrencyContext).
-// Lets non-React utilities (like `formatINR` in csvTargets) honour the user's
-// chosen currency without requiring every call site to be refactored.
-// ---------------------------------------------------------------------------
-
-let _activeCurrency: Currency = "INR";
-
-export function setActiveCurrency(c: Currency) {
-  _activeCurrency = c;
-}
-
-export function getActiveCurrency(): Currency {
-  return _activeCurrency;
-}
-
-/** Format using whatever currency the user currently has selected. */
-export function formatMoneyActive(amountInInr: number, opts?: FormatOpts): string {
-  return formatMoney(amountInInr, _activeCurrency, opts);
-}
-
 export const CURRENCY_SYMBOL: Record<Currency, string> = {
   INR: "₹",
   USD: "$",

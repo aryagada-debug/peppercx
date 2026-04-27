@@ -534,7 +534,7 @@ function KpiTile({
             <Icon className="h-3.5 w-3.5" />
           </div>
         </div>
-        <div className="text-xl font-semibold text-foreground font-mono tabular-nums tracking-tight">
+        <div className="text-3xl font-semibold text-foreground font-mono tabular-nums tracking-tight leading-tight">
           {editor ? editor : (value || "—")}
         </div>
         {sublabel && (
