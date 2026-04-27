@@ -1,43 +1,47 @@
-## 4 fixes
+## 1) Fix the cursor in Task Description (Clients & Deals → Tasks)
 
-### 1. Home tab — assigned tasks not appearing
+**Root cause:** `RichTextEditor` in `src/components/deals/TaskFormDialog.tsx` is a controlled `contentEditable` that calls `dangerouslySetInnerHTML={{ __html: value }}` on every render. On each keystroke it fires `onChange` → parent state updates → component re-renders → React rewrites the editor's HTML → the browser caret resets to position 0 (and characters often get reversed/dropped).
 
-**Root cause** (verified against the DB): The filter in `src/pages/Home.tsx` builds a PostgREST `.or()` string like `assignee.ilike.sneha iyer,assignee.ilike.shashwat sood`. Names contain **spaces** (and assignees can contain commas), which break PostgREST's `or()` parser — so the query returns nothing for users like "Sneha Iyer". Their `staffing_person_id` is also null in `profiles`, so the email/staffing-name aliases add nothing.
+**Fix:** Make the editor uncontrolled-on-input.
+- Set initial HTML once via a ref (in a `useEffect` that only runs when `value` changes from *outside* — i.e. when the incoming `value` differs from the editor's current `innerHTML`). 
+- Drop `dangerouslySetInnerHTML` from the live render so React no longer overwrites the DOM on every keystroke.
+- Keep `onInput` → `onChange(editorRef.current.innerHTML)` so parent state stays in sync for save.
+- Apply the same fix to the `RichTextEditor` usage inside `SubtaskRow` (subtask description) so subtask typing is also smooth.
 
-**Fix** in `src/pages/Home.tsx`:
+This preserves caret position, IME composition, and selection while keeping the parent form state authoritative on save.
 
-- Replace the fragile `.or(orFilter)` with a robust client-side match: fetch `deal_tasks` / `cx_tasks` filtered with `.in("assignee", aliasesWithOriginalCasing)` using all known name variants (display_name + staffing_people.name + email), then additionally filter in JS using the case-insensitive `matchesMe()` helper (which already exists). This avoids PostgREST `or()` quoting pitfalls.
-- Also fetch `staffing_people` row by `email = user.email` as a fallback when `profiles.staffing_person_id` is null, so the alias set is populated even for users (like Sneha Iyer) who haven't been linked yet.
+## 2) Dashboard — replace RGY Heatmap with a VSD → BOPM rollup table
 
-### 2. MBR Tracker — remove `%` above each dot in Month-on-Month
+**Remove:**
+- The "RGY Health — Deal Heatmap" card and the `RGYHeatmap` import in `src/pages/Index.tsx`.
 
-In `src/pages/MBRTracker.tsx` (around line 529–543), the **client header row** in the MoM table renders `{pct}%` above each month. Remove that `<td>` content (render an empty cell, or just the dot summary without the percentage). The per-deal `<StatusDot />` rows below stay as-is.
+**Add:** A new card "RGY Health by VSD" containing an expandable table.
 
-### 3. Hide Onboarding from the side panel
+**Data source (already fetched in `Index.tsx`):**
+- `staffing_deals` → `vsd`, `principal_bopm`, `senior_bopm`, `bopm` per active deal.
+- `deal_rgy_weekly` → latest week per deal; we'll roll a deal up to a single status using the worst across the 4 dimensions (Internal, Customer, Delivery, Consumption): R if any R, else Y if any Y, else G if any G, else NA. Deals with no RGY entry are excluded from counts (shown as "—" if needed).
 
-In `src/components/layout/AppSidebar.tsx`, remove the `onboarding` item from the `Health & Reviews` section (line 37). The `/onboarding` route in `App.tsx` and its route-visibility entry stay intact so direct URLs still work — just hidden from the sidebar. Delete it entirely
+**Aggregation:**
+- Group active deals by `vsd` (fallback "Unassigned").
+- For each VSD, count R / Y / G across their deals.
+- Within each VSD, sub-group by BOPM owner = `principal_bopm` || `senior_bopm` || `bopm` || "Unassigned" — count R / Y / G per BOPM.
 
-### 4. Sync Dashboard with live data
+**UI (table):**
+| VSD | Deals | 🔴 R | 🟡 Y | 🟢 G |
+|---|---|---|---|---|
+| Sneha Iyer | 24 | 3 | 5 | 16 |
 
-`src/pages/Index.tsx` is currently 100% mocks (`@/data/dashboardMocks`). Rewrite it to compute everything from Supabase tables already in use elsewhere:
+- Each row has a chevron; clicking expands an indented sub-table with the same columns grouped by Sr/Principal BOPM under that VSD.
+- Sort VSDs by R desc, then Y desc.
+- Numeric cells use the existing R/Y/G semantic colors (text + subtle bg) consistent with the design system.
+- Clicking a BOPM sub-row count (or a "View deals" link) is **out of scope** for this change unless trivial — we'll keep the table read-only for now.
 
-- **KPIs** (Active Deals, Total MRR, Total Deal Value, Attainment): query `staffing_deals` filtered to active statuses (`Active Deal`, `New Deal in SLA/PO`, `Deal Disputed`); sum `mrr` and `total_deal_value`. Attainment = sum(`actuals`) / sum(`mrr`) for current month from `deal_revenue_monthly`.
-- **Alerts** (replace static list):
-  - Red RGY count → `deal_rgy_weekly` rows where any dimension = 'R' for current week.
-  - MBRs overdue → `mbr_entries` with `status='Pending'` & `week_start` older than 35 days, joined to active deals.
-  - Slack inactive channels → `slack_inactivity_nudges` from the last 7 days.
-  - Unstaffed deals → active `staffing_deals` with no `staffing_assignments` rows.
-- **Pod Utilization**: aggregate `staffing_weekly_allocations` by `person_id` for the current week → join `staffing_people` for name/role; "deals" = distinct `deal_id` count for that person; utilization = sum of `allocation_pct`.
-- **RGY Heatmap**: latest `deal_rgy_weekly` per active deal, mapped onto the existing `RGYRow` shape so `RGYHeatmap` renders unchanged.
-- Add a small loading skeleton (`DashboardSkeleton` already exists). `DealDrawer` keeps working since it consumes the same `RGYRow` shape.
-- Delete `src/data/dashboardMocks.ts` only after verifying no other importers via `rg`.
+**Files to edit:**
+- `src/pages/Index.tsx` — remove heatmap section + imports; add `vsdRollup` memo and a new `<VsdRgyTable>` component (defined inline or in `src/components/dashboard/VsdRgyTable.tsx`).
+- `src/components/dashboard/RGYHeatmap.tsx` — leave file in place (still used elsewhere on `/rgy-health` if applicable); we just stop importing it on the dashboard.
 
-### Files to edit
+**No DB / migration changes required.** All needed fields are already being queried.
 
-- `src/pages/Home.tsx` — robust assignee matching (no PostgREST `or` on names).
-- `src/pages/MBRTracker.tsx` — remove `{pct}%` cell in MoM client header row.
-- `src/components/layout/AppSidebar.tsx` — drop the Onboarding nav item.
-- `src/pages/Index.tsx` — rewrite to use live Supabase queries; reuse `DashboardSkeleton`, `MetricCard`, `RGYHeatmap`, `UtilizationBar`, `DealDrawer`.
-- (cleanup) `src/data/dashboardMocks.ts` — remove if no longer referenced.
-
-No DB migrations required.
+## Out of scope
+- Editing RGY status from this table (the existing RGY Health page handles that).
+- Changing the Pod Utilization card or KPIs.
