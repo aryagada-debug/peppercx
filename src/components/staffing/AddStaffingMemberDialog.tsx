@@ -356,10 +356,13 @@ export function AddStaffingMemberDialog({
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Allocation %</label>
-                    <Input type="number" min={1} max={100} value={allocationPct}
-                      onChange={e => setAllocationPct(Math.max(1, Math.min(100, Number(e.target.value) || 0)))} className="h-8 text-sm" />
-                    {newTotal > 100 && <p className="text-[10px] text-warning mt-1">⚠ Total will be {newTotal}%</p>}
+                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Hrs / Week</label>
+                    <Input type="number" min={0} max={40} step="0.5" value={(allocationPct / 100 * 40).toFixed(1)}
+                      onChange={e => {
+                        const hrs = Math.max(0, Math.min(40, Number(e.target.value) || 0));
+                        setAllocationPct(Math.round((hrs / 40) * 100));
+                      }} className="h-8 text-sm" />
+                    <p className="text-[10px] text-muted-foreground mt-1">= {allocationPct}% allocation{newTotal > 100 ? ` · ⚠ Total ${newTotal}%` : ""}</p>
                   </div>
                   <div>
                     <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Type</label>
