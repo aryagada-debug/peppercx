@@ -617,6 +617,39 @@ export type Database = {
         }
         Relationships: []
       }
+      mbr_calendar_links: {
+        Row: {
+          created_at: string
+          google_calendar_id: string
+          google_event_id: string
+          html_link: string | null
+          id: string
+          last_synced_at: string
+          mbr_entry_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          google_calendar_id?: string
+          google_event_id: string
+          html_link?: string | null
+          id?: string
+          last_synced_at?: string
+          mbr_entry_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          google_calendar_id?: string
+          google_event_id?: string
+          html_link?: string | null
+          id?: string
+          last_synced_at?: string
+          mbr_entry_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       mbr_entries: {
         Row: {
           action_items: Json | null
