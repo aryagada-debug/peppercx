@@ -5,14 +5,118 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import {
-  Trash2, Bold, Italic, List, CheckSquare, Link, Plus, Clock, ChevronDown, ChevronRight, X,
+  Trash2, Bold, Italic, List, CheckSquare, Link, Plus, Clock, ChevronDown, ChevronRight, X, Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SubTask } from "./TaskKanban";
 
 const STAGES = ["To Do", "In Progress", "In Review", "Done", "Dropped"];
 const URGENCIES = ["Low", "Medium", "High", "Critical"];
+
+type Assignee = { id: string; name: string; staffed?: boolean; designation?: string };
+
+/* ── Searchable Assignee Combobox ── */
+function AssigneeCombobox({
+  value,
+  onChange,
+  assignees,
+  placeholder = "Select assignee",
+  triggerClassName,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  assignees: Assignee[];
+  placeholder?: string;
+  triggerClassName?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const staffed = assignees.filter(a => a.staffed !== false);
+  const others = assignees.filter(a => a.staffed === false);
+  const selected = assignees.find(a => a.name === value);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-left ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+            triggerClassName,
+          )}
+        >
+          <span className={cn("truncate", !selected && "text-muted-foreground")}>
+            {selected ? (
+              <span>
+                {selected.name}
+                {selected.designation && (
+                  <span className="text-muted-foreground"> · {selected.designation}</span>
+                )}
+              </span>
+            ) : placeholder}
+          </span>
+          <ChevronDown className="h-4 w-4 opacity-50 shrink-0 ml-2" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="p-0 w-[320px]" align="start">
+        <Command>
+          <CommandInput placeholder="Search by name or designation…" />
+          <CommandList>
+            <CommandEmpty>No people found.</CommandEmpty>
+            <CommandGroup>
+              <CommandItem
+                value="unassigned"
+                onSelect={() => { onChange(""); setOpen(false); }}
+              >
+                <Check className={cn("mr-2 h-4 w-4", !value ? "opacity-100" : "opacity-0")} />
+                Unassigned
+              </CommandItem>
+            </CommandGroup>
+            {staffed.length > 0 && (
+              <CommandGroup heading="Staffed on this deal">
+                {staffed.map(a => (
+                  <CommandItem
+                    key={a.id}
+                    value={`${a.name} ${a.designation || ""}`}
+                    onSelect={() => { onChange(a.name); setOpen(false); }}
+                  >
+                    <Check className={cn("mr-2 h-4 w-4", value === a.name ? "opacity-100" : "opacity-0")} />
+                    <div className="flex flex-col min-w-0">
+                      <span className="truncate">{a.name}</span>
+                      {a.designation && (
+                        <span className="text-[11px] text-muted-foreground truncate">{a.designation}</span>
+                      )}
+                    </div>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+            {others.length > 0 && (
+              <CommandGroup heading="Other people">
+                {others.map(a => (
+                  <CommandItem
+                    key={a.id}
+                    value={`${a.name} ${a.designation || ""}`}
+                    onSelect={() => { onChange(a.name); setOpen(false); }}
+                  >
+                    <Check className={cn("mr-2 h-4 w-4", value === a.name ? "opacity-100" : "opacity-0")} />
+                    <div className="flex flex-col min-w-0">
+                      <span className="truncate">{a.name}</span>
+                      {a.designation && (
+                        <span className="text-[11px] text-muted-foreground truncate">{a.designation}</span>
+                      )}
+                    </div>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 export interface TaskData {
   title: string;
@@ -31,7 +135,7 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: TaskData) => void;
-  assignees: { id: string; name: string; staffed?: boolean }[];
+  assignees: { id: string; name: string; staffed?: boolean; designation?: string }[];
   defaultStage?: string;
   initial?: TaskData & { loggedHours?: number };
   title?: string;
@@ -101,7 +205,7 @@ function SubtaskRow({
   onDelete,
 }: {
   subtask: SubTask;
-  assignees: { id: string; name: string; staffed?: boolean }[];
+  assignees: { id: string; name: string; staffed?: boolean; designation?: string }[];
   onUpdate: (updates: Partial<SubTask>) => void;
   onDelete: () => void;
 }) {
@@ -120,18 +224,15 @@ function SubtaskRow({
           placeholder="Subtask title"
           className="h-7 text-sm flex-1"
         />
-        <Select
-          value={subtask.assignee || "__unassigned__"}
-          onValueChange={v => onUpdate({ assignee: v === "__unassigned__" ? "" : v })}
-        >
-          <SelectTrigger className="h-7 w-[120px] text-xs">
-            <SelectValue placeholder="Assign" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__unassigned__">Unassigned</SelectItem>
-            {assignees.map(a => <SelectItem key={a.id} value={a.name}>{a.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <div className="w-[160px]">
+          <AssigneeCombobox
+            value={subtask.assignee || ""}
+            onChange={(v) => onUpdate({ assignee: v })}
+            assignees={assignees}
+            placeholder="Assign"
+            triggerClassName="h-7 text-xs px-2"
+          />
+        </div>
         <button type="button" onClick={() => setExpanded(!expanded)} className="p-1 hover:bg-accent rounded">
           {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
         </button>
@@ -235,28 +336,11 @@ export function TaskFormDialog({ open, onOpenChange, onSubmit, assignees, defaul
           {/* Assignee */}
           <div className="space-y-1">
             <Label className="text-caption text-muted-foreground">Assignee</Label>
-            <Select value={form.assignee || "__unassigned__"} onValueChange={v => set("assignee", v === "__unassigned__" ? "" : v)}>
-              <SelectTrigger><SelectValue placeholder="Select assignee" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__unassigned__">Unassigned</SelectItem>
-                {(() => {
-                  const staffed = assignees.filter(a => a.staffed !== false);
-                  const others = assignees.filter(a => a.staffed === false);
-                  return (
-                    <>
-                      {staffed.length > 0 && (
-                        <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Staffed on this deal</div>
-                      )}
-                      {staffed.map(a => <SelectItem key={a.id} value={a.name}>{a.name}</SelectItem>)}
-                      {others.length > 0 && (
-                        <div className="px-2 py-1 mt-1 border-t border-border text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Other people</div>
-                      )}
-                      {others.map(a => <SelectItem key={a.id} value={a.name}>{a.name}</SelectItem>)}
-                    </>
-                  );
-                })()}
-              </SelectContent>
-            </Select>
+            <AssigneeCombobox
+              value={form.assignee}
+              onChange={(v) => set("assignee", v)}
+              assignees={assignees}
+            />
           </div>
 
           {/* Dates + Estimated Hours */}
