@@ -1,132 +1,67 @@
-## Goal
+## Scope
+Enhance the MBR section inside the Deal Detail (Clients & Deals → Deal → MBR tab) and refresh the Overview tab KPIs.
 
-Let each user connect their own Google Calendar and have it sync **two-way** with:
+---
 
-1. **Home tab** — show personal events alongside tasks; "Connect Calendar" button + sync status.
-2. **MBR Tracker** (`/mbr-tracker`) — schedule an MBR → create the Google Calendar event automatically; updates in either system reflect in the other.
-3. **Clients & Deals → Deal Detail → MBR tab** — same scheduling/sync as MBR Tracker.
+### 1. Dynamic file-name display for the MBR PPT/PDF link
 
-## What's already in place
+**Where**: MBR History table (`src/pages/DealDetail.tsx`, "PPT Link" column) and `MBRDetailDialog.tsx`.
 
-- `lovable.auth.signInWithOAuth("google", ...)` integration.
-- Edge function `google-calendar-proxy` (read-only, lists events for next ~2 months).
-- `CxCalendarPanel` already does Google Calendar OAuth and stores `provider_token` in `localStorage`.
-- MBR scheduling UI: `ScheduleOnlyDialog`, `MBRInputDrawer` (set `scheduledDate`).
+**Behavior**:
+- Stored field `mbr_ppt_link` stays a URL string (no schema change).
+- Render a derived file name from the URL instead of the raw link:
+  - Decode the last URL path segment, strip query params/anchors.
+  - If the name has an extension (`.pptx`, `.ppt`, `.pdf`, `.key`, `.gslides`, etc.), show the file name with a small icon that switches by extension (PPT icon for ppt/pptx, PDF icon for pdf, generic file icon otherwise).
+  - For Google Drive / Slides / Dropbox links where no filename is in the URL, fall back to a friendly label ("Google Slides", "Google Drive file", "Dropbox file", or hostname).
+  - Hover tooltip shows the full URL; clicking opens it in a new tab.
+- Editing UX unchanged: clicking edit lets the user paste/replace the URL; the displayed label re-derives automatically.
+- Add a tiny helper `getLinkLabel(url)` + `getFileIcon(url)` colocated in a new `src/lib/fileLink.ts`.
 
-## Limitations & approach
+### 2. AI-generated 2-line summary banner above MBR History
 
-Google's `provider_token` from `supabase.auth` expires in ~1h and there is no refresh token persisted. For a robust 2-way sync we need:
+**Where**: Top of the Deal MBR tab (`DealMBRTab` in `src/pages/DealDetail.tsx`), above the KPIs/banners.
 
-- **Per-user token storage** in a new `user_calendar_tokens` table (access_token, refresh_token, expiry, scopes, google_event_id mapping for MBRs).
-- A **token refresh** edge function that exchanges the stored refresh_token for a new access_token using a Google OAuth client (Client ID / Client Secret).
-- This requires **Google OAuth credentials** (Client ID + Secret) configured for our app with scopes:
-  - `https://www.googleapis.com/auth/calendar.events`
-  - `https://www.googleapis.com/auth/calendar.readonly`
+**Behavior**:
+- A compact card titled "Latest MBR Summary" showing a 2-line AI summary derived from the most recent MBR entry's `notes` (fallback: `aiSummary` if notes empty; hide entirely if neither exists).
+- Auto-generates when notes change. Cached on the entry itself.
+  - Reuse `mbr_entries.ai_summary` to persist the generated 2-liner so we don't regenerate on every page visit.
+  - Trigger generation when: the most recent entry has `notes` but no `ai_summary`, OR `notes` were updated after `ai_summary` was last written. (We'll piggyback on `updated_at` vs a new lightweight check: regenerate if `ai_summary` is empty; otherwise show the cached one. A "Regenerate" pill button lets the user force a refresh.)
+- Backend: new edge function `mbr-summarize-notes` (or extend the existing `mbr-summarize`) that:
+  - Accepts `{ mbr_entry_id, notes }`.
+  - Calls Lovable AI Gateway (`google/gemini-3-flash-preview`) with a strict 2-sentence system prompt.
+  - Writes the result back to `mbr_entries.ai_summary` and returns it.
+- Frontend invokes the function via `supabase.functions.invoke` and renders a skeleton while loading. Errors show a muted "Summary unavailable" line, no toast spam.
 
-### Two paths for credentials
+### 3. Modernize Overview tab KPIs
 
-- **Path A (recommended, simpler now)**: Use the Google sign-in token already produced by Lovable Cloud's managed Google OAuth, expand `extraParams.scope` to include calendar scopes, and rely on the in-memory `provider_token` (re-prompt user when it expires). No extra secrets. **Limitation: server-side cron sync not possible; only sync while user is in-app.**
-- **Path B (full 2-way background sync)**: Add Google OAuth Client ID + Secret as project secrets. Implement our own OAuth code-exchange route that returns refresh_tokens, store them per user, run server-side sync. **Requires user to provide GCP OAuth credentials.**
+**Where**: `src/pages/DealDetail.tsx` Overview section — the "Financial Snapshot" (4 cards) and "YTD Financial Summary" (4 cards).
 
-I'll **default to Path A** (no setup friction). If the user later wants background/cron sync, we add Path B.
+**New look** (keeps editability intact):
+- Replace the flat `bg-secondary/50 p-4` blocks with a richer card:
+  - Rounded-xl card with subtle border + soft gradient background tied to KPI tone.
+  - Top row: small colored icon chip (₹ for money, 📈 for consumed, 🧾 for invoiced, ✅ for received, ⚠️ for outstanding) + label in uppercase tracking.
+  - Big tabular-nums value in `text-2xl font-semibold`.
+  - Sub-line: existing caption + a tiny delta/context chip where applicable (e.g. Outstanding shows red chip when > 0, Received shows % of invoiced as a thin progress bar underneath).
+  - Hover: subtle lift (`hover:-translate-y-0.5 transition`).
+- Financial Snapshot cards (MRR / Total / Retainer / Non-Retainer): same visual system, formatted via `fmtCurrency`, edit-on-click preserved.
+- All values right-aligned, monospace tabular-nums for clean comparison.
+- Reuse existing tokens (`text-positive`, `text-warning`, `text-destructive`, `bg-card`, `border-border`) — no new colors introduced.
 
-## Implementation (Path A)
+---
 
-### 1. New `useGoogleCalendar` hook (`src/hooks/useGoogleCalendar.ts`)
+## Technical Details
 
-- Centralizes connect/disconnect, token storage (`gcal_provider_token` in localStorage), token validity check.
-- `connect()` → `lovable.auth.signInWithOAuth("google", { extraParams: { prompt: "consent", access_type: "offline", scope: "openid email profile https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly" } })`.
-- `listEvents(timeMin, timeMax)` → calls `google-calendar-proxy`.
-- `createEvent({ summary, description, start, end, attendees })` → new edge function `google-calendar-create`.
-- `updateEvent(eventId, patch)` → new edge function `google-calendar-update`.
-- `deleteEvent(eventId)` → new edge function `google-calendar-delete`.
-- Replaces the inline logic in `CxCalendarPanel` so all three surfaces share it.
+**Files to edit**
+- `src/pages/DealDetail.tsx`
+  - `DealMBRTab`: add `LatestMBRSummaryCard` component at the top; swap PPT-link cell to use new label helper.
+  - Overview section (~lines 1505–1557): rebuild Financial Snapshot + YTD cards using a new local `KpiTile` component (or shared one).
+- `src/components/mbr/MBRDetailDialog.tsx`: render PPT link with file-name + icon when not editing.
+- `src/lib/fileLink.ts` (new): `getLinkLabel(url)`, `getFileIcon(url)`, extension classification.
+- `supabase/functions/mbr-summarize-notes/index.ts` (new edge function) — uses `LOVABLE_API_KEY`, model `google/gemini-3-flash-preview`, deterministic 2-sentence prompt, writes to `mbr_entries.ai_summary`.
 
-### 2. New edge functions (CORS + JWT-validating)
+**No DB migration required** (reusing `mbr_entries.ai_summary` text column).
 
-- `supabase/functions/google-calendar-create/index.ts` — POST `{access_token, summary, description, start, end, attendees?}` → `POST https://www.googleapis.com/calendar/v3/calendars/primary/events`. Returns `{event_id, htmlLink}`.
-- `supabase/functions/google-calendar-update/index.ts` — PATCH a specific eventId.
-- `supabase/functions/google-calendar-delete/index.ts` — DELETE a specific eventId.
-- Extend `google-calendar-proxy` to accept optional `timeMin/timeMax` overrides and `q` (search by deal/MBR keyword).
+**Edge function prompt (sketch)**:
+> "Summarize the following MBR notes in exactly two short sentences (max ~40 words total). Focus on customer sentiment, key risks, and next actions. No preamble, no bullets."
 
-### 3. DB migration
-
-Add a small mapping table so we know which Google event corresponds to which MBR:
-
-```sql
-create table public.mbr_calendar_links (
-  id uuid primary key default gen_random_uuid(),
-  mbr_entry_id uuid not null,        -- references mbr_entries.id (logical)
-  google_event_id text not null,
-  google_calendar_id text not null default 'primary',
-  user_id uuid not null,             -- owner who created/owns the sync
-  last_synced_at timestamptz not null default now(),
-  unique(mbr_entry_id, user_id)
-);
-alter table public.mbr_calendar_links enable row level security;
-create policy "Own links select" on public.mbr_calendar_links for select to authenticated using (auth.uid() = user_id);
-create policy "Own links insert" on public.mbr_calendar_links for insert to authenticated with check (auth.uid() = user_id);
-create policy "Own links update" on public.mbr_calendar_links for update to authenticated using (auth.uid() = user_id);
-create policy "Own links delete" on public.mbr_calendar_links for delete to authenticated using (auth.uid() = user_id);
-```
-
-### 4. Home tab (`src/pages/Home.tsx`)
-
-- New compact card **"My Calendar"** at the top of the right column:
-  - If not connected → "Connect Google Calendar" button (calls `useGoogleCalendar.connect`).
-  - If connected → "Synced — {N} upcoming events" + list next 5 events for today/this week + "Disconnect".
-  - Selecting an event opens it in Google Calendar (`htmlLink`).
-- Reuse the existing **Meetings & MBRs** card; merge live Google Calendar events with the upcoming MBRs already shown (dedupe by title + date).
-
-### 5. MBR Tracker (`src/pages/MBRTracker.tsx`)
-
-- Header gets a small "Calendar: Connected ✓ / Connect" pill.
-- When user opens `ScheduleOnlyDialog` or `MBRInputDrawer` and saves a `scheduledDate`:
-  - If connected → after `onSave` finishes, **upsert a Google Calendar event**:
-    - Title: `MBR — {deal.account} ({deal.dealName})`
-    - Description: includes deal id, VSD, PC code, link back to `/deals/{id}?tab=MBR`.
-    - Start/end: scheduledDate at default 30 min slot (or pick from dialog — see below).
-    - Attendees: optional input field for emails.
-  - Persist mapping in `mbr_calendar_links`.
-  - On subsequent edits → `update`. On clearing schedule → `delete`.
-- Add a **time picker + duration** to `ScheduleOnlyDialog` and `MBRInputDrawer` so we can create real calendar events (not all-day). Default: next available 11:00–11:30 AM.
-- **Inbound sync (calendar → MBR)**: on MBR Tracker mount, if connected, fetch GCal events whose summary starts with `MBR —`  for the visible window, match by `mbr_calendar_links.google_event_id`, and if the event's start date differs from `mbr_entries.scheduled_date`, update `mbr_entries.scheduled_date` to match (so dragging the meeting in Google Calendar reflects in the tracker).
-
-### 6. Deal Detail → MBR tab
-
-- The MBR tab already uses `MBRInputDrawer`/`ScheduleOnlyDialog`, so once those are wired to the new hook the deal-level MBR sync is automatic. Add the same "Calendar: Connected" pill in the tab header.
-
-### 7. Refactor `CxCalendarPanel`
-
-- Switch it to use `useGoogleCalendar` instead of its inline logic so all three surfaces share state (connection status, token, event cache).
-
-## Out of scope (for now)
-
-- Background server-side polling (requires Path B / refresh tokens).
-- Recurring MBR events (we'll create single events; recurrence can be a follow-up). - Keep this in scope
-- Calendars other than `primary`.
-
-## Files to be created/edited
-
-**Created**
-
-- `src/hooks/useGoogleCalendar.ts`
-- `supabase/functions/google-calendar-create/index.ts`
-- `supabase/functions/google-calendar-update/index.ts`
-- `supabase/functions/google-calendar-delete/index.ts`
-- `supabase/migrations/<timestamp>_mbr_calendar_links.sql`
-
-**Edited**
-
-- `src/pages/Home.tsx` — add My Calendar card + merge events with MBR list.
-- `src/pages/MBRTracker.tsx` — connect pill + inbound sync on mount.
-- `src/components/mbr/ScheduleOnlyDialog.tsx` — add time + duration; trigger GCal upsert.
-- `src/components/mbr/MBRInputDrawer.tsx` — add time + duration; trigger GCal upsert.
-- `src/pages/DealDetail.tsx` (MBR tab) — connect pill (uses same hook).
-- `src/components/cx/CxCalendarPanel.tsx` — refactor to use shared hook.
-- `supabase/functions/google-calendar-proxy/index.ts` — accept optional `timeMin/timeMax/q`.
-
-## Open question for you
-
-Do you want to allow users to add **attendee emails** when scheduling an MBR (so Google sends invites), or should we keep the event on the user's calendar only? I'll default to "optional attendees field, blank by default" unless you say otherwise.  
-Yes I want the users to add attendee emails
+**Out of scope**: changing how PPT links are uploaded, multi-file attachments, summarizing across multiple MBRs (only the most recent entry's notes drive the banner).

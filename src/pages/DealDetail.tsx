@@ -1,6 +1,7 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useParams, Link, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Loader2, Plus, Trash2, Pencil, Check, X, Calendar, Users, Eye, Edit2, ExternalLink, AlertTriangle, ChevronDown, ChevronUp, ChevronRight, Upload, CalendarCheck, Smile, TrendingUp, MessageSquare } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, Trash2, Pencil, Check, X, Calendar, Users, Eye, Edit2, ExternalLink, AlertTriangle, ChevronDown, ChevronUp, ChevronRight, Upload, CalendarCheck, Smile, TrendingUp, MessageSquare, Sparkles, RefreshCw, Wallet, Receipt, BadgeCheck, AlertCircle, Activity, IndianRupee } from "lucide-react";
+import { getLinkLabel, getFileIcon } from "@/lib/fileLink";
 import { format, differenceInCalendarMonths } from "date-fns";
 import { cn } from "@/lib/utils";
 import React, { useState, useMemo, useCallback, useEffect } from "react";
@@ -358,10 +359,19 @@ function InlineLinkEditor({ value, label, onSave }: { value: string | null; labe
   }
 
   if (value) {
+    const FileIco = getFileIcon(value);
+    const display = getLinkLabel(value) || label;
     return (
       <div className="flex items-center gap-1">
-        <a href={value} target="_blank" rel="noopener noreferrer" className="text-xs text-primary font-medium hover:underline inline-flex items-center gap-1">
-          {label} <ExternalLink className="h-3 w-3" />
+        <a
+          href={value}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={value}
+          className="text-xs text-primary font-medium hover:underline inline-flex items-center gap-1 max-w-[180px]"
+        >
+          <FileIco className="h-3 w-3 shrink-0" />
+          <span className="truncate">{display}</span>
         </a>
         <button onClick={() => { setDraft(value); setEditing(true); }} className="p-0.5 opacity-0 group-hover:opacity-100"><Pencil className="h-3 w-3 text-muted-foreground" /></button>
       </div>
@@ -399,6 +409,147 @@ function InlineNotesEditor({ value, onSave }: { value: string | null; onSave: (v
     <button onClick={() => { setDraft(value || ""); setEditing(true); }} className="text-xs text-muted-foreground hover:text-foreground max-w-[150px] truncate text-left">
       {value || "+ Add"}
     </button>
+  );
+}
+
+// ── AI summary of the latest MBR notes (2 sentences) ──
+function LatestMBRSummaryCard({ entries }: { entries: MBREntry[] }) {
+  const latest = useMemo(() => {
+    return entries.find(e => (e.notes && e.notes.trim().length > 10)) || null;
+  }, [entries]);
+
+  const [summary, setSummary] = useState<string>(latest?.aiSummary || "");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const generate = useCallback(async (force = false) => {
+    if (!latest || !latest.notes) return;
+    if (!force && latest.aiSummary && latest.aiSummary.trim().length > 0) {
+      setSummary(latest.aiSummary);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error: fnErr } = await supabase.functions.invoke("mbr-summarize-notes", {
+        body: { mbr_entry_id: latest.id, notes: latest.notes },
+      });
+      if (fnErr) throw fnErr;
+      setSummary(data?.summary || "");
+    } catch (e) {
+      console.error(e);
+      setError("Summary unavailable");
+    } finally {
+      setLoading(false);
+    }
+  }, [latest]);
+
+  useEffect(() => {
+    if (!latest) { setSummary(""); return; }
+    if (latest.aiSummary && latest.aiSummary.trim().length > 0) {
+      setSummary(latest.aiSummary);
+    } else if (latest.notes) {
+      generate(false);
+    }
+  }, [latest?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!latest) return null;
+
+  return (
+    <div className="rounded-xl border border-primary/20 bg-gradient-to-br from-primary/5 via-card to-card p-4">
+      <div className="flex items-start gap-3">
+        <div className="h-8 w-8 rounded-lg bg-primary/15 grid place-items-center shrink-0">
+          <Sparkles className="h-4 w-4 text-primary" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+              Latest MBR Summary
+              <span className="ml-2 text-[10px] font-normal normal-case tracking-normal text-muted-foreground/80">
+                · {format(new Date(latest.weekStart), "dd MMM yyyy")}
+              </span>
+            </p>
+            <button
+              onClick={() => generate(true)}
+              disabled={loading}
+              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              title="Regenerate summary"
+            >
+              <RefreshCw className={cn("h-3 w-3", loading && "animate-spin")} />
+              {loading ? "Generating…" : "Regenerate"}
+            </button>
+          </div>
+          {loading && !summary ? (
+            <div className="space-y-1.5">
+              <div className="h-3 w-11/12 bg-muted rounded animate-pulse" />
+              <div className="h-3 w-9/12 bg-muted rounded animate-pulse" />
+            </div>
+          ) : error ? (
+            <p className="text-sm text-muted-foreground italic">{error}</p>
+          ) : summary ? (
+            <p className="text-sm text-foreground leading-relaxed">{summary}</p>
+          ) : (
+            <p className="text-sm text-muted-foreground italic">No summary yet.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Modern KPI tile for the Overview tab ──
+function KpiTile({
+  label, value, sublabel, icon: Icon, tone = "neutral", progressPct, editor,
+}: {
+  label: string;
+  value?: string;
+  sublabel?: string;
+  icon: any;
+  tone?: "neutral" | "primary" | "positive" | "warning" | "destructive";
+  progressPct?: number;
+  editor?: React.ReactNode;
+}) {
+  const toneMap = {
+    neutral: { ring: "border-border", chip: "bg-secondary text-foreground", bar: "bg-muted-foreground/40", glow: "" },
+    primary: { ring: "border-primary/25", chip: "bg-primary/15 text-primary", bar: "bg-primary", glow: "from-primary/8" },
+    positive: { ring: "border-positive/30", chip: "bg-positive/15 text-positive", bar: "bg-positive", glow: "from-positive/8" },
+    warning: { ring: "border-warning/30", chip: "bg-warning/15 text-warning", bar: "bg-warning", glow: "from-warning/8" },
+    destructive: { ring: "border-destructive/30", chip: "bg-destructive/15 text-destructive", bar: "bg-destructive", glow: "from-destructive/8" },
+  }[tone];
+
+  return (
+    <div
+      className={cn(
+        "group relative rounded-xl border bg-card p-4 transition-all hover:-translate-y-0.5 hover:shadow-md overflow-hidden",
+        toneMap.ring,
+      )}
+    >
+      {tone !== "neutral" && (
+        <div className={cn("pointer-events-none absolute inset-0 bg-gradient-to-br to-transparent opacity-60", toneMap.glow)} />
+      )}
+      <div className="relative">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">{label}</p>
+          <div className={cn("h-6 w-6 rounded-md grid place-items-center shrink-0", toneMap.chip)}>
+            <Icon className="h-3.5 w-3.5" />
+          </div>
+        </div>
+        <div className="text-xl font-semibold text-foreground font-mono tabular-nums tracking-tight">
+          {editor ? editor : (value || "—")}
+        </div>
+        {sublabel && (
+          <p className="text-[11px] text-muted-foreground mt-1">{sublabel}</p>
+        )}
+        {typeof progressPct === "number" && (
+          <div className="mt-2 h-1 w-full rounded-full bg-muted overflow-hidden">
+            <div
+              className={cn("h-full rounded-full transition-all", toneMap.bar)}
+              style={{ width: `${Math.max(0, Math.min(100, progressPct))}%` }}
+            />
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -594,6 +745,9 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry, deleteMBREntry, 
 
   return (
     <div className="animate-fade-in space-y-4">
+      {/* AI 2-line summary of latest MBR notes */}
+      <LatestMBRSummaryCard entries={sorted} />
+
       {/* Snapshot */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         {mbrKpis.map(card => {
@@ -1506,10 +1660,22 @@ export default function DealDetail() {
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">Financial Snapshot</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <FinancialMetricCard label="MRR" value={String(deal.mrr || "")} subLabel="Monthly recurring" onSave={v => handleDealFieldSave("mrr", v)} />
-                <FinancialMetricCard label="Total Value" value={String(deal.totalDealValue || "")} subLabel="Contract total" onSave={v => handleDealFieldSave("totalDealValue", v)} />
-                <FinancialMetricCard label="Retainer Value" value={String(deal.retainerDealValue || "")} subLabel="Of total value" onSave={v => handleDealFieldSave("retainerDealValue", v)} />
-                <FinancialMetricCard label="Non-Retainer" value={String(deal.nonRetainerDealValue || "")} subLabel="Non-retainer portion" onSave={v => handleDealFieldSave("nonRetainerDealValue", v)} />
+                <KpiTile
+                  label="MRR" icon={IndianRupee} tone="primary" sublabel="Monthly recurring"
+                  editor={<EditableCell value={String(deal.mrr || "")} onSave={v => handleDealFieldSave("mrr", v)} type="number" prefix="₹" placeholder="—" />}
+                />
+                <KpiTile
+                  label="Total Value" icon={Wallet} tone="primary" sublabel="Contract total"
+                  editor={<EditableCell value={String(deal.totalDealValue || "")} onSave={v => handleDealFieldSave("totalDealValue", v)} type="number" prefix="₹" placeholder="—" />}
+                />
+                <KpiTile
+                  label="Retainer Value" icon={Receipt} tone="neutral" sublabel="Of total value"
+                  editor={<EditableCell value={String(deal.retainerDealValue || "")} onSave={v => handleDealFieldSave("retainerDealValue", v)} type="number" prefix="₹" placeholder="—" />}
+                />
+                <KpiTile
+                  label="Non-Retainer" icon={Receipt} tone="neutral" sublabel="Non-retainer portion"
+                  editor={<EditableCell value={String(deal.nonRetainerDealValue || "")} onSave={v => handleDealFieldSave("nonRetainerDealValue", v)} type="number" prefix="₹" placeholder="—" />}
+                />
               </div>
             </div>
 
@@ -1523,28 +1689,31 @@ export default function DealDetail() {
                     const totalInvoiced = financials.reduce((s, r) => s + (r.invoiced || 0), 0);
                     const totalReceived = financials.reduce((s, r) => s + (r.received || 0), 0);
                     const outstanding = totalInvoiced - totalReceived;
+                    const receivedPct = totalInvoiced > 0 ? (totalReceived / totalInvoiced) * 100 : 0;
+                    const outstandingPct = totalInvoiced > 0 ? (outstanding / totalInvoiced) * 100 : 0;
                     return (
                       <>
-                        <div className="rounded-lg bg-secondary/50 p-4">
-                          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">Total Consumed</p>
-                          <p className="text-sm font-medium text-foreground">{fmtCurrency(totalConsumed)}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">YTD consumption</p>
-                        </div>
-                        <div className="rounded-lg bg-secondary/50 p-4">
-                          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">Total Invoiced</p>
-                          <p className="text-sm font-medium text-foreground">{fmtCurrency(totalInvoiced)}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">Billed to client</p>
-                        </div>
-                        <div className="rounded-lg bg-secondary/50 p-4">
-                          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">Total Received</p>
-                          <p className="text-sm font-medium text-foreground">{fmtCurrency(totalReceived)}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">Payments cleared</p>
-                        </div>
-                        <div className="rounded-lg bg-secondary/50 p-4">
-                          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">Outstanding</p>
-                          <p className={cn("text-sm font-medium", outstanding > 0 ? "text-[hsl(0_70%_50%)]" : "text-foreground")}>{fmtCurrency(outstanding)}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">Pending receivable</p>
-                        </div>
+                        <KpiTile
+                          label="Total Consumed" icon={Activity} tone="primary"
+                          value={fmtCurrency(totalConsumed)} sublabel="YTD consumption"
+                        />
+                        <KpiTile
+                          label="Total Invoiced" icon={Receipt} tone="neutral"
+                          value={fmtCurrency(totalInvoiced)} sublabel="Billed to client"
+                        />
+                        <KpiTile
+                          label="Total Received" icon={BadgeCheck} tone="positive"
+                          value={fmtCurrency(totalReceived)}
+                          sublabel={totalInvoiced > 0 ? `${receivedPct.toFixed(0)}% of invoiced` : "Payments cleared"}
+                          progressPct={totalInvoiced > 0 ? receivedPct : undefined}
+                        />
+                        <KpiTile
+                          label="Outstanding" icon={AlertCircle}
+                          tone={outstanding > 0 ? "destructive" : "positive"}
+                          value={fmtCurrency(outstanding)}
+                          sublabel={outstanding > 0 ? `${outstandingPct.toFixed(0)}% pending` : "All settled"}
+                          progressPct={outstanding > 0 ? outstandingPct : undefined}
+                        />
                       </>
                     );
                   })()}
