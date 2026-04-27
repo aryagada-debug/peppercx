@@ -283,7 +283,6 @@ export default function Dashboard() {
         {/* Finance Targets */}
         <div className="mb-8 space-y-4">
           <FinanceTargetsCard monthYYYYMM={selectedMonth} />
-          <DealTargetsTable monthYYYYMM={selectedMonth} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
