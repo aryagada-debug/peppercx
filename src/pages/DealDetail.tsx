@@ -1416,6 +1416,20 @@ export default function DealDetail() {
   const initialTab = (TABS as readonly string[]).includes(searchParams.get("tab") || "") ? (searchParams.get("tab") as TabKey) : "Overview";
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
   const { deals, people, assignments, loading: staffLoading, updateDeal, updatePerson, addAssignment, updateAssignment, deleteAssignment } = useStaffingData();
+  const { isAdmin } = useUserRole();
+  const access = useDealAccess();
+  const navigate = useNavigate();
+  const canViewThisDeal = !dealId ? false : access.isAdmin || access.canViewDeal(dealId);
+  const canEditThisDeal = !dealId ? false : access.isAdmin || access.canEditDeal(dealId);
+
+  useEffect(() => {
+    if (access.loading || staffLoading) return;
+    if (!dealId) return;
+    if (!canViewThisDeal) {
+      toast.error("You don't have access to this deal");
+      navigate("/clients", { replace: true });
+    }
+  }, [access.loading, staffLoading, dealId, canViewThisDeal, navigate]);
   const {
     sowItems, rgyWeekly, onboarding, financials, tasks, mbrEntries, loading: detailLoading,
     toggleOnboardingStep, addSoWItem, updateSoWItem, deleteSoWItem,
