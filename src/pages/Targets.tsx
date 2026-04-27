@@ -155,7 +155,7 @@ export default function Targets() {
           </TabsContent>
         </Tabs>
 
-        <TargetsUploadDialog open={uploadOpen} onOpenChange={setUploadOpen} onUploaded={onUploaded} />
+        <TargetsUploadDialog open={uploadOpen} onOpenChange={setUploadOpen} onUploaded={onUploaded} defaultMonth={month} />
       </div>
     </AppLayout>
   );
