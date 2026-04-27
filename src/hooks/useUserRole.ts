@@ -16,6 +16,7 @@ export const ROLE_LABELS: Record<AppRole, string> = {
 export const ROLE_ORDER: AppRole[] = ["view_only", "user", "member", "admin"];
 
 export const ALL_ROUTE_KEYS = [
+  "home",
   "dashboard",
   "clients",
   "staffing",
