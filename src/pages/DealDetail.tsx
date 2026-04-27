@@ -412,6 +412,147 @@ function InlineNotesEditor({ value, onSave }: { value: string | null; onSave: (v
   );
 }
 
+// ── AI summary of the latest MBR notes (2 sentences) ──
+function LatestMBRSummaryCard({ entries }: { entries: MBREntry[] }) {
+  const latest = useMemo(() => {
+    return entries.find(e => (e.notes && e.notes.trim().length > 10)) || null;
+  }, [entries]);
+
+  const [summary, setSummary] = useState<string>(latest?.aiSummary || "");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const generate = useCallback(async (force = false) => {
+    if (!latest || !latest.notes) return;
+    if (!force && latest.aiSummary && latest.aiSummary.trim().length > 0) {
+      setSummary(latest.aiSummary);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error: fnErr } = await supabase.functions.invoke("mbr-summarize-notes", {
+        body: { mbr_entry_id: latest.id, notes: latest.notes },
+      });
+      if (fnErr) throw fnErr;
+      setSummary(data?.summary || "");
+    } catch (e) {
+      console.error(e);
+      setError("Summary unavailable");
+    } finally {
+      setLoading(false);
+    }
+  }, [latest]);
+
+  useEffect(() => {
+    if (!latest) { setSummary(""); return; }
+    if (latest.aiSummary && latest.aiSummary.trim().length > 0) {
+      setSummary(latest.aiSummary);
+    } else if (latest.notes) {
+      generate(false);
+    }
+  }, [latest?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!latest) return null;
+
+  return (
+    <div className="rounded-xl border border-primary/20 bg-gradient-to-br from-primary/5 via-card to-card p-4">
+      <div className="flex items-start gap-3">
+        <div className="h-8 w-8 rounded-lg bg-primary/15 grid place-items-center shrink-0">
+          <Sparkles className="h-4 w-4 text-primary" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+              Latest MBR Summary
+              <span className="ml-2 text-[10px] font-normal normal-case tracking-normal text-muted-foreground/80">
+                · {format(new Date(latest.weekStart), "dd MMM yyyy")}
+              </span>
+            </p>
+            <button
+              onClick={() => generate(true)}
+              disabled={loading}
+              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              title="Regenerate summary"
+            >
+              <RefreshCw className={cn("h-3 w-3", loading && "animate-spin")} />
+              {loading ? "Generating…" : "Regenerate"}
+            </button>
+          </div>
+          {loading && !summary ? (
+            <div className="space-y-1.5">
+              <div className="h-3 w-11/12 bg-muted rounded animate-pulse" />
+              <div className="h-3 w-9/12 bg-muted rounded animate-pulse" />
+            </div>
+          ) : error ? (
+            <p className="text-sm text-muted-foreground italic">{error}</p>
+          ) : summary ? (
+            <p className="text-sm text-foreground leading-relaxed">{summary}</p>
+          ) : (
+            <p className="text-sm text-muted-foreground italic">No summary yet.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Modern KPI tile for the Overview tab ──
+function KpiTile({
+  label, value, sublabel, icon: Icon, tone = "neutral", progressPct, editor,
+}: {
+  label: string;
+  value?: string;
+  sublabel?: string;
+  icon: any;
+  tone?: "neutral" | "primary" | "positive" | "warning" | "destructive";
+  progressPct?: number;
+  editor?: React.ReactNode;
+}) {
+  const toneMap = {
+    neutral: { ring: "border-border", chip: "bg-secondary text-foreground", bar: "bg-muted-foreground/40", glow: "" },
+    primary: { ring: "border-primary/25", chip: "bg-primary/15 text-primary", bar: "bg-primary", glow: "from-primary/8" },
+    positive: { ring: "border-positive/30", chip: "bg-positive/15 text-positive", bar: "bg-positive", glow: "from-positive/8" },
+    warning: { ring: "border-warning/30", chip: "bg-warning/15 text-warning", bar: "bg-warning", glow: "from-warning/8" },
+    destructive: { ring: "border-destructive/30", chip: "bg-destructive/15 text-destructive", bar: "bg-destructive", glow: "from-destructive/8" },
+  }[tone];
+
+  return (
+    <div
+      className={cn(
+        "group relative rounded-xl border bg-card p-4 transition-all hover:-translate-y-0.5 hover:shadow-md overflow-hidden",
+        toneMap.ring,
+      )}
+    >
+      {tone !== "neutral" && (
+        <div className={cn("pointer-events-none absolute inset-0 bg-gradient-to-br to-transparent opacity-60", toneMap.glow)} />
+      )}
+      <div className="relative">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">{label}</p>
+          <div className={cn("h-6 w-6 rounded-md grid place-items-center shrink-0", toneMap.chip)}>
+            <Icon className="h-3.5 w-3.5" />
+          </div>
+        </div>
+        <div className="text-xl font-semibold text-foreground font-mono tabular-nums tracking-tight">
+          {editor ? editor : (value || "—")}
+        </div>
+        {sublabel && (
+          <p className="text-[11px] text-muted-foreground mt-1">{sublabel}</p>
+        )}
+        {typeof progressPct === "number" && (
+          <div className="mt-2 h-1 w-full rounded-full bg-muted overflow-hidden">
+            <div
+              className={cn("h-full rounded-full transition-all", toneMap.bar)}
+              style={{ width: `${Math.max(0, Math.min(100, progressPct))}%` }}
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 
 function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry, deleteMBREntry, quickUpdateMBRField }: {
   deal: any;
