@@ -23,6 +23,8 @@ import { UtilizationBar } from "@/components/dashboard/UtilizationBar";
 import { TaskFormDialog, type TaskData } from "@/components/deals/TaskFormDialog";
 import { useGoogleCalendar, type GCalEvent } from "@/hooks/useGoogleCalendar";
 import { CalendarConnectButton } from "@/components/calendar/CalendarConnectButton";
+import { FinanceTargetsCard } from "@/components/targets/FinanceTargetsCard";
+import { DealTargetsTable } from "@/components/targets/DealTargetsTable";
 
 const DEAL_STAGES = ["To Do", "In Progress", "In Review", "Done", "Dropped"] as const;
 const URGENCIES = ["Low", "Medium", "High", "Critical"] as const;
@@ -91,6 +93,7 @@ export default function HomePage() {
   const [todos, setTodos] = useState<PersonalTodo[]>([]);
   const [editingDealTask, setEditingDealTask] = useState<DealTaskRow | null>(null);
   const [dealAssignmentsMap, setDealAssignmentsMap] = useState<Record<string, Set<string>>>({});
+  const [myDealIds, setMyDealIds] = useState<string[]>([]);
 
   // Google Calendar
   const { connected: calConnected, listEvents: calListEvents } = useGoogleCalendar();
@@ -199,6 +202,7 @@ export default function HomePage() {
         .from("staffing_assignments").select("deal_id").eq("person_id", profile.staffing_person_id);
       myDealIds = Array.from(new Set((mine || []).map((a: any) => a.deal_id)));
     }
+    setMyDealIds(myDealIds);
     if (myDealIds.length) {
       const today = format(new Date(), "yyyy-MM-dd");
       const horizon = format(addDays(new Date(), 14), "yyyy-MM-dd");
