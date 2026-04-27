@@ -2129,7 +2129,14 @@ export default function DealDetail() {
             tasks={tasks}
             dealId={dealId!}
             deal={deal}
-            assignees={dealPeople.map(p => ({ id: p.id, name: p.name }))}
+            assignees={(() => {
+              const staffedIds = new Set(dealPeople.map(p => p.id));
+              const staffed = dealPeople.map(p => ({ id: p.id, name: p.name, staffed: true }));
+              const others = people
+                .filter(p => !staffedIds.has(p.id) && !p.tbh)
+                .map(p => ({ id: p.id, name: p.name, staffed: false }));
+              return [...staffed, ...others];
+            })()}
             onAdd={addTask}
             onAddBulk={addTasksBulk}
             onUpdate={updateTask}
