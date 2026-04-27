@@ -21,6 +21,8 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { UtilizationBar } from "@/components/dashboard/UtilizationBar";
 import { TaskFormDialog, type TaskData } from "@/components/deals/TaskFormDialog";
+import { useGoogleCalendar, type GCalEvent } from "@/hooks/useGoogleCalendar";
+import { CalendarConnectButton } from "@/components/calendar/CalendarConnectButton";
 
 const DEAL_STAGES = ["To Do", "In Progress", "In Review", "Done", "Dropped"] as const;
 const URGENCIES = ["Low", "Medium", "High", "Critical"] as const;
@@ -89,6 +91,16 @@ export default function HomePage() {
   const [todos, setTodos] = useState<PersonalTodo[]>([]);
   const [editingDealTask, setEditingDealTask] = useState<DealTaskRow | null>(null);
   const [dealAssignmentsMap, setDealAssignmentsMap] = useState<Record<string, Set<string>>>({});
+
+  // Google Calendar
+  const { connected: calConnected, listEvents: calListEvents } = useGoogleCalendar();
+  const [calEvents, setCalEvents] = useState<GCalEvent[]>([]);
+  useEffect(() => {
+    if (!calConnected) { setCalEvents([]); return; }
+    const tMin = startOfDay(new Date()).toISOString();
+    const tMax = addDays(new Date(), 14).toISOString();
+    calListEvents({ timeMin: tMin, timeMax: tMax, maxResults: 50 }).then(setCalEvents);
+  }, [calConnected, calListEvents]);
 
   // Stable refs for realtime callbacks
   const aliasesRef = useRef<Set<string>>(new Set());
@@ -477,12 +489,19 @@ export default function HomePage() {
           {/* Meetings */}
           <Card className="col-span-12 lg:col-span-4">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <CalendarDays className="h-4 w-4 text-primary" /> Meetings & MBRs
-              </CardTitle>
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <CalendarDays className="h-4 w-4 text-primary" /> Meetings & MBRs
+                </CardTitle>
+                <CalendarConnectButton />
+              </div>
             </CardHeader>
             <CardContent className="space-y-2">
-              {meetings.length === 0 && <p className="text-xs text-muted-foreground">Nothing scheduled in the next 2 weeks.</p>}
+              {meetings.length === 0 && calEvents.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {calConnected ? "Nothing scheduled in the next 2 weeks." : "Connect your calendar to see your upcoming meetings here."}
+                </p>
+              )}
               {meetings.map(m => (
                 <Link key={m.id} to={`/deals/${m.deal_id}?tab=MBR`}
                   className="block rounded-md border border-border bg-card hover:bg-secondary/50 transition-colors p-2.5">
@@ -500,6 +519,27 @@ export default function HomePage() {
                   </div>
                 </Link>
               ))}
+              {calEvents.length > 0 && (
+                <>
+                  <div className="pt-2 mt-1 border-t border-border text-[10px] uppercase tracking-wider text-muted-foreground">From your calendar</div>
+                  {calEvents.slice(0, 8).map(ev => (
+                    <a
+                      key={ev.id}
+                      href={ev.htmlLink || "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block rounded-md border border-border bg-card hover:bg-secondary/50 transition-colors p-2.5"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-medium text-foreground truncate">{ev.summary}</span>
+                        <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                          {ev.start ? format(parseISO(ev.start), "dd MMM, h:mm a") : ""}
+                        </span>
+                      </div>
+                    </a>
+                  ))}
+                </>
+              )}
             </CardContent>
           </Card>
 
