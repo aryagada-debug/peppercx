@@ -9,7 +9,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { access_token } = await req.json();
+    const { access_token, timeMin: tMin, timeMax: tMax, q, maxResults } = await req.json();
 
     if (!access_token) {
       return new Response(JSON.stringify({ error: "Missing access_token" }), {
@@ -19,10 +19,17 @@ Deno.serve(async (req) => {
     }
 
     const now = new Date();
-    const timeMin = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-    const timeMax = new Date(now.getFullYear(), now.getMonth() + 2, 0).toISOString();
+    const timeMin = tMin || new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const timeMax = tMax || new Date(now.getFullYear(), now.getMonth() + 2, 0).toISOString();
 
-    const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}&singleEvents=true&orderBy=startTime&maxResults=100`;
+    const params = new URLSearchParams({
+      timeMin, timeMax,
+      singleEvents: "true",
+      orderBy: "startTime",
+      maxResults: String(maxResults || 250),
+    });
+    if (q) params.set("q", q);
+    const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`;
 
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${access_token}` },
