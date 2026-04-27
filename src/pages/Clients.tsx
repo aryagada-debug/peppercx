@@ -121,6 +121,29 @@ export default function Clients() {
     (clientId: string) => access.isAdmin || access.canEditClient(clientId),
     [access]
   );
+
+  // Guarded wrappers — silently reject + toast for non-editable deals.
+  const guardedUpdateDeal: typeof updateDeal = useCallback((dealId: string, patch: any) => {
+    if (!isDealEditable(dealId)) {
+      toast.error("View only — you can't edit this deal");
+      return Promise.resolve() as any;
+    }
+    return updateDeal(dealId, patch);
+  }, [updateDeal, isDealEditable]);
+  const guardedDeleteDeal: typeof deleteDeal = useCallback((dealId: string) => {
+    if (!isDealEditable(dealId)) {
+      toast.error("View only — you can't delete this deal");
+      return Promise.resolve(false) as any;
+    }
+    return deleteDeal(dealId);
+  }, [deleteDeal, isDealEditable]);
+  const guardedDeleteClient: typeof deleteClient = useCallback((clientId: string) => {
+    if (!isClientEditable(clientId)) {
+      toast.error("View only — you can't delete this client");
+      return Promise.resolve(false) as any;
+    }
+    return deleteClient(clientId);
+  }, [deleteClient, isClientEditable]);
   const [search, setSearch] = useState("");
   const [activeVsd, setActiveVsd] = useState<VsdFilterKey>("All");
   const [showClosed, setShowClosed] = useState(false);
