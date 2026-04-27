@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { ExternalLink, CheckCircle2, Circle, Save } from "lucide-react";
 import type { MBRDeal, MBREntry, ActionItem } from "@/hooks/useMBRData";
+import { getLinkLabel, getFileIcon } from "@/lib/fileLink";
 
 interface MBRDetailDialogProps {
   open: boolean;
@@ -139,6 +140,22 @@ export function MBRDetailDialog({ open, onClose, deal, entry, onSave }: MBRDetai
             <div>
               <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">MBR PPT Link</label>
               <Input value={mbrPptLink} onChange={e => setMbrPptLink(e.target.value)} placeholder="https://..." className="mt-1" />
+              {mbrPptLink && (() => {
+                const FileIco = getFileIcon(mbrPptLink);
+                return (
+                  <a
+                    href={mbrPptLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={mbrPptLink}
+                    className="mt-1.5 inline-flex items-center gap-1 text-xs text-primary hover:underline max-w-full"
+                  >
+                    <FileIco className="h-3 w-3 shrink-0" />
+                    <span className="truncate">{getLinkLabel(mbrPptLink)}</span>
+                    <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
+                  </a>
+                );
+              })()}
             </div>
           </div>
 
