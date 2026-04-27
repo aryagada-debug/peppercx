@@ -344,6 +344,23 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
                 <Calendar mode="single" selected={scheduledDate} onSelect={setScheduledDate} initialFocus />
               </PopoverContent>
             </Popover>
+            {calConnected && (
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Time</Label>
+                  <Input type="time" value={scheduledTime} onChange={(e) => setScheduledTime(e.target.value)} className="h-9" />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Duration (min)</Label>
+                  <Input type="number" min={15} step={15} value={durationMin} onChange={(e) => setDurationMin(Number(e.target.value) || 30)} className="h-9" />
+                </div>
+                <div className="col-span-2">
+                  <Label className="text-xs text-muted-foreground mb-1 block">Attendees (optional, comma-separated emails)</Label>
+                  <Input placeholder="alice@example.com, bob@example.com" value={attendeesStr} onChange={(e) => setAttendeesStr(e.target.value)} className="h-9" />
+                </div>
+                <p className="col-span-2 text-[11px] text-muted-foreground">Saving will create / update the matching event in your Google Calendar.</p>
+              </div>
+            )}
           </div>
 
           {/* Anirudh Added */}
