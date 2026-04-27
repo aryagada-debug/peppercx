@@ -164,6 +164,159 @@ export function dealTemplateCsv(): string {
   ]);
 }
 
+// ============================================================
+// Wide-format deal template (matches the master Google Sheet)
+// ============================================================
+
+export const WIDE_DEAL_HEADERS = (monthLabel: string): string[] => [
+  "Sr no.",
+  "New Deal ID",
+  "Add New Deal ID Here",
+  "PC Code",
+  "Client Name",
+  "Deal Name",
+  "VSD",
+  "Group BOPM",
+  "Senior BOPM",
+  "Junior BOPM",
+  "MEQS",
+  "Manager",
+  "Contractual Editors",
+  "Customer Status",
+  "Deal Status",
+  "Service Line - Capability",
+  "Deal Tag",
+  "Deal Type",
+  "Month of Closed Won",
+  "Start date",
+  "End date",
+  "Retainer MRR (if any)",
+  "Total Deal Value",
+  "Overage Invoicing",
+  "Deal Value Loss / Churned",
+  "Net Deal Value",
+  `Consumption - ${monthLabel} Target`,
+  `Consumption - ${monthLabel} Attainment`,
+  `Consumption - ${monthLabel} Attainment %`,
+  `Delivery - ${monthLabel} Target`,
+  `Delivery - ${monthLabel} Attainment`,
+  `Delivery - ${monthLabel} Attainment %`,
+  `Invoicing - ${monthLabel} Target`,
+  `Invoicing - ${monthLabel} Attainment`,
+  `Invoicing - ${monthLabel} Attainment %`,
+  `Receivable - ${monthLabel} - 26 Target`,
+  `Receivable - ${monthLabel} Attainment`,
+  `Receivable - ${monthLabel} Attainment %`,
+];
+
+export function wideDealTemplateCsv(monthLabel: string): string {
+  const headers = WIDE_DEAL_HEADERS(monthLabel);
+  const sample: Record<string, string | number> = {};
+  headers.forEach((h) => (sample[h] = ""));
+  sample["Sr no."] = 1;
+  sample["New Deal ID"] = "DEAL-123";
+  sample["Client Name"] = "Acme";
+  sample["Deal Name"] = "Acme Q2 Retainer";
+  sample["VSD"] = "Anirudh";
+  sample[`Consumption - ${monthLabel} Target`] = 0;
+  sample[`Consumption - ${monthLabel} Attainment`] = 0;
+  sample[`Delivery - ${monthLabel} Target`] = 0;
+  sample[`Delivery - ${monthLabel} Attainment`] = 0;
+  sample[`Invoicing - ${monthLabel} Target`] = 0;
+  sample[`Invoicing - ${monthLabel} Attainment`] = 0;
+  sample[`Receivable - ${monthLabel} - 26 Target`] = 0;
+  sample[`Receivable - ${monthLabel} Attainment`] = 0;
+  return Papa.unparse({ fields: headers, data: [headers.map((h) => sample[h] ?? "")] });
+}
+
+// Detect whether a CSV uses the wide format
+export function looksLikeWideDealCsv(text: string): boolean {
+  const firstLine = (text.split(/\r?\n/)[0] || "").toLowerCase();
+  return /consumption\s*-\s*.+target/.test(firstLine) || /new deal id/.test(firstLine);
+}
+
+function findHeader(headers: string[], pattern: RegExp): string | undefined {
+  return headers.find((h) => pattern.test(h));
+}
+
+export function parseWideDealCsv(text: string, monthYYYYMM: string): ParseResult<DealTargetRow> {
+  const errors: { line: number; message: string }[] = [];
+  const parsed = Papa.parse<Record<string, string>>(text, {
+    header: true,
+    skipEmptyLines: true,
+    transformHeader: (h) => h.trim(),
+  });
+  const headers = parsed.meta.fields || [];
+  const month = `${monthYYYYMM}-01`;
+
+  const idCol =
+    findHeader(headers, /^new deal id$/i) ||
+    findHeader(headers, /^add new deal id here$/i) ||
+    findHeader(headers, /^deal[_\s-]?id$/i);
+  if (!idCol) {
+    errors.push({ line: 0, message: "Missing 'New Deal ID' column" });
+    return { rows: [], errors };
+  }
+
+  const colMap: Record<string, { target?: string; actual?: string }> = {
+    contraction: {
+      target: findHeader(headers, /^consumption\s*-\s*.+target\s*$/i),
+      actual: findHeader(headers, /^consumption\s*-\s*.+attainment\s*$/i),
+    },
+    delivery: {
+      target: findHeader(headers, /^delivery\s*-\s*.+target\s*$/i),
+      actual: findHeader(headers, /^delivery\s*-\s*.+attainment\s*$/i),
+    },
+    invoicing: {
+      target: findHeader(headers, /^invoicing\s*-\s*.+target\s*$/i),
+      actual: findHeader(headers, /^invoicing\s*-\s*.+attainment\s*$/i),
+    },
+    receivables: {
+      target: findHeader(headers, /^receivable.*target\s*$/i),
+      actual: findHeader(headers, /^receivable.*attainment\s*$/i),
+    },
+  };
+
+  const missing = Object.entries(colMap)
+    .filter(([, v]) => !v.target && !v.actual)
+    .map(([k]) => k);
+  if (missing.length === 4) {
+    errors.push({ line: 0, message: "No metric columns found (Consumption / Delivery / Invoicing / Receivable)" });
+    return { rows: [], errors };
+  }
+
+  const rows: DealTargetRow[] = [];
+  parsed.data.forEach((raw, idx) => {
+    const lineNo = idx + 2;
+    const deal_id = (raw[idCol] || "").trim();
+    if (!deal_id) return; // silently skip metadata-only rows
+    const out: any = { month, deal_id };
+    let valid = true;
+    for (const m of METRICS) {
+      const tCol = colMap[m].target;
+      const aCol = colMap[m].actual;
+      const t = tCol ? num(raw[tCol]) : 0;
+      const a = aCol ? num(raw[aCol]) : 0;
+      if (Number.isNaN(t) || Number.isNaN(a)) {
+        errors.push({ line: lineNo, message: `Invalid number in ${m}` });
+        valid = false;
+        break;
+      }
+      out[`${m}_target`] = t;
+      out[`${m}_actual`] = a;
+    }
+    if (valid) rows.push(out as DealTargetRow);
+  });
+
+  return { rows, errors };
+}
+
+export function monthLabelFromYYYYMM(monthYYYYMM: string): string {
+  const d = new Date(`${monthYYYYMM}-01T00:00:00`);
+  if (isNaN(d.getTime())) return "April";
+  return d.toLocaleString("en-US", { month: "long" });
+}
+
 export function downloadCsv(filename: string, content: string) {
   const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
