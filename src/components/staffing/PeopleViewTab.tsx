@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { formatINR } from "@/lib/csvTargets";
 import { ChevronDown, ChevronRight, Search } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -9,11 +10,7 @@ import type { Deal, Person, StaffingAssignment, RevenueCapacityTarget } from "@/
 const ACTIVE_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
 
 const fmtCurrency = (n: number | undefined) => {
-  if (!n) return "—";
-  if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
-  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
-  if (n >= 1000) return `₹${(n / 1000).toFixed(0)}K`;
-  return `₹${n}`;
+  return formatINR(Number(n) || 0);
 };
 
 type Bucket = "overloaded" | "nearFull" | "healthy" | "underUtil";

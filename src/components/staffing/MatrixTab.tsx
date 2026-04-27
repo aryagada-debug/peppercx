@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
+import { formatINR } from "@/lib/csvTargets";
 import { createPortal } from "react-dom";
 import { Search, Users, Building2, Plus, Trash2, ChevronDown, ChevronRight, Check, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -183,11 +184,7 @@ export function filterPeopleByRole(people: Person[], roleKey: string): Person[] 
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 const fmtCurrency = (n?: number) => {
-  if (!n) return "—";
-  if (n >= 10000000) return `₹${(n / 10000000).toFixed(2)} Cr`;
-  if (n >= 100000) return `₹${(n / 100000).toFixed(1)} L`;
-  if (n >= 1000) return `₹${(n / 1000).toFixed(0)} K`;
-  return `₹${n}`;
+  return formatINR(Number(n) || 0);
 };
 
 interface Props {

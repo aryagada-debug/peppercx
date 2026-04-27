@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { formatINR } from "@/lib/csvTargets";
 import { cn } from "@/lib/utils";
 import { Search, X, Plus, ChevronDown, ChevronRight } from "lucide-react";
 import {
@@ -19,11 +20,7 @@ interface Props {
 }
 
 const fmtCurrency = (n: number | undefined) => {
-  if (!n) return "—";
-  if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
-  if (n >= 100000) return `₹${(n / 100000).toFixed(0)}L`;
-  if (n >= 1000) return `₹${(n / 1000).toFixed(0)}K`;
-  return `₹${n}`;
+  return formatINR(Number(n) || 0);
 };
 
 const RAG_COLORS = {
