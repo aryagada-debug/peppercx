@@ -11,6 +11,7 @@ import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, Command
 import { Plus, Trash2, ChevronLeft, ChevronRight, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Client } from "@/hooks/useClients";
+import { CurrencyInput } from "@/components/ui/currency-input";
 
 const PODS = ["Integrated", "India B2B", "US B2B", "FMCG", "BFSI"] as const;
 const DEAL_TYPES = ["Retainer", "Non-Retainer", "Pilot"] as const;
@@ -233,12 +234,32 @@ export function DealFormWizard({ open, onOpenChange, clients, preSelectedClientI
                   </Field>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="MRR (₹)"><Input type="number" value={form.mrr} onChange={e => set("mrr", e.target.value)} placeholder="0" /></Field>
-                  <Field label="Total Deal Value (₹)"><Input type="number" value={form.totalDealValue} onChange={e => set("totalDealValue", e.target.value)} placeholder="0" /></Field>
+                  <Field label="MRR">
+                    <CurrencyInput
+                      valueInr={form.mrr}
+                      onChangeInr={(n) => set("mrr", n ? String(n) : "")}
+                    />
+                  </Field>
+                  <Field label="Total Deal Value">
+                    <CurrencyInput
+                      valueInr={form.totalDealValue}
+                      onChangeInr={(n) => set("totalDealValue", n ? String(n) : "")}
+                    />
+                  </Field>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="Retainer Value (₹)"><Input type="number" value={form.retainerDealValue} onChange={e => set("retainerDealValue", e.target.value)} placeholder="0" /></Field>
-                  <Field label="Non-Retainer Value (₹)"><Input type="number" value={form.nonRetainerDealValue} onChange={e => set("nonRetainerDealValue", e.target.value)} placeholder="0" /></Field>
+                  <Field label="Retainer Value">
+                    <CurrencyInput
+                      valueInr={form.retainerDealValue}
+                      onChangeInr={(n) => set("retainerDealValue", n ? String(n) : "")}
+                    />
+                  </Field>
+                  <Field label="Non-Retainer Value">
+                    <CurrencyInput
+                      valueInr={form.nonRetainerDealValue}
+                      onChangeInr={(n) => set("nonRetainerDealValue", n ? String(n) : "")}
+                    />
+                  </Field>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Payment Terms">
@@ -292,12 +313,15 @@ export function DealFormWizard({ open, onOpenChange, clients, preSelectedClientI
                       }} placeholder="e.g. Content Strategy & Execution" />
                     </Field>
                     <div className="grid grid-cols-2 gap-3">
-                      <Field label="Revenue Share (₹)">
-                        <Input type="number" value={item.revenueShare || ""} onChange={e => {
-                          const items = [...form.sowItems];
-                          items[idx] = { ...items[idx], revenueShare: Number(e.target.value) };
-                          set("sowItems", items);
-                        }} />
+                      <Field label="Revenue Share">
+                        <CurrencyInput
+                          valueInr={item.revenueShare || ""}
+                          onChangeInr={(n) => {
+                            const items = [...form.sowItems];
+                            items[idx] = { ...items[idx], revenueShare: n };
+                            set("sowItems", items);
+                          }}
+                        />
                       </Field>
                       <Field label="Team / Capability">
                         <Input value={item.teamCapability} onChange={e => {
