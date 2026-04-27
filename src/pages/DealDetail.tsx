@@ -1642,6 +1642,11 @@ export default function DealDetail() {
             <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>
           </div>
           <div className="flex items-center gap-2 shrink-0 mt-1">
+            {!canEditThisDeal && canViewThisDeal && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-warning/10 text-warning">
+                <Eye className="h-3 w-3" /> View only
+              </span>
+            )}
             <span className="inline-flex px-3 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
               {deal.dealType}
             </span>
