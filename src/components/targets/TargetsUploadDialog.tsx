@@ -8,18 +8,21 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   parseVsdCsv, parseDealCsv, vsdTemplateCsv, dealTemplateCsv, downloadCsv,
   type VsdTargetRow, type DealTargetRow,
+  parseWideDealCsv, wideDealTemplateCsv, looksLikeWideDealCsv, monthLabelFromYYYYMM,
 } from "@/lib/csvTargets";
 
 interface Props {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   onUploaded: () => void;
+  defaultMonth?: string; // YYYY-MM
 }
 
 type Mode = "vsd" | "deal";
 
-export function TargetsUploadDialog({ open, onOpenChange, onUploaded }: Props) {
-  const [mode, setMode] = useState<Mode>("vsd");
+export function TargetsUploadDialog({ open, onOpenChange, onUploaded, defaultMonth }: Props) {
+  const [mode, setMode] = useState<Mode>("deal");
+  const [month, setMonth] = useState<string>(defaultMonth || new Date().toISOString().slice(0, 7));
   const [vsdRows, setVsdRows] = useState<VsdTargetRow[]>([]);
   const [dealRows, setDealRows] = useState<DealTargetRow[]>([]);
   const [errors, setErrors] = useState<{ line: number; message: string }[]>([]);
@@ -34,7 +37,9 @@ export function TargetsUploadDialog({ open, onOpenChange, onUploaded }: Props) {
       const r = parseVsdCsv(text);
       setVsdRows(r.rows); setErrors(r.errors);
     } else {
-      const r = parseDealCsv(text);
+      const r = looksLikeWideDealCsv(text)
+        ? parseWideDealCsv(text, month)
+        : parseDealCsv(text);
       setDealRows(r.rows); setErrors(r.errors);
     }
   };
@@ -68,6 +73,7 @@ export function TargetsUploadDialog({ open, onOpenChange, onUploaded }: Props) {
   };
 
   const rowCount = mode === "vsd" ? vsdRows.length : dealRows.length;
+  const monthLabel = monthLabelFromYYYYMM(month);
 
   return (
     <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) reset(); }}>
@@ -78,8 +84,8 @@ export function TargetsUploadDialog({ open, onOpenChange, onUploaded }: Props) {
 
         <Tabs value={mode} onValueChange={(v) => { setMode(v as Mode); reset(); }}>
           <TabsList>
-            <TabsTrigger value="vsd">By VSD</TabsTrigger>
             <TabsTrigger value="deal">By Deal</TabsTrigger>
+            <TabsTrigger value="vsd">By VSD</TabsTrigger>
           </TabsList>
           <TabsContent value="vsd" className="space-y-3 pt-3">
             <p className="text-sm text-muted-foreground">
@@ -90,12 +96,27 @@ export function TargetsUploadDialog({ open, onOpenChange, onUploaded }: Props) {
             </Button>
           </TabsContent>
           <TabsContent value="deal" className="space-y-3 pt-3">
+            <div className="flex items-center gap-3">
+              <label className="text-sm text-muted-foreground">Month</label>
+              <input
+                type="month"
+                value={month}
+                onChange={(e) => setMonth(e.target.value)}
+                className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+              />
+              <span className="text-xs text-muted-foreground">Used for column headers like "Consumption - {monthLabel} Target"</span>
+            </div>
             <p className="text-sm text-muted-foreground">
-              CSV columns: <code className="text-xs">month, deal_id, contraction_target, contraction_actual, delivery_target, delivery_actual, invoicing_target, invoicing_actual, receivables_target, receivables_actual</code>
+              Full template matches the master sheet (deal metadata + Consumption / Delivery / Invoicing / Receivable target & attainment for the selected month). Attainment % columns are recalculated automatically.
             </p>
-            <Button variant="outline" size="sm" onClick={() => downloadCsv("deal-targets-template.csv", dealTemplateCsv())}>
-              <Download className="h-3.5 w-3.5 mr-1.5" /> Download template
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={() => downloadCsv(`deal-targets-${month}-full.csv`, wideDealTemplateCsv(monthLabel))}>
+                <Download className="h-3.5 w-3.5 mr-1.5" /> Download full template
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => downloadCsv("deal-targets-simple.csv", dealTemplateCsv())}>
+                <Download className="h-3.5 w-3.5 mr-1.5" /> Simple template
+              </Button>
+            </div>
           </TabsContent>
         </Tabs>
 
