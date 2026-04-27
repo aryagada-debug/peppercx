@@ -962,6 +962,60 @@ export type Database = {
         }
         Relationships: []
       }
+      smart_nudges: {
+        Row: {
+          confidence: number
+          dismissed: boolean
+          expires_at: string | null
+          generated_at: string
+          id: string
+          primary_action_href: string
+          primary_action_label: string
+          primary_action_payload: Json
+          snoozed_until: string | null
+          target_entity_id: string
+          target_entity_name: string
+          target_entity_type: string
+          text: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          confidence?: number
+          dismissed?: boolean
+          expires_at?: string | null
+          generated_at?: string
+          id?: string
+          primary_action_href?: string
+          primary_action_label?: string
+          primary_action_payload?: Json
+          snoozed_until?: string | null
+          target_entity_id?: string
+          target_entity_name?: string
+          target_entity_type?: string
+          text?: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          confidence?: number
+          dismissed?: boolean
+          expires_at?: string | null
+          generated_at?: string
+          id?: string
+          primary_action_href?: string
+          primary_action_label?: string
+          primary_action_payload?: Json
+          snoozed_until?: string | null
+          target_entity_id?: string
+          target_entity_name?: string
+          target_entity_type?: string
+          text?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       staffing_assignments: {
         Row: {
           allocation_pct: number
@@ -1408,6 +1462,168 @@ export type Database = {
           name?: string
           phases?: Json
           updated_at?: string
+        }
+        Relationships: []
+      }
+      user_notifications: {
+        Row: {
+          actor_avatar_url: string
+          actor_name: string
+          body: string
+          created_at: string
+          cta_href: string
+          cta_label: string
+          id: string
+          read: boolean
+          source_entity_id: string
+          source_entity_name: string
+          source_entity_type: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          actor_avatar_url?: string
+          actor_name?: string
+          body?: string
+          created_at?: string
+          cta_href?: string
+          cta_label?: string
+          id?: string
+          read?: boolean
+          source_entity_id?: string
+          source_entity_name?: string
+          source_entity_type?: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          actor_avatar_url?: string
+          actor_name?: string
+          body?: string
+          created_at?: string
+          cta_href?: string
+          cta_label?: string
+          id?: string
+          read?: boolean
+          source_entity_id?: string
+          source_entity_name?: string
+          source_entity_type?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_nudge_settings: {
+        Row: {
+          enabled: boolean
+          id: string
+          nudge_type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          enabled?: boolean
+          id?: string
+          nudge_type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          enabled?: boolean
+          id?: string
+          nudge_type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_pins: {
+        Row: {
+          entity_id: string
+          entity_name: string
+          entity_type: string
+          id: string
+          pinned_at: string
+          user_id: string
+        }
+        Insert: {
+          entity_id: string
+          entity_name?: string
+          entity_type: string
+          id?: string
+          pinned_at?: string
+          user_id: string
+        }
+        Update: {
+          entity_id?: string
+          entity_name?: string
+          entity_type?: string
+          id?: string
+          pinned_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_quotas: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          period_end: string
+          period_start: string
+          period_type: string
+          target_amount: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          period_end: string
+          period_start: string
+          period_type: string
+          target_amount?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          period_end?: string
+          period_start?: string
+          period_type?: string
+          target_amount?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_recent_views: {
+        Row: {
+          entity_id: string
+          entity_name: string
+          entity_type: string
+          id: string
+          user_id: string
+          viewed_at: string
+        }
+        Insert: {
+          entity_id: string
+          entity_name?: string
+          entity_type: string
+          id?: string
+          user_id: string
+          viewed_at?: string
+        }
+        Update: {
+          entity_id?: string
+          entity_name?: string
+          entity_type?: string
+          id?: string
+          user_id?: string
+          viewed_at?: string
         }
         Relationships: []
       }
