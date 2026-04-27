@@ -1660,10 +1660,22 @@ export default function DealDetail() {
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">Financial Snapshot</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <FinancialMetricCard label="MRR" value={String(deal.mrr || "")} subLabel="Monthly recurring" onSave={v => handleDealFieldSave("mrr", v)} />
-                <FinancialMetricCard label="Total Value" value={String(deal.totalDealValue || "")} subLabel="Contract total" onSave={v => handleDealFieldSave("totalDealValue", v)} />
-                <FinancialMetricCard label="Retainer Value" value={String(deal.retainerDealValue || "")} subLabel="Of total value" onSave={v => handleDealFieldSave("retainerDealValue", v)} />
-                <FinancialMetricCard label="Non-Retainer" value={String(deal.nonRetainerDealValue || "")} subLabel="Non-retainer portion" onSave={v => handleDealFieldSave("nonRetainerDealValue", v)} />
+                <KpiTile
+                  label="MRR" icon={IndianRupee} tone="primary" sublabel="Monthly recurring"
+                  editor={<EditableCell value={String(deal.mrr || "")} onSave={v => handleDealFieldSave("mrr", v)} type="number" prefix="₹" placeholder="—" />}
+                />
+                <KpiTile
+                  label="Total Value" icon={Wallet} tone="primary" sublabel="Contract total"
+                  editor={<EditableCell value={String(deal.totalDealValue || "")} onSave={v => handleDealFieldSave("totalDealValue", v)} type="number" prefix="₹" placeholder="—" />}
+                />
+                <KpiTile
+                  label="Retainer Value" icon={Receipt} tone="neutral" sublabel="Of total value"
+                  editor={<EditableCell value={String(deal.retainerDealValue || "")} onSave={v => handleDealFieldSave("retainerDealValue", v)} type="number" prefix="₹" placeholder="—" />}
+                />
+                <KpiTile
+                  label="Non-Retainer" icon={Receipt} tone="neutral" sublabel="Non-retainer portion"
+                  editor={<EditableCell value={String(deal.nonRetainerDealValue || "")} onSave={v => handleDealFieldSave("nonRetainerDealValue", v)} type="number" prefix="₹" placeholder="—" />}
+                />
               </div>
             </div>
 
@@ -1677,28 +1689,31 @@ export default function DealDetail() {
                     const totalInvoiced = financials.reduce((s, r) => s + (r.invoiced || 0), 0);
                     const totalReceived = financials.reduce((s, r) => s + (r.received || 0), 0);
                     const outstanding = totalInvoiced - totalReceived;
+                    const receivedPct = totalInvoiced > 0 ? (totalReceived / totalInvoiced) * 100 : 0;
+                    const outstandingPct = totalInvoiced > 0 ? (outstanding / totalInvoiced) * 100 : 0;
                     return (
                       <>
-                        <div className="rounded-lg bg-secondary/50 p-4">
-                          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">Total Consumed</p>
-                          <p className="text-sm font-medium text-foreground">{fmtCurrency(totalConsumed)}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">YTD consumption</p>
-                        </div>
-                        <div className="rounded-lg bg-secondary/50 p-4">
-                          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">Total Invoiced</p>
-                          <p className="text-sm font-medium text-foreground">{fmtCurrency(totalInvoiced)}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">Billed to client</p>
-                        </div>
-                        <div className="rounded-lg bg-secondary/50 p-4">
-                          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">Total Received</p>
-                          <p className="text-sm font-medium text-foreground">{fmtCurrency(totalReceived)}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">Payments cleared</p>
-                        </div>
-                        <div className="rounded-lg bg-secondary/50 p-4">
-                          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">Outstanding</p>
-                          <p className={cn("text-sm font-medium", outstanding > 0 ? "text-[hsl(0_70%_50%)]" : "text-foreground")}>{fmtCurrency(outstanding)}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">Pending receivable</p>
-                        </div>
+                        <KpiTile
+                          label="Total Consumed" icon={Activity} tone="primary"
+                          value={fmtCurrency(totalConsumed)} sublabel="YTD consumption"
+                        />
+                        <KpiTile
+                          label="Total Invoiced" icon={Receipt} tone="neutral"
+                          value={fmtCurrency(totalInvoiced)} sublabel="Billed to client"
+                        />
+                        <KpiTile
+                          label="Total Received" icon={BadgeCheck} tone="positive"
+                          value={fmtCurrency(totalReceived)}
+                          sublabel={totalInvoiced > 0 ? `${receivedPct.toFixed(0)}% of invoiced` : "Payments cleared"}
+                          progressPct={totalInvoiced > 0 ? receivedPct : undefined}
+                        />
+                        <KpiTile
+                          label="Outstanding" icon={AlertCircle}
+                          tone={outstanding > 0 ? "destructive" : "positive"}
+                          value={fmtCurrency(outstanding)}
+                          sublabel={outstanding > 0 ? `${outstandingPct.toFixed(0)}% pending` : "All settled"}
+                          progressPct={outstanding > 0 ? outstandingPct : undefined}
+                        />
                       </>
                     );
                   })()}
