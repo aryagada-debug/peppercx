@@ -2193,25 +2193,26 @@ export default function DealDetail() {
                                       <div className="flex items-center justify-end gap-1">
                                         <Input
                                           type="number"
-                                          min={1}
-                                          max={100}
+                                          min={0}
+                                          max={40}
+                                          step="0.5"
                                           value={editAllocationValue}
                                           onChange={e => setEditAllocationValue(Number(e.target.value) || 0)}
                                           className="h-7 w-16 text-sm text-right"
                                           autoFocus
                                           onKeyDown={e => {
-                                            if (e.key === "Enter") { updateAssignment(alloc!.id, { allocationPct: editAllocationValue }); setEditingAllocation(null); toast.success("Allocation updated"); }
+                                            if (e.key === "Enter") { updateAssignment(alloc!.id, { allocationPct: Math.round((editAllocationValue / 40) * 100) }); setEditingAllocation(null); toast.success("Hours updated"); }
                                             if (e.key === "Escape") setEditingAllocation(null);
                                           }}
                                         />
-                                        <span className="text-xs">%</span>
-                                        <button onClick={() => { updateAssignment(alloc!.id, { allocationPct: editAllocationValue }); setEditingAllocation(null); toast.success("Allocation updated"); }} className="text-primary"><Check className="h-3.5 w-3.5" /></button>
+                                        <span className="text-xs">h</span>
+                                        <button onClick={() => { updateAssignment(alloc!.id, { allocationPct: Math.round((editAllocationValue / 40) * 100) }); setEditingAllocation(null); toast.success("Hours updated"); }} className="text-primary"><Check className="h-3.5 w-3.5" /></button>
                                         <button onClick={() => setEditingAllocation(null)} className="text-muted-foreground"><X className="h-3.5 w-3.5" /></button>
                                       </div>
                                     ) : (
                                       <span
                                         className="cursor-pointer hover:underline"
-                                        onClick={() => { if (alloc) { setEditingAllocation(alloc.id); setEditAllocationValue(alloc.allocationPct); } }}
+                                        onClick={() => { if (alloc) { setEditingAllocation(alloc.id); setEditAllocationValue(Number(((alloc.allocationPct / 100) * 40).toFixed(1))); } }}
                                       >
                                         {alloc?.allocationPct || 0}%
                                       </span>
