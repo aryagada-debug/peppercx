@@ -16,6 +16,108 @@ import type { SubTask } from "./TaskKanban";
 const STAGES = ["To Do", "In Progress", "In Review", "Done", "Dropped"];
 const URGENCIES = ["Low", "Medium", "High", "Critical"];
 
+type Assignee = { id: string; name: string; staffed?: boolean; designation?: string };
+
+/* ── Searchable Assignee Combobox ── */
+function AssigneeCombobox({
+  value,
+  onChange,
+  assignees,
+  placeholder = "Select assignee",
+  triggerClassName,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  assignees: Assignee[];
+  placeholder?: string;
+  triggerClassName?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const staffed = assignees.filter(a => a.staffed !== false);
+  const others = assignees.filter(a => a.staffed === false);
+  const selected = assignees.find(a => a.name === value);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-left ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+            triggerClassName,
+          )}
+        >
+          <span className={cn("truncate", !selected && "text-muted-foreground")}>
+            {selected ? (
+              <span>
+                {selected.name}
+                {selected.designation && (
+                  <span className="text-muted-foreground"> · {selected.designation}</span>
+                )}
+              </span>
+            ) : placeholder}
+          </span>
+          <ChevronDown className="h-4 w-4 opacity-50 shrink-0 ml-2" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="p-0 w-[320px]" align="start">
+        <Command>
+          <CommandInput placeholder="Search by name or designation…" />
+          <CommandList>
+            <CommandEmpty>No people found.</CommandEmpty>
+            <CommandGroup>
+              <CommandItem
+                value="unassigned"
+                onSelect={() => { onChange(""); setOpen(false); }}
+              >
+                <Check className={cn("mr-2 h-4 w-4", !value ? "opacity-100" : "opacity-0")} />
+                Unassigned
+              </CommandItem>
+            </CommandGroup>
+            {staffed.length > 0 && (
+              <CommandGroup heading="Staffed on this deal">
+                {staffed.map(a => (
+                  <CommandItem
+                    key={a.id}
+                    value={`${a.name} ${a.designation || ""}`}
+                    onSelect={() => { onChange(a.name); setOpen(false); }}
+                  >
+                    <Check className={cn("mr-2 h-4 w-4", value === a.name ? "opacity-100" : "opacity-0")} />
+                    <div className="flex flex-col min-w-0">
+                      <span className="truncate">{a.name}</span>
+                      {a.designation && (
+                        <span className="text-[11px] text-muted-foreground truncate">{a.designation}</span>
+                      )}
+                    </div>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+            {others.length > 0 && (
+              <CommandGroup heading="Other people">
+                {others.map(a => (
+                  <CommandItem
+                    key={a.id}
+                    value={`${a.name} ${a.designation || ""}`}
+                    onSelect={() => { onChange(a.name); setOpen(false); }}
+                  >
+                    <Check className={cn("mr-2 h-4 w-4", value === a.name ? "opacity-100" : "opacity-0")} />
+                    <div className="flex flex-col min-w-0">
+                      <span className="truncate">{a.name}</span>
+                      {a.designation && (
+                        <span className="text-[11px] text-muted-foreground truncate">{a.designation}</span>
+                      )}
+                    </div>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export interface TaskData {
   title: string;
   description: string;
