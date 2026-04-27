@@ -96,8 +96,31 @@ function InlineEditCell({ value, onSave, type = "text", prefix = "", placeholder
 }
 
 export default function Clients() {
-  const { deals, people, assignments, loading: staffLoading, refresh: refreshStaffing, updateDeal, addAssignment, updateAssignment } = useStaffingData();
-  const { clients, loading: clientsLoading, addClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
+  const { deals: allDeals, people, assignments, loading: staffLoading, refresh: refreshStaffing, updateDeal, addAssignment, updateAssignment } = useStaffingData();
+  const { clients: allClients, loading: clientsLoading, addClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
+  const access = useDealAccess();
+  // Scope deals & clients to what this user is allowed to see.
+  const deals = useMemo(
+    () => (access.isAdmin ? allDeals : allDeals.filter(d => access.canViewDeal(d.id))),
+    [allDeals, access]
+  );
+  const visibleClientIdSet = useMemo(() => {
+    const ids = new Set<string>();
+    deals.forEach(d => { if (d.clientId) ids.add(d.clientId); });
+    return ids;
+  }, [deals]);
+  const clients = useMemo(
+    () => (access.isAdmin ? allClients : allClients.filter(c => visibleClientIdSet.has(c.id))),
+    [allClients, visibleClientIdSet, access.isAdmin]
+  );
+  const isDealEditable = useCallback(
+    (dealId: string) => access.isAdmin || access.canEditDeal(dealId),
+    [access]
+  );
+  const isClientEditable = useCallback(
+    (clientId: string) => access.isAdmin || access.canEditClient(clientId),
+    [access]
+  );
   const [search, setSearch] = useState("");
   const [activeVsd, setActiveVsd] = useState<VsdFilterKey>("All");
   const [showClosed, setShowClosed] = useState(false);
