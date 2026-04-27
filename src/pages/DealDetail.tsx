@@ -2163,10 +2163,12 @@ export default function DealDetail() {
                         totalRevManaged += dealMrr * pct;
                       });
                       return (
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className={cn("grid grid-cols-2 gap-3", isAdmin ? "md:grid-cols-4" : "md:grid-cols-3") }>
                           <div className="rounded-lg bg-secondary/50 p-4"><p className="metric-label">Team Size</p><p className="text-xl font-semibold text-foreground">{dealPeople.length}</p></div>
                           <div className="rounded-lg bg-secondary/50 p-4"><p className="metric-label">Total Hrs/Week</p><p className="text-xl font-semibold text-foreground">{totalHrsWeek.toFixed(1)}h</p></div>
-                          <div className="rounded-lg bg-secondary/50 p-4"><p className="metric-label">Cost/Week</p><p className="text-xl font-semibold text-foreground">{fmtCurrency(totalCostWeek)}</p></div>
+                          {isAdmin && (
+                            <div className="rounded-lg bg-secondary/50 p-4"><p className="metric-label">Cost/Week</p><p className="text-xl font-semibold text-foreground">{fmtCurrency(totalCostWeek)}</p></div>
+                          )}
                           <div className="rounded-lg bg-secondary/50 p-4"><p className="metric-label">Revenue Managed</p><p className="text-xl font-semibold text-foreground">{fmtCurrency(totalRevManaged)}</p></div>
                         </div>
                       );
