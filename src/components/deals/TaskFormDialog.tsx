@@ -224,18 +224,15 @@ function SubtaskRow({
           placeholder="Subtask title"
           className="h-7 text-sm flex-1"
         />
-        <Select
-          value={subtask.assignee || "__unassigned__"}
-          onValueChange={v => onUpdate({ assignee: v === "__unassigned__" ? "" : v })}
-        >
-          <SelectTrigger className="h-7 w-[120px] text-xs">
-            <SelectValue placeholder="Assign" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__unassigned__">Unassigned</SelectItem>
-            {assignees.map(a => <SelectItem key={a.id} value={a.name}>{a.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <div className="w-[160px]">
+          <AssigneeCombobox
+            value={subtask.assignee || ""}
+            onChange={(v) => onUpdate({ assignee: v })}
+            assignees={assignees}
+            placeholder="Assign"
+            triggerClassName="h-7 text-xs px-2"
+          />
+        </div>
         <button type="button" onClick={() => setExpanded(!expanded)} className="p-1 hover:bg-accent rounded">
           {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
         </button>
@@ -339,28 +336,11 @@ export function TaskFormDialog({ open, onOpenChange, onSubmit, assignees, defaul
           {/* Assignee */}
           <div className="space-y-1">
             <Label className="text-caption text-muted-foreground">Assignee</Label>
-            <Select value={form.assignee || "__unassigned__"} onValueChange={v => set("assignee", v === "__unassigned__" ? "" : v)}>
-              <SelectTrigger><SelectValue placeholder="Select assignee" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__unassigned__">Unassigned</SelectItem>
-                {(() => {
-                  const staffed = assignees.filter(a => a.staffed !== false);
-                  const others = assignees.filter(a => a.staffed === false);
-                  return (
-                    <>
-                      {staffed.length > 0 && (
-                        <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Staffed on this deal</div>
-                      )}
-                      {staffed.map(a => <SelectItem key={a.id} value={a.name}>{a.name}</SelectItem>)}
-                      {others.length > 0 && (
-                        <div className="px-2 py-1 mt-1 border-t border-border text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Other people</div>
-                      )}
-                      {others.map(a => <SelectItem key={a.id} value={a.name}>{a.name}</SelectItem>)}
-                    </>
-                  );
-                })()}
-              </SelectContent>
-            </Select>
+            <AssigneeCombobox
+              value={form.assignee}
+              onChange={(v) => set("assignee", v)}
+              assignees={assignees}
+            />
           </div>
 
           {/* Dates + Estimated Hours */}
