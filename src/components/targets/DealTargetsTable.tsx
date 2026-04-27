@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, Fragment } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ListChecks } from "lucide-react";
@@ -64,11 +64,11 @@ export function DealTargetsTable({ monthYYYYMM, dealIds, title, maxRows }: Props
                 <tr className="border-b border-border">
                   <th className="sticky left-0 bg-card" />
                   {METRICS.map((m) => (
-                    <>
-                      <th key={`${m}-t`} className="text-right py-1.5 pr-2 pl-2 font-medium text-muted-foreground text-[10px] border-l border-border">Tgt</th>
-                      <th key={`${m}-a`} className="text-right py-1.5 px-2 font-medium text-muted-foreground text-[10px]">Act</th>
-                      <th key={`${m}-p`} className="text-right py-1.5 px-2 font-medium text-muted-foreground text-[10px]">%</th>
-                    </>
+                    <Fragment key={m}>
+                      <th className="text-right py-1.5 pr-2 pl-2 font-medium text-muted-foreground text-[10px] border-l border-border">Tgt</th>
+                      <th className="text-right py-1.5 px-2 font-medium text-muted-foreground text-[10px]">Act</th>
+                      <th className="text-right py-1.5 px-2 font-medium text-muted-foreground text-[10px]">%</th>
+                    </Fragment>
                   ))}
                 </tr>
               </thead>
@@ -88,13 +88,13 @@ export function DealTargetsTable({ monthYYYYMM, dealIds, title, maxRows }: Props
                       const act = r[`${m}_actual` as const] as number;
                       const pct = attainmentPct(act, tgt);
                       return (
-                        <>
-                          <td key={`${m}-t`} className="text-right py-2 pr-2 pl-2 font-mono tabular-nums text-muted-foreground border-l border-border/50">{formatINR(tgt)}</td>
-                          <td key={`${m}-a`} className="text-right py-2 px-2 font-mono tabular-nums text-foreground">{formatINR(act)}</td>
-                          <td key={`${m}-p`} className={cn("text-right py-2 px-2 font-mono tabular-nums font-semibold", attainmentTone(pct))}>
+                        <Fragment key={m}>
+                          <td className="text-right py-2 pr-2 pl-2 font-mono tabular-nums text-muted-foreground border-l border-border/50">{formatINR(tgt)}</td>
+                          <td className="text-right py-2 px-2 font-mono tabular-nums text-foreground">{formatINR(act)}</td>
+                          <td className={cn("text-right py-2 px-2 font-mono tabular-nums font-semibold", attainmentTone(pct))}>
                             {pct === null ? "—" : `${pct.toFixed(0)}%`}
                           </td>
-                        </>
+                        </Fragment>
                       );
                     })}
                   </tr>
