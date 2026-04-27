@@ -31,7 +31,7 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: TaskData) => void;
-  assignees: { id: string; name: string }[];
+  assignees: { id: string; name: string; staffed?: boolean }[];
   defaultStage?: string;
   initial?: TaskData & { loggedHours?: number };
   title?: string;
@@ -101,7 +101,7 @@ function SubtaskRow({
   onDelete,
 }: {
   subtask: SubTask;
-  assignees: { id: string; name: string }[];
+  assignees: { id: string; name: string; staffed?: boolean }[];
   onUpdate: (updates: Partial<SubTask>) => void;
   onDelete: () => void;
 }) {
@@ -239,7 +239,22 @@ export function TaskFormDialog({ open, onOpenChange, onSubmit, assignees, defaul
               <SelectTrigger><SelectValue placeholder="Select assignee" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="__unassigned__">Unassigned</SelectItem>
-                {assignees.map(a => <SelectItem key={a.id} value={a.name}>{a.name}</SelectItem>)}
+                {(() => {
+                  const staffed = assignees.filter(a => a.staffed !== false);
+                  const others = assignees.filter(a => a.staffed === false);
+                  return (
+                    <>
+                      {staffed.length > 0 && (
+                        <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Staffed on this deal</div>
+                      )}
+                      {staffed.map(a => <SelectItem key={a.id} value={a.name}>{a.name}</SelectItem>)}
+                      {others.length > 0 && (
+                        <div className="px-2 py-1 mt-1 border-t border-border text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Other people</div>
+                      )}
+                      {others.map(a => <SelectItem key={a.id} value={a.name}>{a.name}</SelectItem>)}
+                    </>
+                  );
+                })()}
               </SelectContent>
             </Select>
           </div>
