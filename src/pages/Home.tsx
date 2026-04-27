@@ -462,6 +462,19 @@ export default function HomePage() {
           </div>
         </div>
 
+        {/* Finance Targets */}
+        <div className="mb-4 space-y-4">
+          <FinanceTargetsCard monthYYYYMM={format(new Date(), "yyyy-MM")} />
+          {myDealIds.length > 0 && (
+            <DealTargetsTable
+              monthYYYYMM={format(new Date(), "yyyy-MM")}
+              dealIds={myDealIds}
+              title="My Deal Targets"
+              maxRows={8}
+            />
+          )}
+        </div>
+
         <div className="grid grid-cols-12 gap-4">
           {/* My Tasks */}
           <Card className="col-span-12 lg:col-span-8">
