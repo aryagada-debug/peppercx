@@ -1,107 +1,144 @@
-## Slack Channel Inactivity Flag
+## Goal
 
-Detect deals whose linked Slack channel has fewer than **2 human messages in the last 7 days** (deal must be Active), surface a warning in the **MBR tab**, and post a one-time weekly nudge to the channel.
-
-### Definition of "human message"
-
-From `slack_messages`, count rows where:
-
-- `deal_id = <deal>`
-- `created_at >= now() - 7 days`
-- `source = 'slack'` (excludes app-sent messages where `source='app'`)
-- Bot messages are already filtered at ingestion (`slack-events` skips `ev.bot_id`), so no extra filter needed.
-
-Threshold: `< 2` messages → **inactive**.
-
-Deal must be Active: `staffing_deals.deal_status = 'Active Deal'` AND `slack_channel_id` is non-empty.
+1. Make the entire left sidebar collapsible (full ↔ icon-only mini rail), with the toggle persisted.
+2. Add a new **Home** tab under **Core** that acts as a "plan-your-day" hub (ClickUp-style), unifying overdue/today tasks, meetings, flags, and a personal to-do tracker.
 
 ---
 
-### 1. Database — add nudge log table
+## Part 1 — Collapsible Sidebar
 
-New migration creates `slack_inactivity_nudges` to ensure we send the Slack notice **at most once per deal per ISO week** (idempotent).
+**File:** `src/components/layout/AppSidebar.tsx`, `src/components/layout/AppLayout.tsx`
+
+- Add a `sidebarCollapsed` state lifted to `AppLayout` (persisted in `localStorage` under `pepper.sidebar.collapsed`).
+- Sidebar widths: `w-60` expanded → `w-14` collapsed (icon-only mini rail; tooltips on hover for labels).
+- Add a chevron toggle button in the sidebar header (next to "Pepper OS" logo) that flips the state. Also expose a small floating trigger in the top header so it remains reachable.
+- When collapsed:
+  - Hide section labels and item text; show icons only, centered.
+  - Hide the bottom user card text (keep avatar circle).
+  - Section group toggles collapse into a divider.
+- Smooth `transition-all duration-200` on width.
+- Wrap nav items in `Tooltip` (right-side) when collapsed.
+
+---
+
+## Part 2 — Home Tab (Daily Planner)
+
+**Routing & Sidebar**
+
+- Add route `/home` in `src/App.tsx` with `routeKey="home"`, before `/` (Dashboard stays at `/`).
+- Add `Home` (lucide `Home` icon) as the **first item** under Core in `AppSidebar.tsx`, label "Home".
+- Add `home` to default `route_visibility` for all roles via migration (visible by default).
+
+**New page:** `src/pages/Home.tsx` (uses `AppLayout`)
+
+Layout: 12-col grid, ClickUp-inspired, dense but airy.
+
+**Top strip — "Good morning, {name}"**
+
+- Greeting with current date and a small KPI row: Overdue (red), Due Today (amber), This Week (blue), Open Flags (red).
+
+**Main grid:**
+
+1. **My Tasks** (col-span 8) — Tabs: `Overdue` · `Today` · `Upcoming (7d)` · `Completed`.
+  - Source: `deal_tasks` + `cx_tasks` filtered by `assignee = current user's display_name / email`.
+  - Each row: checkbox to mark Done (updates `stage`/`status`), title, deal/space chip, due date, urgency pill, quick "Open" link to deal/space.
+  - Drag-to-reorder within a day (updates `sort_order`).
+2. **Today's Meetings & MBRs** (col-span 4)
+  - MBRs scheduled today/this week from `mbr_entries.scheduled_date` for deals where the user is on the team.
+  - Section for "Upcoming MBRs (next 7 days)".
+  - Click → opens MBR detail dialog (reuse existing `MBRDetailDialog`).
+3. **Flags & Alerts** (col-span 6)
+  - Active RGY issues assigned to / owned by user from `deal_rgy_weekly` where `issue_status = 'Open'` and resolution_due_date ≤ today+7.
+  - Slack inactivity flags from `slack_inactivity_nudges` (last 7 days) for deals user works on.
+  - Each card shows deal name, flag type, severity, due date, "Resolve" link.
+4. **Personal To-Do Tracker** (col-span 6)
+  - Standalone personal list, **not** tied to deals — new table `personal_todos`.
+  - Quick-add input (Enter to add). Inline edit, drag-reorder, check to complete, delete on hover.
+  - Optional fields: due date, priority (Low/Med/High).
+  - Filter chips: All · Active · Completed.
+5. **My Allocation This Week** (col-span 12, slim strip)
+  - Bar showing total % allocation for current week from `staffing_weekly_allocations` for the user's `staffing_person_id` (linked via `profiles.staffing_person_id`).
+  - Color: green 60–85%, amber >85%, red <60% (per existing dashboard rules).
+
+---
+
+## Part 3 — Database
+
+**New migration:**
 
 ```sql
-CREATE TABLE public.slack_inactivity_nudges (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  deal_id text NOT NULL,
-  channel_id text NOT NULL,
-  week_start date NOT NULL,
-  message_count int NOT NULL,
-  sent_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (deal_id, week_start)
+-- Personal todos (per-user, not tied to deals)
+create table public.personal_todos (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null,
+  title text not null default '',
+  notes text not null default '',
+  done boolean not null default false,
+  due_date date,
+  priority text not null default 'Medium', -- Low | Medium | High
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
-ALTER TABLE public.slack_inactivity_nudges ENABLE ROW LEVEL SECURITY;
--- authenticated read; only edge function (service role) writes
-CREATE POLICY "Auth read nudges" ON public.slack_inactivity_nudges
-  FOR SELECT TO authenticated USING (true);
+
+alter table public.personal_todos enable row level security;
+
+create policy "Users manage own todos select" on public.personal_todos
+  for select to authenticated using (auth.uid() = user_id);
+create policy "Users manage own todos insert" on public.personal_todos
+  for insert to authenticated with check (auth.uid() = user_id);
+create policy "Users manage own todos update" on public.personal_todos
+  for update to authenticated using (auth.uid() = user_id);
+create policy "Users manage own todos delete" on public.personal_todos
+  for delete to authenticated using (auth.uid() = user_id);
+
+create trigger personal_todos_updated_at
+  before update on public.personal_todos
+  for each row execute function public.update_updated_at_column();
+
+-- Seed Home route visibility for every role
+insert into public.route_visibility (role, route_key, visible)
+select r, 'home', true
+from unnest(array['admin','member','user','view_only']::app_role[]) r
+on conflict do nothing;
 ```
 
-### 2. New edge function — `slack-activity-check`
+---
 
-Path: `supabase/functions/slack-activity-check/index.ts` (config: `verify_jwt = false` so it can be cron-invoked; verifies a shared secret or callable from client with auth).
+## Part 4 — Hooks
 
-Two modes via POST body:
+- `src/hooks/useHomeData.ts` — composes:
+  - `myTasks` from `deal_tasks` + `cx_tasks`, partitioned into overdue / today / upcoming / completed.
+  - `myMeetings` from `mbr_entries` filtered by user's deals.
+  - `myFlags` from `deal_rgy_weekly` + `slack_inactivity_nudges`.
+  - `myAllocation` from `staffing_weekly_allocations` joined via `profiles.staffing_person_id`.
+- `src/hooks/usePersonalTodos.ts` — CRUD + realtime subscription on `personal_todos`.
 
-- `{ mode: "scan" }` — iterates all active deals with `slack_channel_id`, computes 7-day human msg count, for each `< 2` inserts into `slack_inactivity_nudges` (skips on conflict) and posts a Slack message:
-  > ⚠️ *Low activity flag* — This channel had only N message(s) from the team in the last 7 days. Per VSD-OS, active deals should see ≥ 2 weekly updates. This has been flagged in the MBR tab.
-- `{ mode: "status", deal_id }` — returns `{ count, isInactive, lastMessageAt }` for live UI display (no side effect).
+User identity: derive `displayName` from `profiles` row + `staffing_person_id` to match `assignee` strings on deal/cx tasks.
 
-Slack post uses existing `SLACK_BOT_TOKEN` via `chat.postMessage` (same pattern as `slack-send`).
+---
 
-### 3. Frontend — MBR tab inactivity banner
+## Files Touched
 
-Edit `src/pages/DealDetail.tsx` `DealMBRTab`:
+- `src/App.tsx` (add `/home` route)
+- `src/components/layout/AppSidebar.tsx` (collapse + Home item)
+- `src/components/layout/AppLayout.tsx` (collapse state + header trigger)
+- `src/pages/Home.tsx` *(new)*
+- `src/hooks/useHomeData.ts` *(new)*
+- `src/hooks/usePersonalTodos.ts` *(new)*
+- `src/hooks/useUserRole.ts` (include `home` in default visible set)
+- `supabase/migrations/...sql` *(new)*
 
-- On mount, if `deal.slackChannelId` and deal status is Active, call `supabase.functions.invoke('slack-activity-check', { body: { mode: 'status', deal_id: dealId } })`.
-- Add a 4th KPI card / inline alert: **"Slack Activity"** showing one of:
-  - ✅ Active — N msgs / 7d
-  - ⚠️ Inactive — only N msg(s) / 7d (red tone)
-  - — Not linked (muted, when no channel)
-- Show a dismissible alert above the MBR table when inactive: *"Slack channel flagged as inactive (<2 team messages this week)."*
+---
 
-Also surface the same flag as a small badge on the **Slack** column of the deals list:
+## Open suggestions (additive, not in v1 unless you want)
 
-- `src/pages/Deals.tsx` (or wherever the deal rows render) — add a tiny `🔴 Inactive` chip when applicable. (One bulk fetch of last-7-day counts grouped by `deal_id`.)
+- Pin tasks to the top.
+- "Focus mode" timer per task (Pomodoro).
+- Weekly digest email of overdue items.
+- Drag tasks from "Upcoming" → "Today" to re-schedule (updates `start_date`).
 
-### 4. Scheduled scan (weekly)
-
-Add a `pg_cron` job in the migration to invoke the edge function every Monday 09:00 IST:
-
-```sql
-SELECT cron.schedule(
-  'slack-inactivity-weekly',
-  '30 3 * * 1',  -- 09:00 IST Monday
-  $$ SELECT net.http_post(
-       url := 'https://gdklfxqbocvoxcfthysy.supabase.co/functions/v1/slack-activity-check',
-       headers := '{"Content-Type":"application/json","Authorization":"Bearer <SERVICE_ROLE>"}'::jsonb,
-       body := '{"mode":"scan"}'::jsonb
-     ); $$
-);
-```
-
-(Uses existing `pg_net` + `pg_cron` extensions; will enable in migration if not already.)
-
-### 5. Files touched
-
-- **New** `supabase/migrations/<ts>_slack_inactivity.sql` — table + cron
-- **New** `supabase/functions/slack-activity-check/index.ts`
-- **Edit** `supabase/config.toml` — add `[functions.slack-activity-check] verify_jwt = false`
-- **Edit** `src/pages/DealDetail.tsx` — MBR tab Slack activity KPI + alert
-- **Edit** `src/pages/Deals.tsx` — optional inactive chip in deal list
-
-### Edge cases handled
-
-- Deal not Active → skipped entirely.
-- No `slack_channel_id` → UI shows "Not linked", no Slack post.
-- Already nudged this ISO week → unique constraint blocks duplicate Slack post.
-- All messages from `source='app'` (sent via VSD-OS UI) → still counted as inactive, since these are app/bot-originated, not organic Slack engagement.
-- Bot messages from the Lovable Slack app → already excluded at ingest time.
-
-### What you'll see after approval
-
-1. Open any active deal → **MBR** tab shows a Slack Activity card with a red "Inactive" badge if low.
-2. Mondays 09:00 IST, the system auto-posts the warning to flagged channels (one nudge per channel per week).
-3. The deals list gets a subtle "🔴 Slack channel Inactive" chip on rows where the Slack channel is silent.  
-  
-Add another chip that will say clack channel not connected. 
+Tell me if you want any of those folded into v1 or to drop one of the 5 home modules.  
+1. Weekly digest  
+2. Financial summary of their projects   
+3. RGY - Red accounts - highlisht it somehow

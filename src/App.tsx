@@ -10,6 +10,7 @@ import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Index from "./pages/Index";
+import Home from "./pages/Home";
 import Clients from "./pages/Clients";
 import DealDetail from "./pages/DealDetail";
 import Staffing from "./pages/Staffing";
@@ -43,6 +44,7 @@ const App = () => (
             <Route path="/reset-password" element={<ResetPassword />} />
 
             {/* Protected routes */}
+            <Route path="/home" element={<ProtectedRoute routeKey="home"><Home /></ProtectedRoute>} />
             <Route path="/" element={<ProtectedRoute routeKey="dashboard"><Index /></ProtectedRoute>} />
             <Route path="/clients" element={<ProtectedRoute routeKey="clients"><Clients /></ProtectedRoute>} />
             <Route path="/deals" element={<Navigate to="/clients" replace />} />
