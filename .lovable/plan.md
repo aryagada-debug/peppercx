@@ -1,67 +1,80 @@
-## Scope
-Enhance the MBR section inside the Deal Detail (Clients & Deals → Deal → MBR tab) and refresh the Overview tab KPIs.
+# Restrict Visibility — Rates, Clients & Deals
 
----
+## 1. Hide Rate/Hr & Cost/Week from non-admins
 
-### 1. Dynamic file-name display for the MBR PPT/PDF link
+In **Deal Detail → Staffing tab**, the team table currently shows `Rate/Hr`, `Cost/Week`, and a `Cost/Week` KPI tile. Make these visible only when the user is an **Admin** (everyone else — including Principal/Senior BOPMs — won't see the columns or the tile).
 
-**Where**: MBR History table (`src/pages/DealDetail.tsx`, "PPT Link" column) and `MBRDetailDialog.tsx`.
+- Use `useUserRole().isAdmin` to gate:
+  - The `Rate/Hr` and `Cost/Week` `<th>` + `<td>` cells in the per-team table.
+  - The `Cost/Week` KPI card in the summary grid (collapse the grid from 4 to 3 columns when hidden).
+- "Revenue Managed", "Hrs/Week", and "Team Size" remain visible to everyone.
+- The view-as-role toggle already lets admins preview the BOPM experience.
 
-**Behavior**:
-- Stored field `mbr_ppt_link` stays a URL string (no schema change).
-- Render a derived file name from the URL instead of the raw link:
-  - Decode the last URL path segment, strip query params/anchors.
-  - If the name has an extension (`.pptx`, `.ppt`, `.pdf`, `.key`, `.gslides`, etc.), show the file name with a small icon that switches by extension (PPT icon for ppt/pptx, PDF icon for pdf, generic file icon otherwise).
-  - For Google Drive / Slides / Dropbox links where no filename is in the URL, fall back to a friendly label ("Google Slides", "Google Drive file", "Dropbox file", or hostname).
-  - Hover tooltip shows the full URL; clicking opens it in a new tab.
-- Editing UX unchanged: clicking edit lets the user paste/replace the URL; the displayed label re-derives automatically.
-- Add a tiny helper `getLinkLabel(url)` + `getFileIcon(url)` colocated in a new `src/lib/fileLink.ts`.
+## 2. Clients & Deals visibility + edit access by role
 
-### 2. AI-generated 2-line summary banner above MBR History
+Define visibility based on the logged-in user's `profiles.staffing_person_id` (already linked to `staffing_people.id`) and their role:
 
-**Where**: Top of the Deal MBR tab (`DealMBRTab` in `src/pages/DealDetail.tsx`), above the KPIs/banners.
+| Role | Sees | Can edit |
+|---|---|---|
+| **Admin** | All clients & deals | All |
+| **Principal BOPM / Senior BOPM** (their staffing person is set as `principal_bopm`, `senior_bopm`, or `bopm` on a deal, OR is in `staffing_assignments` for it) | Their own deals + every deal sharing the same `vsd` as any of their own deals | Own deals only (where they're listed on the deal or assigned). Same-VSD peer deals are read-only |
+| **Other members** (anyone added via `staffing_assignments` or listed on a deal) | Only the deals they're added to | Only those deals |
+| **No deals** | Empty list | Nothing |
 
-**Behavior**:
-- A compact card titled "Latest MBR Summary" showing a 2-line AI summary derived from the most recent MBR entry's `notes` (fallback: `aiSummary` if notes empty; hide entirely if neither exists).
-- Auto-generates when notes change. Cached on the entry itself.
-  - Reuse `mbr_entries.ai_summary` to persist the generated 2-liner so we don't regenerate on every page visit.
-  - Trigger generation when: the most recent entry has `notes` but no `ai_summary`, OR `notes` were updated after `ai_summary` was last written. (We'll piggyback on `updated_at` vs a new lightweight check: regenerate if `ai_summary` is empty; otherwise show the cached one. A "Regenerate" pill button lets the user force a refresh.)
-- Backend: new edge function `mbr-summarize-notes` (or extend the existing `mbr-summarize`) that:
-  - Accepts `{ mbr_entry_id, notes }`.
-  - Calls Lovable AI Gateway (`google/gemini-3-flash-preview`) with a strict 2-sentence system prompt.
-  - Writes the result back to `mbr_entries.ai_summary` and returns it.
-- Frontend invokes the function via `supabase.functions.invoke` and renders a skeleton while loading. Errors show a muted "Summary unavailable" line, no toast spam.
+A "client" is visible if at least one of its deals is visible. Editing client fields requires edit access on at least one of its deals.
 
-### 3. Modernize Overview tab KPIs
+### Where this is enforced
 
-**Where**: `src/pages/DealDetail.tsx` Overview section — the "Financial Snapshot" (4 cards) and "YTD Financial Summary" (4 cards).
+- **`src/pages/Clients.tsx`** — filter `deals` to the visible set before computing `tableRows`, KPIs, VSD chips, and grouping by client. Pass an `isDealEditable(dealId)` predicate to disable inline edits, the status dropdown, the deal-row delete button, and the client delete button when no deals under that client are editable.
+- **`src/pages/DealDetail.tsx`** — on load, if the deal isn't in the visible set, redirect back to `/clients` with a toast. If visible-but-not-editable, render in read-only mode (reuse the existing `isReadOnly` patterns: disable `EditableCell`, hide save/delete buttons, hide "Add Member", task editing, RGY editing, MBR input, etc.).
+- **`src/pages/Deals.tsx`** — apply the same filter for any deal lists.
 
-**New look** (keeps editability intact):
-- Replace the flat `bg-secondary/50 p-4` blocks with a richer card:
-  - Rounded-xl card with subtle border + soft gradient background tied to KPI tone.
-  - Top row: small colored icon chip (₹ for money, 📈 for consumed, 🧾 for invoiced, ✅ for received, ⚠️ for outstanding) + label in uppercase tracking.
-  - Big tabular-nums value in `text-2xl font-semibold`.
-  - Sub-line: existing caption + a tiny delta/context chip where applicable (e.g. Outstanding shows red chip when > 0, Received shows % of invoiced as a thin progress bar underneath).
-  - Hover: subtle lift (`hover:-translate-y-0.5 transition`).
-- Financial Snapshot cards (MRR / Total / Retainer / Non-Retainer): same visual system, formatted via `fmtCurrency`, edit-on-click preserved.
-- All values right-aligned, monospace tabular-nums for clean comparison.
-- Reuse existing tokens (`text-positive`, `text-warning`, `text-destructive`, `bg-card`, `border-border`) — no new colors introduced.
+### New shared hook: `src/hooks/useDealAccess.ts`
 
----
+Centralises the logic so every page/component uses one source of truth.
 
-## Technical Details
+```ts
+// Returns:
+//   loading
+//   visibleDealIds: Set<string>
+//   editableDealIds: Set<string>
+//   canViewDeal(id)
+//   canEditDeal(id)
+//   canViewClient(clientId)
+//   canEditClient(clientId)
+```
 
-**Files to edit**
-- `src/pages/DealDetail.tsx`
-  - `DealMBRTab`: add `LatestMBRSummaryCard` component at the top; swap PPT-link cell to use new label helper.
-  - Overview section (~lines 1505–1557): rebuild Financial Snapshot + YTD cards using a new local `KpiTile` component (or shared one).
-- `src/components/mbr/MBRDetailDialog.tsx`: render PPT link with file-name + icon when not editing.
-- `src/lib/fileLink.ts` (new): `getLinkLabel(url)`, `getFileIcon(url)`, extension classification.
-- `supabase/functions/mbr-summarize-notes/index.ts` (new edge function) — uses `LOVABLE_API_KEY`, model `google/gemini-3-flash-preview`, deterministic 2-sentence prompt, writes to `mbr_entries.ai_summary`.
+Steps inside the hook:
+1. Read current user's `profiles.staffing_person_id` (already populated by `admin-user-mgmt`).
+2. Look up their `staffing_people` row → `name`, `roleCategory`, `roleTitle`.
+3. Determine if the person is a "BOPM-tier" user (role title contains "BOPM" / "Principal" / "Senior" — used to enable the same-VSD peer view).
+4. Build `ownDealIds` = deals where the user appears in `principal_bopm` / `senior_bopm` / `bopm` (matched by name) OR in `staffing_assignments.person_id`.
+5. Build `peerDealIds` (BOPMs only) = all deals whose `vsd` matches the `vsd` of any deal in `ownDealIds`.
+6. `visibleDealIds = ownDealIds ∪ peerDealIds` (admin → all).
+7. `editableDealIds = ownDealIds` (admin → all).
+8. Map deal → client_id for the client-level helpers.
 
-**No DB migration required** (reusing `mbr_entries.ai_summary` text column).
+The hook listens for staffing data so it stays consistent with `useStaffingData` (re-uses the same client by passing in deals/assignments, or fetches its own minimal slice).
 
-**Edge function prompt (sketch)**:
-> "Summarize the following MBR notes in exactly two short sentences (max ~40 words total). Focus on customer sentiment, key risks, and next actions. No preamble, no bullets."
+### UI affordances for read-only peer deals
 
-**Out of scope**: changing how PPT links are uploaded, multi-file attachments, summarizing across multiple MBRs (only the most recent entry's notes drive the banner).
+- A small "View only — peer deal" badge next to the deal name in the detail page header.
+- All inputs disabled, action buttons (`Add Member`, `Save`, `Delete`, RGY editor, MBR input, task creation) hidden.
+- Existing `useUserRole().isReadOnly` styling pattern reused.
+
+## 3. Database / RLS
+
+Current RLS on `clients`, `staffing_deals`, `deal_*`, `mbr_entries`, etc. is `USING (true)` for all roles, so the filtering above happens entirely client-side for now. **No migration is required for this task** — the request is "show / give edit access only to…", which is a UI-level access model.
+
+If you also want server-side enforcement later (recommended for hardened security), that's a separate larger task: add policies that join via `profiles.staffing_person_id` → `staffing_assignments` / `staffing_deals.{principal_bopm,senior_bopm,bopm}` and a same-VSD helper function. Flag this as a follow-up; not part of this change unless you confirm.
+
+## Files changed
+
+- `src/hooks/useDealAccess.ts` (new)
+- `src/pages/Clients.tsx` (filter list, gate edits/deletes)
+- `src/pages/DealDetail.tsx` (redirect on no-view, read-only mode on no-edit, hide Rate/Cost columns + KPI tile for non-admins)
+- `src/pages/Deals.tsx` (apply filter)
+
+## Open question
+
+Should the same-VSD peer visibility apply to **all** members in that VSD's pod, or only to BOPM-tier users? The plan above limits it to BOPMs (matches your wording). Reply if you want it broader.

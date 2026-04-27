@@ -7,6 +7,9 @@ import { cn } from "@/lib/utils";
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useStaffingData } from "@/hooks/useStaffingData";
+import { useDealAccess } from "@/hooks/useDealAccess";
+import { useUserRole } from "@/hooks/useUserRole";
+import { useNavigate } from "react-router-dom";
 import { uid } from "@/data/staffingData";
 import type { StaffingAssignment, Person, Deal, RoleCategory } from "@/data/staffingData";
 import { useDealDetail } from "@/hooks/useDealDetail";
@@ -1413,6 +1416,20 @@ export default function DealDetail() {
   const initialTab = (TABS as readonly string[]).includes(searchParams.get("tab") || "") ? (searchParams.get("tab") as TabKey) : "Overview";
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
   const { deals, people, assignments, loading: staffLoading, updateDeal, updatePerson, addAssignment, updateAssignment, deleteAssignment } = useStaffingData();
+  const { isAdmin } = useUserRole();
+  const access = useDealAccess();
+  const navigate = useNavigate();
+  const canViewThisDeal = !dealId ? false : access.isAdmin || access.canViewDeal(dealId);
+  const canEditThisDeal = !dealId ? false : access.isAdmin || access.canEditDeal(dealId);
+
+  useEffect(() => {
+    if (access.loading || staffLoading) return;
+    if (!dealId) return;
+    if (!canViewThisDeal) {
+      toast.error("You don't have access to this deal");
+      navigate("/clients", { replace: true });
+    }
+  }, [access.loading, staffLoading, dealId, canViewThisDeal, navigate]);
   const {
     sowItems, rgyWeekly, onboarding, financials, tasks, mbrEntries, loading: detailLoading,
     toggleOnboardingStep, addSoWItem, updateSoWItem, deleteSoWItem,
@@ -1625,6 +1642,11 @@ export default function DealDetail() {
             <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>
           </div>
           <div className="flex items-center gap-2 shrink-0 mt-1">
+            {!canEditThisDeal && canViewThisDeal && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-warning/10 text-warning">
+                <Eye className="h-3 w-3" /> View only
+              </span>
+            )}
             <span className="inline-flex px-3 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
               {deal.dealType}
             </span>
@@ -2146,10 +2168,12 @@ export default function DealDetail() {
                         totalRevManaged += dealMrr * pct;
                       });
                       return (
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className={cn("grid grid-cols-2 gap-3", isAdmin ? "md:grid-cols-4" : "md:grid-cols-3") }>
                           <div className="rounded-lg bg-secondary/50 p-4"><p className="metric-label">Team Size</p><p className="text-xl font-semibold text-foreground">{dealPeople.length}</p></div>
                           <div className="rounded-lg bg-secondary/50 p-4"><p className="metric-label">Total Hrs/Week</p><p className="text-xl font-semibold text-foreground">{totalHrsWeek.toFixed(1)}h</p></div>
-                          <div className="rounded-lg bg-secondary/50 p-4"><p className="metric-label">Cost/Week</p><p className="text-xl font-semibold text-foreground">{fmtCurrency(totalCostWeek)}</p></div>
+                          {isAdmin && (
+                            <div className="rounded-lg bg-secondary/50 p-4"><p className="metric-label">Cost/Week</p><p className="text-xl font-semibold text-foreground">{fmtCurrency(totalCostWeek)}</p></div>
+                          )}
                           <div className="rounded-lg bg-secondary/50 p-4"><p className="metric-label">Revenue Managed</p><p className="text-xl font-semibold text-foreground">{fmtCurrency(totalRevManaged)}</p></div>
                         </div>
                       );
@@ -2169,8 +2193,8 @@ export default function DealDetail() {
                               <th className="text-left py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Pod</th>
                               <th className="text-right py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Allocation</th>
                               <th className="text-right py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Hrs/Week</th>
-                              <th className="text-right py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Rate/Hr</th>
-                              <th className="text-right py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Cost/Week</th>
+                              {isAdmin && <th className="text-right py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Rate/Hr</th>}
+                              {isAdmin && <th className="text-right py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Cost/Week</th>}
                               <th className="text-right py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Rev Managed</th>
                               <th className="w-16"></th>
                             </tr>
@@ -2219,10 +2243,14 @@ export default function DealDetail() {
                                     )}
                                   </td>
                                   <td className="py-2.5 px-4 text-right font-mono tabular-nums text-muted-foreground">{hrs.toFixed(1)}h</td>
-                                  <td className="py-2.5 px-4 text-right font-mono tabular-nums">
-                                    <EditableCell value={String(p.hourlyRate || 0)} onSave={v => updatePerson(p.id, { hourlyRate: Number(v) || 0 })} type="number" prefix="₹" />
-                                  </td>
-                                  <td className="py-2.5 px-4 text-right font-mono tabular-nums text-muted-foreground">{fmtCurrency(costWeek)}</td>
+                                  {isAdmin && (
+                                    <td className="py-2.5 px-4 text-right font-mono tabular-nums">
+                                      <EditableCell value={String(p.hourlyRate || 0)} onSave={v => updatePerson(p.id, { hourlyRate: Number(v) || 0 })} type="number" prefix="₹" />
+                                    </td>
+                                  )}
+                                  {isAdmin && (
+                                    <td className="py-2.5 px-4 text-right font-mono tabular-nums text-muted-foreground">{fmtCurrency(costWeek)}</td>
+                                  )}
                                   <td className="py-2.5 px-4 text-right font-mono tabular-nums text-muted-foreground">{fmtCurrency(revManaged)}</td>
                                   <td className="py-2.5 px-4 text-right">
                                     <button

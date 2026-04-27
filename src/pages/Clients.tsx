@@ -5,6 +5,7 @@ import { Search, Plus, Loader2, Trash2, Pencil, Check, X, Building2, Briefcase, 
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useStaffingData } from "@/hooks/useStaffingData";
 import { useClients } from "@/hooks/useClients";
+import { useDealAccess } from "@/hooks/useDealAccess";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -95,8 +96,54 @@ function InlineEditCell({ value, onSave, type = "text", prefix = "", placeholder
 }
 
 export default function Clients() {
-  const { deals, people, assignments, loading: staffLoading, refresh: refreshStaffing, updateDeal, addAssignment, updateAssignment } = useStaffingData();
-  const { clients, loading: clientsLoading, addClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
+  const { deals: allDeals, people, assignments, loading: staffLoading, refresh: refreshStaffing, updateDeal, addAssignment, updateAssignment } = useStaffingData();
+  const { clients: allClients, loading: clientsLoading, addClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
+  const access = useDealAccess();
+  // Scope deals & clients to what this user is allowed to see.
+  const deals = useMemo(
+    () => (access.isAdmin ? allDeals : allDeals.filter(d => access.canViewDeal(d.id))),
+    [allDeals, access]
+  );
+  const visibleClientIdSet = useMemo(() => {
+    const ids = new Set<string>();
+    deals.forEach(d => { if (d.clientId) ids.add(d.clientId); });
+    return ids;
+  }, [deals]);
+  const clients = useMemo(
+    () => (access.isAdmin ? allClients : allClients.filter(c => visibleClientIdSet.has(c.id))),
+    [allClients, visibleClientIdSet, access.isAdmin]
+  );
+  const isDealEditable = useCallback(
+    (dealId: string) => access.isAdmin || access.canEditDeal(dealId),
+    [access]
+  );
+  const isClientEditable = useCallback(
+    (clientId: string) => access.isAdmin || access.canEditClient(clientId),
+    [access]
+  );
+
+  // Guarded wrappers — silently reject + toast for non-editable deals.
+  const guardedUpdateDeal: typeof updateDeal = useCallback((dealId: string, patch: any) => {
+    if (!isDealEditable(dealId)) {
+      toast.error("View only — you can't edit this deal");
+      return Promise.resolve() as any;
+    }
+    return updateDeal(dealId, patch);
+  }, [updateDeal, isDealEditable]);
+  const guardedDeleteDeal: typeof deleteDeal = useCallback((dealId: string) => {
+    if (!isDealEditable(dealId)) {
+      toast.error("View only — you can't delete this deal");
+      return Promise.resolve(false) as any;
+    }
+    return deleteDeal(dealId);
+  }, [deleteDeal, isDealEditable]);
+  const guardedDeleteClient: typeof deleteClient = useCallback((clientId: string) => {
+    if (!isClientEditable(clientId)) {
+      toast.error("View only — you can't delete this client");
+      return Promise.resolve(false) as any;
+    }
+    return deleteClient(clientId);
+  }, [deleteClient, isClientEditable]);
   const [search, setSearch] = useState("");
   const [activeVsd, setActiveVsd] = useState<VsdFilterKey>("All");
   const [showClosed, setShowClosed] = useState(false);
@@ -347,7 +394,7 @@ export default function Clients() {
     if (deleteTarget.type === "client") {
       const client = clients.find(c => c.name === deleteTarget.name);
       if (client) {
-        const ok = await deleteClient(client.id);
+        const ok = await guardedDeleteClient(client.id);
         if (ok) {
           toast.success(`Client "${deleteTarget.name}" deleted`);
           refreshStaffing();
@@ -356,7 +403,7 @@ export default function Clients() {
         }
       }
     } else {
-      const ok = await deleteDeal(deleteTarget.id);
+      const ok = await guardedDeleteDeal(deleteTarget.id);
       if (ok) {
         toast.success(`Deal "${deleteTarget.name}" deleted`);
         refreshStaffing();
@@ -373,7 +420,7 @@ export default function Clients() {
   };
 
   const handleVSDChange = (dealId: string, personName: string) => {
-    updateDeal(dealId, { vsd: personName });
+    guardedUpdateDeal(dealId, { vsd: personName });
     // Find or create staffing assignment
     const person = people.find(p => p.name === personName);
     if (person) {
@@ -391,9 +438,9 @@ export default function Clients() {
     const person = people.find(p => p.name === personName);
     const rt = (person?.roleTitle || "").toLowerCase();
     if (rt.includes("principal")) {
-      updateDeal(dealId, { principalBopm: personName });
+      guardedUpdateDeal(dealId, { principalBopm: personName });
     } else {
-      updateDeal(dealId, { seniorBopm: personName });
+      guardedUpdateDeal(dealId, { seniorBopm: personName });
     }
     if (person) {
       const existing = assignments.find(a => a.dealId === dealId && (a.roleKey === "Principal BOPM" || a.roleKey === "Senior BOPM"));
@@ -407,12 +454,12 @@ export default function Clients() {
   };
 
   const handleMRRSave = (dealId: string, value: string) => {
-    updateDeal(dealId, { mrr: Number(value) || undefined });
+    guardedUpdateDeal(dealId, { mrr: Number(value) || undefined });
     toast.success("MRR updated");
   };
 
   const handleTotalRevenueSave = (dealId: string, value: string) => {
-    updateDeal(dealId, { totalDealValue: Number(value) || undefined });
+    guardedUpdateDeal(dealId, { totalDealValue: Number(value) || undefined });
     toast.success("Total Revenue updated");
   };
 
@@ -590,7 +637,7 @@ export default function Clients() {
                         <td className="py-2 px-3">
                           <Select
                             value={deal.dealType === "Retainer" ? "Retainer" : "Non-Retainer"}
-                            onValueChange={(v) => { updateDeal(deal.id, { dealType: v as any }); toast.success("Type updated"); }}
+                            onValueChange={(v) => { guardedUpdateDeal(deal.id, { dealType: v as any }); toast.success("Type updated"); }}
                           >
                             <SelectTrigger
                               className={cn(
