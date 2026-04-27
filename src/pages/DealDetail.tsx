@@ -2238,10 +2238,14 @@ export default function DealDetail() {
                                     )}
                                   </td>
                                   <td className="py-2.5 px-4 text-right font-mono tabular-nums text-muted-foreground">{hrs.toFixed(1)}h</td>
-                                  <td className="py-2.5 px-4 text-right font-mono tabular-nums">
-                                    <EditableCell value={String(p.hourlyRate || 0)} onSave={v => updatePerson(p.id, { hourlyRate: Number(v) || 0 })} type="number" prefix="₹" />
-                                  </td>
-                                  <td className="py-2.5 px-4 text-right font-mono tabular-nums text-muted-foreground">{fmtCurrency(costWeek)}</td>
+                                  {isAdmin && (
+                                    <td className="py-2.5 px-4 text-right font-mono tabular-nums">
+                                      <EditableCell value={String(p.hourlyRate || 0)} onSave={v => updatePerson(p.id, { hourlyRate: Number(v) || 0 })} type="number" prefix="₹" />
+                                    </td>
+                                  )}
+                                  {isAdmin && (
+                                    <td className="py-2.5 px-4 text-right font-mono tabular-nums text-muted-foreground">{fmtCurrency(costWeek)}</td>
+                                  )}
                                   <td className="py-2.5 px-4 text-right font-mono tabular-nums text-muted-foreground">{fmtCurrency(revManaged)}</td>
                                   <td className="py-2.5 px-4 text-right">
                                     <button
