@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Fragment } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, Clock, MessageSquare, UserMinus } from "lucide-react";
+import { AlertTriangle, Clock, MessageSquare, UserMinus, ChevronRight } from "lucide-react";
 import { format, startOfMonth, addDays, subDays } from "date-fns";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { MetricCard } from "@/components/dashboard/MetricCard";
-import { RGYHeatmap } from "@/components/dashboard/RGYHeatmap";
 import { UtilizationBar, UtilizationLegend } from "@/components/dashboard/UtilizationBar";
 import { DealDrawer } from "@/components/dashboard/DealDrawer";
 import { DateRangeSelector } from "@/components/dashboard/DateRangeSelector";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { KPISkeleton, AlertsSkeleton, PodTableSkeleton, HeatmapSkeleton } from "@/components/dashboard/DashboardSkeleton";
 import { supabase } from "@/integrations/supabase/client";
 import type { RGYRow, RGYStatus, KPI, DashboardAlert, PodMember } from "@/types/dashboard";
@@ -36,6 +36,28 @@ function currentMonday(): Date {
   return d;
 }
 
+/** Roll up the 4 RGY dimensions for one deal into a single status (worst wins). */
+function worstStatus(dims: Record<string, RGYStatus>): RGYStatus {
+  const vals = Object.values(dims);
+  if (vals.includes("R")) return "R";
+  if (vals.includes("Y")) return "Y";
+  if (vals.includes("G")) return "G";
+  return "NA";
+}
+
+interface RgyCounts { total: number; r: number; y: number; g: number; na: number }
+interface BopmRollup extends RgyCounts { bopm: string }
+interface VsdRollup extends RgyCounts { vsd: string; bopms: BopmRollup[] }
+
+const emptyCounts = (): RgyCounts => ({ total: 0, r: 0, y: 0, g: 0, na: 0 });
+const addStatus = (c: RgyCounts, s: RGYStatus) => {
+  c.total += 1;
+  if (s === "R") c.r += 1;
+  else if (s === "Y") c.y += 1;
+  else if (s === "G") c.g += 1;
+  else c.na += 1;
+};
+
 export default function Dashboard() {
   const [selectedDeal, setSelectedDeal] = useState<RGYRow | null>(null);
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), "yyyy-MM"));
@@ -45,6 +67,8 @@ export default function Dashboard() {
   const [alerts, setAlerts] = useState<DashboardAlert[]>([]);
   const [pod, setPod] = useState<PodMember[]>([]);
   const [rgyRows, setRgyRows] = useState<RGYRow[]>([]);
+  const [vsdRollup, setVsdRollup] = useState<VsdRollup[]>([]);
+  const [expandedVsd, setExpandedVsd] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -68,7 +92,7 @@ export default function Dashboard() {
         { data: alloc },
       ] = await Promise.all([
         supabase.from("staffing_deals")
-          .select("id, deal_name, account, mrr, total_deal_value, deal_status, principal_bopm, senior_bopm, bopm")
+          .select("id, deal_name, account, mrr, total_deal_value, deal_status, vsd, principal_bopm, senior_bopm, bopm")
           .in("deal_status", ACTIVE_STATUSES),
         supabase.from("deal_revenue_monthly")
           .select("deal_id, mrr, actuals")
@@ -147,6 +171,33 @@ export default function Dashboard() {
       });
       setRgyRows(rgyRowsBuilt);
 
+      // ---- VSD → BOPM rollup ----
+      const dealStatusById = new Map<string, RGYStatus>();
+      for (const row of rgyRowsBuilt) {
+        dealStatusById.set(row.id, worstStatus(row.dimensions));
+      }
+      const byVsd = new Map<string, { counts: RgyCounts; byBopm: Map<string, RgyCounts> }>();
+      for (const d of dealList) {
+        const vsd = (d.vsd || "").trim() || "Unassigned";
+        const bopm = (d.principal_bopm || d.senior_bopm || d.bopm || "").trim() || "Unassigned";
+        const status = dealStatusById.get(d.id) || "NA";
+        if (!byVsd.has(vsd)) byVsd.set(vsd, { counts: emptyCounts(), byBopm: new Map() });
+        const node = byVsd.get(vsd)!;
+        addStatus(node.counts, status);
+        if (!node.byBopm.has(bopm)) node.byBopm.set(bopm, emptyCounts());
+        addStatus(node.byBopm.get(bopm)!, status);
+      }
+      const rollup: VsdRollup[] = Array.from(byVsd.entries())
+        .map(([vsd, { counts, byBopm }]) => ({
+          vsd,
+          ...counts,
+          bopms: Array.from(byBopm.entries())
+            .map(([bopm, c]) => ({ bopm, ...c }))
+            .sort((a, b) => b.r - a.r || b.y - a.y || b.total - a.total),
+        }))
+        .sort((a, b) => b.r - a.r || b.y - a.y || b.total - a.total);
+      setVsdRollup(rollup);
+
       // ---- Alerts ----
       const overdueMbrCount = (pendingMbrs || []).filter((m: any) => activeIds.has(m.deal_id)).length;
       const inactiveChannels = new Set((inact || []).map((i: any) => i.channel_id)).size;
@@ -195,7 +246,14 @@ export default function Dashboard() {
   }, [selectedMonth]);
 
   const openDeal = (deal: RGYRow) => setSelectedDeal(deal);
-  const rgyDimensions = useMemo(() => [...RGY_DIMS], []);
+
+  const toggleVsd = (vsd: string) => {
+    setExpandedVsd(prev => {
+      const next = new Set(prev);
+      if (next.has(vsd)) next.delete(vsd); else next.add(vsd);
+      return next;
+    });
+  };
 
   return (
     <AppLayout onSearchSelectDeal={openDeal}>
@@ -273,13 +331,73 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* RGY Heatmap */}
+        {/* RGY Health by VSD */}
         <div className="data-card">
-          <p className="metric-label mb-4">RGY Health — Deal Heatmap</p>
-          {loading ? <HeatmapSkeleton /> : rgyRows.length === 0 ? (
-            <p className="text-ui text-muted-foreground">No RGY data recorded yet.</p>
+          <p className="metric-label mb-4">RGY Health by VSD</p>
+          {loading ? <HeatmapSkeleton /> : vsdRollup.length === 0 ? (
+            <p className="text-ui text-muted-foreground">No active deals to summarise.</p>
           ) : (
-            <RGYHeatmap data={rgyRows} dimensions={rgyDimensions} onRowClick={openDeal} />
+            <div className="overflow-x-auto">
+              <table className="w-full text-ui">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-2 pr-4 font-medium text-muted-foreground text-caption uppercase tracking-wider w-8" />
+                    <th className="text-left py-2 pr-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">VSD</th>
+                    <th className="text-right py-2 pr-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">Deals</th>
+                    <th className="text-right py-2 pr-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">R</th>
+                    <th className="text-right py-2 pr-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">Y</th>
+                    <th className="text-right py-2 pr-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">G</th>
+                    <th className="text-right py-2 font-medium text-muted-foreground text-caption uppercase tracking-wider">N/A</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {vsdRollup.map(v => {
+                    const open = expandedVsd.has(v.vsd);
+                    return (
+                      <Fragment key={v.vsd}>
+                        <tr
+                          className="border-b border-border/50 cursor-pointer hover:bg-muted/40 transition-colors"
+                          onClick={() => toggleVsd(v.vsd)}
+                        >
+                          <td className="py-2 pl-2">
+                            <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", open && "rotate-90")} />
+                          </td>
+                          <td className="py-2 pr-4 font-medium text-foreground">{v.vsd}</td>
+                          <td className="py-2 pr-4 text-right font-mono tabular-nums text-foreground">{v.total}</td>
+                          <td className="py-2 pr-4 text-right font-mono tabular-nums">
+                            <span className={cn("inline-block min-w-[2ch] px-1.5 rounded", v.r > 0 ? "bg-destructive/15 text-destructive font-semibold" : "text-muted-foreground")}>{v.r}</span>
+                          </td>
+                          <td className="py-2 pr-4 text-right font-mono tabular-nums">
+                            <span className={cn("inline-block min-w-[2ch] px-1.5 rounded", v.y > 0 ? "bg-warning/15 text-warning font-semibold" : "text-muted-foreground")}>{v.y}</span>
+                          </td>
+                          <td className="py-2 pr-4 text-right font-mono tabular-nums">
+                            <span className={cn("inline-block min-w-[2ch] px-1.5 rounded", v.g > 0 ? "bg-positive/15 text-positive font-semibold" : "text-muted-foreground")}>{v.g}</span>
+                          </td>
+                          <td className="py-2 text-right font-mono tabular-nums text-muted-foreground">{v.na}</td>
+                        </tr>
+                        {open && v.bopms.map(b => (
+                          <tr key={`${v.vsd}::${b.bopm}`} className="border-b border-border/30 bg-muted/20">
+                            <td />
+                            <td className="py-1.5 pr-4 pl-6 text-foreground/80 text-caption">{b.bopm}</td>
+                            <td className="py-1.5 pr-4 text-right font-mono tabular-nums text-foreground/80 text-caption">{b.total}</td>
+                            <td className="py-1.5 pr-4 text-right font-mono tabular-nums text-caption">
+                              <span className={cn(b.r > 0 ? "text-destructive font-medium" : "text-muted-foreground")}>{b.r}</span>
+                            </td>
+                            <td className="py-1.5 pr-4 text-right font-mono tabular-nums text-caption">
+                              <span className={cn(b.y > 0 ? "text-warning font-medium" : "text-muted-foreground")}>{b.y}</span>
+                            </td>
+                            <td className="py-1.5 pr-4 text-right font-mono tabular-nums text-caption">
+                              <span className={cn(b.g > 0 ? "text-positive font-medium" : "text-muted-foreground")}>{b.g}</span>
+                            </td>
+                            <td className="py-1.5 text-right font-mono tabular-nums text-muted-foreground text-caption">{b.na}</td>
+                          </tr>
+                        ))}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>

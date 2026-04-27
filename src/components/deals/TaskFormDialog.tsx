@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -146,6 +146,18 @@ interface Props {
 function RichTextEditor({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const editorRef = useRef<HTMLDivElement>(null);
 
+  // Set initial HTML once, and only re-sync if `value` changes from OUTSIDE
+  // (e.g. parent reset). Avoids overwriting the DOM on every keystroke,
+  // which was destroying the caret position.
+  useEffect(() => {
+    const el = editorRef.current;
+    if (!el) return;
+    if (el.innerHTML !== (value || "")) {
+      el.innerHTML = value || "";
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
   const exec = (cmd: string, val?: string) => {
     document.execCommand(cmd, false, val);
     if (editorRef.current) onChange(editorRef.current.innerHTML);
@@ -187,8 +199,8 @@ function RichTextEditor({ value, onChange }: { value: string; onChange: (v: stri
       <div
         ref={editorRef}
         contentEditable
+        suppressContentEditableWarning
         className="min-h-[100px] max-h-[200px] overflow-y-auto px-3 py-2 text-sm text-foreground bg-background focus:outline-none prose prose-sm max-w-none [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:text-primary [&_a]:underline"
-        dangerouslySetInnerHTML={{ __html: value }}
         onInput={() => {
           if (editorRef.current) onChange(editorRef.current.innerHTML);
         }}
