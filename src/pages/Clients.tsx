@@ -1,4 +1,5 @@
 import React from "react";
+import { formatINR } from "@/lib/csvTargets";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Link } from "react-router-dom";
 import { Search, Plus, Loader2, Trash2, Pencil, Check, X, Building2, Briefcase, Activity, TrendingUp, DollarSign, Settings2 } from "lucide-react";
@@ -55,11 +56,7 @@ const ACTIVE_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disp
 const CLOSED_STATUSES = new Set(["Deal Completed Successfully", "Deal Churned / Lost"]);
 
 const fmtCurrency = (n: number | undefined) => {
-  if (!n) return "—";
-  if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
-  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
-  if (n >= 1000) return `₹${(n / 1000).toFixed(0)}K`;
-  return `₹${n}`;
+  return formatINR(Number(n) || 0);
 };
 
 const ragDot = (rag: string) => {

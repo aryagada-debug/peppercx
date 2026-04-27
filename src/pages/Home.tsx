@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { formatINR } from "@/lib/csvTargets";
 import { Link, useNavigate } from "react-router-dom";
 import { format, isToday, isPast, parseISO, isWithinInterval, addDays, startOfDay, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, differenceInMinutes, differenceInDays } from "date-fns";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -30,11 +31,8 @@ import { useUserRole } from "@/hooks/useUserRole";
 const DEAL_STAGES = ["To Do", "In Progress", "In Review", "Done", "Dropped"] as const;
 const PRIORITIES = ["Low", "Medium", "High"] as const;
 
-function formatINR(n: number): string {
-  if (!n) return "₹0";
-  if (n >= 10000000) return `₹${(n / 10000000).toFixed(2)} Cr`;
-  if (n >= 100000) return `₹${(n / 100000).toFixed(1)} L`;
-  return `₹${n.toLocaleString("en-IN")}`;
+function formatINR(n: number) {
+  return formatINR(Number(n) || 0);
 }
 
 interface DealTaskRow {

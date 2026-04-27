@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { formatINR } from "@/lib/csvTargets";
 import { ChevronDown, ChevronRight, Search, Users, UserPlus } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -49,11 +50,7 @@ const ROLE_LABELS: Record<string, string> = {
 const roleLabel = (key: string) => ROLE_LABELS[key] || key.replace(/_/g, " ");
 
 const fmtCurrency = (n: number | undefined) => {
-  if (!n) return "—";
-  if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
-  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
-  if (n >= 1000) return `₹${(n / 1000).toFixed(0)}K`;
-  return `₹${n}`;
+  return formatINR(Number(n) || 0);
 };
 
 function classifyStaffing(deal: Deal): StaffingBucket {

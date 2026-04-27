@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
+import { formatINR } from "@/lib/csvTargets";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { Badge } from "@/components/ui/badge";
@@ -48,10 +49,7 @@ const sentimentDot = (s: string | null) => {
 };
 
 const formatCurrency = (v: number | null) => {
-  if (!v) return "—";
-  if (v >= 10000000) return `₹${(v / 10000000).toFixed(1)}Cr`;
-  if (v >= 100000) return `₹${(v / 100000).toFixed(1)}L`;
-  return `₹${v.toLocaleString("en-IN")}`;
+  return formatINR(Number(v) || 0);
 };
 
 function StatusDot({ status }: { status: string }) {

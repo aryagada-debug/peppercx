@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { formatINR } from "@/lib/csvTargets";
 import { toast } from "sonner";
 import { Plus, X, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -54,14 +55,7 @@ interface Props {
 }
 
 const fmtCurrency = (n: number) => {
-  if (!n && n !== 0) return "—";
-  if (n === 0) return "₹0";
-  const abs = Math.abs(n);
-  const sign = n < 0 ? "-" : "";
-  if (abs >= 10000000) return `${sign}₹${(abs / 10000000).toFixed(1)}Cr`;
-  if (abs >= 100000) return `${sign}₹${(abs / 100000).toFixed(1)}L`;
-  if (abs >= 1000) return `${sign}₹${(abs / 1000).toFixed(0)}K`;
-  return `${sign}₹${abs}`;
+  return formatINR(Number(n) || 0);
 };
 
 const fmtMonth = (m: string) => {

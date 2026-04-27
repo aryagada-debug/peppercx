@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatINR } from "@/lib/csvTargets";
 import { cn } from "@/lib/utils";
 import { Plus, X } from "lucide-react";
 import type { BWRule } from "@/data/staffingData";
@@ -13,10 +14,7 @@ interface Props {
 }
 
 const fmtMRR = (n: number) => {
-  if (n === Infinity || n >= 999999999) return "∞";
-  if (n >= 100000) return `₹${(n / 100000).toFixed(0)}L`;
-  if (n >= 1000) return `₹${(n / 1000).toFixed(0)}K`;
-  return `₹${n}`;
+  return formatINR(Number(n) || 0);
 };
 
 export function BWRulesTab({ rules, onUpdateRule, onAddRule, onDeleteRule, editMode }: Props) {

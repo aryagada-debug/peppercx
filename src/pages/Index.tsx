@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, Fragment } from "react";
+import { formatINR } from "@/lib/csvTargets";
 import { Link } from "react-router-dom";
 import { AlertTriangle, Clock, MessageSquare, UserMinus, ChevronRight } from "lucide-react";
 import { format, startOfMonth, addDays, subDays } from "date-fns";
@@ -23,11 +24,8 @@ function toRGY(s: string | null | undefined): RGYStatus {
   return "NA";
 }
 
-function formatINR(n: number): string {
-  if (!n) return "₹0";
-  if (n >= 10000000) return `₹${(n / 10000000).toFixed(2)}Cr`;
-  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
-  return `₹${n.toLocaleString("en-IN")}`;
+function formatINR(n: number) {
+  return formatINR(Number(n) || 0);
 }
 
 function currentMonday(): Date {

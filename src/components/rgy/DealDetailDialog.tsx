@@ -1,4 +1,5 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { formatINR } from "@/lib/csvTargets";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
@@ -54,8 +55,7 @@ function RGYBadge({ label, status }: { label: string; status: string }) {
 }
 
 function fmt(val: number | null) {
-  if (val == null) return "—";
-  return `₹${(val / 100000).toFixed(1)}L`;
+  return formatINR(Number(val) || 0);
 }
 
 export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogProps) {
