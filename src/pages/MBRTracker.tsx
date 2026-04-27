@@ -531,14 +531,7 @@ export default function MBRTracker() {
                           const doneCount = clientDeals.filter(d => monthData?.get(d.id)?.status === "Done").length;
                           const pct = clientDeals.length > 0 ? Math.round((doneCount / clientDeals.length) * 100) : 0;
                           return (
-                            <td key={m} className="text-center py-2 px-2">
-                              <span className={cn(
-                                "text-[10px] font-semibold",
-                                pct >= 80 ? "text-positive" : pct >= 50 ? "text-warning" : "text-destructive"
-                              )}>
-                                {pct}%
-                              </span>
-                            </td>
+                            <td key={m} className="text-center py-2 px-2" title={`${doneCount}/${clientDeals.length} done (${pct}%)`} />
                           );
                         })}
                       </tr>
