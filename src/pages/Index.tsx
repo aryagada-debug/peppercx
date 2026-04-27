@@ -13,7 +13,6 @@ import { KPISkeleton, AlertsSkeleton, PodTableSkeleton, HeatmapSkeleton } from "
 import { supabase } from "@/integrations/supabase/client";
 import type { RGYRow, RGYStatus, KPI, DashboardAlert, PodMember } from "@/types/dashboard";
 import { FinanceTargetsCard } from "@/components/targets/FinanceTargetsCard";
-import { DealTargetsTable } from "@/components/targets/DealTargetsTable";
 
 const ACTIVE_STATUSES = ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"];
 const RGY_DIMS = ["Internal", "Customer", "Delivery", "Consumption"] as const;
