@@ -1,144 +1,77 @@
 ## Goal
+Home tabs (Overdue / Today / Upcoming) become a true working surface for the user's deal & CX tasks. Every change made on Home writes straight into the same `deal_tasks` / `cx_tasks` rows used by Clients & Deals — and any change made elsewhere appears on Home in realtime.
 
-1. Make the entire left sidebar collapsible (full ↔ icon-only mini rail), with the toggle persisted.
-2. Add a new **Home** tab under **Core** that acts as a "plan-your-day" hub (ClickUp-style), unifying overdue/today tasks, meetings, flags, and a personal to-do tracker.
+## Scope of two-way sync
 
----
+| Where | Current | After |
+|---|---|---|
+| Mark complete | ✅ writes back | ✅ unchanged |
+| Change stage / status | ❌ | ✅ inline dropdown |
+| Reschedule due date | ❌ | ✅ inline date popover |
+| Change urgency | ❌ | ✅ inline select |
+| Edit title, dates, subtasks, assignee, tags, hours | ❌ | ✅ click row → opens existing `TaskFormDialog` (deal tasks) / a CX equivalent |
+| Updates from Clients & Deals appear on Home | ❌ requires reload | ✅ realtime |
+| Personal to-dos | ✅ already in own table | ✅ realtime added |
 
-## Part 1 — Collapsible Sidebar
+## 1. Better assignment matching (so the right tasks actually appear)
+Right now Home matches assignee strictly by `ilike(displayName)`. That misses people whose `staffing_people.name` differs from their auth `display_name`.
 
-**File:** `src/components/layout/AppSidebar.tsx`, `src/components/layout/AppLayout.tsx`
+- Use `profiles.staffing_person_id` to look up the canonical `staffing_people.name`.
+- Query `deal_tasks` / `cx_tasks` with `assignee.in.(displayName, staffingName, email)`.
+- Falls back gracefully if `staffing_person_id` is null.
 
-- Add a `sidebarCollapsed` state lifted to `AppLayout` (persisted in `localStorage` under `pepper.sidebar.collapsed`).
-- Sidebar widths: `w-60` expanded → `w-14` collapsed (icon-only mini rail; tooltips on hover for labels).
-- Add a chevron toggle button in the sidebar header (next to "Pepper OS" logo) that flips the state. Also expose a small floating trigger in the top header so it remains reachable.
-- When collapsed:
-  - Hide section labels and item text; show icons only, centered.
-  - Hide the bottom user card text (keep avatar circle).
-  - Section group toggles collapse into a divider.
-- Smooth `transition-all duration-200` on width.
-- Wrap nav items in `Tooltip` (right-side) when collapsed.
+## 2. Inline quick-edit row (Home)
+Replace the read-only row in `TaskList` with a compact editor:
+- **Checkbox** → toggles stage to `Done` (deal) or status to `Done` (cx). Already works.
+- **Stage/Status pill** → small `Select` with the 5 deal stages or the space's `cx_statuses`.
+- **Due date pill** → `Popover` + `Calendar`; writes `end_date`.
+- **Urgency badge** → `Select` of Low/Medium/High/Critical.
+- **Row click** → opens the full edit dialog (see §3).
+- **External-link icon** → still jumps to the deal/CX page (preserved).
 
----
+All writes go through tiny helpers (`updateDealTask(id, patch)`, `updateCxTask(id, patch)`) that do a single `supabase.from(...).update(patch).eq("id", id)` and optimistically update local state, with toast + rollback on error.
 
-## Part 2 — Home Tab (Daily Planner)
+## 3. Full edit dialog
+- **Deal tasks**: reuse the existing `src/components/deals/TaskFormDialog.tsx` directly. Home will fetch the deal's staffed assignees + the wider people list (same shape `DealDetail.tsx` already passes) on demand when the dialog opens, so the searchable assignee combobox works identically.
+- **CX tasks**: reuse `src/components/cx/CxTaskFormDialog.tsx` (already exists for Central Cx).
+- After save, the realtime channel (§4) will push the change back into Home automatically — no manual refetch needed.
 
-**Routing & Sidebar**
+## 4. Realtime subscriptions
+Add a single `useEffect` in `Home.tsx` that opens one Supabase channel with three postgres_changes listeners — all scoped client-side to the current user:
 
-- Add route `/home` in `src/App.tsx` with `routeKey="home"`, before `/` (Dashboard stays at `/`).
-- Add `Home` (lucide `Home` icon) as the **first item** under Core in `AppSidebar.tsx`, label "Home".
-- Add `home` to default `route_visibility` for all roles via migration (visible by default).
-
-**New page:** `src/pages/Home.tsx` (uses `AppLayout`)
-
-Layout: 12-col grid, ClickUp-inspired, dense but airy.
-
-**Top strip — "Good morning, {name}"**
-
-- Greeting with current date and a small KPI row: Overdue (red), Due Today (amber), This Week (blue), Open Flags (red).
-
-**Main grid:**
-
-1. **My Tasks** (col-span 8) — Tabs: `Overdue` · `Today` · `Upcoming (7d)` · `Completed`.
-  - Source: `deal_tasks` + `cx_tasks` filtered by `assignee = current user's display_name / email`.
-  - Each row: checkbox to mark Done (updates `stage`/`status`), title, deal/space chip, due date, urgency pill, quick "Open" link to deal/space.
-  - Drag-to-reorder within a day (updates `sort_order`).
-2. **Today's Meetings & MBRs** (col-span 4)
-  - MBRs scheduled today/this week from `mbr_entries.scheduled_date` for deals where the user is on the team.
-  - Section for "Upcoming MBRs (next 7 days)".
-  - Click → opens MBR detail dialog (reuse existing `MBRDetailDialog`).
-3. **Flags & Alerts** (col-span 6)
-  - Active RGY issues assigned to / owned by user from `deal_rgy_weekly` where `issue_status = 'Open'` and resolution_due_date ≤ today+7.
-  - Slack inactivity flags from `slack_inactivity_nudges` (last 7 days) for deals user works on.
-  - Each card shows deal name, flag type, severity, due date, "Resolve" link.
-4. **Personal To-Do Tracker** (col-span 6)
-  - Standalone personal list, **not** tied to deals — new table `personal_todos`.
-  - Quick-add input (Enter to add). Inline edit, drag-reorder, check to complete, delete on hover.
-  - Optional fields: due date, priority (Low/Med/High).
-  - Filter chips: All · Active · Completed.
-5. **My Allocation This Week** (col-span 12, slim strip)
-  - Bar showing total % allocation for current week from `staffing_weekly_allocations` for the user's `staffing_person_id` (linked via `profiles.staffing_person_id`).
-  - Color: green 60–85%, amber >85%, red <60% (per existing dashboard rules).
-
----
-
-## Part 3 — Database
-
-**New migration:**
-
-```sql
--- Personal todos (per-user, not tied to deals)
-create table public.personal_todos (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null,
-  title text not null default '',
-  notes text not null default '',
-  done boolean not null default false,
-  due_date date,
-  priority text not null default 'Medium', -- Low | Medium | High
-  sort_order integer not null default 0,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
-alter table public.personal_todos enable row level security;
-
-create policy "Users manage own todos select" on public.personal_todos
-  for select to authenticated using (auth.uid() = user_id);
-create policy "Users manage own todos insert" on public.personal_todos
-  for insert to authenticated with check (auth.uid() = user_id);
-create policy "Users manage own todos update" on public.personal_todos
-  for update to authenticated using (auth.uid() = user_id);
-create policy "Users manage own todos delete" on public.personal_todos
-  for delete to authenticated using (auth.uid() = user_id);
-
-create trigger personal_todos_updated_at
-  before update on public.personal_todos
-  for each row execute function public.update_updated_at_column();
-
--- Seed Home route visibility for every role
-insert into public.route_visibility (role, route_key, visible)
-select r, 'home', true
-from unnest(array['admin','member','user','view_only']::app_role[]) r
-on conflict do nothing;
+```ts
+supabase.channel("home-sync")
+  .on("postgres_changes", { event: "*", schema: "public", table: "deal_tasks" },
+      (p) => applyDealTaskChange(p))
+  .on("postgres_changes", { event: "*", schema: "public", table: "cx_tasks" },
+      (p) => applyCxTaskChange(p))
+  .on("postgres_changes", { event: "*", schema: "public", table: "personal_todos",
+      filter: `user_id=eq.${user.id}` },
+      (p) => applyTodoChange(p))
+  .subscribe();
 ```
 
----
+`applyDealTaskChange` / `applyCxTaskChange` handle INSERT/UPDATE/DELETE and re-check whether the row's `assignee` matches the current user before adding/keeping it in state — so we react correctly when someone is reassigned to or off a task.
 
-## Part 4 — Hooks
+A migration enables realtime publication for the three tables (idempotent):
+```sql
+alter publication supabase_realtime add table public.deal_tasks;
+alter publication supabase_realtime add table public.cx_tasks;
+alter publication supabase_realtime add table public.personal_todos;
+```
+(Wrapped in a `do $$ ... exception when duplicate_object then null; end $$;` block so re-runs are safe.)
 
-- `src/hooks/useHomeData.ts` — composes:
-  - `myTasks` from `deal_tasks` + `cx_tasks`, partitioned into overdue / today / upcoming / completed.
-  - `myMeetings` from `mbr_entries` filtered by user's deals.
-  - `myFlags` from `deal_rgy_weekly` + `slack_inactivity_nudges`.
-  - `myAllocation` from `staffing_weekly_allocations` joined via `profiles.staffing_person_id`.
-- `src/hooks/usePersonalTodos.ts` — CRUD + realtime subscription on `personal_todos`.
+## 5. Small UX upgrades that come along
+- **Empty buckets** show a "Browse all my tasks" link to `/deals` filtered to my name.
+- **Overdue + Today counters** in the KPI strip update live from realtime state.
+- **Personal to-do**: due-date picker + priority picker added inline (currently the schema supports them but the UI doesn't expose them).
 
-User identity: derive `displayName` from `profiles` row + `staffing_person_id` to match `assignee` strings on deal/cx tasks.
+## Files touched
+- `src/pages/Home.tsx` — the bulk of the work (assignee resolution, inline editor, dialog hookup, realtime channel, todo enhancements).
+- `src/components/deals/TaskFormDialog.tsx` — no behavior change; just imported from Home.
+- `src/components/cx/CxTaskFormDialog.tsx` — same; imported as-is.
+- `supabase/migrations/<timestamp>_home_realtime.sql` — enable realtime publication for the 3 tables.
 
----
-
-## Files Touched
-
-- `src/App.tsx` (add `/home` route)
-- `src/components/layout/AppSidebar.tsx` (collapse + Home item)
-- `src/components/layout/AppLayout.tsx` (collapse state + header trigger)
-- `src/pages/Home.tsx` *(new)*
-- `src/hooks/useHomeData.ts` *(new)*
-- `src/hooks/usePersonalTodos.ts` *(new)*
-- `src/hooks/useUserRole.ts` (include `home` in default visible set)
-- `supabase/migrations/...sql` *(new)*
-
----
-
-## Open suggestions (additive, not in v1 unless you want)
-
-- Pin tasks to the top.
-- "Focus mode" timer per task (Pomodoro).
-- Weekly digest email of overdue items.
-- Drag tasks from "Upcoming" → "Today" to re-schedule (updates `start_date`).
-
-Tell me if you want any of those folded into v1 or to drop one of the 5 home modules.  
-1. Weekly digest  
-2. Financial summary of their projects   
-3. RGY - Red accounts - highlisht it somehow
+## Out of scope (intentionally)
+- Meetings & Flags stay read-only links to their owning tabs (MBR, RGY Health) — they're already the source of truth there; editing from Home would duplicate complex forms.
+- No new tables or RLS changes; existing permissive policies on `deal_tasks` / `cx_tasks` already allow the writes.
