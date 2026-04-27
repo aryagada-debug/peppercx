@@ -13,6 +13,10 @@ import { CalendarIcon, Loader2, Plus, Trash2, Sparkles } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { useGoogleCalendar } from "@/hooks/useGoogleCalendar";
+import { CalendarConnectButton } from "@/components/calendar/CalendarConnectButton";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { syncMbrToCalendar } from "@/lib/mbrCalendarSync";
 
 interface ActionItem {
   task: string;
@@ -78,6 +82,11 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
   const [mbrDate, setMbrDate] = useState<Date | undefined>(
     selectedWeek ? new Date(selectedWeek) : new Date()
   );
+  const [scheduledTime, setScheduledTime] = useState("11:00");
+  const [durationMin, setDurationMin] = useState(30);
+  const [attendeesStr, setAttendeesStr] = useState("");
+  const { connected: calConnected, createEvent, updateEvent, deleteEvent } = useGoogleCalendar();
+  const { user } = useAuth();
   const [summarizing, setSummarizing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -110,7 +119,7 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
     setActionItems(updated);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!sentiment) {
       toast({ title: "Sentiment required", description: "Please select a sentiment color.", variant: "destructive" });
       return;
@@ -120,6 +129,7 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
       return;
     }
     setSubmitting(true);
+    const scheduledDateStr = format(scheduledDate, "yyyy-MM-dd");
     onSave({
       dealId: deal.id,
       status: "Done",
@@ -131,11 +141,39 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
       transcript: transcript || null,
       aiSummary: aiSummary || null,
       actionItems,
-      scheduledDate: format(scheduledDate, "yyyy-MM-dd"),
+      scheduledDate: scheduledDateStr,
       anirudhAdded,
       mbrPptLink: mbrPptLink || null,
       mbrDate: mbrDate ? format(mbrDate, "yyyy-MM-dd") : undefined,
     });
+    // Best-effort: push to Google Calendar
+    if (calConnected && user) {
+      try {
+        const { data: refetched } = await supabase
+          .from("mbr_entries")
+          .select("id")
+          .eq("deal_id", deal.id)
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (refetched?.id) {
+          const attendees = attendeesStr.split(",").map(s => s.trim()).filter(Boolean);
+          await syncMbrToCalendar({
+            userId: user.id,
+            mbrEntryId: refetched.id,
+            scheduledDate: scheduledDateStr,
+            startTime: scheduledTime,
+            durationMin,
+            dealName: deal.dealName,
+            account: deal.account,
+            dealId: deal.id,
+            notes: notes || undefined,
+            attendees: attendees.length ? attendees : undefined,
+            cal: { createEvent, updateEvent, deleteEvent, connected: calConnected },
+          });
+        }
+      } catch (e) { console.warn("GCal sync failed", e); }
+    }
     setSubmitting(false);
     onClose();
   };
@@ -150,7 +188,10 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
       <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto p-0">
         <SheetHeader className="p-6 pb-4 border-b border-border">
-          <SheetTitle className="text-lg font-semibold text-foreground">Record MBR — {deal.account}</SheetTitle>
+          <div className="flex items-center justify-between gap-2">
+            <SheetTitle className="text-lg font-semibold text-foreground">Record MBR — {deal.account}</SheetTitle>
+            <CalendarConnectButton />
+          </div>
           <div className="text-sm text-muted-foreground space-y-0.5">
             <p><span className="font-medium text-foreground">{deal.dealName}</span></p>
             <p>VSD: {deal.vsd} · PC: {deal.pcCode} · Week: {selectedWeek}</p>
