@@ -1,77 +1,43 @@
-## Goal
-Home tabs (Overdue / Today / Upcoming) become a true working surface for the user's deal & CX tasks. Every change made on Home writes straight into the same `deal_tasks` / `cx_tasks` rows used by Clients & Deals — and any change made elsewhere appears on Home in realtime.
+## 4 fixes
 
-## Scope of two-way sync
+### 1. Home tab — assigned tasks not appearing
 
-| Where | Current | After |
-|---|---|---|
-| Mark complete | ✅ writes back | ✅ unchanged |
-| Change stage / status | ❌ | ✅ inline dropdown |
-| Reschedule due date | ❌ | ✅ inline date popover |
-| Change urgency | ❌ | ✅ inline select |
-| Edit title, dates, subtasks, assignee, tags, hours | ❌ | ✅ click row → opens existing `TaskFormDialog` (deal tasks) / a CX equivalent |
-| Updates from Clients & Deals appear on Home | ❌ requires reload | ✅ realtime |
-| Personal to-dos | ✅ already in own table | ✅ realtime added |
+**Root cause** (verified against the DB): The filter in `src/pages/Home.tsx` builds a PostgREST `.or()` string like `assignee.ilike.sneha iyer,assignee.ilike.shashwat sood`. Names contain **spaces** (and assignees can contain commas), which break PostgREST's `or()` parser — so the query returns nothing for users like "Sneha Iyer". Their `staffing_person_id` is also null in `profiles`, so the email/staffing-name aliases add nothing.
 
-## 1. Better assignment matching (so the right tasks actually appear)
-Right now Home matches assignee strictly by `ilike(displayName)`. That misses people whose `staffing_people.name` differs from their auth `display_name`.
+**Fix** in `src/pages/Home.tsx`:
 
-- Use `profiles.staffing_person_id` to look up the canonical `staffing_people.name`.
-- Query `deal_tasks` / `cx_tasks` with `assignee.in.(displayName, staffingName, email)`.
-- Falls back gracefully if `staffing_person_id` is null.
+- Replace the fragile `.or(orFilter)` with a robust client-side match: fetch `deal_tasks` / `cx_tasks` filtered with `.in("assignee", aliasesWithOriginalCasing)` using all known name variants (display_name + staffing_people.name + email), then additionally filter in JS using the case-insensitive `matchesMe()` helper (which already exists). This avoids PostgREST `or()` quoting pitfalls.
+- Also fetch `staffing_people` row by `email = user.email` as a fallback when `profiles.staffing_person_id` is null, so the alias set is populated even for users (like Sneha Iyer) who haven't been linked yet.
 
-## 2. Inline quick-edit row (Home)
-Replace the read-only row in `TaskList` with a compact editor:
-- **Checkbox** → toggles stage to `Done` (deal) or status to `Done` (cx). Already works.
-- **Stage/Status pill** → small `Select` with the 5 deal stages or the space's `cx_statuses`.
-- **Due date pill** → `Popover` + `Calendar`; writes `end_date`.
-- **Urgency badge** → `Select` of Low/Medium/High/Critical.
-- **Row click** → opens the full edit dialog (see §3).
-- **External-link icon** → still jumps to the deal/CX page (preserved).
+### 2. MBR Tracker — remove `%` above each dot in Month-on-Month
 
-All writes go through tiny helpers (`updateDealTask(id, patch)`, `updateCxTask(id, patch)`) that do a single `supabase.from(...).update(patch).eq("id", id)` and optimistically update local state, with toast + rollback on error.
+In `src/pages/MBRTracker.tsx` (around line 529–543), the **client header row** in the MoM table renders `{pct}%` above each month. Remove that `<td>` content (render an empty cell, or just the dot summary without the percentage). The per-deal `<StatusDot />` rows below stay as-is.
 
-## 3. Full edit dialog
-- **Deal tasks**: reuse the existing `src/components/deals/TaskFormDialog.tsx` directly. Home will fetch the deal's staffed assignees + the wider people list (same shape `DealDetail.tsx` already passes) on demand when the dialog opens, so the searchable assignee combobox works identically.
-- **CX tasks**: reuse `src/components/cx/CxTaskFormDialog.tsx` (already exists for Central Cx).
-- After save, the realtime channel (§4) will push the change back into Home automatically — no manual refetch needed.
+### 3. Hide Onboarding from the side panel
 
-## 4. Realtime subscriptions
-Add a single `useEffect` in `Home.tsx` that opens one Supabase channel with three postgres_changes listeners — all scoped client-side to the current user:
+In `src/components/layout/AppSidebar.tsx`, remove the `onboarding` item from the `Health & Reviews` section (line 37). The `/onboarding` route in `App.tsx` and its route-visibility entry stay intact so direct URLs still work — just hidden from the sidebar. Delete it entirely
 
-```ts
-supabase.channel("home-sync")
-  .on("postgres_changes", { event: "*", schema: "public", table: "deal_tasks" },
-      (p) => applyDealTaskChange(p))
-  .on("postgres_changes", { event: "*", schema: "public", table: "cx_tasks" },
-      (p) => applyCxTaskChange(p))
-  .on("postgres_changes", { event: "*", schema: "public", table: "personal_todos",
-      filter: `user_id=eq.${user.id}` },
-      (p) => applyTodoChange(p))
-  .subscribe();
-```
+### 4. Sync Dashboard with live data
 
-`applyDealTaskChange` / `applyCxTaskChange` handle INSERT/UPDATE/DELETE and re-check whether the row's `assignee` matches the current user before adding/keeping it in state — so we react correctly when someone is reassigned to or off a task.
+`src/pages/Index.tsx` is currently 100% mocks (`@/data/dashboardMocks`). Rewrite it to compute everything from Supabase tables already in use elsewhere:
 
-A migration enables realtime publication for the three tables (idempotent):
-```sql
-alter publication supabase_realtime add table public.deal_tasks;
-alter publication supabase_realtime add table public.cx_tasks;
-alter publication supabase_realtime add table public.personal_todos;
-```
-(Wrapped in a `do $$ ... exception when duplicate_object then null; end $$;` block so re-runs are safe.)
+- **KPIs** (Active Deals, Total MRR, Total Deal Value, Attainment): query `staffing_deals` filtered to active statuses (`Active Deal`, `New Deal in SLA/PO`, `Deal Disputed`); sum `mrr` and `total_deal_value`. Attainment = sum(`actuals`) / sum(`mrr`) for current month from `deal_revenue_monthly`.
+- **Alerts** (replace static list):
+  - Red RGY count → `deal_rgy_weekly` rows where any dimension = 'R' for current week.
+  - MBRs overdue → `mbr_entries` with `status='Pending'` & `week_start` older than 35 days, joined to active deals.
+  - Slack inactive channels → `slack_inactivity_nudges` from the last 7 days.
+  - Unstaffed deals → active `staffing_deals` with no `staffing_assignments` rows.
+- **Pod Utilization**: aggregate `staffing_weekly_allocations` by `person_id` for the current week → join `staffing_people` for name/role; "deals" = distinct `deal_id` count for that person; utilization = sum of `allocation_pct`.
+- **RGY Heatmap**: latest `deal_rgy_weekly` per active deal, mapped onto the existing `RGYRow` shape so `RGYHeatmap` renders unchanged.
+- Add a small loading skeleton (`DashboardSkeleton` already exists). `DealDrawer` keeps working since it consumes the same `RGYRow` shape.
+- Delete `src/data/dashboardMocks.ts` only after verifying no other importers via `rg`.
 
-## 5. Small UX upgrades that come along
-- **Empty buckets** show a "Browse all my tasks" link to `/deals` filtered to my name.
-- **Overdue + Today counters** in the KPI strip update live from realtime state.
-- **Personal to-do**: due-date picker + priority picker added inline (currently the schema supports them but the UI doesn't expose them).
+### Files to edit
 
-## Files touched
-- `src/pages/Home.tsx` — the bulk of the work (assignee resolution, inline editor, dialog hookup, realtime channel, todo enhancements).
-- `src/components/deals/TaskFormDialog.tsx` — no behavior change; just imported from Home.
-- `src/components/cx/CxTaskFormDialog.tsx` — same; imported as-is.
-- `supabase/migrations/<timestamp>_home_realtime.sql` — enable realtime publication for the 3 tables.
+- `src/pages/Home.tsx` — robust assignee matching (no PostgREST `or` on names).
+- `src/pages/MBRTracker.tsx` — remove `{pct}%` cell in MoM client header row.
+- `src/components/layout/AppSidebar.tsx` — drop the Onboarding nav item.
+- `src/pages/Index.tsx` — rewrite to use live Supabase queries; reuse `DashboardSkeleton`, `MetricCard`, `RGYHeatmap`, `UtilizationBar`, `DealDrawer`.
+- (cleanup) `src/data/dashboardMocks.ts` — remove if no longer referenced.
 
-## Out of scope (intentionally)
-- Meetings & Flags stay read-only links to their owning tabs (MBR, RGY Health) — they're already the source of truth there; editing from Home would duplicate complex forms.
-- No new tables or RLS changes; existing permissive policies on `deal_tasks` / `cx_tasks` already allow the writes.
+No DB migrations required.

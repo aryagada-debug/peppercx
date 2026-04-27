@@ -34,7 +34,6 @@ const navSections = [
       { to: "/rgy-health", icon: Activity, label: "RGY Health", routeKey: "rgy-health" },
       { to: "/mbr-tracker", icon: FileText, label: "MBR Tracker", routeKey: "mbr-tracker" },
       { to: "/slack-health", icon: MessageSquare, label: "Slack Health", routeKey: "slack-health" },
-      { to: "/onboarding", icon: CheckSquare, label: "Onboarding", routeKey: "onboarding" },
     ],
   },
   {
