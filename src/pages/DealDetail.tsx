@@ -1,6 +1,7 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useParams, Link, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Loader2, Plus, Trash2, Pencil, Check, X, Calendar, Users, Eye, Edit2, ExternalLink, AlertTriangle, ChevronDown, ChevronUp, ChevronRight, Upload, CalendarCheck, Smile, TrendingUp, MessageSquare } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, Trash2, Pencil, Check, X, Calendar, Users, Eye, Edit2, ExternalLink, AlertTriangle, ChevronDown, ChevronUp, ChevronRight, Upload, CalendarCheck, Smile, TrendingUp, MessageSquare, Sparkles, RefreshCw, Wallet, Receipt, BadgeCheck, AlertCircle, Activity, IndianRupee } from "lucide-react";
+import { getLinkLabel, getFileIcon } from "@/lib/fileLink";
 import { format, differenceInCalendarMonths } from "date-fns";
 import { cn } from "@/lib/utils";
 import React, { useState, useMemo, useCallback, useEffect } from "react";
@@ -358,10 +359,19 @@ function InlineLinkEditor({ value, label, onSave }: { value: string | null; labe
   }
 
   if (value) {
+    const FileIco = getFileIcon(value);
+    const display = getLinkLabel(value) || label;
     return (
       <div className="flex items-center gap-1">
-        <a href={value} target="_blank" rel="noopener noreferrer" className="text-xs text-primary font-medium hover:underline inline-flex items-center gap-1">
-          {label} <ExternalLink className="h-3 w-3" />
+        <a
+          href={value}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={value}
+          className="text-xs text-primary font-medium hover:underline inline-flex items-center gap-1 max-w-[180px]"
+        >
+          <FileIco className="h-3 w-3 shrink-0" />
+          <span className="truncate">{display}</span>
         </a>
         <button onClick={() => { setDraft(value); setEditing(true); }} className="p-0.5 opacity-0 group-hover:opacity-100"><Pencil className="h-3 w-3 text-muted-foreground" /></button>
       </div>
