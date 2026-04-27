@@ -254,6 +254,54 @@ export type Database = {
           },
         ]
       }
+      deal_financial_targets: {
+        Row: {
+          contraction_actual: number
+          contraction_target: number
+          created_at: string
+          deal_id: string
+          delivery_actual: number
+          delivery_target: number
+          id: string
+          invoicing_actual: number
+          invoicing_target: number
+          month: string
+          receivables_actual: number
+          receivables_target: number
+          updated_at: string
+        }
+        Insert: {
+          contraction_actual?: number
+          contraction_target?: number
+          created_at?: string
+          deal_id: string
+          delivery_actual?: number
+          delivery_target?: number
+          id?: string
+          invoicing_actual?: number
+          invoicing_target?: number
+          month: string
+          receivables_actual?: number
+          receivables_target?: number
+          updated_at?: string
+        }
+        Update: {
+          contraction_actual?: number
+          contraction_target?: number
+          created_at?: string
+          deal_id?: string
+          delivery_actual?: number
+          delivery_target?: number
+          id?: string
+          invoicing_actual?: number
+          invoicing_target?: number
+          month?: string
+          receivables_actual?: number
+          receivables_target?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       deal_financials: {
         Row: {
           actual_gm_pct: number
@@ -1408,6 +1456,54 @@ export type Database = {
           updated_at?: string
           user_id?: string
           visible?: boolean
+        }
+        Relationships: []
+      }
+      vsd_financial_targets: {
+        Row: {
+          contraction_actual: number
+          contraction_target: number
+          created_at: string
+          delivery_actual: number
+          delivery_target: number
+          id: string
+          invoicing_actual: number
+          invoicing_target: number
+          month: string
+          receivables_actual: number
+          receivables_target: number
+          updated_at: string
+          vsd: string
+        }
+        Insert: {
+          contraction_actual?: number
+          contraction_target?: number
+          created_at?: string
+          delivery_actual?: number
+          delivery_target?: number
+          id?: string
+          invoicing_actual?: number
+          invoicing_target?: number
+          month: string
+          receivables_actual?: number
+          receivables_target?: number
+          updated_at?: string
+          vsd: string
+        }
+        Update: {
+          contraction_actual?: number
+          contraction_target?: number
+          created_at?: string
+          delivery_actual?: number
+          delivery_target?: number
+          id?: string
+          invoicing_actual?: number
+          invoicing_target?: number
+          month?: string
+          receivables_actual?: number
+          receivables_target?: number
+          updated_at?: string
+          vsd?: string
         }
         Relationships: []
       }
