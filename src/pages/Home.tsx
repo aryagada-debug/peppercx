@@ -125,22 +125,35 @@ export default function HomePage() {
         .maybeSingle();
       sn = p?.name || "";
     }
+    // Fallback: if profile isn't linked, try to find a staffing_people row by email
+    if (!sn && user.email) {
+      const { data: pByEmail } = await supabase
+        .from("staffing_people")
+        .select("name")
+        .ilike("email", user.email)
+        .maybeSingle();
+      sn = pByEmail?.name || "";
+    }
     setStaffingName(sn);
     aliasesRef.current = computeAliases(dn, sn, user.email);
-    const aliases = Array.from(aliasesRef.current);
+    const aliasesLower = Array.from(aliasesRef.current);
 
-    // Tasks where assignee matches any of our aliases
-    const orFilter = aliases.map(a => `assignee.ilike.${a}`).join(",");
-    const [{ data: dt }, { data: ct }] = await Promise.all([
+    // Pull all rows with a non-empty assignee, then filter client-side using aliases.
+    // This avoids PostgREST .or() quoting pitfalls with names that contain spaces / commas.
+    const [{ data: dtAll }, { data: ctAll }] = await Promise.all([
       supabase.from("deal_tasks")
         .select("id, deal_id, title, description, assignee, stage, start_date, end_date, urgency, estimated_hours, logged_hours, subtasks, auto_regen, sort_order, phase")
-        .or(orFilter),
+        .neq("assignee", ""),
       supabase.from("cx_tasks")
         .select("id, space_id, title, assignee, status, start_date, end_date, urgency")
-        .or(orFilter),
+        .neq("assignee", ""),
     ]);
-    setDealTasks((dt as DealTaskRow[]) || []);
-    setCxTasks((ct as CxTaskRow[]) || []);
+    const aliasSet = new Set(aliasesLower);
+    const isMine = (a: string | null) => !!a && aliasSet.has(a.trim().toLowerCase());
+    const dt = (dtAll || []).filter((t: any) => isMine(t.assignee));
+    const ct = (ctAll || []).filter((t: any) => isMine(t.assignee));
+    setDealTasks(dt as DealTaskRow[]);
+    setCxTasks(ct as CxTaskRow[]);
 
     // Deals lookup
     const dealIds = Array.from(new Set((dt || []).map((t: any) => t.deal_id)));
