@@ -3,6 +3,7 @@ import { GlobalSearch } from "@/components/dashboard/GlobalSearch";
 import { ThemeToggle } from "@/components/dashboard/ThemeToggle";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { RoleSwitcher } from "./RoleSwitcher";
+import { CurrencyToggle } from "./CurrencyToggle";
 import type { RGYRow } from "@/types/dashboard";
 
 interface AppLayoutProps {
@@ -20,6 +21,7 @@ export function AppLayout({ children, onSearchSelectDeal }: AppLayoutProps) {
           <div className="flex items-center gap-2">
             <RoleSwitcher />
             <GlobalSearch onSelectDeal={onSearchSelectDeal} />
+            <CurrencyToggle />
             <ThemeToggle />
             <UserMenu />
           </div>
