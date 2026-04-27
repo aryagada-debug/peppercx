@@ -24,10 +24,6 @@ function toRGY(s: string | null | undefined): RGYStatus {
   return "NA";
 }
 
-function formatINR(n: number) {
-  return formatINR(Number(n) || 0);
-}
-
 function currentMonday(): Date {
   const d = new Date();
   const day = d.getDay();

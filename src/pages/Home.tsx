@@ -31,10 +31,6 @@ import { useUserRole } from "@/hooks/useUserRole";
 const DEAL_STAGES = ["To Do", "In Progress", "In Review", "Done", "Dropped"] as const;
 const PRIORITIES = ["Low", "Medium", "High"] as const;
 
-function formatINR(n: number) {
-  return formatINR(Number(n) || 0);
-}
-
 interface DealTaskRow {
   id: string; deal_id: string; title: string; description: string;
   assignee: string; stage: string; start_date: string | null; end_date: string | null;
