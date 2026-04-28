@@ -332,7 +332,7 @@ export default function MBRTracker() {
 
   return (
     <AppLayout>
-      <div className="p-5">
+      <div className="px-3 py-4">
         {/* Header */}
         <div className="flex items-center justify-between mb-1">
           <div>

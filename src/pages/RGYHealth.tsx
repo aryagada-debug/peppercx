@@ -935,7 +935,7 @@ export default function RGYHealth() {
 
   return (
     <AppLayout>
-      <div className="p-5">
+      <div className="px-3 py-4">
         <div className="flex items-center justify-between mb-1">
           <div>
             <h1 className="text-subhead font-bold tracking-tight text-foreground">RGY Health Tracker</h1>
