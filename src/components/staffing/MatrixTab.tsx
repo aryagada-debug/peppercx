@@ -367,10 +367,16 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
     const n = new Set(prev); n.has(g) ? n.delete(g) : n.add(g); return n;
   });
 
-  const handlePickPerson = (roleKey: string, personId: string) => {
+  const handlePickPerson = (
+    roleKey: string,
+    personId: string,
+    pct: number,
+    startDate?: string,
+    endDate?: string,
+  ) => {
     if (!selectedDeal) return;
-    onUpsertAssignment(selectedDeal.id, roleKey, personId, 50); // sensible default 50%
-    toast.success(`${personMap[personId]?.name || "Person"} assigned`);
+    onUpsertAssignment(selectedDeal.id, roleKey, personId, pct, { startDate, endDate });
+    toast.success(`${personMap[personId]?.name || "Person"} assigned at ${pct}%`);
     setAdding(null);
   };
 
@@ -629,7 +635,11 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
                             )}
                             people={personOptions}
                             onCancel={() => { setAdding(null); }}
-                            onConfirm={(roleKey, personId) => handlePickPerson(roleKey, personId)}
+                            onConfirm={(roleKey, personId, pct, startDate, endDate) =>
+                              handlePickPerson(roleKey, personId, pct, startDate, endDate)
+                            }
+                            dealStartDate={selectedDeal.startDate}
+                            dealEndDate={selectedDeal.endDate}
                             occupancy={occupancyByPerson}
                             vsdOptions={vsdOptions}
                             peopleByVsd={peopleByVsd}
