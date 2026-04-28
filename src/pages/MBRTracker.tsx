@@ -329,7 +329,6 @@ export default function MBRTracker() {
   };
 
   // ===== Trend insights computed from allEntries (filtered by current scope) =====
-  const { allEntries: _allEntriesAlias } = useMBRData(); // not needed; allEntries already in entriesByMonth
   const trendData = useMemo(() => {
     const filteredIds = new Set(filteredDeals.map(d => d.id));
     const dealsById = new Map(filteredDeals.map(d => [d.id, d]));
