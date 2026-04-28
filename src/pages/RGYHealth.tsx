@@ -1237,7 +1237,7 @@ export default function RGYHealth() {
           <TabsContent value="table" className="mt-0">
             {/* Table tab filters */}
             <div className="flex items-center gap-3 mb-3 flex-wrap">
-              <div className="flex items-center gap-2">
+              {!isBopmPersona && <div className="flex items-center gap-2">
                 <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">VSD:</span>
                 <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
                   {VSD_FILTERS.map(v => (
@@ -1247,9 +1247,9 @@ export default function RGYHealth() {
                     )}>{v.label}</button>
                   ))}
                 </div>
-              </div>
+              </div>}
 
-              <div className="flex items-center gap-2">
+              {!isBopmPersona && <div className="flex items-center gap-2">
                 <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">BOPM:</span>
                 <Select value={activeBopm} onValueChange={setActiveBopm}>
                   <SelectTrigger className="h-7 w-[180px] text-[11px]">
@@ -1262,7 +1262,7 @@ export default function RGYHealth() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
+              </div>}
 
               <div className="flex gap-1 bg-secondary rounded-lg p-1">
                 {(["All", "Red", "Yellow", "Green"] as const).map(f => (
