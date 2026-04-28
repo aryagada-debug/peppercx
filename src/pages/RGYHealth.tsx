@@ -1349,6 +1349,7 @@ export default function RGYHealth() {
                                 <div className="flex items-center gap-2">
                                   {worst && <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", worstDotColor[worst])} />}
                                   <Link to={`/deals/${deal.id}`} className="text-primary hover:underline text-xs font-medium">{deal.deal_name}</Link>
+                                  <RGYHistoryPopover dealId={deal.id} />
                                 </div>
                               </td>
                             )}
