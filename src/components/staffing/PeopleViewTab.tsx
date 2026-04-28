@@ -220,8 +220,17 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
     toast.success("Allocation updated");
   };
 
+  // Color dot per department group (matches screenshot styling)
+  const DEPT_DOT: Record<string, string> = {
+    "Leadership": "bg-primary",
+    "Delivery Ops and CS": "bg-primary",
+    "Capability - SEO": "bg-info",
+    "Capability - Content": "bg-warning",
+    "Capability - Creatives": "bg-positive",
+  };
+
   // Render person + descendants — but only emit those that pass filters
-  const renderPerson = (p: Person, depth: number, visibleSet: Set<string>): React.ReactNode => {
+  const renderPerson = (p: Person, depth: number, visibleSet: Set<string>, rowIdx: { i: number }): React.ReactNode => {
     if (!visibleSet.has(p.id)) return null;
     const u = personUtil[p.id];
     const totalPct = u?.totalPct || 0;
@@ -234,23 +243,24 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
     const revPct = target > 0 ? Math.round((u?.rev || 0) / target * 100) : 0;
     const isExp = expandedPerson.has(p.id);
     const kids = (childrenMap[p.id] || []).filter(k => visibleSet.has(k.id));
+    const zebra = rowIdx.i++ % 2 === 1 ? "bg-secondary/20" : "bg-card";
 
     return (
       <React.Fragment key={p.id}>
-        <tr className="border-b border-border/30 hover:bg-secondary/20 cursor-pointer transition-colors" onClick={() => togglePerson(p.id)}>
-          <td className="py-2 px-3" style={{ paddingLeft: `${12 + depth * 20}px` }}>
+        <tr className={cn("border-b border-border/40 hover:bg-secondary/40 cursor-pointer transition-colors", zebra)} onClick={() => togglePerson(p.id)}>
+          <td className="py-2.5 px-3" style={{ paddingLeft: `${12 + depth * 28}px` }}>
             <div className="flex items-center gap-1.5">
               {(deals.length > 0 || kids.length > 0)
-                ? (isExp ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />)
+                ? (isExp ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/60" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60" />)
                 : <span className="w-3.5" />}
-              <span className={cn("text-xs font-medium",
+              <span className={cn("text-sm",
                 p.tbh ? "italic text-muted-foreground" : p.leaving ? "text-destructive line-through" : "text-foreground"
               )}>
                 {p.name}{p.tbh && " (TBH)"}
               </span>
             </div>
           </td>
-          <td className="py-2 px-3 text-xs text-muted-foreground">{p.designation || p.roleTitle}</td>
+          <td className="py-2.5 px-3 text-sm text-muted-foreground">{p.designation || p.roleTitle}</td>
           <td className="py-2 px-3 text-right font-mono tabular-nums text-xs">{activeCount}</td>
           <td className="py-2 px-3 text-right font-mono tabular-nums text-xs text-foreground">{fmtCurrency(u?.mrr)}</td>
           <td className="py-2 px-3 text-right font-mono tabular-nums text-xs text-foreground">{fmtCurrency(u?.rev)}</td>
@@ -336,7 +346,7 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
           </tr>
         )}
 
-        {isExp && kids.map(k => renderPerson(k, depth + 1, visibleSet))}
+        {isExp && kids.map(k => renderPerson(k, depth + 1, visibleSet, rowIdx))}
       </React.Fragment>
     );
   };
