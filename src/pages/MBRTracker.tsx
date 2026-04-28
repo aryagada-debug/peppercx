@@ -316,10 +316,9 @@ export default function MBRTracker() {
     const overall: Row = { name: "Pod Overall", total: 0, done: 0, notDone: 0, pending: 0, green: 0, yellow: 0, red: 0, scheduled: 0 };
     for (const deal of filteredDeals) {
       const raw = (deal.principalBopm || deal.seniorBopm || "").trim();
-      if (!raw) continue;
       // Bucket by raw BOPM name so people not in the directory (typos,
       // unregistered staff) still appear as their own row instead of being
-      // dumped into a generic "Other".
+      // dumped into a generic "Other". Empty BOPMs roll up into "Unassigned".
       const lower = raw.toLowerCase();
       const isPlaceholder =
         !raw ||
