@@ -744,6 +744,8 @@ export default function MBRTracker() {
             </div>
           </div>
         )}
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* MBR Detail Dialog */}
