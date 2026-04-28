@@ -83,7 +83,7 @@ function InlineEditCell({ value, onSave, type = "text", prefix = "", placeholder
 }
 
 export default function Clients() {
-  const { deals: allDeals, people, assignments, loading: staffLoading, refresh: refreshStaffing, updateDeal, addAssignment, updateAssignment } = useStaffingData();
+  const { deals: allDeals, people, assignments, loading: staffLoading, refresh: refreshStaffing, updateDeal, addAssignment, updateAssignment, deleteAssignment } = useStaffingData();
   const { clients: allClients, loading: clientsLoading, addClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
   const access = useDealAccess();
   const { users: appUsers } = useAppUsers();
@@ -242,7 +242,7 @@ export default function Clients() {
 
   // Resolve Content / SEO leads per deal from assignments
   const leadByDeal = useMemo(() => {
-    const map: Record<string, { content?: string; seo?: string }> = {};
+    const map: Record<string, { content?: string; seo?: string; contentAssignmentId?: string; seoAssignmentId?: string }> = {};
     const peopleById = new Map(people.map(p => [p.id, p]));
     const grouped: Record<string, typeof assignments> = {};
     for (const a of assignments) {
@@ -255,9 +255,16 @@ export default function Clients() {
           .map(a => ({ a, p: peopleById.get(a.personId) }))
           .filter(({ p }) => p && (p.roleCategory || "").toLowerCase() === cat.toLowerCase())
           .sort((x, y) => (Number(y.a.allocationPct) || 0) - (Number(x.a.allocationPct) || 0));
-        return matches[0]?.p?.name;
+        return matches[0] ? { name: matches[0].p?.name, assignmentId: matches[0].a.id } : undefined;
       };
-      map[dealId] = { content: pick("Content"), seo: pick("SEO") };
+      const c = pick("Content");
+      const s = pick("SEO");
+      map[dealId] = {
+        content: c?.name,
+        contentAssignmentId: c?.assignmentId,
+        seo: s?.name,
+        seoAssignmentId: s?.assignmentId,
+      };
     }
     return map;
   }, [assignments, people]);
@@ -447,6 +454,33 @@ export default function Clients() {
       }
     }
     toast.success("BOPM updated");
+  };
+
+  const handleClearBOPM = async (dealId: string) => {
+    if (!isDealEditable(dealId)) {
+      toast.error("View only — you can't edit this deal");
+      return;
+    }
+    await guardedUpdateDeal(dealId, { principalBopm: "", seniorBopm: "", bopm: "" });
+    const existing = assignments.filter(
+      a => a.dealId === dealId && (a.roleKey === "Principal BOPM" || a.roleKey === "Senior BOPM")
+    );
+    for (const a of existing) {
+      await deleteAssignment(a.id);
+    }
+    toast.success("BOPM removed from deal");
+  };
+
+  const handleClearLead = async (dealId: string, kind: "content" | "seo") => {
+    if (!isDealEditable(dealId)) {
+      toast.error("View only — you can't edit this deal");
+      return;
+    }
+    const lead = leadByDeal[dealId];
+    const assignmentId = kind === "content" ? lead?.contentAssignmentId : lead?.seoAssignmentId;
+    if (!assignmentId) return;
+    await deleteAssignment(assignmentId);
+    toast.success(`${kind === "content" ? "Content" : "SEO"} lead removed from deal`);
   };
 
   const handleMRRSave = (dealId: string, value: string) => {
@@ -676,26 +710,59 @@ export default function Clients() {
                       )}
                       {isVisible("bopm") && (
                         <td className="py-2 px-3 truncate">
-                          <button
-                            onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "Operations", preSelectedName: deal.principalBopm || deal.seniorBopm || undefined })}
-                            className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate block text-left w-full"
-                          >
-                            {deal.principalBopm || deal.seniorBopm || <span className="text-muted-foreground">— None —</span>}
-                          </button>
+                          <div className="flex items-center gap-1 group/cell">
+                            <button
+                              onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "Operations", preSelectedName: deal.principalBopm || deal.seniorBopm || undefined })}
+                              className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate block text-left flex-1 min-w-0"
+                            >
+                              {deal.principalBopm || deal.seniorBopm || <span className="text-muted-foreground">— None —</span>}
+                            </button>
+                            {(deal.principalBopm || deal.seniorBopm) && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleClearBOPM(deal.id); }}
+                                className="text-muted-foreground/40 hover:text-destructive opacity-0 group-hover/cell:opacity-100 transition-opacity flex-none"
+                                title="Remove BOPM from this deal"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            )}
+                          </div>
                         </td>
                       )}
                       {isVisible("contentLead") && (
                         <td className="py-2 px-3 truncate">
-                          <Link to={`/deals/${deal.id}`} className="text-xs text-foreground hover:text-primary hover:underline truncate block" title={leads.content || ""}>
-                            {leads.content || <span className="text-muted-foreground">— None —</span>}
-                          </Link>
+                          <div className="flex items-center gap-1 group/cell">
+                            <Link to={`/deals/${deal.id}`} className="text-xs text-foreground hover:text-primary hover:underline truncate block flex-1 min-w-0" title={leads.content || ""}>
+                              {leads.content || <span className="text-muted-foreground">— None —</span>}
+                            </Link>
+                            {leads.content && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleClearLead(deal.id, "content"); }}
+                                className="text-muted-foreground/40 hover:text-destructive opacity-0 group-hover/cell:opacity-100 transition-opacity flex-none"
+                                title="Remove Content Lead from this deal"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            )}
+                          </div>
                         </td>
                       )}
                       {isVisible("seoLead") && (
                         <td className="py-2 px-3 truncate">
-                          <Link to={`/deals/${deal.id}`} className="text-xs text-foreground hover:text-primary hover:underline truncate block" title={leads.seo || ""}>
-                            {leads.seo || <span className="text-muted-foreground">— None —</span>}
-                          </Link>
+                          <div className="flex items-center gap-1 group/cell">
+                            <Link to={`/deals/${deal.id}`} className="text-xs text-foreground hover:text-primary hover:underline truncate block flex-1 min-w-0" title={leads.seo || ""}>
+                              {leads.seo || <span className="text-muted-foreground">— None —</span>}
+                            </Link>
+                            {leads.seo && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleClearLead(deal.id, "seo"); }}
+                                className="text-muted-foreground/40 hover:text-destructive opacity-0 group-hover/cell:opacity-100 transition-opacity flex-none"
+                                title="Remove SEO Lead from this deal"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            )}
+                          </div>
                         </td>
                       )}
                       {isVisible("mrr") && (
