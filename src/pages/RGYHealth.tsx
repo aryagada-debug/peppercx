@@ -51,26 +51,29 @@ const DIMENSIONS = [
   { key: "video", label: "Video" },
 ];
 
-const RGY_OPTIONS: { value: RGYStatus; label: string }[] = [
+type RGYCellValue = RGYStatus | "PENDING";
+const RGY_OPTIONS: { value: RGYCellValue; label: string }[] = [
   { value: "G", label: "Green" },
   { value: "Y", label: "Yellow" },
   { value: "R", label: "Red" },
   { value: "NA", label: "N/A" },
+  { value: "PENDING", label: "Pending" },
 ];
 
-const cellColors: Record<RGYStatus, string> = {
+const cellColors: Record<RGYCellValue, string> = {
   R: "rgy-red",
   G: "rgy-green",
   Y: "rgy-yellow",
   NA: "rgy-na",
+  PENDING: "rgy-pending",
 };
 
-const cellLabels: Record<RGYStatus, string> = {
-  R: "R", G: "G", Y: "Y", NA: "NA",
+const cellLabels: Record<RGYCellValue, string> = {
+  R: "R", G: "G", Y: "Y", NA: "NA", PENDING: "Pending",
 };
 
-const statusLabels: Record<RGYStatus, string> = {
-  R: "Red", G: "Green", Y: "Yellow", NA: "N/A",
+const statusLabels: Record<RGYCellValue, string> = {
+  R: "Red", G: "Green", Y: "Yellow", NA: "N/A", PENDING: "Pending",
 };
 
 // Map between user-facing filter labels and stored RGY codes
@@ -170,9 +173,9 @@ function RGYCell({
 }: {
   dealId: string;
   dimKey: string;
-  value: RGYStatus;
+  value: RGYCellValue;
   label: string;
-  onUpdate: (dealId: string, dimKey: string, newValue: RGYStatus) => void;
+  onUpdate: (dealId: string, dimKey: string, newValue: RGYCellValue) => void;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -183,7 +186,8 @@ function RGYCell({
           <button
             onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
             className={cn(
-              "inline-flex items-center justify-center w-7 h-7 rounded-md text-caption font-semibold cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all",
+              "inline-flex items-center justify-center rounded-md text-caption font-semibold cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all",
+              value === "PENDING" ? "px-2 h-7 text-[10px]" : "w-7 h-7",
               cellColors[value]
             )}
             aria-label={`${label}: ${statusLabels[value]} — Click to change`}
@@ -197,19 +201,18 @@ function RGYCell({
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute z-50 top-full mt-1 left-1/2 -translate-x-1/2 bg-popover border border-border rounded-lg shadow-lg p-1 flex gap-1">
+          <div className="absolute z-50 top-full mt-1 left-1/2 -translate-x-1/2 bg-popover border border-border rounded-lg shadow-lg p-1 flex gap-1 whitespace-nowrap">
             {RGY_OPTIONS.map(opt => (
               <button
                 key={opt.value}
                 onClick={(e) => {
                   e.stopPropagation();
-                  // If clicking the already-selected value, clear to NA
-                  const newVal = opt.value === value ? "NA" as RGYStatus : opt.value;
-                  onUpdate(dealId, dimKey, newVal);
+                  onUpdate(dealId, dimKey, opt.value);
                   setOpen(false);
                 }}
                 className={cn(
-                  "w-7 h-7 rounded-md text-caption font-semibold transition-all",
+                  "rounded-md text-caption font-semibold transition-all",
+                  opt.value === "PENDING" ? "px-2 h-7 text-[10px]" : "w-7 h-7",
                   cellColors[opt.value],
                   value === opt.value && "ring-2 ring-primary"
                 )}
@@ -668,14 +671,15 @@ export default function RGYHealth() {
         rgy_action_plan: rgy?.action_plan || "",
         rgy_discussed_action_plan: rgy?.discussed_action_plan || "",
         rgy_issue_details: rgy?.issue_details || "",
-        customer: rgy?.customer || "NA",
-        internal: rgy?.internal || "NA",
-        content: rgy?.content || "NA",
-        seo: rgy?.seo || "NA",
-        supply: rgy?.supply || "NA",
-        copy: rgy?.copy || "NA",
-        design: rgy?.design || "NA",
-        video: rgy?.video || "NA",
+        // Empty/missing RGY values are treated as "Pending" in the UI
+        customer: rgy?.customer ?? "",
+        internal: rgy?.internal ?? "",
+        content: rgy?.content ?? "",
+        seo: rgy?.seo ?? "",
+        supply: rgy?.supply ?? "",
+        copy: rgy?.copy ?? "",
+        design: rgy?.design ?? "",
+        video: rgy?.video ?? "",
       };
     });
 
@@ -685,7 +689,7 @@ export default function RGYHealth() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const handleRGYUpdate = useCallback(async (dealId: string, dimKey: string, newValue: RGYStatus) => {
+  const handleRGYUpdate = useCallback(async (dealId: string, dimKey: string, newValue: RGYCellValue) => {
     const deal = deals.find(d => d.id === dealId);
     if (!deal) return;
 
@@ -709,7 +713,9 @@ export default function RGYHealth() {
     await applyRGYUpdate(dealId, dimKey, newValue, deal);
   }, [deals]);
 
-  const applyRGYUpdate = useCallback(async (dealId: string, dimKey: string, newValue: RGYStatus, deal: DealWithRGY) => {
+  const applyRGYUpdate = useCallback(async (dealId: string, dimKey: string, newValue: RGYCellValue, deal: DealWithRGY) => {
+    // "PENDING" is stored as empty string in the DB
+    const persistValue = newValue === "PENDING" ? "" : newValue;
     // Save snapshot before change for potential revert
     const oldValues: Record<string, string> = {};
     DIMENSIONS.forEach(dim => {
@@ -717,27 +723,27 @@ export default function RGYHealth() {
     });
 
     // Optimistically update local state
-    setDeals(prev => prev.map(d => d.id === dealId ? { ...d, [dimKey]: newValue } : d));
+    setDeals(prev => prev.map(d => d.id === dealId ? { ...d, [dimKey]: persistValue } : d));
 
     const weekStart = getCurrentWeekStart();
 
-    const updatedDeal = { ...deal, [dimKey]: newValue };
+    const updatedDeal = { ...deal, [dimKey]: persistValue };
     const rgyPayload: Record<string, string> = {};
     DIMENSIONS.forEach(dim => {
-      rgyPayload[dim.key] = (updatedDeal[dim.key as keyof DealWithRGY] as string) || "G";
+      rgyPayload[dim.key] = (updatedDeal[dim.key as keyof DealWithRGY] as string) ?? "";
     });
 
     if (deal.rgy_row_id && deal.rgy_week_start === weekStart) {
-      await supabase.from("deal_rgy_weekly").update({ [dimKey]: newValue } as any).eq("id", deal.rgy_row_id);
+      await supabase.from("deal_rgy_weekly").update({ [dimKey]: persistValue } as any).eq("id", deal.rgy_row_id);
     } else {
       const { data: inserted } = await supabase.from("deal_rgy_weekly").insert({
         deal_id: dealId,
         week_start: weekStart,
         ...rgyPayload,
-        account_health: rgyPayload.customer || "G",
-        finance_billing: "G",
-        capability_seo: rgyPayload.seo || "G",
-        capability_creative: "G",
+        account_health: rgyPayload.customer || "",
+        finance_billing: "",
+        capability_seo: rgyPayload.seo || "",
+        capability_creative: "",
       } as any).select("id").single();
 
       if (inserted) {
@@ -881,13 +887,11 @@ export default function RGYHealth() {
         const f = colFilters[dim.key];
         if (f) {
           const code = RGY_FILTER_LABEL_TO_CODE[f] ?? f;
-          const hasRow = !!d.rgy_row_id;
+          const raw = ((d as any)[dim.key] as string) || "";
           if (code === "Pending") {
-            if (hasRow) return false;
+            if (raw !== "") return false;
           } else {
-            if (!hasRow) return false; // "Pending" rows don't match concrete colors
-            const v = ((d as any)[dim.key]) || "NA";
-            if (v !== code) return false;
+            if (raw !== code) return false;
           }
         }
       }
@@ -1050,20 +1054,11 @@ export default function RGYHealth() {
                               </Badge>
                             </td>
                             {DIMENSIONS.map(dim => {
-                              const val = (deal[dim.key as keyof DealWithRGY] as string || "NA") as RGYStatus;
+                              const raw = (deal[dim.key as keyof DealWithRGY] as string) || "";
+                              const val: RGYCellValue = raw === "" ? "PENDING" : (raw as RGYStatus);
                               return (
                                 <td key={dim.key} className="py-2 px-2 text-center">
-                                  {isPending ? (
-                                    <button
-                                      onClick={() => handleRGYUpdate(deal.id, dim.key, "G")}
-                                      className="inline-flex items-center justify-center px-2 h-7 rounded-md text-[10px] font-semibold rgy-pending hover:ring-2 hover:ring-primary/30 transition-all"
-                                      title="Pending — click to set"
-                                    >
-                                      Pending
-                                    </button>
-                                  ) : (
-                                    <RGYCell dealId={deal.id} dimKey={dim.key} value={val} label={dim.label} onUpdate={handleRGYUpdate} />
-                                  )}
+                                  <RGYCell dealId={deal.id} dimKey={dim.key} value={val} label={dim.label} onUpdate={handleRGYUpdate} />
                                 </td>
                               );
                             })}
