@@ -66,11 +66,16 @@ const cellColors: Record<RGYStatus, string> = {
 };
 
 const cellLabels: Record<RGYStatus, string> = {
-  R: "R", G: "G", Y: "Y", NA: "—",
+  R: "R", G: "G", Y: "Y", NA: "NA",
 };
 
 const statusLabels: Record<RGYStatus, string> = {
   R: "Red", G: "Green", Y: "Yellow", NA: "N/A",
+};
+
+// Map between user-facing filter labels and stored RGY codes
+const RGY_FILTER_LABEL_TO_CODE: Record<string, RGYStatus | "Pending"> = {
+  Green: "G", Yellow: "Y", Red: "R", NA: "NA", Pending: "Pending",
 };
 
 const statusBadgeStyles: Record<string, string> = {
