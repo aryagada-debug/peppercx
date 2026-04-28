@@ -412,20 +412,12 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
             <div key={dept} className="bg-card border border-border rounded-xl overflow-hidden">
               <button
                 onClick={() => toggleDept(dept)}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-secondary/30 transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-3 bg-secondary/40 hover:bg-secondary/60 transition-colors"
               >
-                <span className="h-2 w-2 rounded-full bg-primary" />
-                <span className="text-sm font-semibold text-foreground">{dept}</span>
+                <span className={cn("h-2.5 w-2.5 rounded-full", DEPT_DOT[dept] || "bg-primary")} />
+                <span className="text-sm font-medium text-foreground">{dept}</span>
                 <span className="ml-auto flex items-center gap-3">
                   <span className="text-caption text-muted-foreground">{active.length} active</span>
-                  <div className="flex h-2 w-32 overflow-hidden rounded-full bg-secondary">
-                    {(["overloaded","nearFull","healthy","underUtil"] as Bucket[]).map(b => (
-                      <div key={b} className={BUCKET_CONFIG[b].bar} style={{ width: `${(dist[b] / total) * 100}%` }} />
-                    ))}
-                  </div>
-                  <span className={cn("text-caption font-mono tabular-nums w-10 text-right",
-                    avg > 100 ? "text-destructive" : avg >= 85 ? "text-warning" : "text-positive"
-                  )}>{avg}%</span>
                   {isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                 </span>
               </button>
@@ -446,7 +438,7 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
                       </tr>
                     </thead>
                     <tbody>
-                      {roots.map(p => renderPerson(p, 0, visibleSet))}
+                      {(() => { const rowIdx = { i: 0 }; return roots.map(p => renderPerson(p, 0, visibleSet, rowIdx)); })()}
                     </tbody>
                   </table>
                 </div>
