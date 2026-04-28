@@ -397,42 +397,28 @@ export default function MBRTracker() {
               <Bell className="h-3.5 w-3.5" />
               Run reminders
             </Button>
-            <div className="flex gap-1 bg-secondary rounded-lg p-1">
-              <button
-                onClick={() => setViewMode("current")}
-                className={cn(
-                  "px-3 py-1.5 rounded-md text-caption font-medium flex items-center gap-1.5 transition-colors",
-                  viewMode === "current" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <List className="h-3.5 w-3.5" />
-                Current
-              </button>
-              <button
-                onClick={() => setViewMode("mom")}
-                className={cn(
-                  "px-3 py-1.5 rounded-md text-caption font-medium flex items-center gap-1.5 transition-colors",
-                  viewMode === "mom" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <CalendarDays className="h-3.5 w-3.5" />
-                Month-on-Month
-              </button>
-            </div>
           </div>
         </div>
 
         {/* KPI Strip */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3">
-          <MetricCard label="Retainer Accounts" value={String(kpis.retainerAccounts)} />
-          <MetricCard label="Done" value={String(kpis.done)} />
-          <MetricCard label="Not Done" value={String(kpis.notDone)} />
-          <MetricCard label="Pending" value={String(kpis.pending)} />
-          <MetricCard label="Compliance" value={`${kpis.compliance}%`} />
+          <KpiTile label="Retainers" value={String(kpis.retainerAccounts)} tone="primary" icon={Users} />
+          <KpiTile label="Done" value={String(kpis.done)} tone="positive" icon={CheckCircle2} />
+          <KpiTile label="Not Done" value={String(kpis.notDone)} tone="destructive" icon={XCircle} />
+          <KpiTile label="Pending" value={String(kpis.pending)} tone="warning" icon={Clock} />
+          <KpiTile label="Compliance" value={`${kpis.compliance}%`} tone="primary" icon={Gauge} />
         </div>
 
-        {/* VSD Filter — primary scope selector (drives Insights + Table) */}
-        <div className="flex items-center gap-2 mb-3 flex-wrap">
+        {/* Tabs: Insights / Table */}
+        <Tabs defaultValue="insights" className="mb-4">
+          <TabsList className="mb-3">
+            <TabsTrigger value="insights">Insights</TabsTrigger>
+            <TabsTrigger value="table">Table</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="insights" className="mt-0">
+            {/* VSD Filter */}
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
           <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">VSD:</span>
           <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
             {VSD_FILTERS.map(v => (
