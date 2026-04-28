@@ -531,7 +531,7 @@ export default function RGYHealth() {
   const [deals, setDeals] = useState<DealWithRGY[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
-  const [activePod, setActivePod] = useState<Pod>("All");
+  const [activeVsd, setActiveVsd] = useState<VsdFilterKey>("All");
   const [showClosed, setShowClosed] = useState(false);
   const [search, setSearch] = useState("");
   const [rgyFilter, setRgyFilter] = useState<"All" | "Red" | "Yellow" | "Green">("All");
@@ -547,6 +547,41 @@ export default function RGYHealth() {
     if (sortKey === k) setSortDir(d => d === "asc" ? "desc" : "asc");
     else { setSortKey(k); setSortDir("asc"); }
   };
+
+  // Column widths (resizable)
+  const DEFAULT_WIDTHS: Record<string, number> = {
+    account: 160, deal_name: 200, deal_id: 110, deal_status: 110,
+    customer: 100, internal: 100, content: 100, seo: 90, supply: 100, copy: 90, design: 100, video: 100,
+  };
+  const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
+    try {
+      const raw = localStorage.getItem("rgy-col-widths");
+      if (raw) return { ...DEFAULT_WIDTHS, ...JSON.parse(raw) };
+    } catch {}
+    return DEFAULT_WIDTHS;
+  });
+  useEffect(() => {
+    try { localStorage.setItem("rgy-col-widths", JSON.stringify(colWidths)); } catch {}
+  }, [colWidths]);
+  const resizingRef = useRef<{ key: string; startX: number; startW: number } | null>(null);
+  const startResize = useCallback((key: string) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    resizingRef.current = { key, startX: e.clientX, startW: colWidths[key] || 120 };
+    const onMove = (ev: MouseEvent) => {
+      const r = resizingRef.current;
+      if (!r) return;
+      const next = Math.max(60, Math.min(500, r.startW + (ev.clientX - r.startX)));
+      setColWidths(prev => ({ ...prev, [r.key]: next }));
+    };
+    const onUp = () => {
+      resizingRef.current = null;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, [colWidths]);
 
   // Issue form state
   const [issueFormDeal, setIssueFormDeal] = useState<DealWithRGY | null>(null);
@@ -599,6 +634,7 @@ export default function RGYHealth() {
                 pc_code: dealRow?.pc_code || "",
                 account: dealRow?.account || "",
                 pod: getPodForDeal(dealRow?.vsd || "", dealRow?.pod || ""),
+                vsd: dealRow?.vsd || "",
                 deal_status: dealRow?.deal_status || "",
                 issue_details: r.issue_details,
                 issue_status: r.issue_status || "Open",
