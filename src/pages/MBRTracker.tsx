@@ -428,20 +428,43 @@ export default function MBRTracker() {
                 {(showBopmInsights ? bopmInsights.map(b => ({ vsd: b.name, ...b })) : vsdInsights).map(v => {
                   const schedCompliance = v.total > 0 ? `${v.scheduled}/${v.total}` : "—";
                   const isOverall = v.vsd === "Pod Overall";
+                  const rowLabel = v.vsd;
+                  const openDrill = (metric: DrillMetric) => setDrill({ rowKey: rowLabel, rowLabel, metric });
+                  const NumBtn = ({ value, metric, className }: { value: number; metric: DrillMetric; className?: string }) => (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); if (value > 0) openDrill(metric); }}
+                      className={cn(
+                        "font-mono tabular-nums text-xs",
+                        value > 0 ? "hover:underline cursor-pointer" : "cursor-default opacity-70",
+                        className,
+                      )}
+                    >
+                      {value}
+                    </button>
+                  );
                   return (
                     <tr key={v.vsd} className={cn(
                       "border-b border-border/50 hover:bg-secondary/30 transition-colors",
                       isOverall && "bg-primary/5 font-semibold"
                     )}>
                       <td className="py-2.5 px-3 font-semibold text-foreground text-xs">{v.vsd}</td>
-                      <td className="py-2.5 px-3 font-mono tabular-nums text-foreground text-xs">{v.total}</td>
-                      <td className="py-2.5 px-3 font-mono tabular-nums text-positive font-semibold text-xs">{v.done}</td>
-                      <td className="py-2.5 px-3 font-mono tabular-nums text-destructive font-semibold text-xs">{v.notDone}</td>
-                      <td className="py-2.5 px-3 font-mono tabular-nums text-warning font-semibold text-xs">{v.pending}</td>
-                      <td className="py-2.5 px-3 font-mono tabular-nums text-positive text-xs">{v.green}</td>
-                      <td className="py-2.5 px-3 font-mono tabular-nums text-warning text-xs">{v.yellow}</td>
-                      <td className="py-2.5 px-3 font-mono tabular-nums text-destructive text-xs">{v.red}</td>
-                      <td className="py-2.5 px-3 font-mono tabular-nums text-foreground text-xs">{schedCompliance}</td>
+                      <td className="py-2.5 px-3"><NumBtn value={v.total} metric="total" className="text-foreground" /></td>
+                      <td className="py-2.5 px-3"><NumBtn value={v.done} metric="done" className="text-positive font-semibold" /></td>
+                      <td className="py-2.5 px-3"><NumBtn value={v.notDone} metric="notDone" className="text-destructive font-semibold" /></td>
+                      <td className="py-2.5 px-3"><NumBtn value={v.pending} metric="pending" className="text-warning font-semibold" /></td>
+                      <td className="py-2.5 px-3"><NumBtn value={v.green} metric="green" className="text-positive" /></td>
+                      <td className="py-2.5 px-3"><NumBtn value={v.yellow} metric="yellow" className="text-warning" /></td>
+                      <td className="py-2.5 px-3"><NumBtn value={v.red} metric="red" className="text-destructive" /></td>
+                      <td className="py-2.5 px-3">
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); if (v.scheduled > 0) openDrill("scheduled"); }}
+                          className={cn("font-mono tabular-nums text-foreground text-xs", v.scheduled > 0 ? "hover:underline cursor-pointer" : "cursor-default opacity-70")}
+                        >
+                          {schedCompliance}
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
