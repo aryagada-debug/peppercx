@@ -846,6 +846,18 @@ export default function RGYHealth() {
       }
     }
 
+    // Audit log: who changed which dimension and from what to what
+    const oldValueForDim = oldValues[dimKey] || "";
+    if (oldValueForDim !== persistValue) {
+      logRGYChange({
+        dealId,
+        dimension: dimKey,
+        fromValue: oldValueForDim,
+        toValue: persistValue,
+        weekStart,
+      });
+    }
+
     // If new value is R or Y, show issue form
     if (newValue === "R" || newValue === "Y") {
       const latestDeal = { ...deal, [dimKey]: newValue };
