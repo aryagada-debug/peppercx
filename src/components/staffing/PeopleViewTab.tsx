@@ -309,7 +309,7 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
         <tr className={cn("border-b border-border/40 hover:bg-secondary/40 cursor-pointer transition-colors", rowBg)} onClick={() => togglePerson(p.id)}>
           <td className="py-2.5 px-3" style={{ paddingLeft: `${12 + depth * 28}px` }}>
             <div className="flex items-center gap-1.5">
-              {(deals.length > 0 || kids.length > 0)
+              {deals.length > 0
                 ? (isExp ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/60" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60" />)
                 : <span className="w-3.5" />}
               <span className={cn("text-sm",
@@ -411,7 +411,8 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
           </tr>
         )}
 
-        {isExp && kids.map(k => renderPerson(k, depth + 1, visibleSet, rowIdx, myGroupBg))}
+        {/* Reports are always visible & indented; only deal allocations toggle on expand. */}
+        {kids.map(k => renderPerson(k, depth + 1, visibleSet, rowIdx, myGroupBg))}
       </React.Fragment>
     );
   };
