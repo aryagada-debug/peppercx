@@ -8,6 +8,7 @@ import { DealViewTab } from "@/components/staffing/DealViewTab";
 import { PeopleViewTab } from "@/components/staffing/PeopleViewTab";
 import { MatrixTab } from "@/components/staffing/MatrixTab";
 import { useUserRole } from "@/hooks/useUserRole";
+import { ReadOnlyBanner } from "@/components/access/ReadOnlyBanner";
 import { useDealAccess } from "@/hooks/useDealAccess";
 import { BopmEmptyState } from "@/components/access/BopmEmptyState";
 import { StaffingReviewRequestsButton } from "@/components/staffing/StaffingReviewRequests";

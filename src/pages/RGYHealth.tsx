@@ -27,6 +27,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ColHeader } from "@/components/table/ColHeader";
 import { useAppUsers, useVsdUsers, useVsdHierarchy, nameKey } from "@/hooks/useAppUsers";
 import { useUserRole } from "@/hooks/useUserRole";
+import { ReadOnlyBanner } from "@/components/access/ReadOnlyBanner";
 import { useDealAccess } from "@/hooks/useDealAccess";
 import { BopmEmptyState } from "@/components/access/BopmEmptyState";
 
