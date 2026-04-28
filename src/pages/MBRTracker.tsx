@@ -423,8 +423,12 @@ export default function MBRTracker() {
               <tbody>
                 {(showBopmInsights ? bopmInsights.map(b => ({ vsd: b.name, ...b })) : vsdInsights).map(v => {
                   const schedCompliance = v.total > 0 ? `${v.scheduled}/${v.total}` : "—";
+                  const isOverall = v.vsd === "Pod Overall";
                   return (
-                    <tr key={v.vsd} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
+                    <tr key={v.vsd} className={cn(
+                      "border-b border-border/50 hover:bg-secondary/30 transition-colors",
+                      isOverall && "bg-primary/5 font-semibold"
+                    )}>
                       <td className="py-2.5 px-3 font-semibold text-foreground text-xs">{v.vsd}</td>
                       <td className="py-2.5 px-3 font-mono tabular-nums text-foreground text-xs">{v.total}</td>
                       <td className="py-2.5 px-3 font-mono tabular-nums text-positive font-semibold text-xs">{v.done}</td>
