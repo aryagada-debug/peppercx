@@ -20,6 +20,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { ColHeader } from "@/components/table/ColHeader";
 import { CalendarConnectButton } from "@/components/calendar/CalendarConnectButton";
 import { useAppUsers, useVsdUsers, useVsdHierarchy } from "@/hooks/useAppUsers";
+import { useUserRole } from "@/hooks/useUserRole";
+import { useDealAccess } from "@/hooks/useDealAccess";
 
 type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
@@ -80,6 +82,9 @@ export default function MBRTracker() {
   const { users: appUsers, isRegisteredName } = useAppUsers();
   const { vsdUsers, isVsdName, canonVsd } = useVsdUsers();
   const { vsdForDeal, vsdForPerson, bopmsForVsd, allBopms } = useVsdHierarchy();
+  const { role } = useUserRole();
+  const { visibleDealIds, loading: accessLoading } = useDealAccess();
+  const isBopmPersona = role === "user";
   const VSD_FILTERS = useMemo(() => {
     const items: { key: string; label: string }[] = [{ key: "All", label: "All" }];
     vsdUsers.forEach((u) => items.push({ key: u.displayName, label: u.displayName }));
@@ -219,6 +224,9 @@ export default function MBRTracker() {
   // Filter deals
   const filteredDeals = useMemo(() => {
     let d = deals;
+    if (isBopmPersona && !accessLoading) {
+      d = d.filter(deal => visibleDealIds.has(deal.id));
+    }
     if (!showClosed) {
       d = d.filter(deal => {
         const meta = dealMeta.get(deal.id);
@@ -241,7 +249,13 @@ export default function MBRTracker() {
       d = d.filter(deal => deal.account.toLowerCase().includes(s) || deal.dealName.toLowerCase().includes(s));
     }
     return d;
-  }, [deals, dealMeta, activeVsd, activeBopm, search, showClosed, vsdForDeal]);
+  }, [deals, dealMeta, activeVsd, activeBopm, search, showClosed, vsdForDeal, isBopmPersona, accessLoading, visibleDealIds]);
+
+  // BOPM persona is locked to the table-view, current month only.
+  useEffect(() => {
+    if (isBopmPersona && viewMode !== "current") setViewMode("current");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isBopmPersona]);
 
   // Group by client
   const groupedDeals = useMemo(() => {
