@@ -51,26 +51,29 @@ const DIMENSIONS = [
   { key: "video", label: "Video" },
 ];
 
-const RGY_OPTIONS: { value: RGYStatus; label: string }[] = [
+type RGYCellValue = RGYStatus | "PENDING";
+const RGY_OPTIONS: { value: RGYCellValue; label: string }[] = [
   { value: "G", label: "Green" },
   { value: "Y", label: "Yellow" },
   { value: "R", label: "Red" },
   { value: "NA", label: "N/A" },
+  { value: "PENDING", label: "Pending" },
 ];
 
-const cellColors: Record<RGYStatus, string> = {
+const cellColors: Record<RGYCellValue, string> = {
   R: "rgy-red",
   G: "rgy-green",
   Y: "rgy-yellow",
   NA: "rgy-na",
+  PENDING: "rgy-pending",
 };
 
-const cellLabels: Record<RGYStatus, string> = {
-  R: "R", G: "G", Y: "Y", NA: "NA",
+const cellLabels: Record<RGYCellValue, string> = {
+  R: "R", G: "G", Y: "Y", NA: "NA", PENDING: "Pending",
 };
 
-const statusLabels: Record<RGYStatus, string> = {
-  R: "Red", G: "Green", Y: "Yellow", NA: "N/A",
+const statusLabels: Record<RGYCellValue, string> = {
+  R: "Red", G: "Green", Y: "Yellow", NA: "N/A", PENDING: "Pending",
 };
 
 // Map between user-facing filter labels and stored RGY codes
