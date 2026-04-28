@@ -132,11 +132,9 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd }: Prop
       else if (w === "G") green++;
     });
 
-    // Avg days open across active issues (in current POD scope)
-    const podIssues = issues.filter((i) =>
-      activePod === "All" ? true : i.pod === activePod,
-    );
-    const openDays = podIssues
+    // Avg days open across active issues (in current VSD scope)
+    const vsdIssues = issues.filter((i) => matchesActiveVsd(i.vsd));
+    const openDays = vsdIssues
       .filter((i) => i.issue_status === "Open" || i.issue_status === "In Progress")
       .map((i) => daysSince(i.issue_date || i.created_at));
     const avgDaysOpen = openDays.length > 0
@@ -144,7 +142,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd }: Prop
       : 0;
 
     return { total: filteredDeals.length, red, yellow, green, churned, avgDaysOpen };
-  }, [filteredDeals, issues, activePod]);
+  }, [filteredDeals, issues, activeVsd]);
 
   // ── Health donut ──
   const donutData = useMemo(() => [
@@ -239,11 +237,11 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd }: Prop
       }));
   }, [vsdDrill, deals]);
 
-  // ── Active Issues — POD-filtered, with timeline + flags ──
+  // ── Active Issues — VSD-filtered, with timeline + flags ──
   const activeIssues = useMemo(() => {
     const filtered = issues
       .filter((i) => i.issue_status === "Open" || i.issue_status === "In Progress")
-      .filter((i) => (activePod === "All" ? true : i.pod === activePod))
+      .filter((i) => matchesActiveVsd(i.vsd))
       .map((i) => {
         const days = daysSince(i.issue_date || i.created_at);
         const flagged =
@@ -265,7 +263,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd }: Prop
       if (ra !== rb) return ra - rb;
       return b.days - a.days;
     });
-  }, [issues, activePod]);
+  }, [issues, activeVsd]);
 
   // ── Aging issues (top 8 oldest open) ──
   const agingIssues = useMemo(() => activeIssues.slice(0, 8), [activeIssues]);
@@ -302,7 +300,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd }: Prop
   useEffect(() => {
     generateSummary();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aiWindow, activePod]);
+  }, [aiWindow, activeVsd]);
 
   return (
     <div className="space-y-6">
@@ -396,7 +394,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd }: Prop
             <AlertTriangle className="h-4 w-4 text-red-500" />
             Active issues & action plans
             <span className="ml-auto text-[10px] font-normal text-muted-foreground">
-              {activePod === "All" ? "All Pods" : activePod} · {activeIssues.length} open
+              {activeVsd === "All" ? "All VSDs" : activeVsd} · {activeIssues.length} open
             </span>
           </h3>
           <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
