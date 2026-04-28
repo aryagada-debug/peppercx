@@ -11,6 +11,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useDealAccess } from "@/hooks/useDealAccess";
 import { BopmEmptyState } from "@/components/access/BopmEmptyState";
 import { StaffingReviewRequestsButton } from "@/components/staffing/StaffingReviewRequests";
+import { BopmStaffingSummary } from "@/components/staffing/BopmStaffingSummary";
 
 type Tab = "deals" | "people" | "matrix";
 
@@ -47,14 +48,25 @@ export default function Staffing() {
     updateAssignment, updateDeal, upsertAssignmentByRole,
   } = useStaffingData();
 
-  // For BOPM persona, narrow deals + assignments to her tagged deals before
-  // passing into the child tabs.
+  // For BOPM persona, narrow deals + assignments to her tagged deals — and
+  // narrow `people` to only those staffed on those deals (so the People
+  // picker / matrix rows don't leak the wider org).
   const scopedDeals = isBopmPersona && !accessLoading
     ? deals.filter(d => visibleDealIds.has(d.id))
     : deals;
+  // De-duplicate by id (defensive — visibleDealIds is already a Set)
+  const uniqueScopedDeals = isBopmPersona
+    ? Array.from(new Map(scopedDeals.map(d => [d.id, d])).values())
+    : scopedDeals;
   const scopedAssignments = isBopmPersona && !accessLoading
     ? assignments.filter(a => visibleDealIds.has(a.dealId))
     : assignments;
+  const scopedPeople = isBopmPersona && !accessLoading
+    ? (() => {
+        const ids = new Set(scopedAssignments.map(a => a.personId));
+        return people.filter(p => ids.has(p.id));
+      })()
+    : people;
 
   if (loading || (isBopmPersona && accessLoading)) {
     return (
@@ -92,7 +104,7 @@ export default function Staffing() {
               )}
             </div>
             <p className="text-ui text-muted-foreground mt-1">
-              {scopedDeals.length} deals • {people.filter(p => !p.tbh).length} people
+              {uniqueScopedDeals.length} deals • {(isBopmPersona ? scopedPeople : people.filter(p => !p.tbh)).length} people
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -120,6 +132,14 @@ export default function Staffing() {
 
         {showBopmEmpty && <BopmEmptyState section="Staffing & Capacity" />}
 
+        {isBopmPersona && !showBopmEmpty && (
+          <BopmStaffingSummary
+            deals={uniqueScopedDeals}
+            people={scopedPeople}
+            assignments={scopedAssignments}
+          />
+        )}
+
         {tab === "deals" && !isBopmPersona && (
           <DealViewTab deals={scopedDeals} people={people} assignments={scopedAssignments} onUpdateDeal={updateDeal} />
         )}
@@ -134,8 +154,8 @@ export default function Staffing() {
         )}
         {tab === "matrix" && (
           <MatrixTab
-            deals={scopedDeals}
-            people={people}
+            deals={isBopmPersona ? uniqueScopedDeals : scopedDeals}
+            people={isBopmPersona ? scopedPeople : people}
             assignments={scopedAssignments}
             onUpdateDeal={isBopmPersona ? () => {} : updateDeal}
             onUpsertAssignment={isBopmPersona ? () => {} : upsertAssignmentByRole}
