@@ -939,6 +939,12 @@ export default function RGYHealth() {
       d = d.filter(deal => vsdForDeal(deal as any) === null);
     } else if (activeVsd !== "All") {
       d = d.filter(deal => vsdForDeal(deal as any) === activeVsd);
+      if (activeBopm !== "All") {
+        d = d.filter(deal => {
+          const candidates = [(deal as any).principal_bopm, (deal as any).senior_bopm, (deal as any).principalBopm, (deal as any).seniorBopm];
+          return candidates.some(c => c && nameMatchesBopm(c, activeBopm));
+        });
+      }
     }
     if (search) {
       const s = search.toLowerCase();
