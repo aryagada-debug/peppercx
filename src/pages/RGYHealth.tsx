@@ -629,8 +629,42 @@ export default function RGYHealth() {
     tasks: { id: string; title: string; stage: string }[];
   } | null>(null);
 
-  // Issues for insights
-  const [rgyIssues, setRgyIssues] = useState<any[]>([]);
+  // Issues for insights — derived lazily, only after Insights tab is opened.
+  const [insightsOpened, setInsightsOpened] = useState(false);
+  useEffect(() => {
+    if (activeTab === "insights") setInsightsOpened(true);
+  }, [activeTab]);
+
+  const rgyIssues = useMemo(() => {
+    if (!insightsOpened) return [] as any[];
+    const out: any[] = [];
+    for (const d of deals) {
+      const status = (d as any).rgy_issue_details ? "Open" : null;
+      if (!d.rgy_issue_details) continue;
+      const dimVals = DIMENSIONS.map(dim => (d as any)[dim.key] as string);
+      const worst: "R" | "Y" | "G" | null = dimVals.includes("R") ? "R" : dimVals.includes("Y") ? "Y" : "G";
+      const redDims = DIMENSIONS.filter(dim => (d as any)[dim.key] === "R").map(dim => dim.label);
+      out.push({
+        deal_id: d.id,
+        deal_id_code: d.deal_id || "",
+        deal_name: d.deal_name || "Unknown",
+        pc_code: d.pc_code || "",
+        account: d.account || "",
+        pod: getPodForDeal(d.vsd || "", d.pod || ""),
+        vsd: d.vsd || "",
+        deal_status: d.deal_status || "",
+        issue_details: d.rgy_issue_details,
+        issue_status: "Open",
+        action_plan: d.rgy_action_plan || "",
+        discussed_action_plan: d.rgy_discussed_action_plan || "",
+        red_dimensions: redDims,
+        worst,
+        issue_date: null,
+        created_at: null,
+      });
+    }
+    return out;
+  }, [insightsOpened, deals]);
 
   const fetchData = useCallback(async () => {
     // Look back ~8 weeks for "current" RGY snapshot — small slice instead of full history.
