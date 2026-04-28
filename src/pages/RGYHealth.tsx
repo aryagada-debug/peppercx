@@ -887,13 +887,11 @@ export default function RGYHealth() {
         const f = colFilters[dim.key];
         if (f) {
           const code = RGY_FILTER_LABEL_TO_CODE[f] ?? f;
-          const hasRow = !!d.rgy_row_id;
+          const raw = ((d as any)[dim.key] as string) || "";
           if (code === "Pending") {
-            if (hasRow) return false;
+            if (raw !== "") return false;
           } else {
-            if (!hasRow) return false; // "Pending" rows don't match concrete colors
-            const v = ((d as any)[dim.key]) || "NA";
-            if (v !== code) return false;
+            if (raw !== code) return false;
           }
         }
       }
