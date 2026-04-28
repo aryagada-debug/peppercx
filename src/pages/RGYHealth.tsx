@@ -552,7 +552,7 @@ export default function RGYHealth() {
   const [showClosed, setShowClosed] = useState(false);
   const [search, setSearch] = useState("");
   const [rgyFilter, setRgyFilter] = useState<"All" | "Red" | "Yellow" | "Green">("All");
-  const [activeTab, setActiveTab] = useState<"health" | "insights">("health");
+  const [activeTab, setActiveTab] = useState<"health" | "table" | "insights">("health");
   // Drill-down for RGY Summary numeric cells
   type RGYDrillMetric = "total" | "red" | "yellow" | "green" | "pending";
   const [rgyDrill, setRgyDrill] = useState<{ rowLabel: string; metric: RGYDrillMetric } | null>(null);
