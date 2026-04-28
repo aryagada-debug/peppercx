@@ -47,6 +47,7 @@ interface UserNotification { id: string; type: string; actor_name: string; body:
 interface RecentView { id: string; entity_type: string; entity_id: string; entity_name: string; viewed_at: string; }
 interface UserPin { id: string; entity_type: string; entity_id: string; entity_name: string; pinned_at: string; }
 interface QuotaRow { id: string; period_type: string; period_start: string; period_end: string; target_amount: number; }
+interface MyDeal { id: string; deal_name: string; account: string; deal_status: string; mrr: number | null; total_deal_value: number | null; end_date: string | null; my_role: string; }
 
 function isOverdue(s: string | null) { if (!s) return false; const d = parseISO(s); return isPast(d) && !isToday(d); }
 function isDueToday(s: string | null) { if (!s) return false; return isToday(parseISO(s)); }
@@ -91,6 +92,8 @@ export default function HomePage() {
   const [periodType, setPeriodType] = useState<"month" | "quarter" | "year">("quarter");
   const [recents, setRecents] = useState<RecentView[]>([]);
   const [pins, setPins] = useState<UserPin[]>([]);
+  const [myDeals, setMyDeals] = useState<MyDeal[]>([]);
+  const [loadingMyDeals, setLoadingMyDeals] = useState(true);
 
   // Google Calendar
   const { connected: calConnected, listEvents: calListEvents } = useGoogleCalendar();
@@ -203,6 +206,29 @@ export default function HomePage() {
     setLoadingFlags(false);
   }, [user]);
 
+  const loadMyDeals = useCallback(async () => {
+    if (!user) return;
+    setLoadingMyDeals(true);
+    const aliasSet = aliasesRef.current;
+    const inAliases = (s: string | null) => !!s && aliasSet.has((s || "").trim().toLowerCase());
+    const { data } = await supabase.from("staffing_deals")
+      .select("id, deal_name, account, vsd, principal_bopm, senior_bopm, bopm, end_date, deal_status, mrr, total_deal_value")
+      .in("deal_status", ["Active Deal", "New Deal in SLA/PO"]);
+    const mine: MyDeal[] = (data || [])
+      .filter((d: any) => inAliases(d.vsd) || inAliases(d.principal_bopm) || inAliases(d.senior_bopm) || inAliases(d.bopm))
+      .map((d: any) => {
+        let role = "";
+        if (inAliases(d.vsd)) role = "VSD";
+        else if (inAliases(d.principal_bopm)) role = "Principal BOPM";
+        else if (inAliases(d.senior_bopm)) role = "Senior BOPM";
+        else if (inAliases(d.bopm)) role = "BOPM";
+        return { id: d.id, deal_name: d.deal_name, account: d.account, deal_status: d.deal_status, mrr: d.mrr, total_deal_value: d.total_deal_value, end_date: d.end_date, my_role: role };
+      })
+      .sort((a, b) => (b.mrr || 0) - (a.mrr || 0));
+    setMyDeals(mine);
+    setLoadingMyDeals(false);
+  }, [user]);
+
   const loadTodos = useCallback(async () => {
     if (!user) return;
     setLoadingTodos(true);
@@ -280,11 +306,9 @@ export default function HomePage() {
       loadTodos();
       loadRecentsAndPins();
       // Then signals
-      setTimeout(() => { loadFlags(); loadNotifications(); }, 100);
-      // Nudges last
-      setTimeout(() => { loadNudges(); }, 200);
+      setTimeout(() => { loadFlags(); loadNotifications(); loadMyDeals(); }, 100);
     })();
-  }, [user, loadProfile, loadQuota, loadTasks, loadTodos, loadFlags, loadNotifications, loadNudges, loadRecentsAndPins]);
+  }, [user, loadProfile, loadQuota, loadTasks, loadTodos, loadFlags, loadNotifications, loadRecentsAndPins, loadMyDeals]);
 
   useEffect(() => { if (user) loadQuota(); }, [periodType, user, loadQuota]);
 
@@ -320,16 +344,15 @@ export default function HomePage() {
   // Personal todo handlers
   const [newTodo, setNewTodo] = useState("");
   const [newTodoDue, setNewTodoDue] = useState<Date | undefined>();
-  const [newTodoPriority, setNewTodoPriority] = useState("Medium");
   const addTodo = async () => {
     if (!user || !newTodo.trim()) return;
     const { error } = await supabase.from("personal_todos").insert({
-      user_id: user.id, title: newTodo.trim(), priority: newTodoPriority,
+      user_id: user.id, title: newTodo.trim(), priority: "Medium",
       due_date: newTodoDue ? format(newTodoDue, "yyyy-MM-dd") : null,
       sort_order: todos.length,
     });
     if (error) { toast.error(error.message); return; }
-    setNewTodo(""); setNewTodoDue(undefined); setNewTodoPriority("Medium");
+    setNewTodo(""); setNewTodoDue(undefined);
     loadTodos();
   };
   const toggleTodo = async (t: PersonalTodo) => {
