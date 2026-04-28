@@ -47,6 +47,9 @@ export function AddStaffingMemberDialog({
   });
   const [allocationPct, setAllocationPct] = useState(10);
   const [expandedPerson, setExpandedPerson] = useState<string | null>(null);
+  const dealForDates = useMemo(() => deals.find(d => d.id === dealId), [deals, dealId]);
+  const [startDate, setStartDate] = useState<string>(dealForDates?.startDate || "");
+  const [endDate, setEndDate] = useState<string>(dealForDates?.endDate || "");
   const [roleOnDeal, setRoleOnDeal] = useState(() => {
     if (initialPersonName) {
       const p = people.find(pp => pp.name === initialPersonName);
@@ -83,6 +86,8 @@ export function AddStaffingMemberDialog({
     setRoleOnDeal("");
     setAssignmentType("Internal");
     setExpandedOpsGroup(null);
+    setStartDate(dealForDates?.startDate || "");
+    setEndDate(dealForDates?.endDate || "");
   };
 
   // Re-initialize when dialog opens with new props
@@ -115,6 +120,8 @@ export function AddStaffingMemberDialog({
       roleKey: roleOnDeal || selectedPerson.roleTitle || selectedPerson.roleCategory,
       personId: selectedPerson.id,
       allocationPct,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
     });
     toast.success(`${selectedPerson.name} added at ${allocationPct}%`);
     reset();
