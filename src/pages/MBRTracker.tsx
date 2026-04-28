@@ -18,7 +18,7 @@ import { ScheduleOnlyDialog } from "@/components/mbr/ScheduleOnlyDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { ColHeader } from "@/components/table/ColHeader";
 import { CalendarConnectButton } from "@/components/calendar/CalendarConnectButton";
-import { useAppUsers, useVsdUsers } from "@/hooks/useAppUsers";
+import { useAppUsers, useVsdUsers, useVsdHierarchy } from "@/hooks/useAppUsers";
 
 type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
@@ -78,10 +78,10 @@ export default function MBRTracker() {
   const { deals, entries, loading, upsertEntry, vsdSummary, totals, entriesByMonth, availableMonths, refresh } = useMBRData();
   const { users: appUsers, isRegisteredName } = useAppUsers();
   const { vsdUsers, isVsdName, canonVsd } = useVsdUsers();
+  const { vsdForDeal, vsdForPerson } = useVsdHierarchy();
   const VSD_FILTERS = useMemo(() => {
     const items: { key: string; label: string }[] = [{ key: "All", label: "All" }];
     vsdUsers.forEach((u) => items.push({ key: u.displayName, label: u.displayName }));
-    items.push({ key: "Other", label: "Other" });
     items.push({ key: "Unassigned", label: "Unassigned" });
     return items;
   }, [vsdUsers]);
