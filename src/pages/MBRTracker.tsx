@@ -78,7 +78,7 @@ export default function MBRTracker() {
   const { deals, entries, loading, upsertEntry, vsdSummary, totals, entriesByMonth, availableMonths, refresh } = useMBRData();
   const { users: appUsers, isRegisteredName } = useAppUsers();
   const { vsdUsers, isVsdName, canonVsd } = useVsdUsers();
-  const { vsdForDeal, vsdForPerson, bopmsForVsd } = useVsdHierarchy();
+  const { vsdForDeal, vsdForPerson, bopmsForVsd, allBopms } = useVsdHierarchy();
   const VSD_FILTERS = useMemo(() => {
     const items: { key: string; label: string }[] = [{ key: "All", label: "All" }];
     vsdUsers.forEach((u) => items.push({ key: u.displayName, label: u.displayName }));
@@ -95,9 +95,9 @@ export default function MBRTracker() {
 
   // BOPMs available for the currently selected VSD
   const bopmOptions = useMemo(() => {
-    if (activeVsd === "All" || activeVsd === "Unassigned") return [] as string[];
+    if (activeVsd === "All" || activeVsd === "Unassigned") return allBopms;
     return bopmsForVsd(activeVsd);
-  }, [activeVsd, bopmsForVsd]);
+  }, [activeVsd, bopmsForVsd, allBopms]);
 
   const nameMatches = (a: string | null | undefined, b: string) => {
     const norm = (s: string) => (s || "").toLowerCase().normalize("NFKD").replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
