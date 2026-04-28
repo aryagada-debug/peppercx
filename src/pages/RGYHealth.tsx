@@ -651,7 +651,7 @@ export default function RGYHealth() {
         pc_code: d.pc_code || "",
         account: d.account || "",
         pod: getPodForDeal(d.vsd || "", d.pod || ""),
-        vsd: d.vsd || "",
+        vsd: vsdForDeal(d as any) || "",
         deal_status: d.deal_status || "",
         issue_details: d.rgy_issue_details,
         issue_status: "Open",
