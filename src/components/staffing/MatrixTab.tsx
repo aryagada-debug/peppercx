@@ -192,7 +192,7 @@ interface Props {
   people: Person[];
   assignments: StaffingAssignment[];
   onUpdateDeal: (dealId: string, updates: Partial<Deal>) => void;
-  onUpsertAssignment: (dealId: string, roleKey: string, personId: string, pct: number) => void;
+  onUpsertAssignment: (dealId: string, roleKey: string, personId: string, pct: number, extras?: { startDate?: string; endDate?: string }) => void;
   initialDealId?: string;
 }
 
@@ -261,7 +261,7 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
   // Map dealId -> VSD (so we can group people by VSD for the picker filter)
   const vsdByDealId = useMemo(() => {
     const m: Record<string, string> = {};
-    deals.forEach(d => { m[d.id] = d.vsd?.trim() || "Yet to be assigned"; });
+    deals.forEach(d => { m[d.id] = d.vsd?.trim() || "Unassigned"; });
     return m;
   }, [deals]);
 
@@ -300,14 +300,22 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
   }, [assignments]);
 
   const vsdOptions = useMemo(() => {
-    const set = new Set<string>();
-    deals.forEach(d => set.add(d.vsd?.trim() || "Yet to be assigned"));
-    return ["All", ...Array.from(set).sort((a, b) => {
-      if (a === "Yet to be assigned") return 1;
-      if (b === "Yet to be assigned") return -1;
-      return a.localeCompare(b);
-    })];
-  }, [deals]);
+    // Only show actual VSD names (people whose role title/designation contains "VSD")
+    // plus "Unassigned" for deals without a VSD.
+    const vsdNames = new Set<string>();
+    people.forEach(p => {
+      const hay = `${p.roleTitle || ""} ${p.designation || ""}`;
+      if (/vertical service delivery|\bvsd\b/i.test(hay)) {
+        vsdNames.add(p.name.trim());
+      }
+    });
+    const dealVsds = new Set(deals.map(d => d.vsd?.trim() || ""));
+    const hasUnassigned = Array.from(dealVsds).some(v => !v);
+    const sorted = Array.from(vsdNames)
+      .filter(n => dealVsds.has(n)) // only VSDs that actually own a deal
+      .sort((a, b) => a.localeCompare(b));
+    return ["All", ...sorted, ...(hasUnassigned ? ["Unassigned"] : [])];
+  }, [deals, people]);
 
   // Filter deals
   const filteredDeals = useMemo(() => {
@@ -317,8 +325,12 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
       if (statusFilter === "needs" && has) return false;
       if (statusFilter === "staffed" && !has) return false;
       if (vsdFilter !== "All") {
-        const v = d.vsd?.trim() || "Yet to be assigned";
-        if (v !== vsdFilter) return false;
+        const v = d.vsd?.trim() || "";
+        if (vsdFilter === "Unassigned") {
+          if (v) return false;
+        } else if (v !== vsdFilter) {
+          return false;
+        }
       }
       if (!q) return true;
       return (
@@ -355,10 +367,16 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
     const n = new Set(prev); n.has(g) ? n.delete(g) : n.add(g); return n;
   });
 
-  const handlePickPerson = (roleKey: string, personId: string) => {
+  const handlePickPerson = (
+    roleKey: string,
+    personId: string,
+    pct: number,
+    startDate?: string,
+    endDate?: string,
+  ) => {
     if (!selectedDeal) return;
-    onUpsertAssignment(selectedDeal.id, roleKey, personId, 50); // sensible default 50%
-    toast.success(`${personMap[personId]?.name || "Person"} assigned`);
+    onUpsertAssignment(selectedDeal.id, roleKey, personId, pct, { startDate, endDate });
+    toast.success(`${personMap[personId]?.name || "Person"} assigned at ${pct}%`);
     setAdding(null);
   };
 
@@ -416,7 +434,11 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
             className="h-7 px-1.5 rounded bg-background border border-border text-[11px] text-foreground focus:ring-1 focus:ring-primary/30 focus:border-primary focus:outline-none max-w-[110px]"
             title="VSD filter"
           >
-            {vsdOptions.map(o => <option key={o} value={o}>{o === "All" ? "All VSDs" : o}</option>)}
+            {vsdOptions.map(o => (
+              <option key={o} value={o}>
+                {o === "All" ? "All VSDs" : o}
+              </option>
+            ))}
           </select>
           <span className="shrink-0 text-[10px] text-muted-foreground tabular-nums px-1">{filteredDeals.length}</span>
         </div>
@@ -613,7 +635,11 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
                             )}
                             people={personOptions}
                             onCancel={() => { setAdding(null); }}
-                            onConfirm={(roleKey, personId) => handlePickPerson(roleKey, personId)}
+                            onConfirm={(roleKey, personId, pct, startDate, endDate) =>
+                              handlePickPerson(roleKey, personId, pct, startDate, endDate)
+                            }
+                            dealStartDate={selectedDeal.startDate}
+                            dealEndDate={selectedDeal.endDate}
                             occupancy={occupancyByPerson}
                             vsdOptions={vsdOptions}
                             peopleByVsd={peopleByVsd}
@@ -922,26 +948,33 @@ function PersonPicker({
 
 function AddRoleRow({
   roles, people, onCancel, onConfirm, occupancy, vsdOptions, peopleByVsd, allocationsByPerson,
+  dealStartDate, dealEndDate,
   dealPod = "", dealServiceLine = "", peopleByPod = {},
 }: {
   roles: { key: string; label: string }[];
   people: Person[];
   onCancel: () => void;
-  onConfirm: (roleKey: string, personId: string) => void;
+  onConfirm: (roleKey: string, personId: string, pct: number, startDate?: string, endDate?: string) => void;
   occupancy?: Record<string, number>;
   vsdOptions?: string[];
   peopleByVsd?: Record<string, Set<string>>;
   allocationsByPerson?: Record<string, { dealId: string; dealName: string; pct: number }[]>;
+  dealStartDate?: string;
+  dealEndDate?: string;
   dealPod?: string;
   dealServiceLine?: string;
   peopleByPod?: Record<string, Set<string>>;
 }) {
   const [roleKey, setRoleKey] = useState(roles[0]?.key || "");
   const [personId, setPersonId] = useState("");
+  const [hrs, setHrs] = useState<number>(20); // default 20h/week ≈ 50%
+  const [startDate, setStartDate] = useState<string>(dealStartDate || "");
+  const [endDate, setEndDate] = useState<string>(dealEndDate || "");
+  const pct = Math.max(0, Math.min(100, Math.round((hrs / 40) * 100)));
 
   return (
     <div className="bg-primary/5 border border-primary/30 rounded-md p-2 space-y-2">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <select
           value={roleKey}
           onChange={e => setRoleKey(e.target.value)}
@@ -964,9 +997,38 @@ function AddRoleRow({
           dealServiceLine={dealServiceLine}
           peopleByPod={peopleByPod}
         />
+      </div>
+      <div className="flex items-end gap-2 flex-wrap">
+        <label className="flex flex-col gap-0.5">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Hrs/Week</span>
+          <input
+            type="number" min={0} max={40} step="0.5"
+            value={hrs}
+            onChange={e => setHrs(Math.max(0, Math.min(40, Number(e.target.value) || 0)))}
+            className="w-20 h-7 px-2 text-caption text-right font-mono tabular-nums bg-background border border-border rounded focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+          />
+        </label>
+        <span className="text-[10px] text-muted-foreground pb-1.5">= {pct}%</span>
+        <label className="flex flex-col gap-0.5">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Start</span>
+          <input
+            type="date" value={startDate}
+            onChange={e => setStartDate(e.target.value)}
+            className="h-7 px-2 text-caption bg-background border border-border rounded focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+          />
+        </label>
+        <label className="flex flex-col gap-0.5">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">End</span>
+          <input
+            type="date" value={endDate}
+            onChange={e => setEndDate(e.target.value)}
+            className="h-7 px-2 text-caption bg-background border border-border rounded focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+          />
+        </label>
+        <div className="ml-auto flex items-center gap-2">
         <button
           type="button"
-          onClick={() => { if (roleKey && personId) onConfirm(roleKey, personId); }}
+          onClick={() => { if (roleKey && personId) onConfirm(roleKey, personId, pct, startDate || undefined, endDate || undefined); }}
           disabled={!roleKey || !personId}
           className="h-7 px-3 rounded-md bg-primary text-primary-foreground text-caption font-medium hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >Add</button>
@@ -975,6 +1037,7 @@ function AddRoleRow({
           onClick={onCancel}
           className="h-7 px-2 rounded-md border border-border text-caption text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
         >Cancel</button>
+        </div>
       </div>
     </div>
   );

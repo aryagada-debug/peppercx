@@ -90,9 +90,9 @@ export function WeeklyStaffingGrid({ dealId, dealPeople, dealAssignments }: Prop
       {/* Header / pagination */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-secondary/30">
         <div>
-          <h4 className="text-sm font-semibold text-foreground">Weekly Allocation Grid</h4>
+          <h4 className="text-sm font-semibold text-foreground">Weekly Capacity Tracker</h4>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            Edit allocation % per person per week. Hours = % × 40h/week.
+            Log how much of each person's week is committed to this deal. Click any cell to edit the allocation % for that week (40h = 100%).
           </p>
         </div>
         <div className="flex items-center gap-1">

@@ -343,6 +343,7 @@ export function useStaffingData() {
     roleKey: string,
     personId: string,
     allocationPct: number,
+    extras?: { startDate?: string; endDate?: string },
   ) => {
     const existing = assignments.find(a => a.dealId === dealId && a.roleKey === roleKey);
     if (!personId) {
@@ -353,17 +354,28 @@ export function useStaffingData() {
       return;
     }
     if (existing) {
-      setAssignments(prev => prev.map(a => a.id === existing.id ? { ...a, personId, allocationPct } : a));
-      await supabase.from("staffing_assignments").update({
+      setAssignments(prev => prev.map(a => a.id === existing.id
+        ? { ...a, personId, allocationPct,
+            startDate: extras?.startDate ?? a.startDate,
+            endDate: extras?.endDate ?? a.endDate }
+        : a));
+      const upd: TablesUpdate<"staffing_assignments"> = {
         person_id: personId, allocation_pct: allocationPct,
-      }).eq("id", existing.id);
+      };
+      if (extras?.startDate !== undefined) upd.start_date = extras.startDate || null;
+      if (extras?.endDate !== undefined) upd.end_date = extras.endDate || null;
+      await supabase.from("staffing_assignments").update(upd).eq("id", existing.id);
       // Notify only when the assignee actually changed (avoid spam on % edits).
       if (existing.personId !== personId) {
         notifyStaffing(personId, dealId, roleKey, allocationPct);
       }
     } else {
       const id = uid();
-      const newAssignment: StaffingAssignment = { id, dealId, roleKey, personId, allocationPct };
+      const newAssignment: StaffingAssignment = {
+        id, dealId, roleKey, personId, allocationPct,
+        startDate: extras?.startDate || undefined,
+        endDate: extras?.endDate || undefined,
+      };
       setAssignments(prev => [...prev, newAssignment]);
       await supabase.from("staffing_assignments").insert(assignmentToDb(newAssignment));
       notifyStaffing(personId, dealId, roleKey, allocationPct);
