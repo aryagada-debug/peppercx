@@ -180,7 +180,8 @@ export function UserRoleProvider({ children }: { children: ReactNode }) {
 
 export function useUserRole(): UserRoleState {
   const ctx = useContext(UserRoleContext);
-  if (ctx) return ctx;
-  // Fallback (e.g., if used outside provider) — preserves old behavior.
-  return useUserRoleInternal();
+  if (!ctx) {
+    throw new Error("useUserRole must be used within <UserRoleProvider>");
+  }
+  return ctx;
 }
