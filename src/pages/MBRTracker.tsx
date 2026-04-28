@@ -305,6 +305,144 @@ export default function MBRTracker() {
     setViewDeal({ deal, entry: entry || null });
   };
 
+  // ===== Status pill renderer for MoM cells =====
+  const StatusPill = ({ status, sentiment }: { status: string; sentiment?: string | null }) => {
+    if (status === "Done") {
+      const dotColor =
+        sentiment === "Green" ? "bg-positive" :
+        sentiment === "Yellow" ? "bg-warning" :
+        sentiment === "Red" ? "bg-destructive" : "bg-muted";
+      return (
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-positive/10 text-positive px-2 py-0.5 text-[10px] font-medium border border-positive/30">
+          Done
+          <span className={cn("w-2 h-2 rounded-full", dotColor)} title={sentiment ? `Sentiment: ${sentiment}` : "No sentiment"} />
+        </span>
+      );
+    }
+    if (status === "Not Done") {
+      return <span className="inline-flex rounded-full bg-destructive/10 text-destructive px-2 py-0.5 text-[10px] font-medium border border-destructive/30">Not Done</span>;
+    }
+    if (status === "Not Required") {
+      return <span className="inline-flex rounded-full bg-muted text-muted-foreground px-2 py-0.5 text-[10px] font-medium border border-border">N/R</span>;
+    }
+    return <span className="inline-flex rounded-full bg-warning/10 text-warning px-2 py-0.5 text-[10px] font-medium border border-warning/30">Pending</span>;
+  };
+
+  // ===== Trend insights computed from allEntries (filtered by current scope) =====
+  const { allEntries: _allEntriesAlias } = useMBRData(); // not needed; allEntries already in entriesByMonth
+  const trendData = useMemo(() => {
+    const filteredIds = new Set(filteredDeals.map(d => d.id));
+    const dealsById = new Map(filteredDeals.map(d => [d.id, d]));
+    const sortedMonths = [...availableMonths].sort();
+    const last12 = sortedMonths.slice(-12);
+
+    // Compliance & sentiment by month
+    const compliance = last12.map(m => {
+      const monthMap = entriesByMonth.get(m) || new Map();
+      let done = 0, notDone = 0, green = 0, yellow = 0, red = 0;
+      for (const id of filteredIds) {
+        const e = monthMap.get(id);
+        if (e?.status === "Done") {
+          done++;
+          if (e.sentiment === "Green") green++;
+          else if (e.sentiment === "Yellow") yellow++;
+          else if (e.sentiment === "Red") red++;
+        } else if (e?.status === "Not Done") notDone++;
+      }
+      const total = filteredIds.size;
+      return {
+        month: formatMonthLabel(m),
+        ymd: m,
+        compliancePct: total > 0 ? Math.round((done / total) * 100) : 0,
+        done, notDone,
+        green, yellow, red,
+      };
+    });
+
+    // Per-deal sentiment timeline (last 6 months) for decliners / streaks / skippers
+    const last6 = sortedMonths.slice(-6);
+    type Cell = { status: string; sentiment: string | null };
+    const perDeal = new Map<string, Cell[]>();
+    for (const id of filteredIds) {
+      const series = last6.map(m => {
+        const e = entriesByMonth.get(m)?.get(id);
+        return { status: e?.status || "Pending", sentiment: e?.sentiment || null } as Cell;
+      });
+      perDeal.set(id, series);
+    }
+
+    const sentRank = (s: string | null) => s === "Green" ? 0 : s === "Yellow" ? 1 : s === "Red" ? 2 : -1;
+
+    // Decliners: sentiment got worse in latest vs prior recorded
+    const decliners: { dealId: string; deal: MBRDeal; from: string; to: string }[] = [];
+    perDeal.forEach((series, id) => {
+      const recordedSent = series.filter(c => c.status === "Done" && c.sentiment).map(c => c.sentiment as string);
+      if (recordedSent.length >= 2) {
+        const prev = recordedSent[recordedSent.length - 2];
+        const cur = recordedSent[recordedSent.length - 1];
+        if (sentRank(cur) > sentRank(prev)) {
+          const deal = dealsById.get(id);
+          if (deal) decliners.push({ dealId: id, deal, from: prev, to: cur });
+        }
+      }
+    });
+    decliners.sort((a, b) => sentRank(b.to) - sentRank(a.to));
+
+    // Streaks: ≥3 consecutive Green
+    const streaks: { deal: MBRDeal; streak: number }[] = [];
+    perDeal.forEach((series, id) => {
+      let best = 0, cur = 0;
+      for (const c of series) {
+        if (c.status === "Done" && c.sentiment === "Green") { cur++; best = Math.max(best, cur); }
+        else cur = 0;
+      }
+      if (best >= 3) {
+        const deal = dealsById.get(id);
+        if (deal) streaks.push({ deal, streak: best });
+      }
+    });
+    streaks.sort((a, b) => b.streak - a.streak);
+
+    // Skippers: most Not Done / Pending in last 6 months
+    const skippers: { deal: MBRDeal; missed: number }[] = [];
+    perDeal.forEach((series, id) => {
+      const missed = series.filter(c => c.status === "Not Done" || c.status === "Pending").length;
+      if (missed >= 3) {
+        const deal = dealsById.get(id);
+        if (deal) skippers.push({ deal, missed });
+      }
+    });
+    skippers.sort((a, b) => b.missed - a.missed);
+
+    // Action items pulse
+    let openItems = 0, doneItems = 0;
+    const oldestOpen: { deal: MBRDeal; task: string; owner: string; deadline: string }[] = [];
+    entriesByMonth.forEach(monthMap => {
+      monthMap.forEach((e, dealId) => {
+        if (!filteredIds.has(dealId)) return;
+        const deal = dealsById.get(dealId);
+        if (!deal) return;
+        for (const ai of e.actionItems || []) {
+          if (ai.done) doneItems++;
+          else {
+            openItems++;
+            oldestOpen.push({ deal, task: ai.task, owner: ai.owner, deadline: ai.deadline });
+          }
+        }
+      });
+    });
+    oldestOpen.sort((a, b) => (a.deadline || "9999").localeCompare(b.deadline || "9999"));
+
+    return {
+      compliance,
+      decliners: decliners.slice(0, 8),
+      streaks: streaks.slice(0, 8),
+      skippers: skippers.slice(0, 8),
+      openItems, doneItems,
+      oldestOpen: oldestOpen.slice(0, 5),
+    };
+  }, [filteredDeals, entriesByMonth, availableMonths]);
+
   // VSD insights from filtered deals
   const vsdInsights = useMemo(() => {
     const vsdMap = new Map<string, { vsd: string; total: number; done: number; notDone: number; pending: number; green: number; yellow: number; red: number; scheduled: number }>();
