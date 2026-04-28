@@ -83,7 +83,7 @@ function InlineEditCell({ value, onSave, type = "text", prefix = "", placeholder
 }
 
 export default function Clients() {
-  const { deals: allDeals, people, assignments, loading: staffLoading, refresh: refreshStaffing, updateDeal, addAssignment, updateAssignment } = useStaffingData();
+  const { deals: allDeals, people, assignments, loading: staffLoading, refresh: refreshStaffing, updateDeal, addAssignment, updateAssignment, deleteAssignment } = useStaffingData();
   const { clients: allClients, loading: clientsLoading, addClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
   const access = useDealAccess();
   const { users: appUsers } = useAppUsers();
@@ -242,7 +242,7 @@ export default function Clients() {
 
   // Resolve Content / SEO leads per deal from assignments
   const leadByDeal = useMemo(() => {
-    const map: Record<string, { content?: string; seo?: string }> = {};
+    const map: Record<string, { content?: string; seo?: string; contentAssignmentId?: string; seoAssignmentId?: string }> = {};
     const peopleById = new Map(people.map(p => [p.id, p]));
     const grouped: Record<string, typeof assignments> = {};
     for (const a of assignments) {
@@ -255,9 +255,16 @@ export default function Clients() {
           .map(a => ({ a, p: peopleById.get(a.personId) }))
           .filter(({ p }) => p && (p.roleCategory || "").toLowerCase() === cat.toLowerCase())
           .sort((x, y) => (Number(y.a.allocationPct) || 0) - (Number(x.a.allocationPct) || 0));
-        return matches[0]?.p?.name;
+        return matches[0] ? { name: matches[0].p?.name, assignmentId: matches[0].a.id } : undefined;
       };
-      map[dealId] = { content: pick("Content"), seo: pick("SEO") };
+      const c = pick("Content");
+      const s = pick("SEO");
+      map[dealId] = {
+        content: c?.name,
+        contentAssignmentId: c?.assignmentId,
+        seo: s?.name,
+        seoAssignmentId: s?.assignmentId,
+      };
     }
     return map;
   }, [assignments, people]);
