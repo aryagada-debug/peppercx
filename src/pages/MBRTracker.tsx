@@ -228,13 +228,19 @@ export default function MBRTracker() {
       d = d.filter(deal => vsdForDeal(deal as any) === null);
     } else if (activeVsd !== "All") {
       d = d.filter(deal => vsdForDeal(deal as any) === activeVsd);
+      if (activeBopm !== "All") {
+        d = d.filter(deal => {
+          const candidates = [(deal as any).principal_bopm, (deal as any).senior_bopm, (deal as any).principalBopm, (deal as any).seniorBopm];
+          return candidates.some(c => c && nameMatches(c, activeBopm));
+        });
+      }
     }
     if (search) {
       const s = search.toLowerCase();
       d = d.filter(deal => deal.account.toLowerCase().includes(s) || deal.dealName.toLowerCase().includes(s));
     }
     return d;
-  }, [deals, dealMeta, activeVsd, search, showClosed, vsdForDeal]);
+  }, [deals, dealMeta, activeVsd, activeBopm, search, showClosed, vsdForDeal]);
 
   // Group by client
   const groupedDeals = useMemo(() => {
