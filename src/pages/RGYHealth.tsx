@@ -923,6 +923,45 @@ export default function RGYHealth() {
     return { red, yellow, green, score, totalDeals: filteredDeals.length };
   }, [filteredDeals]);
 
+  // ── RGY Summary Insights ──
+  // "All" → group by VSD. Specific VSD → group by Sr/Principal BOPM in that pod (with Pod Overall row).
+  type RGYSummaryRow = { name: string; total: number; red: number; yellow: number; green: number; pending: number };
+  const showBopmRgyInsights = activeVsd !== "All" && activeVsd !== "Other" && activeVsd !== "Unassigned";
+
+  const rgySummary = useMemo<RGYSummaryRow[]>(() => {
+    const tally = (row: RGYSummaryRow, deal: DealWithRGY) => {
+      row.total++;
+      const w = getWorstRGY(deal);
+      if (w === "R") row.red++;
+      else if (w === "Y") row.yellow++;
+      else if (w === "G") row.green++;
+      else row.pending++;
+    };
+
+    if (showBopmRgyInsights) {
+      const map = new Map<string, RGYSummaryRow>();
+      const overall: RGYSummaryRow = { name: "Pod Overall", total: 0, red: 0, yellow: 0, green: 0, pending: 0 };
+      for (const deal of filteredDeals) {
+        const owner = (deal.principal_bopm || deal.senior_bopm || "").trim();
+        if (!owner) continue;
+        if (!map.has(owner)) map.set(owner, { name: owner, total: 0, red: 0, yellow: 0, green: 0, pending: 0 });
+        tally(map.get(owner)!, deal);
+        tally(overall, deal);
+      }
+      const rows = Array.from(map.values()).filter(r => r.total > 0).sort((a, b) => b.red - a.red || b.total - a.total);
+      return overall.total > 0 ? [overall, ...rows] : rows;
+    }
+
+    // VSD grouping
+    const map = new Map<string, RGYSummaryRow>();
+    for (const deal of filteredDeals) {
+      const v = (deal.vsd || "").trim() || "Unassigned";
+      if (!map.has(v)) map.set(v, { name: v, total: 0, red: 0, yellow: 0, green: 0, pending: 0 });
+      tally(map.get(v)!, deal);
+    }
+    return Array.from(map.values()).filter(r => r.total > 0).sort((a, b) => b.total - a.total);
+  }, [filteredDeals, showBopmRgyInsights]);
+
   const selectedDeal = deals.find(d => d.id === selectedDealId) ?? null;
 
   if (loading) {
@@ -999,6 +1038,45 @@ export default function RGYHealth() {
               <X className="h-3.5 w-3.5" /> Clear filters ({Object.keys(colFilters).length})
             </Button>
           )}
+        </div>
+
+        {/* RGY Summary — VSDs (All) or BOPMs within selected pod */}
+        <div className="mb-4">
+          <h2 className="text-sm font-semibold text-foreground mb-2">
+            {showBopmRgyInsights ? `BOPM RGY Summary — ${activeVsd}` : "VSD RGY Summary"}
+          </h2>
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <table className="w-full text-ui">
+              <thead>
+                <tr className="bg-secondary/40 border-b border-border">
+                  {[showBopmRgyInsights ? "Sr / Principal BOPM" : "VSD", "Active Deals", "🔴 Red", "🟡 Yellow", "🟢 Green", "Pending"].map(h => (
+                    <th key={h} className="text-left py-2.5 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rgySummary.map(r => {
+                  const isOverall = r.name === "Pod Overall";
+                  return (
+                    <tr key={r.name} className={cn(
+                      "border-b border-border/50 hover:bg-secondary/30 transition-colors",
+                      isOverall && "bg-primary/5 font-semibold"
+                    )}>
+                      <td className="py-2.5 px-3 font-semibold text-foreground text-xs">{r.name}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-foreground text-xs">{r.total}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-destructive font-semibold text-xs">{r.red}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-warning font-semibold text-xs">{r.yellow}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-positive font-semibold text-xs">{r.green}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-muted-foreground text-xs">{r.pending}</td>
+                    </tr>
+                  );
+                })}
+                {rgySummary.length === 0 && (
+                  <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">No data</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {/* Tab switcher */}
