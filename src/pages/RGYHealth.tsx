@@ -671,14 +671,15 @@ export default function RGYHealth() {
         rgy_action_plan: rgy?.action_plan || "",
         rgy_discussed_action_plan: rgy?.discussed_action_plan || "",
         rgy_issue_details: rgy?.issue_details || "",
-        customer: rgy?.customer || "NA",
-        internal: rgy?.internal || "NA",
-        content: rgy?.content || "NA",
-        seo: rgy?.seo || "NA",
-        supply: rgy?.supply || "NA",
-        copy: rgy?.copy || "NA",
-        design: rgy?.design || "NA",
-        video: rgy?.video || "NA",
+        // Empty/missing RGY values are treated as "Pending" in the UI
+        customer: rgy?.customer ?? "",
+        internal: rgy?.internal ?? "",
+        content: rgy?.content ?? "",
+        seo: rgy?.seo ?? "",
+        supply: rgy?.supply ?? "",
+        copy: rgy?.copy ?? "",
+        design: rgy?.design ?? "",
+        video: rgy?.video ?? "",
       };
     });
 
