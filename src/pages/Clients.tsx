@@ -456,6 +456,33 @@ export default function Clients() {
     toast.success("BOPM updated");
   };
 
+  const handleClearBOPM = async (dealId: string) => {
+    if (!isDealEditable(dealId)) {
+      toast.error("View only — you can't edit this deal");
+      return;
+    }
+    await guardedUpdateDeal(dealId, { principalBopm: "", seniorBopm: "", bopm: "" });
+    const existing = assignments.filter(
+      a => a.dealId === dealId && (a.roleKey === "Principal BOPM" || a.roleKey === "Senior BOPM")
+    );
+    for (const a of existing) {
+      await deleteAssignment(a.id);
+    }
+    toast.success("BOPM removed from deal");
+  };
+
+  const handleClearLead = async (dealId: string, kind: "content" | "seo") => {
+    if (!isDealEditable(dealId)) {
+      toast.error("View only — you can't edit this deal");
+      return;
+    }
+    const lead = leadByDeal[dealId];
+    const assignmentId = kind === "content" ? lead?.contentAssignmentId : lead?.seoAssignmentId;
+    if (!assignmentId) return;
+    await deleteAssignment(assignmentId);
+    toast.success(`${kind === "content" ? "Content" : "SEO"} lead removed from deal`);
+  };
+
   const handleMRRSave = (dealId: string, value: string) => {
     guardedUpdateDeal(dealId, { mrr: Number(value) || undefined });
     toast.success("MRR updated");
