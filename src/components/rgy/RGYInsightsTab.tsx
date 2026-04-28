@@ -122,6 +122,12 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd }: Prop
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string>("");
   const [aiWindow, setAiWindow] = useState<"week" | "month">("week");
+  const [aiHidden, setAiHidden] = useState<boolean>(() => {
+    try { return localStorage.getItem("rgy-ai-summary-hidden") === "1"; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("rgy-ai-summary-hidden", aiHidden ? "1" : "0"); } catch {}
+  }, [aiHidden]);
 
   // ── KPIs ──
   const kpis = useMemo(() => {
@@ -300,9 +306,9 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd }: Prop
 
   // Auto-generate once on mount / when window changes
   useEffect(() => {
-    generateSummary();
+    if (!aiHidden) generateSummary();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aiWindow, activeVsd]);
+  }, [aiWindow, activeVsd, aiHidden]);
 
   return (
     <div className="space-y-6">
@@ -331,6 +337,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd }: Prop
             AI Movement Summary
           </h3>
           <div className="flex items-center gap-1">
+            {!aiHidden && (
             <div className="flex bg-secondary rounded-md p-0.5">
               {(["week", "month"] as const).map(w => (
                 <button
@@ -345,12 +352,18 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd }: Prop
                 </button>
               ))}
             </div>
-            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={generateSummary} disabled={aiLoading}>
-              {aiLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : "Refresh"}
+            )}
+            {!aiHidden && (
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={generateSummary} disabled={aiLoading}>
+                {aiLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : "Refresh"}
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setAiHidden(h => !h)}>
+              {aiHidden ? "Show" : "Hide"}
             </Button>
           </div>
         </div>
-        {aiError ? (
+        {aiHidden ? null : aiError ? (
           <p className="text-xs text-destructive">{aiError}</p>
         ) : aiLoading && !aiSummary ? (
           <p className="text-xs text-muted-foreground italic">Generating summary…</p>

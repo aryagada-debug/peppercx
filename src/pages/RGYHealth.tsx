@@ -580,19 +580,36 @@ export default function RGYHealth() {
   useEffect(() => {
     try { localStorage.setItem("rgy-col-widths", JSON.stringify(colWidths)); } catch {}
   }, [colWidths]);
-  const resizingRef = useRef<{ key: string; startX: number; startW: number } | null>(null);
+  const resizingRef = useRef<{ key: string; startX: number; startW: number; latest: number } | null>(null);
+  const rafRef = useRef<number | null>(null);
+  // Smooth column resize: throttle setState via requestAnimationFrame so we
+  // re-render at most once per frame instead of per mousemove event.
   const startResize = useCallback((key: string) => (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    resizingRef.current = { key, startX: e.clientX, startW: colWidths[key] || 120 };
+    const startW = colWidths[key] || 120;
+    resizingRef.current = { key, startX: e.clientX, startW, latest: startW };
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
     const onMove = (ev: MouseEvent) => {
       const r = resizingRef.current;
       if (!r) return;
-      const next = Math.max(60, Math.min(500, r.startW + (ev.clientX - r.startX)));
-      setColWidths(prev => ({ ...prev, [r.key]: next }));
+      r.latest = Math.max(60, Math.min(500, r.startW + (ev.clientX - r.startX)));
+      if (rafRef.current == null) {
+        rafRef.current = requestAnimationFrame(() => {
+          rafRef.current = null;
+          const cur = resizingRef.current;
+          if (!cur) return;
+          setColWidths(prev => (prev[cur.key] === cur.latest ? prev : { ...prev, [cur.key]: cur.latest }));
+        });
+      }
     };
     const onUp = () => {
       resizingRef.current = null;
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
