@@ -547,25 +547,31 @@ export default function Clients() {
           })}
           </div>
           <div className="flex items-center gap-2 ml-auto">
-            <Button variant="outline" size="sm" onClick={() => setClientDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" /> Add Client
-            </Button>
-            <Button size="sm" onClick={() => { setDealWizardClientId(undefined); setDealWizardOpen(true); }}>
-              <Plus className="h-4 w-4 mr-1" /> Add Deal
-            </Button>
+            {access.isAdmin && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => setClientDialogOpen(true)}>
+                  <Plus className="h-4 w-4 mr-1" /> Add Client
+                </Button>
+                <Button size="sm" onClick={() => { setDealWizardClientId(undefined); setDealWizardOpen(true); }}>
+                  <Plus className="h-4 w-4 mr-1" /> Add Deal
+                </Button>
+              </>
+            )}
           </div>
         </div>
 
         {/* Row 2: Filters + Search + Closed + Columns */}
         <div className="flex items-center gap-2 mb-2 flex-wrap">
-          <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
-            {VSD_FILTERS.map(v => (
-              <button key={v.key} onClick={() => setActiveVsd(v.key)} className={cn(
-                "px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
-                activeVsd === v.key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-              )}>{v.label}</button>
-            ))}
-          </div>
+          {access.isAdmin && (
+            <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
+              {VSD_FILTERS.map(v => (
+                <button key={v.key} onClick={() => setActiveVsd(v.key)} className={cn(
+                  "px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
+                  activeVsd === v.key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                )}>{v.label}</button>
+              ))}
+            </div>
+          )}
 
           <div className="relative max-w-[220px] flex-1">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
