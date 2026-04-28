@@ -1267,6 +1267,74 @@ export default function RGYHealth() {
           open={!!selectedDealId}
           onOpenChange={(open) => { if (!open) setSelectedDealId(null); }}
         />
+
+        {/* RGY Summary drill-down dialog */}
+        {rgyDrill && (() => {
+          let scoped = filteredDeals;
+          if (showBopmRgyInsights) {
+            if (rgyDrill.rowLabel !== "Pod Overall") {
+              scoped = filteredDeals.filter(d => ((d.principal_bopm || d.senior_bopm || "").trim()) === rgyDrill.rowLabel);
+            } else {
+              scoped = filteredDeals.filter(d => ((d.principal_bopm || d.senior_bopm || "").trim()) !== "");
+            }
+          } else {
+            scoped = filteredDeals.filter(d => (vsdForDeal(d as any) || "Unassigned") === rgyDrill.rowLabel);
+          }
+          const matchMetric = (deal: DealWithRGY) => {
+            const w = getWorstRGY(deal);
+            switch (rgyDrill.metric) {
+              case "total": return true;
+              case "red": return w === "R";
+              case "yellow": return w === "Y";
+              case "green": return w === "G";
+              case "pending": return w === null;
+            }
+          };
+          const rows = scoped.filter(matchMetric);
+          const metricLabel: Record<RGYDrillMetric, string> = {
+            total: "Active Deals", red: "Red", yellow: "Yellow", green: "Green", pending: "Pending",
+          };
+          return (
+            <Dialog open={!!rgyDrill} onOpenChange={(o) => !o && setRgyDrill(null)}>
+              <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="text-base">
+                    {rgyDrill.rowLabel} — {metricLabel[rgyDrill.metric]} ({rows.length})
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="border border-border rounded-lg overflow-hidden mt-2">
+                  <table className="w-full text-xs">
+                    <thead className="bg-secondary/40 border-b border-border">
+                      <tr>
+                        <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Account</th>
+                        <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Deal ID</th>
+                        <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Deal Name</th>
+                        <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map(d => (
+                        <tr key={d.id} className="border-b border-border/50 hover:bg-secondary/30">
+                          <td className="py-2 px-3 text-foreground">{d.account}</td>
+                          <td className="py-2 px-3 font-mono tabular-nums text-muted-foreground">{d.deal_id || "—"}</td>
+                          <td className="py-2 px-3">
+                            <Link to={`/deals/${d.id}`} className="text-primary hover:underline" onClick={() => setRgyDrill(null)}>
+                              {d.deal_name}
+                            </Link>
+                          </td>
+                          <td className="py-2 px-3 text-muted-foreground">{d.deal_status || "—"}</td>
+                        </tr>
+                      ))}
+                      {rows.length === 0 && (
+                        <tr><td colSpan={4} className="text-center py-6 text-muted-foreground">No matching deals.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </DialogContent>
+            </Dialog>
+          );
+        })()}
       </div>
     </AppLayout>
   );
