@@ -61,6 +61,7 @@ interface RGYIssue {
   pc_code: string;
   account: string;
   pod: string;
+  vsd?: string;
   deal_status: string;
   issue_details: string;
   issue_status: string;
@@ -76,7 +77,7 @@ interface Props {
   deals: DealWithRGY[];
   filteredDeals: DealWithRGY[];
   issues: RGYIssue[];
-  activePod: string;
+  activeVsd: string;
 }
 
 function getWorstRGY(deal: DealWithRGY): "R" | "Y" | "G" | null {
@@ -103,7 +104,16 @@ const VSD_SHORT: Record<string, string> = {
   "Aditya Shaw": "Aditya",
 };
 
-export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Props) {
+export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd }: Props) {
+  const NAMED_VSDS = new Set(["Neema Jayadas", "Aamir Khan", "Aditya Shaw", "Sneha Iyer", "Sumit Shekhawat"]);
+  const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
+  const matchesActiveVsd = (vsd: string | undefined) => {
+    const v = (vsd || "").trim();
+    if (activeVsd === "All") return true;
+    if (activeVsd === "Unassigned") return UNASSIGNED_VSD_VALUES.has(v);
+    if (activeVsd === "Other") return !!v && !UNASSIGNED_VSD_VALUES.has(v) && !NAMED_VSDS.has(v);
+    return v === activeVsd;
+  };
   const [teamDrill, setTeamDrill] = useState<{ team: string; severity: "R" | "Y" } | null>(null);
   const [vsdDrill, setVsdDrill] = useState<string | null>(null);
   const [aiSummary, setAiSummary] = useState<string>("");
