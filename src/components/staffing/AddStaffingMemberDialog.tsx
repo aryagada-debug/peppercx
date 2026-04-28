@@ -178,7 +178,51 @@ export function AddStaffingMemberDialog({
 
           {step === 2 && (
             <>
-              {filteredPeople.length === 0 ? (
+              <div className="relative mb-2">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search all people by name, role, pod, email…"
+                  className="h-8 pl-8 text-xs"
+                  autoFocus
+                />
+              </div>
+              {searchedPeople ? (
+                searchedPeople.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-6">No people match "{searchQuery}".</p>
+                ) : (
+                  searchedPeople.map(p => {
+                    const util = getPersonUtilization(p.id);
+                    const utilColor = util.total > 100 ? "text-destructive" : util.total >= 80 ? "text-warning" : "text-positive";
+                    const isAssigned = alreadyAssigned.has(p.id);
+                    return (
+                      <div
+                        key={p.id}
+                        className="flex items-center gap-3 p-3 cursor-pointer hover:bg-accent/10 border border-border rounded-lg"
+                        onClick={() => { setSelectedPerson(p); setRoleOnDeal(p.roleTitle || p.roleCategory); setStep(3); }}
+                      >
+                        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-medium text-primary shrink-0">
+                          {p.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-medium text-foreground truncate">{p.name}</span>
+                            {isAssigned && <Badge variant="outline" className="text-[10px] px-1 py-0 text-primary border-primary/30">Assigned</Badge>}
+                            {p.tbh && <Badge variant="outline" className="text-[10px] px-1 py-0 text-warning border-warning/30">TBH</Badge>}
+                            {p.leaving && <Badge variant="outline" className="text-[10px] px-1 py-0 text-destructive border-destructive/30">Leaving</Badge>}
+                          </div>
+                          <span className="text-xs text-muted-foreground">{p.roleTitle || p.roleCategory} · {p.pod} · {p.region}</span>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className={cn("text-sm font-mono font-medium", utilColor)}>{util.total}%</span>
+                          <span className="block text-[10px] text-muted-foreground">{util.assignments.length} deal{util.assignments.length !== 1 ? "s" : ""}</span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )
+              ) : filteredPeople.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-6">No available members in {selectedCategory}.</p>
               ) : selectedCategory === "Operations" ? (
                 (() => {
