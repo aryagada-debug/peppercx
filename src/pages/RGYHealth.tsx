@@ -961,7 +961,7 @@ export default function RGYHealth() {
   // ── RGY Summary Insights ──
   // "All" → group by VSD. Specific VSD → group by Sr/Principal BOPM in that pod (with Pod Overall row).
   type RGYSummaryRow = { name: string; total: number; red: number; yellow: number; green: number; pending: number };
-  const showBopmRgyInsights = activeVsd !== "All" && activeVsd !== "Other" && activeVsd !== "Unassigned";
+  const showBopmRgyInsights = activeVsd !== "All" && activeVsd !== "Unassigned";
 
   const rgySummary = useMemo<RGYSummaryRow[]>(() => {
     const tally = (row: RGYSummaryRow, deal: DealWithRGY) => {
