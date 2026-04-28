@@ -122,6 +122,12 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd }: Prop
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string>("");
   const [aiWindow, setAiWindow] = useState<"week" | "month">("week");
+  const [aiHidden, setAiHidden] = useState<boolean>(() => {
+    try { return localStorage.getItem("rgy-ai-summary-hidden") === "1"; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("rgy-ai-summary-hidden", aiHidden ? "1" : "0"); } catch {}
+  }, [aiHidden]);
 
   // ── KPIs ──
   const kpis = useMemo(() => {
