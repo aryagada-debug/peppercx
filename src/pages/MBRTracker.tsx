@@ -583,11 +583,13 @@ export default function MBRTracker() {
         </div>
 
         {/* Tabs: Insights / Table */}
-        <Tabs defaultValue="insights" className="mb-4">
-          <TabsList className="mb-3">
-            <TabsTrigger value="insights">Insights</TabsTrigger>
-            <TabsTrigger value="table">Table</TabsTrigger>
-          </TabsList>
+        <Tabs value={isBopmPersona ? "table" : undefined} defaultValue={isBopmPersona ? "table" : "insights"} className="mb-4">
+          {!isBopmPersona && (
+            <TabsList className="mb-3">
+              <TabsTrigger value="insights">Insights</TabsTrigger>
+              <TabsTrigger value="table">Table</TabsTrigger>
+            </TabsList>
+          )}
 
           <TabsContent value="insights" className="mt-0">
             {/* VSD Filter */}
@@ -673,28 +675,32 @@ export default function MBRTracker() {
           <TabsContent value="table" className="mt-0">
             {/* VSD Filter + Current/MoM toggle */}
             <div className="flex items-center gap-2 mb-3 flex-wrap">
-              <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">VSD:</span>
-              <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
-                {VSD_FILTERS.map(v => (
-                  <button key={v.key} onClick={() => setActiveVsd(v.key)} className={cn(
-                    "px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
-                    activeVsd === v.key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                  )}>{v.label}</button>
-                ))}
-              </div>
-              <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium ml-2">BOPM:</span>
-              <Select value={activeBopm} onValueChange={setActiveBopm}>
-                <SelectTrigger className="h-7 w-[180px] text-[11px]">
-                  <SelectValue placeholder="All BOPMs" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="All" className="text-xs">All BOPMs</SelectItem>
-                  {bopmOptions.map(b => (
-                    <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <div className="ml-auto flex gap-1 bg-secondary rounded-lg p-1">
+              {!isBopmPersona && (
+                <>
+                  <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">VSD:</span>
+                  <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
+                    {VSD_FILTERS.map(v => (
+                      <button key={v.key} onClick={() => setActiveVsd(v.key)} className={cn(
+                        "px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
+                        activeVsd === v.key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                      )}>{v.label}</button>
+                    ))}
+                  </div>
+                  <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium ml-2">BOPM:</span>
+                  <Select value={activeBopm} onValueChange={setActiveBopm}>
+                    <SelectTrigger className="h-7 w-[180px] text-[11px]">
+                      <SelectValue placeholder="All BOPMs" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="All" className="text-xs">All BOPMs</SelectItem>
+                      {bopmOptions.map(b => (
+                        <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              )}
+              {!isBopmPersona && <div className="ml-auto flex gap-1 bg-secondary rounded-lg p-1">
                 <button
                   onClick={() => setViewMode("current")}
                   className={cn(
@@ -722,7 +728,7 @@ export default function MBRTracker() {
                 >
                   <TrendingUp className="h-3.5 w-3.5" /> Trend
                 </button>
-              </div>
+              </div>}
             </div>
 
         {/* Filters */}
