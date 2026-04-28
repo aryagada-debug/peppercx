@@ -960,9 +960,13 @@ export default function RGYHealth() {
     // VSD grouping
     const map = new Map<string, RGYSummaryRow>();
     for (const deal of filteredDeals) {
-      const v = (deal.vsd || "").trim() || "Unassigned";
-      if (!map.has(v)) map.set(v, { name: v, total: 0, red: 0, yellow: 0, green: 0, pending: 0 });
-      tally(map.get(v)!, deal);
+      const raw = (deal.vsd || "").trim();
+      let bucket: string;
+      if (!raw || UNASSIGNED_VSD_VALUES.has(raw)) bucket = "Unassigned";
+      else if (isRegisteredName(raw)) bucket = raw;
+      else bucket = "Other";
+      if (!map.has(bucket)) map.set(bucket, { name: bucket, total: 0, red: 0, yellow: 0, green: 0, pending: 0 });
+      tally(map.get(bucket)!, deal);
     }
     return Array.from(map.values()).filter(r => r.total > 0).sort((a, b) => b.total - a.total);
   }, [filteredDeals, showBopmRgyInsights]);
