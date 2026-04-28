@@ -36,19 +36,9 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ColHeader } from "@/components/table/ColHeader";
+import { useAppUsers } from "@/hooks/useAppUsers";
 
-const VSD_FILTERS = [
-  { key: "All", label: "All" },
-  { key: "Neema Jayadas", label: "Neema Jayadas" },
-  { key: "Aamir Khan", label: "Aamir Khan" },
-  { key: "Aditya Shaw", label: "Aditya Shaw" },
-  { key: "Sneha Iyer", label: "Sneha Iyer" },
-  { key: "Sumit Shekhawat", label: "Sumit Shekhawat" },
-  { key: "Other", label: "Other" },
-  { key: "Unassigned", label: "Unassigned" },
-] as const;
-type VsdFilterKey = typeof VSD_FILTERS[number]["key"];
-const NAMED_VSDS = new Set(["Neema Jayadas", "Aamir Khan", "Aditya Shaw", "Sneha Iyer", "Sumit Shekhawat"]);
+type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
 
 const DEAL_STATUSES = ["Active Deal", "New Deal in SLA/PO", "Deal Disputed", "Deal Completed Successfully", "Deal Churned / Lost"] as const;
