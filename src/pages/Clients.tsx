@@ -37,6 +37,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Checkbox } from "@/components/ui/checkbox";
 import { ColHeader } from "@/components/table/ColHeader";
 import { useAppUsers, useVsdUsers } from "@/hooks/useAppUsers";
+import { ReadOnlyBanner } from "@/components/access/ReadOnlyBanner";
 
 type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
@@ -508,6 +509,7 @@ export default function Clients() {
   return (
     <AppLayout>
       <div className="px-3 py-4">
+        <ReadOnlyBanner routeKey="clients" label="Clients & Deals" />
         {/* Row 1: Title + KPIs + Actions */}
         <div className="flex items-center gap-3 mb-2 flex-wrap">
           <h1 className="text-subhead font-bold tracking-tight text-foreground whitespace-nowrap">Clients & Deals</h1>

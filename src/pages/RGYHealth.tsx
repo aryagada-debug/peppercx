@@ -27,6 +27,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ColHeader } from "@/components/table/ColHeader";
 import { useAppUsers, useVsdUsers, useVsdHierarchy, nameKey } from "@/hooks/useAppUsers";
 import { useUserRole } from "@/hooks/useUserRole";
+import { ReadOnlyBanner } from "@/components/access/ReadOnlyBanner";
 import { useDealAccess } from "@/hooks/useDealAccess";
 import { BopmEmptyState } from "@/components/access/BopmEmptyState";
 
@@ -1115,6 +1116,7 @@ export default function RGYHealth() {
   return (
     <AppLayout>
       <div className="px-3 py-4">
+        <ReadOnlyBanner routeKey="rgy-health" label="RGY Health" />
         <div className="flex items-center justify-between mb-1">
           <div>
             <h1 className="text-subhead font-bold tracking-tight text-foreground">RGY Health Tracker</h1>

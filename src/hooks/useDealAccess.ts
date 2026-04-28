@@ -43,6 +43,8 @@ export function useDealAccess(): DealAccessState {
   const [myAssignedDealIds, setMyAssignedDealIds] = useState<Set<string>>(new Set());
   const [myPersonName, setMyPersonName] = useState<string | null>(null);
   const [myRoleTitle, setMyRoleTitle] = useState<string>("");
+  const [myRoleCategory, setMyRoleCategory] = useState<string>("");
+  const [myDesignation, setMyDesignation] = useState<string>("");
 
   useEffect(() => {
     let cancelled = false;
@@ -88,6 +90,8 @@ export function useDealAccess(): DealAccessState {
 
       let personName: string | null = null;
       let roleTitle = "";
+      let roleCategory = "";
+      let designation = "";
       let assignedIds = new Set<string>();
 
       if (personId) {
@@ -104,6 +108,8 @@ export function useDealAccess(): DealAccessState {
         ]);
         personName = (person as any)?.name || null;
         roleTitle = `${(person as any)?.role_title || ""} ${(person as any)?.designation || ""}`.trim();
+        roleCategory = (person as any)?.role_category || "";
+        designation = (person as any)?.designation || "";
         assignedIds = new Set((assigns || []).map((a: any) => a.deal_id));
       }
 
@@ -114,6 +120,8 @@ export function useDealAccess(): DealAccessState {
       setMyAssignedDealIds(assignedIds);
       setMyPersonName(personName);
       setMyRoleTitle(roleTitle);
+      setMyRoleCategory(roleCategory);
+      setMyDesignation(designation);
       setLoading(false);
     }
     load();
@@ -144,10 +152,23 @@ export function useDealAccess(): DealAccessState {
 
     const nameNorm = (s: string | null | undefined) => (s || "").trim().toLowerCase();
     const me = nameNorm(myPersonName);
-    const isBopmTier =
-      /bopm|principal|senior/i.test(myRoleTitle) || !!myPersonName; // any BOPM-named person; we treat anyone with own deals as eligible for peer-VSD view if they look like a BOPM.
-    const looksLikeBopm = /bopm|principal|senior/i.test(myRoleTitle);
-    const looksLikeVsd = /vsd|vertical service delivery/i.test(myRoleTitle);
+    const looksLikeVsd =
+      /\bvsd\b|vertical service delivery|service delivery (leader|director)/i.test(
+        `${myRoleTitle} ${myDesignation}`,
+      );
+
+    // Build the set of BOPM-name keys that report into THIS VSD, derived
+    // from the deals themselves (principal/senior BOPM ↔ vsd field), so a
+    // VSD's pod includes both deals tagged to them AND deals where their
+    // BOPMs appear without an explicit vsd cell.
+    const bopmKeysForThisVsd = new Set<string>();
+    if (looksLikeVsd && me) {
+      for (const d of allDeals) {
+        if (nameNorm(d.vsd) !== me) continue;
+        if (d.principal_bopm) bopmKeysForThisVsd.add(nameNorm(d.principal_bopm));
+        if (d.senior_bopm) bopmKeysForThisVsd.add(nameNorm(d.senior_bopm));
+      }
+    }
 
     const ownDealIds = new Set<string>();
     for (const d of allDeals) {
@@ -162,10 +183,20 @@ export function useDealAccess(): DealAccessState {
         nameNorm(d.bopm) === me
       ) {
         ownDealIds.add(d.id);
+        continue;
       }
-      // VSD-tier users see every deal in their pod (deal.vsd matches their name).
-      if (looksLikeVsd && nameNorm(d.vsd) === me) {
-        ownDealIds.add(d.id);
+      if (looksLikeVsd) {
+        // 1. deal explicitly tagged to this VSD
+        if (nameNorm(d.vsd) === me) {
+          ownDealIds.add(d.id);
+          continue;
+        }
+        // 2. deal has a principal/senior BOPM who reports to this VSD
+        const pkey = nameNorm(d.principal_bopm);
+        const skey = nameNorm(d.senior_bopm);
+        if ((pkey && bopmKeysForThisVsd.has(pkey)) || (skey && bopmKeysForThisVsd.has(skey))) {
+          ownDealIds.add(d.id);
+        }
       }
     }
 
@@ -196,7 +227,7 @@ export function useDealAccess(): DealAccessState {
       canViewClient: (id) => !!id && visibleClientIds.has(id),
       canEditClient: (id) => !!id && editableClientIds.has(id),
     };
-  }, [isAdmin, allDeals, myAssignedDealIds, myPersonName, myRoleTitle, loading]);
+  }, [isAdmin, allDeals, myAssignedDealIds, myPersonName, myRoleTitle, myDesignation, myRoleCategory, loading]);
 
   return result;
 }

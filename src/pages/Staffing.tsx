@@ -8,6 +8,7 @@ import { DealViewTab } from "@/components/staffing/DealViewTab";
 import { PeopleViewTab } from "@/components/staffing/PeopleViewTab";
 import { MatrixTab } from "@/components/staffing/MatrixTab";
 import { useUserRole } from "@/hooks/useUserRole";
+import { ReadOnlyBanner } from "@/components/access/ReadOnlyBanner";
 import { useDealAccess } from "@/hooks/useDealAccess";
 import { BopmEmptyState } from "@/components/access/BopmEmptyState";
 import { StaffingReviewRequestsButton } from "@/components/staffing/StaffingReviewRequests";
@@ -93,6 +94,7 @@ export default function Staffing() {
   return (
     <AppLayout>
       <div className="px-3 py-4">
+        <ReadOnlyBanner routeKey="staffing" label="Staffing & Capacity" />
         <div className="flex items-center justify-between mb-6">
           <div>
             <div className="flex items-center gap-2">

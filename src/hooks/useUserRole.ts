@@ -116,14 +116,20 @@ function useUserRoleInternal(): UserRoleState {
 
     const { data: visRows } = await supabase
       .from("route_visibility")
-      .select("route_key, visible")
+      .select("route_key, visible, access_mode")
       .eq("role", roleForVisibility);
 
-    // Role-default access mode per route
-    const defaultMode: AccessMode = roleForVisibility === "view_only" ? "read" : "edit";
     const access = new Map<string, AccessMode>();
     (visRows || []).forEach((r) => {
-      access.set(r.route_key, r.visible ? defaultMode : "hidden");
+      const m = (r as any).access_mode as AccessMode | null;
+      const fallback: AccessMode = roleForVisibility === "view_only" ? "read" : "edit";
+      const mode: AccessMode =
+        m === "hidden" || m === "read" || m === "edit"
+          ? m
+          : r.visible
+          ? fallback
+          : "hidden";
+      access.set(r.route_key, mode);
     });
 
     // Apply per-user overrides on top

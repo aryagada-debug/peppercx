@@ -23,6 +23,7 @@ import { useAppUsers, useVsdUsers, useVsdHierarchy } from "@/hooks/useAppUsers";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useDealAccess } from "@/hooks/useDealAccess";
 import { BopmEmptyState } from "@/components/access/BopmEmptyState";
+import { ReadOnlyBanner } from "@/components/access/ReadOnlyBanner";
 
 type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
@@ -540,6 +541,7 @@ export default function MBRTracker() {
   return (
     <AppLayout>
       <div className="px-3 py-4">
+        <ReadOnlyBanner routeKey="mbr-tracker" label="MBR Tracker" />
         {/* Header */}
         <div className="flex items-center justify-between mb-1">
           <div>
