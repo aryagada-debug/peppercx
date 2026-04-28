@@ -108,12 +108,12 @@ export function CurrencyInput({
         onChange={(e) => handleChange(e.target.value)}
         placeholder={placeholder}
         disabled={disabled}
-        className={cn("pl-6 pr-[68px] tabular-nums", inputClassName)}
+        className={cn("pl-6 pr-[78px] tabular-nums", inputClassName)}
       />
       <div
         role="group"
         aria-label="Currency"
-        className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 rounded-md bg-muted/60 p-0.5"
+        className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 rounded-md border border-border bg-muted/40 p-0.5"
       >
         <ToggleBtn active={currency === "INR"} onClick={() => switchCurrency("INR")}>
           ₹
@@ -142,10 +142,10 @@ function ToggleBtn({
       tabIndex={-1}
       aria-pressed={active}
       className={cn(
-        "h-5 w-6 rounded text-[11px] font-semibold leading-none transition-colors",
+        "h-6 w-7 rounded text-xs font-bold leading-none transition-colors",
         active
-          ? "bg-background text-foreground shadow-sm"
-          : "text-muted-foreground hover:text-foreground",
+          ? "bg-primary text-primary-foreground shadow-sm"
+          : "text-muted-foreground hover:bg-background hover:text-foreground",
       )}
     >
       {children}
