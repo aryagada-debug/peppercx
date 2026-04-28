@@ -105,6 +105,7 @@ interface DealWithRGY {
   rgy_week_start?: string;
   rgy_action_plan?: string;
   rgy_discussed_action_plan?: string;
+  rgy_issue_details?: string;
   customer: string;
   internal: string;
   content: string;
