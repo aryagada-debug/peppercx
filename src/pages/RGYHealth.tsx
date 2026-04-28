@@ -1040,6 +1040,45 @@ export default function RGYHealth() {
           )}
         </div>
 
+        {/* RGY Summary — VSDs (All) or BOPMs within selected pod */}
+        <div className="mb-4">
+          <h2 className="text-sm font-semibold text-foreground mb-2">
+            {showBopmRgyInsights ? `BOPM RGY Summary — ${activeVsd}` : "VSD RGY Summary"}
+          </h2>
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <table className="w-full text-ui">
+              <thead>
+                <tr className="bg-secondary/40 border-b border-border">
+                  {[showBopmRgyInsights ? "Sr / Principal BOPM" : "VSD", "Active Deals", "🔴 Red", "🟡 Yellow", "🟢 Green", "Pending"].map(h => (
+                    <th key={h} className="text-left py-2.5 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rgySummary.map(r => {
+                  const isOverall = r.name === "Pod Overall";
+                  return (
+                    <tr key={r.name} className={cn(
+                      "border-b border-border/50 hover:bg-secondary/30 transition-colors",
+                      isOverall && "bg-primary/5 font-semibold"
+                    )}>
+                      <td className="py-2.5 px-3 font-semibold text-foreground text-xs">{r.name}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-foreground text-xs">{r.total}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-destructive font-semibold text-xs">{r.red}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-warning font-semibold text-xs">{r.yellow}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-positive font-semibold text-xs">{r.green}</td>
+                      <td className="py-2.5 px-3 font-mono tabular-nums text-muted-foreground text-xs">{r.pending}</td>
+                    </tr>
+                  );
+                })}
+                {rgySummary.length === 0 && (
+                  <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">No data</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         {/* Tab switcher */}
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="mb-4">
           <TabsList>
