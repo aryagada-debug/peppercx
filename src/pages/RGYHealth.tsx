@@ -1107,17 +1107,31 @@ export default function RGYHealth() {
               <tbody>
                 {rgySummary.map(r => {
                   const isOverall = r.name === "Pod Overall";
+                  const openDrill = (metric: RGYDrillMetric) => setRgyDrill({ rowLabel: r.name, metric });
+                  const NumBtn = ({ value, metric, className }: { value: number; metric: RGYDrillMetric; className?: string }) => (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); if (value > 0) openDrill(metric); }}
+                      className={cn(
+                        "font-mono tabular-nums text-xs",
+                        value > 0 ? "hover:underline cursor-pointer" : "cursor-default opacity-70",
+                        className,
+                      )}
+                    >
+                      {value}
+                    </button>
+                  );
                   return (
                     <tr key={r.name} className={cn(
                       "border-b border-border/50 hover:bg-secondary/30 transition-colors",
                       isOverall && "bg-primary/5 font-semibold"
                     )}>
                       <td className="py-2.5 px-3 font-semibold text-foreground text-xs">{r.name}</td>
-                      <td className="py-2.5 px-3 font-mono tabular-nums text-foreground text-xs">{r.total}</td>
-                      <td className="py-2.5 px-3 font-mono tabular-nums text-destructive font-semibold text-xs">{r.red}</td>
-                      <td className="py-2.5 px-3 font-mono tabular-nums text-warning font-semibold text-xs">{r.yellow}</td>
-                      <td className="py-2.5 px-3 font-mono tabular-nums text-positive font-semibold text-xs">{r.green}</td>
-                      <td className="py-2.5 px-3 font-mono tabular-nums text-muted-foreground text-xs">{r.pending}</td>
+                      <td className="py-2.5 px-3"><NumBtn value={r.total} metric="total" className="text-foreground" /></td>
+                      <td className="py-2.5 px-3"><NumBtn value={r.red} metric="red" className="text-destructive font-semibold" /></td>
+                      <td className="py-2.5 px-3"><NumBtn value={r.yellow} metric="yellow" className="text-warning font-semibold" /></td>
+                      <td className="py-2.5 px-3"><NumBtn value={r.green} metric="green" className="text-positive font-semibold" /></td>
+                      <td className="py-2.5 px-3"><NumBtn value={r.pending} metric="pending" className="text-muted-foreground" /></td>
                     </tr>
                   );
                 })}
