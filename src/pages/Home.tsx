@@ -616,7 +616,7 @@ export default function HomePage() {
             </CardContent>
           </Card>
 
-          <Card className="col-span-12 lg:col-span-8 rounded-xl">
+          <Card id="my-tasks-card" className="col-span-12 lg:col-span-8 rounded-xl">
             <CardHeader className="pb-3">
               <CardTitle className="text-[15px] font-bold flex items-center gap-2">
                 <ListTodo className="h-4 w-4 text-primary" /> My Tasks
@@ -625,7 +625,7 @@ export default function HomePage() {
             </CardHeader>
             <CardContent>
               {loadingTasks ? <SkeletonRows /> : (
-                <Tabs defaultValue={overdue.length ? "overdue" : "today"}>
+                <Tabs value={taskFilter === "all" ? "today" : taskFilter} onValueChange={(v) => setTaskFilter(v as any)}>
                   <TabsList className="mb-3 bg-secondary">
                     <TabsTrigger value="overdue">Overdue ({overdue.length})</TabsTrigger>
                     <TabsTrigger value="today">Today ({today.length})</TabsTrigger>
