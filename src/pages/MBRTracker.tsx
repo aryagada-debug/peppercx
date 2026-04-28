@@ -210,21 +210,16 @@ export default function MBRTracker() {
       });
     }
     if (activeVsd === "Unassigned") {
-      d = d.filter(deal => UNASSIGNED_VSD_VALUES.has((deal.vsd || "").trim()));
-    } else if (activeVsd === "Other") {
-      d = d.filter(deal => {
-        const v = (deal.vsd || "").trim();
-        return !!v && !UNASSIGNED_VSD_VALUES.has(v) && !isVsdName(v);
-      });
+      d = d.filter(deal => vsdForDeal(deal as any) === null);
     } else if (activeVsd !== "All") {
-      d = d.filter(deal => canonVsd(deal.vsd) === activeVsd);
+      d = d.filter(deal => vsdForDeal(deal as any) === activeVsd);
     }
     if (search) {
       const s = search.toLowerCase();
       d = d.filter(deal => deal.account.toLowerCase().includes(s) || deal.dealName.toLowerCase().includes(s));
     }
     return d;
-  }, [deals, dealMeta, activeVsd, search, showClosed]);
+  }, [deals, dealMeta, activeVsd, search, showClosed, vsdForDeal]);
 
   // Group by client
   const groupedDeals = useMemo(() => {
