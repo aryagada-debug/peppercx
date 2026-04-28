@@ -1229,14 +1229,24 @@ export default function RGYHealth() {
                   <table className="w-full text-ui">
                     <thead>
                       <tr className="bg-secondary/40 border-b border-border">
-                        <ColHeader label="Client" colKey="account" sortKey="account" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.account} onResizeStart={startResize("account")} />
-                        <ColHeader label="Deal Name" colKey="deal_name" sortKey="deal_name" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.deal_name} onResizeStart={startResize("deal_name")} />
-                        <ColHeader label="Deal ID" colKey="deal_id" sortKey="deal_id" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.deal_id} onResizeStart={startResize("deal_id")} />
-                        <ColHeader label="Status" colKey="deal_status" sortKey="deal_status" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={Object.keys(statusBadgeStyles)} width={colWidths.deal_status} onResizeStart={startResize("deal_status")} />
-                        {DIMENSIONS.map(d => (
+                        {isColVisible("account") && (
+                          <ColHeader label="Client" colKey="account" sortKey="account" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.account} onResizeStart={startResize("account")} />
+                        )}
+                        {isColVisible("deal_name") && (
+                          <ColHeader label="Deal Name" colKey="deal_name" sortKey="deal_name" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.deal_name} onResizeStart={startResize("deal_name")} />
+                        )}
+                        {isColVisible("deal_id") && (
+                          <ColHeader label="Deal ID" colKey="deal_id" sortKey="deal_id" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.deal_id} onResizeStart={startResize("deal_id")} />
+                        )}
+                        {isColVisible("deal_status") && (
+                          <ColHeader label="Status" colKey="deal_status" sortKey="deal_status" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={Object.keys(statusBadgeStyles)} width={colWidths.deal_status} onResizeStart={startResize("deal_status")} />
+                        )}
+                        {DIMENSIONS.filter(d => isColVisible(d.key)).map(d => (
                           <ColHeader key={d.key} label={d.label} colKey={d.key} align="center" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["Green","Yellow","Red","NA","Pending"]} width={colWidths[d.key]} onResizeStart={startResize(d.key)} />
                         ))}
-                        <th className="text-left py-2 px-3 font-medium text-muted-foreground text-caption whitespace-nowrap">AI Summary</th>
+                        {isColVisible("ai_summary") && (
+                          <th className="text-left py-2 px-3 font-medium text-muted-foreground text-caption whitespace-nowrap">AI Summary</th>
+                        )}
                       </tr>
                     </thead>
                     <tbody>
@@ -1251,22 +1261,30 @@ export default function RGYHealth() {
                           "";
                         return (
                           <tr key={deal.id} className={cn("border-b border-border/50 transition-colors", rowTint || "hover:bg-accent/10")}>
-                            <td className="py-2 px-3">
-                              <span className="text-xs font-medium text-foreground truncate max-w-[140px] block" title={deal.account}>{deal.account}</span>
-                            </td>
-                            <td className="py-2 px-3">
-                              <div className="flex items-center gap-2">
-                                {worst && <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", worstDotColor[worst])} />}
-                                <Link to={`/deals/${deal.id}`} className="text-primary hover:underline text-xs font-medium">{deal.deal_name}</Link>
-                              </div>
-                            </td>
-                            <td className="py-2 px-3 text-xs font-mono text-muted-foreground">{deal.deal_id || "—"}</td>
-                            <td className="py-2 px-3">
-                              <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 font-medium border", statusBadgeStyles[deal.deal_status] || "bg-muted text-muted-foreground border-border")}>
-                                {statusShortLabels[deal.deal_status] || deal.deal_status || "—"}
-                              </Badge>
-                            </td>
-                            {DIMENSIONS.map(dim => {
+                            {isColVisible("account") && (
+                              <td className="py-2 px-3">
+                                <span className="text-xs font-medium text-foreground truncate max-w-[140px] block" title={deal.account}>{deal.account}</span>
+                              </td>
+                            )}
+                            {isColVisible("deal_name") && (
+                              <td className="py-2 px-3">
+                                <div className="flex items-center gap-2">
+                                  {worst && <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", worstDotColor[worst])} />}
+                                  <Link to={`/deals/${deal.id}`} className="text-primary hover:underline text-xs font-medium">{deal.deal_name}</Link>
+                                </div>
+                              </td>
+                            )}
+                            {isColVisible("deal_id") && (
+                              <td className="py-2 px-3 text-xs font-mono text-muted-foreground">{deal.deal_id || "—"}</td>
+                            )}
+                            {isColVisible("deal_status") && (
+                              <td className="py-2 px-3">
+                                <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 font-medium border", statusBadgeStyles[deal.deal_status] || "bg-muted text-muted-foreground border-border")}>
+                                  {statusShortLabels[deal.deal_status] || deal.deal_status || "—"}
+                                </Badge>
+                              </td>
+                            )}
+                            {DIMENSIONS.filter(dim => isColVisible(dim.key)).map(dim => {
                               const raw = (deal[dim.key as keyof DealWithRGY] as string) || "";
                               const val: RGYCellValue = raw === "" ? "PENDING" : (raw as RGYStatus);
                               return (
@@ -1275,18 +1293,24 @@ export default function RGYHealth() {
                                 </td>
                               );
                             })}
-                            <td className="py-2 px-3 max-w-[260px]">
-                              {deal.rgy_issue_details ? (
-                                <span
-                                  className="text-xs text-muted-foreground line-clamp-1 block"
-                                  title={deal.rgy_issue_details}
-                                >
-                                  {deal.rgy_issue_details.replace(/\s+/g, " ").trim()}
-                                </span>
-                              ) : (
-                                <span className="text-xs text-muted-foreground/60">—</span>
-                              )}
-                            </td>
+                            {isColVisible("ai_summary") && (
+                              <td className="py-2 px-3 max-w-[180px]">
+                                {deal.rgy_issue_details ? (() => {
+                                  const clean = deal.rgy_issue_details.replace(/\s+/g, " ").trim();
+                                  const short = clean.length > 60 ? clean.slice(0, 60).trimEnd() + "…" : clean;
+                                  return (
+                                    <span
+                                      className="text-xs text-muted-foreground line-clamp-1 block"
+                                      title={clean}
+                                    >
+                                      {short}
+                                    </span>
+                                  );
+                                })() : (
+                                  <span className="text-xs text-muted-foreground/60">—</span>
+                                )}
+                              </td>
+                            )}
                           </tr>
                         );
                       })}
