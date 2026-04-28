@@ -983,15 +983,18 @@ export default function RGYHealth() {
 
   // KPIs
   const kpis = useMemo(() => {
-    const allDims = filteredDeals.flatMap(d =>
-      DIMENSIONS.map(dim => (d[dim.key as keyof DealWithRGY] as string || "NA") as RGYStatus)
-    );
-    const red = allDims.filter(v => v === "R").length;
-    const yellow = allDims.filter(v => v === "Y").length;
-    const green = allDims.filter(v => v === "G").length;
-    const scored = allDims.filter(v => v !== "NA").length;
+    // Count DEALS by their worst RGY (matches table row tinting & summary buckets)
+    let red = 0, yellow = 0, green = 0, pending = 0;
+    for (const d of filteredDeals) {
+      const w = getWorstRGY(d);
+      if (w === "R") red++;
+      else if (w === "Y") yellow++;
+      else if (w === "G") green++;
+      else pending++;
+    }
+    const scored = red + yellow + green;
     const score = scored > 0 ? ((green * 100 + yellow * 50) / scored).toFixed(1) : "—";
-    return { red, yellow, green, score, totalDeals: filteredDeals.length };
+    return { red, yellow, green, pending, score, totalDeals: filteredDeals.length };
   }, [filteredDeals]);
 
   // ── RGY Summary Insights ──
