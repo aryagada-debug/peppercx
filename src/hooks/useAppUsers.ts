@@ -348,7 +348,7 @@ export function useVsdHierarchy() {
 
   /** Resolve a deal's owning VSD by checking principal → senior BOPM only. */
   const vsdForDeal = useCallback(
-    (deal: { principal_bopm?: string | null; senior_bopm?: string | null; bopm?: string | null; principalBopm?: string | null; seniorBopm?: string | null; }): string | null => {
+    (deal: { principal_bopm?: string | null; senior_bopm?: string | null; bopm?: string | null; principalBopm?: string | null; seniorBopm?: string | null; vsd?: string | null; }): string | null => {
       const candidates = [
         (deal as any).principal_bopm ?? (deal as any).principalBopm,
         (deal as any).senior_bopm ?? (deal as any).seniorBopm,
@@ -357,7 +357,12 @@ export function useVsdHierarchy() {
         const v = vsdForPerson(c);
         if (v) return v;
       }
-      return null;
+      // Fallback: use the deal's own VSD field (canonicalised) so that deals
+      // tagged to a VSD but without a recognised BOPM still roll up to that
+      // VSD instead of being lumped into Unassigned.
+      const dealVsd = (deal as any).vsd;
+      const canon = matchesVsd(dealVsd);
+      return canon || null;
     },
     [vsdForPerson],
   );
