@@ -602,30 +602,6 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Prop
         )}
       </div>
 
-      {/* VSD Comparison — ALWAYS all 5 VSDs, ignores POD filter */}
-      <div className="bg-card border border-border rounded-lg p-4">
-        <div className="flex items-center justify-between mb-1">
-          <h3 className="text-sm font-semibold">VSD Portfolio Health Comparison</h3>
-          <span className="text-[10px] text-muted-foreground">All Pods · Click bar to drill in</span>
-        </div>
-        <p className="text-xs text-muted-foreground mb-3">Stacked R / Y / G deal count per VSD across active deals</p>
-        <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={vsdComparison} margin={{ left: 10, bottom: 5 }} barSize={50}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis dataKey="vsd" tick={{ fontSize: 12, fontWeight: 500 }} interval={0} />
-            <YAxis tick={{ fontSize: 11 }} allowDecimals={false} label={{ value: "Deal Count", angle: -90, position: "insideLeft", style: { fontSize: 11, fill: "hsl(var(--muted-foreground))" } }} />
-            <RechartsTooltip
-              contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }}
-              formatter={(value: number, name: string) => [`${value} deals`, name]}
-            />
-            <Legend iconSize={10} wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
-            <Bar dataKey="Red" stackId="vsd" fill={COLORS.R} cursor="pointer" onClick={(d: any) => setVsdDrill(d.vsdFull)} />
-            <Bar dataKey="Yellow" stackId="vsd" fill={COLORS.Y} cursor="pointer" onClick={(d: any) => setVsdDrill(d.vsdFull)} />
-            <Bar dataKey="Green" stackId="vsd" fill={COLORS.G} radius={[4, 4, 0, 0]} cursor="pointer" onClick={(d: any) => setVsdDrill(d.vsdFull)} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-
       {/* Drill dialogs */}
       {teamDrill && (
         <TeamCountDrillDialog
