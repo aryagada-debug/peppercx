@@ -78,7 +78,7 @@ export default function MBRTracker() {
   const { deals, entries, loading, upsertEntry, vsdSummary, totals, entriesByMonth, availableMonths, refresh } = useMBRData();
   const { users: appUsers, isRegisteredName } = useAppUsers();
   const { vsdUsers, isVsdName, canonVsd } = useVsdUsers();
-  const { vsdForDeal, vsdForPerson, bopmsForVsd } = useVsdHierarchy();
+  const { vsdForDeal, vsdForPerson, bopmsForVsd, allBopms } = useVsdHierarchy();
   const VSD_FILTERS = useMemo(() => {
     const items: { key: string; label: string }[] = [{ key: "All", label: "All" }];
     vsdUsers.forEach((u) => items.push({ key: u.displayName, label: u.displayName }));
@@ -95,9 +95,9 @@ export default function MBRTracker() {
 
   // BOPMs available for the currently selected VSD
   const bopmOptions = useMemo(() => {
-    if (activeVsd === "All" || activeVsd === "Unassigned") return [] as string[];
+    if (activeVsd === "All" || activeVsd === "Unassigned") return allBopms;
     return bopmsForVsd(activeVsd);
-  }, [activeVsd, bopmsForVsd]);
+  }, [activeVsd, bopmsForVsd, allBopms]);
 
   const nameMatches = (a: string | null | undefined, b: string) => {
     const norm = (s: string) => (s || "").toLowerCase().normalize("NFKD").replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
@@ -228,12 +228,12 @@ export default function MBRTracker() {
       d = d.filter(deal => vsdForDeal(deal as any) === null);
     } else if (activeVsd !== "All") {
       d = d.filter(deal => vsdForDeal(deal as any) === activeVsd);
-      if (activeBopm !== "All") {
-        d = d.filter(deal => {
-          const candidates = [(deal as any).principal_bopm, (deal as any).senior_bopm, (deal as any).principalBopm, (deal as any).seniorBopm];
-          return candidates.some(c => c && nameMatches(c, activeBopm));
-        });
-      }
+    }
+    if (activeBopm !== "All") {
+      d = d.filter(deal => {
+        const candidates = [(deal as any).principal_bopm, (deal as any).senior_bopm, (deal as any).principalBopm, (deal as any).seniorBopm];
+        return candidates.some(c => c && nameMatches(c, activeBopm));
+      });
     }
     if (search) {
       const s = search.toLowerCase();
@@ -531,13 +531,9 @@ export default function MBRTracker() {
                 ))}
               </div>
               <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium ml-2">BOPM:</span>
-              <Select
-                value={activeBopm}
-                onValueChange={setActiveBopm}
-                disabled={activeVsd === "All" || activeVsd === "Unassigned" || bopmOptions.length === 0}
-              >
+              <Select value={activeBopm} onValueChange={setActiveBopm}>
                 <SelectTrigger className="h-7 w-[180px] text-[11px]">
-                  <SelectValue placeholder={activeVsd === "All" ? "Select a VSD first" : "All BOPMs"} />
+                  <SelectValue placeholder="All BOPMs" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="All" className="text-xs">All BOPMs</SelectItem>

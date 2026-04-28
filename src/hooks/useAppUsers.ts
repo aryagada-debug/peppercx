@@ -400,5 +400,12 @@ export function useVsdHierarchy() {
     [data],
   );
 
-  return { vsdForPerson, vsdForDeal, bopmsForVsd, loading };
+  /** All BOPM display names across all VSDs, sorted A-Z and de-duplicated. */
+  const allBopms = useMemo(() => {
+    const set = new Set<string>();
+    for (const arr of data.bopmsByVsd.values()) arr.forEach((n) => set.add(n));
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [data]);
+
+  return { vsdForPerson, vsdForDeal, bopmsForVsd, allBopms, loading };
 }

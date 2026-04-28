@@ -528,7 +528,7 @@ function RGYIssueFormDialog({
 export default function RGYHealth() {
   const { users: appUsers, isRegisteredName } = useAppUsers();
   const { vsdUsers, isVsdName, canonVsd } = useVsdUsers();
-  const { vsdForDeal, bopmsForVsd } = useVsdHierarchy();
+  const { vsdForDeal, bopmsForVsd, allBopms } = useVsdHierarchy();
   // Built dynamically from registered users + which VSDs actually appear on deals.
   const VSD_FILTERS = useMemo(() => {
     const items: { key: string; label: string }[] = [{ key: "All", label: "All" }];
@@ -557,9 +557,9 @@ export default function RGYHealth() {
   // Reset BOPM whenever VSD changes
   useEffect(() => { setActiveBopm("All"); }, [activeVsd]);
   const bopmOptions = useMemo(() => {
-    if (activeVsd === "All" || activeVsd === "Unassigned") return [] as string[];
+    if (activeVsd === "All" || activeVsd === "Unassigned") return allBopms;
     return bopmsForVsd(activeVsd);
-  }, [activeVsd, bopmsForVsd]);
+  }, [activeVsd, bopmsForVsd, allBopms]);
   const nameMatchesBopm = (a: string | null | undefined, b: string) => {
     const norm = (s: string) => (s || "").toLowerCase().normalize("NFKD").replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
     return norm(a || "") === norm(b);
@@ -939,12 +939,12 @@ export default function RGYHealth() {
       d = d.filter(deal => vsdForDeal(deal as any) === null);
     } else if (activeVsd !== "All") {
       d = d.filter(deal => vsdForDeal(deal as any) === activeVsd);
-      if (activeBopm !== "All") {
-        d = d.filter(deal => {
-          const candidates = [(deal as any).principal_bopm, (deal as any).senior_bopm, (deal as any).principalBopm, (deal as any).seniorBopm];
-          return candidates.some(c => c && nameMatchesBopm(c, activeBopm));
-        });
-      }
+    }
+    if (activeBopm !== "All") {
+      d = d.filter(deal => {
+        const candidates = [(deal as any).principal_bopm, (deal as any).senior_bopm, (deal as any).principalBopm, (deal as any).seniorBopm];
+        return candidates.some(c => c && nameMatchesBopm(c, activeBopm));
+      });
     }
     if (search) {
       const s = search.toLowerCase();
@@ -1233,13 +1233,9 @@ export default function RGYHealth() {
 
               <div className="flex items-center gap-2">
                 <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">BOPM:</span>
-                <Select
-                  value={activeBopm}
-                  onValueChange={setActiveBopm}
-                  disabled={activeVsd === "All" || activeVsd === "Unassigned" || bopmOptions.length === 0}
-                >
+                <Select value={activeBopm} onValueChange={setActiveBopm}>
                   <SelectTrigger className="h-7 w-[180px] text-[11px]">
-                    <SelectValue placeholder={activeVsd === "All" ? "Select a VSD first" : "All BOPMs"} />
+                    <SelectValue placeholder="All BOPMs" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="All" className="text-xs">All BOPMs</SelectItem>
