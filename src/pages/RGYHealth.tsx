@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { DealDetailDialog } from "@/components/rgy/DealDetailDialog";
@@ -24,8 +24,19 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ColHeader } from "@/components/table/ColHeader";
 
-const PODS = ["All", "Integrated", "India B2B", "US B2B", "FMCG", "BFSI", "Unassigned"] as const;
-type Pod = typeof PODS[number];
+const VSD_FILTERS = [
+  { key: "All", label: "All" },
+  { key: "Neema Jayadas", label: "Neema Jayadas" },
+  { key: "Aamir Khan", label: "Aamir Khan" },
+  { key: "Aditya Shaw", label: "Aditya Shaw" },
+  { key: "Sneha Iyer", label: "Sneha Iyer" },
+  { key: "Sumit Shekhawat", label: "Sumit Shekhawat" },
+  { key: "Other", label: "Other" },
+  { key: "Unassigned", label: "Unassigned" },
+] as const;
+type VsdFilterKey = typeof VSD_FILTERS[number]["key"];
+const NAMED_VSDS = new Set(["Neema Jayadas", "Aamir Khan", "Aditya Shaw", "Sneha Iyer", "Sumit Shekhawat"]);
+const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
 
 const ACTIVE_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
 
