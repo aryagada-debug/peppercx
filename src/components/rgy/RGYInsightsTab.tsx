@@ -1,8 +1,11 @@
-import React, { useMemo, useState } from "react";
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from "recharts";
+import React, { useEffect, useMemo, useState } from "react";
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, LabelList } from "recharts";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, Flag, Clock } from "lucide-react";
+import { AlertTriangle, Flag, Clock, Sparkles, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import { TeamCountDrillDialog } from "./TeamCountDrillDialog";
 import { VSDDrillDialog } from "./VSDDrillDialog";
 
@@ -103,6 +106,10 @@ const VSD_SHORT: Record<string, string> = {
 export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Props) {
   const [teamDrill, setTeamDrill] = useState<{ team: string; severity: "R" | "Y" } | null>(null);
   const [vsdDrill, setVsdDrill] = useState<string | null>(null);
+  const [aiSummary, setAiSummary] = useState<string>("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string>("");
+  const [aiWindow, setAiWindow] = useState<"week" | "month">("week");
 
   // ── KPIs ──
   const kpis = useMemo(() => {
@@ -253,6 +260,40 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Prop
   // ── Aging issues (top 8 oldest open) ──
   const agingIssues = useMemo(() => activeIssues.slice(0, 8), [activeIssues]);
 
+  // ── AI summary trigger ──
+  const generateSummary = async () => {
+    setAiLoading(true);
+    setAiError("");
+    try {
+      const snapshot = {
+        window: aiWindow,
+        kpis,
+        teamHealth,
+        vsdComparison: vsdComparison.map(v => ({ vsd: v.vsdFull, R: v.Red, Y: v.Yellow, G: v.Green })),
+        topAgedRedIssues: activeIssues
+          .filter(i => i.worst === "R")
+          .slice(0, 10)
+          .map(i => ({ deal: i.deal_name, days: i.days, dims: i.red_dimensions, details: i.issue_details?.slice(0, 200) })),
+      };
+      const { data, error } = await supabase.functions.invoke("rgy-movement-summary", {
+        body: { window: aiWindow, snapshot },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      setAiSummary((data as any)?.summary || "");
+    } catch (e: any) {
+      setAiError(e?.message || "Failed to generate summary");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  // Auto-generate once on mount / when window changes
+  useEffect(() => {
+    generateSummary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiWindow, activePod]);
+
   return (
     <div className="space-y-6">
       {/* KPI Row */}
@@ -270,6 +311,72 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Prop
             <p className={cn("text-2xl font-bold", k.color)}>{k.value}</p>
           </div>
         ))}
+      </div>
+
+      {/* AI Movement Summary */}
+      <div className="bg-card border border-border rounded-lg p-4">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-semibold flex items-center gap-1.5">
+            <Sparkles className="h-4 w-4 text-primary" />
+            AI Movement Summary
+          </h3>
+          <div className="flex items-center gap-1">
+            <div className="flex bg-secondary rounded-md p-0.5">
+              {(["week", "month"] as const).map(w => (
+                <button
+                  key={w}
+                  onClick={() => setAiWindow(w)}
+                  className={cn(
+                    "px-2 py-0.5 text-[11px] rounded font-medium transition-colors",
+                    aiWindow === w ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {w === "week" ? "Week" : "Month"}
+                </button>
+              ))}
+            </div>
+            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={generateSummary} disabled={aiLoading}>
+              {aiLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : "Refresh"}
+            </Button>
+          </div>
+        </div>
+        {aiError ? (
+          <p className="text-xs text-destructive">{aiError}</p>
+        ) : aiLoading && !aiSummary ? (
+          <p className="text-xs text-muted-foreground italic">Generating summary…</p>
+        ) : (
+          <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">{aiSummary || "—"}</p>
+        )}
+      </div>
+
+      {/* VSD Comparison — moved to top */}
+      <div className="bg-card border border-border rounded-lg p-4">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-sm font-semibold">VSD Portfolio Health Comparison</h3>
+          <span className="text-[10px] text-muted-foreground">All Pods · Click bar to drill in</span>
+        </div>
+        <p className="text-xs text-muted-foreground mb-3">Stacked R / Y / G deal count per VSD across active deals</p>
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={vsdComparison} margin={{ left: 10, bottom: 5, top: 10 }} barSize={50}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <XAxis dataKey="vsd" tick={{ fontSize: 12, fontWeight: 500 }} interval={0} />
+            <YAxis tick={{ fontSize: 11 }} allowDecimals={false} label={{ value: "Deal Count", angle: -90, position: "insideLeft", style: { fontSize: 11, fill: "hsl(var(--muted-foreground))" } }} />
+            <RechartsTooltip
+              contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }}
+              formatter={(value: number, name: string) => [`${value} deals`, name]}
+            />
+            <Legend iconSize={10} wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
+            <Bar dataKey="Red" stackId="vsd" fill={COLORS.R} cursor="pointer" onClick={(d: any) => setVsdDrill(d.vsdFull)}>
+              <LabelList dataKey="Red" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: number) => (v > 0 ? v : "")} />
+            </Bar>
+            <Bar dataKey="Yellow" stackId="vsd" fill={COLORS.Y} cursor="pointer" onClick={(d: any) => setVsdDrill(d.vsdFull)}>
+              <LabelList dataKey="Yellow" position="center" fill="#1f2937" fontSize={11} fontWeight={600} formatter={(v: number) => (v > 0 ? v : "")} />
+            </Bar>
+            <Bar dataKey="Green" stackId="vsd" fill={COLORS.G} radius={[4, 4, 0, 0]} cursor="pointer" onClick={(d: any) => setVsdDrill(d.vsdFull)}>
+              <LabelList dataKey="Green" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: number) => (v > 0 ? v : "")} />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
       </div>
 
       {/* Row 2: Active Issues (POD-filtered) + Health Donut */}
@@ -306,12 +413,17 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Prop
                         >
                           {statusShortLabels[issue.deal_status] || issue.deal_status || "—"}
                         </Badge>
-                        <span className="text-xs font-semibold text-foreground">{issue.deal_name}</span>
+                        <Link
+                          to={`/deals/${issue.deal_id}?tab=Tasks`}
+                          className="text-xs font-semibold text-primary hover:underline"
+                        >
+                          {issue.deal_name}
+                        </Link>
                         <span className="text-[11px] text-muted-foreground font-mono">{issue.deal_id_code}</span>
                         {/* Timeline + flag */}
                         <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
                           <Clock className="h-3 w-3" />
-                          {issue.days}d open
+                          {issue.days}d since marked {issue.worst === "R" ? "Red" : issue.worst === "Y" ? "Yellow" : ""}
                         </span>
                         {issue.flagged && (
                           <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-500/15 text-red-700 border border-red-500/30">
@@ -377,12 +489,18 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Prop
               {agingIssues.length === 0 && <p className="text-xs text-muted-foreground py-2">No aging open issues.</p>}
               {agingIssues.map((i) => (
                 <div key={`${i.deal_id}-${i.created_at}`} className="flex items-center justify-between gap-2 text-xs py-1 border-b border-border/30 last:border-0">
-                  <span className="truncate flex-1 text-foreground">{i.deal_name}</span>
+                  <Link
+                    to={`/deals/${i.deal_id}?tab=RGY%20Health`}
+                    className="truncate flex-1 text-primary hover:underline"
+                    title={i.deal_name}
+                  >
+                    {i.deal_name}
+                  </Link>
                   <span className={cn(
                     "font-semibold tabular-nums",
                     i.flagged ? "text-red-600" : i.worst === "R" ? "text-red-500" : "text-amber-600",
                   )}>
-                    {i.days}d
+                    {i.days}d since {i.worst === "R" ? "Red" : "Yellow"}
                   </span>
                   {i.flagged && <Flag className="h-3 w-3 text-red-500" />}
                 </div>
@@ -414,20 +532,26 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Prop
               fill={COLORS.R}
               cursor="pointer"
               onClick={(d: any) => d.Red > 0 && setTeamDrill({ team: d.team, severity: "R" })}
-            />
+            >
+              <LabelList dataKey="Red" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: number) => (v > 0 ? v : "")} />
+            </Bar>
             <Bar
               dataKey="Yellow"
               stackId="health"
               fill={COLORS.Y}
               cursor="pointer"
               onClick={(d: any) => d.Yellow > 0 && setTeamDrill({ team: d.team, severity: "Y" })}
-            />
+            >
+              <LabelList dataKey="Yellow" position="center" fill="#1f2937" fontSize={11} fontWeight={600} formatter={(v: number) => (v > 0 ? v : "")} />
+            </Bar>
             <Bar
               dataKey="Green"
               stackId="health"
               fill={COLORS.G}
               radius={[4, 4, 0, 0]}
-            />
+            >
+              <LabelList dataKey="Green" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: number) => (v > 0 ? v : "")} />
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -454,7 +578,11 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Prop
                 {heatmapData.map(({ deal }) => (
                   <tr key={deal.id} className="border-b border-border/50 hover:bg-secondary/20">
                     <td className="py-1 px-2 truncate max-w-[140px] text-muted-foreground" title={deal.account}>{deal.account}</td>
-                    <td className="py-1 px-2 font-medium truncate max-w-[160px]" title={deal.deal_name}>{deal.deal_name}</td>
+                    <td className="py-1 px-2 font-medium truncate max-w-[160px]" title={deal.deal_name}>
+                      <Link to={`/deals/${deal.id}?tab=RGY%20Health`} className="text-primary hover:underline">
+                        {deal.deal_name}
+                      </Link>
+                    </td>
                     <td className="py-1 px-2 font-mono text-[11px] text-muted-foreground">{deal.deal_id || "—"}</td>
                     {DIMENSIONS.map((dim) => {
                       const v = deal[dim.key] as string;
@@ -472,30 +600,6 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Prop
             </table>
           </div>
         )}
-      </div>
-
-      {/* VSD Comparison — ALWAYS all 5 VSDs, ignores POD filter */}
-      <div className="bg-card border border-border rounded-lg p-4">
-        <div className="flex items-center justify-between mb-1">
-          <h3 className="text-sm font-semibold">VSD Portfolio Health Comparison</h3>
-          <span className="text-[10px] text-muted-foreground">All Pods · Click bar to drill in</span>
-        </div>
-        <p className="text-xs text-muted-foreground mb-3">Stacked R / Y / G deal count per VSD across active deals</p>
-        <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={vsdComparison} margin={{ left: 10, bottom: 5 }} barSize={50}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis dataKey="vsd" tick={{ fontSize: 12, fontWeight: 500 }} interval={0} />
-            <YAxis tick={{ fontSize: 11 }} allowDecimals={false} label={{ value: "Deal Count", angle: -90, position: "insideLeft", style: { fontSize: 11, fill: "hsl(var(--muted-foreground))" } }} />
-            <RechartsTooltip
-              contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }}
-              formatter={(value: number, name: string) => [`${value} deals`, name]}
-            />
-            <Legend iconSize={10} wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
-            <Bar dataKey="Red" stackId="vsd" fill={COLORS.R} cursor="pointer" onClick={(d: any) => setVsdDrill(d.vsdFull)} />
-            <Bar dataKey="Yellow" stackId="vsd" fill={COLORS.Y} cursor="pointer" onClick={(d: any) => setVsdDrill(d.vsdFull)} />
-            <Bar dataKey="Green" stackId="vsd" fill={COLORS.G} radius={[4, 4, 0, 0]} cursor="pointer" onClick={(d: any) => setVsdDrill(d.vsdFull)} />
-          </BarChart>
-        </ResponsiveContainer>
       </div>
 
       {/* Drill dialogs */}

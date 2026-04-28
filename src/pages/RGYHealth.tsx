@@ -105,6 +105,7 @@ interface DealWithRGY {
   rgy_week_start?: string;
   rgy_action_plan?: string;
   rgy_discussed_action_plan?: string;
+  rgy_issue_details?: string;
   customer: string;
   internal: string;
   content: string;
@@ -561,13 +562,13 @@ export default function RGYHealth() {
 
     const dealIds = dealRows.map(d => d.id);
     const rgyMap = new Map<string, any>();
-    const issuesList: { deal_name: string; deal_id: string; pc_code: string; deal_status: string; issue_details: string; issue_status: string; action_plan: string; discussed_action_plan: string; red_dimensions: string[] }[] = [];
+    const issuesList: any[] = [];
 
     for (let i = 0; i < dealIds.length; i += 500) {
       const batch = dealIds.slice(i, i + 500);
       const { data: rgyRows } = await supabase
         .from("deal_rgy_weekly")
-        .select("id, deal_id, customer, internal, content, seo, supply, copy, design, video, week_start, issue_details, issue_status, action_plan, discussed_action_plan")
+        .select("id, deal_id, customer, internal, content, seo, supply, copy, design, video, week_start, issue_details, issue_status, action_plan, discussed_action_plan, issue_date, created_at")
         .in("deal_id", batch)
         .order("week_start", { ascending: false });
 
@@ -577,17 +578,25 @@ export default function RGYHealth() {
             rgyMap.set(r.deal_id, r);
             if (r.issue_details && (r.issue_status === "Open" || r.issue_status === "In Progress")) {
               const dealRow = dealRows.find(d => d.id === r.deal_id);
+              const dimVals = DIMENSIONS.map(dim => (r as any)[dim.key] as string);
+              const worst: "R" | "Y" | "G" | null = dimVals.includes("R") ? "R" : dimVals.includes("Y") ? "Y" : "G";
               const redDims = DIMENSIONS.filter(dim => (r as any)[dim.key] === "R").map(dim => dim.label);
               issuesList.push({
+                deal_id: r.deal_id,                            // FK pk for linking
+                deal_id_code: dealRow?.deal_id || "",          // human code
                 deal_name: dealRow?.deal_name || "Unknown",
-                deal_id: dealRow?.deal_id || "",
                 pc_code: dealRow?.pc_code || "",
+                account: dealRow?.account || "",
+                pod: getPodForDeal(dealRow?.vsd || "", dealRow?.pod || ""),
                 deal_status: dealRow?.deal_status || "",
                 issue_details: r.issue_details,
                 issue_status: r.issue_status || "Open",
                 action_plan: (r as any).action_plan || "",
                 discussed_action_plan: (r as any).discussed_action_plan || "",
                 red_dimensions: redDims,
+                worst,
+                issue_date: (r as any).issue_date || null,
+                created_at: (r as any).created_at || null,
               });
             }
           }
@@ -606,6 +615,7 @@ export default function RGYHealth() {
         rgy_week_start: rgy?.week_start,
         rgy_action_plan: rgy?.action_plan || "",
         rgy_discussed_action_plan: rgy?.discussed_action_plan || "",
+        rgy_issue_details: rgy?.issue_details || "",
         customer: rgy?.customer || "NA",
         internal: rgy?.internal || "NA",
         content: rgy?.content || "NA",
@@ -950,6 +960,7 @@ export default function RGYHealth() {
                         {DIMENSIONS.map(d => (
                           <ColHeader key={d.key} label={d.label} colKey={d.key} align="center" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["G","Y","R","NA","Pending"]} />
                         ))}
+                        <th className="text-left py-2 px-3 font-medium text-muted-foreground text-caption whitespace-nowrap">AI Summary</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -980,6 +991,18 @@ export default function RGYHealth() {
                                 </td>
                               );
                             })}
+                            <td className="py-2 px-3 max-w-[260px]">
+                              {deal.rgy_issue_details ? (
+                                <span
+                                  className="text-xs text-muted-foreground line-clamp-1 block"
+                                  title={deal.rgy_issue_details}
+                                >
+                                  {deal.rgy_issue_details.replace(/\s+/g, " ").trim()}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground/60">—</span>
+                              )}
+                            </td>
                           </tr>
                         );
                       })}
