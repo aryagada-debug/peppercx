@@ -14,6 +14,101 @@ export type Database = {
   }
   public: {
     Tables: {
+      approval_comments: {
+        Row: {
+          author_id: string
+          author_name: string
+          body: string
+          created_at: string
+          id: string
+          request_id: string
+        }
+        Insert: {
+          author_id: string
+          author_name?: string
+          body?: string
+          created_at?: string
+          id?: string
+          request_id: string
+        }
+        Update: {
+          author_id?: string
+          author_name?: string
+          body?: string
+          created_at?: string
+          id?: string
+          request_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "approval_comments_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "approval_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      approval_requests: {
+        Row: {
+          created_at: string
+          deal_id: string
+          decided_at: string | null
+          id: string
+          payload: Json
+          previous: Json
+          request_type: string
+          requested_by: string
+          requested_by_name: string
+          requester_note: string
+          reviewer_id: string | null
+          reviewer_name: string
+          reviewer_note: string
+          status: string
+          target_id: string
+          target_kind: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          deal_id?: string
+          decided_at?: string | null
+          id?: string
+          payload?: Json
+          previous?: Json
+          request_type: string
+          requested_by: string
+          requested_by_name?: string
+          requester_note?: string
+          reviewer_id?: string | null
+          reviewer_name?: string
+          reviewer_note?: string
+          status?: string
+          target_id?: string
+          target_kind?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          deal_id?: string
+          decided_at?: string | null
+          id?: string
+          payload?: Json
+          previous?: Json
+          request_type?: string
+          requested_by?: string
+          requested_by_name?: string
+          requester_note?: string
+          reviewer_id?: string | null
+          reviewer_name?: string
+          reviewer_note?: string
+          status?: string
+          target_id?: string
+          target_kind?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       clients: {
         Row: {
           account_status: string
