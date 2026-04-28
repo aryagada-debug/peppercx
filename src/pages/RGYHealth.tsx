@@ -583,6 +583,39 @@ export default function RGYHealth() {
   useEffect(() => {
     try { localStorage.setItem("rgy-col-widths", JSON.stringify(colWidths)); } catch {}
   }, [colWidths]);
+
+  // Column visibility (Client + Deal Name + Status + Overall Customer + Internal are defaults / required)
+  const ALL_COLS = useMemo(() => ([
+    { key: "account", label: "Client", required: true },
+    { key: "deal_name", label: "Deal Name", required: true },
+    { key: "deal_id", label: "Deal ID" },
+    { key: "deal_status", label: "Status", required: true },
+    { key: "customer", label: "Overall Customer", required: true },
+    { key: "internal", label: "Internal", required: true },
+    { key: "content", label: "Content" },
+    { key: "seo", label: "SEO" },
+    { key: "supply", label: "Supply" },
+    { key: "copy", label: "Copy" },
+    { key: "design", label: "Design" },
+    { key: "video", label: "Video" },
+    { key: "ai_summary", label: "AI Summary" },
+  ]), []);
+  const DEFAULT_VISIBLE = ["account","deal_name","deal_status","customer","internal"];
+  const [visibleCols, setVisibleCols] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem("rgy-visible-cols");
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return DEFAULT_VISIBLE;
+  });
+  useEffect(() => {
+    try { localStorage.setItem("rgy-visible-cols", JSON.stringify(visibleCols)); } catch {}
+  }, [visibleCols]);
+  const isColVisible = (k: string) => visibleCols.includes(k);
+  const toggleCol = (k: string, required?: boolean) => {
+    if (required) return;
+    setVisibleCols(prev => prev.includes(k) ? prev.filter(c => c !== k) : [...prev, k]);
+  };
   const resizingRef = useRef<{ key: string; startX: number; startW: number; latest: number } | null>(null);
   const rafRef = useRef<number | null>(null);
   // Smooth column resize: throttle setState via requestAnimationFrame so we
