@@ -23,7 +23,7 @@ import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ColHeader } from "@/components/table/ColHeader";
-import { useAppUsers, useVsdUsers, nameKey } from "@/hooks/useAppUsers";
+import { useAppUsers, useVsdUsers, useVsdHierarchy, nameKey } from "@/hooks/useAppUsers";
 
 type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
@@ -528,11 +528,11 @@ function RGYIssueFormDialog({
 export default function RGYHealth() {
   const { users: appUsers, isRegisteredName } = useAppUsers();
   const { vsdUsers, isVsdName, canonVsd } = useVsdUsers();
+  const { vsdForDeal } = useVsdHierarchy();
   // Built dynamically from registered users + which VSDs actually appear on deals.
   const VSD_FILTERS = useMemo(() => {
     const items: { key: string; label: string }[] = [{ key: "All", label: "All" }];
     vsdUsers.forEach((u) => items.push({ key: u.displayName, label: u.displayName }));
-    items.push({ key: "Other", label: "Other" });
     items.push({ key: "Unassigned", label: "Unassigned" });
     return items;
   }, [vsdUsers]);
