@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import type { Deal, Person, StaffingAssignment, RevenueCapacityTarget } from "@/data/staffingData";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const ACTIVE_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
 
@@ -221,8 +220,17 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
     toast.success("Allocation updated");
   };
 
+  // Color dot per department group (matches screenshot styling)
+  const DEPT_DOT: Record<string, string> = {
+    "Leadership": "bg-primary",
+    "Delivery Ops and CS": "bg-primary",
+    "Capability - SEO": "bg-info",
+    "Capability - Content": "bg-warning",
+    "Capability - Creatives": "bg-positive",
+  };
+
   // Render person + descendants — but only emit those that pass filters
-  const renderPerson = (p: Person, depth: number, visibleSet: Set<string>): React.ReactNode => {
+  const renderPerson = (p: Person, depth: number, visibleSet: Set<string>, rowIdx: { i: number }): React.ReactNode => {
     if (!visibleSet.has(p.id)) return null;
     const u = personUtil[p.id];
     const totalPct = u?.totalPct || 0;
@@ -235,23 +243,24 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
     const revPct = target > 0 ? Math.round((u?.rev || 0) / target * 100) : 0;
     const isExp = expandedPerson.has(p.id);
     const kids = (childrenMap[p.id] || []).filter(k => visibleSet.has(k.id));
+    const zebra = rowIdx.i++ % 2 === 1 ? "bg-secondary/20" : "bg-card";
 
     return (
       <React.Fragment key={p.id}>
-        <tr className="border-b border-border/30 hover:bg-secondary/20 cursor-pointer transition-colors" onClick={() => togglePerson(p.id)}>
-          <td className="py-2 px-3" style={{ paddingLeft: `${12 + depth * 20}px` }}>
+        <tr className={cn("border-b border-border/40 hover:bg-secondary/40 cursor-pointer transition-colors", zebra)} onClick={() => togglePerson(p.id)}>
+          <td className="py-2.5 px-3" style={{ paddingLeft: `${12 + depth * 28}px` }}>
             <div className="flex items-center gap-1.5">
               {(deals.length > 0 || kids.length > 0)
-                ? (isExp ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />)
+                ? (isExp ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/60" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60" />)
                 : <span className="w-3.5" />}
-              <span className={cn("text-xs font-medium",
+              <span className={cn("text-sm",
                 p.tbh ? "italic text-muted-foreground" : p.leaving ? "text-destructive line-through" : "text-foreground"
               )}>
                 {p.name}{p.tbh && " (TBH)"}
               </span>
             </div>
           </td>
-          <td className="py-2 px-3 text-xs text-muted-foreground">{p.designation || p.roleTitle}</td>
+          <td className="py-2.5 px-3 text-sm text-muted-foreground">{p.designation || p.roleTitle}</td>
           <td className="py-2 px-3 text-right font-mono tabular-nums text-xs">{activeCount}</td>
           <td className="py-2 px-3 text-right font-mono tabular-nums text-xs text-foreground">{fmtCurrency(u?.mrr)}</td>
           <td className="py-2 px-3 text-right font-mono tabular-nums text-xs text-foreground">{fmtCurrency(u?.rev)}</td>
@@ -337,46 +346,13 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
           </tr>
         )}
 
-        {isExp && kids.map(k => renderPerson(k, depth + 1, visibleSet))}
+        {isExp && kids.map(k => renderPerson(k, depth + 1, visibleSet, rowIdx))}
       </React.Fragment>
     );
   };
 
   return (
     <div className="animate-fade-in space-y-4">
-      {/* Capacity summary row (red/amber/green/blue counts with tooltips) */}
-      <TooltipProvider delayDuration={200}>
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground mr-2">
-            Capacity snapshot
-          </span>
-          {(["overloaded","nearFull","healthy","underUtil"] as Bucket[]).map(b => {
-            const cfg = BUCKET_CONFIG[b];
-            const tip: Record<Bucket, string> = {
-              overloaded:   "Red — Overloaded (>100% allocation)",
-              nearFull:     "Amber — Near Full (85–100%)",
-              healthy:      "Green — Healthy (30–85%)",
-              underUtil:    "Blue — Under-utilised (<30%)",
-            };
-            return (
-              <Tooltip key={b}>
-                <TooltipTrigger asChild>
-                  <div className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1">
-                    <span className={cn("h-2 w-2 rounded-full", cfg.dot)} />
-                    <span className="text-[11px] text-muted-foreground">{cfg.label}</span>
-                    <span className="text-xs font-mono text-foreground tabular-nums">{bucketCounts[b]}</span>
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">{tip[b]}</TooltipContent>
-              </Tooltip>
-            );
-          })}
-          <span className="ml-auto text-[11px] text-muted-foreground">
-            Total active: <span className="font-mono text-foreground">{visiblePeople.length}</span>
-          </span>
-        </div>
-      </TooltipProvider>
-
       {/* Filter chips + search + collapse */}
       <div className="flex flex-wrap items-center gap-3">
         {(Object.keys(BUCKET_CONFIG) as Bucket[]).map(b => {
@@ -436,20 +412,12 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
             <div key={dept} className="bg-card border border-border rounded-xl overflow-hidden">
               <button
                 onClick={() => toggleDept(dept)}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-secondary/30 transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-3 bg-secondary/40 hover:bg-secondary/60 transition-colors"
               >
-                <span className="h-2 w-2 rounded-full bg-primary" />
-                <span className="text-sm font-semibold text-foreground">{dept}</span>
+                <span className={cn("h-2.5 w-2.5 rounded-full", DEPT_DOT[dept] || "bg-primary")} />
+                <span className="text-sm font-medium text-foreground">{dept}</span>
                 <span className="ml-auto flex items-center gap-3">
                   <span className="text-caption text-muted-foreground">{active.length} active</span>
-                  <div className="flex h-2 w-32 overflow-hidden rounded-full bg-secondary">
-                    {(["overloaded","nearFull","healthy","underUtil"] as Bucket[]).map(b => (
-                      <div key={b} className={BUCKET_CONFIG[b].bar} style={{ width: `${(dist[b] / total) * 100}%` }} />
-                    ))}
-                  </div>
-                  <span className={cn("text-caption font-mono tabular-nums w-10 text-right",
-                    avg > 100 ? "text-destructive" : avg >= 85 ? "text-warning" : "text-positive"
-                  )}>{avg}%</span>
                   {isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                 </span>
               </button>
@@ -470,7 +438,7 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
                       </tr>
                     </thead>
                     <tbody>
-                      {roots.map(p => renderPerson(p, 0, visibleSet))}
+                      {(() => { const rowIdx = { i: 0 }; return roots.map(p => renderPerson(p, 0, visibleSet, rowIdx)); })()}
                     </tbody>
                   </table>
                 </div>
