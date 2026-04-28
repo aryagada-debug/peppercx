@@ -57,22 +57,16 @@ const dotColor = (v: string) =>
 
 export function EditableRGY({ dimensions, onSave }: Props) {
   const [local, setLocal] = useState<RGYDimension[]>(dimensions);
-  const [dirty, setDirty] = useState(false);
 
-  // Sync local state when parent dimensions change (e.g. after revert)
+  // Sync local state when parent dimensions change
   useEffect(() => {
     setLocal(dimensions);
-    setDirty(false);
   }, [dimensions.map(d => d.value).join(",")]);
 
   const update = (key: string, value: string) => {
-    setLocal(prev => prev.map(d => (d.key === key ? { ...d, value } : d)));
-    setDirty(true);
-  };
-
-  const handleSave = () => {
-    onSave(local);
-    setDirty(false);
+    const next = local.map(d => (d.key === key ? { ...d, value } : d));
+    setLocal(next);
+    onSave(next); // immediate save — parent decides whether to open issue form
   };
 
   return (
@@ -99,14 +93,6 @@ export function EditableRGY({ dimensions, onSave }: Props) {
                 </span>
               ))}
             </div>
-            {dirty && (
-              <button
-                onClick={handleSave}
-                className="px-3 py-1 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 transition-opacity"
-              >
-                Save
-              </button>
-            )}
           </div>
         </div>
 

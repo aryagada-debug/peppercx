@@ -1,115 +1,74 @@
-# Plan
+## 1. Weekly Capacity Tracker — input as hours
 
-Four scoped changes across UI, data model, and a scheduled backend job.
+`src/components/deals/WeeklyStaffingGrid.tsx`
 
----
+- Replace the % allocation cell with **hours per week** input (0–60h, default cap 40h).
+- Internally still write `allocation_pct = round(hours / 40 * 100)` to `staffing_weekly_allocations.allocation_pct` so DB schema and downstream logic stay intact (no migration needed).
+- Display value: show "Xh" (no %). Color coding: 0 muted, 1–19h normal, 20–39h amber, ≥40h red (over-allocated).
+- Update header sub-text to: *"Log how many hours each person actually spent on this deal that week."*
+- Footer "Total %" row → "Total Hrs" row (sum hours per week).
+- Existing right-side "Total Hrs" column stays (already in hours).
 
-## 1. Currency toggle (₹/$) — make active state more prominent
+## 2. RGY editor — auto-open issue form on each non-green change
 
-**File:** `src/components/ui/currency-input.tsx`
+Currently `EditableRGY` batches changes locally and only fires `onSave` when the user clicks the Save button — so toggling several dimensions opens the issue popup just once at the end.
 
-The current toggle uses subtle styling (light gray background, small chevron buttons). Refactor the `ToggleBtn` so the **active** option is visually unmistakable:
+Change to **immediate-save model**:
 
-- Active button: solid **primary** color background (`bg-primary text-primary-foreground`), bold weight, slightly larger.
-- Inactive button: transparent with muted text and clear hover state.
-- Increase button width from `w-6` → `w-7`, font size `text-[11px]` → `text-xs font-bold`.
-- Add a subtle ring/border around the toggle group so it reads as a control, not decoration.
-- Keep the same interaction logic.
+`src/components/deals/EditableRGY.tsx`
+- Remove the local `dirty` state and the "Save" button.
+- On every button click, call `onSave(updatedDimensions)` immediately for that single change.
+- Keep the local mirror only for instant visual feedback.
 
-This affects every place CurrencyInput is used (Deal Form Wizard MRR, total deal value, retainer/non-retainer values, SoW revenue share).
+`src/pages/DealDetail.tsx` (`handleRGYSave`)
+- Already opens `RGYIssueForm` whenever a Y/R is present. Adjust so each individual dimension flip that introduces a new Y/R re-opens the form (reset `showIssueForm` to true on each non-green save, even if the dialog was just closed).
+- Track `lastIssuedDimensionKey` so the popup focuses on the dimension just changed.
 
----
+`src/pages/RGYHealth.tsx` (inline RGY editing in the table)
+- Same pattern: each cell click immediately persists and triggers `RGYIssueFormDialog` for that dimension if value is Y/R. Re-trigger on subsequent flips.
 
-## 2. Targets tab — add Deal Name & Client Name columns
+Net behaviour: click Customer→Red → popup opens for Customer. Close/save it. Click Internal→Yellow → popup opens again for Internal. Etc.
 
-**File:** `src/components/targets/DealTargetsTable.tsx` (used in Targets page "By Deal" tab)
+## 3. RGY Insights — Aging + consolidated chart
 
-Currently shows a single "Deal" column that contains both name and account stacked. Split into two dedicated columns:
+`src/components/rgy/RGYInsightsTab.tsx`
 
-- **Deal Name** (sticky left) — links to `/deals/:id`
-- **Client Name** — separate column, plain text, truncated with tooltip on overflow
+**Aging sort & highlighting**
+- Compute `daysSince(issue_date || created_at)` (already exists).
+- Define threshold `RED_AGING_THRESHOLD = 10` days (configurable constant; reuse existing 10/15 flag logic).
+- In **Active Issues** list and the **Aging Issues** card, sort: Red issues > threshold first (descending by days), then other Red, then Yellow.
+- Add an "Aged Red" badge on rows where `worst === "R" && days > 10`, with a stronger red background pill.
 
-Update the `<thead>` to add a second sticky header cell, adjust the colSpan/structure of the metric header rows to account for one extra leading column, and split the existing combined `<td>` into two cells. Drop the inline `<div>` for account since it now has its own column.
+**Replace 3 charts with 1 combined column chart**
+Remove:
+- "Red Count per Team" (BarChart)
+- "Yellow Count per Team" (BarChart)
+- "Service Line Health" (stacked BarChart)
 
----
+Add a single **"Team Health Breakdown"** chart:
+- Vertical (column) BarChart, x-axis = all 8 dimensions (Customer, Internal, Content, SEO, Supply, Copy, Design, Video).
+- Three stacked bars per team: Red / Yellow / Green counts (use existing `COLORS`).
+- Click a Red or Yellow segment → existing `setTeamDrill({ team, severity })` flow (preserved).
+- Tooltip shows R/Y/G counts; legend at top.
 
-## 3. Staffing — per-assignment Start/End dates + reminders
+Data shape:
+```ts
+const teamHealth = DIMENSIONS.map(dim => ({
+  team: dim.label,
+  key: dim.key,
+  Red: filteredDeals.filter(d => d[dim.key] === "R").length,
+  Yellow: filteredDeals.filter(d => d[dim.key] === "Y").length,
+  Green: filteredDeals.filter(d => d[dim.key] === "G").length,
+}));
+```
 
-### 3a. Schema change (migration)
+Heatmap, VSD comparison, KPI row, donut: unchanged.
 
-Add to `staffing_assignments`:
+## Files to edit
+- `src/components/deals/WeeklyStaffingGrid.tsx`
+- `src/components/deals/EditableRGY.tsx`
+- `src/pages/DealDetail.tsx` (RGY save flow, both Overview + RGY Health tab usages)
+- `src/pages/RGYHealth.tsx` (inline cell save → re-open dialog per change)
+- `src/components/rgy/RGYInsightsTab.tsx`
 
-- `start_date date` (nullable)
-- `end_date date` (nullable)
-
-### 3b. UI
-
-**Files:** `src/hooks/useStaffingData.ts`, `src/components/staffing/AddStaffingMemberDialog.tsx`, `src/components/staffing/MatrixTab.tsx`, `src/components/staffing/DealLevelView.tsx`
-
-- Extend `Assignment` type with `startDate?`, `endDate?`.
-- In **Add Staffing Member** dialog (step 3), add two date pickers (default: deal start/end) next to allocation %.
-- In **Matrix tab** assignment row, render two compact date inputs alongside the allocation slider.
-- In **Deal-Level view**, show start–end as a small caption under the person name.
-- Persist via existing `upsertAssignmentByRole` / `updateAssignment` paths.
-
-### 3c. Reminder edge function + cron
-
-**New file:** `supabase/functions/staffing-capacity-reminders/index.ts`
-
-Single function that handles three reminder types based on a `mode` query param (`weekly` | `start` | `end`):
-
-1. **Weekly capacity reminder** (`mode=weekly`, every Monday 9 AM IST): send a Slack DM to every active person in `staffing_people` (via `slack_user_id`) reminding them to fill in/confirm capacity for the current week. Skip people with no `slack_user_id`.
-2. **Start-date nudge** (`mode=start`, daily 9 AM IST): query `staffing_assignments` where `start_date = today`, DM that person + the deal's VSD/BOPM with deal context.
-3. **End-date nudge** (`mode=end`, daily 9 AM IST): query `staffing_assignments` where `end_date = today` (or yesterday), DM the same set noting the assignment has ended and to update allocation.
-
-Use existing `SLACK_BOT_TOKEN` secret and the same DM pattern as `mbr-reminders`. Add `[functions.staffing-capacity-reminders] verify_jwt = false` to `supabase/config.toml`.
-
-**Cron** (insert via SQL using insert tool, since it contains URL/anon key):
-
-- `0 3 * * 1` (Mon 09:00 IST = 03:30 UTC; use `30 3 * * 1`) → `?mode=weekly`
-- `30 3 * * *` daily → `?mode=start`
-- `30 3 * * *` daily → `?mode=end`
-
-Log each send into a new `staffing_reminder_log` table (id, person_id, deal_id, assignment_id, reminder_type, sent_at) to prevent duplicates within the same day.
-
----
-
-## 4. Financial terminology — standardize to Contraction / Delivery / Invoicing / Receivables
-
-**Files:** `src/components/deals/FinancialsTab.tsx` (primary), plus any KPI labels in `src/pages/DealDetail.tsx`, `src/pages/Revenue.tsx`, `src/pages/Home.tsx` referencing "Consumption" or "Recognition".
-
-- Replace every user-visible label "Consumption" → "Contraction" 
-- Replace "Total MIS recognition" → "Total Contraction".
-- Section headings "Consumption Bucket" → "Contraction Bucket"; "Monthly consumption vs target" → "Monthly contraction vs target".
-- Editable monthly table column header "Consumption" → "Contraction".
-- Add-row form label "Consumption (₹)" → "Contraction (₹)".
-- Pipeline card `title="Consumption"` → `title="Contraction"`.
-- **Keep underlying field names** (`consumption`, `deal_financials.consumption`) unchanged — DB column rename is risky and unnecessary; this is a display-layer rename only.
-- Verify Delivery / Invoicing / Receivables wording is already consistent (it is in csvTargets METRIC_LABELS).
-
----
-
-## Technical notes
-
-- No DB rename of `deal_financials.consumption` — display-only relabel keeps migration scope small and safe.
-- Reminder function will be idempotent per (person, deal, type, date) via the new log table.
-- Dates on assignments are optional; existing rows continue to work unchanged.
-- All Slack sends use the existing `slack-send` patterns, no new secrets needed.
-
-## Files touched
-
-Created:
-
-- `supabase/functions/staffing-capacity-reminders/index.ts`
-- migrations: add columns to `staffing_assignments`, create `staffing_reminder_log`, register cron jobs.
-
-Edited:
-
-- `src/components/ui/currency-input.tsx`
-- `src/components/targets/DealTargetsTable.tsx`
-- `src/hooks/useStaffingData.ts`
-- `src/components/staffing/AddStaffingMemberDialog.tsx`
-- `src/components/staffing/MatrixTab.tsx`
-- `src/components/staffing/DealLevelView.tsx`
-- `src/components/deals/FinancialsTab.tsx`
-- `supabase/config.toml`
+No DB migrations required.
