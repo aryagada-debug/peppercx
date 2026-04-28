@@ -86,6 +86,14 @@ export default function Clients() {
   const { deals: allDeals, people, assignments, loading: staffLoading, refresh: refreshStaffing, updateDeal, addAssignment, updateAssignment } = useStaffingData();
   const { clients: allClients, loading: clientsLoading, addClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
   const access = useDealAccess();
+  const { users: appUsers, isRegisteredName } = useAppUsers();
+  const VSD_FILTERS = useMemo(() => {
+    const items: { key: string; label: string }[] = [{ key: "All", label: "All" }];
+    appUsers.forEach((u) => items.push({ key: u.displayName, label: u.displayName }));
+    items.push({ key: "Other", label: "Other" });
+    items.push({ key: "Unassigned", label: "Unassigned" });
+    return items;
+  }, [appUsers]);
   // Scope deals & clients to what this user is allowed to see.
   const deals = useMemo(
     () => (access.isAdmin ? allDeals : allDeals.filter(d => access.canViewDeal(d.id))),
@@ -261,7 +269,7 @@ export default function Clients() {
     } else if (activeVsd === "Other") {
       d = d.filter(deal => {
         const v = (deal.vsd || "").trim();
-        return v && !UNASSIGNED_VSD_VALUES.has(v) && !NAMED_VSDS.has(v);
+        return !!v && !UNASSIGNED_VSD_VALUES.has(v) && !isRegisteredName(v);
       });
     } else if (activeVsd !== "All") {
       d = d.filter(deal => (deal.vsd || "").trim() === activeVsd);
