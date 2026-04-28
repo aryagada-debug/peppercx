@@ -696,57 +696,13 @@ export default function HomePage() {
           </Card>
 
           <Card className="col-span-12 lg:col-span-6 rounded-xl">
-            <CardHeader className="pb-3 flex-row items-center justify-between space-y-0">
+            <CardHeader className="pb-3">
               <CardTitle className="text-[15px] font-bold flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-primary" /> Smart nudges
-                <Badge variant="secondary" className="ml-1 text-[10px]">{nudges.length}</Badge>
+                <ListTodo className="h-4 w-4 text-primary" /> Quick stats
               </CardTitle>
-              <Button variant="ghost" size="sm" onClick={refreshNudges} disabled={loadingNudges} className="h-7 w-7 p-0">
-                <RefreshCw className={cn("h-3.5 w-3.5", loadingNudges && "animate-spin")} />
-              </Button>
             </CardHeader>
-            <CardContent className="space-y-2">
-              {loadingNudges ? <SkeletonRows /> : nudges.length === 0 ? (
-                <div className="text-center py-6">
-                  <Sparkles className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
-                  <p className="text-xs text-muted-foreground">No nudges right now. Click refresh to generate.</p>
-                </div>
-              ) : nudges.slice(0, 5).map(n => (
-                <div key={n.id} className="rounded-[10px] border border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10 p-3">
-                  <div className="flex gap-2">
-                    <div className="h-7 w-7 rounded bg-card border border-border flex items-center justify-center shrink-0">
-                      {n.type === "stale_deal" ? <Clock3 className="h-3.5 w-3.5 text-primary" />
-                        : n.type === "renewal_risk" ? <AlertCircle className="h-3.5 w-3.5 text-warning" />
-                        : <Sparkles className="h-3.5 w-3.5 text-primary" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[12.5px] leading-snug text-foreground">{n.text}</p>
-                      {!isReadOnly && (
-                        <div className="flex items-center gap-2 mt-2">
-                          {n.primary_action_href && (
-                            <Button size="sm" className="h-6 px-2 text-[11px] font-semibold" onClick={() => navigate(n.primary_action_href)}>
-                              {n.primary_action_label || "Open"}
-                            </Button>
-                          )}
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px] text-muted-foreground">Snooze</Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-40 p-1" align="start">
-                              {[1, 3, 7].map(d => (
-                                <button key={d} onClick={() => snoozeNudge(n.id, d)} className="w-full text-left px-2 py-1.5 text-xs hover:bg-secondary rounded">
-                                  {d} day{d > 1 ? "s" : ""}
-                                </button>
-                              ))}
-                            </PopoverContent>
-                          </Popover>
-                          <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px] text-muted-foreground" onClick={() => dismissNudge(n.id)}>Dismiss</Button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
+            <CardContent>
+              <p className="text-xs text-muted-foreground">See your assigned deals at the bottom of this page.</p>
             </CardContent>
           </Card>
         </div>
@@ -848,10 +804,6 @@ export default function HomePage() {
                     <Calendar mode="single" selected={newTodoDue} onSelect={setNewTodoDue} initialFocus />
                   </PopoverContent>
                 </Popover>
-                <Select value={newTodoPriority} onValueChange={setNewTodoPriority}>
-                  <SelectTrigger className="h-9 w-[100px]"><SelectValue /></SelectTrigger>
-                  <SelectContent>{PRIORITIES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
-                </Select>
                 <Button size="sm" onClick={addTodo} disabled={!newTodo.trim()}><Plus className="h-3.5 w-3.5" /></Button>
               </div>
               <div className="space-y-1 max-h-[280px] overflow-y-auto">
@@ -860,18 +812,12 @@ export default function HomePage() {
                 ) : todos.map(t => (
                   <div key={t.id} className={cn("group flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-secondary/40 transition-colors", t.done && "opacity-60")}>
                     <Checkbox checked={t.done} onCheckedChange={() => toggleTodo(t)} />
-                    <span className={cn("flex-1 text-xs", t.done && "line-through text-muted-foreground")}>{t.title}</span>
+                    <span className={cn("flex-1 text-sm leading-snug", t.done && "line-through text-muted-foreground")}>{t.title}</span>
                     {t.due_date && (
                       <span className="text-[10px] font-mono text-muted-foreground whitespace-nowrap">
                         {format(parseISO(t.due_date), "dd MMM")}
                       </span>
                     )}
-                    <Select value={t.priority} onValueChange={(v) => updateTodoPriority(t.id, v)}>
-                      <SelectTrigger className={cn("h-6 px-1.5 text-[10px] border-0 rounded", PRIORITY_TONE[t.priority])}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>{PRIORITIES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
-                    </Select>
                     <button type="button" onClick={() => deleteTodo(t.id)}
                       className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
                       aria-label="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
