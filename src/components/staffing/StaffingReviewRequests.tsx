@@ -19,7 +19,7 @@ interface ReviewReq {
 
 export function StaffingReviewRequestsButton() {
   const { role } = useUserRole();
-  const isAdminLike = role === "admin" || role === "moderator";
+  const isAdminLike = role === "admin" || role === "member";
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<ReviewReq[]>([]);
   const [dealNames, setDealNames] = useState<Record<string, string>>({});
