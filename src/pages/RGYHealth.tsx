@@ -998,16 +998,13 @@ export default function RGYHealth() {
     // VSD grouping
     const map = new Map<string, RGYSummaryRow>();
     for (const deal of filteredDeals) {
-      const raw = (deal.vsd || "").trim();
-      let bucket: string;
-      if (!raw || UNASSIGNED_VSD_VALUES.has(raw)) bucket = "Unassigned";
-        else if (isVsdName(raw)) bucket = canonVsd(raw) || "Other";
-      else bucket = "Other";
+      const v = vsdForDeal(deal as any);
+      const bucket = v || "Unassigned";
       if (!map.has(bucket)) map.set(bucket, { name: bucket, total: 0, red: 0, yellow: 0, green: 0, pending: 0 });
       tally(map.get(bucket)!, deal);
     }
     return Array.from(map.values()).filter(r => r.total > 0).sort((a, b) => b.total - a.total);
-  }, [filteredDeals, showBopmRgyInsights]);
+  }, [filteredDeals, showBopmRgyInsights, vsdForDeal]);
 
   const selectedDeal = useMemo(
     () => deals.find(d => d.id === selectedDealId) ?? null,
