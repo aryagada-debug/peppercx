@@ -1079,90 +1079,71 @@ export default function RGYHealth() {
           <KpiTile label="Score" value={String(kpis.score)} suffix="/ 100" tone="primary" icon={Activity} />
         </div>
 
-        {/* Filters */}
-        <div className="flex items-center gap-4 mb-3 flex-wrap">
-          <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
-            {VSD_FILTERS.map(v => (
-              <button key={v.key} onClick={() => setActiveVsd(v.key)} className={cn(
-                "px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
-                activeVsd === v.key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-              )}>{v.label}</button>
-            ))}
+        {/* Tabs: Health Board / Table / Insights */}
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="mb-4">
+          <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+            <TabsList>
+              <TabsTrigger value="health">Health Board</TabsTrigger>
+              <TabsTrigger value="table">Table</TabsTrigger>
+              <TabsTrigger value="insights">Insights</TabsTrigger>
+            </TabsList>
+            {activeTab === "table" && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
+                    <Settings2 className="h-3.5 w-3.5" /> Columns
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-56 p-2">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground px-2 pb-1">Show columns</p>
+                  <div className="space-y-0.5 max-h-80 overflow-y-auto">
+                    {ALL_COLS.map(c => (
+                      <label
+                        key={c.key}
+                        className={cn(
+                          "flex items-center gap-2 px-2 py-1.5 rounded text-xs",
+                          c.required ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:bg-secondary"
+                        )}
+                      >
+                        <Checkbox
+                          checked={isColVisible(c.key) || !!c.required}
+                          disabled={c.required}
+                          onCheckedChange={() => toggleCol(c.key, c.required)}
+                        />
+                        <span className="flex-1">{c.label}</span>
+                        {c.required && <span className="text-[9px] text-muted-foreground">locked</span>}
+                      </label>
+                    ))}
+                  </div>
+                  <div className="border-t border-border mt-1 pt-1">
+                    <button
+                      onClick={() => setVisibleCols(DEFAULT_VISIBLE)}
+                      className="w-full text-left text-[11px] px-2 py-1 rounded hover:bg-secondary text-muted-foreground"
+                    >
+                      Reset to defaults
+                    </button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
           </div>
 
-          {/* RGY Status Filter */}
-          <div className="flex gap-1 bg-secondary rounded-lg p-1">
-            {(["All", "Red", "Yellow", "Green"] as const).map(f => (
-              <button key={f} onClick={() => setRgyFilter(f)} className={cn(
-                "px-2.5 py-1.5 rounded-md text-caption font-medium whitespace-nowrap transition-colors",
-                rgyFilter === f ? (
-                  f === "Red" ? "bg-red-500 text-white shadow-sm" :
-                  f === "Yellow" ? "bg-amber-500 text-white shadow-sm" :
-                  f === "Green" ? "bg-emerald-500 text-white shadow-sm" :
-                  "bg-primary text-primary-foreground shadow-sm"
-                ) : "text-muted-foreground hover:text-foreground"
-              )}>{f}</button>
-            ))}
-          </div>
-
-          <div className="relative flex-1 max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <input type="text" placeholder="Search clients or deals..." value={search} onChange={e => setSearch(e.target.value)}
-              className="w-full h-9 pl-9 pr-3 rounded-lg bg-card border border-border text-ui text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all" />
-          </div>
-
-          <label className="flex items-center gap-2 text-ui text-muted-foreground cursor-pointer">
-            <input type="checkbox" checked={showClosed} onChange={e => setShowClosed(e.target.checked)} className="rounded border-border" />
-            Show closed/completed
-          </label>
-
-          {Object.keys(colFilters).length > 0 && (
-            <Button variant="ghost" size="sm" onClick={() => setColFilters({})} className="text-xs gap-1 text-muted-foreground">
-              <X className="h-3.5 w-3.5" /> Clear filters ({Object.keys(colFilters).length})
-            </Button>
-          )}
-
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 ml-auto">
-                <Settings2 className="h-3.5 w-3.5" /> Columns
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-56 p-2">
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground px-2 pb-1">Show columns</p>
-              <div className="space-y-0.5 max-h-80 overflow-y-auto">
-                {ALL_COLS.map(c => (
-                  <label
-                    key={c.key}
-                    className={cn(
-                      "flex items-center gap-2 px-2 py-1.5 rounded text-xs",
-                      c.required ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:bg-secondary"
-                    )}
-                  >
-                    <Checkbox
-                      checked={isColVisible(c.key) || !!c.required}
-                      disabled={c.required}
-                      onCheckedChange={() => toggleCol(c.key, c.required)}
-                    />
-                    <span className="flex-1">{c.label}</span>
-                    {c.required && <span className="text-[9px] text-muted-foreground">locked</span>}
-                  </label>
+          <TabsContent value="health" className="mt-0">
+            {/* VSD filter only */}
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">VSD:</span>
+              <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
+                {VSD_FILTERS.map(v => (
+                  <button key={v.key} onClick={() => setActiveVsd(v.key)} className={cn(
+                    "px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
+                    activeVsd === v.key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  )}>{v.label}</button>
                 ))}
               </div>
-              <div className="border-t border-border mt-1 pt-1">
-                <button
-                  onClick={() => setVisibleCols(DEFAULT_VISIBLE)}
-                  className="w-full text-left text-[11px] px-2 py-1 rounded hover:bg-secondary text-muted-foreground"
-                >
-                  Reset to defaults
-                </button>
-              </div>
-            </PopoverContent>
-          </Popover>
-        </div>
+            </div>
 
-        {/* RGY Summary — VSDs (All) or BOPMs within selected pod */}
-        <div className="mb-4">
+            {/* RGY Summary — VSDs (All) or BOPMs within selected pod */}
+            <div className="mb-4">
           <h2 className="text-sm font-semibold text-foreground mb-2">
             {showBopmRgyInsights ? `BOPM RGY Summary — ${activeVsd}` : "VSD RGY Summary"}
           </h2>
