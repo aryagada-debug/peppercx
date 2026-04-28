@@ -745,6 +745,51 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry, deleteMBREntry, 
 
   return (
     <div className="animate-fade-in space-y-4">
+      {/* This-month status banner with one-click record CTA */}
+      {(() => {
+        const thisMonthEntry = sorted.find(e => e.weekStart.startsWith(currentMonthPrefix));
+        const isDone = thisMonthEntry?.status === "Done";
+        return (
+          <div className={cn(
+            "flex items-center justify-between gap-3 rounded-lg border px-4 py-3",
+            isDone
+              ? "border-positive/40 bg-positive/10"
+              : "border-warning/40 bg-warning/10"
+          )}>
+            <div className="flex items-center gap-2">
+              <span className={cn(
+                "inline-flex h-6 px-2 items-center rounded-full text-xs font-semibold",
+                isDone ? "bg-positive/20 text-positive" : "bg-warning/20 text-warning"
+              )}>
+                {isDone ? "Done" : "Pending"}
+              </span>
+              <span className="text-sm text-foreground">
+                MBR for <span className="font-semibold">{currentMonthLabel}</span>
+                {isDone && thisMonthEntry?.scheduledDate
+                  ? ` — held on ${thisMonthEntry.scheduledDate}`
+                  : ""}
+              </span>
+            </div>
+            <Button
+              size="sm"
+              variant={isDone ? "outline" : "default"}
+              onClick={() => {
+                if (isDone && thisMonthEntry) {
+                  setEditingEntry(thisMonthEntry);
+                  setSelectedWeek(thisMonthEntry.weekStart);
+                } else {
+                  setEditingEntry(null);
+                }
+                setDrawerOpen(true);
+              }}
+              className="text-xs"
+            >
+              {isDone ? "View / Edit MBR" : `Record MBR for ${currentMonthLabel}`}
+            </Button>
+          </div>
+        );
+      })()}
+
       {/* AI 2-line summary of latest MBR notes */}
       <LatestMBRSummaryCard entries={sorted} />
 
