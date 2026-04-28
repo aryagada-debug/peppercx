@@ -2,7 +2,17 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { cn } from "@/lib/utils";
 import { useState, useMemo } from "react";
 import { useStaffingData } from "@/hooks/useStaffingData";
-import { Loader2, Pencil, Check, X, Search } from "lucide-react";
+import { Loader2, Pencil, Check, X, Search, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { DEPARTMENTS } from "@/data/staffingData";
@@ -101,9 +111,10 @@ function InlineEdit({
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>("People & Reporting");
-  const { people, revenueTargets, loading, updatePerson, setRevenueTargets } = useStaffingData();
+  const { people, revenueTargets, loading, updatePerson, deletePerson, setRevenueTargets } = useStaffingData();
   const { isActuallyAdmin } = useUserRole();
   const [search, setSearch] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const [draggingPersonId, setDraggingPersonId] = useState<string | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
@@ -127,6 +138,18 @@ export default function SettingsPage() {
     }
     updatePerson(personId, { reportingManager: newManager });
     toast.success("Reporting manager updated");
+  };
+
+  const handleDeletePerson = async () => {
+    if (!confirmDelete) return;
+    try {
+      await deletePerson(confirmDelete.id);
+      toast.success(`${confirmDelete.name} removed`);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to delete");
+    } finally {
+      setConfirmDelete(null);
+    }
   };
 
   const handleRevTargetChange = (dept: string, desg: string, newVal: number) => {
