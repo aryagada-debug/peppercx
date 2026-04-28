@@ -1073,10 +1073,10 @@ export default function RGYHealth() {
 
         {/* KPI Strip */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-          <MetricCard label="Red Flags" value={String(kpis.red)} />
-          <MetricCard label="Yellow Warnings" value={String(kpis.yellow)} />
-          <MetricCard label="Green (Healthy)" value={String(kpis.green)} />
-          <MetricCard label="Portfolio Score" value={String(kpis.score)} suffix="/ 100" />
+          <KpiTile label="Red" value={String(kpis.red)} tone="destructive" icon={AlertTriangle} />
+          <KpiTile label="Yellow" value={String(kpis.yellow)} tone="warning" icon={AlertCircle} />
+          <KpiTile label="Green" value={String(kpis.green)} tone="positive" icon={CheckCircle2} />
+          <KpiTile label="Score" value={String(kpis.score)} suffix="/ 100" tone="primary" icon={Activity} />
         </div>
 
         {/* Filters */}
