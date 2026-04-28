@@ -1,10 +1,11 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import { formatINR } from "@/lib/csvTargets";
 import { createPortal } from "react-dom";
-import { Search, Users, Building2, Plus, Trash2, ChevronDown, ChevronRight, Check, AlertCircle } from "lucide-react";
+import { Search, Users, Building2, Plus, Trash2, ChevronDown, ChevronRight, Check, AlertCircle, MessageSquareWarning, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Deal, Person, StaffingAssignment } from "@/data/staffingData";
+import { RequestStaffingReviewButton } from "./RequestStaffingReviewButton";
 
 // ── Role catalog ────────────────────────────────────────────────────────────
 const ROLE_COLS: { key: string; label: string; group: string }[] = [
@@ -194,9 +195,10 @@ interface Props {
   onUpdateDeal: (dealId: string, updates: Partial<Deal>) => void;
   onUpsertAssignment: (dealId: string, roleKey: string, personId: string, pct: number, extras?: { startDate?: string; endDate?: string }) => void;
   initialDealId?: string;
+  readOnly?: boolean;
 }
 
-export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAssignment, initialDealId }: Props) {
+export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAssignment, initialDealId, readOnly = false }: Props) {
   const [dealSearch, setDealSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "needs" | "staffed">("all");
   const [vsdFilter, setVsdFilter] = useState<string>("All");
