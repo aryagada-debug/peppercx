@@ -1121,6 +1121,44 @@ export default function RGYHealth() {
               <X className="h-3.5 w-3.5" /> Clear filters ({Object.keys(colFilters).length})
             </Button>
           )}
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 ml-auto">
+                <Settings2 className="h-3.5 w-3.5" /> Columns
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-56 p-2">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground px-2 pb-1">Show columns</p>
+              <div className="space-y-0.5 max-h-80 overflow-y-auto">
+                {ALL_COLS.map(c => (
+                  <label
+                    key={c.key}
+                    className={cn(
+                      "flex items-center gap-2 px-2 py-1.5 rounded text-xs",
+                      c.required ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:bg-secondary"
+                    )}
+                  >
+                    <Checkbox
+                      checked={isColVisible(c.key) || !!c.required}
+                      disabled={c.required}
+                      onCheckedChange={() => toggleCol(c.key, c.required)}
+                    />
+                    <span className="flex-1">{c.label}</span>
+                    {c.required && <span className="text-[9px] text-muted-foreground">locked</span>}
+                  </label>
+                ))}
+              </div>
+              <div className="border-t border-border mt-1 pt-1">
+                <button
+                  onClick={() => setVisibleCols(DEFAULT_VISIBLE)}
+                  className="w-full text-left text-[11px] px-2 py-1 rounded hover:bg-secondary text-muted-foreground"
+                >
+                  Reset to defaults
+                </button>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
 
         {/* RGY Summary — VSDs (All) or BOPMs within selected pod */}
