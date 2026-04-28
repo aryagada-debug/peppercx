@@ -889,11 +889,9 @@ export default function RGYHealth() {
     let d = deals;
     if (!showClosed) d = d.filter(deal => ACTIVE_STATUSES.has(deal.deal_status));
     if (activeVsd === "Unassigned") {
-      d = d.filter(deal => UNASSIGNED_VSD_VALUES.has((deal.vsd || "").trim()));
-    } else if (activeVsd === "Other") {
-      d = d.filter(deal => isOtherVsd(deal.vsd));
+      d = d.filter(deal => vsdForDeal(deal as any) === null);
     } else if (activeVsd !== "All") {
-      d = d.filter(deal => canonVsd(deal.vsd) === activeVsd);
+      d = d.filter(deal => vsdForDeal(deal as any) === activeVsd);
     }
     if (search) {
       const s = search.toLowerCase();
@@ -910,7 +908,7 @@ export default function RGYHealth() {
       });
     }
     return d;
-  }, [deals, activeVsd, search, showClosed, rgyFilter]);
+  }, [deals, activeVsd, search, showClosed, rgyFilter, vsdForDeal]);
 
   // Apply per-column filters + sort to produce flat row list
   const tableRows = useMemo(() => {
