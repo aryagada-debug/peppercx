@@ -923,6 +923,45 @@ export default function RGYHealth() {
     return { red, yellow, green, score, totalDeals: filteredDeals.length };
   }, [filteredDeals]);
 
+  // ── RGY Summary Insights ──
+  // "All" → group by VSD. Specific VSD → group by Sr/Principal BOPM in that pod (with Pod Overall row).
+  type RGYSummaryRow = { name: string; total: number; red: number; yellow: number; green: number; pending: number };
+  const showBopmRgyInsights = activeVsd !== "All" && activeVsd !== "Other" && activeVsd !== "Unassigned";
+
+  const rgySummary = useMemo<RGYSummaryRow[]>(() => {
+    const tally = (row: RGYSummaryRow, deal: DealWithRGY) => {
+      row.total++;
+      const w = getWorstRGY(deal);
+      if (w === "R") row.red++;
+      else if (w === "Y") row.yellow++;
+      else if (w === "G") row.green++;
+      else row.pending++;
+    };
+
+    if (showBopmRgyInsights) {
+      const map = new Map<string, RGYSummaryRow>();
+      const overall: RGYSummaryRow = { name: "Pod Overall", total: 0, red: 0, yellow: 0, green: 0, pending: 0 };
+      for (const deal of filteredDeals) {
+        const owner = (deal.principal_bopm || deal.senior_bopm || "").trim();
+        if (!owner) continue;
+        if (!map.has(owner)) map.set(owner, { name: owner, total: 0, red: 0, yellow: 0, green: 0, pending: 0 });
+        tally(map.get(owner)!, deal);
+        tally(overall, deal);
+      }
+      const rows = Array.from(map.values()).filter(r => r.total > 0).sort((a, b) => b.red - a.red || b.total - a.total);
+      return overall.total > 0 ? [overall, ...rows] : rows;
+    }
+
+    // VSD grouping
+    const map = new Map<string, RGYSummaryRow>();
+    for (const deal of filteredDeals) {
+      const v = (deal.vsd || "").trim() || "Unassigned";
+      if (!map.has(v)) map.set(v, { name: v, total: 0, red: 0, yellow: 0, green: 0, pending: 0 });
+      tally(map.get(v)!, deal);
+    }
+    return Array.from(map.values()).filter(r => r.total > 0).sort((a, b) => b.total - a.total);
+  }, [filteredDeals, showBopmRgyInsights]);
+
   const selectedDeal = deals.find(d => d.id === selectedDealId) ?? null;
 
   if (loading) {
