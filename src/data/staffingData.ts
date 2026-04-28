@@ -66,6 +66,8 @@ export interface StaffingAssignment {
   roleKey: string;
   personId: string;
   allocationPct: number;
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface Deal {
