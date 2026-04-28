@@ -110,6 +110,23 @@ export function UsersTab() {
     const missing = (people || [])
       .filter((p) => !p.email?.trim() || !authEmails.has(p.email.trim().toLowerCase()))
       .map((p) => ({ id: p.id, name: p.name, email: p.email || "" }));
+    // Sort by importance: VSDs/BOPMs that appear on active deals first.
+    const { data: dealRefs } = await supabase
+      .from("staffing_deals")
+      .select("vsd, bopm, senior_bopm, principal_bopm, deal_status")
+      .in("deal_status", ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
+    const usedNames = new Set<string>();
+    (dealRefs || []).forEach((d: any) => {
+      [d.vsd, d.bopm, d.senior_bopm, d.principal_bopm].forEach((n: string) => {
+        if (n && n.trim()) usedNames.add(n.trim().toLowerCase());
+      });
+    });
+    missing.sort((a, b) => {
+      const aUsed = usedNames.has(a.name.trim().toLowerCase()) ? 0 : 1;
+      const bUsed = usedNames.has(b.name.trim().toLowerCase()) ? 0 : 1;
+      if (aUsed !== bUsed) return aUsed - bUsed;
+      return a.name.localeCompare(b.name);
+    });
     setMissingPeople(missing);
     setLoading(false);
   }, []);
@@ -205,6 +222,48 @@ export function UsersTab() {
     setSavingEmail(null);
   };
 
+  // Bulk email helpers
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const guessEmail = (name: string) =>
+    `${name.toLowerCase().replace(/[^a-z\s]/g, "").trim().replace(/\s+/g, ".")}@peppercontent.io`;
+
+  const fillAllGuessed = async () => {
+    const blanks = missingPeople.filter((p) => !p.email.trim());
+    if (blanks.length === 0) return;
+    setBulkSaving(true);
+    let saved = 0;
+    for (const p of blanks) {
+      const guess = guessEmail(p.name);
+      const { error } = await supabase.from("staffing_people").update({ email: guess }).eq("id", p.id);
+      if (!error) saved++;
+    }
+    toast.success(`Added ${saved} guessed emails. Review and edit before provisioning.`);
+    setBulkSaving(false);
+    await load();
+  };
+
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteText, setPasteText] = useState("");
+  const importPasted = async () => {
+    const lines = pasteText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const byName = new Map(missingPeople.map((p) => [p.name.trim().toLowerCase(), p]));
+    let saved = 0;
+    for (const line of lines) {
+      const parts = line.split(/[,\t]/).map((s) => s.trim());
+      if (parts.length < 2) continue;
+      const [name, email] = parts;
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) continue;
+      const match = byName.get(name.toLowerCase());
+      if (!match) continue;
+      const { error } = await supabase.from("staffing_people").update({ email }).eq("id", match.id);
+      if (!error) saved++;
+    }
+    toast.success(`Imported ${saved} emails`);
+    setPasteOpen(false);
+    setPasteText("");
+    await load();
+  };
+
   const openOverrides = async (row: UserRow) => {
     setOverrideUser(row);
     const { data } = await supabase
@@ -294,12 +353,20 @@ export function UsersTab() {
             <div>
               <div className="text-xs font-semibold text-foreground">People needing email</div>
               <div className="text-[11px] text-muted-foreground">
-                Add work emails so they can be provisioned.
+                Add work emails so they can be provisioned. People who appear on active deals are listed first.
               </div>
             </div>
-            <Button size="sm" variant="ghost" className="h-7 text-[11px]" onClick={() => setShowMissing(false)}>
-              Hide
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <Button size="sm" variant="outline" className="h-7 text-[11px]" disabled={bulkSaving} onClick={fillAllGuessed}>
+                {bulkSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : "Auto-fill guesses"}
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-[11px]" onClick={() => setPasteOpen(true)}>
+                Paste CSV
+              </Button>
+              <Button size="sm" variant="ghost" className="h-7 text-[11px]" onClick={() => setShowMissing(false)}>
+                Hide
+              </Button>
+            </div>
           </div>
           <div className="max-h-[300px] overflow-y-auto">
             <table className="w-full text-xs">
@@ -384,6 +451,27 @@ export function UsersTab() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmDelete(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => confirmDelete && deleteUser(confirmDelete)}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={pasteOpen} onOpenChange={setPasteOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Paste name,email pairs</DialogTitle></DialogHeader>
+          <p className="text-xs text-muted-foreground -mt-2">
+            One per line. Format: <code>Full Name, name@peppercontent.io</code> (comma or tab).
+            Names must match exactly.
+          </p>
+          <textarea
+            value={pasteText}
+            onChange={(e) => setPasteText(e.target.value)}
+            rows={10}
+            placeholder={"Neema Jayadas, neema@peppercontent.io\nAamir Khan, aamir@peppercontent.io"}
+            className="w-full text-xs p-2 border border-border rounded-md bg-card font-mono"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPasteOpen(false)}>Cancel</Button>
+            <Button onClick={importPasted} disabled={!pasteText.trim()}>Import</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

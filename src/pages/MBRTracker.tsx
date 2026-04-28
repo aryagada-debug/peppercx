@@ -18,19 +18,9 @@ import { ScheduleOnlyDialog } from "@/components/mbr/ScheduleOnlyDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { ColHeader } from "@/components/table/ColHeader";
 import { CalendarConnectButton } from "@/components/calendar/CalendarConnectButton";
+import { useAppUsers } from "@/hooks/useAppUsers";
 
-const VSD_FILTERS = [
-  { key: "All", label: "All" },
-  { key: "Neema Jayadas", label: "Neema Jayadas" },
-  { key: "Aamir Khan", label: "Aamir Khan" },
-  { key: "Aditya Shaw", label: "Aditya Shaw" },
-  { key: "Sneha Iyer", label: "Sneha Iyer" },
-  { key: "Sumit Shekhawat", label: "Sumit Shekhawat" },
-  { key: "Other", label: "Other" },
-  { key: "Unassigned", label: "Unassigned" },
-] as const;
-type VsdFilterKey = typeof VSD_FILTERS[number]["key"];
-const NAMED_VSDS = new Set(["Neema Jayadas", "Aamir Khan", "Aditya Shaw", "Sneha Iyer", "Sumit Shekhawat"]);
+type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
 
 const ACTIVE_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
@@ -86,6 +76,14 @@ interface MBRDealWithPod extends MBRDeal {
 
 export default function MBRTracker() {
   const { deals, entries, loading, upsertEntry, vsdSummary, totals, entriesByMonth, availableMonths, refresh } = useMBRData();
+  const { users: appUsers, isRegisteredName } = useAppUsers();
+  const VSD_FILTERS = useMemo(() => {
+    const items: { key: string; label: string }[] = [{ key: "All", label: "All" }];
+    appUsers.forEach((u) => items.push({ key: u.displayName, label: u.displayName }));
+    items.push({ key: "Other", label: "Other" });
+    items.push({ key: "Unassigned", label: "Unassigned" });
+    return items;
+  }, [appUsers]);
 
   const [activeVsd, setActiveVsd] = useState<VsdFilterKey>("All");
   const [search, setSearch] = useState("");
@@ -200,7 +198,7 @@ export default function MBRTracker() {
     } else if (activeVsd === "Other") {
       d = d.filter(deal => {
         const v = (deal.vsd || "").trim();
-        return v && !UNASSIGNED_VSD_VALUES.has(v) && !NAMED_VSDS.has(v);
+        return !!v && !UNASSIGNED_VSD_VALUES.has(v) && !isRegisteredName(v);
       });
     } else if (activeVsd !== "All") {
       d = d.filter(deal => (deal.vsd || "").trim() === activeVsd);
@@ -278,9 +276,13 @@ export default function MBRTracker() {
   const vsdInsights = useMemo(() => {
     const vsdMap = new Map<string, { vsd: string; total: number; done: number; notDone: number; pending: number; green: number; yellow: number; red: number; scheduled: number }>();
     for (const deal of filteredDeals) {
-      const v = deal.vsd || "Unknown";
-      if (!vsdMap.has(v)) vsdMap.set(v, { vsd: v, total: 0, done: 0, notDone: 0, pending: 0, green: 0, yellow: 0, red: 0, scheduled: 0 });
-      const s = vsdMap.get(v)!;
+      const raw = (deal.vsd || "").trim();
+      let bucket: string;
+      if (!raw || UNASSIGNED_VSD_VALUES.has(raw)) bucket = "Unassigned";
+      else if (isRegisteredName(raw)) bucket = raw;
+      else bucket = "Other";
+      if (!vsdMap.has(bucket)) vsdMap.set(bucket, { vsd: bucket, total: 0, done: 0, notDone: 0, pending: 0, green: 0, yellow: 0, red: 0, scheduled: 0 });
+      const s = vsdMap.get(bucket)!;
       s.total++;
       const entry = activeEntryMap.get(deal.id);
       if (entry) {
@@ -296,7 +298,7 @@ export default function MBRTracker() {
       s.pending = s.total - s.done - s.notDone;
     }
     return Array.from(vsdMap.values()).filter(s => s.total > 0).sort((a, b) => b.total - a.total);
-  }, [filteredDeals, activeEntryMap]);
+  }, [filteredDeals, activeEntryMap, isRegisteredName]);
 
   // BOPM insights (Sr / Principal) — used when a specific VSD is selected.
   // Only includes BOPMs mapped to ≥1 active deal in the current scope.
@@ -305,10 +307,11 @@ export default function MBRTracker() {
     const map = new Map<string, Row>();
     const overall: Row = { name: "Pod Overall", total: 0, done: 0, notDone: 0, pending: 0, green: 0, yellow: 0, red: 0, scheduled: 0 };
     for (const deal of filteredDeals) {
-      const owner = (deal.principalBopm || deal.seniorBopm || "").trim();
-      if (!owner) continue; // skip deals without a BOPM
-      if (!map.has(owner)) map.set(owner, { name: owner, total: 0, done: 0, notDone: 0, pending: 0, green: 0, yellow: 0, red: 0, scheduled: 0 });
-      const s = map.get(owner)!;
+      const raw = (deal.principalBopm || deal.seniorBopm || "").trim();
+      if (!raw) continue;
+      const bucket = isRegisteredName(raw) ? raw : "Other";
+      if (!map.has(bucket)) map.set(bucket, { name: bucket, total: 0, done: 0, notDone: 0, pending: 0, green: 0, yellow: 0, red: 0, scheduled: 0 });
+      const s = map.get(bucket)!;
       const tally = (r: Row) => {
         r.total++;
         const entry = activeEntryMap.get(deal.id);
@@ -328,7 +331,7 @@ export default function MBRTracker() {
     overall.pending = overall.total - overall.done - overall.notDone;
     const rows = Array.from(map.values()).filter(r => r.total > 0).sort((a, b) => b.total - a.total);
     return overall.total > 0 ? [overall, ...rows] : rows;
-  }, [filteredDeals, activeEntryMap]);
+  }, [filteredDeals, activeEntryMap, isRegisteredName]);
 
   const showBopmInsights = activeVsd !== "All" && activeVsd !== "Other" && activeVsd !== "Unassigned";
 
