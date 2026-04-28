@@ -36,7 +36,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ColHeader } from "@/components/table/ColHeader";
-import { useAppUsers } from "@/hooks/useAppUsers";
+import { useAppUsers, useVsdUsers } from "@/hooks/useAppUsers";
 
 type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
@@ -86,14 +86,15 @@ export default function Clients() {
   const { deals: allDeals, people, assignments, loading: staffLoading, refresh: refreshStaffing, updateDeal, addAssignment, updateAssignment } = useStaffingData();
   const { clients: allClients, loading: clientsLoading, addClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
   const access = useDealAccess();
-  const { users: appUsers, isRegisteredName } = useAppUsers();
+  const { users: appUsers } = useAppUsers();
+  const { vsdUsers, isVsdName, canonVsd } = useVsdUsers();
   const VSD_FILTERS = useMemo(() => {
     const items: { key: string; label: string }[] = [{ key: "All", label: "All" }];
-    appUsers.forEach((u) => items.push({ key: u.displayName, label: u.displayName }));
+    vsdUsers.forEach((u) => items.push({ key: u.displayName, label: u.displayName }));
     items.push({ key: "Other", label: "Other" });
     items.push({ key: "Unassigned", label: "Unassigned" });
     return items;
-  }, [appUsers]);
+  }, [vsdUsers]);
   // Scope deals & clients to what this user is allowed to see.
   const deals = useMemo(
     () => (access.isAdmin ? allDeals : allDeals.filter(d => access.canViewDeal(d.id))),
@@ -269,10 +270,10 @@ export default function Clients() {
     } else if (activeVsd === "Other") {
       d = d.filter(deal => {
         const v = (deal.vsd || "").trim();
-        return !!v && !UNASSIGNED_VSD_VALUES.has(v) && !isRegisteredName(v);
+        return !!v && !UNASSIGNED_VSD_VALUES.has(v) && !isVsdName(v);
       });
     } else if (activeVsd !== "All") {
-      d = d.filter(deal => (deal.vsd || "").trim() === activeVsd);
+      d = d.filter(deal => canonVsd(deal.vsd) === activeVsd);
     }
     if (search) d = d.filter(deal => deal.account.toLowerCase().includes(search.toLowerCase()) || deal.dealName.toLowerCase().includes(search.toLowerCase()));
     return d;

@@ -23,7 +23,7 @@ import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ColHeader } from "@/components/table/ColHeader";
-import { useAppUsers, nameKey } from "@/hooks/useAppUsers";
+import { useAppUsers, useVsdUsers, nameKey } from "@/hooks/useAppUsers";
 
 type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
@@ -527,22 +527,23 @@ function RGYIssueFormDialog({
 // ── Main Component ──
 export default function RGYHealth() {
   const { users: appUsers, isRegisteredName } = useAppUsers();
+  const { vsdUsers, isVsdName, canonVsd } = useVsdUsers();
   // Built dynamically from registered users + which VSDs actually appear on deals.
   const VSD_FILTERS = useMemo(() => {
     const items: { key: string; label: string }[] = [{ key: "All", label: "All" }];
-    appUsers.forEach((u) => items.push({ key: u.displayName, label: u.displayName }));
+    vsdUsers.forEach((u) => items.push({ key: u.displayName, label: u.displayName }));
     items.push({ key: "Other", label: "Other" });
     items.push({ key: "Unassigned", label: "Unassigned" });
     return items;
-  }, [appUsers]);
+  }, [vsdUsers]);
   const isOtherVsd = useCallback(
     (vsdRaw: string | null | undefined) => {
       const v = (vsdRaw || "").trim();
       if (!v) return false;
       if (UNASSIGNED_VSD_VALUES.has(v)) return false;
-      return !isRegisteredName(v);
+      return !isVsdName(v);
     },
-    [isRegisteredName],
+    [isVsdName],
   );
   const [deals, setDeals] = useState<DealWithRGY[]>([]);
   const [loading, setLoading] = useState(true);
@@ -861,7 +862,7 @@ export default function RGYHealth() {
     } else if (activeVsd === "Other") {
       d = d.filter(deal => isOtherVsd(deal.vsd));
     } else if (activeVsd !== "All") {
-      d = d.filter(deal => (deal.vsd || "").trim() === activeVsd);
+      d = d.filter(deal => canonVsd(deal.vsd) === activeVsd);
     }
     if (search) {
       const s = search.toLowerCase();
@@ -964,7 +965,7 @@ export default function RGYHealth() {
       const raw = (deal.vsd || "").trim();
       let bucket: string;
       if (!raw || UNASSIGNED_VSD_VALUES.has(raw)) bucket = "Unassigned";
-      else if (isRegisteredName(raw)) bucket = raw;
+        else if (isVsdName(raw)) bucket = canonVsd(raw) || "Other";
       else bucket = "Other";
       if (!map.has(bucket)) map.set(bucket, { name: bucket, total: 0, red: 0, yellow: 0, green: 0, pending: 0 });
       tally(map.get(bucket)!, deal);
