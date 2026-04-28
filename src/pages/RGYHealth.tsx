@@ -580,19 +580,43 @@ export default function RGYHealth() {
   useEffect(() => {
     try { localStorage.setItem("rgy-col-widths", JSON.stringify(colWidths)); } catch {}
   }, [colWidths]);
-  const resizingRef = useRef<{ key: string; startX: number; startW: number } | null>(null);
+  const resizingRef = useRef<{ key: string; startX: number; startW: number; latest: number } | null>(null);
+  const rafRef = useRef<number | null>(null);
+  // Smooth column resize: update an inline style on matching <col>/<th> via
+  // CSS variable per pixel using requestAnimationFrame, then commit to state
+  // once on mouseup (avoids per-pixel React re-renders).
   const startResize = useCallback((key: string) => (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    resizingRef.current = { key, startX: e.clientX, startW: colWidths[key] || 120 };
+    const startW = colWidths[key] || 120;
+    resizingRef.current = { key, startX: e.clientX, startW, latest: startW };
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    const apply = (w: number) => {
+      document.documentElement.style.setProperty(`--colw-${key}`, `${w}px`);
+    };
+    apply(startW);
     const onMove = (ev: MouseEvent) => {
       const r = resizingRef.current;
       if (!r) return;
       const next = Math.max(60, Math.min(500, r.startW + (ev.clientX - r.startX)));
-      setColWidths(prev => ({ ...prev, [r.key]: next }));
+      r.latest = next;
+      if (rafRef.current == null) {
+        rafRef.current = requestAnimationFrame(() => {
+          rafRef.current = null;
+          const cur = resizingRef.current;
+          if (cur) apply(cur.latest);
+        });
+      }
     };
     const onUp = () => {
+      const r = resizingRef.current;
+      if (r) setColWidths(prev => ({ ...prev, [r.key]: r.latest }));
       resizingRef.current = null;
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
