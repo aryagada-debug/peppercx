@@ -931,6 +931,7 @@ export type Database = {
       }
       route_visibility: {
         Row: {
+          access_mode: string
           created_at: string
           id: string
           role: Database["public"]["Enums"]["app_role"]
@@ -939,6 +940,7 @@ export type Database = {
           visible: boolean
         }
         Insert: {
+          access_mode?: string
           created_at?: string
           id?: string
           role: Database["public"]["Enums"]["app_role"]
@@ -947,6 +949,7 @@ export type Database = {
           visible?: boolean
         }
         Update: {
+          access_mode?: string
           created_at?: string
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
