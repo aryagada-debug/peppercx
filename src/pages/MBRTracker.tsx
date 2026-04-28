@@ -541,6 +541,7 @@ export default function MBRTracker() {
   return (
     <AppLayout>
       <div className="px-3 py-4">
+        <ReadOnlyBanner routeKey="mbr-tracker" label="MBR Tracker" />
         {/* Header */}
         <div className="flex items-center justify-between mb-1">
           <div>

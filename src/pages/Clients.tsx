@@ -509,6 +509,7 @@ export default function Clients() {
   return (
     <AppLayout>
       <div className="px-3 py-4">
+        <ReadOnlyBanner routeKey="clients" label="Clients & Deals" />
         {/* Row 1: Title + KPIs + Actions */}
         <div className="flex items-center gap-3 mb-2 flex-wrap">
           <h1 className="text-subhead font-bold tracking-tight text-foreground whitespace-nowrap">Clients & Deals</h1>
