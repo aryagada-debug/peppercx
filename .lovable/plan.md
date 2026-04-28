@@ -1,53 +1,79 @@
-# Demo logins for VSDs and BOPMs
+## Plan
 
-Provision dedicated demo login accounts for each VSD and a few BOPMs so you can sign in as any of them and see exactly what the app looks like under their access scope (Clients & Deals, Staffing, RGY, MBR, Dashboard).
+### 1. Fix VSD deal visibility immediately
+- Update the central deal-access logic so a VSD like Aditya Shaw sees every deal where the deal rolls up to that VSD.
+- Use the same VSD hierarchy logic already used in MBR/RGY filters: principal BOPM / senior BOPM mapping first, then fallback to the deal's VSD field.
+- Keep BOPMs restricted to only their directly tagged/staffed deals.
+- Ensure VSDs are read/view scoped by their pod and not accidentally treated like BOPMs.
 
-## Accounts to create
+### 2. Make role/persona access configurable from Settings → Access Controls
+- Expand the Access Controls page from “visibility toggles + descriptive summaries” into actual enforced access settings.
+- For every app section, admins will be able to set access for:
+  - Admin
+  - VSD
+  - BOPM
+  - View Only
+- Each section will support real modes:
+  - Hidden
+  - View only
+  - Editable
+- The page will clearly show VSD and BOPM defaults for Clients & Deals, Staffing, MBR Tracker, RGY Health, Dashboard, Revenue, Targets, etc.
 
-All accounts use the same easy password: **`Demo@1234`** (you can rotate later from Settings → Users).
+### 3. Persist access changes so the whole app reflects them
+- Store section access changes in the existing backend access tables where possible.
+- Add/use `access_mode` for role-level route access, not only per-user overrides.
+- Update `useUserRole` so route access uses the configured mode directly:
+  - hidden → page hidden/redirected
+  - read → page visible but read-only
+  - edit → page visible and editable
+- Add realtime/subscription refresh or explicit cache refresh so admin changes apply without needing hard reload where practical.
 
-### VSD accounts (role = `user`, linked to their staffing person)
-| Login email | Person | Sees |
-|---|---|---|
-| `aditya.shaw+demo@peppercontent.io` | Aditya Shaw (P437) | Deals where he is VSD / his BOPMs |
-| `neema.jayadas+demo@peppercontent.io` | Neema Jayadas (P378) | Her VSD pod |
-| `aamir.khan+demo@peppercontent.io` | Aamir Khan (P112) | Integrated pod |
-| `sumit.shekhawat+demo@peppercontent.io` | Sumit Shekhawat (P308) | India B2B pod |
-| `sneha.iyer+demo@peppercontent.io` | Sneha Iyer (P064) | FMCG pod |
+### 4. Enforce read-only/edit permissions in key app areas
+- Apply route-level edit permissions to major editable pages:
+  - Clients & Deals
+  - Staffing & Capacity
+  - MBR Tracker
+  - RGY Health
+  - Home tasks where applicable
+- If a role is set to “View only,” hide/disable edit buttons and block edit handlers with a clear toast.
+- Preserve current deal-level scoping:
+  - VSD sees their VSD pod deals
+  - BOPM sees only their own deals
+  - Admin sees all
 
-### BOPM accounts (role = `user`, linked to their staffing person)
-| Login email | Person | Sees |
-|---|---|---|
-| `ritu.priya+demo@peppercontent.io` | Ritu Priya (P579, Sr BOPM under Aditya Shaw) | Only deals where she is staffed |
-| `tiffany.fernandes+demo@peppercontent.io` | Tiffany Fernandes (P148, Sr BOPM) | Only her staffed deals |
-| `shreshtha.pathak+demo@peppercontent.io` | Shreshtha Pathak (P543, Principal BOPM) | Only her staffed deals |
+### 5. Add VSD/BOPM access diagnostics inside Access Controls
+- Add a compact “Role scope preview” section for admins:
+  - shows key demo/real users such as Aditya Shaw, Neema, Ritu, Tiffany, Shreshtha
+  - shows linked staffing person, role title, route mode, visible deal count
+  - flags broken mappings, e.g. duplicate profiles or missing `staffing_person_id`
+- Add a quick repair path for demo accounts so Aditya/VSD demo logins are linked to the correct staffing person and role.
 
-> Note: today `useDealAccess` gives the same "BOPM-style" scoping (own staffed deals only) regardless of whether the person is a VSD or BOPM. To make VSD logins actually behave like a VSD (i.e. see **all deals tagged to their VSD pod**, not just deals where they are personally listed as BOPM), we need a small access rule update — see "VSD scoping fix" below.
+### 6. Clean up duplicate/incorrect demo profile issue
+- The database currently has duplicate Aditya profile rows, including one with no staffing person mapping; this can cause a login to have zero visible deals.
+- Update demo provisioning to always:
+  - create/reset demo users
+  - link the profile to the correct `staffing_person_id`
+  - assign the correct access persona
+  - avoid leaving duplicate unlinked demo profiles in a broken state
 
-## Where you'll find them
+## Technical details
 
-A new **"Demo logins"** card on `Settings → Users` listing all 8 accounts with email, person, role, and a copy-to-clipboard button for the password. Click any row → instantly opens a new tab with the email pre-filled on the login page.
+- Files to update:
+  - `src/hooks/useDealAccess.ts`
+  - `src/hooks/useUserRole.ts`
+  - `src/pages/admin/AccessControlsTab.tsx`
+  - `src/pages/admin/UsersTab.tsx` if needed for per-user overrides consistency
+  - key editable screens: `Clients.tsx`, `Staffing.tsx`, `MBRTracker.tsx`, `RGYHealth.tsx`
+  - `supabase/functions/admin-user-mgmt/index.ts` for demo repair
+- Backend changes:
+  - Add `route_visibility.access_mode` if missing.
+  - Backfill existing rows: visible=true becomes edit/read depending on role defaults; visible=false becomes hidden.
+  - Keep roles in `user_roles`; do not store roles on profiles.
+  - Maintain admin-only write policies for access-control tables.
 
-## Technical changes
+## Expected result
 
-1. **Edge function** — extend `supabase/functions/admin-user-mgmt/index.ts` with a new `action: "provision_demo_logins"` that:
-   - Takes a hard-coded list of `{ personId, email }` pairs (the 8 above).
-   - For each: creates the auth user with password `Demo@1234` and `email_confirm: true`, upserts `profiles` with `staffing_person_id = personId` and `display_name = person.name`, and ensures a `user_roles` row with role `user`.
-   - Idempotent — if the email already exists, just re-link the profile/role.
-
-2. **VSD scoping fix** — update `src/hooks/useDealAccess.ts` so that when the logged-in person's `role_title` matches `/VSD/i`, `ownDealIds` also includes every deal whose `vsd` field canonicalises to that person's name (using the same `matchesVsd` helper used elsewhere). BOPM behaviour is unchanged.
-
-3. **Settings UI** — add a `DemoLoginsCard` to `src/pages/admin/UsersTab.tsx` that:
-   - Shows the 8 accounts in a small table (Person, Role, Email, Password = `Demo@1234`, Copy buttons, "Open login" link).
-   - Has a single "Provision / repair demo logins" button that calls the new edge action and toasts the result.
-
-4. **No DB schema migration** required — `profiles`, `user_roles`, `staffing_people` already support everything needed.
-
-## Files to edit / create
-
-- Edit `supabase/functions/admin-user-mgmt/index.ts` — add `provision_demo_logins` action.
-- Edit `src/hooks/useDealAccess.ts` — VSD-pod expansion when `role_title` is VSD.
-- Edit `src/pages/admin/UsersTab.tsx` — render the new card.
-- Create `src/components/admin/DemoLoginsCard.tsx` — the card + table + provision button.
-
-After approval I will run the provision action once so you can immediately log in with any of the 8 emails using `Demo@1234`.
+- Aditya Shaw and other VSDs can see their VSD pod deals.
+- BOPMs still only see their assigned/tagged deals.
+- Admins can change Viewer/View-only and broader VSD/BOPM access from Settings → Access Controls.
+- Changes in Access Controls affect navigation visibility and editability across the app instead of being only descriptive text.
