@@ -629,88 +629,102 @@ export default function RGYHealth() {
     tasks: { id: string; title: string; stage: string }[];
   } | null>(null);
 
-  // Issues for insights
-  const [rgyIssues, setRgyIssues] = useState<any[]>([]);
+  // Issues for insights — derived lazily, only after Insights tab is opened.
+  const [insightsOpened, setInsightsOpened] = useState(false);
+  useEffect(() => {
+    if (activeTab === "insights") setInsightsOpened(true);
+  }, [activeTab]);
+
+  const rgyIssues = useMemo(() => {
+    if (!insightsOpened) return [] as any[];
+    const out: any[] = [];
+    for (const d of deals) {
+      const status = (d as any).rgy_issue_details ? "Open" : null;
+      if (!d.rgy_issue_details) continue;
+      const dimVals = DIMENSIONS.map(dim => (d as any)[dim.key] as string);
+      const worst: "R" | "Y" | "G" | null = dimVals.includes("R") ? "R" : dimVals.includes("Y") ? "Y" : "G";
+      const redDims = DIMENSIONS.filter(dim => (d as any)[dim.key] === "R").map(dim => dim.label);
+      out.push({
+        deal_id: d.id,
+        deal_id_code: d.deal_id || "",
+        deal_name: d.deal_name || "Unknown",
+        pc_code: d.pc_code || "",
+        account: d.account || "",
+        pod: getPodForDeal(d.vsd || "", d.pod || ""),
+        vsd: d.vsd || "",
+        deal_status: d.deal_status || "",
+        issue_details: d.rgy_issue_details,
+        issue_status: "Open",
+        action_plan: d.rgy_action_plan || "",
+        discussed_action_plan: d.rgy_discussed_action_plan || "",
+        red_dimensions: redDims,
+        worst,
+        issue_date: null,
+        created_at: null,
+      });
+    }
+    return out;
+  }, [insightsOpened, deals]);
 
   const fetchData = useCallback(async () => {
-    const { data: dealRows } = await supabase
+    // Look back ~8 weeks for "current" RGY snapshot — small slice instead of full history.
+    const lookback = new Date();
+    lookback.setDate(lookback.getDate() - 56);
+    const lookbackIso = lookback.toISOString().split("T")[0];
+
+    // Fire deals + recent RGY in parallel.
+    const dealsPromise = supabase
       .from("staffing_deals")
       .select("id, deal_id, deal_name, account, bopm, deal_status, pod, mrr, total_deal_value, vsd, principal_bopm, senior_bopm, start_date, end_date, payment_terms, pc_code")
       .order("deal_name");
 
+    const rgyPromise = supabase
+      .from("deal_rgy_weekly")
+      .select("id, deal_id, customer, internal, content, seo, supply, copy, design, video, week_start, issue_details, issue_status, action_plan, discussed_action_plan, issue_date, created_at")
+      .gte("week_start", lookbackIso)
+      .order("week_start", { ascending: false });
+
+    const { data: dealRows } = await dealsPromise;
     if (!dealRows) { setLoading(false); return; }
 
-    const dealIds = dealRows.map(d => d.id);
+    // Render deals immediately so the page paints fast; RGY values fill in next.
+    const baseRows: DealWithRGY[] = dealRows.map(d => ({
+      ...d,
+      pc_code: d.pc_code || "",
+      customer: "", internal: "", content: "", seo: "",
+      supply: "", copy: "", design: "", video: "",
+    }));
+    setDeals(baseRows);
+    setLoading(false);
+
+    const { data: rgyRows } = await rgyPromise;
     const rgyMap = new Map<string, any>();
-    const issuesList: any[] = [];
-
-    for (let i = 0; i < dealIds.length; i += 500) {
-      const batch = dealIds.slice(i, i + 500);
-      const { data: rgyRows } = await supabase
-        .from("deal_rgy_weekly")
-        .select("id, deal_id, customer, internal, content, seo, supply, copy, design, video, week_start, issue_details, issue_status, action_plan, discussed_action_plan, issue_date, created_at")
-        .in("deal_id", batch)
-        .order("week_start", { ascending: false });
-
-      if (rgyRows) {
-        for (const r of rgyRows) {
-          if (!rgyMap.has(r.deal_id)) {
-            rgyMap.set(r.deal_id, r);
-            if (r.issue_details && (r.issue_status === "Open" || r.issue_status === "In Progress")) {
-              const dealRow = dealRows.find(d => d.id === r.deal_id);
-              const dimVals = DIMENSIONS.map(dim => (r as any)[dim.key] as string);
-              const worst: "R" | "Y" | "G" | null = dimVals.includes("R") ? "R" : dimVals.includes("Y") ? "Y" : "G";
-              const redDims = DIMENSIONS.filter(dim => (r as any)[dim.key] === "R").map(dim => dim.label);
-              issuesList.push({
-                deal_id: r.deal_id,                            // FK pk for linking
-                deal_id_code: dealRow?.deal_id || "",          // human code
-                deal_name: dealRow?.deal_name || "Unknown",
-                pc_code: dealRow?.pc_code || "",
-                account: dealRow?.account || "",
-                pod: getPodForDeal(dealRow?.vsd || "", dealRow?.pod || ""),
-                vsd: dealRow?.vsd || "",
-                deal_status: dealRow?.deal_status || "",
-                issue_details: r.issue_details,
-                issue_status: r.issue_status || "Open",
-                action_plan: (r as any).action_plan || "",
-                discussed_action_plan: (r as any).discussed_action_plan || "",
-                red_dimensions: redDims,
-                worst,
-                issue_date: (r as any).issue_date || null,
-                created_at: (r as any).created_at || null,
-              });
-            }
-          }
-        }
+    if (rgyRows) {
+      for (const r of rgyRows) {
+        if (!rgyMap.has(r.deal_id)) rgyMap.set(r.deal_id, r);
       }
     }
 
-    setRgyIssues(issuesList as any);
-
-    const merged: DealWithRGY[] = dealRows.map(d => {
+    setDeals(prev => prev.map(d => {
       const rgy = rgyMap.get(d.id);
+      if (!rgy) return d;
       return {
         ...d,
-        pc_code: d.pc_code || "",
-        rgy_row_id: rgy?.id,
-        rgy_week_start: rgy?.week_start,
-        rgy_action_plan: rgy?.action_plan || "",
-        rgy_discussed_action_plan: rgy?.discussed_action_plan || "",
-        rgy_issue_details: rgy?.issue_details || "",
-        // Empty/missing RGY values are treated as "Pending" in the UI
-        customer: rgy?.customer ?? "",
-        internal: rgy?.internal ?? "",
-        content: rgy?.content ?? "",
-        seo: rgy?.seo ?? "",
-        supply: rgy?.supply ?? "",
-        copy: rgy?.copy ?? "",
-        design: rgy?.design ?? "",
-        video: rgy?.video ?? "",
+        rgy_row_id: rgy.id,
+        rgy_week_start: rgy.week_start,
+        rgy_action_plan: rgy.action_plan || "",
+        rgy_discussed_action_plan: rgy.discussed_action_plan || "",
+        rgy_issue_details: rgy.issue_details || "",
+        customer: rgy.customer ?? "",
+        internal: rgy.internal ?? "",
+        content: rgy.content ?? "",
+        seo: rgy.seo ?? "",
+        supply: rgy.supply ?? "",
+        copy: rgy.copy ?? "",
+        design: rgy.design ?? "",
+        video: rgy.video ?? "",
       };
-    });
-
-    setDeals(merged);
-    setLoading(false);
+    }));
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -990,7 +1004,10 @@ export default function RGYHealth() {
     return Array.from(map.values()).filter(r => r.total > 0).sort((a, b) => b.total - a.total);
   }, [filteredDeals, showBopmRgyInsights]);
 
-  const selectedDeal = deals.find(d => d.id === selectedDealId) ?? null;
+  const selectedDeal = useMemo(
+    () => deals.find(d => d.id === selectedDealId) ?? null,
+    [deals, selectedDealId]
+  );
 
   if (loading) {
     return (
