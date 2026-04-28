@@ -988,11 +988,11 @@ export default function RGYHealth() {
     return d;
   }, [deals, activeVsd, activeBopm, search, showClosed, rgyFilter, vsdForDeal, isBopmPersona, accessLoading, visibleDealIds]);
 
-  // For BOPM persona, force the table tab on first render so the Health Board /
-  // Insights surfaces never become her landing view.
+  // For BOPM persona, default landing is Insights (scoped to her deals);
+  // Health Board remains admin-only.
   useEffect(() => {
-    if (isBopmPersona && (activeTab === "health" || activeTab === "insights")) {
-      setActiveTab("table");
+    if (isBopmPersona && activeTab === "health") {
+      setActiveTab("insights");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isBopmPersona]);
@@ -1139,6 +1139,7 @@ export default function RGYHealth() {
           <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
             <TabsList>
               {!isBopmPersona && <TabsTrigger value="health">Health Board</TabsTrigger>}
+              {isBopmPersona && <TabsTrigger value="insights">Insights</TabsTrigger>}
               <TabsTrigger value="table">Table</TabsTrigger>
               {!isBopmPersona && <TabsTrigger value="insights">Insights</TabsTrigger>}
             </TabsList>
