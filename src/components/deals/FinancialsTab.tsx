@@ -187,7 +187,7 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete }:
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {[
             { label: "Net deal value", value: fmtCurrency(netDealValue) },
-            { label: "Total MIS recognition", value: fmtCurrency(totals.consumption) },
+            { label: "Total contraction", value: fmtCurrency(totals.consumption) },
             { label: "Total invoiced", value: fmtCurrency(totals.invoiced) },
             { label: "Total received", value: fmtCurrency(totals.received) },
             { label: "Outstanding", value: fmtCurrency(totals.outstanding), alert: totals.outstanding > 0 },
@@ -204,10 +204,10 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete }:
       <div>
         <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground mb-3">Pipeline Health</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <PipelineCard title="Consumption" att={pipeline.consumption.att} value={pipeline.consumption.value} target={pipeline.consumption.target}
+          <PipelineCard title="Contraction" att={pipeline.consumption.att} value={pipeline.consumption.value} target={pipeline.consumption.target}
             status={pipeline.consumption.att >= 100
-              ? `Over-consumed by ${fmtCurrency(totals.consumption - totals.contracted)}`
-              : `${fmtCurrency(totals.contracted - totals.consumption)} pending consumption`} />
+              ? `Over-contracted by ${fmtCurrency(totals.consumption - totals.contracted)}`
+              : `${fmtCurrency(totals.contracted - totals.consumption)} pending contraction`} />
           <PipelineCard title="Delivery" att={pipeline.delivery.att} value={pipeline.delivery.value} target={pipeline.delivery.target}
             status={`${fmtCurrency(Math.max(0, totals.consumption - totals.consumption))} pending delivery`} />
           <PipelineCard title="Invoicing" att={pipeline.invoicing.att} value={pipeline.invoicing.value} target={pipeline.invoicing.target}
@@ -220,10 +220,10 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete }:
       {/* ── Section 3: Charts ── */}
       {rows.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          {/* Consumption vs Target */}
+          {/* Contraction vs Target */}
           <div className="rounded-xl border border-[#D3D1C7] bg-white p-3.5">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-[13px] font-medium">Monthly consumption vs target</p>
+              <p className="text-[13px] font-medium">Monthly contraction vs target</p>
               <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
                 <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-[#AFA9EC]" /> Target</span>
                 <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-[#639922]" /> Attainment</span>
@@ -280,7 +280,7 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete }:
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-[#D3D1C7]">
-                {["Month", "Contracted", "Consumption", "Att%", "Planned GM%", "Actual GM%", "Invoiced", "Received", "Outstanding"].map((h, i) => (
+                {["Month", "Contracted", "Contraction", "Att%", "Planned GM%", "Actual GM%", "Invoiced", "Received", "Outstanding"].map((h, i) => (
                   <th key={h} className={cn("py-2.5 px-3 font-medium text-muted-foreground whitespace-nowrap", i === 0 ? "text-left" : "text-right")}>{h}</th>
                 ))}
               </tr>
@@ -342,27 +342,27 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete }:
         </div>
       </div>
 
-      {/* ── Section 5: Consumption Bucket ── */}
+      {/* ── Section 5: Contraction Bucket ── */}
       <div>
-        <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground mb-3">Consumption Bucket</p>
+        <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground mb-3">Contraction Bucket</p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="rounded-lg bg-[#F1EFE8] p-3">
             <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">YTD retainer MRR</p>
             <p className="text-xl font-medium mt-1">{fmtCurrency(bucket.ytdMrr)}</p>
           </div>
           <div className="rounded-lg bg-[#F1EFE8] p-3">
-            <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">YTD retainer consumption</p>
+            <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">YTD retainer contraction</p>
             <p className="text-xl font-medium mt-1">{fmtCurrency(bucket.ytdConsumption)}</p>
             <p className={cn("text-xs mt-0.5 font-medium", bucket.pct >= 100 ? "text-[#27500A]" : "text-[#633806]")}>
               {bucket.pct.toFixed(0)}% of target
             </p>
           </div>
           <div className="rounded-lg bg-[#F1EFE8] p-3">
-            <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Under-consumption</p>
+            <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Under-contraction</p>
             <p className="text-xl font-medium mt-1 text-[#27500A]">{fmtCurrency(bucket.under)}</p>
           </div>
           <div className="rounded-lg bg-[#F1EFE8] p-3">
-            <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Over-consumption</p>
+            <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Over-contraction</p>
             <p className="text-xl font-medium mt-1 text-[#791F1F]">{bucket.over > 0 ? `-${fmtCurrency(bucket.over)}` : "₹0"}</p>
           </div>
         </div>
@@ -429,7 +429,7 @@ function AddMonthDialog({ open, onOpenChange, dealId, defaultMrr, onAdd }: {
   const fields = [
     { label: "Month", key: "month", type: "month" },
     { label: "Contracted (₹)", key: "contracted", type: "number" },
-    { label: "Consumption (₹)", key: "consumption", type: "number" },
+    { label: "Contraction (₹)", key: "consumption", type: "number" },
     { label: "Planned GM%", key: "plannedGmPct", type: "number" },
     { label: "Actual GM%", key: "actualGmPct", type: "number" },
     { label: "Invoiced (₹)", key: "invoiced", type: "number" },
