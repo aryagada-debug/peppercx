@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import type { Deal, Person, StaffingAssignment, RevenueCapacityTarget } from "@/data/staffingData";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const ACTIVE_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
 
@@ -344,39 +343,6 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
 
   return (
     <div className="animate-fade-in space-y-4">
-      {/* Capacity summary row (red/amber/green/blue counts with tooltips) */}
-      <TooltipProvider delayDuration={200}>
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground mr-2">
-            Capacity snapshot
-          </span>
-          {(["overloaded","nearFull","healthy","underUtil"] as Bucket[]).map(b => {
-            const cfg = BUCKET_CONFIG[b];
-            const tip: Record<Bucket, string> = {
-              overloaded:   "Red — Overloaded (>100% allocation)",
-              nearFull:     "Amber — Near Full (85–100%)",
-              healthy:      "Green — Healthy (30–85%)",
-              underUtil:    "Blue — Under-utilised (<30%)",
-            };
-            return (
-              <Tooltip key={b}>
-                <TooltipTrigger asChild>
-                  <div className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1">
-                    <span className={cn("h-2 w-2 rounded-full", cfg.dot)} />
-                    <span className="text-[11px] text-muted-foreground">{cfg.label}</span>
-                    <span className="text-xs font-mono text-foreground tabular-nums">{bucketCounts[b]}</span>
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">{tip[b]}</TooltipContent>
-              </Tooltip>
-            );
-          })}
-          <span className="ml-auto text-[11px] text-muted-foreground">
-            Total active: <span className="font-mono text-foreground">{visiblePeople.length}</span>
-          </span>
-        </div>
-      </TooltipProvider>
-
       {/* Filter chips + search + collapse */}
       <div className="flex flex-wrap items-center gap-3">
         {(Object.keys(BUCKET_CONFIG) as Bucket[]).map(b => {
