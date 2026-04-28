@@ -198,7 +198,7 @@ export default function MBRTracker() {
     } else if (activeVsd === "Other") {
       d = d.filter(deal => {
         const v = (deal.vsd || "").trim();
-        return v && !UNASSIGNED_VSD_VALUES.has(v) && !NAMED_VSDS.has(v);
+        return !!v && !UNASSIGNED_VSD_VALUES.has(v) && !isRegisteredName(v);
       });
     } else if (activeVsd !== "All") {
       d = d.filter(deal => (deal.vsd || "").trim() === activeVsd);
