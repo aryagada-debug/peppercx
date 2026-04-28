@@ -582,9 +582,8 @@ export default function RGYHealth() {
   }, [colWidths]);
   const resizingRef = useRef<{ key: string; startX: number; startW: number; latest: number } | null>(null);
   const rafRef = useRef<number | null>(null);
-  // Smooth column resize: update an inline style on matching <col>/<th> via
-  // CSS variable per pixel using requestAnimationFrame, then commit to state
-  // once on mouseup (avoids per-pixel React re-renders).
+  // Smooth column resize: throttle setState via requestAnimationFrame so we
+  // re-render at most once per frame instead of per mousemove event.
   const startResize = useCallback((key: string) => (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -592,26 +591,20 @@ export default function RGYHealth() {
     resizingRef.current = { key, startX: e.clientX, startW, latest: startW };
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
-    const apply = (w: number) => {
-      document.documentElement.style.setProperty(`--colw-${key}`, `${w}px`);
-    };
-    apply(startW);
     const onMove = (ev: MouseEvent) => {
       const r = resizingRef.current;
       if (!r) return;
-      const next = Math.max(60, Math.min(500, r.startW + (ev.clientX - r.startX)));
-      r.latest = next;
+      r.latest = Math.max(60, Math.min(500, r.startW + (ev.clientX - r.startX)));
       if (rafRef.current == null) {
         rafRef.current = requestAnimationFrame(() => {
           rafRef.current = null;
           const cur = resizingRef.current;
-          if (cur) apply(cur.latest);
+          if (!cur) return;
+          setColWidths(prev => (prev[cur.key] === cur.latest ? prev : { ...prev, [cur.key]: cur.latest }));
         });
       }
     };
     const onUp = () => {
-      const r = resizingRef.current;
-      if (r) setColWidths(prev => ({ ...prev, [r.key]: r.latest }));
       resizingRef.current = null;
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
