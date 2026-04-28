@@ -432,6 +432,19 @@ export default function MBRTracker() {
           <MetricCard label="Compliance" value={`${kpis.compliance}%`} />
         </div>
 
+        {/* VSD Filter — primary scope selector (drives Insights + Table) */}
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">VSD:</span>
+          <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
+            {VSD_FILTERS.map(v => (
+              <button key={v.key} onClick={() => setActiveVsd(v.key)} className={cn(
+                "px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
+                activeVsd === v.key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}>{v.label}</button>
+            ))}
+          </div>
+        </div>
+
         {/* VSD Insights — moved to top */}
         <div className="mb-4">
           <h2 className="text-sm font-semibold text-foreground mb-2">
@@ -500,15 +513,6 @@ export default function MBRTracker() {
 
         {/* Filters */}
         <div className="flex items-center gap-4 mb-3 flex-wrap">
-          <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
-            {VSD_FILTERS.map(v => (
-              <button key={v.key} onClick={() => setActiveVsd(v.key)} className={cn(
-                "px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
-                activeVsd === v.key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-              )}>{v.label}</button>
-            ))}
-          </div>
-
           <div className="relative flex-1 max-w-xs">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input type="text" placeholder="Search clients or deals..." value={search} onChange={e => setSearch(e.target.value)}

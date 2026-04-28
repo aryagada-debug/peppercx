@@ -553,6 +553,9 @@ export default function RGYHealth() {
   const [search, setSearch] = useState("");
   const [rgyFilter, setRgyFilter] = useState<"All" | "Red" | "Yellow" | "Green">("All");
   const [activeTab, setActiveTab] = useState<"health" | "insights">("health");
+  // Drill-down for RGY Summary numeric cells
+  type RGYDrillMetric = "total" | "red" | "yellow" | "green" | "pending";
+  const [rgyDrill, setRgyDrill] = useState<{ rowLabel: string; metric: RGYDrillMetric } | null>(null);
   // Column filter/sort state
   const [colFilters, setColFilters] = useState<Record<string, string>>({});
   const [openFilter, setOpenFilter] = useState<string | null>(null);
@@ -1104,17 +1107,31 @@ export default function RGYHealth() {
               <tbody>
                 {rgySummary.map(r => {
                   const isOverall = r.name === "Pod Overall";
+                  const openDrill = (metric: RGYDrillMetric) => setRgyDrill({ rowLabel: r.name, metric });
+                  const NumBtn = ({ value, metric, className }: { value: number; metric: RGYDrillMetric; className?: string }) => (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); if (value > 0) openDrill(metric); }}
+                      className={cn(
+                        "font-mono tabular-nums text-xs",
+                        value > 0 ? "hover:underline cursor-pointer" : "cursor-default opacity-70",
+                        className,
+                      )}
+                    >
+                      {value}
+                    </button>
+                  );
                   return (
                     <tr key={r.name} className={cn(
                       "border-b border-border/50 hover:bg-secondary/30 transition-colors",
                       isOverall && "bg-primary/5 font-semibold"
                     )}>
                       <td className="py-2.5 px-3 font-semibold text-foreground text-xs">{r.name}</td>
-                      <td className="py-2.5 px-3 font-mono tabular-nums text-foreground text-xs">{r.total}</td>
-                      <td className="py-2.5 px-3 font-mono tabular-nums text-destructive font-semibold text-xs">{r.red}</td>
-                      <td className="py-2.5 px-3 font-mono tabular-nums text-warning font-semibold text-xs">{r.yellow}</td>
-                      <td className="py-2.5 px-3 font-mono tabular-nums text-positive font-semibold text-xs">{r.green}</td>
-                      <td className="py-2.5 px-3 font-mono tabular-nums text-muted-foreground text-xs">{r.pending}</td>
+                      <td className="py-2.5 px-3"><NumBtn value={r.total} metric="total" className="text-foreground" /></td>
+                      <td className="py-2.5 px-3"><NumBtn value={r.red} metric="red" className="text-destructive font-semibold" /></td>
+                      <td className="py-2.5 px-3"><NumBtn value={r.yellow} metric="yellow" className="text-warning font-semibold" /></td>
+                      <td className="py-2.5 px-3"><NumBtn value={r.green} metric="green" className="text-positive font-semibold" /></td>
+                      <td className="py-2.5 px-3"><NumBtn value={r.pending} metric="pending" className="text-muted-foreground" /></td>
                     </tr>
                   );
                 })}
@@ -1250,6 +1267,74 @@ export default function RGYHealth() {
           open={!!selectedDealId}
           onOpenChange={(open) => { if (!open) setSelectedDealId(null); }}
         />
+
+        {/* RGY Summary drill-down dialog */}
+        {rgyDrill && (() => {
+          let scoped = filteredDeals;
+          if (showBopmRgyInsights) {
+            if (rgyDrill.rowLabel !== "Pod Overall") {
+              scoped = filteredDeals.filter(d => ((d.principal_bopm || d.senior_bopm || "").trim()) === rgyDrill.rowLabel);
+            } else {
+              scoped = filteredDeals.filter(d => ((d.principal_bopm || d.senior_bopm || "").trim()) !== "");
+            }
+          } else {
+            scoped = filteredDeals.filter(d => (vsdForDeal(d as any) || "Unassigned") === rgyDrill.rowLabel);
+          }
+          const matchMetric = (deal: DealWithRGY) => {
+            const w = getWorstRGY(deal);
+            switch (rgyDrill.metric) {
+              case "total": return true;
+              case "red": return w === "R";
+              case "yellow": return w === "Y";
+              case "green": return w === "G";
+              case "pending": return w === null;
+            }
+          };
+          const rows = scoped.filter(matchMetric);
+          const metricLabel: Record<RGYDrillMetric, string> = {
+            total: "Active Deals", red: "Red", yellow: "Yellow", green: "Green", pending: "Pending",
+          };
+          return (
+            <Dialog open={!!rgyDrill} onOpenChange={(o) => !o && setRgyDrill(null)}>
+              <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="text-base">
+                    {rgyDrill.rowLabel} — {metricLabel[rgyDrill.metric]} ({rows.length})
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="border border-border rounded-lg overflow-hidden mt-2">
+                  <table className="w-full text-xs">
+                    <thead className="bg-secondary/40 border-b border-border">
+                      <tr>
+                        <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Account</th>
+                        <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Deal ID</th>
+                        <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Deal Name</th>
+                        <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map(d => (
+                        <tr key={d.id} className="border-b border-border/50 hover:bg-secondary/30">
+                          <td className="py-2 px-3 text-foreground">{d.account}</td>
+                          <td className="py-2 px-3 font-mono tabular-nums text-muted-foreground">{d.deal_id || "—"}</td>
+                          <td className="py-2 px-3">
+                            <Link to={`/deals/${d.id}`} className="text-primary hover:underline" onClick={() => setRgyDrill(null)}>
+                              {d.deal_name}
+                            </Link>
+                          </td>
+                          <td className="py-2 px-3 text-muted-foreground">{d.deal_status || "—"}</td>
+                        </tr>
+                      ))}
+                      {rows.length === 0 && (
+                        <tr><td colSpan={4} className="text-center py-6 text-muted-foreground">No matching deals.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </DialogContent>
+            </Dialog>
+          );
+        })()}
       </div>
     </AppLayout>
   );
