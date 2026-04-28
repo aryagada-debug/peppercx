@@ -76,6 +76,14 @@ interface MBRDealWithPod extends MBRDeal {
 
 export default function MBRTracker() {
   const { deals, entries, loading, upsertEntry, vsdSummary, totals, entriesByMonth, availableMonths, refresh } = useMBRData();
+  const { users: appUsers, isRegisteredName } = useAppUsers();
+  const VSD_FILTERS = useMemo(() => {
+    const items: { key: string; label: string }[] = [{ key: "All", label: "All" }];
+    appUsers.forEach((u) => items.push({ key: u.displayName, label: u.displayName }));
+    items.push({ key: "Other", label: "Other" });
+    items.push({ key: "Unassigned", label: "Unassigned" });
+    return items;
+  }, [appUsers]);
 
   const [activeVsd, setActiveVsd] = useState<VsdFilterKey>("All");
   const [search, setSearch] = useState("");
