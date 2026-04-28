@@ -353,12 +353,20 @@ export function UsersTab() {
             <div>
               <div className="text-xs font-semibold text-foreground">People needing email</div>
               <div className="text-[11px] text-muted-foreground">
-                Add work emails so they can be provisioned.
+                Add work emails so they can be provisioned. People who appear on active deals are listed first.
               </div>
             </div>
-            <Button size="sm" variant="ghost" className="h-7 text-[11px]" onClick={() => setShowMissing(false)}>
-              Hide
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <Button size="sm" variant="outline" className="h-7 text-[11px]" disabled={bulkSaving} onClick={fillAllGuessed}>
+                {bulkSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : "Auto-fill guesses"}
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-[11px]" onClick={() => setPasteOpen(true)}>
+                Paste CSV
+              </Button>
+              <Button size="sm" variant="ghost" className="h-7 text-[11px]" onClick={() => setShowMissing(false)}>
+                Hide
+              </Button>
+            </div>
           </div>
           <div className="max-h-[300px] overflow-y-auto">
             <table className="w-full text-xs">
