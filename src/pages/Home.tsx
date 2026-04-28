@@ -735,30 +735,59 @@ export default function HomePage() {
                 <Button variant="ghost" size="sm" className="h-6 text-[11px] text-muted-foreground" onClick={markAllRead}>Mark all read</Button>
               )}
             </CardHeader>
-            <CardContent className="space-y-1">
-              {loadingNotifs ? <SkeletonRows /> : notifications.length === 0 ? (
-                <div className="text-center py-6">
-                  <CheckCircle2 className="h-8 w-8 text-positive/40 mx-auto mb-2" />
-                  <p className="text-xs text-muted-foreground">You're all caught up.</p>
-                </div>
-              ) : notifications.slice(0, 5).map(n => (
-                <div key={n.id} className="group flex items-start gap-2 rounded-md hover:bg-secondary/40 px-2 py-2 transition-colors">
-                  <div className="h-7 w-7 rounded-full bg-gradient-to-br from-primary/20 to-primary/40 flex items-center justify-center text-[10px] font-semibold text-primary shrink-0">
-                    {n.actor_name ? n.actor_name.slice(0, 2).toUpperCase() : "📬"}
-                  </div>
-                  <button type="button" onClick={() => { markRead(n.id); if (n.cta_href) navigate(n.cta_href); }} className="flex-1 text-left min-w-0">
-                    <p className="text-[12.5px] leading-snug text-foreground line-clamp-2">
-                      <span className="font-semibold">{n.actor_name}</span> {n.body}
-                      {n.source_entity_name && <span className="font-semibold"> · {n.source_entity_name}</span>}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">{format(parseISO(n.created_at), "dd MMM, h:mm a")}</p>
-                  </button>
-                  {!n.read && <div className="h-1.5 w-1.5 rounded-full bg-primary mt-2 shrink-0" />}
-                  <button onClick={() => dismissNotification(n.id)} className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity">
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
+            <CardContent>
+              <Tabs value={notifTab} onValueChange={(v) => setNotifTab(v as any)}>
+                <TabsList className="mb-3 bg-secondary">
+                  <TabsTrigger value="activity">Activity ({notifications.length})</TabsTrigger>
+                  <TabsTrigger value="mentions">Slack mentions ({mentions.length})</TabsTrigger>
+                </TabsList>
+                <TabsContent value="activity" className="space-y-1 mt-0">
+                  {loadingNotifs ? <SkeletonRows /> : notifications.length === 0 ? (
+                    <div className="text-center py-6">
+                      <CheckCircle2 className="h-8 w-8 text-positive/40 mx-auto mb-2" />
+                      <p className="text-xs text-muted-foreground">You're all caught up.</p>
+                    </div>
+                  ) : notifications.slice(0, 5).map(n => (
+                    <div key={n.id} className="group flex items-start gap-2 rounded-md hover:bg-secondary/40 px-2 py-2 transition-colors">
+                      <div className="h-7 w-7 rounded-full bg-gradient-to-br from-primary/20 to-primary/40 flex items-center justify-center text-[10px] font-semibold text-primary shrink-0">
+                        {n.actor_name ? n.actor_name.slice(0, 2).toUpperCase() : "📬"}
+                      </div>
+                      <button type="button" onClick={() => { markRead(n.id); if (n.cta_href) navigate(n.cta_href); }} className="flex-1 text-left min-w-0">
+                        <p className="text-[12.5px] leading-snug text-foreground line-clamp-2">
+                          <span className="font-semibold">{n.actor_name}</span> {n.body}
+                          {n.source_entity_name && <span className="font-semibold"> · {n.source_entity_name}</span>}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{format(parseISO(n.created_at), "dd MMM, h:mm a")}</p>
+                      </button>
+                      {!n.read && <div className="h-1.5 w-1.5 rounded-full bg-primary mt-2 shrink-0" />}
+                      <button onClick={() => dismissNotification(n.id)} className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </TabsContent>
+                <TabsContent value="mentions" className="space-y-1 mt-0">
+                  {mentions.length === 0 ? (
+                    <div className="text-center py-6">
+                      <MessageSquare className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
+                      <p className="text-xs text-muted-foreground">No Slack mentions yet.</p>
+                    </div>
+                  ) : mentions.slice(0, 6).map((m: any) => (
+                    <button key={m.id} onClick={() => navigate(`/deals/${m.deal_id}?tab=Slack`)}
+                      className="w-full text-left flex items-start gap-2 rounded-md hover:bg-secondary/40 px-2 py-2 transition-colors">
+                      <div className="h-7 w-7 rounded-full bg-primary/15 flex items-center justify-center text-[10px] font-semibold text-primary shrink-0">
+                        {(m.user_name || "?").slice(0, 2).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[12.5px] leading-snug text-foreground line-clamp-2">
+                          <span className="font-semibold">{m.user_name || "Slack"}</span> mentioned you · <span className="text-muted-foreground">{m.text}</span>
+                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{format(parseISO(m.created_at), "dd MMM, h:mm a")}</p>
+                      </div>
+                    </button>
+                  ))}
+                </TabsContent>
+              </Tabs>
             </CardContent>
           </Card>
 
