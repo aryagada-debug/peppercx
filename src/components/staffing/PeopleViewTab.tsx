@@ -128,7 +128,7 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
   const peopleByDept = useMemo(() => {
     const m = new Map<string, Person[]>();
     visiblePeople.forEach(p => {
-      const dept = normalizeDept(p.department)!;
+      const dept = normalizeDept(p)!;
       if (!m.has(dept)) m.set(dept, []);
       m.get(dept)!.push(p);
     });
@@ -416,7 +416,7 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
             const mgrPerson = peopleByNameLower.get(mgr);
             if (!mgrPerson) return true;
             // if manager is in same dept and visible, treat current as a child
-            if (normalizeDept(mgrPerson.department) === dept && visibleSet.has(mgrPerson.id)) return false;
+            if (normalizeDept(mgrPerson) === dept && visibleSet.has(mgrPerson.id)) return false;
             return true;
           });
           const total = dist.overloaded + dist.nearFull + dist.healthy + dist.underUtil || 1;
