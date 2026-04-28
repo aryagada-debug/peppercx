@@ -1,4 +1,6 @@
 import { useState, useRef } from "react";
+import { useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +20,8 @@ const DEAL_TYPES = ["Retainer", "Non-Retainer", "Pilot"] as const;
 const PEPPER_BUS = ["Pepper SEO/GEO+Content", "Pepper Content", "Pepper Creative", "Integrated", "Content Studio"] as const;
 const DEAL_STATUSES = ["Won", "Negotiation", "Pipeline", "Lost"] as const;
 const PAYMENT_TERMS = ["Net 15", "Net 30", "Net 45", "Net 60", "Advance", "Milestone-based"] as const;
+
+interface PersonOption { id: string; name: string; role_title: string; designation: string | null; }
 
 interface SoWItem { scope: string; revenueShare: number; teamCapability: string; }
 interface SuccessMetric { name: string; value: string; unit: string; frequency: string; }
@@ -65,6 +69,19 @@ export function DealFormWizard({ open, onOpenChange, clients, preSelectedClientI
   const [saving, setSaving] = useState(false);
   const [clientSearch, setClientSearch] = useState("");
   const [clientPopoverOpen, setClientPopoverOpen] = useState(false);
+  const [people, setPeople] = useState<PersonOption[]>([]);
+
+  useEffect(() => {
+    if (!open) return;
+    supabase.from("staffing_people")
+      .select("id, name, role_title, designation")
+      .eq("tbh", false)
+      .order("name")
+      .then(({ data }) => setPeople((data as PersonOption[]) || []));
+  }, [open]);
+
+  const peopleByRole = (role: string) => people.filter(p => (p.role_title || "").trim().toLowerCase() === role.toLowerCase());
+
   const [form, setForm] = useState<DealFormData>({
     dealName: "", dealType: "Retainer", startDate: "", endDate: "",
     mrr: "", totalDealValue: "", retainerDealValue: "", nonRetainerDealValue: "",
