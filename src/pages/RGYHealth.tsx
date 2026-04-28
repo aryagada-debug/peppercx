@@ -1193,16 +1193,56 @@ export default function RGYHealth() {
               </tbody>
             </table>
           </div>
-        </div>
+            </div>
+          </TabsContent>
 
-        {/* Tab switcher */}
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="mb-4">
-          <TabsList>
-            <TabsTrigger value="health">Health Board</TabsTrigger>
-            <TabsTrigger value="insights">Insights</TabsTrigger>
-          </TabsList>
+          <TabsContent value="table" className="mt-0">
+            {/* Table tab filters */}
+            <div className="flex items-center gap-3 mb-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">VSD:</span>
+                <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
+                  {VSD_FILTERS.map(v => (
+                    <button key={v.key} onClick={() => setActiveVsd(v.key)} className={cn(
+                      "px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
+                      activeVsd === v.key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                    )}>{v.label}</button>
+                  ))}
+                </div>
+              </div>
 
-          <TabsContent value="health">
+              <div className="flex gap-1 bg-secondary rounded-lg p-1">
+                {(["All", "Red", "Yellow", "Green"] as const).map(f => (
+                  <button key={f} onClick={() => setRgyFilter(f)} className={cn(
+                    "px-2.5 py-1.5 rounded-md text-caption font-medium whitespace-nowrap transition-colors",
+                    rgyFilter === f ? (
+                      f === "Red" ? "bg-red-500 text-white shadow-sm" :
+                      f === "Yellow" ? "bg-amber-500 text-white shadow-sm" :
+                      f === "Green" ? "bg-emerald-500 text-white shadow-sm" :
+                      "bg-primary text-primary-foreground shadow-sm"
+                    ) : "text-muted-foreground hover:text-foreground"
+                  )}>{f}</button>
+                ))}
+              </div>
+
+              <div className="relative flex-1 max-w-xs">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <input type="text" placeholder="Search clients or deals..." value={search} onChange={e => setSearch(e.target.value)}
+                  className="w-full h-9 pl-9 pr-3 rounded-lg bg-card border border-border text-ui text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all" />
+              </div>
+
+              <label className="flex items-center gap-2 text-ui text-muted-foreground cursor-pointer">
+                <input type="checkbox" checked={showClosed} onChange={e => setShowClosed(e.target.checked)} className="rounded border-border" />
+                Show closed/completed
+              </label>
+
+              {Object.keys(colFilters).length > 0 && (
+                <Button variant="ghost" size="sm" onClick={() => setColFilters({})} className="text-xs gap-1 text-muted-foreground">
+                  <X className="h-3.5 w-3.5" /> Clear filters ({Object.keys(colFilters).length})
+                </Button>
+              )}
+            </div>
+
             {/* Flat Table with column filters */}
             <TooltipProvider>
               <div className="bg-card border border-border rounded-xl overflow-hidden">
