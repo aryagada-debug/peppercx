@@ -291,7 +291,7 @@ export default function MBRTracker() {
     for (const s of vsdMap.values()) {
       s.pending = s.total - s.done - s.notDone;
     }
-    return Array.from(vsdMap.values()).sort((a, b) => b.total - a.total);
+    return Array.from(vsdMap.values()).filter(s => s.total > 0).sort((a, b) => b.total - a.total);
   }, [filteredDeals, activeEntryMap]);
 
   // BOPM insights (Sr / Principal) — used when a specific VSD is selected.
