@@ -46,7 +46,7 @@ export function KpiTile({ label, value, suffix, tone = "muted", icon: Icon, clas
     >
       {Icon && (
         <div className={cn("h-9 w-9 rounded-lg flex items-center justify-center shrink-0", toneIconBg[tone])}>
-          <Icon className="h-4.5 w-4.5" strokeWidth={2} />
+          <Icon className="h-4 w-4" strokeWidth={2} />
         </div>
       )}
       <div className="min-w-0 flex-1">
