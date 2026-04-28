@@ -13,7 +13,7 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY missing");
 
-    const prompt = `You are a portfolio health analyst. Given the following RGY (Red/Yellow/Green) deal-health snapshot for the past ${window}, write a 3-4 line crisp summary highlighting what has moved: which teams or VSDs got worse, which improved, and notable aged red issues. Use plain language, no bullet points. Snapshot:\n\n${JSON.stringify(snapshot).slice(0, 8000)}`;
+    const prompt = `RGY (Red/Yellow/Green) portfolio snapshot for the past ${window}. Write a 2-sentence summary (max 45 words total): one sentence on the biggest movement (which VSD or team got worse/better), one on the most urgent aged-red issue. No bullets, no preamble. Snapshot:\n\n${JSON.stringify(snapshot).slice(0, 8000)}`;
 
     const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -21,7 +21,7 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
         messages: [
-          { role: "system", content: "You write concise portfolio health summaries. 3-4 sentences max." },
+          { role: "system", content: "You write ultra-concise portfolio health summaries. 2 sentences, ~45 words max. No bullets, no preamble, no closing." },
           { role: "user", content: prompt },
         ],
       }),
