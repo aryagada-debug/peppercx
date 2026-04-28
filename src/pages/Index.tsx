@@ -14,6 +14,9 @@ import { KPISkeleton, AlertsSkeleton, PodTableSkeleton, HeatmapSkeleton } from "
 import { supabase } from "@/integrations/supabase/client";
 import type { RGYRow, RGYStatus, KPI, DashboardAlert, PodMember } from "@/types/dashboard";
 import { FinanceTargetsCard } from "@/components/targets/FinanceTargetsCard";
+import { useUserRole } from "@/hooks/useUserRole";
+import { useDealAccess } from "@/hooks/useDealAccess";
+import { BopmEmptyState } from "@/components/access/BopmEmptyState";
 
 const ACTIVE_STATUSES = ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"];
 const RGY_DIMS = ["Internal", "Customer", "Delivery", "Consumption"] as const;
@@ -64,6 +67,9 @@ export default function Dashboard() {
   const [rgyRows, setRgyRows] = useState<RGYRow[]>([]);
   const [vsdRollup, setVsdRollup] = useState<VsdRollup[]>([]);
   const [expandedVsd, setExpandedVsd] = useState<Set<string>>(new Set());
+  const { role } = useUserRole();
+  const { visibleDealIds, loading: accessLoading } = useDealAccess();
+  const isBopmPersona = role === "user";
 
   useEffect(() => {
     let cancelled = false;
@@ -112,7 +118,10 @@ export default function Dashboard() {
 
       if (cancelled) return;
 
-      const dealList = deals || [];
+      let dealList = deals || [];
+      if (isBopmPersona && !accessLoading) {
+        dealList = dealList.filter((d: any) => visibleDealIds.has(d.id));
+      }
       const activeIds = new Set(dealList.map((d: any) => d.id));
 
       // ---- KPIs ----
@@ -238,7 +247,7 @@ export default function Dashboard() {
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [selectedMonth]);
+  }, [selectedMonth, isBopmPersona, accessLoading, visibleDealIds]);
 
   const openDeal = (deal: RGYRow) => setSelectedDeal(deal);
 
@@ -260,7 +269,7 @@ export default function Dashboard() {
               <h1 className="text-subhead font-semibold tracking-tight text-foreground">Portfolio Overview</h1>
               {alerts.length > 0 && <Badge variant="destructive" className="text-xs">{alerts.length}</Badge>}
             </div>
-            <p className="text-ui text-muted-foreground mt-1">Live portfolio data</p>
+            <p className="text-ui text-muted-foreground mt-1">{isBopmPersona ? "Your tagged & staffed deals" : "Live portfolio data"}</p>
           </div>
           <DateRangeSelector value={selectedMonth} onChange={setSelectedMonth} />
         </div>
@@ -273,6 +282,10 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+
+        {isBopmPersona && !loading && !accessLoading && visibleDealIds.size === 0 && (
+          <div className="mb-8"><BopmEmptyState section="Your dashboard" /></div>
+        )}
 
         {/* Finance Targets */}
         <div className="mb-8 space-y-4">
