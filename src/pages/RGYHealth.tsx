@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { MetricCard } from "@/components/dashboard/MetricCard";
+import { KpiTile } from "@/components/dashboard/KpiTile";
 import { DealDetailDialog } from "@/components/rgy/DealDetailDialog";
 import { RGYInsightsTab } from "@/components/rgy/RGYInsightsTab";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
-import { Search, AlertTriangle, Plus, Trash2, Check, X, Calendar, Loader2, Settings2 } from "lucide-react";
+import { Search, AlertTriangle, AlertCircle, CheckCircle2, Activity, Plus, Trash2, Check, X, Calendar, Loader2, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
