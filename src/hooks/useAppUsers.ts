@@ -236,3 +236,130 @@ export function useVsdUsers() {
 
   return { vsdUsers, isVsdName, canonVsd, loading };
 }
+
+// ----- VSD reporting hierarchy -----
+// Walks `staffing_people.reporting_manager` upward from a given person to find
+// the top-level VSD they roll up to. Used by MBR Tracker and RGY Health to
+// filter deals by *who actually owns the BOPM relationship*, not by the
+// free-text vsd cell on the deal.
+
+let hierarchyCache: { map: Map<string, string>; ts: number } | null = null;
+const hierarchySubs = new Set<(m: Map<string, string>) => void>();
+let hierarchyChannel: ReturnType<typeof supabase.channel> | null = null;
+let hierarchyBound = false;
+
+async function loadHierarchy(): Promise<Map<string, string>> {
+  const { data } = await supabase
+    .from("staffing_people")
+    .select("name, reporting_manager, leaving, tbh");
+
+  // Build manager-of map keyed by nameKey.
+  const managerOf = new Map<string, string>(); // person -> manager name (raw)
+  (data || []).forEach((p: any) => {
+    const k = nameKey(p.name || "");
+    if (k) managerOf.set(k, (p.reporting_manager || "").trim());
+  });
+
+  const vsdCanonByKey = new Map<string, string>();
+  VSD_NAMES.forEach((v) => vsdCanonByKey.set(nameKey(v), v));
+
+  // For each person, walk up the chain until we hit a VSD or run out.
+  const personToVsd = new Map<string, string>(); // nameKey -> VSD canonical name
+  const resolve = (startKey: string): string | null => {
+    const seen = new Set<string>();
+    let curKey = startKey;
+    for (let i = 0; i < 8; i++) {
+      if (!curKey || seen.has(curKey)) return null;
+      seen.add(curKey);
+      // Is this person itself a VSD?
+      const vsd = vsdCanonByKey.get(curKey);
+      if (vsd) return vsd;
+      const mgr = managerOf.get(curKey);
+      if (!mgr) return null;
+      curKey = nameKey(mgr);
+    }
+    return null;
+  };
+
+  for (const k of managerOf.keys()) {
+    const v = resolve(k);
+    if (v) personToVsd.set(k, v);
+  }
+  // Also map the VSDs themselves (so deals where the VSD is listed as BOPM still resolve).
+  VSD_NAMES.forEach((v) => personToVsd.set(nameKey(v), v));
+  return personToVsd;
+}
+
+function bindHierarchyRealtime() {
+  if (hierarchyBound) return;
+  hierarchyBound = true;
+  if (hierarchyChannel) {
+    supabase.removeChannel(hierarchyChannel);
+    hierarchyChannel = null;
+  }
+  const refresh = async () => {
+    const next = await loadHierarchy();
+    hierarchyCache = { map: next, ts: Date.now() };
+    hierarchySubs.forEach((s) => s(next));
+  };
+  const ch = supabase.channel(`vsd-hierarchy-sync-${Date.now()}`);
+  ch.on("postgres_changes", { event: "*", schema: "public", table: "staffing_people" }, refresh);
+  ch.subscribe();
+  hierarchyChannel = ch;
+}
+
+export function useVsdHierarchy() {
+  const [map, setMap] = useState<Map<string, string>>(hierarchyCache?.map || new Map());
+  const [loading, setLoading] = useState(!hierarchyCache);
+
+  useEffect(() => {
+    bindHierarchyRealtime();
+    let alive = true;
+    const sub = (m: Map<string, string>) => alive && setMap(m);
+    hierarchySubs.add(sub);
+
+    if (!hierarchyCache || Date.now() - hierarchyCache.ts > 60_000) {
+      loadHierarchy().then((next) => {
+        if (!alive) return;
+        hierarchyCache = { map: next, ts: Date.now() };
+        setMap(next);
+        setLoading(false);
+      });
+    } else {
+      setLoading(false);
+    }
+
+    return () => {
+      alive = false;
+      hierarchySubs.delete(sub);
+    };
+  }, []);
+
+  const vsdForPerson = useCallback(
+    (name: string | null | undefined): string | null => {
+      const k = nameKey(name || "");
+      if (!k) return null;
+      return map.get(k) || null;
+    },
+    [map],
+  );
+
+  /** Resolve a deal's owning VSD by walking principal → senior → junior BOPM. */
+  const vsdForDeal = useCallback(
+    (deal: { principal_bopm?: string | null; senior_bopm?: string | null; bopm?: string | null; principalBopm?: string | null; seniorBopm?: string | null; }): string | null => {
+      const candidates = [
+        (deal as any).principal_bopm ?? (deal as any).principalBopm,
+        (deal as any).senior_bopm ?? (deal as any).seniorBopm,
+        (deal as any).bopm,
+      ];
+      for (const c of candidates) {
+        const v = vsdForPerson(c);
+        if (v) return v;
+      }
+      return null;
+    },
+    [vsdForPerson],
+  );
+
+  return { vsdForPerson, vsdForDeal, loading };
+}
