@@ -26,9 +26,9 @@ export default function Staffing() {
   const isBopmPersona = role === "user";
   const [tab, setTab] = useState<Tab>(tabParam || (isBopmPersona ? "tables" : "deals"));
 
-  // BOPM persona: defaults to the new table-first view, can switch to Advanced (matrix).
+  // BOPM persona: only one view — the unified table.
   useEffect(() => {
-    if (isBopmPersona && tab !== "tables" && tab !== "matrix") setTab("tables");
+    if (isBopmPersona && tab !== "tables") setTab("tables");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isBopmPersona]);
 
@@ -81,10 +81,7 @@ export default function Staffing() {
   }
 
   const TABS: { key: Tab; label: string }[] = isBopmPersona
-    ? [
-        { key: "tables", label: "Overview" },
-        { key: "matrix", label: "Advanced view" },
-      ]
+    ? []
     : [
         { key: "deals", label: "Deal view" },
         { key: "people", label: "People view" },
