@@ -526,6 +526,24 @@ function RGYIssueFormDialog({
 
 // ── Main Component ──
 export default function RGYHealth() {
+  const { users: appUsers, isRegisteredName } = useAppUsers();
+  // Built dynamically from registered users + which VSDs actually appear on deals.
+  const VSD_FILTERS = useMemo(() => {
+    const items: { key: string; label: string }[] = [{ key: "All", label: "All" }];
+    appUsers.forEach((u) => items.push({ key: u.displayName, label: u.displayName }));
+    items.push({ key: "Other", label: "Other" });
+    items.push({ key: "Unassigned", label: "Unassigned" });
+    return items;
+  }, [appUsers]);
+  const isOtherVsd = useCallback(
+    (vsdRaw: string | null | undefined) => {
+      const v = (vsdRaw || "").trim();
+      if (!v) return false;
+      if (UNASSIGNED_VSD_VALUES.has(v)) return false;
+      return !isRegisteredName(v);
+    },
+    [isRegisteredName],
+  );
   const [deals, setDeals] = useState<DealWithRGY[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
