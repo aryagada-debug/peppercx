@@ -20,6 +20,7 @@ const DIMENSIONS = [
 const SERVICE_LINES = ["content", "seo", "supply", "copy", "design", "video"];
 
 const COLORS = { R: "#ef4444", Y: "#f59e0b", G: "#22c55e", NA: "#94a3b8" };
+const RED_AGING_THRESHOLD = 10; // days — Red issues older than this are surfaced to the top
 
 const ACTIVE_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
 
@@ -231,11 +232,20 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Prop
         const flagged =
           (i.worst === "R" && days > 10) ||
           (i.worst === "Y" && days > 15);
-        return { ...i, days, flagged };
+        const agedRed = i.worst === "R" && days > RED_AGING_THRESHOLD;
+        return { ...i, days, flagged, agedRed };
       });
-    // Sort: flagged first, then by days desc
+    // Sort: aged Red first, then other Red, then Yellow — older first within each group
+    const rank = (i: typeof filtered[number]) => {
+      if (i.agedRed) return 0;
+      if (i.worst === "R") return 1;
+      if (i.worst === "Y") return 2;
+      return 3;
+    };
     return filtered.sort((a, b) => {
-      if (a.flagged !== b.flagged) return a.flagged ? -1 : 1;
+      const ra = rank(a);
+      const rb = rank(b);
+      if (ra !== rb) return ra - rb;
       return b.days - a.days;
     });
   }, [issues, activePod]);
