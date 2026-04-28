@@ -961,7 +961,7 @@ export default function RGYHealth() {
       });
     }
     return d;
-  }, [deals, activeVsd, search, showClosed, rgyFilter, vsdForDeal]);
+  }, [deals, activeVsd, activeBopm, search, showClosed, rgyFilter, vsdForDeal]);
 
   // Apply per-column filters + sort to produce flat row list
   const tableRows = useMemo(() => {
