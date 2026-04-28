@@ -290,12 +290,20 @@ export function DealFormWizard({ open, onOpenChange, clients, preSelectedClientI
                   </Field>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="VSD"><Input value={form.vsd} onChange={e => set("vsd", e.target.value)} /></Field>
-                  <Field label="Principal BOPM"><Input value={form.principalBopm} onChange={e => set("principalBopm", e.target.value)} /></Field>
+                  <Field label="VSD">
+                    <PersonCombobox value={form.vsd} onChange={v => set("vsd", v)} options={peopleByRole("VSD")} placeholder="Select VSD" />
+                  </Field>
+                  <Field label="Principal BOPM">
+                    <PersonCombobox value={form.principalBopm} onChange={v => set("principalBopm", v)} options={peopleByRole("Principal BOPM")} placeholder="Select Principal BOPM" />
+                  </Field>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="Senior BOPM"><Input value={form.seniorBopm} onChange={e => set("seniorBopm", e.target.value)} /></Field>
-                  <Field label="Junior BOPM"><Input value={form.bopm} onChange={e => set("bopm", e.target.value)} /></Field>
+                  <Field label="Senior BOPM">
+                    <PersonCombobox value={form.seniorBopm} onChange={v => set("seniorBopm", v)} options={peopleByRole("Senior BOPM")} placeholder="Select Senior BOPM" />
+                  </Field>
+                  <Field label="Junior BOPM">
+                    <PersonCombobox value={form.bopm} onChange={v => set("bopm", v)} options={peopleByRole("BOPM")} placeholder="Select BOPM" />
+                  </Field>
                 </div>
                 <Field label="Capability Line">
                   <Input value={form.capabilityLine} onChange={e => set("capabilityLine", e.target.value)} />
