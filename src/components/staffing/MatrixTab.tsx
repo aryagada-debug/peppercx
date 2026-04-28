@@ -948,26 +948,33 @@ function PersonPicker({
 
 function AddRoleRow({
   roles, people, onCancel, onConfirm, occupancy, vsdOptions, peopleByVsd, allocationsByPerson,
+  dealStartDate, dealEndDate,
   dealPod = "", dealServiceLine = "", peopleByPod = {},
 }: {
   roles: { key: string; label: string }[];
   people: Person[];
   onCancel: () => void;
-  onConfirm: (roleKey: string, personId: string) => void;
+  onConfirm: (roleKey: string, personId: string, pct: number, startDate?: string, endDate?: string) => void;
   occupancy?: Record<string, number>;
   vsdOptions?: string[];
   peopleByVsd?: Record<string, Set<string>>;
   allocationsByPerson?: Record<string, { dealId: string; dealName: string; pct: number }[]>;
+  dealStartDate?: string;
+  dealEndDate?: string;
   dealPod?: string;
   dealServiceLine?: string;
   peopleByPod?: Record<string, Set<string>>;
 }) {
   const [roleKey, setRoleKey] = useState(roles[0]?.key || "");
   const [personId, setPersonId] = useState("");
+  const [hrs, setHrs] = useState<number>(20); // default 20h/week ≈ 50%
+  const [startDate, setStartDate] = useState<string>(dealStartDate || "");
+  const [endDate, setEndDate] = useState<string>(dealEndDate || "");
+  const pct = Math.max(0, Math.min(100, Math.round((hrs / 40) * 100)));
 
   return (
     <div className="bg-primary/5 border border-primary/30 rounded-md p-2 space-y-2">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <select
           value={roleKey}
           onChange={e => setRoleKey(e.target.value)}
@@ -990,9 +997,38 @@ function AddRoleRow({
           dealServiceLine={dealServiceLine}
           peopleByPod={peopleByPod}
         />
+      </div>
+      <div className="flex items-end gap-2 flex-wrap">
+        <label className="flex flex-col gap-0.5">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Hrs/Week</span>
+          <input
+            type="number" min={0} max={40} step="0.5"
+            value={hrs}
+            onChange={e => setHrs(Math.max(0, Math.min(40, Number(e.target.value) || 0)))}
+            className="w-20 h-7 px-2 text-caption text-right font-mono tabular-nums bg-background border border-border rounded focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+          />
+        </label>
+        <span className="text-[10px] text-muted-foreground pb-1.5">= {pct}%</span>
+        <label className="flex flex-col gap-0.5">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Start</span>
+          <input
+            type="date" value={startDate}
+            onChange={e => setStartDate(e.target.value)}
+            className="h-7 px-2 text-caption bg-background border border-border rounded focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+          />
+        </label>
+        <label className="flex flex-col gap-0.5">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">End</span>
+          <input
+            type="date" value={endDate}
+            onChange={e => setEndDate(e.target.value)}
+            className="h-7 px-2 text-caption bg-background border border-border rounded focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+          />
+        </label>
+        <div className="ml-auto flex items-center gap-2">
         <button
           type="button"
-          onClick={() => { if (roleKey && personId) onConfirm(roleKey, personId); }}
+          onClick={() => { if (roleKey && personId) onConfirm(roleKey, personId, pct, startDate || undefined, endDate || undefined); }}
           disabled={!roleKey || !personId}
           className="h-7 px-3 rounded-md bg-primary text-primary-foreground text-caption font-medium hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >Add</button>
@@ -1001,6 +1037,7 @@ function AddRoleRow({
           onClick={onCancel}
           className="h-7 px-2 rounded-md border border-border text-caption text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
         >Cancel</button>
+        </div>
       </div>
     </div>
   );
