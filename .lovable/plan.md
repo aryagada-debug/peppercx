@@ -1,39 +1,55 @@
-## Problem
+## Goal
 
-The "Admin / VSD / BOPMs/Creative" persona switcher in the top bar has two issues:
+Revamp the **Month-on-Month** view in MBR Tracker so it reads like the Current table (one row per deal — no nested client/deal grouping), replace the colored status dots with explicit "Done / Pending" labels (with a sentiment dot next to "Done"), and add a **Trend Insights** view that summarizes signals across all MBRs over time.
 
-1. **Switching does nothing until refresh.** `useUserRole` is a hook with **per-component local state**. When `RoleSwitcher` calls `setViewAsRole`, only its own copy of `viewAsRole` updates. Every other component that calls `useUserRole()` (sidebar, ProtectedRoute, pages, deal access checks, etc.) keeps its old `viewAsRole` value and only picks up the change on a full refresh when each instance re-reads `localStorage` on mount.
-2. **Active persona is not visually prominent.** The animated indicator pill is `bg-primary` with `text-primary-foreground`, but on the current theme the contrast is weak and the inactive items look almost identical to the active one. There's no icon emphasis or color shift to signal selection.
+## Changes
 
-## Fix
+### 1. Flatten the Month-on-Month table (src/pages/MBRTracker.tsx)
 
-### 1. Make persona switching instant (global state)
+Replace the current grouped client → deal block (lines ~700–778) with a single flat table mirroring the Current view's column structure:
 
-Refactor `src/hooks/useUserRole.ts` so the `viewAsRole` override (and the loaded role/route data) lives in a **single shared store**, not per-hook local state. Two clean options that fit the project:
+- Columns: **Account**, **Deal**, **VSD**, **Sr. BOPM**, **MRR** (sticky-left identity columns), then one column per month in `availableMonths`.
+- One row per deal (use `tableRows` / filtered deals — same filter pipeline as Current view, so VSD/BOPM/search/showClosed all apply).
+- Remove the "Client header" aggregate row and the indented deal rows.
+- Keep month-cell click → opens `MBRDetailDialog` for that deal/entry.
 
-- Create a tiny `UserRoleProvider` context that holds `actualRole`, `viewAsRole`, `visibleRoutes`, `routeAccess`, `loading`, and exposes `setViewAsRole` + `refresh`. Mount it once in `src/App.tsx` (above the routes, inside `AuthProvider`). `useUserRole()` becomes `useContext(UserRoleContext)`.
-- Keep the public API of `useUserRole` identical so no call sites change.
+### 2. Replace dots with Done / Pending pills + sentiment dot
 
-Result: `RoleSwitcher` calling `setViewAsRole("member")` updates the single store → every consumer (sidebar visibility, ProtectedRoute, page-level edit gates, DealDetail, Targets, etc.) re-renders immediately and the role-scoped Supabase reload (`load()` in the hook) runs once for everyone.
+In each month cell, render based on `entry.status`:
 
-Also: keep the `localStorage` persistence so the choice survives reloads (already there), and keep reading it once on provider mount.
+- **Done** → small green "Done" pill + a sentiment dot to its right (Green/Yellow/Red from `entry.sentiment`, grey if missing).
+- **Not Done** → red "Not Done" pill (no sentiment dot).
+- **Not Required** → muted "N/R" pill.
+- **Pending / no entry** → amber "Pending" pill.
 
-### 2. Make the active persona obvious
+Update the legend strip at the bottom to show the new pill styles + an explanation that the dot beside "Done" is the client sentiment.
 
-Update `src/components/layout/RoleSwitcher.tsx`:
+### 3. Add Trend (Insights) view
 
-- Active button: solid `bg-primary text-primary-foreground` **plus** `font-medium`, slightly larger horizontal padding, and the icon tinted to `text-primary-foreground`. Keep the sliding indicator but raise its contrast (e.g. add a subtle `ring-1 ring-primary/40`) so it reads as a clearly selected chip.
-- Inactive buttons: `text-muted-foreground` with `hover:bg-muted hover:text-foreground`, icon at `opacity-70`.
-- Add a small left-side label/chip "Viewing as:" before the segmented control so users always know what the control represents. On the current 1179px viewport there is room next to the search/theme toggles; on narrower widths hide the label with `hidden md:inline`.
-- Add a subtle persistent badge in the top bar (next to the user menu) that reads `Viewing as VSD` / `Viewing as BOPMs` whenever `viewAsRole !== null`, with a small "Reset" affordance that calls `setViewAsRole(null)`. This makes the override unmistakable even when the segmented control is off-screen.
+Add a third toggle button next to `Current` / `Month-on-Month` called **Trend** (icon: `TrendingUp` from lucide). New `viewMode` value `"trend"`.
 
-No other behavior changes. Two-font-weight and flat-UI rules from the project memory are preserved (Regular + Medium only, no shadows/gradients, semantic colors only via `bg-primary` / `bg-muted`).
+The Trend panel shows insights computed from `allEntries` (all months, respecting the active VSD/BOPM/search filters) in a single scrollable card grid:
 
-## Files to edit
+- **Compliance over time**: small line/area chart of % MBRs Done per month (last 12 months) using Recharts (already a project dep per memory).
+- **Sentiment mix over time**: stacked bar per month (Green / Yellow / Red counts) from `entry.sentiment` on Done MBRs.
+- **Top decliners**: deals whose sentiment shifted Green→Yellow or Yellow→Red across the last 2 recorded months (table: Deal, VSD, Prev → Now).
+- **Most consistent (Green streaks)**: deals with ≥3 consecutive Green-sentiment Done MBRs.
+- **Chronic skippers**: deals with the most "Not Done" or missing-entry months in the last 6 months.
+- **Action items pulse**: total open vs done action items across all entries (`action_items` jsonb already on `MBREntry`), plus top 5 oldest open items with deal + owner + deadline.
 
-- `src/hooks/useUserRole.ts` — split into a `UserRoleProvider` + `useUserRole` consumer hook; same return shape.
-- `src/App.tsx` — wrap routes in `<UserRoleProvider>` (inside `AuthProvider`).
-- `src/components/layout/RoleSwitcher.tsx` — stronger active styling, "Viewing as:" label, optional reset chip.
-- `src/components/layout/AppLayout.tsx` — render the small "Viewing as X · Reset" badge in the top bar when an override is active (only for true admins).
+All sections honor the existing VSD + BOPM + search filters so the user can scope insights.
 
-No DB or edge function changes.
+### 4. Plumbing
+
+- Reuse existing `entriesByMonth`, `availableMonths`, `allEntries` from `useMBRData`.
+- Compute the trend aggregates inside `MBRTracker.tsx` with `useMemo` (no new hook needed) — keeps changes scoped to one file.
+- No DB schema changes.
+
+## Files Edited
+
+- `src/pages/MBRTracker.tsx` — flatten MoM table, swap dots → pills + sentiment dot, add `Trend` toggle + new view section.
+
+## Files NOT Touched
+
+- `src/hooks/useMBRData.ts` — already exposes everything needed.
+- No migrations.
