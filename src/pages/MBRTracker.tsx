@@ -531,13 +531,9 @@ export default function MBRTracker() {
                 ))}
               </div>
               <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium ml-2">BOPM:</span>
-              <Select
-                value={activeBopm}
-                onValueChange={setActiveBopm}
-                disabled={activeVsd === "All" || activeVsd === "Unassigned" || bopmOptions.length === 0}
-              >
+              <Select value={activeBopm} onValueChange={setActiveBopm}>
                 <SelectTrigger className="h-7 w-[180px] text-[11px]">
-                  <SelectValue placeholder={activeVsd === "All" ? "Select a VSD first" : "All BOPMs"} />
+                  <SelectValue placeholder="All BOPMs" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="All" className="text-xs">All BOPMs</SelectItem>
