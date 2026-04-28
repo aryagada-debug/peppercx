@@ -413,12 +413,17 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Prop
                         >
                           {statusShortLabels[issue.deal_status] || issue.deal_status || "—"}
                         </Badge>
-                        <span className="text-xs font-semibold text-foreground">{issue.deal_name}</span>
+                        <Link
+                          to={`/deals/${issue.deal_id}?tab=Tasks`}
+                          className="text-xs font-semibold text-primary hover:underline"
+                        >
+                          {issue.deal_name}
+                        </Link>
                         <span className="text-[11px] text-muted-foreground font-mono">{issue.deal_id_code}</span>
                         {/* Timeline + flag */}
                         <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
                           <Clock className="h-3 w-3" />
-                          {issue.days}d open
+                          {issue.days}d since marked {issue.worst === "R" ? "Red" : issue.worst === "Y" ? "Yellow" : ""}
                         </span>
                         {issue.flagged && (
                           <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-500/15 text-red-700 border border-red-500/30">
