@@ -422,6 +422,13 @@ export function AddStaffingMemberDialog({
                   </div>
                 )}
 
+                {requiresApproval && (
+                  <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs text-foreground">
+                    This change will be sent to <span className="font-medium">Central Cx</span> for approval.
+                    All details below will be included in the request.
+                  </div>
+                )}
+
                 <div>
                   <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Role on this deal</label>
                   <Input value={roleOnDeal} onChange={e => setRoleOnDeal(e.target.value)} placeholder="e.g. Senior BOPM" className="h-8 text-sm" />
