@@ -981,9 +981,9 @@ export default function RGYHealth() {
       const overall: RGYSummaryRow = { name: "Pod Overall", total: 0, red: 0, yellow: 0, green: 0, pending: 0 };
       for (const deal of filteredDeals) {
         const raw = (deal.principal_bopm || deal.senior_bopm || "").trim();
-        if (!raw) continue;
         const lower = raw.toLowerCase();
         const isPlaceholder =
+          !raw ||
           lower === "to be assigned" ||
           lower === "tbd" ||
           lower === "tba" ||
