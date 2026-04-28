@@ -202,6 +202,87 @@ Deno.serve(async (req) => {
       );
     }
 
+    if (action === "provision_demo_logins") {
+      const DEMO_PASSWORD = "Demo@1234";
+      const DEMO_ACCOUNTS: { personId: string; email: string }[] = [
+        // VSDs
+        { personId: "P437", email: "aditya.shaw+demo@peppercontent.io" },
+        { personId: "P378", email: "neema.jayadas+demo@peppercontent.io" },
+        { personId: "P112", email: "aamir.khan+demo@peppercontent.io" },
+        { personId: "P308", email: "sumit.shekhawat+demo@peppercontent.io" },
+        { personId: "P064", email: "sneha.iyer+demo@peppercontent.io" },
+        // BOPMs
+        { personId: "P579", email: "ritu.priya+demo@peppercontent.io" },
+        { personId: "P148", email: "tiffany.fernandes+demo@peppercontent.io" },
+        { personId: "P543", email: "shreshtha.pathak+demo@peppercontent.io" },
+      ];
+
+      const ids = DEMO_ACCOUNTS.map((a) => a.personId);
+      const { data: people } = await adminClient
+        .from("staffing_people")
+        .select("id, name")
+        .in("id", ids);
+      const personById = new Map((people || []).map((p: any) => [p.id, p.name as string]));
+
+      const { data: authList } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
+      const existingByEmail = new Map<string, string>();
+      (authList?.users || []).forEach((u) => {
+        if (u.email) existingByEmail.set(u.email.toLowerCase(), u.id);
+      });
+
+      const results: { email: string; person: string; status: string; error?: string }[] = [];
+
+      for (const acc of DEMO_ACCOUNTS) {
+        const personName = personById.get(acc.personId);
+        if (!personName) {
+          results.push({ email: acc.email, person: acc.personId, status: "missing_person" });
+          continue;
+        }
+        const emailLower = acc.email.toLowerCase();
+        let userId = existingByEmail.get(emailLower);
+        let status = "linked";
+
+        if (!userId) {
+          const { data: newUser, error: cErr } = await adminClient.auth.admin.createUser({
+            email: acc.email,
+            password: DEMO_PASSWORD,
+            email_confirm: true,
+            user_metadata: { full_name: personName },
+          });
+          if (cErr || !newUser?.user) {
+            results.push({ email: acc.email, person: personName, status: "error", error: cErr?.message || "create failed" });
+            continue;
+          }
+          userId = newUser.user.id;
+          status = "created";
+        } else {
+          // Reset password to known demo value so it stays predictable.
+          await adminClient.auth.admin.updateUserById(userId, {
+            password: DEMO_PASSWORD,
+            email_confirm: true,
+          }).catch(() => {});
+          status = "reset";
+        }
+
+        await adminClient.from("profiles").upsert(
+          { user_id: userId, display_name: personName, staffing_person_id: acc.personId },
+          { onConflict: "user_id" },
+        );
+        await adminClient
+          .from("user_roles")
+          .insert({ user_id: userId, role: "user" })
+          .select()
+          .then((r) => r, () => null);
+
+        results.push({ email: acc.email, person: personName, status });
+      }
+
+      return new Response(
+        JSON.stringify({ password: DEMO_PASSWORD, results }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     return new Response(JSON.stringify({ error: "Unknown action" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
