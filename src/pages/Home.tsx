@@ -558,10 +558,14 @@ export default function HomePage() {
             </p>
           </div>
           <div className="grid grid-cols-4 gap-2">
-            <KpiPill label="Overdue" value={overdue.length} tone="destructive" icon={AlertTriangle} />
-            <KpiPill label="Due Today" value={today.length} tone="warning" icon={Clock} />
-            <KpiPill label="This Week" value={upcoming.length} tone="primary" icon={CalendarDays} />
-            <KpiPill label="Open Flags" value={totalFlags} tone="destructive" icon={Flag} />
+            <KpiPill label="Overdue" value={overdue.length} tone="destructive" icon={AlertTriangle}
+              onClick={() => { setTaskFilter("overdue"); document.getElementById("my-tasks-card")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} />
+            <KpiPill label="Due Today" value={today.length} tone="warning" icon={Clock}
+              onClick={() => { setTaskFilter("today"); document.getElementById("my-tasks-card")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} />
+            <KpiPill label="This Week" value={upcoming.length} tone="primary" icon={CalendarDays}
+              onClick={() => { setTaskFilter("upcoming"); document.getElementById("my-tasks-card")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} />
+            <KpiPill label="Open Flags" value={totalFlags} tone="destructive" icon={Flag}
+              onClick={() => { document.getElementById("flags-card")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} />
           </div>
         </div>
 
