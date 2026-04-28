@@ -219,6 +219,11 @@ export function DealLevelView({ deals, people, assignments, revenueTargets = [] 
                                                       </div>
                                                       <span className="font-mono tabular-nums text-muted-foreground text-[10px]">{a.allocationPct}%</span>
                                                     </div>
+                                                    {(a.startDate || a.endDate) && (
+                                                      <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
+                                                        {a.startDate || "—"} → {a.endDate || "—"}
+                                                      </span>
+                                                    )}
                                                   </div>
                                                 );
                                               })}
