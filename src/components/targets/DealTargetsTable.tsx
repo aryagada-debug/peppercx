@@ -54,7 +54,8 @@ export function DealTargetsTable({ monthYYYYMM, dealIds, title, maxRows }: Props
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-border">
-                  <th className="text-left py-2 pr-3 font-medium text-muted-foreground uppercase tracking-wider text-[10px] sticky left-0 bg-card">Deal</th>
+                  <th rowSpan={2} className="text-left py-2 pr-3 font-medium text-muted-foreground uppercase tracking-wider text-[10px] sticky left-0 bg-card">Deal Name</th>
+                  <th rowSpan={2} className="text-left py-2 pr-3 font-medium text-muted-foreground uppercase tracking-wider text-[10px]">Client Name</th>
                   {METRICS.map((m) => (
                     <th key={m} colSpan={3} className="text-center py-1.5 px-2 font-medium text-muted-foreground uppercase tracking-wider text-[10px] border-l border-border">
                       {METRIC_LABELS[m]}
@@ -62,7 +63,6 @@ export function DealTargetsTable({ monthYYYYMM, dealIds, title, maxRows }: Props
                   ))}
                 </tr>
                 <tr className="border-b border-border">
-                  <th className="sticky left-0 bg-card" />
                   {METRICS.map((m) => (
                     <Fragment key={m}>
                       <th className="text-right py-1.5 pr-2 pl-2 font-medium text-muted-foreground text-[10px] border-l border-border">Tgt</th>
@@ -79,9 +79,9 @@ export function DealTargetsTable({ monthYYYYMM, dealIds, title, maxRows }: Props
                       <Link to={`/deals/${r.deal_id}`} className="font-medium text-foreground hover:text-primary">
                         {dealNames[r.deal_id]?.name || r.deal_id}
                       </Link>
-                      {dealNames[r.deal_id]?.account && (
-                        <div className="text-[10px] text-muted-foreground truncate max-w-[180px]">{dealNames[r.deal_id].account}</div>
-                      )}
+                    </td>
+                    <td className="py-2 pr-3 text-muted-foreground truncate max-w-[200px]" title={dealNames[r.deal_id]?.account || ""}>
+                      {dealNames[r.deal_id]?.account || "—"}
                     </td>
                     {METRICS.map((m) => {
                       const tgt = r[`${m}_target` as const] as number;

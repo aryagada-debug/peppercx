@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.slack-activity-check]
 verify_jwt = false
+
+[functions.staffing-capacity-reminders]
+verify_jwt = false

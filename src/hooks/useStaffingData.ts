@@ -93,11 +93,27 @@ function dealToDb(d: Deal): TablesInsert<"staffing_deals"> {
 }
 
 function dbToAssignment(row: any): StaffingAssignment {
-  return { id: row.id, dealId: row.deal_id, roleKey: row.role_key, personId: row.person_id, allocationPct: Number(row.allocation_pct) };
+  return {
+    id: row.id,
+    dealId: row.deal_id,
+    roleKey: row.role_key,
+    personId: row.person_id,
+    allocationPct: Number(row.allocation_pct),
+    startDate: row.start_date || undefined,
+    endDate: row.end_date || undefined,
+  };
 }
 
 function assignmentToDb(a: StaffingAssignment): TablesInsert<"staffing_assignments"> {
-  return { id: a.id, deal_id: a.dealId, role_key: a.roleKey, person_id: a.personId, allocation_pct: a.allocationPct };
+  return {
+    id: a.id,
+    deal_id: a.dealId,
+    role_key: a.roleKey,
+    person_id: a.personId,
+    allocation_pct: a.allocationPct,
+    start_date: a.startDate || null,
+    end_date: a.endDate || null,
+  };
 }
 
 function dbToHiring(row: any): HiringNeed {
@@ -306,6 +322,8 @@ export function useStaffingData() {
     if (updates.allocationPct !== undefined) dbUpdates.allocation_pct = updates.allocationPct;
     if (updates.roleKey !== undefined) dbUpdates.role_key = updates.roleKey;
     if (updates.dealId !== undefined) dbUpdates.deal_id = updates.dealId;
+    if (updates.startDate !== undefined) dbUpdates.start_date = updates.startDate || null;
+    if (updates.endDate !== undefined) dbUpdates.end_date = updates.endDate || null;
     await supabase.from("staffing_assignments").update(dbUpdates).eq("id", id);
     // If the assignee was changed, notify the new person.
     if (next && updates.personId) {

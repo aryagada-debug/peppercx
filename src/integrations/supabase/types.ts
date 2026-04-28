@@ -1021,27 +1021,33 @@ export type Database = {
           allocation_pct: number
           created_at: string
           deal_id: string
+          end_date: string | null
           id: string
           person_id: string
           role_key: string
+          start_date: string | null
           updated_at: string
         }
         Insert: {
           allocation_pct?: number
           created_at?: string
           deal_id: string
+          end_date?: string | null
           id: string
           person_id: string
           role_key: string
+          start_date?: string | null
           updated_at?: string
         }
         Update: {
           allocation_pct?: number
           created_at?: string
           deal_id?: string
+          end_date?: string | null
           id?: string
           person_id?: string
           role_key?: string
+          start_date?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1378,6 +1384,36 @@ export type Database = {
           slack_user_id?: string
           tbh?: boolean
           updated_at?: string
+        }
+        Relationships: []
+      }
+      staffing_reminder_log: {
+        Row: {
+          assignment_id: string
+          deal_id: string
+          id: string
+          person_id: string
+          reminder_type: string
+          sent_at: string
+          sent_date: string
+        }
+        Insert: {
+          assignment_id?: string
+          deal_id?: string
+          id?: string
+          person_id: string
+          reminder_type: string
+          sent_at?: string
+          sent_date?: string
+        }
+        Update: {
+          assignment_id?: string
+          deal_id?: string
+          id?: string
+          person_id?: string
+          reminder_type?: string
+          sent_at?: string
+          sent_date?: string
         }
         Relationships: []
       }

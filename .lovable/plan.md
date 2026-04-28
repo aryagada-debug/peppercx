@@ -1,71 +1,115 @@
-# Global Currency Toggle (INR ↔ USD)
+# Plan
 
-Add a single app-wide currency switcher so every monetary value in VSD-OS can be displayed in INR (₹) or USD ($) at the user's choice.
+Four scoped changes across UI, data model, and a scheduled backend job.
 
-## What the user will see
+---
 
-- A small **Currency** selector (₹ INR / $ USD) in the top app header (next to the theme toggle / user menu), visible on every page.
-- Switching it instantly re-formats every amount across:
-  - Home (Quota Tracker, Tasks, Flags)
-  - Dashboard / Index (metrics, RGY, deal drawer)
-  - Clients & Deals list, Deal Detail (Overview, Financials, SoW, MBR)
-  - Targets page + Finance Targets card + Deal Targets table
-  - Staffing tabs (Summary, Revenue Capacity, Accounts, Deal/People views, BW Rules, Matrix)
-  - Revenue, MBR Tracker, GM2 Calculator, SEO Staffing, Deal Desk, Deal Form Wizard, SoW Import preview
-- Choice is **remembered per user** (localStorage) and persists across reloads/sessions.
-- Compact suffixes adapt: INR uses `L` / `Cr`, USD uses `K` / `M` / `B`.
+## 1. Currency toggle (₹/$) — make active state more prominent
 
-## Conversion model
+**File:** `src/components/ui/currency-input.tsx`
 
-- Source data stays in INR in the database (no migration).
-- A single FX rate `INR_PER_USD` (default **83**) is applied at display time only: `usd = inr / rate`.
-- Rate is configurable in one place (`src/lib/currency.ts`) so it can later be wired to a live feed without touching call sites.
+The current toggle uses subtle styling (light gray background, small chevron buttons). Refactor the `ToggleBtn` so the **active** option is visually unmistakable:
 
-## Technical approach
+- Active button: solid **primary** color background (`bg-primary text-primary-foreground`), bold weight, slightly larger.
+- Inactive button: transparent with muted text and clear hover state.
+- Increase button width from `w-6` → `w-7`, font size `text-[11px]` → `text-xs font-bold`.
+- Add a subtle ring/border around the toggle group so it reads as a control, not decoration.
+- Keep the same interaction logic.
 
-1. **`src/lib/currency.ts` (new)**
-   - `type Currency = 'INR' | 'USD'`
-   - `INR_PER_USD = 83` constant.
-   - `formatMoney(amountInInr: number, currency: Currency, opts?: { compact?: boolean })`:
-     - INR compact: `₹0` / `₹1,23,456` / `₹1.2L` / `₹1.20Cr`
-     - USD compact: `$0` / `$1,234` / `$12.3K` / `$1.23M` / `$1.20B`
-   - `formatMoneyFull(...)` for non-compact (tables/inputs).
+This affects every place CurrencyInput is used (Deal Form Wizard MRR, total deal value, retainer/non-retainer values, SoW revenue share).
 
-2. **`src/contexts/CurrencyContext.tsx` (new)**
-   - Provides `{ currency, setCurrency, format, formatFull }`.
-   - Persists selection in `localStorage` key `vsd.currency`.
-   - Wrap app inside `src/App.tsx` (above existing providers).
+---
 
-3. **`src/components/layout/CurrencyToggle.tsx` (new)**
-   - Small `Select` (₹ INR / $ USD), mounted in `AppLayout` header.
+## 2. Targets tab — add Deal Name & Client Name columns
 
-4. **Refactor `formatINR`** in `src/lib/csvTargets.ts`:
-   - Re-export becomes a thin wrapper that reads context-free fallback (INR) for any non-React caller, but **all React call sites switch to `useCurrency().format(...)`**.
-   - Update the ~30 files listed below to call `format()` from context instead of the hard-coded `formatINR` / inline `₹` strings.
+**File:** `src/components/targets/DealTargetsTable.tsx` (used in Targets page "By Deal" tab)
 
-5. **Files to update** (replace `₹...` literals and `formatINR` calls with `useCurrency().format(...)`):
-   - `src/lib/csvTargets.ts` (keep INR fallback, mark as legacy)
-   - `src/components/targets/{FinanceTargetsCard,DealTargetsTable}.tsx`
-   - `src/components/staffing/{SummaryTab,RevenueCapacityTab,PeopleViewTab,PeopleLevelView,MatrixTab,DealViewTab,DealLevelView,BWRulesTab,AccountsTab}.tsx`
-   - `src/components/deals/{FinancialsTab,SoWImportDialog,DealFormWizard}.tsx`
-   - `src/components/rgy/DealDetailDialog.tsx`
-   - `src/components/mbr/MBRDetailDialog.tsx`
-   - `src/pages/{Targets,Deals,DealDetail,DealDesk,Clients,Revenue,MBRTracker,GM2Calculator,SEOStaffing,Home,Index}.tsx`
-   - `src/data/dashboardMocks.ts` (only display strings, if any — leave raw numbers untouched)
+Currently shows a single "Deal" column that contains both name and account stacked. Split into two dedicated columns:
 
-6. **Inputs (deal value, MRR, etc.)** in `DealFormWizard` and `GM2Calculator`:
-   - Show the active currency symbol next to inputs.
-   - Internally store INR. If user enters in USD mode, multiply by `INR_PER_USD` before saving; on load, divide for display.
+- **Deal Name** (sticky left) — links to `/deals/:id`
+- **Client Name** — separate column, plain text, truncated with tooltip on overflow
 
-## Out of scope
+Update the `<thead>` to add a second sticky header cell, adjust the colSpan/structure of the metric header rows to account for one extra leading column, and split the existing combined `<td>` into two cells. Drop the inline `<div>` for account since it now has its own column.
 
-- Live FX rates (constant 83 for now; one-line change later).
-- Per-deal native currency tracking.
-- Backend/database changes — none required.
+---
 
-## Acceptance
+## 3. Staffing — per-assignment Start/End dates + reminders
 
-- Toggle appears in header on every page.
-- Flipping to USD re-renders every visible amount with `$` and USD-compact suffixes; flipping back to INR restores `₹` and L/Cr.
-- Selection persists across reloads and route changes.
-- No raw `₹` literal remains in the listed React files.
+### 3a. Schema change (migration)
+
+Add to `staffing_assignments`:
+
+- `start_date date` (nullable)
+- `end_date date` (nullable)
+
+### 3b. UI
+
+**Files:** `src/hooks/useStaffingData.ts`, `src/components/staffing/AddStaffingMemberDialog.tsx`, `src/components/staffing/MatrixTab.tsx`, `src/components/staffing/DealLevelView.tsx`
+
+- Extend `Assignment` type with `startDate?`, `endDate?`.
+- In **Add Staffing Member** dialog (step 3), add two date pickers (default: deal start/end) next to allocation %.
+- In **Matrix tab** assignment row, render two compact date inputs alongside the allocation slider.
+- In **Deal-Level view**, show start–end as a small caption under the person name.
+- Persist via existing `upsertAssignmentByRole` / `updateAssignment` paths.
+
+### 3c. Reminder edge function + cron
+
+**New file:** `supabase/functions/staffing-capacity-reminders/index.ts`
+
+Single function that handles three reminder types based on a `mode` query param (`weekly` | `start` | `end`):
+
+1. **Weekly capacity reminder** (`mode=weekly`, every Monday 9 AM IST): send a Slack DM to every active person in `staffing_people` (via `slack_user_id`) reminding them to fill in/confirm capacity for the current week. Skip people with no `slack_user_id`.
+2. **Start-date nudge** (`mode=start`, daily 9 AM IST): query `staffing_assignments` where `start_date = today`, DM that person + the deal's VSD/BOPM with deal context.
+3. **End-date nudge** (`mode=end`, daily 9 AM IST): query `staffing_assignments` where `end_date = today` (or yesterday), DM the same set noting the assignment has ended and to update allocation.
+
+Use existing `SLACK_BOT_TOKEN` secret and the same DM pattern as `mbr-reminders`. Add `[functions.staffing-capacity-reminders] verify_jwt = false` to `supabase/config.toml`.
+
+**Cron** (insert via SQL using insert tool, since it contains URL/anon key):
+
+- `0 3 * * 1` (Mon 09:00 IST = 03:30 UTC; use `30 3 * * 1`) → `?mode=weekly`
+- `30 3 * * *` daily → `?mode=start`
+- `30 3 * * *` daily → `?mode=end`
+
+Log each send into a new `staffing_reminder_log` table (id, person_id, deal_id, assignment_id, reminder_type, sent_at) to prevent duplicates within the same day.
+
+---
+
+## 4. Financial terminology — standardize to Contraction / Delivery / Invoicing / Receivables
+
+**Files:** `src/components/deals/FinancialsTab.tsx` (primary), plus any KPI labels in `src/pages/DealDetail.tsx`, `src/pages/Revenue.tsx`, `src/pages/Home.tsx` referencing "Consumption" or "Recognition".
+
+- Replace every user-visible label "Consumption" → "Contraction" 
+- Replace "Total MIS recognition" → "Total Contraction".
+- Section headings "Consumption Bucket" → "Contraction Bucket"; "Monthly consumption vs target" → "Monthly contraction vs target".
+- Editable monthly table column header "Consumption" → "Contraction".
+- Add-row form label "Consumption (₹)" → "Contraction (₹)".
+- Pipeline card `title="Consumption"` → `title="Contraction"`.
+- **Keep underlying field names** (`consumption`, `deal_financials.consumption`) unchanged — DB column rename is risky and unnecessary; this is a display-layer rename only.
+- Verify Delivery / Invoicing / Receivables wording is already consistent (it is in csvTargets METRIC_LABELS).
+
+---
+
+## Technical notes
+
+- No DB rename of `deal_financials.consumption` — display-only relabel keeps migration scope small and safe.
+- Reminder function will be idempotent per (person, deal, type, date) via the new log table.
+- Dates on assignments are optional; existing rows continue to work unchanged.
+- All Slack sends use the existing `slack-send` patterns, no new secrets needed.
+
+## Files touched
+
+Created:
+
+- `supabase/functions/staffing-capacity-reminders/index.ts`
+- migrations: add columns to `staffing_assignments`, create `staffing_reminder_log`, register cron jobs.
+
+Edited:
+
+- `src/components/ui/currency-input.tsx`
+- `src/components/targets/DealTargetsTable.tsx`
+- `src/hooks/useStaffingData.ts`
+- `src/components/staffing/AddStaffingMemberDialog.tsx`
+- `src/components/staffing/MatrixTab.tsx`
+- `src/components/staffing/DealLevelView.tsx`
+- `src/components/deals/FinancialsTab.tsx`
+- `supabase/config.toml`
