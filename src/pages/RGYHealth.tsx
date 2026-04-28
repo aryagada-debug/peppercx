@@ -960,6 +960,7 @@ export default function RGYHealth() {
                         {DIMENSIONS.map(d => (
                           <ColHeader key={d.key} label={d.label} colKey={d.key} align="center" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["G","Y","R","NA","Pending"]} />
                         ))}
+                        <th className="text-left py-2 px-3 font-medium text-muted-foreground text-caption whitespace-nowrap">AI Summary</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -990,6 +991,18 @@ export default function RGYHealth() {
                                 </td>
                               );
                             })}
+                            <td className="py-2 px-3 max-w-[260px]">
+                              {deal.rgy_issue_details ? (
+                                <span
+                                  className="text-xs text-muted-foreground line-clamp-1 block"
+                                  title={deal.rgy_issue_details}
+                                >
+                                  {deal.rgy_issue_details.replace(/\s+/g, " ").trim()}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground/60">—</span>
+                              )}
+                            </td>
                           </tr>
                         );
                       })}
