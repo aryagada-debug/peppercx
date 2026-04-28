@@ -382,62 +382,42 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Prop
         </div>
       </div>
 
-      {/* Row 3: Red per Team + Yellow per Team (clickable) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-card border border-border rounded-lg p-4">
-          <h3 className="text-sm font-semibold mb-1">Red Count per Team</h3>
-          <p className="text-[11px] text-muted-foreground mb-2">Click a bar to see the deals</p>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={redPerTeam} layout="vertical" margin={{ left: 70 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-              <YAxis type="category" dataKey="team" tick={{ fontSize: 11 }} width={68} />
-              <RechartsTooltip cursor={{ fill: "hsl(var(--accent))", opacity: 0.15 }} />
-              <Bar
-                dataKey="count"
-                fill={COLORS.R}
-                radius={[0, 4, 4, 0]}
-                cursor="pointer"
-                onClick={(d: any) => d.count > 0 && setTeamDrill({ team: d.team, severity: "R" })}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="bg-card border border-border rounded-lg p-4">
-          <h3 className="text-sm font-semibold mb-1">Yellow Count per Team</h3>
-          <p className="text-[11px] text-muted-foreground mb-2">Click a bar to see the deals</p>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={yellowPerTeam} layout="vertical" margin={{ left: 70 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-              <YAxis type="category" dataKey="team" tick={{ fontSize: 11 }} width={68} />
-              <RechartsTooltip cursor={{ fill: "hsl(var(--accent))", opacity: 0.15 }} />
-              <Bar
-                dataKey="count"
-                fill={COLORS.Y}
-                radius={[0, 4, 4, 0]}
-                cursor="pointer"
-                onClick={(d: any) => d.count > 0 && setTeamDrill({ team: d.team, severity: "Y" })}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Service Line Health */}
+      {/* Team Health Breakdown (Red / Yellow / Green per dimension) */}
       <div className="bg-card border border-border rounded-lg p-4">
-        <h3 className="text-sm font-semibold mb-3">Service Line Health</h3>
-        <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={serviceLineHealth} margin={{ left: 10 }}>
+        <h3 className="text-sm font-semibold mb-1">Team Health Breakdown</h3>
+        <p className="text-[11px] text-muted-foreground mb-2">
+          Stacked R / Y / G deal count per team. Click a Red or Yellow segment to drill into the deals.
+        </p>
+        <ResponsiveContainer width="100%" height={320}>
+          <BarChart data={teamHealth} margin={{ left: 10, bottom: 5 }} barSize={42}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+            <XAxis dataKey="team" tick={{ fontSize: 11 }} interval={0} />
             <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-            <RechartsTooltip />
-            <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-            <Bar dataKey="Red" stackId="a" fill={COLORS.R} />
-            <Bar dataKey="Yellow" stackId="a" fill={COLORS.Y} />
-            <Bar dataKey="Green" stackId="a" fill={COLORS.G} />
+            <RechartsTooltip
+              contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }}
+              formatter={(value: number, name: string) => [`${value} deals`, name]}
+            />
+            <Legend iconSize={10} wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
+            <Bar
+              dataKey="Red"
+              stackId="health"
+              fill={COLORS.R}
+              cursor="pointer"
+              onClick={(d: any) => d.Red > 0 && setTeamDrill({ team: d.team, severity: "R" })}
+            />
+            <Bar
+              dataKey="Yellow"
+              stackId="health"
+              fill={COLORS.Y}
+              cursor="pointer"
+              onClick={(d: any) => d.Yellow > 0 && setTeamDrill({ team: d.team, severity: "Y" })}
+            />
+            <Bar
+              dataKey="Green"
+              stackId="health"
+              fill={COLORS.G}
+              radius={[4, 4, 0, 0]}
+            />
           </BarChart>
         </ResponsiveContainer>
       </div>
