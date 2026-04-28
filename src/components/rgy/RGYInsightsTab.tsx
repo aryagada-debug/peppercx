@@ -444,10 +444,20 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd }: Prop
                           {issue.deal_name}
                         </Link>
                         <span className="text-[11px] text-muted-foreground font-mono">{issue.deal_id_code}</span>
-                        {/* Timeline + flag */}
-                        <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                        {/* Days-since-marked badge — prominent */}
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border",
+                            issue.worst === "R"
+                              ? "bg-red-500/10 text-red-700 border-red-500/30"
+                              : issue.worst === "Y"
+                              ? "bg-amber-500/10 text-amber-700 border-amber-500/30"
+                              : "bg-muted text-muted-foreground border-border",
+                          )}
+                          title={`Marked ${issue.worst === "R" ? "Red" : "Yellow"} ${issue.days} days ago`}
+                        >
                           <Clock className="h-3 w-3" />
-                          {issue.days}d since marked {issue.worst === "R" ? "Red" : issue.worst === "Y" ? "Yellow" : ""}
+                          {issue.days}d as {issue.worst === "R" ? "Red" : issue.worst === "Y" ? "Yellow" : "—"}
                         </span>
                         {issue.flagged && (
                           <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-500/15 text-red-700 border border-red-500/30">
@@ -520,11 +530,19 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd }: Prop
                   >
                     {i.deal_name}
                   </Link>
-                  <span className={cn(
-                    "font-semibold tabular-nums",
-                    i.flagged ? "text-red-600" : i.worst === "R" ? "text-red-500" : "text-amber-600",
-                  )}>
-                    {i.days}d since {i.worst === "R" ? "Red" : "Yellow"}
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium border tabular-nums",
+                      i.flagged
+                        ? "bg-red-500/15 text-red-700 border-red-500/30"
+                        : i.worst === "R"
+                        ? "bg-red-500/10 text-red-700 border-red-500/30"
+                        : "bg-amber-500/10 text-amber-700 border-amber-500/30",
+                    )}
+                    title={`Marked ${i.worst === "R" ? "Red" : "Yellow"} ${i.days} days ago`}
+                  >
+                    <Clock className="h-3 w-3" />
+                    {i.days}d as {i.worst === "R" ? "Red" : "Yellow"}
                   </span>
                   {i.flagged && <Flag className="h-3 w-3 text-red-500" />}
                 </div>
