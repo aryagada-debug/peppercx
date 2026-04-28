@@ -571,14 +571,13 @@ export default function HomePage() {
             <CardHeader className="pb-3 flex-row items-center justify-between space-y-0">
               <CardTitle className="text-[15px] font-bold flex items-center gap-2">
                 <Target className="h-4 w-4 text-primary" />
-                {periodType === "month" ? "Monthly Quota" : periodType === "quarter" ? "Quarterly Quota" : "Annual Quota"}
+                {periodType === "month" ? "Monthly Target" : "Annual Target"}
               </CardTitle>
               <Select value={periodType} onValueChange={(v) => setPeriodType(v as any)}>
                 <SelectTrigger className="h-7 w-[100px] text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="month">Month</SelectItem>
-                  <SelectItem value="quarter">Quarter</SelectItem>
-                  <SelectItem value="year">Year</SelectItem>
+                  <SelectItem value="month">Monthly</SelectItem>
+                  <SelectItem value="year">Annual</SelectItem>
                 </SelectContent>
               </Select>
             </CardHeader>
