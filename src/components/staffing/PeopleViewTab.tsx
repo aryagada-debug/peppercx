@@ -71,8 +71,21 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
     "Capability - Creatives",
   ] as const;
 
-  const normalizeDept = (dept?: string): string | null => {
-    const d = (dept || "").trim().toLowerCase();
+  // The 5 VSDs always live under Delivery Ops and CS in this view,
+  // even if their raw record sits in Leadership.
+  const VSD_NAMES = new Set([
+    "sneha iyer",
+    "aamir khan",
+    "aditya shaw",
+    "sumit shekhawat",
+    "neema jayadas",
+  ]);
+
+  const normalizeDept = (p: Pick<Person, "department" | "name" | "roleTitle">): string | null => {
+    if (VSD_NAMES.has(p.name.trim().toLowerCase()) || (p.roleTitle || "").trim().toUpperCase() === "VSD") {
+      return "Delivery Ops and CS";
+    }
+    const d = (p.department || "").trim().toLowerCase();
     if (!d) return null;
     if (d === "leadership") return "Leadership";
     if (d === "delivery ops and cs" || d === "delivery ops & cs") return "Delivery Ops and CS";
@@ -84,7 +97,7 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
 
   // The working population for this view: assigned, mapped to one of the 5 groups, not TBH.
   const visiblePeople = useMemo(
-    () => people.filter(p => !p.tbh && assignedPersonIds.has(p.id) && normalizeDept(p.department) !== null),
+    () => people.filter(p => !p.tbh && assignedPersonIds.has(p.id) && normalizeDept(p) !== null),
     [people, assignedPersonIds]
   );
 
