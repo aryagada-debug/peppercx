@@ -532,20 +532,26 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Prop
               fill={COLORS.R}
               cursor="pointer"
               onClick={(d: any) => d.Red > 0 && setTeamDrill({ team: d.team, severity: "R" })}
-            />
+            >
+              <LabelList dataKey="Red" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: number) => (v > 0 ? v : "")} />
+            </Bar>
             <Bar
               dataKey="Yellow"
               stackId="health"
               fill={COLORS.Y}
               cursor="pointer"
               onClick={(d: any) => d.Yellow > 0 && setTeamDrill({ team: d.team, severity: "Y" })}
-            />
+            >
+              <LabelList dataKey="Yellow" position="center" fill="#1f2937" fontSize={11} fontWeight={600} formatter={(v: number) => (v > 0 ? v : "")} />
+            </Bar>
             <Bar
               dataKey="Green"
               stackId="health"
               fill={COLORS.G}
               radius={[4, 4, 0, 0]}
-            />
+            >
+              <LabelList dataKey="Green" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: number) => (v > 0 ? v : "")} />
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       </div>
