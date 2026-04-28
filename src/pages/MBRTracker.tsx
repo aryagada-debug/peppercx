@@ -562,6 +562,15 @@ export default function MBRTracker() {
                 >
                   <CalendarDays className="h-3.5 w-3.5" /> Month-on-Month
                 </button>
+                <button
+                  onClick={() => setViewMode("trend")}
+                  className={cn(
+                    "px-3 py-1.5 rounded-md text-caption font-medium flex items-center gap-1.5 transition-colors",
+                    viewMode === "trend" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <TrendingUp className="h-3.5 w-3.5" /> Trend
+                </button>
               </div>
             </div>
 
