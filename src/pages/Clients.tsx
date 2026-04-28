@@ -7,6 +7,8 @@ import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useStaffingData } from "@/hooks/useStaffingData";
 import { useClients } from "@/hooks/useClients";
 import { useDealAccess } from "@/hooks/useDealAccess";
+import { useUserRole } from "@/hooks/useUserRole";
+import { submitApprovalRequest } from "@/lib/approvals";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
