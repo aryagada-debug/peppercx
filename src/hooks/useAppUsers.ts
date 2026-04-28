@@ -168,3 +168,71 @@ export function useAppUsers() {
 }
 
 export { nameKey };
+
+// ----- VSD allowlist -----
+// Hard-coded list of VSDs (Vertical Sales Directors) used for filter chips in
+// Clients & Deals, RGY Health and MBR Tracker. Match by fuzzy name key so
+// minor variations ("Aamir" vs "Aamir Khan") still resolve.
+export const VSD_NAMES = [
+  "Neema Jayadas",
+  "Aditya Joshi",
+  "Aamir Khan",
+  "Sumit Shekhawat",
+  "Sneha Iyer",
+] as const;
+
+const VSD_KEYS = new Set(VSD_NAMES.map((n) => nameKey(n)));
+// Accept first-name-only or partial matches against the canonical list.
+const VSD_PARTIALS = VSD_NAMES.map((n) => nameKey(n).split(" "));
+
+function matchesVsd(name: string | null | undefined): string | null {
+  const k = nameKey(name || "");
+  if (!k) return null;
+  if (VSD_KEYS.has(k)) {
+    return VSD_NAMES.find((n) => nameKey(n) === k) || null;
+  }
+  // Token-level match: every token in input must be present in a canonical
+  // name, or the canonical's first name must equal input.
+  const tokens = k.split(" ");
+  for (let i = 0; i < VSD_PARTIALS.length; i++) {
+    const canon = VSD_PARTIALS[i];
+    const allIn = tokens.every((t) => canon.includes(t));
+    const firstMatch = tokens.length === 1 && canon[0] === tokens[0];
+    if (allIn || firstMatch) return VSD_NAMES[i];
+  }
+  return null;
+}
+
+export function useVsdUsers() {
+  const { users, loading } = useAppUsers();
+  const vsdUsers = useMemo(() => {
+    // Build canonical AppUser entries from VSD_NAMES, preferring matched
+    // staffing/auth profiles when available so emails/links carry through.
+    return VSD_NAMES.map<AppUser>((canonical) => {
+      const found = users.find((u) => matchesVsd(u.displayName) === canonical);
+      return (
+        found || {
+          userId: `vsd:${nameKey(canonical)}`,
+          displayName: canonical,
+          email: "",
+          role: "user",
+          staffingPersonId: null,
+          source: "directory",
+        }
+      );
+    });
+  }, [users]);
+
+  const isVsdName = useCallback(
+    (name: string | null | undefined) => matchesVsd(name) !== null,
+    [],
+  );
+
+  /** Canonicalise a free-text name to one of VSD_NAMES, or null. */
+  const canonVsd = useCallback(
+    (name: string | null | undefined) => matchesVsd(name),
+    [],
+  );
+
+  return { vsdUsers, isVsdName, canonVsd, loading };
+}
