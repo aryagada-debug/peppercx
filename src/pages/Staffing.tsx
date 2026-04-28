@@ -7,6 +7,8 @@ import { useStaffingData } from "@/hooks/useStaffingData";
 import { DealViewTab } from "@/components/staffing/DealViewTab";
 import { PeopleViewTab } from "@/components/staffing/PeopleViewTab";
 import { MatrixTab } from "@/components/staffing/MatrixTab";
+import { useUserRole } from "@/hooks/useUserRole";
+import { useDealAccess } from "@/hooks/useDealAccess";
 
 type Tab = "deals" | "people" | "matrix";
 
@@ -14,7 +16,16 @@ export default function Staffing() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab") as Tab | null;
   const dealParam = searchParams.get("deal");
-  const [tab, setTab] = useState<Tab>(tabParam || "deals");
+  const { role } = useUserRole();
+  const { visibleDealIds, loading: accessLoading } = useDealAccess();
+  const isBopmPersona = role === "user";
+  const [tab, setTab] = useState<Tab>(tabParam || (isBopmPersona ? "people" : "deals"));
+
+  // BOPM persona: never land on the Deal view tab.
+  useEffect(() => {
+    if (isBopmPersona && tab === "deals") setTab("people");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isBopmPersona]);
 
   useEffect(() => {
     if (tabParam && tabParam !== tab) setTab(tabParam);
@@ -34,7 +45,16 @@ export default function Staffing() {
     updateAssignment, updateDeal, upsertAssignmentByRole,
   } = useStaffingData();
 
-  if (loading) {
+  // For BOPM persona, narrow deals + assignments to her tagged deals before
+  // passing into the child tabs.
+  const scopedDeals = isBopmPersona && !accessLoading
+    ? deals.filter(d => visibleDealIds.has(d.id))
+    : deals;
+  const scopedAssignments = isBopmPersona && !accessLoading
+    ? assignments.filter(a => visibleDealIds.has(a.dealId))
+    : assignments;
+
+  if (loading || (isBopmPersona && accessLoading)) {
     return (
       <AppLayout>
         <div className="p-8 flex items-center justify-center min-h-[60vh]">
@@ -44,11 +64,16 @@ export default function Staffing() {
     );
   }
 
-  const TABS: { key: Tab; label: string }[] = [
-    { key: "deals", label: "Deal view" },
-    { key: "people", label: "People view" },
-    { key: "matrix", label: "Staffing" },
-  ];
+  const TABS: { key: Tab; label: string }[] = isBopmPersona
+    ? [
+        { key: "people", label: "People view" },
+        { key: "matrix", label: "Staffing" },
+      ]
+    : [
+        { key: "deals", label: "Deal view" },
+        { key: "people", label: "People view" },
+        { key: "matrix", label: "Staffing" },
+      ];
 
   return (
     <AppLayout>
@@ -57,7 +82,7 @@ export default function Staffing() {
           <div>
             <h1 className="text-subhead font-bold tracking-tight text-foreground">Staffing & Capacity</h1>
             <p className="text-ui text-muted-foreground mt-1">
-              {deals.length} deals • {people.filter(p => !p.tbh).length} people
+              {scopedDeals.length} deals • {people.filter(p => !p.tbh).length} people
             </p>
           </div>
           <div className="flex gap-1 bg-secondary rounded-lg p-1">
@@ -78,23 +103,23 @@ export default function Staffing() {
           </div>
         </div>
 
-        {tab === "deals" && (
-          <DealViewTab deals={deals} people={people} assignments={assignments} onUpdateDeal={updateDeal} />
+        {tab === "deals" && !isBopmPersona && (
+          <DealViewTab deals={scopedDeals} people={people} assignments={scopedAssignments} onUpdateDeal={updateDeal} />
         )}
         {tab === "people" && (
           <PeopleViewTab
             people={people}
-            deals={deals}
-            assignments={assignments}
+            deals={scopedDeals}
+            assignments={scopedAssignments}
             revenueTargets={revenueTargets}
             onUpdateAssignment={updateAssignment}
           />
         )}
         {tab === "matrix" && (
           <MatrixTab
-            deals={deals}
+            deals={scopedDeals}
             people={people}
-            assignments={assignments}
+            assignments={scopedAssignments}
             onUpdateDeal={updateDeal}
             onUpsertAssignment={upsertAssignmentByRole}
             initialDealId={dealParam || undefined}

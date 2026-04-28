@@ -20,6 +20,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { ColHeader } from "@/components/table/ColHeader";
 import { CalendarConnectButton } from "@/components/calendar/CalendarConnectButton";
 import { useAppUsers, useVsdUsers, useVsdHierarchy } from "@/hooks/useAppUsers";
+import { useUserRole } from "@/hooks/useUserRole";
+import { useDealAccess } from "@/hooks/useDealAccess";
 
 type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
@@ -80,6 +82,9 @@ export default function MBRTracker() {
   const { users: appUsers, isRegisteredName } = useAppUsers();
   const { vsdUsers, isVsdName, canonVsd } = useVsdUsers();
   const { vsdForDeal, vsdForPerson, bopmsForVsd, allBopms } = useVsdHierarchy();
+  const { role } = useUserRole();
+  const { visibleDealIds, loading: accessLoading } = useDealAccess();
+  const isBopmPersona = role === "user";
   const VSD_FILTERS = useMemo(() => {
     const items: { key: string; label: string }[] = [{ key: "All", label: "All" }];
     vsdUsers.forEach((u) => items.push({ key: u.displayName, label: u.displayName }));
@@ -219,6 +224,9 @@ export default function MBRTracker() {
   // Filter deals
   const filteredDeals = useMemo(() => {
     let d = deals;
+    if (isBopmPersona && !accessLoading) {
+      d = d.filter(deal => visibleDealIds.has(deal.id));
+    }
     if (!showClosed) {
       d = d.filter(deal => {
         const meta = dealMeta.get(deal.id);
@@ -241,7 +249,13 @@ export default function MBRTracker() {
       d = d.filter(deal => deal.account.toLowerCase().includes(s) || deal.dealName.toLowerCase().includes(s));
     }
     return d;
-  }, [deals, dealMeta, activeVsd, activeBopm, search, showClosed, vsdForDeal]);
+  }, [deals, dealMeta, activeVsd, activeBopm, search, showClosed, vsdForDeal, isBopmPersona, accessLoading, visibleDealIds]);
+
+  // BOPM persona is locked to the table-view, current month only.
+  useEffect(() => {
+    if (isBopmPersona && viewMode !== "current") setViewMode("current");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isBopmPersona]);
 
   // Group by client
   const groupedDeals = useMemo(() => {
@@ -569,11 +583,13 @@ export default function MBRTracker() {
         </div>
 
         {/* Tabs: Insights / Table */}
-        <Tabs defaultValue="insights" className="mb-4">
-          <TabsList className="mb-3">
-            <TabsTrigger value="insights">Insights</TabsTrigger>
-            <TabsTrigger value="table">Table</TabsTrigger>
-          </TabsList>
+        <Tabs value={isBopmPersona ? "table" : undefined} defaultValue={isBopmPersona ? "table" : "insights"} className="mb-4">
+          {!isBopmPersona && (
+            <TabsList className="mb-3">
+              <TabsTrigger value="insights">Insights</TabsTrigger>
+              <TabsTrigger value="table">Table</TabsTrigger>
+            </TabsList>
+          )}
 
           <TabsContent value="insights" className="mt-0">
             {/* VSD Filter */}
@@ -659,28 +675,32 @@ export default function MBRTracker() {
           <TabsContent value="table" className="mt-0">
             {/* VSD Filter + Current/MoM toggle */}
             <div className="flex items-center gap-2 mb-3 flex-wrap">
-              <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">VSD:</span>
-              <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
-                {VSD_FILTERS.map(v => (
-                  <button key={v.key} onClick={() => setActiveVsd(v.key)} className={cn(
-                    "px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
-                    activeVsd === v.key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                  )}>{v.label}</button>
-                ))}
-              </div>
-              <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium ml-2">BOPM:</span>
-              <Select value={activeBopm} onValueChange={setActiveBopm}>
-                <SelectTrigger className="h-7 w-[180px] text-[11px]">
-                  <SelectValue placeholder="All BOPMs" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="All" className="text-xs">All BOPMs</SelectItem>
-                  {bopmOptions.map(b => (
-                    <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <div className="ml-auto flex gap-1 bg-secondary rounded-lg p-1">
+              {!isBopmPersona && (
+                <>
+                  <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">VSD:</span>
+                  <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
+                    {VSD_FILTERS.map(v => (
+                      <button key={v.key} onClick={() => setActiveVsd(v.key)} className={cn(
+                        "px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
+                        activeVsd === v.key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                      )}>{v.label}</button>
+                    ))}
+                  </div>
+                  <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium ml-2">BOPM:</span>
+                  <Select value={activeBopm} onValueChange={setActiveBopm}>
+                    <SelectTrigger className="h-7 w-[180px] text-[11px]">
+                      <SelectValue placeholder="All BOPMs" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="All" className="text-xs">All BOPMs</SelectItem>
+                      {bopmOptions.map(b => (
+                        <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              )}
+              {!isBopmPersona && <div className="ml-auto flex gap-1 bg-secondary rounded-lg p-1">
                 <button
                   onClick={() => setViewMode("current")}
                   className={cn(
@@ -708,7 +728,7 @@ export default function MBRTracker() {
                 >
                   <TrendingUp className="h-3.5 w-3.5" /> Trend
                 </button>
-              </div>
+              </div>}
             </div>
 
         {/* Filters */}
