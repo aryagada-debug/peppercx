@@ -2,7 +2,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye } from "lucide-react";
 import { useStaffingData } from "@/hooks/useStaffingData";
 import { DealViewTab } from "@/components/staffing/DealViewTab";
 import { PeopleViewTab } from "@/components/staffing/PeopleViewTab";
@@ -10,6 +10,7 @@ import { MatrixTab } from "@/components/staffing/MatrixTab";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useDealAccess } from "@/hooks/useDealAccess";
 import { BopmEmptyState } from "@/components/access/BopmEmptyState";
+import { StaffingReviewRequestsButton } from "@/components/staffing/StaffingReviewRequests";
 
 type Tab = "deals" | "people" | "matrix";
 
@@ -20,11 +21,11 @@ export default function Staffing() {
   const { role } = useUserRole();
   const { visibleDealIds, loading: accessLoading } = useDealAccess();
   const isBopmPersona = role === "user";
-  const [tab, setTab] = useState<Tab>(tabParam || (isBopmPersona ? "people" : "deals"));
+  const [tab, setTab] = useState<Tab>(tabParam || (isBopmPersona ? "matrix" : "deals"));
 
-  // BOPM persona: never land on the Deal view tab.
+  // BOPM persona: only the Staffing matrix is available.
   useEffect(() => {
-    if (isBopmPersona && tab === "deals") setTab("people");
+    if (isBopmPersona && tab !== "matrix") setTab("matrix");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isBopmPersona]);
 
@@ -67,7 +68,6 @@ export default function Staffing() {
 
   const TABS: { key: Tab; label: string }[] = isBopmPersona
     ? [
-        { key: "people", label: "People view" },
         { key: "matrix", label: "Staffing" },
       ]
     : [
@@ -83,26 +83,38 @@ export default function Staffing() {
       <div className="px-3 py-4">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-subhead font-bold tracking-tight text-foreground">Staffing & Capacity</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-subhead font-bold tracking-tight text-foreground">Staffing & Capacity</h1>
+              {isBopmPersona && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-secondary text-muted-foreground text-caption font-medium">
+                  <Eye className="h-3 w-3" /> Read-only
+                </span>
+              )}
+            </div>
             <p className="text-ui text-muted-foreground mt-1">
               {scopedDeals.length} deals • {people.filter(p => !p.tbh).length} people
             </p>
           </div>
-          <div className="flex gap-1 bg-secondary rounded-lg p-1">
-            {TABS.map(t => (
-              <button
-                key={t.key}
-                onClick={() => switchTab(t.key)}
-                className={cn(
-                  "px-4 py-1.5 rounded-md text-ui font-medium transition-colors",
-                  tab === t.key
-                    ? "bg-card text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {t.label}
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            {!isBopmPersona && <StaffingReviewRequestsButton />}
+            {TABS.length > 1 && (
+              <div className="flex gap-1 bg-secondary rounded-lg p-1">
+                {TABS.map(t => (
+                  <button
+                    key={t.key}
+                    onClick={() => switchTab(t.key)}
+                    className={cn(
+                      "px-4 py-1.5 rounded-md text-ui font-medium transition-colors",
+                      tab === t.key
+                        ? "bg-card text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -111,7 +123,7 @@ export default function Staffing() {
         {tab === "deals" && !isBopmPersona && (
           <DealViewTab deals={scopedDeals} people={people} assignments={scopedAssignments} onUpdateDeal={updateDeal} />
         )}
-        {tab === "people" && (
+        {tab === "people" && !isBopmPersona && (
           <PeopleViewTab
             people={people}
             deals={scopedDeals}
@@ -125,8 +137,9 @@ export default function Staffing() {
             deals={scopedDeals}
             people={people}
             assignments={scopedAssignments}
-            onUpdateDeal={updateDeal}
-            onUpsertAssignment={upsertAssignmentByRole}
+            onUpdateDeal={isBopmPersona ? () => {} : updateDeal}
+            onUpsertAssignment={isBopmPersona ? () => {} : upsertAssignmentByRole}
+            readOnly={isBopmPersona}
             initialDealId={dealParam || undefined}
           />
         )}
