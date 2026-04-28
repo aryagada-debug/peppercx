@@ -1716,6 +1716,7 @@ export type Database = {
           cta_href: string
           cta_label: string
           id: string
+          notification_category: string
           read: boolean
           source_entity_id: string
           source_entity_name: string
@@ -1731,6 +1732,7 @@ export type Database = {
           cta_href?: string
           cta_label?: string
           id?: string
+          notification_category?: string
           read?: boolean
           source_entity_id?: string
           source_entity_name?: string
@@ -1746,6 +1748,7 @@ export type Database = {
           cta_href?: string
           cta_label?: string
           id?: string
+          notification_category?: string
           read?: boolean
           source_entity_id?: string
           source_entity_name?: string
