@@ -1,59 +1,62 @@
-## BOPM persona — table-only, own-deals-only views
+## What's broken
 
-Goal: when the effective role is BOPM (`user`, or admin viewing-as `user`), every operational page collapses to a deal-scoped table; insight/health-board / VSD-cross-cut surfaces hide.
+Ritu Shinde logged in as a BOPM and saw nothing on Clients, Staffing, MBR, RGY, etc. — even though she's tagged as **Principal BOPM on ~25+ deals** (Tata AIG, Axis Bank, IIFL, Bajaj Allianz, ICICI, HSBC, Edelweiss, Aditya Birla, Reliance, etc., all under VSD Aditya Shaw).
 
-The scoping primitive already exists: `useDealAccess()` returns `visibleDealIds` / `editableDealIds` based on the logged-in user's `profiles.staffing_person_id` matching `principal_bopm | senior_bopm | bopm` on `staffing_deals` (plus `staffing_assignments`). We will reuse it everywhere instead of inventing new logic.
+### Root cause
 
-### 1. RGY Health (`src/pages/RGYHealth.tsx`)
+Every BOPM-scoped page goes through `useDealAccess`. That hook only resolves "her deals" if her **`profiles.staffing_person_id`** is set — it then looks up her name in `staffing_people` and matches it against `principal_bopm / senior_bopm / bopm` columns on deals.
 
-- Read `role` from `useUserRole()` and `visibleDealIds` from `useDealAccess()`.
-- When `role === "user"`:
-  - Filter the master deal list to `visibleDealIds` before any KPI/aggregate is computed (so KPI tiles, worst-RGY rollups, and the table all reflect only her deals).
-  - Hide the **Insights** tab trigger and the heatmap/VSD drill section. The page becomes a single "Deals" table view.
-  - Hide the global VSD filter chips and the new BOPM filter (her view is already pre-filtered to herself).
-  - Keep the search box, status pill filters, and inline RGY editing (gated by `editableDealIds` — peer-VSD deals stay read-only).
+Database state today:
 
-### 2. MBR Tracker (`src/pages/MBRTracker.tsx`)
+| User | `profiles.staffing_person_id` | `staffing_people` record | Deals tagged | Result |
+|---|---|---|---|---|
+| Ritu Priya | `P579` ✅ | `P579` Ritu Priya, Senior BOPM | ~12 (Neema's pod) | Working |
+| **Ritu Shinde** | **`NULL` ❌** | `P518` Ritu Shinde, Group BOPM exists | **~25+ (Aditya's pod)** | **Empty everywhere** |
 
-- Same hook pair. When `role === "user"`:
-  - Pre-filter `deals` and `entries` to `visibleDealIds`.
-  - Force `viewMode = "current"` and hide the Current / Month-on-Month / **Trend** segmented control (BOPM only sees the table). MoM and Trend remain available to admin/VSD.
-  - Hide the "VSD/BOPM Insights" KPI strip and the VSD filter chip row; keep search, status filters, schedule/upload actions on her own deals.
-  - Keep `Bell`/reminder buttons but only on her rows.
+So Shinde's profile has no link to a staffing person → `useDealAccess` returns an empty `visibleDealIds` set → every BOPM-scoped page renders blank.
 
-### 3. Staffing & Capacity (`src/pages/Staffing.tsx`)
+There is no application bug here — it's a missing data link. The fix is one row update.
 
-- When `role === "user"`:
-  - Hide the **Deal view** tab. The tab list becomes `People view` and `Staffing` only; default tab becomes `people`.
-  - Pass `visibleDealIds` (or pre-filtered `deals` + `assignments`) into `PeopleViewTab` and `MatrixTab` so:
-    - **People view** only shows assignments tied to her deals (and people on those deals).
-    - **Staffing matrix** only lists her deals as rows.
-  - Page subtitle counts ("N deals • M people") reflect the filtered scope.
-- Implementation: filter `deals` to `visibleDealIds` and `assignments` to `assignments.filter(a => visibleDealIds.has(a.dealId))` before passing down. No prop-shape changes to the child tabs.
+## Fix
 
-### 4. Access Controls table (`src/pages/admin/AccessControlsTab.tsx`)
+**1. Map Ritu Shinde's profile to staffing person `P518`**
 
-The user wants the Access Controls grid to reflect what the BOPM persona actually gets in the new world. Update the BOPM (`user`) defaults in `DEFAULT_SUMMARY` and the option lists so the grid mirrors the runtime behaviour:
+```sql
+UPDATE profiles
+SET staffing_person_id = 'P518'
+WHERE user_id = '3570ca23-63bc-4602-b8d3-777f9c45ea00';
+```
 
-- `clients` → view: `["Own deals only", "Financial summary"]`, edit: `["Edit own deals"]`
-- `rgy-health` → view: `["Own deals RGY", "Issue history"]`, edit: `["Mark RGY (own deals)", "Log issues & action plans"]` — **add a new view option** `"Table view only (no insights)"` and pre-select it for BOPM.
-- `mbr-tracker` → view: `["Own deals MBRs", "Notes & transcripts"]`, edit: `["Schedule MBRs", "Upload notes", "Mark done"]` — add view option `"Table view only (no MoM / Trend)"` and pre-select it for BOPM.
-- `staffing` → view: `["Own deals staffing", "Own allocations only"]`, edit: `["Assign people (own deals)", "Edit allocations"]` — add view option `"People & Matrix only (no Deal view)"` and pre-select it for BOPM.
-- `dashboard` → leave hidden by default for BOPM (already the case).
+After this she'll immediately see ~25 deals (all the ones where `principal_bopm = 'Ritu Shinde'`) across Clients, Staffing (People view + Matrix), MBR Tracker, and RGY Health.
 
-These edits are persisted by writing the new defaults via the existing `route_access_summaries` table on first load if no row exists for `(user, route)` — handled by the existing `getSelected` fallback, so we only have to update the in-file constants.
+**2. Surface this kind of mis-mapping in the admin Users tab**
 
-### 5. Role detection & QA
+Right now there's nothing in the UI that flags "this user is a BOPM but isn't mapped to a staffing person, so they'll see nothing." Add a small inline warning badge in `src/pages/admin/UsersTab.tsx` next to any non-admin user whose `staffing_person_id` is null:
 
-- "BOPM" = `useUserRole().role === "user"` (this matches the `BOPMs/Creative` persona button; admins can preview by clicking the BOPM pill in the header switcher).
-- Determining "her deals": rely on `useDealAccess` which already covers `principal_bopm` / `senior_bopm` / `bopm` name-match plus `staffing_assignments`. No DB changes.
-- Empty state: if `visibleDealIds.size === 0` for a BOPM, each page renders a friendly empty card ("No deals are tagged to you yet — ask an admin to map your profile in Users & Roles").
+> ⚠ Not mapped to a staffing person — this user will see no deals.
 
-### Files to edit
+…with a quick-link to set the mapping. This prevents the same support cycle the next time a new BOPM is onboarded.
 
-- `src/pages/RGYHealth.tsx`
-- `src/pages/MBRTracker.tsx`
-- `src/pages/Staffing.tsx`
-- `src/pages/admin/AccessControlsTab.tsx`
+**3. Better empty state on BOPM-scoped pages**
 
-No DB migrations and no new hooks needed.
+Today when `visibleDealIds.size === 0` the pages just render an empty table, which looks like the app is broken. On Clients / Staffing / MBR / RGY, when the effective role is `user` and the visible-deals set is empty after `useDealAccess` finishes loading, render a single friendly card:
+
+> No deals are tagged to you yet. If you expect to see deals here, ask an admin to map your profile in **Settings → Users & Roles**.
+
+So future un-mapped BOPMs immediately know what to do instead of staring at a blank screen.
+
+## Files touched
+
+- DB: one `UPDATE` on `profiles` (via the insert tool — data change, no schema migration).
+- `src/pages/admin/UsersTab.tsx` — unmapped-BOPM warning badge.
+- `src/pages/Clients.tsx`, `src/pages/Staffing.tsx`, `src/pages/MBRTracker.tsx`, `src/pages/RGYHealth.tsx` — friendly empty state when the BOPM has zero visible deals.
+
+No schema migrations and no changes to `useDealAccess` itself — the hook is working as designed; the data was just incomplete.
+
+## What Ritu will see after the fix
+
+- **Clients & Deals**: her ~25 deals (Tata AIG, Axis Bank, IIFL, Bajaj, ICICI, HSBC, Edelweiss, Aditya Birla, Reliance, etc.) — editable.
+- **Staffing → People view + Matrix**: only people/allocations on those deals (Deal-view tab stays hidden for BOPM persona).
+- **MBR Tracker**: table view of MBRs for those deals only.
+- **RGY Health**: table view of RGY for those deals only.
+- **Home / Dashboard**: still hidden for BOPM by default per existing route_visibility rules — no change.
