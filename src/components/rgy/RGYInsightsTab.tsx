@@ -1,8 +1,11 @@
-import React, { useMemo, useState } from "react";
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from "recharts";
+import React, { useEffect, useMemo, useState } from "react";
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, LabelList } from "recharts";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, Flag, Clock } from "lucide-react";
+import { AlertTriangle, Flag, Clock, Sparkles, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import { TeamCountDrillDialog } from "./TeamCountDrillDialog";
 import { VSDDrillDialog } from "./VSDDrillDialog";
 
@@ -103,6 +106,10 @@ const VSD_SHORT: Record<string, string> = {
 export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Props) {
   const [teamDrill, setTeamDrill] = useState<{ team: string; severity: "R" | "Y" } | null>(null);
   const [vsdDrill, setVsdDrill] = useState<string | null>(null);
+  const [aiSummary, setAiSummary] = useState<string>("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string>("");
+  const [aiWindow, setAiWindow] = useState<"week" | "month">("week");
 
   // ── KPIs ──
   const kpis = useMemo(() => {
@@ -253,6 +260,40 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Prop
   // ── Aging issues (top 8 oldest open) ──
   const agingIssues = useMemo(() => activeIssues.slice(0, 8), [activeIssues]);
 
+  // ── AI summary trigger ──
+  const generateSummary = async () => {
+    setAiLoading(true);
+    setAiError("");
+    try {
+      const snapshot = {
+        window: aiWindow,
+        kpis,
+        teamHealth,
+        vsdComparison: vsdComparison.map(v => ({ vsd: v.vsdFull, R: v.Red, Y: v.Yellow, G: v.Green })),
+        topAgedRedIssues: activeIssues
+          .filter(i => i.worst === "R")
+          .slice(0, 10)
+          .map(i => ({ deal: i.deal_name, days: i.days, dims: i.red_dimensions, details: i.issue_details?.slice(0, 200) })),
+      };
+      const { data, error } = await supabase.functions.invoke("rgy-movement-summary", {
+        body: { window: aiWindow, snapshot },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      setAiSummary((data as any)?.summary || "");
+    } catch (e: any) {
+      setAiError(e?.message || "Failed to generate summary");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  // Auto-generate once on mount / when window changes
+  useEffect(() => {
+    generateSummary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiWindow, activePod]);
+
   return (
     <div className="space-y-6">
       {/* KPI Row */}
@@ -270,6 +311,72 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Prop
             <p className={cn("text-2xl font-bold", k.color)}>{k.value}</p>
           </div>
         ))}
+      </div>
+
+      {/* AI Movement Summary */}
+      <div className="bg-card border border-border rounded-lg p-4">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-semibold flex items-center gap-1.5">
+            <Sparkles className="h-4 w-4 text-primary" />
+            AI Movement Summary
+          </h3>
+          <div className="flex items-center gap-1">
+            <div className="flex bg-secondary rounded-md p-0.5">
+              {(["week", "month"] as const).map(w => (
+                <button
+                  key={w}
+                  onClick={() => setAiWindow(w)}
+                  className={cn(
+                    "px-2 py-0.5 text-[11px] rounded font-medium transition-colors",
+                    aiWindow === w ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {w === "week" ? "Week" : "Month"}
+                </button>
+              ))}
+            </div>
+            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={generateSummary} disabled={aiLoading}>
+              {aiLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : "Refresh"}
+            </Button>
+          </div>
+        </div>
+        {aiError ? (
+          <p className="text-xs text-destructive">{aiError}</p>
+        ) : aiLoading && !aiSummary ? (
+          <p className="text-xs text-muted-foreground italic">Generating summary…</p>
+        ) : (
+          <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">{aiSummary || "—"}</p>
+        )}
+      </div>
+
+      {/* VSD Comparison — moved to top */}
+      <div className="bg-card border border-border rounded-lg p-4">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-sm font-semibold">VSD Portfolio Health Comparison</h3>
+          <span className="text-[10px] text-muted-foreground">All Pods · Click bar to drill in</span>
+        </div>
+        <p className="text-xs text-muted-foreground mb-3">Stacked R / Y / G deal count per VSD across active deals</p>
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={vsdComparison} margin={{ left: 10, bottom: 5, top: 10 }} barSize={50}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <XAxis dataKey="vsd" tick={{ fontSize: 12, fontWeight: 500 }} interval={0} />
+            <YAxis tick={{ fontSize: 11 }} allowDecimals={false} label={{ value: "Deal Count", angle: -90, position: "insideLeft", style: { fontSize: 11, fill: "hsl(var(--muted-foreground))" } }} />
+            <RechartsTooltip
+              contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }}
+              formatter={(value: number, name: string) => [`${value} deals`, name]}
+            />
+            <Legend iconSize={10} wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
+            <Bar dataKey="Red" stackId="vsd" fill={COLORS.R} cursor="pointer" onClick={(d: any) => setVsdDrill(d.vsdFull)}>
+              <LabelList dataKey="Red" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: number) => (v > 0 ? v : "")} />
+            </Bar>
+            <Bar dataKey="Yellow" stackId="vsd" fill={COLORS.Y} cursor="pointer" onClick={(d: any) => setVsdDrill(d.vsdFull)}>
+              <LabelList dataKey="Yellow" position="center" fill="#1f2937" fontSize={11} fontWeight={600} formatter={(v: number) => (v > 0 ? v : "")} />
+            </Bar>
+            <Bar dataKey="Green" stackId="vsd" fill={COLORS.G} radius={[4, 4, 0, 0]} cursor="pointer" onClick={(d: any) => setVsdDrill(d.vsdFull)}>
+              <LabelList dataKey="Green" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: number) => (v > 0 ? v : "")} />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
       </div>
 
       {/* Row 2: Active Issues (POD-filtered) + Health Donut */}
