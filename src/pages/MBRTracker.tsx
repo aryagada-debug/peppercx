@@ -1,14 +1,14 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { formatINR } from "@/lib/csvTargets";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { MetricCard } from "@/components/dashboard/MetricCard";
+import { KpiTile } from "@/components/dashboard/KpiTile";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-import { Search, Loader2, Eye, CalendarDays, List, X, Bell } from "lucide-react";
+import { Search, Loader2, Eye, CalendarDays, List, X, Bell, Users, CheckCircle2, XCircle, Clock, Gauge } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
