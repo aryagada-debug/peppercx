@@ -528,7 +528,7 @@ function RGYIssueFormDialog({
 export default function RGYHealth() {
   const { users: appUsers, isRegisteredName } = useAppUsers();
   const { vsdUsers, isVsdName, canonVsd } = useVsdUsers();
-  const { vsdForDeal } = useVsdHierarchy();
+  const { vsdForDeal, bopmsForVsd } = useVsdHierarchy();
   // Built dynamically from registered users + which VSDs actually appear on deals.
   const VSD_FILTERS = useMemo(() => {
     const items: { key: string; label: string }[] = [{ key: "All", label: "All" }];
