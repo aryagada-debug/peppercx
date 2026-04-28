@@ -61,6 +61,7 @@ interface RGYIssue {
   pc_code: string;
   account: string;
   pod: string;
+  vsd?: string;
   deal_status: string;
   issue_details: string;
   issue_status: string;
@@ -76,7 +77,7 @@ interface Props {
   deals: DealWithRGY[];
   filteredDeals: DealWithRGY[];
   issues: RGYIssue[];
-  activePod: string;
+  activeVsd: string;
 }
 
 function getWorstRGY(deal: DealWithRGY): "R" | "Y" | "G" | null {
@@ -103,7 +104,16 @@ const VSD_SHORT: Record<string, string> = {
   "Aditya Shaw": "Aditya",
 };
 
-export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Props) {
+export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd }: Props) {
+  const NAMED_VSDS = new Set(["Neema Jayadas", "Aamir Khan", "Aditya Shaw", "Sneha Iyer", "Sumit Shekhawat"]);
+  const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
+  const matchesActiveVsd = (vsd: string | undefined) => {
+    const v = (vsd || "").trim();
+    if (activeVsd === "All") return true;
+    if (activeVsd === "Unassigned") return UNASSIGNED_VSD_VALUES.has(v);
+    if (activeVsd === "Other") return !!v && !UNASSIGNED_VSD_VALUES.has(v) && !NAMED_VSDS.has(v);
+    return v === activeVsd;
+  };
   const [teamDrill, setTeamDrill] = useState<{ team: string; severity: "R" | "Y" } | null>(null);
   const [vsdDrill, setVsdDrill] = useState<string | null>(null);
   const [aiSummary, setAiSummary] = useState<string>("");
@@ -122,11 +132,9 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Prop
       else if (w === "G") green++;
     });
 
-    // Avg days open across active issues (in current POD scope)
-    const podIssues = issues.filter((i) =>
-      activePod === "All" ? true : i.pod === activePod,
-    );
-    const openDays = podIssues
+    // Avg days open across active issues (in current VSD scope)
+    const vsdIssues = issues.filter((i) => matchesActiveVsd(i.vsd));
+    const openDays = vsdIssues
       .filter((i) => i.issue_status === "Open" || i.issue_status === "In Progress")
       .map((i) => daysSince(i.issue_date || i.created_at));
     const avgDaysOpen = openDays.length > 0
@@ -134,7 +142,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Prop
       : 0;
 
     return { total: filteredDeals.length, red, yellow, green, churned, avgDaysOpen };
-  }, [filteredDeals, issues, activePod]);
+  }, [filteredDeals, issues, activeVsd]);
 
   // ── Health donut ──
   const donutData = useMemo(() => [
@@ -229,11 +237,11 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Prop
       }));
   }, [vsdDrill, deals]);
 
-  // ── Active Issues — POD-filtered, with timeline + flags ──
+  // ── Active Issues — VSD-filtered, with timeline + flags ──
   const activeIssues = useMemo(() => {
     const filtered = issues
       .filter((i) => i.issue_status === "Open" || i.issue_status === "In Progress")
-      .filter((i) => (activePod === "All" ? true : i.pod === activePod))
+      .filter((i) => matchesActiveVsd(i.vsd))
       .map((i) => {
         const days = daysSince(i.issue_date || i.created_at);
         const flagged =
@@ -255,7 +263,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Prop
       if (ra !== rb) return ra - rb;
       return b.days - a.days;
     });
-  }, [issues, activePod]);
+  }, [issues, activeVsd]);
 
   // ── Aging issues (top 8 oldest open) ──
   const agingIssues = useMemo(() => activeIssues.slice(0, 8), [activeIssues]);
@@ -292,7 +300,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Prop
   useEffect(() => {
     generateSummary();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aiWindow, activePod]);
+  }, [aiWindow, activeVsd]);
 
   return (
     <div className="space-y-6">
@@ -386,7 +394,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Prop
             <AlertTriangle className="h-4 w-4 text-red-500" />
             Active issues & action plans
             <span className="ml-auto text-[10px] font-normal text-muted-foreground">
-              {activePod === "All" ? "All Pods" : activePod} · {activeIssues.length} open
+              {activeVsd === "All" ? "All VSDs" : activeVsd} · {activeIssues.length} open
             </span>
           </h3>
           <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">

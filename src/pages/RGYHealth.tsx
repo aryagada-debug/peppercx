@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { DealDetailDialog } from "@/components/rgy/DealDetailDialog";
@@ -24,8 +24,19 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ColHeader } from "@/components/table/ColHeader";
 
-const PODS = ["All", "Integrated", "India B2B", "US B2B", "FMCG", "BFSI", "Unassigned"] as const;
-type Pod = typeof PODS[number];
+const VSD_FILTERS = [
+  { key: "All", label: "All" },
+  { key: "Neema Jayadas", label: "Neema Jayadas" },
+  { key: "Aamir Khan", label: "Aamir Khan" },
+  { key: "Aditya Shaw", label: "Aditya Shaw" },
+  { key: "Sneha Iyer", label: "Sneha Iyer" },
+  { key: "Sumit Shekhawat", label: "Sumit Shekhawat" },
+  { key: "Other", label: "Other" },
+  { key: "Unassigned", label: "Unassigned" },
+] as const;
+type VsdFilterKey = typeof VSD_FILTERS[number]["key"];
+const NAMED_VSDS = new Set(["Neema Jayadas", "Aamir Khan", "Aditya Shaw", "Sneha Iyer", "Sumit Shekhawat"]);
+const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
 
 const ACTIVE_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
 
@@ -520,7 +531,7 @@ export default function RGYHealth() {
   const [deals, setDeals] = useState<DealWithRGY[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
-  const [activePod, setActivePod] = useState<Pod>("All");
+  const [activeVsd, setActiveVsd] = useState<VsdFilterKey>("All");
   const [showClosed, setShowClosed] = useState(false);
   const [search, setSearch] = useState("");
   const [rgyFilter, setRgyFilter] = useState<"All" | "Red" | "Yellow" | "Green">("All");
@@ -536,6 +547,41 @@ export default function RGYHealth() {
     if (sortKey === k) setSortDir(d => d === "asc" ? "desc" : "asc");
     else { setSortKey(k); setSortDir("asc"); }
   };
+
+  // Column widths (resizable)
+  const DEFAULT_WIDTHS: Record<string, number> = {
+    account: 160, deal_name: 200, deal_id: 110, deal_status: 110,
+    customer: 100, internal: 100, content: 100, seo: 90, supply: 100, copy: 90, design: 100, video: 100,
+  };
+  const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
+    try {
+      const raw = localStorage.getItem("rgy-col-widths");
+      if (raw) return { ...DEFAULT_WIDTHS, ...JSON.parse(raw) };
+    } catch {}
+    return DEFAULT_WIDTHS;
+  });
+  useEffect(() => {
+    try { localStorage.setItem("rgy-col-widths", JSON.stringify(colWidths)); } catch {}
+  }, [colWidths]);
+  const resizingRef = useRef<{ key: string; startX: number; startW: number } | null>(null);
+  const startResize = useCallback((key: string) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    resizingRef.current = { key, startX: e.clientX, startW: colWidths[key] || 120 };
+    const onMove = (ev: MouseEvent) => {
+      const r = resizingRef.current;
+      if (!r) return;
+      const next = Math.max(60, Math.min(500, r.startW + (ev.clientX - r.startX)));
+      setColWidths(prev => ({ ...prev, [r.key]: next }));
+    };
+    const onUp = () => {
+      resizingRef.current = null;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, [colWidths]);
 
   // Issue form state
   const [issueFormDeal, setIssueFormDeal] = useState<DealWithRGY | null>(null);
@@ -588,6 +634,7 @@ export default function RGYHealth() {
                 pc_code: dealRow?.pc_code || "",
                 account: dealRow?.account || "",
                 pod: getPodForDeal(dealRow?.vsd || "", dealRow?.pod || ""),
+                vsd: dealRow?.vsd || "",
                 deal_status: dealRow?.deal_status || "",
                 issue_details: r.issue_details,
                 issue_status: r.issue_status || "Open",
@@ -790,10 +837,15 @@ export default function RGYHealth() {
   const filteredDeals = useMemo(() => {
     let d = deals;
     if (!showClosed) d = d.filter(deal => ACTIVE_STATUSES.has(deal.deal_status));
-    if (activePod === "Unassigned") {
-      d = d.filter(deal => getPodForDeal(deal.vsd, deal.pod) === "Unassigned");
-    } else if (activePod !== "All") {
-      d = d.filter(deal => getPodForDeal(deal.vsd, deal.pod) === activePod);
+    if (activeVsd === "Unassigned") {
+      d = d.filter(deal => UNASSIGNED_VSD_VALUES.has((deal.vsd || "").trim()));
+    } else if (activeVsd === "Other") {
+      d = d.filter(deal => {
+        const v = (deal.vsd || "").trim();
+        return v && !UNASSIGNED_VSD_VALUES.has(v) && !NAMED_VSDS.has(v);
+      });
+    } else if (activeVsd !== "All") {
+      d = d.filter(deal => (deal.vsd || "").trim() === activeVsd);
     }
     if (search) {
       const s = search.toLowerCase();
@@ -810,7 +862,7 @@ export default function RGYHealth() {
       });
     }
     return d;
-  }, [deals, activePod, search, showClosed, rgyFilter]);
+  }, [deals, activeVsd, search, showClosed, rgyFilter]);
 
   // Apply per-column filters + sort to produce flat row list
   const tableRows = useMemo(() => {
@@ -896,12 +948,12 @@ export default function RGYHealth() {
 
         {/* Filters */}
         <div className="flex items-center gap-4 mb-3 flex-wrap">
-          <div className="flex gap-1 bg-secondary rounded-lg p-1">
-            {PODS.map(pod => (
-              <button key={pod} onClick={() => setActivePod(pod)} className={cn(
-                "px-3 py-1.5 rounded-md text-caption font-medium whitespace-nowrap transition-colors",
-                activePod === pod ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-              )}>{pod}</button>
+          <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
+            {VSD_FILTERS.map(v => (
+              <button key={v.key} onClick={() => setActiveVsd(v.key)} className={cn(
+                "px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
+                activeVsd === v.key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}>{v.label}</button>
             ))}
           </div>
 
@@ -953,12 +1005,12 @@ export default function RGYHealth() {
                   <table className="w-full text-ui">
                     <thead>
                       <tr className="bg-secondary/40 border-b border-border">
-                        <ColHeader label="Client" colKey="account" sortKey="account" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
-                        <ColHeader label="Deal Name" colKey="deal_name" sortKey="deal_name" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
-                        <ColHeader label="Deal ID" colKey="deal_id" sortKey="deal_id" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
-                        <ColHeader label="Status" colKey="deal_status" sortKey="deal_status" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={Object.keys(statusBadgeStyles)} />
+                        <ColHeader label="Client" colKey="account" sortKey="account" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.account} onResizeStart={startResize("account")} />
+                        <ColHeader label="Deal Name" colKey="deal_name" sortKey="deal_name" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.deal_name} onResizeStart={startResize("deal_name")} />
+                        <ColHeader label="Deal ID" colKey="deal_id" sortKey="deal_id" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.deal_id} onResizeStart={startResize("deal_id")} />
+                        <ColHeader label="Status" colKey="deal_status" sortKey="deal_status" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={Object.keys(statusBadgeStyles)} width={colWidths.deal_status} onResizeStart={startResize("deal_status")} />
                         {DIMENSIONS.map(d => (
-                          <ColHeader key={d.key} label={d.label} colKey={d.key} align="center" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["G","Y","R","NA","Pending"]} />
+                          <ColHeader key={d.key} label={d.label} colKey={d.key} align="center" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["G","Y","R","NA","Pending"]} width={colWidths[d.key]} onResizeStart={startResize(d.key)} />
                         ))}
                         <th className="text-left py-2 px-3 font-medium text-muted-foreground text-caption whitespace-nowrap">AI Summary</th>
                       </tr>
@@ -1024,7 +1076,7 @@ export default function RGYHealth() {
               deals={deals}
               filteredDeals={filteredDeals}
               issues={rgyIssues}
-              activePod={activePod}
+              activeVsd={activeVsd}
             />
           </TabsContent>
         </Tabs>
