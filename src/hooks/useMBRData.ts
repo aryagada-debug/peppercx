@@ -113,14 +113,20 @@ export function useMBRData() {
     const { data } = await supabase
       .from("staffing_deals")
       .select("id, pc_code, deal_id, account, deal_name, vsd, principal_bopm, senior_bopm, bopm, customer_status, customer_type, service_line_tagging, business_unit, mrr, total_deal_value, net_deal_value, deal_type")
-      .in("deal_type", ["Retainer"]);
+      .eq("deal_type", "Retainer");
 
     if (data) {
       setDeals(
         data
           .filter((d: any) => {
-            const ct = (d.customer_type || "").toLowerCase();
-            return ct.includes("retainer") && !ct.includes("non") && !ct.includes("churned");
+            // Exclude only deals explicitly marked as non-retainer / churned in customer_type.
+            // Empty / Active Retainer / Retainer / Renewal etc. all qualify.
+            const ct = (d.customer_type || "").toLowerCase().trim();
+            if (!ct) return true;
+            if (ct.includes("non retainer") || ct.includes("non-retainer")) return false;
+            if (ct === "churned" || ct.includes("churned")) return false;
+            if (ct === "irrelevant") return false;
+            return true;
           })
           .map((d: any) => ({
             id: d.id,
