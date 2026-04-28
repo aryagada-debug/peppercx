@@ -860,6 +860,36 @@ export type Database = {
         }
         Relationships: []
       }
+      route_access_summaries: {
+        Row: {
+          created_at: string
+          edit_summary: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          route_key: string
+          updated_at: string
+          view_summary: string
+        }
+        Insert: {
+          created_at?: string
+          edit_summary?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          route_key: string
+          updated_at?: string
+          view_summary?: string
+        }
+        Update: {
+          created_at?: string
+          edit_summary?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          route_key?: string
+          updated_at?: string
+          view_summary?: string
+        }
+        Relationships: []
+      }
       route_visibility: {
         Row: {
           created_at: string
