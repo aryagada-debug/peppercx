@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from "react";
-import { ArrowLeft, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, AlertTriangle, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { uid } from "@/data/staffingData";
 import type { StaffingAssignment, Person, Deal, RoleCategory } from "@/data/staffingData";
@@ -60,11 +60,23 @@ export function AddStaffingMemberDialog({
   const [assignmentType, setAssignmentType] = useState<"Internal" | "External" | "Freelance">("Internal");
   const [expandedOpsGroup, setExpandedOpsGroup] = useState<string | null>(null);
   const alreadyAssigned = useMemo(() => new Set(assignments.filter(a => a.dealId === dealId).map(a => a.personId)), [assignments, dealId]);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const filteredPeople = useMemo(() => {
     if (!selectedCategory) return [];
-    return people.filter(p => p.roleCategory === selectedCategory && !alreadyAssigned.has(p.id));
-  }, [people, selectedCategory, alreadyAssigned]);
+    return people.filter(p => p.roleCategory === selectedCategory);
+  }, [people, selectedCategory]);
+
+  // Global search across ALL people, regardless of selected category.
+  // Activates whenever the user types in the search box on step 2.
+  const searchedPeople = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return null;
+    return people.filter(p => {
+      const hay = `${p.name} ${p.roleTitle || ""} ${p.roleCategory || ""} ${p.pod || ""} ${p.region || ""} ${p.email || ""}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [people, searchQuery]);
 
   const getPersonUtilization = useCallback((personId: string) => {
     const personAssignments = assignments.filter(a => a.personId === personId);
@@ -86,6 +98,7 @@ export function AddStaffingMemberDialog({
     setRoleOnDeal("");
     setAssignmentType("Internal");
     setExpandedOpsGroup(null);
+    setSearchQuery("");
     setStartDate(dealForDates?.startDate || "");
     setEndDate(dealForDates?.endDate || "");
   };
