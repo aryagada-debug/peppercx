@@ -153,7 +153,7 @@ export default function Staffing() {
             onUpdateAssignment={updateAssignment}
           />
         )}
-        {tab === "matrix" && (
+        {tab === "matrix" && !isBopmPersona && (
           <MatrixTab
             deals={isBopmPersona ? uniqueScopedDeals : scopedDeals}
             people={isBopmPersona ? scopedPeople : people}
