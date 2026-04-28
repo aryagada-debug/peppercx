@@ -859,10 +859,7 @@ export default function RGYHealth() {
     if (activeVsd === "Unassigned") {
       d = d.filter(deal => UNASSIGNED_VSD_VALUES.has((deal.vsd || "").trim()));
     } else if (activeVsd === "Other") {
-      d = d.filter(deal => {
-        const v = (deal.vsd || "").trim();
-        return v && !UNASSIGNED_VSD_VALUES.has(v) && !NAMED_VSDS.has(v);
-      });
+      d = d.filter(deal => isOtherVsd(deal.vsd));
     } else if (activeVsd !== "All") {
       d = d.filter(deal => (deal.vsd || "").trim() === activeVsd);
     }
