@@ -147,6 +147,7 @@ export function useDealAccess(): DealAccessState {
     const isBopmTier =
       /bopm|principal|senior/i.test(myRoleTitle) || !!myPersonName; // any BOPM-named person; we treat anyone with own deals as eligible for peer-VSD view if they look like a BOPM.
     const looksLikeBopm = /bopm|principal|senior/i.test(myRoleTitle);
+    const looksLikeVsd = /vsd|vertical service delivery/i.test(myRoleTitle);
 
     const ownDealIds = new Set<string>();
     for (const d of allDeals) {
@@ -160,6 +161,10 @@ export function useDealAccess(): DealAccessState {
         nameNorm(d.senior_bopm) === me ||
         nameNorm(d.bopm) === me
       ) {
+        ownDealIds.add(d.id);
+      }
+      // VSD-tier users see every deal in their pod (deal.vsd matches their name).
+      if (looksLikeVsd && nameNorm(d.vsd) === me) {
         ownDealIds.add(d.id);
       }
     }
