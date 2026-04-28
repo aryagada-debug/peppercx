@@ -229,6 +229,23 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
   };
   const toggleAll = () => { allCollapsed ? expandAll() : collapseAll(); };
 
+  // Auto-expand "Delivery Ops and CS" + the 5 VSDs once on first mount so the
+  // hierarchy is visible by default.
+  React.useEffect(() => {
+    if (didAutoExpand) return;
+    const vsdIds = visiblePeople.filter(isVSDPerson).map(p => p.id);
+    if (vsdIds.length === 0) return;
+    setExpandedDept(prev => {
+      const n = new Set(prev); n.add("Delivery Ops and CS"); return n;
+    });
+    setExpandedPerson(prev => {
+      const n = new Set(prev); vsdIds.forEach(id => n.add(id)); return n;
+    });
+    setAllCollapsed(false);
+    setDidAutoExpand(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visiblePeople.length]);
+
   const startAllocEdit = (a: StaffingAssignment) => {
     setEditingAlloc(a.id);
     setAllocDraft(String(a.allocationPct));
@@ -445,6 +462,7 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
           const isOpen = expandedDept.has(dept);
           const visibleSet = new Set(visible.map(p => p.id));
           // roots within this dept = visible people whose manager is NOT in visible set
+          const VSD_FIXED_ORDER = ["sneha iyer","aamir khan","aditya shaw","sumit shekhawat","neema jayadas"];
           const roots = visible.filter(p => {
             const mgr = p.reportingManager?.trim().toLowerCase();
             if (!mgr) return true;
@@ -453,6 +471,14 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
             // if manager is in same dept and visible, treat current as a child
             if (normalizeDept(mgrPerson) === dept && visibleSet.has(mgrPerson.id)) return false;
             return true;
+          }).sort((a, b) => {
+            const ai = VSD_FIXED_ORDER.indexOf(a.name.trim().toLowerCase());
+            const bi = VSD_FIXED_ORDER.indexOf(b.name.trim().toLowerCase());
+            const aIsVSD = ai !== -1, bIsVSD = bi !== -1;
+            if (aIsVSD && bIsVSD) return ai - bi;
+            if (aIsVSD) return -1;
+            if (bIsVSD) return 1;
+            return a.name.localeCompare(b.name);
           });
           const total = dist.overloaded + dist.nearFull + dist.healthy + dist.underUtil || 1;
 
