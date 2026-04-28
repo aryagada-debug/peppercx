@@ -1,4 +1,6 @@
 import { useState, useRef } from "react";
+import { useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +20,8 @@ const DEAL_TYPES = ["Retainer", "Non-Retainer", "Pilot"] as const;
 const PEPPER_BUS = ["Pepper SEO/GEO+Content", "Pepper Content", "Pepper Creative", "Integrated", "Content Studio"] as const;
 const DEAL_STATUSES = ["Won", "Negotiation", "Pipeline", "Lost"] as const;
 const PAYMENT_TERMS = ["Net 15", "Net 30", "Net 45", "Net 60", "Advance", "Milestone-based"] as const;
+
+interface PersonOption { id: string; name: string; role_title: string; designation: string | null; }
 
 interface SoWItem { scope: string; revenueShare: number; teamCapability: string; }
 interface SuccessMetric { name: string; value: string; unit: string; frequency: string; }
@@ -65,6 +69,19 @@ export function DealFormWizard({ open, onOpenChange, clients, preSelectedClientI
   const [saving, setSaving] = useState(false);
   const [clientSearch, setClientSearch] = useState("");
   const [clientPopoverOpen, setClientPopoverOpen] = useState(false);
+  const [people, setPeople] = useState<PersonOption[]>([]);
+
+  useEffect(() => {
+    if (!open) return;
+    supabase.from("staffing_people")
+      .select("id, name, role_title, designation")
+      .eq("tbh", false)
+      .order("name")
+      .then(({ data }) => setPeople((data as PersonOption[]) || []));
+  }, [open]);
+
+  const peopleByRole = (role: string) => people.filter(p => (p.role_title || "").trim().toLowerCase() === role.toLowerCase());
+
   const [form, setForm] = useState<DealFormData>({
     dealName: "", dealType: "Retainer", startDate: "", endDate: "",
     mrr: "", totalDealValue: "", retainerDealValue: "", nonRetainerDealValue: "",
@@ -273,12 +290,20 @@ export function DealFormWizard({ open, onOpenChange, clients, preSelectedClientI
                   </Field>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="VSD"><Input value={form.vsd} onChange={e => set("vsd", e.target.value)} /></Field>
-                  <Field label="Principal BOPM"><Input value={form.principalBopm} onChange={e => set("principalBopm", e.target.value)} /></Field>
+                  <Field label="VSD">
+                    <PersonCombobox value={form.vsd} onChange={v => set("vsd", v)} options={peopleByRole("VSD")} placeholder="Select VSD" />
+                  </Field>
+                  <Field label="Principal BOPM">
+                    <PersonCombobox value={form.principalBopm} onChange={v => set("principalBopm", v)} options={peopleByRole("Principal BOPM")} placeholder="Select Principal BOPM" />
+                  </Field>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="Senior BOPM"><Input value={form.seniorBopm} onChange={e => set("seniorBopm", e.target.value)} /></Field>
-                  <Field label="Junior BOPM"><Input value={form.bopm} onChange={e => set("bopm", e.target.value)} /></Field>
+                  <Field label="Senior BOPM">
+                    <PersonCombobox value={form.seniorBopm} onChange={v => set("seniorBopm", v)} options={peopleByRole("Senior BOPM")} placeholder="Select Senior BOPM" />
+                  </Field>
+                  <Field label="Junior BOPM">
+                    <PersonCombobox value={form.bopm} onChange={v => set("bopm", v)} options={peopleByRole("BOPM")} placeholder="Select BOPM" />
+                  </Field>
                 </div>
                 <Field label="Capability Line">
                   <Input value={form.capabilityLine} onChange={e => set("capabilityLine", e.target.value)} />
@@ -425,5 +450,46 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <Label className="text-caption text-muted-foreground">{label}</Label>
       {children}
     </div>
+  );
+}
+
+function PersonCombobox({
+  value, onChange, options, placeholder,
+}: { value: string; onChange: (v: string) => void; options: PersonOption[]; placeholder: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
+          <span className={cn("truncate", !value && "text-muted-foreground")}>{value || placeholder}</span>
+          <ChevronRight className="h-3.5 w-3.5 opacity-50 rotate-90" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Search…" />
+          <CommandList>
+            <CommandEmpty>No people found.</CommandEmpty>
+            <CommandGroup>
+              {value && (
+                <CommandItem value="__clear__" onSelect={() => { onChange(""); setOpen(false); }}>
+                  <Check className="mr-2 h-4 w-4 opacity-0" />
+                  <span className="text-muted-foreground">Clear selection</span>
+                </CommandItem>
+              )}
+              {options.map(p => (
+                <CommandItem key={p.id} value={p.name} onSelect={() => { onChange(p.name); setOpen(false); }}>
+                  <Check className={cn("mr-2 h-4 w-4", value === p.name ? "opacity-100" : "opacity-0")} />
+                  <div>
+                    <p className="font-medium">{p.name}</p>
+                    {p.designation && <p className="text-caption text-muted-foreground">{p.designation}</p>}
+                  </div>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
