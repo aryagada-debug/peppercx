@@ -452,3 +452,44 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </div>
   );
 }
+
+function PersonCombobox({
+  value, onChange, options, placeholder,
+}: { value: string; onChange: (v: string) => void; options: PersonOption[]; placeholder: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
+          <span className={cn("truncate", !value && "text-muted-foreground")}>{value || placeholder}</span>
+          <ChevronRight className="h-3.5 w-3.5 opacity-50 rotate-90" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Search…" />
+          <CommandList>
+            <CommandEmpty>No people found.</CommandEmpty>
+            <CommandGroup>
+              {value && (
+                <CommandItem value="__clear__" onSelect={() => { onChange(""); setOpen(false); }}>
+                  <Check className="mr-2 h-4 w-4 opacity-0" />
+                  <span className="text-muted-foreground">Clear selection</span>
+                </CommandItem>
+              )}
+              {options.map(p => (
+                <CommandItem key={p.id} value={p.name} onSelect={() => { onChange(p.name); setOpen(false); }}>
+                  <Check className={cn("mr-2 h-4 w-4", value === p.name ? "opacity-100" : "opacity-0")} />
+                  <div>
+                    <p className="font-medium">{p.name}</p>
+                    {p.designation && <p className="text-caption text-muted-foreground">{p.designation}</p>}
+                  </div>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
