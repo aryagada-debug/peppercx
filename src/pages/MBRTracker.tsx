@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { formatINR } from "@/lib/csvTargets";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { MetricCard } from "@/components/dashboard/MetricCard";
@@ -18,8 +18,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { ColHeader } from "@/components/table/ColHeader";
 import { CalendarConnectButton } from "@/components/calendar/CalendarConnectButton";
 
-const PODS = ["All", "Integrated", "India B2B", "US B2B", "FMCG", "BFSI", "Unassigned"] as const;
-type Pod = typeof PODS[number];
+const VSD_FILTERS = [
+  { key: "All", label: "All" },
+  { key: "Neema Jayadas", label: "Neema Jayadas" },
+  { key: "Aamir Khan", label: "Aamir Khan" },
+  { key: "Aditya Shaw", label: "Aditya Shaw" },
+  { key: "Sneha Iyer", label: "Sneha Iyer" },
+  { key: "Sumit Shekhawat", label: "Sumit Shekhawat" },
+  { key: "Other", label: "Other" },
+  { key: "Unassigned", label: "Unassigned" },
+] as const;
+type VsdFilterKey = typeof VSD_FILTERS[number]["key"];
+const NAMED_VSDS = new Set(["Neema Jayadas", "Aamir Khan", "Aditya Shaw", "Sneha Iyer", "Sumit Shekhawat"]);
+const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
 
 const ACTIVE_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
 
@@ -75,7 +86,7 @@ interface MBRDealWithPod extends MBRDeal {
 export default function MBRTracker() {
   const { deals, entries, loading, upsertEntry, vsdSummary, totals, entriesByMonth, availableMonths, refresh } = useMBRData();
 
-  const [activePod, setActivePod] = useState<Pod>("All");
+  const [activeVsd, setActiveVsd] = useState<VsdFilterKey>("All");
   const [search, setSearch] = useState("");
   const [showClosed, setShowClosed] = useState(false);
   const [viewDeal, setViewDeal] = useState<{ deal: MBRDeal; entry: MBREntry | null } | null>(null);
@@ -93,6 +104,41 @@ export default function MBRTracker() {
     if (sortKey === k) setSortDir(d => d === "asc" ? "desc" : "asc");
     else { setSortKey(k); setSortDir("asc"); }
   };
+
+  // Column widths (resizable)
+  const DEFAULT_WIDTHS: Record<string, number> = {
+    account: 160, dealName: 200, vsd: 140, seniorBopm: 150, mrr: 110,
+    status: 110, sentiment: 110, scheduledDate: 130,
+  };
+  const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
+    try {
+      const raw = localStorage.getItem("mbr-col-widths");
+      if (raw) return { ...DEFAULT_WIDTHS, ...JSON.parse(raw) };
+    } catch {}
+    return DEFAULT_WIDTHS;
+  });
+  useEffect(() => {
+    try { localStorage.setItem("mbr-col-widths", JSON.stringify(colWidths)); } catch {}
+  }, [colWidths]);
+  const resizingRef = useRef<{ key: string; startX: number; startW: number } | null>(null);
+  const startResize = useCallback((key: string) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    resizingRef.current = { key, startX: e.clientX, startW: colWidths[key] || 120 };
+    const onMove = (ev: MouseEvent) => {
+      const r = resizingRef.current;
+      if (!r) return;
+      const next = Math.max(60, Math.min(500, r.startW + (ev.clientX - r.startX)));
+      setColWidths(prev => ({ ...prev, [r.key]: next }));
+    };
+    const onUp = () => {
+      resizingRef.current = null;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, [colWidths]);
 
   // Set default selected month to the latest available
   useEffect(() => {
@@ -145,19 +191,22 @@ export default function MBRTracker() {
         return meta ? ACTIVE_STATUSES.has(meta.dealStatus) : true;
       });
     }
-    if (activePod !== "All") {
+    if (activeVsd === "Unassigned") {
+      d = d.filter(deal => UNASSIGNED_VSD_VALUES.has((deal.vsd || "").trim()));
+    } else if (activeVsd === "Other") {
       d = d.filter(deal => {
-        const meta = dealMeta.get(deal.id);
-        const pod = meta?.pod || "Unassigned";
-        return pod === activePod;
+        const v = (deal.vsd || "").trim();
+        return v && !UNASSIGNED_VSD_VALUES.has(v) && !NAMED_VSDS.has(v);
       });
+    } else if (activeVsd !== "All") {
+      d = d.filter(deal => (deal.vsd || "").trim() === activeVsd);
     }
     if (search) {
       const s = search.toLowerCase();
       d = d.filter(deal => deal.account.toLowerCase().includes(s) || deal.dealName.toLowerCase().includes(s));
     }
     return d;
-  }, [deals, dealMeta, activePod, search, showClosed]);
+  }, [deals, dealMeta, activeVsd, search, showClosed]);
 
   // Group by client
   const groupedDeals = useMemo(() => {
@@ -362,12 +411,12 @@ export default function MBRTracker() {
 
         {/* Filters */}
         <div className="flex items-center gap-4 mb-3 flex-wrap">
-          <div className="flex gap-1 bg-secondary rounded-lg p-1">
-            {PODS.map(pod => (
-              <button key={pod} onClick={() => setActivePod(pod)} className={cn(
-                "px-3 py-1.5 rounded-md text-caption font-medium whitespace-nowrap transition-colors",
-                activePod === pod ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-              )}>{pod}</button>
+          <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
+            {VSD_FILTERS.map(v => (
+              <button key={v.key} onClick={() => setActiveVsd(v.key)} className={cn(
+                "px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
+                activeVsd === v.key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}>{v.label}</button>
             ))}
           </div>
 
@@ -412,14 +461,14 @@ export default function MBRTracker() {
                 <table className="w-full text-ui">
                   <thead>
                     <tr className="bg-secondary/40 border-b border-border">
-                      <ColHeader label="Client" colKey="account" sortKey="account" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
-                      <ColHeader label="Deal Name" colKey="dealName" sortKey="dealName" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
-                      <ColHeader label="VSD" colKey="vsd" sortKey="vsd" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
-                      <ColHeader label="Sr. BOPM" colKey="seniorBopm" sortKey="seniorBopm" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
-                      <ColHeader label="MRR" colKey="mrr" sortKey="mrr" align="right" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} numeric placeholder="≥ amount" />
-                      <ColHeader label="Status" colKey="status" align="center" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["Done","Not Done","Pending","Not Required"]} />
-                      <ColHeader label="Sentiment" colKey="sentiment" align="center" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["Green","Yellow","Red"]} />
-                      <ColHeader label="Scheduled" colKey="scheduledDate" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} placeholder="YYYY-MM-DD" />
+                      <ColHeader label="Client" colKey="account" sortKey="account" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.account} onResizeStart={startResize("account")} />
+                      <ColHeader label="Deal Name" colKey="dealName" sortKey="dealName" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.dealName} onResizeStart={startResize("dealName")} />
+                      <ColHeader label="VSD" colKey="vsd" sortKey="vsd" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.vsd} onResizeStart={startResize("vsd")} />
+                      <ColHeader label="Sr. BOPM" colKey="seniorBopm" sortKey="seniorBopm" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.seniorBopm} onResizeStart={startResize("seniorBopm")} />
+                      <ColHeader label="MRR" colKey="mrr" sortKey="mrr" align="right" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} numeric placeholder="≥ amount" width={colWidths.mrr} onResizeStart={startResize("mrr")} />
+                      <ColHeader label="Status" colKey="status" align="center" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["Done","Not Done","Pending","Not Required"]} width={colWidths.status} onResizeStart={startResize("status")} />
+                      <ColHeader label="Sentiment" colKey="sentiment" align="center" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["Green","Yellow","Red"]} width={colWidths.sentiment} onResizeStart={startResize("sentiment")} />
+                      <ColHeader label="Scheduled" colKey="scheduledDate" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} placeholder="YYYY-MM-DD" width={colWidths.scheduledDate} onResizeStart={startResize("scheduledDate")} />
                       <th className="text-center py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Anirudh</th>
                       <th className="w-8"></th>
                     </tr>
