@@ -528,7 +528,7 @@ function RGYIssueFormDialog({
 export default function RGYHealth() {
   const { users: appUsers, isRegisteredName } = useAppUsers();
   const { vsdUsers, isVsdName, canonVsd } = useVsdUsers();
-  const { vsdForDeal } = useVsdHierarchy();
+  const { vsdForDeal, bopmsForVsd } = useVsdHierarchy();
   // Built dynamically from registered users + which VSDs actually appear on deals.
   const VSD_FILTERS = useMemo(() => {
     const items: { key: string; label: string }[] = [{ key: "All", label: "All" }];
@@ -549,10 +549,21 @@ export default function RGYHealth() {
   const [loading, setLoading] = useState(true);
   const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
   const [activeVsd, setActiveVsd] = useState<VsdFilterKey>("All");
+  const [activeBopm, setActiveBopm] = useState<string>("All");
   const [showClosed, setShowClosed] = useState(false);
   const [search, setSearch] = useState("");
   const [rgyFilter, setRgyFilter] = useState<"All" | "Red" | "Yellow" | "Green">("All");
   const [activeTab, setActiveTab] = useState<"health" | "table" | "insights">("health");
+  // Reset BOPM whenever VSD changes
+  useEffect(() => { setActiveBopm("All"); }, [activeVsd]);
+  const bopmOptions = useMemo(() => {
+    if (activeVsd === "All" || activeVsd === "Unassigned") return [] as string[];
+    return bopmsForVsd(activeVsd);
+  }, [activeVsd, bopmsForVsd]);
+  const nameMatchesBopm = (a: string | null | undefined, b: string) => {
+    const norm = (s: string) => (s || "").toLowerCase().normalize("NFKD").replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+    return norm(a || "") === norm(b);
+  };
   // Drill-down for RGY Summary numeric cells
   type RGYDrillMetric = "total" | "red" | "yellow" | "green" | "pending";
   const [rgyDrill, setRgyDrill] = useState<{ rowLabel: string; metric: RGYDrillMetric } | null>(null);
@@ -928,6 +939,12 @@ export default function RGYHealth() {
       d = d.filter(deal => vsdForDeal(deal as any) === null);
     } else if (activeVsd !== "All") {
       d = d.filter(deal => vsdForDeal(deal as any) === activeVsd);
+      if (activeBopm !== "All") {
+        d = d.filter(deal => {
+          const candidates = [(deal as any).principal_bopm, (deal as any).senior_bopm, (deal as any).principalBopm, (deal as any).seniorBopm];
+          return candidates.some(c => c && nameMatchesBopm(c, activeBopm));
+        });
+      }
     }
     if (search) {
       const s = search.toLowerCase();
@@ -944,7 +961,7 @@ export default function RGYHealth() {
       });
     }
     return d;
-  }, [deals, activeVsd, search, showClosed, rgyFilter, vsdForDeal]);
+  }, [deals, activeVsd, activeBopm, search, showClosed, rgyFilter, vsdForDeal]);
 
   // Apply per-column filters + sort to produce flat row list
   const tableRows = useMemo(() => {
@@ -1212,6 +1229,25 @@ export default function RGYHealth() {
                     )}>{v.label}</button>
                   ))}
                 </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">BOPM:</span>
+                <Select
+                  value={activeBopm}
+                  onValueChange={setActiveBopm}
+                  disabled={activeVsd === "All" || activeVsd === "Unassigned" || bopmOptions.length === 0}
+                >
+                  <SelectTrigger className="h-7 w-[180px] text-[11px]">
+                    <SelectValue placeholder={activeVsd === "All" ? "Select a VSD first" : "All BOPMs"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="All" className="text-xs">All BOPMs</SelectItem>
+                    {bopmOptions.map(b => (
+                      <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="flex gap-1 bg-secondary rounded-lg p-1">

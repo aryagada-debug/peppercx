@@ -78,7 +78,7 @@ export default function MBRTracker() {
   const { deals, entries, loading, upsertEntry, vsdSummary, totals, entriesByMonth, availableMonths, refresh } = useMBRData();
   const { users: appUsers, isRegisteredName } = useAppUsers();
   const { vsdUsers, isVsdName, canonVsd } = useVsdUsers();
-  const { vsdForDeal, vsdForPerson } = useVsdHierarchy();
+  const { vsdForDeal, vsdForPerson, bopmsForVsd } = useVsdHierarchy();
   const VSD_FILTERS = useMemo(() => {
     const items: { key: string; label: string }[] = [{ key: "All", label: "All" }];
     vsdUsers.forEach((u) => items.push({ key: u.displayName, label: u.displayName }));
@@ -87,8 +87,23 @@ export default function MBRTracker() {
   }, [vsdUsers]);
 
   const [activeVsd, setActiveVsd] = useState<VsdFilterKey>("All");
+  const [activeBopm, setActiveBopm] = useState<string>("All");
   const [search, setSearch] = useState("");
   const [showClosed, setShowClosed] = useState(false);
+  // Reset BOPM whenever VSD changes
+  useEffect(() => { setActiveBopm("All"); }, [activeVsd]);
+
+  // BOPMs available for the currently selected VSD
+  const bopmOptions = useMemo(() => {
+    if (activeVsd === "All" || activeVsd === "Unassigned") return [] as string[];
+    return bopmsForVsd(activeVsd);
+  }, [activeVsd, bopmsForVsd]);
+
+  const nameMatches = (a: string | null | undefined, b: string) => {
+    const norm = (s: string) => (s || "").toLowerCase().normalize("NFKD").replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+    return norm(a || "") === norm(b);
+  };
+
   const [viewDeal, setViewDeal] = useState<{ deal: MBRDeal; entry: MBREntry | null } | null>(null);
   const [scheduleDeal, setScheduleDeal] = useState<{ deal: MBRDeal; entry: MBREntry | null } | null>(null);
   const [viewMode, setViewMode] = useState<"current" | "mom">("current");
@@ -213,13 +228,19 @@ export default function MBRTracker() {
       d = d.filter(deal => vsdForDeal(deal as any) === null);
     } else if (activeVsd !== "All") {
       d = d.filter(deal => vsdForDeal(deal as any) === activeVsd);
+      if (activeBopm !== "All") {
+        d = d.filter(deal => {
+          const candidates = [(deal as any).principal_bopm, (deal as any).senior_bopm, (deal as any).principalBopm, (deal as any).seniorBopm];
+          return candidates.some(c => c && nameMatches(c, activeBopm));
+        });
+      }
     }
     if (search) {
       const s = search.toLowerCase();
       d = d.filter(deal => deal.account.toLowerCase().includes(s) || deal.dealName.toLowerCase().includes(s));
     }
     return d;
-  }, [deals, dealMeta, activeVsd, search, showClosed, vsdForDeal]);
+  }, [deals, dealMeta, activeVsd, activeBopm, search, showClosed, vsdForDeal]);
 
   // Group by client
   const groupedDeals = useMemo(() => {
@@ -509,6 +530,22 @@ export default function MBRTracker() {
                   )}>{v.label}</button>
                 ))}
               </div>
+              <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium ml-2">BOPM:</span>
+              <Select
+                value={activeBopm}
+                onValueChange={setActiveBopm}
+                disabled={activeVsd === "All" || activeVsd === "Unassigned" || bopmOptions.length === 0}
+              >
+                <SelectTrigger className="h-7 w-[180px] text-[11px]">
+                  <SelectValue placeholder={activeVsd === "All" ? "Select a VSD first" : "All BOPMs"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All" className="text-xs">All BOPMs</SelectItem>
+                  {bopmOptions.map(b => (
+                    <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <div className="ml-auto flex gap-1 bg-secondary rounded-lg p-1">
                 <button
                   onClick={() => setViewMode("current")}
