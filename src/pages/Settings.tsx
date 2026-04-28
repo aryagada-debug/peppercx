@@ -2,7 +2,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { cn } from "@/lib/utils";
 import { useState, useMemo } from "react";
 import { useStaffingData } from "@/hooks/useStaffingData";
-import { Loader2, Pencil, Check, X, Search, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Check, X, Search, Trash2, LayoutGrid, Table as TableIcon } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -127,6 +127,7 @@ export default function SettingsPage() {
   const [search, setSearch] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const [draggingPersonId, setDraggingPersonId] = useState<string | null>(null);
+  const [peopleView, setPeopleView] = useState<"table" | "cards">("table");
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const filteredPeople = useMemo(() => {
