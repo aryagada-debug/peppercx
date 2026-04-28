@@ -721,6 +721,82 @@ export default function MBRTracker() {
           onSave={handleSave}
         />
       )}
+
+      {/* Insights Drill-down Dialog */}
+      {drill && (() => {
+        // Build the candidate deal set for this row
+        let scoped = filteredDeals;
+        if (showBopmInsights) {
+          if (drill.rowLabel !== "Pod Overall") {
+            scoped = filteredDeals.filter(d => ((d.principalBopm || d.seniorBopm || "").trim()) === drill.rowLabel);
+          } else {
+            scoped = filteredDeals.filter(d => ((d.principalBopm || d.seniorBopm || "").trim()) !== "");
+          }
+        } else {
+          scoped = filteredDeals.filter(d => (d.vsd || "Unknown") === drill.rowLabel);
+        }
+        const matchMetric = (deal: MBRDeal) => {
+          const e = activeEntryMap.get(deal.id);
+          switch (drill.metric) {
+            case "total": return true;
+            case "done": return e?.status === "Done";
+            case "notDone": return e?.status === "Not Done";
+            case "pending": return !e || (e.status !== "Done" && e.status !== "Not Done");
+            case "green": return e?.sentiment === "Green";
+            case "yellow": return e?.sentiment === "Yellow";
+            case "red": return e?.sentiment === "Red";
+            case "scheduled": return !!e?.scheduledDate;
+          }
+        };
+        const rows = scoped.filter(matchMetric);
+        const metricLabel: Record<DrillMetric, string> = {
+          total: "Accounts", done: "Done", notDone: "Not Done", pending: "Pending",
+          green: "Green sentiment", yellow: "Yellow sentiment", red: "Red sentiment", scheduled: "Scheduled",
+        };
+        return (
+          <Dialog open={!!drill} onOpenChange={(o) => !o && setDrill(null)}>
+            <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="text-base">
+                  {drill.rowLabel} — {metricLabel[drill.metric]} ({rows.length})
+                </DialogTitle>
+              </DialogHeader>
+              <div className="border border-border rounded-lg overflow-hidden mt-2">
+                <table className="w-full text-xs">
+                  <thead className="bg-secondary/40 border-b border-border">
+                    <tr>
+                      <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Account</th>
+                      <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Deal ID</th>
+                      <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Deal Name</th>
+                      <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map(d => {
+                      const meta = dealMeta.get(d.id);
+                      return (
+                        <tr key={d.id} className="border-b border-border/50 hover:bg-secondary/30">
+                          <td className="py-2 px-3 text-foreground">{d.account}</td>
+                          <td className="py-2 px-3 font-mono tabular-nums text-muted-foreground">{d.dealId || "—"}</td>
+                          <td className="py-2 px-3">
+                            <Link to={`/deals/${d.id}`} className="text-primary hover:underline" onClick={() => setDrill(null)}>
+                              {d.dealName}
+                            </Link>
+                          </td>
+                          <td className="py-2 px-3 text-muted-foreground">{meta?.dealStatus || "—"}</td>
+                        </tr>
+                      );
+                    })}
+                    {rows.length === 0 && (
+                      <tr><td colSpan={4} className="text-center py-6 text-muted-foreground">No matching deals.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
     </AppLayout>
   );
 }
