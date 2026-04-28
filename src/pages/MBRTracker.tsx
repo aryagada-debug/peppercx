@@ -352,7 +352,7 @@ export default function MBRTracker() {
     return overall.total > 0 ? [overall, ...rows] : rows;
   }, [filteredDeals, activeEntryMap, isRegisteredName]);
 
-  const showBopmInsights = activeVsd !== "All" && activeVsd !== "Other" && activeVsd !== "Unassigned";
+  const showBopmInsights = activeVsd !== "All" && activeVsd !== "Unassigned";
 
   if (loading) {
     return (
