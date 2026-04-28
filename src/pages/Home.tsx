@@ -791,7 +791,7 @@ export default function HomePage() {
             </CardContent>
           </Card>
 
-          <Card className="col-span-12 lg:col-span-6 rounded-xl">
+          <Card id="flags-card" className="col-span-12 lg:col-span-6 rounded-xl">
             <CardHeader className="pb-3">
               <CardTitle className="text-[15px] font-bold flex items-center gap-2">
                 <Flag className="h-4 w-4 text-destructive" /> Flags & alerts
