@@ -311,16 +311,27 @@ export default function HomePage() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      await loadProfile();
+      const prof = await loadProfile();
       // Fast cards first
       loadQuota();
       loadTasks();
       loadTodos();
       loadRecentsAndPins();
       // Then signals
-      setTimeout(() => { loadFlags(); loadNotifications(); loadMyDeals(); }, 100);
+      setTimeout(() => {
+        loadFlags();
+        loadNotifications();
+        loadMyDeals();
+        // Load slack mentions if we know the user's slack id
+        (async () => {
+          if (!prof?.staffingPersonId) return;
+          const { data } = await supabase.from("staffing_people")
+            .select("slack_user_id").eq("id", prof.staffingPersonId).maybeSingle();
+          loadMentions(data?.slack_user_id || null);
+        })();
+      }, 100);
     })();
-  }, [user, loadProfile, loadQuota, loadTasks, loadTodos, loadFlags, loadNotifications, loadRecentsAndPins, loadMyDeals]);
+  }, [user, loadProfile, loadQuota, loadTasks, loadTodos, loadFlags, loadNotifications, loadRecentsAndPins, loadMyDeals, loadMentions]);
 
   useEffect(() => { if (user) loadQuota(); }, [periodType, user, loadQuota]);
 
