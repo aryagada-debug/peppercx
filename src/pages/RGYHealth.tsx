@@ -837,10 +837,15 @@ export default function RGYHealth() {
   const filteredDeals = useMemo(() => {
     let d = deals;
     if (!showClosed) d = d.filter(deal => ACTIVE_STATUSES.has(deal.deal_status));
-    if (activePod === "Unassigned") {
-      d = d.filter(deal => getPodForDeal(deal.vsd, deal.pod) === "Unassigned");
-    } else if (activePod !== "All") {
-      d = d.filter(deal => getPodForDeal(deal.vsd, deal.pod) === activePod);
+    if (activeVsd === "Unassigned") {
+      d = d.filter(deal => UNASSIGNED_VSD_VALUES.has((deal.vsd || "").trim()));
+    } else if (activeVsd === "Other") {
+      d = d.filter(deal => {
+        const v = (deal.vsd || "").trim();
+        return v && !UNASSIGNED_VSD_VALUES.has(v) && !NAMED_VSDS.has(v);
+      });
+    } else if (activeVsd !== "All") {
+      d = d.filter(deal => (deal.vsd || "").trim() === activeVsd);
     }
     if (search) {
       const s = search.toLowerCase();
@@ -857,7 +862,7 @@ export default function RGYHealth() {
       });
     }
     return d;
-  }, [deals, activePod, search, showClosed, rgyFilter]);
+  }, [deals, activeVsd, search, showClosed, rgyFilter]);
 
   // Apply per-column filters + sort to produce flat row list
   const tableRows = useMemo(() => {
