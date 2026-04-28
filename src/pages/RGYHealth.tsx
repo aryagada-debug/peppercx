@@ -561,13 +561,13 @@ export default function RGYHealth() {
 
     const dealIds = dealRows.map(d => d.id);
     const rgyMap = new Map<string, any>();
-    const issuesList: { deal_name: string; deal_id: string; pc_code: string; deal_status: string; issue_details: string; issue_status: string; action_plan: string; discussed_action_plan: string; red_dimensions: string[] }[] = [];
+    const issuesList: any[] = [];
 
     for (let i = 0; i < dealIds.length; i += 500) {
       const batch = dealIds.slice(i, i + 500);
       const { data: rgyRows } = await supabase
         .from("deal_rgy_weekly")
-        .select("id, deal_id, customer, internal, content, seo, supply, copy, design, video, week_start, issue_details, issue_status, action_plan, discussed_action_plan")
+        .select("id, deal_id, customer, internal, content, seo, supply, copy, design, video, week_start, issue_details, issue_status, action_plan, discussed_action_plan, issue_date, created_at")
         .in("deal_id", batch)
         .order("week_start", { ascending: false });
 
@@ -577,17 +577,25 @@ export default function RGYHealth() {
             rgyMap.set(r.deal_id, r);
             if (r.issue_details && (r.issue_status === "Open" || r.issue_status === "In Progress")) {
               const dealRow = dealRows.find(d => d.id === r.deal_id);
+              const dimVals = DIMENSIONS.map(dim => (r as any)[dim.key] as string);
+              const worst: "R" | "Y" | "G" | null = dimVals.includes("R") ? "R" : dimVals.includes("Y") ? "Y" : "G";
               const redDims = DIMENSIONS.filter(dim => (r as any)[dim.key] === "R").map(dim => dim.label);
               issuesList.push({
+                deal_id: r.deal_id,                            // FK pk for linking
+                deal_id_code: dealRow?.deal_id || "",          // human code
                 deal_name: dealRow?.deal_name || "Unknown",
-                deal_id: dealRow?.deal_id || "",
                 pc_code: dealRow?.pc_code || "",
+                account: dealRow?.account || "",
+                pod: getPodForDeal(dealRow?.vsd || "", dealRow?.pod || ""),
                 deal_status: dealRow?.deal_status || "",
                 issue_details: r.issue_details,
                 issue_status: r.issue_status || "Open",
                 action_plan: (r as any).action_plan || "",
                 discussed_action_plan: (r as any).discussed_action_plan || "",
                 red_dimensions: redDims,
+                worst,
+                issue_date: (r as any).issue_date || null,
+                created_at: (r as any).created_at || null,
               });
             }
           }
