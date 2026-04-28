@@ -45,6 +45,7 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
   const [editingAlloc, setEditingAlloc] = useState<string | null>(null);
   const [allocDraft, setAllocDraft] = useState<string>("");
   const [allCollapsed, setAllCollapsed] = useState(true);
+  const [didAutoExpand, setDidAutoExpand] = useState(false);
 
   const dealMap = useMemo(() => {
     const m: Record<string, Deal> = {};
@@ -95,9 +96,20 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
     return null;
   };
 
-  // The working population for this view: assigned, mapped to one of the 5 groups, not TBH.
+  // True if this person is one of the 5 VSDs (always shown as a group root).
+  const isVSDPerson = (p: Person) =>
+    VSD_NAMES.has(p.name.trim().toLowerCase()) ||
+    (p.roleTitle || "").trim().toUpperCase() === "VSD";
+
+  // The working population for this view: VSDs always included; everyone else
+  // must have at least one assignment. Must map to one of the 5 dept groups, not TBH.
   const visiblePeople = useMemo(
-    () => people.filter(p => !p.tbh && assignedPersonIds.has(p.id) && normalizeDept(p) !== null),
+    () => people.filter(p => {
+      if (p.tbh) return false;
+      if (normalizeDept(p) === null) return false;
+      if (isVSDPerson(p)) return true;
+      return assignedPersonIds.has(p.id);
+    }),
     [people, assignedPersonIds]
   );
 
@@ -273,6 +285,7 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
       ? groupBg
       : (rowIdx.i % 2 === 1 ? "bg-secondary/20" : "bg-card");
     rowIdx.i++;
+    const noData = !u || (u.assigns.length === 0);
 
     return (
       <React.Fragment key={p.id}>
@@ -289,26 +302,32 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
               </span>
             </div>
           </td>
-          <td className="py-2.5 px-3 text-sm text-muted-foreground">{p.designation || p.roleTitle}</td>
-          <td className="py-2 px-3 text-right font-mono tabular-nums text-xs">{activeCount}</td>
-          <td className="py-2 px-3 text-right font-mono tabular-nums text-xs text-foreground">{fmtCurrency(u?.mrr)}</td>
-          <td className="py-2 px-3 text-right font-mono tabular-nums text-xs text-foreground">{fmtCurrency(u?.rev)}</td>
+          <td className="py-2.5 px-3 text-sm text-muted-foreground">
+            {isVSD ? <span className="font-medium text-foreground">VSD</span> : (p.designation || p.roleTitle)}
+          </td>
+          <td className="py-2 px-3 text-right font-mono tabular-nums text-xs">{noData ? "—" : activeCount}</td>
+          <td className="py-2 px-3 text-right font-mono tabular-nums text-xs text-foreground">{noData ? "—" : fmtCurrency(u?.mrr)}</td>
+          <td className="py-2 px-3 text-right font-mono tabular-nums text-xs text-foreground">{noData ? "—" : fmtCurrency(u?.rev)}</td>
           <td className="py-2 px-3 text-right font-mono tabular-nums text-xs text-muted-foreground">{target ? fmtCurrency(target) : "—"}</td>
           <td className="py-2 px-3">
-            <div className="flex items-center gap-1.5" title={`${revPct}%`}>
-              <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden min-w-[40px]">
-                <div className={cn("h-full", revPct > 100 ? "bg-destructive" : revPct >= 70 ? "bg-positive" : "bg-warning")} style={{ width: `${Math.min(revPct, 100)}%` }} />
+            {noData ? <span className="text-xs text-muted-foreground">—</span> : (
+              <div className="flex items-center gap-1.5" title={`${revPct}%`}>
+                <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden min-w-[40px]">
+                  <div className={cn("h-full", revPct > 100 ? "bg-destructive" : revPct >= 70 ? "bg-positive" : "bg-warning")} style={{ width: `${Math.min(revPct, 100)}%` }} />
+                </div>
+                <span className="text-[10px] font-mono text-muted-foreground w-9 text-right">{revPct}%</span>
               </div>
-              <span className="text-[10px] font-mono text-muted-foreground w-9 text-right">{revPct}%</span>
-            </div>
+            )}
           </td>
           <td className="py-2 px-3">
-            <div className="flex items-center gap-1.5" title={`${hours}h / 160h`}>
-              <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden min-w-[60px]">
-                <div className={cn("h-full", cfg.bar)} style={{ width: `${Math.min(totalPct, 100)}%` }} />
+            {noData ? <span className="text-xs text-muted-foreground">—</span> : (
+              <div className="flex items-center gap-1.5" title={`${hours}h / 160h`}>
+                <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden min-w-[60px]">
+                  <div className={cn("h-full", cfg.bar)} style={{ width: `${Math.min(totalPct, 100)}%` }} />
+                </div>
+                <span className={cn("text-[10px] font-mono tabular-nums w-16 text-right", cfg.text)}>{hours}h · {Math.round(totalPct)}%</span>
               </div>
-              <span className={cn("text-[10px] font-mono tabular-nums w-16 text-right", cfg.text)}>{hours}h · {Math.round(totalPct)}%</span>
-            </div>
+            )}
           </td>
         </tr>
 
