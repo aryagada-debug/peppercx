@@ -17,7 +17,7 @@ export default function Timesheets() {
 
   return (
     <AppLayout>
-      <div className="p-8">
+      <div className="px-3 py-4">
         <h1 className="text-subhead font-semibold tracking-tight text-foreground mb-1">My Timesheet</h1>
         <p className="text-ui text-muted-foreground mb-6">Week of March 10–14, 2026</p>
 

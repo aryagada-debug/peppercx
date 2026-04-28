@@ -19,7 +19,7 @@ function ScoreBadge({ score }: { score: number }) {
 export default function SlackHealth() {
   return (
     <AppLayout>
-      <div className="p-8">
+      <div className="px-3 py-4">
         <h1 className="text-subhead font-semibold tracking-tight text-foreground mb-1">Slack Health</h1>
         <p className="text-ui text-muted-foreground mb-6">Automated channel monitoring — {channels.length} channels tracked</p>
 

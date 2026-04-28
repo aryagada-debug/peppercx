@@ -21,7 +21,7 @@ const stageColor: Record<string, string> = {
 export default function DealDesk() {
   return (
     <AppLayout>
-      <div className="p-8">
+      <div className="px-3 py-4">
         <h1 className="text-subhead font-semibold tracking-tight text-foreground mb-1">Deal Desk</h1>
         <p className="text-ui text-muted-foreground mb-6">Pre-sales deal structuring, pricing & approval pipeline</p>
 

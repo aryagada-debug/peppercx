@@ -541,7 +541,7 @@ export default function HomePage() {
 
   return (
     <AppLayout>
-      <div className="p-6 lg:p-8 space-y-5 max-w-[1600px] mx-auto">
+      <div className="px-3 py-4 space-y-5">
         {/* Header */}
         <div className="flex items-end justify-between flex-wrap gap-4">
           <div>
