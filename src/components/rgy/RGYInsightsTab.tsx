@@ -219,7 +219,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd }: Prop
       map.set(v, { vsd: VSD_SHORT[v] || v, vsdFull: v, Red: 0, Yellow: 0, Green: 0, total: 0 }),
     );
     deals.forEach((deal) => {
-      const v = deal.vsd || "";
+      const v = vsdForDeal(deal as any) || "";
       if (!map.has(v)) return;
       // Only count active deals
       if (!ACTIVE_STATUSES.has(deal.deal_status)) return;
@@ -231,12 +231,12 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd }: Prop
       entry.total = entry.Red + entry.Yellow + entry.Green;
     });
     return Array.from(map.values());
-  }, [deals]);
+  }, [deals, vsdForDeal]);
 
   const vsdDrillDeals = useMemo(() => {
     if (!vsdDrill) return [];
     return deals
-      .filter((d) => d.vsd === vsdDrill && ACTIVE_STATUSES.has(d.deal_status))
+      .filter((d) => vsdForDeal(d as any) === vsdDrill && ACTIVE_STATUSES.has(d.deal_status))
       .map((d) => ({
         id: d.id,
         deal_id: d.deal_id,
@@ -244,7 +244,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd }: Prop
         account: d.account,
         worst: getWorstRGY(d),
       }));
-  }, [vsdDrill, deals]);
+  }, [vsdDrill, deals, vsdForDeal]);
 
   // ── Active Issues — VSD-filtered, with timeline + flags ──
   const activeIssues = useMemo(() => {
