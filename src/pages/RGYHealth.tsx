@@ -549,10 +549,21 @@ export default function RGYHealth() {
   const [loading, setLoading] = useState(true);
   const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
   const [activeVsd, setActiveVsd] = useState<VsdFilterKey>("All");
+  const [activeBopm, setActiveBopm] = useState<string>("All");
   const [showClosed, setShowClosed] = useState(false);
   const [search, setSearch] = useState("");
   const [rgyFilter, setRgyFilter] = useState<"All" | "Red" | "Yellow" | "Green">("All");
   const [activeTab, setActiveTab] = useState<"health" | "table" | "insights">("health");
+  // Reset BOPM whenever VSD changes
+  useEffect(() => { setActiveBopm("All"); }, [activeVsd]);
+  const bopmOptions = useMemo(() => {
+    if (activeVsd === "All" || activeVsd === "Unassigned") return [] as string[];
+    return bopmsForVsd(activeVsd);
+  }, [activeVsd, bopmsForVsd]);
+  const nameMatchesBopm = (a: string | null | undefined, b: string) => {
+    const norm = (s: string) => (s || "").toLowerCase().normalize("NFKD").replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+    return norm(a || "") === norm(b);
+  };
   // Drill-down for RGY Summary numeric cells
   type RGYDrillMetric = "total" | "red" | "yellow" | "green" | "pending";
   const [rgyDrill, setRgyDrill] = useState<{ rowLabel: string; metric: RGYDrillMetric } | null>(null);
