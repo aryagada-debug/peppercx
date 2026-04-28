@@ -289,7 +289,7 @@ export default function Dashboard() {
 
         {/* Finance Targets */}
         <div className="mb-8 space-y-4">
-          <FinanceTargetsCard monthYYYYMM={selectedMonth} />
+          <FinanceTargetsCard monthYYYYMM={selectedMonth} dealIdScope={isBopmPersona ? visibleDealIds : undefined} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
