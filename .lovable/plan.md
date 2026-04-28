@@ -1,62 +1,99 @@
-## What's broken
+## Four changes, scoped per area
 
-Ritu Shinde logged in as a BOPM and saw nothing on Clients, Staffing, MBR, RGY, etc. — even though she's tagged as **Principal BOPM on ~25+ deals** (Tata AIG, Axis Bank, IIFL, Bajaj Allianz, ICICI, HSBC, Edelweiss, Aditya Birla, Reliance, etc., all under VSD Aditya Shaw).
+### 1. Staffing & Capacity — drop People view, make BOPM read-only, add "Request review" CTA
 
-### Root cause
+- For BOPM persona, remove the **People view** tab. Tabs become just **Staffing** (matrix). Default tab → `matrix`.
+- Make the entire Staffing & Capacity page **view-only** for BOPMs:
+  - In `MatrixTab`, when `isBopmPersona === true`, replace the `onUpdateDeal` and `onUpsertAssignment` callbacks with no-ops and pass a `readOnly` flag down. Disable all role-add buttons, allocation inputs, deal-type/status selects, person pickers, and the "Add staffing member" dialog trigger. Hide the inline `+` chips on the matrix.
+  - Render a small read-only badge in the page header (`👁 Read-only`) for BOPMs.
+- Add a **"Request staffing review"** button on the deal pane inside the matrix (visible only to BOPMs). Clicking it:
+  - Inserts a row into a new `staffing_review_requests` table with `deal_id`, `requested_by` (user_id), `requested_by_name`, `note` (optional textarea), `status = 'open'`, `created_at`.
+  - Shows a toast: *"Review requested — Admin & Central Cx have been notified."*
+  - Disables itself (and shows "Review pending since {date}") if there's already an open request for that deal.
+- Surface incoming requests for admin/Central Cx:
+  - Add a small **"Review requests" pill** on the Staffing & Capacity page header for admin/member roles, count = open requests. Click → drawer listing each request: deal name, requester, note, "Mark resolved" button (sets `status='resolved', resolved_at, resolved_by`).
+  - Same pill on the Home/Dashboard alerts strip so it's not buried.
 
-Every BOPM-scoped page goes through `useDealAccess`. That hook only resolves "her deals" if her **`profiles.staffing_person_id`** is set — it then looks up her name in `staffing_people` and matches it against `principal_bopm / senior_bopm / bopm` columns on deals.
+### 2. RGY Health — capture "who last updated and when" as a note
 
-Database state today:
+`deal_rgy_weekly` has no audit columns today, so we add a lightweight history table instead of bloating that table:
 
-| User | `profiles.staffing_person_id` | `staffing_people` record | Deals tagged | Result |
-|---|---|---|---|---|
-| Ritu Priya | `P579` ✅ | `P579` Ritu Priya, Senior BOPM | ~12 (Neema's pod) | Working |
-| **Ritu Shinde** | **`NULL` ❌** | `P518` Ritu Shinde, Group BOPM exists | **~25+ (Aditya's pod)** | **Empty everywhere** |
+- New table `deal_rgy_notes`:
+  - `id`, `deal_id`, `week_start`, `dimension` (e.g. `internal | customer | delivery | consumption | account_health | finance_billing | capability_seo | capability_creative | overall`), `from_value`, `to_value`, `note` (free text), `updated_by` (user_id), `updated_by_name`, `created_at`.
+- Whenever a BOPM (or anyone) changes an RGY cell in **RGY Health** or in the **Deal → RGY tab**, append a row to `deal_rgy_notes` with the before/after values and the current user's display_name.
+- New **"History"** popover on each deal row in the RGY table (clock icon next to the deal name) showing the last ~20 entries as a feed:
+  > **Ritu Shinde** changed Customer from **G → Y** • 2 hours ago — *"Client raised escalation on TAT"*
+  > **Aditya Shaw** changed Delivery from **Y → R** • yesterday
+- The same feed renders inside the deal-detail RGY tab as a "Recent updates" panel under the matrix.
+- When a BOPM changes RGY in the table, prompt for an optional one-line note in a tiny inline textarea before persisting (skippable). Their name is captured automatically — no manual entry needed.
 
-So Shinde's profile has no link to a staffing person → `useDealAccess` returns an empty `visibleDealIds` set → every BOPM-scoped page renders blank.
+### 3. MBR Tracker & Deal MBR tab — show all deals with Done / Pending status
 
-There is no application bug here — it's a missing data link. The fix is one row update.
+- Drop the `deal_type = 'Retainer'` filter in `useMBRData.loadDeals` so **all of the user's deals appear** (Ritu currently loses 11 of 22). Keep the existing `customer_type` exclusion (churned / non-retainer-explicit).
+- Each row in the MBR tracker already renders a status pill; for deals with **no MBR entry for the selected month**, show **"Pending"** (amber dot) instead of being absent. For deals with an entry, show **"Done"** (green) or **"Not Done"** (red), keeping the existing client-sentiment dot beside Done.
+- Each row has a **"Record MBR"** button:
+  - If status is Pending → button label "Record MBR", opens the existing `MBRInputDrawer`.
+  - If Done → button label "View / Edit MBR", opens detail dialog.
+  - For BOPMs the button works on their tagged deals only (it already does, via the existing scoping).
+- Same logic on the **Deal Detail → MBR tab**: top of the tab shows the current month's status (Done / Pending) with a single primary CTA ("Record MBR for {Month}") so a BOPM doesn't have to scroll the history table to log this month's MBR.
 
-## Fix
-
-**1. Map Ritu Shinde's profile to staffing person `P518`**
+### 4. Database changes (one migration)
 
 ```sql
-UPDATE profiles
-SET staffing_person_id = 'P518'
-WHERE user_id = '3570ca23-63bc-4602-b8d3-777f9c45ea00';
+-- Staffing review requests (BOPM → Admin/Central Cx)
+create table public.staffing_review_requests (
+  id uuid primary key default gen_random_uuid(),
+  deal_id text not null,
+  requested_by uuid not null,
+  requested_by_name text not null default '',
+  note text not null default '',
+  status text not null default 'open',  -- open | resolved
+  resolved_by uuid,
+  resolved_by_name text,
+  resolved_at timestamptz,
+  created_at timestamptz not null default now()
+);
+alter table public.staffing_review_requests enable row level security;
+-- Anyone authenticated can read and insert; only admins (or requester) can update/delete.
+create policy "Auth read staffing review requests" on public.staffing_review_requests
+  for select to authenticated using (true);
+create policy "Auth insert own staffing review requests" on public.staffing_review_requests
+  for insert to authenticated with check (auth.uid() = requested_by);
+create policy "Admins update staffing review requests" on public.staffing_review_requests
+  for update to authenticated using (has_role(auth.uid(), 'admin'::app_role));
+create policy "Admins delete staffing review requests" on public.staffing_review_requests
+  for delete to authenticated using (has_role(auth.uid(), 'admin'::app_role));
+
+-- RGY change history
+create table public.deal_rgy_notes (
+  id uuid primary key default gen_random_uuid(),
+  deal_id text not null,
+  week_start date,
+  dimension text not null,
+  from_value text not null default '',
+  to_value text not null default '',
+  note text not null default '',
+  updated_by uuid not null,
+  updated_by_name text not null default '',
+  created_at timestamptz not null default now()
+);
+alter table public.deal_rgy_notes enable row level security;
+create policy "Auth read deal rgy notes" on public.deal_rgy_notes
+  for select to authenticated using (true);
+create policy "Auth insert own deal rgy notes" on public.deal_rgy_notes
+  for insert to authenticated with check (auth.uid() = updated_by);
 ```
 
-After this she'll immediately see ~25 deals (all the ones where `principal_bopm = 'Ritu Shinde'`) across Clients, Staffing (People view + Matrix), MBR Tracker, and RGY Health.
+### Files to edit
 
-**2. Surface this kind of mis-mapping in the admin Users tab**
+- `src/pages/Staffing.tsx` — remove People view tab for BOPM, default to matrix, add read-only badge.
+- `src/components/staffing/MatrixTab.tsx` — accept and respect `readOnly` prop; add **Request review** button + dialog for BOPM.
+- `src/components/staffing/StaffingReviewRequests.tsx` (new) — drawer listing open requests for admin/Central Cx.
+- `src/pages/RGYHealth.tsx` — log every RGY change to `deal_rgy_notes`; add **History** popover; for BOPMs prompt for optional note.
+- `src/components/rgy/DealDetailDialog.tsx` and the deal-detail RGY tab — show "Recent updates" feed.
+- `src/components/rgy/RGYHistoryPopover.tsx` (new) — reusable history feed component.
+- `src/hooks/useMBRData.ts` — drop the `deal_type='Retainer'` filter.
+- `src/pages/MBRTracker.tsx` — explicit Pending/Done status pill + per-row "Record MBR / View MBR" button.
+- `src/pages/DealDetail.tsx` (`DealMBRTab`) — top-of-tab "This month" status + single primary CTA.
 
-Right now there's nothing in the UI that flags "this user is a BOPM but isn't mapped to a staffing person, so they'll see nothing." Add a small inline warning badge in `src/pages/admin/UsersTab.tsx` next to any non-admin user whose `staffing_person_id` is null:
-
-> ⚠ Not mapped to a staffing person — this user will see no deals.
-
-…with a quick-link to set the mapping. This prevents the same support cycle the next time a new BOPM is onboarded.
-
-**3. Better empty state on BOPM-scoped pages**
-
-Today when `visibleDealIds.size === 0` the pages just render an empty table, which looks like the app is broken. On Clients / Staffing / MBR / RGY, when the effective role is `user` and the visible-deals set is empty after `useDealAccess` finishes loading, render a single friendly card:
-
-> No deals are tagged to you yet. If you expect to see deals here, ask an admin to map your profile in **Settings → Users & Roles**.
-
-So future un-mapped BOPMs immediately know what to do instead of staring at a blank screen.
-
-## Files touched
-
-- DB: one `UPDATE` on `profiles` (via the insert tool — data change, no schema migration).
-- `src/pages/admin/UsersTab.tsx` — unmapped-BOPM warning badge.
-- `src/pages/Clients.tsx`, `src/pages/Staffing.tsx`, `src/pages/MBRTracker.tsx`, `src/pages/RGYHealth.tsx` — friendly empty state when the BOPM has zero visible deals.
-
-No schema migrations and no changes to `useDealAccess` itself — the hook is working as designed; the data was just incomplete.
-
-## What Ritu will see after the fix
-
-- **Clients & Deals**: her ~25 deals (Tata AIG, Axis Bank, IIFL, Bajaj, ICICI, HSBC, Edelweiss, Aditya Birla, Reliance, etc.) — editable.
-- **Staffing → People view + Matrix**: only people/allocations on those deals (Deal-view tab stays hidden for BOPM persona).
-- **MBR Tracker**: table view of MBRs for those deals only.
-- **RGY Health**: table view of RGY for those deals only.
-- **Home / Dashboard**: still hidden for BOPM by default per existing route_visibility rules — no change.
+No changes to `useDealAccess` — scoping is already correct.

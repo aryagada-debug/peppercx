@@ -3,6 +3,8 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { KpiTile } from "@/components/dashboard/KpiTile";
 import { DealDetailDialog } from "@/components/rgy/DealDetailDialog";
 import { RGYInsightsTab } from "@/components/rgy/RGYInsightsTab";
+import { RGYHistoryPopover } from "@/components/rgy/RGYHistoryPopover";
+import { logRGYChange } from "@/lib/rgyHistory";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
@@ -844,6 +846,18 @@ export default function RGYHealth() {
       }
     }
 
+    // Audit log: who changed which dimension and from what to what
+    const oldValueForDim = oldValues[dimKey] || "";
+    if (oldValueForDim !== persistValue) {
+      logRGYChange({
+        dealId,
+        dimension: dimKey,
+        fromValue: oldValueForDim,
+        toValue: persistValue,
+        weekStart,
+      });
+    }
+
     // If new value is R or Y, show issue form
     if (newValue === "R" || newValue === "Y") {
       const latestDeal = { ...deal, [dimKey]: newValue };
@@ -1349,6 +1363,7 @@ export default function RGYHealth() {
                                 <div className="flex items-center gap-2">
                                   {worst && <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", worstDotColor[worst])} />}
                                   <Link to={`/deals/${deal.id}`} className="text-primary hover:underline text-xs font-medium">{deal.deal_name}</Link>
+                                  <RGYHistoryPopover dealId={deal.id} />
                                 </div>
                               </td>
                             )}

@@ -437,6 +437,45 @@ export type Database = {
         }
         Relationships: []
       }
+      deal_rgy_notes: {
+        Row: {
+          created_at: string
+          deal_id: string
+          dimension: string
+          from_value: string
+          id: string
+          note: string
+          to_value: string
+          updated_by: string
+          updated_by_name: string
+          week_start: string | null
+        }
+        Insert: {
+          created_at?: string
+          deal_id: string
+          dimension: string
+          from_value?: string
+          id?: string
+          note?: string
+          to_value?: string
+          updated_by: string
+          updated_by_name?: string
+          week_start?: string | null
+        }
+        Update: {
+          created_at?: string
+          deal_id?: string
+          dimension?: string
+          from_value?: string
+          id?: string
+          note?: string
+          to_value?: string
+          updated_by?: string
+          updated_by_name?: string
+          week_start?: string | null
+        }
+        Relationships: []
+      }
       deal_rgy_weekly: {
         Row: {
           account_health: string
@@ -1471,6 +1510,45 @@ export type Database = {
           id?: string
           target_deal_value_per_person?: number
           updated_at?: string
+        }
+        Relationships: []
+      }
+      staffing_review_requests: {
+        Row: {
+          created_at: string
+          deal_id: string
+          id: string
+          note: string
+          requested_by: string
+          requested_by_name: string
+          resolved_at: string | null
+          resolved_by: string | null
+          resolved_by_name: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          deal_id: string
+          id?: string
+          note?: string
+          requested_by: string
+          requested_by_name?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          resolved_by_name?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          deal_id?: string
+          id?: string
+          note?: string
+          requested_by?: string
+          requested_by_name?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          resolved_by_name?: string | null
+          status?: string
         }
         Relationships: []
       }
