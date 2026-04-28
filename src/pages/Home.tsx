@@ -258,6 +258,16 @@ export default function HomePage() {
     setLoadingNotifs(false);
   }, [user]);
 
+  const loadMentions = useCallback(async (slackUserId?: string | null) => {
+    if (!slackUserId) { setMentions([]); return; }
+    const { data } = await supabase.from("slack_messages")
+      .select("id, deal_id, channel_id, user_name, text, slack_ts, thread_ts, created_at")
+      .ilike("text", `%<@${slackUserId}>%`)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    setMentions(data || []);
+  }, []);
+
   const loadQuota = useCallback(async () => {
     if (!user) return;
     setLoadingQuota(true);
