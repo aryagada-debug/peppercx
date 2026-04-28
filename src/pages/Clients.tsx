@@ -498,16 +498,16 @@ export default function Clients() {
               <div
                 key={label}
                 className={cn(
-                  "flex items-center gap-1.5 px-1.5 py-0.5 rounded-lg border bg-gradient-to-br to-transparent backdrop-blur-sm transition-all hover:shadow-sm",
+                  "flex items-center gap-2 px-2.5 py-1.5 rounded-lg border bg-gradient-to-br to-transparent backdrop-blur-sm transition-all hover:shadow-sm",
                   t.bg, t.ring,
                 )}
               >
-                <div className={cn("rounded-md p-0.5", t.chip)}>
-                  <Icon className={cn("h-3 w-3", t.icon)} />
+                <div className={cn("rounded-md p-1", t.chip)}>
+                  <Icon className={cn("h-4 w-4", t.icon)} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[9px] uppercase tracking-wide text-muted-foreground leading-tight">{label}</p>
-                  <p className="text-sm font-semibold tracking-tight text-foreground font-mono leading-tight truncate">{value}</p>
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground leading-tight">{label}</p>
+                  <p className="text-base font-semibold tracking-tight text-foreground font-mono leading-tight truncate">{value}</p>
                 </div>
               </div>
             );
