@@ -981,7 +981,14 @@ export default function RGYHealth() {
       for (const deal of filteredDeals) {
         const raw = (deal.principal_bopm || deal.senior_bopm || "").trim();
         if (!raw) continue;
-        const bucket = isRegisteredName(raw) ? raw : "Other";
+        const lower = raw.toLowerCase();
+        const isPlaceholder =
+          lower === "to be assigned" ||
+          lower === "tbd" ||
+          lower === "tba" ||
+          lower === "unassigned" ||
+          lower === "not assigned";
+        const bucket = isPlaceholder ? "Unassigned" : raw;
         if (!map.has(bucket)) map.set(bucket, { name: bucket, total: 0, red: 0, yellow: 0, green: 0, pending: 0 });
         tally(map.get(bucket)!, deal);
         tally(overall, deal);

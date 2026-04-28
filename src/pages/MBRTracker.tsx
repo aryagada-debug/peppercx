@@ -325,7 +325,18 @@ export default function MBRTracker() {
     for (const deal of filteredDeals) {
       const raw = (deal.principalBopm || deal.seniorBopm || "").trim();
       if (!raw) continue;
-      const bucket = isRegisteredName(raw) ? raw : "Other";
+      // Bucket by raw BOPM name so people not in the directory (typos,
+      // unregistered staff) still appear as their own row instead of being
+      // dumped into a generic "Other".
+      const lower = raw.toLowerCase();
+      const isPlaceholder =
+        !raw ||
+        lower === "to be assigned" ||
+        lower === "tbd" ||
+        lower === "tba" ||
+        lower === "unassigned" ||
+        lower === "not assigned";
+      const bucket = isPlaceholder ? "Unassigned" : raw;
       if (!map.has(bucket)) map.set(bucket, { name: bucket, total: 0, done: 0, notDone: 0, pending: 0, green: 0, yellow: 0, red: 0, scheduled: 0 });
       const s = map.get(bucket)!;
       const tally = (r: Row) => {
