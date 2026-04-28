@@ -242,8 +242,17 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
     "Capability - Creatives": "bg-positive",
   };
 
+  // Subtle group backgrounds for VSD sub-trees inside Delivery Ops and CS
+  const VSD_GROUP_BG: Record<string, string> = {
+    "sneha iyer":      "bg-info/[0.06]",
+    "aamir khan":      "bg-warning/[0.06]",
+    "aditya shaw":     "bg-positive/[0.06]",
+    "sumit shekhawat": "bg-primary/[0.05]",
+    "neema jayadas":   "bg-destructive/[0.05]",
+  };
+
   // Render person + descendants — but only emit those that pass filters
-  const renderPerson = (p: Person, depth: number, visibleSet: Set<string>, rowIdx: { i: number }): React.ReactNode => {
+  const renderPerson = (p: Person, depth: number, visibleSet: Set<string>, rowIdx: { i: number }, groupBg?: string): React.ReactNode => {
     if (!visibleSet.has(p.id)) return null;
     const u = personUtil[p.id];
     const totalPct = u?.totalPct || 0;
@@ -256,11 +265,18 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
     const revPct = target > 0 ? Math.round((u?.rev || 0) / target * 100) : 0;
     const isExp = expandedPerson.has(p.id);
     const kids = (childrenMap[p.id] || []).filter(k => visibleSet.has(k.id));
-    const zebra = rowIdx.i++ % 2 === 1 ? "bg-secondary/20" : "bg-card";
+    // If this person is a VSD, start a new group bg for descendants
+    const myGroupBg = VSD_GROUP_BG[p.name.trim().toLowerCase()] ?? groupBg;
+    // VSDs themselves render on plain card; descendants get the subtle tint
+    const isVSD = !!VSD_GROUP_BG[p.name.trim().toLowerCase()];
+    const rowBg = !isVSD && groupBg
+      ? groupBg
+      : (rowIdx.i % 2 === 1 ? "bg-secondary/20" : "bg-card");
+    rowIdx.i++;
 
     return (
       <React.Fragment key={p.id}>
-        <tr className={cn("border-b border-border/40 hover:bg-secondary/40 cursor-pointer transition-colors", zebra)} onClick={() => togglePerson(p.id)}>
+        <tr className={cn("border-b border-border/40 hover:bg-secondary/40 cursor-pointer transition-colors", rowBg)} onClick={() => togglePerson(p.id)}>
           <td className="py-2.5 px-3" style={{ paddingLeft: `${12 + depth * 28}px` }}>
             <div className="flex items-center gap-1.5">
               {(deals.length > 0 || kids.length > 0)
@@ -359,7 +375,7 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
           </tr>
         )}
 
-        {isExp && kids.map(k => renderPerson(k, depth + 1, visibleSet, rowIdx))}
+        {isExp && kids.map(k => renderPerson(k, depth + 1, visibleSet, rowIdx, myGroupBg))}
       </React.Fragment>
     );
   };
