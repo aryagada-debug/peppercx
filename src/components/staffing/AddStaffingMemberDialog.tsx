@@ -384,6 +384,17 @@ export function AddStaffingMemberDialog({
                   </div>
                 </div>
 
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Start date</label>
+                    <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-8 text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">End date</label>
+                    <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-8 text-sm" />
+                  </div>
+                </div>
+
                 <Button variant="ghost" size="sm" onClick={() => { setSelectedPerson(null); setStep(2); }}>
                   <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back to members
                 </Button>
