@@ -664,7 +664,7 @@ export default function RGYHealth() {
       });
     }
     return out;
-  }, [insightsOpened, deals]);
+  }, [insightsOpened, deals, vsdForDeal]);
 
   const fetchData = useCallback(async () => {
     // Look back ~8 weeks for "current" RGY snapshot — small slice instead of full history.
