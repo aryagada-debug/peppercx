@@ -489,12 +489,18 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Prop
               {agingIssues.length === 0 && <p className="text-xs text-muted-foreground py-2">No aging open issues.</p>}
               {agingIssues.map((i) => (
                 <div key={`${i.deal_id}-${i.created_at}`} className="flex items-center justify-between gap-2 text-xs py-1 border-b border-border/30 last:border-0">
-                  <span className="truncate flex-1 text-foreground">{i.deal_name}</span>
+                  <Link
+                    to={`/deals/${i.deal_id}?tab=RGY%20Health`}
+                    className="truncate flex-1 text-primary hover:underline"
+                    title={i.deal_name}
+                  >
+                    {i.deal_name}
+                  </Link>
                   <span className={cn(
                     "font-semibold tabular-nums",
                     i.flagged ? "text-red-600" : i.worst === "R" ? "text-red-500" : "text-amber-600",
                   )}>
-                    {i.days}d
+                    {i.days}d since {i.worst === "R" ? "Red" : "Yellow"}
                   </span>
                   {i.flagged && <Flag className="h-3 w-3 text-red-500" />}
                 </div>
