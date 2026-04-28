@@ -9,6 +9,12 @@ import { DEPARTMENTS } from "@/data/staffingData";
 import { UsersTab } from "@/pages/admin/UsersTab";
 import { AccessControlsTab } from "@/pages/admin/AccessControlsTab";
 import { useUserRole } from "@/hooks/useUserRole";
+import {
+  DndContext, DragEndEvent, DragOverlay, DragStartEvent,
+  PointerSensor, useSensor, useSensors, useDraggable, useDroppable,
+} from "@dnd-kit/core";
+import { formatINR } from "@/lib/csvTargets";
+import { GripVertical } from "lucide-react";
 
 const tabs = [
   "People & Reporting",
@@ -98,6 +104,8 @@ export default function SettingsPage() {
   const { people, revenueTargets, loading, updatePerson, setRevenueTargets } = useStaffingData();
   const { isActuallyAdmin } = useUserRole();
   const [search, setSearch] = useState("");
+  const [draggingPersonId, setDraggingPersonId] = useState<string | null>(null);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const filteredPeople = useMemo(() => {
     if (!search) return people;
@@ -127,6 +135,38 @@ export default function SettingsPage() {
     );
     setRevenueTargets(updated);
     toast.success("Target updated");
+  };
+
+  // ---- People grouped by Dept|Designation for the drag-drop revenue table ----
+  const peopleByGroup = useMemo(() => {
+    const m = new Map<string, typeof people>();
+    people.filter((p) => !p.tbh && !p.leaving && p.department && p.designation).forEach((p) => {
+      const key = `${p.department}||${p.designation}`;
+      if (!m.has(key)) m.set(key, [] as typeof people);
+      m.get(key)!.push(p);
+    });
+    return m;
+  }, [people]);
+
+  const draggingPerson = useMemo(
+    () => (draggingPersonId ? people.find((p) => p.id === draggingPersonId) : null),
+    [draggingPersonId, people],
+  );
+
+  const handleDragStart = (e: DragStartEvent) => {
+    setDraggingPersonId(String(e.active.id));
+  };
+
+  const handleDragEnd = (e: DragEndEvent) => {
+    const personId = String(e.active.id);
+    const overId = e.over?.id ? String(e.over.id) : null;
+    setDraggingPersonId(null);
+    if (!overId) return;
+    const [dept, desg] = overId.split("||");
+    const person = people.find((p) => p.id === personId);
+    if (!person || (person.department === dept && person.designation === desg)) return;
+    updatePerson(personId, { department: dept, designation: desg });
+    toast.success(`${person.name} moved to ${desg}`);
   };
 
   if (loading) {
@@ -250,52 +290,15 @@ export default function SettingsPage() {
         )}
 
         {activeTab === "Revenue Capacity" && (
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Set target MRR/deal value capacity per person for each role. This drives utilization metrics in the Staffing view.
-            </p>
-            {(() => {
-              const grouped = new Map<string, typeof revenueTargets>();
-              revenueTargets.forEach((target) => {
-                if (!grouped.has(target.department)) grouped.set(target.department, []);
-                grouped.get(target.department)!.push(target);
-              });
-
-              return Array.from(grouped.entries()).map(([department, targets]) => (
-                <div key={department} className="overflow-hidden rounded-xl border border-border bg-card">
-                  <div className="border-b border-border bg-secondary/30 px-4 py-3">
-                    <h3 className="text-sm font-semibold text-foreground">{department}</h3>
-                  </div>
-                  <table className="w-full text-ui">
-                    <thead>
-                      <tr className="border-b border-border">
-                        <th className="px-4 py-2 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                          Designation
-                        </th>
-                        <th className="px-4 py-2 text-right text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                          Target Deal Value / Person
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {targets.map((target) => (
-                        <tr key={`${target.department}_${target.designation}`} className="border-b border-border/50 hover:bg-secondary/20">
-                          <td className="px-4 py-2 text-xs text-foreground">{target.designation}</td>
-                          <td className="px-4 py-2 text-right">
-                            <InlineEdit
-                              value={String(target.targetDealValuePerPerson)}
-                              onSave={(value) => handleRevTargetChange(target.department, target.designation, Number(value) || 0)}
-                              type="number"
-                            />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ));
-            })()}
-          </div>
+          <RevenueCapacityPanel
+            revenueTargets={revenueTargets}
+            peopleByGroup={peopleByGroup}
+            onTargetChange={handleRevTargetChange}
+            sensors={sensors}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            draggingPerson={draggingPerson}
+          />
         )}
 
         {activeTab === "Users & Roles" && (
