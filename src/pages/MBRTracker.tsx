@@ -294,28 +294,36 @@ export default function MBRTracker() {
     return Array.from(vsdMap.values()).sort((a, b) => b.total - a.total);
   }, [filteredDeals, activeEntryMap]);
 
-  // BOPM insights (Sr / Principal) — used when a specific VSD is selected
+  // BOPM insights (Sr / Principal) — used when a specific VSD is selected.
+  // Only includes BOPMs mapped to ≥1 active deal in the current scope.
   const bopmInsights = useMemo(() => {
-    const map = new Map<string, { name: string; total: number; done: number; notDone: number; pending: number; green: number; yellow: number; red: number; scheduled: number }>();
+    type Row = { name: string; total: number; done: number; notDone: number; pending: number; green: number; yellow: number; red: number; scheduled: number };
+    const map = new Map<string, Row>();
+    const overall: Row = { name: "Pod Overall", total: 0, done: 0, notDone: 0, pending: 0, green: 0, yellow: 0, red: 0, scheduled: 0 };
     for (const deal of filteredDeals) {
-      const owner = (deal.principalBopm || deal.seniorBopm || "Unassigned").trim() || "Unassigned";
+      const owner = (deal.principalBopm || deal.seniorBopm || "").trim();
+      if (!owner) continue; // skip deals without a BOPM
       if (!map.has(owner)) map.set(owner, { name: owner, total: 0, done: 0, notDone: 0, pending: 0, green: 0, yellow: 0, red: 0, scheduled: 0 });
       const s = map.get(owner)!;
-      s.total++;
-      const entry = activeEntryMap.get(deal.id);
-      if (entry) {
-        if (entry.status === "Done") s.done++;
-        else if (entry.status === "Not Done") s.notDone++;
-        if (entry.sentiment === "Green") s.green++;
-        else if (entry.sentiment === "Yellow") s.yellow++;
-        else if (entry.sentiment === "Red") s.red++;
-        if (entry.scheduledDate) s.scheduled++;
-      }
+      const tally = (r: Row) => {
+        r.total++;
+        const entry = activeEntryMap.get(deal.id);
+        if (entry) {
+          if (entry.status === "Done") r.done++;
+          else if (entry.status === "Not Done") r.notDone++;
+          if (entry.sentiment === "Green") r.green++;
+          else if (entry.sentiment === "Yellow") r.yellow++;
+          else if (entry.sentiment === "Red") r.red++;
+          if (entry.scheduledDate) r.scheduled++;
+        }
+      };
+      tally(s);
+      tally(overall);
     }
-    for (const s of map.values()) {
-      s.pending = s.total - s.done - s.notDone;
-    }
-    return Array.from(map.values()).sort((a, b) => b.total - a.total);
+    for (const s of map.values()) s.pending = s.total - s.done - s.notDone;
+    overall.pending = overall.total - overall.done - overall.notDone;
+    const rows = Array.from(map.values()).filter(r => r.total > 0).sort((a, b) => b.total - a.total);
+    return overall.total > 0 ? [overall, ...rows] : rows;
   }, [filteredDeals, activeEntryMap]);
 
   const showBopmInsights = activeVsd !== "All" && activeVsd !== "Other" && activeVsd !== "Unassigned";
