@@ -1,67 +1,61 @@
-# Use Reporting Hierarchy for VSD Filtering
+## Goal
 
-## What changes
-The VSD chip filter on **MBR Tracker** and **RGY Health** will use the **reporting hierarchy from Settings → People & Reporting** (the `staffing_people` table) instead of the deal's free-text `vsd` cell.
+Restructure the **MBR Tracker** and **RGY Health** pages so the existing summary view (KPIs + insights) and the deal table live in **separate tabs**, with redesigned KPI cards.
 
-A deal will count as "under" a VSD if its `principal_bopm` (or `senior_bopm` / `bopm`, in that order) is a person whose `reporting_manager` chain rolls up to that VSD.
+---
 
-## Behavior
+## RGY Health (`src/pages/RGYHealth.tsx`)
 
-### Selecting a VSD chip (e.g. "Aditya Shaw")
-Shows every deal whose **principal/senior/junior BOPM reports to Aditya Shaw** (directly or transitively), e.g. all deals owned by Shreshtha Pathak / Mitchelle Joseph + anyone reporting to them.
+Currently has tabs `Health Board` (full table) and `Insights`. We will:
 
-The deal's `vsd` text field is no longer consulted for filtering.
+1. **Restructure tabs**: `Health Board` → `Insights` → `Table`.
+  - **Health Board (1st tab)**: Keep redesigned KPIs + VSD filter only + the VSD/BOPM RGY summary table.
+  - **Insights (3rd tab)**: unchanged contents, but uses redesigned KPIs (KPIs render above tabs so they stay shared).
+  - **Table (2nd tab — NEW)**: contains the flat deal table that currently lives in `Health Board`. Inside this tab move:
+    - VSD filter chips
+    - Search box (clients/deals)
+    - RGY status filter (Red / Yellow / Green / All)
+    - "Show closed/completed" checkbox
+    - Columns picker (same `Settings2` popover, kept inline next to filters — same alignment style as Health Board / Insights)
+    - "Clear filters" button
+2. **Column picker alignment**: Move the `Columns` button so it appears in the **same row as the tab triggers** (right-aligned beside `TabsList`), only shown when the `Table` tab is active. This keeps it consistent with where it lives across Health Board / Insights / Table tab switching.
+3. **VSD filter on Tab 1 (Health Board)**: kept as today (single chip strip above the summary).
 
-### "Unassigned" chip
-Deals where no BOPM is set, or the BOPM exists but doesn't roll up to any of the 5 VSDs.
+---
 
-### "Other" chip
-Removed — it becomes redundant with Unassigned under the hierarchy model.
+## MBR Tracker (`src/pages/MBRTracker.tsx`)
 
-### BOPM Insights / BOPM RGY Summary (second table when a VSD is selected)
-Buckets stay grouped by raw BOPM name (current behavior — already fixed last turn). With the new filter these will only show BOPMs whose chain rolls up to the selected VSD.
+Currently has a top-level `Current` / `Month-on-Month` view toggle (not Radix tabs) and a single page. We will introduce real tabs:
 
-## Technical details
+1. **New top-level tabs**: `Insights` and `Table`. The existing `Current` / `Month-on-Month` toggle remains, but moves into the `Table` tab (it only affects the table view).
+  - **Insights (1st tab)**: KPIs (redesigned) + VSD filter + VSD/BOPM Insights summary table. No search / month picker / table.
+  - **Table (2nd tab)**: VSD filter + Search + Month picker (Current view) + Current / MoM toggle + "Show closed" + Clear filters + the existing deal table (Current or MoM).
+2. **VSD filter on Tab 1 (Insights)**: kept as today.
+3. KPIs render above tabs so both tabs share them.
 
-### New helper: `useVsdHierarchy()` (in `src/hooks/useAppUsers.ts`)
-- Loads `staffing_people` (id, name, reporting_manager).
-- Builds a map: `personName → topVSD` by walking `reporting_manager` upward until it hits one of `VSD_NAMES` (max 6 hops, cycle guard).
-- Caches result; refreshes when `staffing_people` changes (existing realtime channel already covers this).
-- Exposes:
-  - `vsdForPerson(name) → "Aditya Shaw" | null`
-  - `peopleUnderVsd(vsdName) → Set<string>` (lowercase-keyed)
+---
 
-### Filter change in `src/pages/MBRTracker.tsx` and `src/pages/RGYHealth.tsx`
-Replace the existing branch:
-```ts
-} else if (activeVsd !== "All") {
-  d = d.filter(deal => canonVsd(deal.vsd) === activeVsd);
-}
-```
-with:
-```ts
-} else if (activeVsd !== "All") {
-  d = d.filter(deal => {
-    const bopm = deal.principal_bopm || deal.senior_bopm || deal.bopm;
-    return bopm && vsdForPerson(bopm) === activeVsd;
-  });
-}
-```
+## KPI Card Redesign (shared change)
 
-`Unassigned` branch: deal has no BOPM, OR `vsdForPerson(bopm) === null`.
-`Other` chip removed from `VSD_FILTERS`.
+Update the KPI strips on **both** pages so each card has:
 
-### Insights aggregation
-The VSD Insights panel (left side) will also bucket by `vsdForPerson(bopm)` instead of `deal.vsd` so the totals match the chip filter.
+- A soft tinted background (semantic color: positive/warning/destructive/primary/muted) — flat, no gradients/shadows (matches design-system memory).
+- A leading **lucide icon** in a small rounded square.
+- A slightly **larger value font** and a shorter label (e.g. "Retainer Accounts" → "Retainers", "Yellow Warnings" → "Yellow", "Green (Healthy)" → "Green", "Portfolio Score" → "Score") — short but still readable.
+- Tighter padding, two font weights only (Regular + Medium), in line with project memory.
 
-## Tradeoffs to confirm
-1. **Deals where `vsd` is filled correctly but no BOPM is set** will move from their VSD's bucket to **Unassigned**. From the data sample, every active deal under a VSD does have a `principal_bopm`, but a few have placeholder values like "To be assigned" — those will land in Unassigned.
-2. **Sneha Iyer's reports include Sales/Strategy directors** (Aditya Joshi, Debdeep Banerjee, etc.), not just BOPMs. If any of them appear as a `principal_bopm` on a deal, those deals will now roll up to Sneha. This matches the org chart — confirming this is intended.
+Implementation: introduce a small local component (e.g. `KpiTile`) inside each page (or a shared `src/components/dashboard/KpiTile.tsx`) so we don't disturb the existing `MetricCard` used elsewhere. Mapping:
 
-## Files
-- `src/hooks/useAppUsers.ts` — add `useVsdHierarchy` hook
-- `src/pages/MBRTracker.tsx` — swap filter + drop "Other" chip + update VSD Insights bucketing
-- `src/pages/RGYHealth.tsx` — same three changes
+**MBR KPIs**: Retainers (Users), Done (CheckCircle2, positive bg), Not Done (XCircle, destructive bg), Pending (Clock, warning bg), Compliance (Gauge, primary bg).
 
-## Open question
-Should I **also remove the "Other" chip**, or keep it to surface deals whose BOPM is in the directory but doesn't report up to any VSD (e.g. someone reporting to Sumitha Shetty who herself reports to Sneha — these *do* roll up, so "Other" would be empty in practice)?
+**RGY KPIs**: Red (AlertTriangle, destructive bg), Yellow (AlertCircle, warning bg), Green (CheckCircle2, positive bg), Score (Activity, primary bg).
+
+---
+
+## Files to edit
+
+- `src/pages/RGYHealth.tsx` — restructure tabs (add `Table` tab), move table + table-scoped filters + columns picker into it, keep VSD filter on Health Board, swap `MetricCard` for new KPI tile.
+- `src/pages/MBRTracker.tsx` — wrap content in `Tabs` (`Insights` / `Table`), move search/month/MoM toggle/table into `Table` tab, keep VSD filter + insights table on `Insights` tab, swap `MetricCard` for new KPI tile.
+- (Optional) `src/components/dashboard/KpiTile.tsx` — shared redesigned KPI card.
+
+No data, hook, or routing changes. No DB changes.
