@@ -23,6 +23,7 @@ function nameKey(s: string): string {
 let cache: { users: AppUser[]; ts: number } | null = null;
 const subscribers = new Set<(u: AppUser[]) => void>();
 let realtimeBound = false;
+let realtimeChannel: ReturnType<typeof supabase.channel> | null = null;
 
 async function loadUsers(): Promise<AppUser[]> {
   // Source of truth = Settings → People (staffing_people).
@@ -95,24 +96,22 @@ async function loadUsers(): Promise<AppUser[]> {
 function bindRealtime() {
   if (realtimeBound) return;
   realtimeBound = true;
-  supabase
-    .channel("app-users-sync")
-    .on("postgres_changes", { event: "*", schema: "public", table: "staffing_people" }, async () => {
-      const next = await loadUsers();
-      cache = { users: next, ts: Date.now() };
-      subscribers.forEach((s) => s(next));
-    })
-    .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, async () => {
-      const next = await loadUsers();
-      cache = { users: next, ts: Date.now() };
-      subscribers.forEach((s) => s(next));
-    })
-    .on("postgres_changes", { event: "*", schema: "public", table: "user_roles" }, async () => {
-      const next = await loadUsers();
-      cache = { users: next, ts: Date.now() };
-      subscribers.forEach((s) => s(next));
-    })
-    .subscribe();
+  // Clean up any stale channel from a previous module instance (HMR / StrictMode).
+  if (realtimeChannel) {
+    supabase.removeChannel(realtimeChannel);
+    realtimeChannel = null;
+  }
+  const refresh = async () => {
+    const next = await loadUsers();
+    cache = { users: next, ts: Date.now() };
+    subscribers.forEach((s) => s(next));
+  };
+  const channel = supabase.channel(`app-users-sync-${Date.now()}`);
+  channel.on("postgres_changes", { event: "*", schema: "public", table: "staffing_people" }, refresh);
+  channel.on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, refresh);
+  channel.on("postgres_changes", { event: "*", schema: "public", table: "user_roles" }, refresh);
+  channel.subscribe();
+  realtimeChannel = channel;
 }
 
 export function useAppUsers() {
