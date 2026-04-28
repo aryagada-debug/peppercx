@@ -161,7 +161,7 @@ export function AddStaffingMemberDialog({
           {step === 1 && (
             <div className="grid grid-cols-2 gap-2">
               {ROLE_CATEGORIES.map(cat => {
-                const count = people.filter(p => p.roleCategory === cat && !alreadyAssigned.has(p.id)).length;
+                const count = people.filter(p => p.roleCategory === cat).length;
                 return (
                   <button
                     key={cat}
