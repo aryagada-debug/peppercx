@@ -113,7 +113,7 @@ export function useMBRData() {
     const { data } = await supabase
       .from("staffing_deals")
       .select("id, pc_code, deal_id, account, deal_name, vsd, principal_bopm, senior_bopm, bopm, customer_status, customer_type, service_line_tagging, business_unit, mrr, total_deal_value, net_deal_value, deal_type")
-      .eq("deal_type", "Retainer");
+      ;
 
     if (data) {
       setDeals(
