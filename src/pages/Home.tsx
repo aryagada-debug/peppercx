@@ -177,7 +177,7 @@ export default function HomePage() {
     const inAliases = (s: string | null) => !!s && aliasSet.has((s || "").trim().toLowerCase());
     const { data: allDeals } = await supabase.from("staffing_deals")
       .select("id, deal_name, account, vsd, principal_bopm, senior_bopm, bopm, end_date, deal_status")
-      .in("deal_status", ["Active Deal", "New Deal in SLA/PO"]);
+      .in("deal_status", ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
     const myDeals = (allDeals || []).filter((d: any) =>
       inAliases(d.vsd) || inAliases(d.principal_bopm) || inAliases(d.senior_bopm) || inAliases(d.bopm));
     const myDealIds = myDeals.map((d: any) => d.id);
@@ -213,7 +213,7 @@ export default function HomePage() {
     const inAliases = (s: string | null) => !!s && aliasSet.has((s || "").trim().toLowerCase());
     const { data } = await supabase.from("staffing_deals")
       .select("id, deal_name, account, vsd, principal_bopm, senior_bopm, bopm, end_date, deal_status, mrr, total_deal_value")
-      .in("deal_status", ["Active Deal", "New Deal in SLA/PO"]);
+      .in("deal_status", ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
     const mine: MyDeal[] = (data || [])
       .filter((d: any) => inAliases(d.vsd) || inAliases(d.principal_bopm) || inAliases(d.senior_bopm) || inAliases(d.bopm))
       .map((d: any) => {
