@@ -89,7 +89,10 @@ export default function HomePage() {
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [quota, setQuota] = useState<QuotaRow | null>(null);
   const [closedAmount, setClosedAmount] = useState(0);
-  const [periodType, setPeriodType] = useState<"month" | "quarter" | "year">("quarter");
+  const [periodType, setPeriodType] = useState<"month" | "year">("month");
+  const [taskFilter, setTaskFilter] = useState<"all" | "overdue" | "today" | "upcoming">("today");
+  const [notifTab, setNotifTab] = useState<"activity" | "mentions">("activity");
+  const [mentions, setMentions] = useState<any[]>([]);
   const [recents, setRecents] = useState<RecentView[]>([]);
   const [pins, setPins] = useState<UserPin[]>([]);
   const [myDeals, setMyDeals] = useState<MyDeal[]>([]);
@@ -261,7 +264,6 @@ export default function HomePage() {
     const today = new Date();
     let start: Date, end: Date;
     if (periodType === "month") { start = startOfMonth(today); end = endOfMonth(today); }
-    else if (periodType === "quarter") { start = startOfQuarter(today); end = endOfQuarter(today); }
     else { start = startOfYear(today); end = endOfYear(today); }
 
     const { data: q } = await supabase.from("user_quotas").select("*")
