@@ -9,6 +9,12 @@ import { DEPARTMENTS } from "@/data/staffingData";
 import { UsersTab } from "@/pages/admin/UsersTab";
 import { AccessControlsTab } from "@/pages/admin/AccessControlsTab";
 import { useUserRole } from "@/hooks/useUserRole";
+import {
+  DndContext, DragEndEvent, DragOverlay, DragStartEvent,
+  PointerSensor, useSensor, useSensors, useDraggable, useDroppable,
+} from "@dnd-kit/core";
+import { formatINR } from "@/lib/csvTargets";
+import { GripVertical } from "lucide-react";
 
 const tabs = [
   "People & Reporting",
@@ -98,6 +104,8 @@ export default function SettingsPage() {
   const { people, revenueTargets, loading, updatePerson, setRevenueTargets } = useStaffingData();
   const { isActuallyAdmin } = useUserRole();
   const [search, setSearch] = useState("");
+  const [draggingPersonId, setDraggingPersonId] = useState<string | null>(null);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const filteredPeople = useMemo(() => {
     if (!search) return people;
@@ -127,6 +135,38 @@ export default function SettingsPage() {
     );
     setRevenueTargets(updated);
     toast.success("Target updated");
+  };
+
+  // ---- People grouped by Dept|Designation for the drag-drop revenue table ----
+  const peopleByGroup = useMemo(() => {
+    const m = new Map<string, typeof people>();
+    people.filter((p) => !p.tbh && !p.leaving && p.department && p.designation).forEach((p) => {
+      const key = `${p.department}||${p.designation}`;
+      if (!m.has(key)) m.set(key, [] as typeof people);
+      m.get(key)!.push(p);
+    });
+    return m;
+  }, [people]);
+
+  const draggingPerson = useMemo(
+    () => (draggingPersonId ? people.find((p) => p.id === draggingPersonId) : null),
+    [draggingPersonId, people],
+  );
+
+  const handleDragStart = (e: DragStartEvent) => {
+    setDraggingPersonId(String(e.active.id));
+  };
+
+  const handleDragEnd = (e: DragEndEvent) => {
+    const personId = String(e.active.id);
+    const overId = e.over?.id ? String(e.over.id) : null;
+    setDraggingPersonId(null);
+    if (!overId) return;
+    const [dept, desg] = overId.split("||");
+    const person = people.find((p) => p.id === personId);
+    if (!person || (person.department === dept && person.designation === desg)) return;
+    updatePerson(personId, { department: dept, designation: desg });
+    toast.success(`${person.name} moved to ${desg}`);
   };
 
   if (loading) {
@@ -250,52 +290,15 @@ export default function SettingsPage() {
         )}
 
         {activeTab === "Revenue Capacity" && (
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Set target MRR/deal value capacity per person for each role. This drives utilization metrics in the Staffing view.
-            </p>
-            {(() => {
-              const grouped = new Map<string, typeof revenueTargets>();
-              revenueTargets.forEach((target) => {
-                if (!grouped.has(target.department)) grouped.set(target.department, []);
-                grouped.get(target.department)!.push(target);
-              });
-
-              return Array.from(grouped.entries()).map(([department, targets]) => (
-                <div key={department} className="overflow-hidden rounded-xl border border-border bg-card">
-                  <div className="border-b border-border bg-secondary/30 px-4 py-3">
-                    <h3 className="text-sm font-semibold text-foreground">{department}</h3>
-                  </div>
-                  <table className="w-full text-ui">
-                    <thead>
-                      <tr className="border-b border-border">
-                        <th className="px-4 py-2 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                          Designation
-                        </th>
-                        <th className="px-4 py-2 text-right text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                          Target Deal Value / Person
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {targets.map((target) => (
-                        <tr key={`${target.department}_${target.designation}`} className="border-b border-border/50 hover:bg-secondary/20">
-                          <td className="px-4 py-2 text-xs text-foreground">{target.designation}</td>
-                          <td className="px-4 py-2 text-right">
-                            <InlineEdit
-                              value={String(target.targetDealValuePerPerson)}
-                              onSave={(value) => handleRevTargetChange(target.department, target.designation, Number(value) || 0)}
-                              type="number"
-                            />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ));
-            })()}
-          </div>
+          <RevenueCapacityPanel
+            revenueTargets={revenueTargets}
+            peopleByGroup={peopleByGroup}
+            onTargetChange={handleRevTargetChange}
+            sensors={sensors}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            draggingPerson={draggingPerson}
+          />
         )}
 
         {activeTab === "Users & Roles" && (
@@ -325,5 +328,175 @@ export default function SettingsPage() {
         )}
       </div>
     </AppLayout>
+  );
+}
+
+// ── Revenue Capacity panel ──────────────────────────────────────────────────
+function DraggablePersonChip({ id, name }: { id: string; name: string }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-0.5 text-[11px] text-foreground cursor-grab active:cursor-grabbing select-none",
+        isDragging && "opacity-30",
+      )}
+      title="Drag to a different designation to regroup"
+    >
+      <GripVertical className="h-2.5 w-2.5 text-muted-foreground" />
+      <span>{name}</span>
+    </div>
+  );
+}
+
+function DroppableRow({
+  rowKey,
+  children,
+  isDraggingActive,
+}: {
+  rowKey: string;
+  children: React.ReactNode;
+  isDraggingActive: boolean;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: rowKey });
+  return (
+    <tr
+      ref={setNodeRef}
+      className={cn(
+        "border-b border-border/50 transition-colors",
+        isOver && isDraggingActive ? "bg-primary/10 ring-1 ring-inset ring-primary" : "hover:bg-secondary/20",
+      )}
+    >
+      {children}
+    </tr>
+  );
+}
+
+function RevenueCapacityPanel({
+  revenueTargets,
+  peopleByGroup,
+  onTargetChange,
+  sensors,
+  onDragStart,
+  onDragEnd,
+  draggingPerson,
+}: {
+  revenueTargets: ReturnType<typeof useStaffingData>["revenueTargets"];
+  peopleByGroup: Map<string, ReturnType<typeof useStaffingData>["people"]>;
+  onTargetChange: (dept: string, desg: string, val: number) => void;
+  sensors: ReturnType<typeof useSensors>;
+  onDragStart: (e: DragStartEvent) => void;
+  onDragEnd: (e: DragEndEvent) => void;
+  draggingPerson: ReturnType<typeof useStaffingData>["people"][number] | null;
+}) {
+  // Build the union of (dept|desg) keys from both targets and people, so
+  // unmapped people still show up.
+  const rows = useMemo(() => {
+    const set = new Set<string>();
+    revenueTargets.forEach((t) => set.add(`${t.department}||${t.designation}`));
+    peopleByGroup.forEach((_, k) => set.add(k));
+    return Array.from(set)
+      .map((k) => {
+        const [department, designation] = k.split("||");
+        const t = revenueTargets.find((x) => x.department === department && x.designation === designation);
+        return {
+          key: k,
+          department,
+          designation,
+          capacity: t?.targetDealValuePerPerson || 0,
+          people: peopleByGroup.get(k) || [],
+        };
+      })
+      .sort((a, b) => a.department.localeCompare(b.department) || a.designation.localeCompare(b.designation));
+  }, [revenueTargets, peopleByGroup]);
+
+  const grouped = useMemo(() => {
+    const m = new Map<string, typeof rows>();
+    rows.forEach((r) => {
+      if (!m.has(r.department)) m.set(r.department, [] as typeof rows);
+      m.get(r.department)!.push(r);
+    });
+    return m;
+  }, [rows]);
+
+  return (
+    <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+      <div className="space-y-4">
+        <div className="rounded-xl border border-border bg-card p-4">
+          <h3 className="text-sm font-semibold text-foreground">Revenue Capacity</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Each row sets the target deal value per person for a Department + Designation. Drag any person chip
+            into a different row to reassign their grouping — this updates the People table, Staffing capacity
+            calculations, and the People view everywhere.
+          </p>
+        </div>
+
+        <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <table className="w-full text-ui">
+            <thead>
+              <tr className="border-b border-border bg-secondary/40">
+                <th className="px-4 py-2 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground w-[22%]">
+                  Department
+                </th>
+                <th className="px-4 py-2 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground w-[24%]">
+                  Designation
+                </th>
+                <th className="px-4 py-2 text-right text-[11px] font-medium uppercase tracking-wider text-muted-foreground w-[18%]">
+                  Revenue Capacity / Person
+                </th>
+                <th className="px-4 py-2 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  People (drag to regroup)
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from(grouped.entries()).map(([dept, deptRows]) =>
+                deptRows.map((row, idx) => (
+                  <DroppableRow key={row.key} rowKey={row.key} isDraggingActive={!!draggingPerson}>
+                    <td className="px-4 py-2 align-top">
+                      {idx === 0 ? (
+                        <span className="text-xs font-medium text-foreground">{dept}</span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground/40">↳</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 align-top text-xs text-foreground">{row.designation}</td>
+                    <td className="px-4 py-2 align-top text-right">
+                      <InlineEdit
+                        value={String(row.capacity)}
+                        onSave={(v) => onTargetChange(row.department, row.designation, Number(v) || 0)}
+                        type="number"
+                        placeholder="0"
+                      />
+                      <div className="text-[10px] text-muted-foreground tabular-nums">{formatINR(row.capacity)}</div>
+                    </td>
+                    <td className="px-4 py-2 align-top">
+                      <div className="flex flex-wrap gap-1">
+                        {row.people.length === 0 ? (
+                          <span className="text-[11px] italic text-muted-foreground">— No one in this group —</span>
+                        ) : (
+                          row.people.map((p) => <DraggablePersonChip key={p.id} id={p.id} name={p.name} />)
+                        )}
+                      </div>
+                    </td>
+                  </DroppableRow>
+                )),
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <DragOverlay>
+        {draggingPerson ? (
+          <div className="inline-flex items-center gap-1 rounded-md border border-primary bg-card px-2 py-0.5 text-[11px] text-foreground shadow-md">
+            <GripVertical className="h-2.5 w-2.5 text-primary" />
+            <span>{draggingPerson.name}</span>
+          </div>
+        ) : null}
+      </DragOverlay>
+    </DndContext>
   );
 }

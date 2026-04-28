@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import type { Deal, Person, StaffingAssignment, RevenueCapacityTarget } from "@/data/staffingData";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const ACTIVE_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
 
@@ -44,6 +45,7 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
   const [expandedPerson, setExpandedPerson] = useState<Set<string>>(new Set());
   const [editingAlloc, setEditingAlloc] = useState<string | null>(null);
   const [allocDraft, setAllocDraft] = useState<string>("");
+  const [allCollapsed, setAllCollapsed] = useState(true);
 
   const dealMap = useMemo(() => {
     const m: Record<string, Deal> = {};
@@ -60,31 +62,31 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
     return set;
   }, [assignments]);
 
-  // Departments that are never assigned to deals — hidden entirely.
-  const EXCLUDED_DEPARTMENTS = useMemo(() => new Set([
-    "hr and ta", "hr & ta",
-    "marketing",
-    "product", "all product",
-    "supply acquisition",
-    "operations",
-  ]), []);
+  // Map raw department names to one of 5 display groups.
+  // Anything outside this mapping is hidden from this view.
+  const GROUP_ORDER = [
+    "Leadership",
+    "Delivery Ops and CS",
+    "Capability - SEO",
+    "Capability - Content",
+    "Capability - Creatives",
+  ] as const;
 
-  const isExcludedDept = (dept?: string) => {
-    if (!dept) return false;
-    return EXCLUDED_DEPARTMENTS.has(dept.trim().toLowerCase());
+  const normalizeDept = (dept?: string): string | null => {
+    const d = (dept || "").trim().toLowerCase();
+    if (!d) return null;
+    if (d === "leadership") return "Leadership";
+    if (d === "delivery ops and cs" || d === "delivery ops & cs") return "Delivery Ops and CS";
+    if (d.includes("seo")) return "Capability - SEO";
+    if (d.includes("quality") || d.includes("strategy") || d.includes("content")) return "Capability - Content";
+    if (d.includes("creative") || d.includes("video")) return "Capability - Creatives";
+    return null;
   };
 
-  // Collapse all "Capability - …" departments into a single bucket.
-  const normalizeDept = (dept?: string): string => {
-    const d = (dept || "Other").trim();
-    if (d.toLowerCase().startsWith("capability")) return "Capability — All Teams";
-    return d || "Other";
-  };
-
-  // The working population for this view: assigned, not in excluded depts, not TBH.
+  // The working population for this view: assigned, mapped to one of the 5 groups, not TBH.
   const visiblePeople = useMemo(
-    () => people.filter(p => !p.tbh && assignedPersonIds.has(p.id) && !isExcludedDept(p.department)),
-    [people, assignedPersonIds, EXCLUDED_DEPARTMENTS]
+    () => people.filter(p => !p.tbh && assignedPersonIds.has(p.id) && normalizeDept(p.department) !== null),
+    [people, assignedPersonIds]
   );
 
 
@@ -114,7 +116,7 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
   const peopleByDept = useMemo(() => {
     const m = new Map<string, Person[]>();
     visiblePeople.forEach(p => {
-      const dept = normalizeDept(p.department);
+      const dept = normalizeDept(p.department)!;
       if (!m.has(dept)) m.set(dept, []);
       m.get(dept)!.push(p);
     });
@@ -178,7 +180,11 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
       const avg = active.length ? Math.round(totalPct / active.length) : 0;
       return { dept, members, visible, active, dist, avg };
     }).filter(d => d.visible.length > 0)
-      .sort((a, b) => a.dept.localeCompare(b.dept));
+      .sort((a, b) => {
+        const ai = GROUP_ORDER.indexOf(a.dept as typeof GROUP_ORDER[number]);
+        const bi = GROUP_ORDER.indexOf(b.dept as typeof GROUP_ORDER[number]);
+        return ai - bi;
+      });
   }, [peopleByDept, search, bucketFilter, personUtil]);
 
   const toggleDept = (d: string) => setExpandedDept(prev => {
@@ -188,7 +194,16 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
     const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;
   });
 
-  const collapseAll = () => { setExpandedDept(new Set()); setExpandedPerson(new Set()); };
+  const collapseAll = () => { setExpandedDept(new Set()); setExpandedPerson(new Set()); setAllCollapsed(true); };
+  const expandAll = () => {
+    setExpandedDept(new Set(GROUP_ORDER));
+    // expand every person that has children, so the tree opens fully
+    const kidExp = new Set<string>();
+    Object.keys(childrenMap).forEach(id => kidExp.add(id));
+    setExpandedPerson(kidExp);
+    setAllCollapsed(false);
+  };
+  const toggleAll = () => { allCollapsed ? expandAll() : collapseAll(); };
 
   const startAllocEdit = (a: StaffingAssignment) => {
     setEditingAlloc(a.id);
@@ -329,6 +344,39 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
 
   return (
     <div className="animate-fade-in space-y-4">
+      {/* Capacity summary row (red/amber/green/blue counts with tooltips) */}
+      <TooltipProvider delayDuration={200}>
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
+          <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground mr-2">
+            Capacity snapshot
+          </span>
+          {(["overloaded","nearFull","healthy","underUtil"] as Bucket[]).map(b => {
+            const cfg = BUCKET_CONFIG[b];
+            const tip: Record<Bucket, string> = {
+              overloaded:   "Red — Overloaded (>100% allocation)",
+              nearFull:     "Amber — Near Full (85–100%)",
+              healthy:      "Green — Healthy (30–85%)",
+              underUtil:    "Blue — Under-utilised (<30%)",
+            };
+            return (
+              <Tooltip key={b}>
+                <TooltipTrigger asChild>
+                  <div className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1">
+                    <span className={cn("h-2 w-2 rounded-full", cfg.dot)} />
+                    <span className="text-[11px] text-muted-foreground">{cfg.label}</span>
+                    <span className="text-xs font-mono text-foreground tabular-nums">{bucketCounts[b]}</span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">{tip[b]}</TooltipContent>
+              </Tooltip>
+            );
+          })}
+          <span className="ml-auto text-[11px] text-muted-foreground">
+            Total active: <span className="font-mono text-foreground">{visiblePeople.length}</span>
+          </span>
+        </div>
+      </TooltipProvider>
+
       {/* Filter chips + search + collapse */}
       <div className="flex flex-wrap items-center gap-3">
         {(Object.keys(BUCKET_CONFIG) as Bucket[]).map(b => {
@@ -362,9 +410,9 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
         </div>
 
         <button
-          onClick={collapseAll}
+          onClick={toggleAll}
           className="ml-auto h-9 px-3 rounded-lg border border-border text-ui text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-        >Collapse all</button>
+        >{allCollapsed ? "Expand all" : "Collapse all"}</button>
       </div>
 
       {/* Departments */}
