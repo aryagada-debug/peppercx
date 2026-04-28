@@ -43,37 +43,45 @@ export function RoleSwitcher() {
   if (!isActuallyAdmin) return null;
 
   return (
-    <div
-      ref={containerRef}
-      className="relative flex items-center gap-1 rounded-md border border-border bg-card p-0.5 text-xs"
-    >
-      {indicator && (
-        <div
-          aria-hidden
-          className="absolute top-0.5 bottom-0.5 rounded-sm bg-primary transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
-          style={{ left: indicator.left, width: indicator.width }}
-        />
-      )}
-      {PERSONAS.map((p) => {
-        const Icon = p.icon;
-        const isActive = p.key === activeKey;
-        return (
-          <button
-            key={p.key}
-            ref={(el) => (btnRefs.current[p.key] = el)}
-            onClick={() => setViewAsRole(p.viewAs)}
-            className={cn(
-              "relative z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-sm transition-colors duration-300",
-              isActive ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground",
-            )}
-            title={`View as ${p.label}`}
-            type="button"
-          >
-            <Icon className="h-3.5 w-3.5" />
-            {p.label}
-          </button>
-        );
-      })}
+    <div className="flex items-center gap-2">
+      <span className="hidden md:inline text-[11px] uppercase tracking-wider text-muted-foreground">
+        Viewing as
+      </span>
+      <div
+        ref={containerRef}
+        className="relative flex items-center gap-1 rounded-md border border-border bg-muted/40 p-0.5 text-xs"
+      >
+        {indicator && (
+          <div
+            aria-hidden
+            className="absolute top-0.5 bottom-0.5 rounded-sm bg-primary ring-1 ring-primary/40 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
+            style={{ left: indicator.left, width: indicator.width }}
+          />
+        )}
+        {PERSONAS.map((p) => {
+          const Icon = p.icon;
+          const isActive = p.key === activeKey;
+          return (
+            <button
+              key={p.key}
+              ref={(el) => (btnRefs.current[p.key] = el)}
+              onClick={() => setViewAsRole(p.viewAs)}
+              className={cn(
+                "relative z-10 flex items-center gap-1.5 px-3 py-1 rounded-sm transition-colors duration-300",
+                isActive
+                  ? "text-primary-foreground font-medium"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              title={`View as ${p.label}`}
+              aria-pressed={isActive}
+              type="button"
+            >
+              <Icon className={cn("h-3.5 w-3.5", isActive ? "" : "opacity-70")} />
+              {p.label}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
