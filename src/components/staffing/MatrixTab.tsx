@@ -261,7 +261,7 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
   // Map dealId -> VSD (so we can group people by VSD for the picker filter)
   const vsdByDealId = useMemo(() => {
     const m: Record<string, string> = {};
-    deals.forEach(d => { m[d.id] = d.vsd?.trim() || "Yet to be assigned"; });
+    deals.forEach(d => { m[d.id] = d.vsd?.trim() || "Unassigned"; });
     return m;
   }, [deals]);
 
@@ -428,7 +428,11 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
             className="h-7 px-1.5 rounded bg-background border border-border text-[11px] text-foreground focus:ring-1 focus:ring-primary/30 focus:border-primary focus:outline-none max-w-[110px]"
             title="VSD filter"
           >
-            {vsdOptions.map(o => <option key={o} value={o}>{o === "All" ? "All VSDs" : o}</option>)}
+            {vsdOptions.map(o => (
+              <option key={o} value={o}>
+                {o === "All" ? "All VSDs" : o}
+              </option>
+            ))}
           </select>
           <span className="shrink-0 text-[10px] text-muted-foreground tabular-nums px-1">{filteredDeals.length}</span>
         </div>
