@@ -3,6 +3,8 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { KpiTile } from "@/components/dashboard/KpiTile";
 import { DealDetailDialog } from "@/components/rgy/DealDetailDialog";
 import { RGYInsightsTab } from "@/components/rgy/RGYInsightsTab";
+import { RGYHistoryPopover } from "@/components/rgy/RGYHistoryPopover";
+import { logRGYChange } from "@/lib/rgyHistory";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
