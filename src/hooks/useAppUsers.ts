@@ -175,7 +175,7 @@ export { nameKey };
 // minor variations ("Aamir" vs "Aamir Khan") still resolve.
 export const VSD_NAMES = [
   "Neema Jayadas",
-  "Aditya Joshi",
+  "Aditya Shaw",
   "Aamir Khan",
   "Sumit Shekhawat",
   "Sneha Iyer",
