@@ -481,6 +481,11 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
                         <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
                           {d.pcCode && <span className="font-mono">{d.pcCode}</span>}
                           {d.vsd && <span className="truncate">· {d.vsd}</span>}
+                          {d.endDate && (
+                            <span className="font-mono ml-auto shrink-0" title="Deal end date">
+                              ↦ {new Date(d.endDate).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "2-digit" })}
+                            </span>
+                          )}
                         </div>
                       )}
                     </button>
