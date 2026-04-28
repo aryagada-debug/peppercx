@@ -872,6 +872,54 @@ export default function HomePage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Row 5: My Deals */}
+        <Card className="rounded-xl">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-[15px] font-bold flex items-center gap-2">
+              <Target className="h-4 w-4 text-primary" /> My Deals
+              <Badge variant="secondary" className="ml-1 text-[10px]">{myDeals.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loadingMyDeals ? <SkeletonRows /> : myDeals.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-2">No deals assigned to you.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border">
+                      <th className="text-left font-medium py-2 px-2">Deal</th>
+                      <th className="text-left font-medium py-2 px-2">Account</th>
+                      <th className="text-left font-medium py-2 px-2">My Role</th>
+                      <th className="text-right font-medium py-2 px-2">MRR</th>
+                      <th className="text-right font-medium py-2 px-2">Total Value</th>
+                      <th className="text-left font-medium py-2 px-2">End Date</th>
+                      <th className="text-left font-medium py-2 px-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {myDeals.map(d => (
+                      <tr key={d.id}
+                        onClick={() => navigate(`/deals/${d.id}`)}
+                        className="border-b border-border/50 hover:bg-secondary/40 cursor-pointer transition-colors">
+                        <td className="py-2 px-2 font-medium text-foreground">{d.deal_name}</td>
+                        <td className="py-2 px-2 text-muted-foreground">{d.account || "—"}</td>
+                        <td className="py-2 px-2">
+                          <Badge variant="secondary" className="text-[10px]">{d.my_role}</Badge>
+                        </td>
+                        <td className="py-2 px-2 text-right font-mono tabular-nums">{d.mrr ? formatINR(d.mrr) : "—"}</td>
+                        <td className="py-2 px-2 text-right font-mono tabular-nums">{d.total_deal_value ? formatINR(d.total_deal_value) : "—"}</td>
+                        <td className="py-2 px-2 text-muted-foreground">{d.end_date ? format(parseISO(d.end_date), "dd MMM yyyy") : "—"}</td>
+                        <td className="py-2 px-2 text-muted-foreground text-[12px]">{d.deal_status}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {editingDealTask && (
