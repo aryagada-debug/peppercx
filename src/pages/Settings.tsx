@@ -35,6 +35,17 @@ const tabs = [
 ] as const;
 type SettingsTab = typeof tabs[number];
 
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-1.5">
+      <span className="w-16 shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground pt-0.5">
+        {label}
+      </span>
+      <div className="flex-1 min-w-0">{children}</div>
+    </div>
+  );
+}
+
 function InlineEdit({
   value,
   onSave,
