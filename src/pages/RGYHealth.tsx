@@ -1391,11 +1391,22 @@ export default function RGYHealth() {
         {rgyDrill && (() => {
           let scoped = filteredDeals;
           if (showBopmRgyInsights) {
+            const bucketOf = (d: DealWithRGY) => {
+              const raw = (d.principal_bopm || d.senior_bopm || "").trim();
+              const lower = raw.toLowerCase();
+              const isPlaceholder =
+                !raw ||
+                lower === "to be assigned" ||
+                lower === "tbd" ||
+                lower === "tba" ||
+                lower === "unassigned" ||
+                lower === "not assigned";
+              return isPlaceholder ? "Unassigned" : raw;
+            };
             if (rgyDrill.rowLabel !== "Pod Overall") {
-              scoped = filteredDeals.filter(d => ((d.principal_bopm || d.senior_bopm || "").trim()) === rgyDrill.rowLabel);
-            } else {
-              scoped = filteredDeals.filter(d => ((d.principal_bopm || d.senior_bopm || "").trim()) !== "");
+              scoped = filteredDeals.filter(d => bucketOf(d) === rgyDrill.rowLabel);
             }
+            // Pod Overall: keep all filteredDeals (matches tally which counts every deal)
           } else {
             scoped = filteredDeals.filter(d => (vsdForDeal(d as any) || "Unassigned") === rgyDrill.rowLabel);
           }
