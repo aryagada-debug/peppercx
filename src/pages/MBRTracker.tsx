@@ -287,11 +287,8 @@ export default function MBRTracker() {
   const vsdInsights = useMemo(() => {
     const vsdMap = new Map<string, { vsd: string; total: number; done: number; notDone: number; pending: number; green: number; yellow: number; red: number; scheduled: number }>();
     for (const deal of filteredDeals) {
-      const raw = (deal.vsd || "").trim();
-      let bucket: string;
-      if (!raw || UNASSIGNED_VSD_VALUES.has(raw)) bucket = "Unassigned";
-      else if (isVsdName(raw)) bucket = canonVsd(raw) || "Other";
-      else bucket = "Other";
+      const v = vsdForDeal(deal as any);
+      const bucket = v || "Unassigned";
       if (!vsdMap.has(bucket)) vsdMap.set(bucket, { vsd: bucket, total: 0, done: 0, notDone: 0, pending: 0, green: 0, yellow: 0, red: 0, scheduled: 0 });
       const s = vsdMap.get(bucket)!;
       s.total++;
@@ -309,7 +306,7 @@ export default function MBRTracker() {
       s.pending = s.total - s.done - s.notDone;
     }
     return Array.from(vsdMap.values()).filter(s => s.total > 0).sort((a, b) => b.total - a.total);
-  }, [filteredDeals, activeEntryMap, isVsdName, canonVsd]);
+  }, [filteredDeals, activeEntryMap, vsdForDeal]);
 
   // BOPM insights (Sr / Principal) — used when a specific VSD is selected.
   // Only includes BOPMs mapped to ≥1 active deal in the current scope.
