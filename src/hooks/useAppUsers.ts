@@ -238,10 +238,12 @@ export function useVsdUsers() {
 }
 
 // ----- VSD reporting hierarchy -----
-// Walks `staffing_people.reporting_manager` upward from a given person to find
-// the top-level VSD they roll up to. Used by MBR Tracker and RGY Health to
-// filter deals by *who actually owns the BOPM relationship*, not by the
-// free-text vsd cell on the deal.
+// Source of truth = the Clients & Deals table (`staffing_deals`).
+// For each deal we look at `principal_bopm` and `senior_bopm` ONLY (junior
+// `bopm` is intentionally excluded) and map those people to the deal's
+// canonicalised `vsd`. Used by MBR Tracker and RGY Health so that the VSD
+// chip filter shows exactly the deals whose P-BOPM / Sr BOPM rolls up to the
+// selected VSD per the deals sheet.
 
 let hierarchyCache: { map: Map<string, string>; ts: number } | null = null;
 const hierarchySubs = new Set<(m: Map<string, string>) => void>();
@@ -250,42 +252,42 @@ let hierarchyBound = false;
 
 async function loadHierarchy(): Promise<Map<string, string>> {
   const { data } = await supabase
-    .from("staffing_people")
-    .select("name, reporting_manager, leaving, tbh");
+    .from("staffing_deals")
+    .select("vsd, principal_bopm, senior_bopm");
 
-  // Build manager-of map keyed by nameKey.
-  const managerOf = new Map<string, string>(); // person -> manager name (raw)
-  (data || []).forEach((p: any) => {
-    const k = nameKey(p.name || "");
-    if (k) managerOf.set(k, (p.reporting_manager || "").trim());
-  });
-
-  const vsdCanonByKey = new Map<string, string>();
-  VSD_NAMES.forEach((v) => vsdCanonByKey.set(nameKey(v), v));
-
-  // For each person, walk up the chain until we hit a VSD or run out.
-  const personToVsd = new Map<string, string>(); // nameKey -> VSD canonical name
-  const resolve = (startKey: string): string | null => {
-    const seen = new Set<string>();
-    let curKey = startKey;
-    for (let i = 0; i < 8; i++) {
-      if (!curKey || seen.has(curKey)) return null;
-      seen.add(curKey);
-      // Is this person itself a VSD?
-      const vsd = vsdCanonByKey.get(curKey);
-      if (vsd) return vsd;
-      const mgr = managerOf.get(curKey);
-      if (!mgr) return null;
-      curKey = nameKey(mgr);
+  // person nameKey -> { vsd: count } so the most-frequent VSD wins when a
+  // person appears on deals tagged to multiple VSDs (rare but possible).
+  const tally = new Map<string, Map<string, number>>();
+  const bump = (rawName: string | null | undefined, vsd: string) => {
+    const k = nameKey(rawName || "");
+    if (!k) return;
+    let inner = tally.get(k);
+    if (!inner) {
+      inner = new Map();
+      tally.set(k, inner);
     }
-    return null;
+    inner.set(vsd, (inner.get(vsd) || 0) + 1);
   };
 
-  for (const k of managerOf.keys()) {
-    const v = resolve(k);
-    if (v) personToVsd.set(k, v);
+  (data || []).forEach((d: any) => {
+    const v = matchesVsd(d.vsd);
+    if (!v) return; // deal's vsd cell doesn't map to one of the 5 VSDs
+    bump(d.principal_bopm, v);
+    bump(d.senior_bopm, v);
+  });
+
+  const personToVsd = new Map<string, string>();
+  for (const [personKey, vsdCounts] of tally.entries()) {
+    let bestVsd = "";
+    let bestN = -1;
+    for (const [v, n] of vsdCounts.entries()) {
+      if (n > bestN) { bestN = n; bestVsd = v; }
+    }
+    if (bestVsd) personToVsd.set(personKey, bestVsd);
   }
-  // Also map the VSDs themselves (so deals where the VSD is listed as BOPM still resolve).
+
+  // Also map each VSD name to itself, so a deal where the BOPM cell literally
+  // contains the VSD's name still resolves cleanly.
   VSD_NAMES.forEach((v) => personToVsd.set(nameKey(v), v));
   return personToVsd;
 }
@@ -303,7 +305,7 @@ function bindHierarchyRealtime() {
     hierarchySubs.forEach((s) => s(next));
   };
   const ch = supabase.channel(`vsd-hierarchy-sync-${Date.now()}`);
-  ch.on("postgres_changes", { event: "*", schema: "public", table: "staffing_people" }, refresh);
+  ch.on("postgres_changes", { event: "*", schema: "public", table: "staffing_deals" }, refresh);
   ch.subscribe();
   hierarchyChannel = ch;
 }
@@ -344,13 +346,12 @@ export function useVsdHierarchy() {
     [map],
   );
 
-  /** Resolve a deal's owning VSD by walking principal → senior → junior BOPM. */
+  /** Resolve a deal's owning VSD by checking principal → senior BOPM only. */
   const vsdForDeal = useCallback(
     (deal: { principal_bopm?: string | null; senior_bopm?: string | null; bopm?: string | null; principalBopm?: string | null; seniorBopm?: string | null; }): string | null => {
       const candidates = [
         (deal as any).principal_bopm ?? (deal as any).principalBopm,
         (deal as any).senior_bopm ?? (deal as any).seniorBopm,
-        (deal as any).bopm,
       ];
       for (const c of candidates) {
         const v = vsdForPerson(c);
