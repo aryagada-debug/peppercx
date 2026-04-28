@@ -136,23 +136,15 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Prop
   ].filter((d) => d.value > 0), [kpis]);
 
   // ── Per-team Red / Yellow counts ──
-  const redPerTeam = useMemo(
+  const teamHealth = useMemo(
     () =>
       DIMENSIONS.map((dim) => ({
         team: dim.label,
         key: dim.key,
-        count: filteredDeals.filter((d) => d[dim.key] === "R").length,
-      })).sort((a, b) => b.count - a.count),
-    [filteredDeals],
-  );
-
-  const yellowPerTeam = useMemo(
-    () =>
-      DIMENSIONS.map((dim) => ({
-        team: dim.label,
-        key: dim.key,
-        count: filteredDeals.filter((d) => d[dim.key] === "Y").length,
-      })).sort((a, b) => b.count - a.count),
+        Red: filteredDeals.filter((d) => d[dim.key] === "R").length,
+        Yellow: filteredDeals.filter((d) => d[dim.key] === "Y").length,
+        Green: filteredDeals.filter((d) => d[dim.key] === "G").length,
+      })),
     [filteredDeals],
   );
 
@@ -194,19 +186,6 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Prop
       })
       .sort((a, b) => b.redCount - a.redCount || b.yellowCount - a.yellowCount);
   }, [filteredDeals]);
-
-  // ── Service line health ──
-  const serviceLineHealth = useMemo(
-    () =>
-      SERVICE_LINES.map((key) => {
-        const dim = DIMENSIONS.find((d) => d.key === key)!;
-        const r = filteredDeals.filter((d) => d[key] === "R").length;
-        const y = filteredDeals.filter((d) => d[key] === "Y").length;
-        const g = filteredDeals.filter((d) => d[key] === "G").length;
-        return { name: dim.label, Red: r, Yellow: y, Green: g };
-      }),
-    [filteredDeals],
-  );
 
   // ── VSD Comparison: ALWAYS uses ALL deals (ignore POD filter) ──
   const vsdComparison = useMemo(() => {
