@@ -29,7 +29,6 @@ import { CalendarConnectButton } from "@/components/calendar/CalendarConnectButt
 import { useUserRole } from "@/hooks/useUserRole";
 
 const DEAL_STAGES = ["To Do", "In Progress", "In Review", "Done", "Dropped"] as const;
-const PRIORITIES = ["Low", "Medium", "High"] as const;
 
 interface DealTaskRow {
   id: string; deal_id: string; title: string; description: string;
@@ -55,12 +54,6 @@ function isDueWithin(s: string | null, days: number) {
   if (!s) return false;
   return isWithinInterval(parseISO(s), { start: startOfDay(new Date()), end: addDays(new Date(), days) });
 }
-
-const PRIORITY_TONE: Record<string, string> = {
-  High: "bg-destructive/15 text-destructive",
-  Medium: "bg-warning/15 text-warning",
-  Low: "bg-muted text-muted-foreground",
-};
 
 export default function HomePage() {
   const { user } = useAuth();
