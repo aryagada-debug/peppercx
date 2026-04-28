@@ -78,7 +78,7 @@ export default function MBRTracker() {
   const { deals, entries, loading, upsertEntry, vsdSummary, totals, entriesByMonth, availableMonths, refresh } = useMBRData();
   const { users: appUsers, isRegisteredName } = useAppUsers();
   const { vsdUsers, isVsdName, canonVsd } = useVsdUsers();
-  const { vsdForDeal, vsdForPerson } = useVsdHierarchy();
+  const { vsdForDeal, vsdForPerson, bopmsForVsd } = useVsdHierarchy();
   const VSD_FILTERS = useMemo(() => {
     const items: { key: string; label: string }[] = [{ key: "All", label: "All" }];
     vsdUsers.forEach((u) => items.push({ key: u.displayName, label: u.displayName }));
@@ -87,8 +87,23 @@ export default function MBRTracker() {
   }, [vsdUsers]);
 
   const [activeVsd, setActiveVsd] = useState<VsdFilterKey>("All");
+  const [activeBopm, setActiveBopm] = useState<string>("All");
   const [search, setSearch] = useState("");
   const [showClosed, setShowClosed] = useState(false);
+  // Reset BOPM whenever VSD changes
+  useEffect(() => { setActiveBopm("All"); }, [activeVsd]);
+
+  // BOPMs available for the currently selected VSD
+  const bopmOptions = useMemo(() => {
+    if (activeVsd === "All" || activeVsd === "Unassigned") return [] as string[];
+    return bopmsForVsd(activeVsd);
+  }, [activeVsd, bopmsForVsd]);
+
+  const nameMatches = (a: string | null | undefined, b: string) => {
+    const norm = (s: string) => (s || "").toLowerCase().normalize("NFKD").replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+    return norm(a || "") === norm(b);
+  };
+
   const [viewDeal, setViewDeal] = useState<{ deal: MBRDeal; entry: MBREntry | null } | null>(null);
   const [scheduleDeal, setScheduleDeal] = useState<{ deal: MBRDeal; entry: MBREntry | null } | null>(null);
   const [viewMode, setViewMode] = useState<"current" | "mom">("current");
