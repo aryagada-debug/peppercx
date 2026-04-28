@@ -948,12 +948,12 @@ export default function RGYHealth() {
 
         {/* Filters */}
         <div className="flex items-center gap-4 mb-3 flex-wrap">
-          <div className="flex gap-1 bg-secondary rounded-lg p-1">
-            {PODS.map(pod => (
-              <button key={pod} onClick={() => setActivePod(pod)} className={cn(
-                "px-3 py-1.5 rounded-md text-caption font-medium whitespace-nowrap transition-colors",
-                activePod === pod ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-              )}>{pod}</button>
+          <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
+            {VSD_FILTERS.map(v => (
+              <button key={v.key} onClick={() => setActiveVsd(v.key)} className={cn(
+                "px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
+                activeVsd === v.key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}>{v.label}</button>
             ))}
           </div>
 
@@ -1076,7 +1076,7 @@ export default function RGYHealth() {
               deals={deals}
               filteredDeals={filteredDeals}
               issues={rgyIssues}
-              activePod={activePod}
+              activeVsd={activeVsd}
             />
           </TabsContent>
         </Tabs>
