@@ -688,7 +688,7 @@ export default function RGYHealth() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const handleRGYUpdate = useCallback(async (dealId: string, dimKey: string, newValue: RGYStatus) => {
+  const handleRGYUpdate = useCallback(async (dealId: string, dimKey: string, newValue: RGYCellValue) => {
     const deal = deals.find(d => d.id === dealId);
     if (!deal) return;
 
@@ -712,7 +712,9 @@ export default function RGYHealth() {
     await applyRGYUpdate(dealId, dimKey, newValue, deal);
   }, [deals]);
 
-  const applyRGYUpdate = useCallback(async (dealId: string, dimKey: string, newValue: RGYStatus, deal: DealWithRGY) => {
+  const applyRGYUpdate = useCallback(async (dealId: string, dimKey: string, newValue: RGYCellValue, deal: DealWithRGY) => {
+    // "PENDING" is stored as empty string in the DB
+    const persistValue = newValue === "PENDING" ? "" : newValue;
     // Save snapshot before change for potential revert
     const oldValues: Record<string, string> = {};
     DIMENSIONS.forEach(dim => {
@@ -720,27 +722,27 @@ export default function RGYHealth() {
     });
 
     // Optimistically update local state
-    setDeals(prev => prev.map(d => d.id === dealId ? { ...d, [dimKey]: newValue } : d));
+    setDeals(prev => prev.map(d => d.id === dealId ? { ...d, [dimKey]: persistValue } : d));
 
     const weekStart = getCurrentWeekStart();
 
-    const updatedDeal = { ...deal, [dimKey]: newValue };
+    const updatedDeal = { ...deal, [dimKey]: persistValue };
     const rgyPayload: Record<string, string> = {};
     DIMENSIONS.forEach(dim => {
-      rgyPayload[dim.key] = (updatedDeal[dim.key as keyof DealWithRGY] as string) || "G";
+      rgyPayload[dim.key] = (updatedDeal[dim.key as keyof DealWithRGY] as string) ?? "";
     });
 
     if (deal.rgy_row_id && deal.rgy_week_start === weekStart) {
-      await supabase.from("deal_rgy_weekly").update({ [dimKey]: newValue } as any).eq("id", deal.rgy_row_id);
+      await supabase.from("deal_rgy_weekly").update({ [dimKey]: persistValue } as any).eq("id", deal.rgy_row_id);
     } else {
       const { data: inserted } = await supabase.from("deal_rgy_weekly").insert({
         deal_id: dealId,
         week_start: weekStart,
         ...rgyPayload,
-        account_health: rgyPayload.customer || "G",
-        finance_billing: "G",
-        capability_seo: rgyPayload.seo || "G",
-        capability_creative: "G",
+        account_health: rgyPayload.customer || "",
+        finance_billing: "",
+        capability_seo: rgyPayload.seo || "",
+        capability_creative: "",
       } as any).select("id").single();
 
       if (inserted) {
