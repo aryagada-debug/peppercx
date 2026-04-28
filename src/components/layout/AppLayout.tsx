@@ -4,6 +4,8 @@ import { ThemeToggle } from "@/components/dashboard/ThemeToggle";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { RoleSwitcher } from "./RoleSwitcher";
 import type { RGYRow } from "@/types/dashboard";
+import { useUserRole } from "@/hooks/useUserRole";
+import { useEffect, useState } from "react";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -11,6 +13,15 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ children, onSearchSelectDeal }: AppLayoutProps) {
+  const { viewAsRole } = useUserRole();
+  const [fading, setFading] = useState(false);
+
+  useEffect(() => {
+    setFading(true);
+    const t = setTimeout(() => setFading(false), 180);
+    return () => clearTimeout(t);
+  }, [viewAsRole]);
+
   return (
     <div className="flex h-screen overflow-hidden">
       <AppSidebar />
@@ -25,7 +36,10 @@ export function AppLayout({ children, onSearchSelectDeal }: AppLayoutProps) {
           </div>
         </header>
         <main className="flex-1 overflow-y-auto">
-          <div className="w-full">
+          <div
+            className="w-full transition-opacity duration-200 ease-out"
+            style={{ opacity: fading ? 0.55 : 1 }}
+          >
             {children}
           </div>
         </main>
