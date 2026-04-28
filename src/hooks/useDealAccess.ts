@@ -227,7 +227,7 @@ export function useDealAccess(): DealAccessState {
       canViewClient: (id) => !!id && visibleClientIds.has(id),
       canEditClient: (id) => !!id && editableClientIds.has(id),
     };
-  }, [isAdmin, allDeals, myAssignedDealIds, myPersonName, myRoleTitle, loading]);
+  }, [isAdmin, allDeals, myAssignedDealIds, myPersonName, myRoleTitle, myDesignation, myRoleCategory, loading]);
 
   return result;
 }
