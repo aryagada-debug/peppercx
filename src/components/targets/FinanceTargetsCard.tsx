@@ -1,19 +1,23 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrendingUp } from "lucide-react";
 import { useVsdTargets } from "@/hooks/useFinanceTargets";
-import { METRICS, METRIC_LABELS, attainmentPct, attainmentTone, formatINR } from "@/lib/csvTargets";
+import { METRICS, METRIC_LABELS, attainmentPct, attainmentTone, formatINR, type Metric } from "@/lib/csvTargets";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { TargetDrillDialog } from "./TargetDrillDialog";
 
 interface Props {
   monthYYYYMM: string;
+  dealIdScope?: Set<string>;
 }
 
-export function FinanceTargetsCard({ monthYYYYMM }: Props) {
+export function FinanceTargetsCard({ monthYYYYMM, dealIdScope }: Props) {
   const { totals, loading } = useVsdTargets(monthYYYYMM);
   const monthLabel = format(new Date(`${monthYYYYMM}-01T00:00:00`), "MMM yyyy");
   const allZero = METRICS.every((m) => totals[m].target === 0 && totals[m].actual === 0);
+  const [drillMetric, setDrillMetric] = useState<Metric | null>(null);
 
   return (
     <Card>
@@ -42,7 +46,9 @@ export function FinanceTargetsCard({ monthYYYYMM }: Props) {
               const t = totals[m];
               const pct = attainmentPct(t.actual, t.target);
               return (
-                <div key={m} className="rounded-md border border-border p-3">
+                <button key={m} type="button"
+                  onClick={() => setDrillMetric(m)}
+                  className="rounded-md border border-border p-3 text-left hover:bg-secondary/40 hover:border-primary/40 transition-colors">
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{METRIC_LABELS[m]}</p>
                   <p className="text-base font-semibold font-mono tabular-nums text-foreground mt-1">
                     {formatINR(t.actual)}
@@ -53,12 +59,19 @@ export function FinanceTargetsCard({ monthYYYYMM }: Props) {
                   <p className={cn("text-xs font-semibold mt-0.5 font-mono tabular-nums", attainmentTone(pct))}>
                     {pct === null ? "—" : `${pct.toFixed(1)}%`}
                   </p>
-                </div>
+                </button>
               );
             })}
           </div>
         )}
       </CardContent>
+      <TargetDrillDialog
+        open={!!drillMetric}
+        onOpenChange={(o) => !o && setDrillMetric(null)}
+        metric={drillMetric}
+        monthYYYYMM={monthYYYYMM}
+        dealIdScope={dealIdScope}
+      />
     </Card>
   );
 }
