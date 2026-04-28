@@ -258,6 +258,7 @@ export function AddStaffingMemberDialog({
                           {grouped[group].map(p => {
                             const util = getPersonUtilization(p.id);
                             const utilColor = util.total > 100 ? "text-destructive" : util.total >= 80 ? "text-warning" : "text-positive";
+                            const isAssigned = alreadyAssigned.has(p.id);
                             return (
                               <div
                                 key={p.id}
@@ -270,6 +271,7 @@ export function AddStaffingMemberDialog({
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-1.5">
                                     <span className="text-sm font-medium text-foreground truncate">{p.name}</span>
+                                    {isAssigned && <Badge variant="outline" className="text-[10px] px-1 py-0 text-primary border-primary/30">Assigned</Badge>}
                                     {p.tbh && <Badge variant="outline" className="text-[10px] px-1 py-0 text-warning border-warning/30">TBH</Badge>}
                                     {p.leaving && <Badge variant="outline" className="text-[10px] px-1 py-0 text-destructive border-destructive/30">Leaving</Badge>}
                                   </div>
@@ -292,6 +294,7 @@ export function AddStaffingMemberDialog({
                   const util = getPersonUtilization(p.id);
                   const isExpanded = expandedPerson === p.id;
                   const utilColor = util.total > 100 ? "text-destructive" : util.total >= 80 ? "text-warning" : "text-positive";
+                  const isAssigned = alreadyAssigned.has(p.id);
                   return (
                     <div key={p.id} className="border border-border rounded-lg overflow-hidden">
                       <div
@@ -304,6 +307,7 @@ export function AddStaffingMemberDialog({
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5">
                             <span className="text-sm font-medium text-foreground truncate">{p.name}</span>
+                            {isAssigned && <Badge variant="outline" className="text-[10px] px-1 py-0 text-primary border-primary/30">Assigned</Badge>}
                             {p.tbh && <Badge variant="outline" className="text-[10px] px-1 py-0 text-warning border-warning/30">TBH</Badge>}
                             {p.leaving && <Badge variant="outline" className="text-[10px] px-1 py-0 text-destructive border-destructive/30">Leaving</Badge>}
                           </div>
