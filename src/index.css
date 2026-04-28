@@ -7,7 +7,7 @@
 @layer base {
   :root {
     --background: 240 7% 98%;
-    --foreground: 240 10% 16%;
+    --foreground: 240 12% 10%;
 
     --card: 0 0% 100%;
     --card-foreground: 240 10% 16%;
@@ -18,11 +18,11 @@
     --primary: 238 40% 57%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 240 5% 96%;
-    --secondary-foreground: 240 10% 16%;
+    --secondary: 240 5% 94%;
+    --secondary-foreground: 240 12% 10%;
 
-    --muted: 240 5% 96%;
-    --muted-foreground: 240 5% 46%;
+    --muted: 240 5% 94%;
+    --muted-foreground: 240 6% 36%;
 
     --accent: 238 40% 96%;
     --accent-foreground: 238 40% 57%;
@@ -49,8 +49,8 @@
     --info: 210 80% 55%;
     --info-foreground: 0 0% 100%;
 
-    --border: 240 6% 94%;
-    --input: 240 6% 94%;
+    --border: 240 6% 88%;
+    --input: 240 6% 88%;
     --ring: 238 40% 57%;
 
     --radius: 0.875rem;
@@ -74,33 +74,38 @@
   }
 
   .dark {
-    --background: 240 10% 6%;
-    --foreground: 240 7% 95%;
-    --card: 240 10% 10%;
-    --card-foreground: 240 7% 95%;
-    --popover: 240 10% 10%;
-    --popover-foreground: 240 7% 95%;
-    --primary: 238 50% 65%;
+    --background: 240 12% 8%;
+    --foreground: 240 8% 97%;
+    --card: 240 12% 12%;
+    --card-foreground: 240 8% 97%;
+    --popover: 240 12% 12%;
+    --popover-foreground: 240 8% 97%;
+    --primary: 238 60% 70%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 240 10% 14%;
-    --secondary-foreground: 240 7% 95%;
-    --muted: 240 10% 14%;
-    --muted-foreground: 240 5% 60%;
-    --accent: 238 40% 20%;
-    --accent-foreground: 238 50% 75%;
-    --destructive: 0 63% 40%;
-    --destructive-foreground: 240 7% 95%;
-    --border: 240 10% 16%;
-    --input: 240 10% 16%;
-    --ring: 238 50% 65%;
-    --sidebar-background: 240 10% 8%;
-    --sidebar-foreground: 240 5% 60%;
-    --sidebar-primary: 238 50% 65%;
+    --secondary: 240 10% 18%;
+    --secondary-foreground: 240 8% 97%;
+    --muted: 240 10% 18%;
+    --muted-foreground: 240 6% 75%;
+    --accent: 238 45% 26%;
+    --accent-foreground: 238 60% 82%;
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 240 8% 97%;
+    --positive: 142 65% 50%;
+    --warning: 38 95% 60%;
+    --success-bg: 142 50% 18%;
+    --warning-bg: 38 70% 18%;
+    --danger-bg: 0 60% 20%;
+    --border: 240 10% 22%;
+    --input: 240 10% 22%;
+    --ring: 238 60% 70%;
+    --sidebar-background: 240 12% 10%;
+    --sidebar-foreground: 240 6% 78%;
+    --sidebar-primary: 238 60% 70%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 238 40% 18%;
-    --sidebar-accent-foreground: 238 50% 75%;
-    --sidebar-border: 240 10% 16%;
-    --sidebar-ring: 238 50% 65%;
+    --sidebar-accent: 238 45% 24%;
+    --sidebar-accent-foreground: 238 60% 82%;
+    --sidebar-border: 240 10% 22%;
+    --sidebar-ring: 238 60% 70%;
   }
 }
 
@@ -112,8 +117,9 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    font-size: 13px;
-    line-height: 1.5;
+    font-size: 14px;
+    line-height: 1.55;
+    font-weight: 450;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -167,6 +173,11 @@
   }
   .rgy-na {
     @apply bg-muted text-muted-foreground;
+  }
+  .rgy-pending {
+    @apply text-muted-foreground;
+    background: hsl(var(--muted));
+    border: 1px dashed hsl(var(--border));
   }
   .rgy-tbu {
     @apply text-muted-foreground;
