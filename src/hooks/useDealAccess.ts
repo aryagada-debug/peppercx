@@ -164,22 +164,11 @@ export function useDealAccess(): DealAccessState {
       }
     }
 
-    // Peer (same-VSD) deals — view-only, BOPM-tier only.
-    const ownVsds = new Set<string>();
-    if (looksLikeBopm) {
-      for (const d of allDeals) {
-        if (ownDealIds.has(d.id) && d.vsd) ownVsds.add(d.vsd.trim());
-      }
-    }
-    const peerDealIds = new Set<string>();
-    if (looksLikeBopm && ownVsds.size > 0) {
-      for (const d of allDeals) {
-        if (ownDealIds.has(d.id)) continue;
-        if (d.vsd && ownVsds.has(d.vsd.trim())) peerDealIds.add(d.id);
-      }
-    }
-
-    const visibleDealIds = new Set<string>([...ownDealIds, ...peerDealIds]);
+    // BOPMs see ONLY their own tagged/staffed deals — not peer deals
+    // in the same VSD pod. (Earlier the hook expanded to same-VSD peers
+    // as read-only, which leaked the entire pod into Clients/Staffing/
+    // MBR/RGY.)
+    const visibleDealIds = new Set<string>(ownDealIds);
     const editableDealIds = new Set<string>(ownDealIds);
 
     const visibleClientIds = new Set<string>();
