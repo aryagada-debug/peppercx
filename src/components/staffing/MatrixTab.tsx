@@ -7,6 +7,15 @@ import { toast } from "sonner";
 import type { Deal, Person, StaffingAssignment } from "@/data/staffingData";
 import { RequestStaffingReviewButton } from "./RequestStaffingReviewButton";
 
+function ReadOnlyChip({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 h-7 px-2 rounded-md bg-secondary text-caption">
+      <span className="text-muted-foreground">{label}:</span>
+      <span className="text-foreground font-medium">{value}</span>
+    </span>
+  );
+}
+
 // ── Role catalog ────────────────────────────────────────────────────────────
 const ROLE_COLS: { key: string; label: string; group: string }[] = [
   { key: "vsd", label: "VSD", group: "Leadership & PM" },
