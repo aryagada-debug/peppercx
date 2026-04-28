@@ -34,7 +34,7 @@ export default function GM2Calculator() {
 
   return (
     <AppLayout>
-      <div className="p-8">
+      <div className="px-3 py-4">
         <h1 className="text-subhead font-semibold tracking-tight text-foreground mb-1">GM2 Margin Calculator</h1>
         <p className="text-ui text-muted-foreground mb-6">Real-time gross margin analysis at deal level</p>
 

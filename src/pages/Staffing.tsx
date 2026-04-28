@@ -52,7 +52,7 @@ export default function Staffing() {
 
   return (
     <AppLayout>
-      <div className="p-8">
+      <div className="px-3 py-4">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-subhead font-bold tracking-tight text-foreground">Staffing & Capacity</h1>

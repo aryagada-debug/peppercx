@@ -193,7 +193,7 @@ export default function SettingsPage() {
         ))}
       </datalist>
 
-      <div className="p-8">
+      <div className="px-3 py-4">
         <h1 className="mb-6 text-subhead font-semibold tracking-tight text-foreground">Settings</h1>
 
         <div className="mb-6 border-b border-border">
