@@ -880,12 +880,14 @@ export default function RGYHealth() {
       for (const dim of DIMENSIONS) {
         const f = colFilters[dim.key];
         if (f) {
-          const raw = (d as any)[dim.key];
-          if (f === "Pending") {
-            if (raw) return false;
+          const code = RGY_FILTER_LABEL_TO_CODE[f] ?? f;
+          const hasRow = !!d.rgy_row_id;
+          if (code === "Pending") {
+            if (hasRow) return false;
           } else {
-            const v = raw || "NA";
-            if (v !== f) return false;
+            if (!hasRow) return false; // "Pending" rows don't match concrete colors
+            const v = ((d as any)[dim.key]) || "NA";
+            if (v !== code) return false;
           }
         }
       }
@@ -1015,7 +1017,7 @@ export default function RGYHealth() {
                         <ColHeader label="Deal ID" colKey="deal_id" sortKey="deal_id" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.deal_id} onResizeStart={startResize("deal_id")} />
                         <ColHeader label="Status" colKey="deal_status" sortKey="deal_status" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={Object.keys(statusBadgeStyles)} width={colWidths.deal_status} onResizeStart={startResize("deal_status")} />
                         {DIMENSIONS.map(d => (
-                          <ColHeader key={d.key} label={d.label} colKey={d.key} align="center" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["G","Y","R","NA","Pending"]} width={colWidths[d.key]} onResizeStart={startResize(d.key)} />
+                          <ColHeader key={d.key} label={d.label} colKey={d.key} align="center" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["Green","Yellow","Red","NA","Pending"]} width={colWidths[d.key]} onResizeStart={startResize(d.key)} />
                         ))}
                         <th className="text-left py-2 px-3 font-medium text-muted-foreground text-caption whitespace-nowrap">AI Summary</th>
                       </tr>
@@ -1023,8 +1025,15 @@ export default function RGYHealth() {
                     <tbody>
                       {tableRows.map(deal => {
                         const worst = getWorstRGY(deal);
+                        const isPending = !deal.rgy_row_id;
+                        const rowTint =
+                          isPending ? "" :
+                          worst === "R" ? "bg-destructive/10 hover:bg-destructive/15" :
+                          worst === "Y" ? "bg-warning/10 hover:bg-warning/15" :
+                          worst === "G" ? "bg-positive/10 hover:bg-positive/15" :
+                          "";
                         return (
-                          <tr key={deal.id} className="border-b border-border/50 hover:bg-accent/10 transition-colors">
+                          <tr key={deal.id} className={cn("border-b border-border/50 transition-colors", rowTint || "hover:bg-accent/10")}>
                             <td className="py-2 px-3">
                               <span className="text-xs font-medium text-foreground truncate max-w-[140px] block" title={deal.account}>{deal.account}</span>
                             </td>
@@ -1044,7 +1053,17 @@ export default function RGYHealth() {
                               const val = (deal[dim.key as keyof DealWithRGY] as string || "NA") as RGYStatus;
                               return (
                                 <td key={dim.key} className="py-2 px-2 text-center">
-                                  <RGYCell dealId={deal.id} dimKey={dim.key} value={val} label={dim.label} onUpdate={handleRGYUpdate} />
+                                  {isPending ? (
+                                    <button
+                                      onClick={() => handleRGYUpdate(deal.id, dim.key, "G")}
+                                      className="inline-flex items-center justify-center px-2 h-7 rounded-md text-[10px] font-semibold rgy-pending hover:ring-2 hover:ring-primary/30 transition-all"
+                                      title="Pending — click to set"
+                                    >
+                                      Pending
+                                    </button>
+                                  ) : (
+                                    <RGYCell dealId={deal.id} dimKey={dim.key} value={val} label={dim.label} onUpdate={handleRGYUpdate} />
+                                  )}
                                 </td>
                               );
                             })}
