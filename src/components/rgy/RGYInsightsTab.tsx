@@ -578,7 +578,11 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Prop
                 {heatmapData.map(({ deal }) => (
                   <tr key={deal.id} className="border-b border-border/50 hover:bg-secondary/20">
                     <td className="py-1 px-2 truncate max-w-[140px] text-muted-foreground" title={deal.account}>{deal.account}</td>
-                    <td className="py-1 px-2 font-medium truncate max-w-[160px]" title={deal.deal_name}>{deal.deal_name}</td>
+                    <td className="py-1 px-2 font-medium truncate max-w-[160px]" title={deal.deal_name}>
+                      <Link to={`/deals/${deal.id}?tab=RGY%20Health`} className="text-primary hover:underline">
+                        {deal.deal_name}
+                      </Link>
+                    </td>
                     <td className="py-1 px-2 font-mono text-[11px] text-muted-foreground">{deal.deal_id || "—"}</td>
                     {DIMENSIONS.map((dim) => {
                       const v = deal[dim.key] as string;
