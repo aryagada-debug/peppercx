@@ -13,6 +13,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { useUserRole } from "@/hooks/useUserRole";
 
 const ROLE_CATEGORIES: RoleCategory[] = ["Operations", "SEO", "Content", "Content Strategy", "Creative Strategy", "Creative Art", "Creative Copy", "Video", "Performance & Growth"];
 
@@ -33,6 +34,8 @@ interface AddStaffingMemberDialogProps {
 export function AddStaffingMemberDialog({
   open, onOpenChange, people, assignments, deals, dealId, onAdd, initialCategory, initialPersonName,
 }: AddStaffingMemberDialogProps) {
+  const { canEditAll } = useUserRole();
+  const requiresApproval = !canEditAll;
   const getInitialStep = (): 1 | 2 | 3 => {
     if (initialPersonName) return 3;
     if (initialCategory) return 2;
@@ -136,7 +139,9 @@ export function AddStaffingMemberDialog({
       startDate: startDate || undefined,
       endDate: endDate || undefined,
     });
-    toast.success(`${selectedPerson.name} added at ${allocationPct}%`);
+    if (!requiresApproval) {
+      toast.success(`${selectedPerson.name} added at ${allocationPct}%`);
+    }
     reset();
     onOpenChange(false);
   };
@@ -417,6 +422,13 @@ export function AddStaffingMemberDialog({
                   </div>
                 )}
 
+                {requiresApproval && (
+                  <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs text-foreground">
+                    This change will be sent to <span className="font-medium">Central Cx</span> for approval.
+                    All details below will be included in the request.
+                  </div>
+                )}
+
                 <div>
                   <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Role on this deal</label>
                   <Input value={roleOnDeal} onChange={e => setRoleOnDeal(e.target.value)} placeholder="e.g. Senior BOPM" className="h-8 text-sm" />
@@ -466,7 +478,11 @@ export function AddStaffingMemberDialog({
 
         <AlertDialogFooter>
           <AlertDialogCancel onClick={reset}>Cancel</AlertDialogCancel>
-          {step === 3 && <AlertDialogAction onClick={handleConfirm}>Add to Plan</AlertDialogAction>}
+          {step === 3 && (
+            <AlertDialogAction onClick={handleConfirm}>
+              {requiresApproval ? "Send for Approval" : "Add to Plan"}
+            </AlertDialogAction>
+          )}
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

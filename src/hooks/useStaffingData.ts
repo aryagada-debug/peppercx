@@ -383,6 +383,52 @@ export function useStaffingData() {
     extras?: { startDate?: string; endDate?: string },
   ) => {
     const existing = assignments.find(a => a.dealId === dealId && a.roleKey === roleKey);
+    if (!canEditAll) {
+      if (!personId) {
+        if (existing) {
+          await submitApprovalRequest({
+            type: "staffing.remove",
+            dealId,
+            targetKind: "staffing_assignment",
+            targetId: existing.id,
+            previous: existing,
+            payload: { id: existing.id },
+          });
+        }
+        return;
+      }
+      if (existing) {
+        await submitApprovalRequest({
+          type: "staffing.update",
+          dealId,
+          targetKind: "staffing_assignment",
+          targetId: existing.id,
+          previous: existing,
+          payload: {
+            id: existing.id,
+            personId,
+            allocationPct,
+            roleKey,
+            startDate: extras?.startDate ?? existing.startDate,
+            endDate: extras?.endDate ?? existing.endDate,
+          },
+        });
+      } else {
+        const newId = uid();
+        await submitApprovalRequest({
+          type: "staffing.add",
+          dealId,
+          targetKind: "staffing_assignment",
+          targetId: newId,
+          payload: {
+            id: newId, dealId, roleKey, personId, allocationPct,
+            startDate: extras?.startDate || undefined,
+            endDate: extras?.endDate || undefined,
+          },
+        });
+      }
+      return;
+    }
     if (!personId) {
       if (existing) {
         setAssignments(prev => prev.filter(a => a.id !== existing.id));
@@ -417,7 +463,7 @@ export function useStaffingData() {
       await supabase.from("staffing_assignments").insert(assignmentToDb(newAssignment));
       notifyStaffing(personId, dealId, roleKey, allocationPct);
     }
-  }, [assignments, notifyStaffing]);
+  }, [assignments, notifyStaffing, canEditAll]);
 
   // ── CRUD: Deals ──
   const updateDeal = useCallback(async (dealId: string, updates: Partial<Deal>) => {
