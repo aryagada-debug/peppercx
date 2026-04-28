@@ -455,6 +455,27 @@ export function UsersTab() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={pasteOpen} onOpenChange={setPasteOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Paste name,email pairs</DialogTitle></DialogHeader>
+          <p className="text-xs text-muted-foreground -mt-2">
+            One per line. Format: <code>Full Name, name@peppercontent.io</code> (comma or tab).
+            Names must match exactly.
+          </p>
+          <textarea
+            value={pasteText}
+            onChange={(e) => setPasteText(e.target.value)}
+            rows={10}
+            placeholder={"Neema Jayadas, neema@peppercontent.io\nAamir Khan, aamir@peppercontent.io"}
+            className="w-full text-xs p-2 border border-border rounded-md bg-card font-mono"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPasteOpen(false)}>Cancel</Button>
+            <Button onClick={importPasted} disabled={!pasteText.trim()}>Import</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!overrideUser} onOpenChange={(o) => !o && setOverrideUser(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
