@@ -8,7 +8,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-import { Search, Loader2, Eye, CalendarDays, List, X, Bell, Users, CheckCircle2, XCircle, Clock, Gauge } from "lucide-react";
+import { Search, Loader2, Eye, CalendarDays, List, X, Bell, Users, CheckCircle2, XCircle, Clock, Gauge, TrendingUp } from "lucide-react";
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from "recharts";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
@@ -106,7 +107,7 @@ export default function MBRTracker() {
 
   const [viewDeal, setViewDeal] = useState<{ deal: MBRDeal; entry: MBREntry | null } | null>(null);
   const [scheduleDeal, setScheduleDeal] = useState<{ deal: MBRDeal; entry: MBREntry | null } | null>(null);
-  const [viewMode, setViewMode] = useState<"current" | "mom">("current");
+  const [viewMode, setViewMode] = useState<"current" | "mom" | "trend">("current");
   const [selectedMonth, setSelectedMonth] = useState<string>("");
   // Drill-down for VSD/BOPM Insights numeric cells
   type DrillMetric = "total" | "done" | "notDone" | "pending" | "green" | "yellow" | "red" | "scheduled";
