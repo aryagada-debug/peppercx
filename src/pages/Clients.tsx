@@ -343,7 +343,7 @@ export default function Clients() {
     const dealCount = deals.length + 1;
     const dealIdStr = `D-${String(dealCount).padStart(4, "0")}`;
 
-    const { error } = await supabase.from("staffing_deals").insert({
+    const dealRow: any = {
       id: newId,
       deal_id: dealIdStr,
       deal_name: data.dealName,
@@ -372,7 +372,19 @@ export default function Clients() {
       success_metrics: data.successMetrics.filter((m: any) => m.name),
       baseline_metrics: data.baselineMetrics,
       client_id: clientId,
-    } as any);
+    };
+
+    if (!canEditAll) {
+      await submitApprovalRequest({
+        type: "deal.create",
+        targetKind: "deal",
+        targetId: newId,
+        payload: { ...dealRow, _sow_items: data.sowItems?.filter?.((s: any) => s.scope) || [] },
+      });
+      return;
+    }
+
+    const { error } = await supabase.from("staffing_deals").insert(dealRow);
 
     if (error) {
       console.error("Failed to create deal:", error);
@@ -840,6 +852,14 @@ export default function Clients() {
         open={clientDialogOpen}
         onOpenChange={setClientDialogOpen}
         onSubmit={async (client) => {
+          if (!canEditAll) {
+            await submitApprovalRequest({
+              type: "client.create",
+              targetKind: "client",
+              payload: client,
+            });
+            return;
+          }
           const result = await addClient(client);
           if (result) toast.success(`Client "${result.name}" created`);
         }}
