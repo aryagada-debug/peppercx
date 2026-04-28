@@ -22,6 +22,7 @@ import { CalendarConnectButton } from "@/components/calendar/CalendarConnectButt
 import { useAppUsers, useVsdUsers, useVsdHierarchy } from "@/hooks/useAppUsers";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useDealAccess } from "@/hooks/useDealAccess";
+import { BopmEmptyState } from "@/components/access/BopmEmptyState";
 
 type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
@@ -589,6 +590,9 @@ export default function MBRTracker() {
               <TabsTrigger value="insights">Insights</TabsTrigger>
               <TabsTrigger value="table">Table</TabsTrigger>
             </TabsList>
+          )}
+          {isBopmPersona && !accessLoading && filteredDeals.length === 0 && (
+            <div className="mb-3"><BopmEmptyState section="The MBR Tracker" /></div>
           )}
 
           <TabsContent value="insights" className="mt-0">

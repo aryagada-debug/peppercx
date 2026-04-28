@@ -9,6 +9,7 @@ import { PeopleViewTab } from "@/components/staffing/PeopleViewTab";
 import { MatrixTab } from "@/components/staffing/MatrixTab";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useDealAccess } from "@/hooks/useDealAccess";
+import { BopmEmptyState } from "@/components/access/BopmEmptyState";
 
 type Tab = "deals" | "people" | "matrix";
 
@@ -75,6 +76,8 @@ export default function Staffing() {
         { key: "matrix", label: "Staffing" },
       ];
 
+  const showBopmEmpty = isBopmPersona && !accessLoading && scopedDeals.length === 0;
+
   return (
     <AppLayout>
       <div className="px-3 py-4">
@@ -102,6 +105,8 @@ export default function Staffing() {
             ))}
           </div>
         </div>
+
+        {showBopmEmpty && <BopmEmptyState section="Staffing & Capacity" />}
 
         {tab === "deals" && !isBopmPersona && (
           <DealViewTab deals={scopedDeals} people={people} assignments={scopedAssignments} onUpdateDeal={updateDeal} />

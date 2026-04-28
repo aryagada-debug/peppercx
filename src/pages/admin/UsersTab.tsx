@@ -32,6 +32,7 @@ interface UserRow {
   email: string;
   created_at: string;
   role: AppRole;
+  staffing_person_id: string | null;
 }
 
 interface MissingPerson {
@@ -68,7 +69,7 @@ export function UsersTab() {
   const load = useCallback(async () => {
     setLoading(true);
     const [{ data: profiles }, { data: roles }] = await Promise.all([
-      supabase.from("profiles").select("user_id, display_name, created_at"),
+      supabase.from("profiles").select("user_id, display_name, created_at, staffing_person_id"),
       supabase.from("user_roles").select("user_id, role"),
     ]);
 
@@ -95,6 +96,7 @@ export function UsersTab() {
       email: emailByUser.get(p.user_id) || "—",
       created_at: p.created_at,
       role: rolesByUser.get(p.user_id) || "user",
+      staffing_person_id: (p as any).staffing_person_id || null,
     }));
     built.sort((a, b) => a.display_name.localeCompare(b.display_name));
     setRows(built);
@@ -403,6 +405,14 @@ export function UsersTab() {
                   <td className="px-3 py-2 text-xs font-medium text-foreground">
                     {row.display_name}
                     {isSelf && <span className="ml-1.5 text-[10px] text-muted-foreground">(you)</span>}
+                    {row.role !== "admin" && !row.staffing_person_id && (
+                      <span
+                        title="Not mapped to a staffing person — this user will see no deals on Clients, Staffing, MBR or RGY. Map them in the People directory."
+                        className="ml-1.5 inline-flex items-center rounded-md border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400"
+                      >
+                        ⚠ Not mapped
+                      </span>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-xs text-muted-foreground">{row.email}</td>
                   <td className="px-3 py-2">

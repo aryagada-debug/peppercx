@@ -26,6 +26,7 @@ import { ColHeader } from "@/components/table/ColHeader";
 import { useAppUsers, useVsdUsers, useVsdHierarchy, nameKey } from "@/hooks/useAppUsers";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useDealAccess } from "@/hooks/useDealAccess";
+import { BopmEmptyState } from "@/components/access/BopmEmptyState";
 
 type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
@@ -1165,6 +1166,9 @@ export default function RGYHealth() {
               </Popover>
             )}
           </div>
+          {isBopmPersona && !accessLoading && filteredDeals.length === 0 && (
+            <div className="mb-3"><BopmEmptyState section="RGY Health" /></div>
+          )}
 
           <TabsContent value="health" className="mt-0">
             {/* VSD filter only */}
