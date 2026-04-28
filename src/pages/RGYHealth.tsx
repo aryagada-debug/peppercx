@@ -947,10 +947,11 @@ export default function RGYHealth() {
       const map = new Map<string, RGYSummaryRow>();
       const overall: RGYSummaryRow = { name: "Pod Overall", total: 0, red: 0, yellow: 0, green: 0, pending: 0 };
       for (const deal of filteredDeals) {
-        const owner = (deal.principal_bopm || deal.senior_bopm || "").trim();
-        if (!owner) continue;
-        if (!map.has(owner)) map.set(owner, { name: owner, total: 0, red: 0, yellow: 0, green: 0, pending: 0 });
-        tally(map.get(owner)!, deal);
+        const raw = (deal.principal_bopm || deal.senior_bopm || "").trim();
+        if (!raw) continue;
+        const bucket = isRegisteredName(raw) ? raw : "Other";
+        if (!map.has(bucket)) map.set(bucket, { name: bucket, total: 0, red: 0, yellow: 0, green: 0, pending: 0 });
+        tally(map.get(bucket)!, deal);
         tally(overall, deal);
       }
       const rows = Array.from(map.values()).filter(r => r.total > 0).sort((a, b) => b.red - a.red || b.total - a.total);
