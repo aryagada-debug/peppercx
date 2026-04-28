@@ -192,7 +192,7 @@ interface Props {
   people: Person[];
   assignments: StaffingAssignment[];
   onUpdateDeal: (dealId: string, updates: Partial<Deal>) => void;
-  onUpsertAssignment: (dealId: string, roleKey: string, personId: string, pct: number) => void;
+  onUpsertAssignment: (dealId: string, roleKey: string, personId: string, pct: number, extras?: { startDate?: string; endDate?: string }) => void;
   initialDealId?: string;
 }
 
@@ -300,14 +300,22 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
   }, [assignments]);
 
   const vsdOptions = useMemo(() => {
-    const set = new Set<string>();
-    deals.forEach(d => set.add(d.vsd?.trim() || "Yet to be assigned"));
-    return ["All", ...Array.from(set).sort((a, b) => {
-      if (a === "Yet to be assigned") return 1;
-      if (b === "Yet to be assigned") return -1;
-      return a.localeCompare(b);
-    })];
-  }, [deals]);
+    // Only show actual VSD names (people whose role title/designation contains "VSD")
+    // plus "Unassigned" for deals without a VSD.
+    const vsdNames = new Set<string>();
+    people.forEach(p => {
+      const hay = `${p.roleTitle || ""} ${p.designation || ""}`;
+      if (/vertical service delivery|\bvsd\b/i.test(hay)) {
+        vsdNames.add(p.name.trim());
+      }
+    });
+    const dealVsds = new Set(deals.map(d => d.vsd?.trim() || ""));
+    const hasUnassigned = Array.from(dealVsds).some(v => !v);
+    const sorted = Array.from(vsdNames)
+      .filter(n => dealVsds.has(n)) // only VSDs that actually own a deal
+      .sort((a, b) => a.localeCompare(b));
+    return ["All", ...sorted, ...(hasUnassigned ? ["Unassigned"] : [])];
+  }, [deals, people]);
 
   // Filter deals
   const filteredDeals = useMemo(() => {
@@ -317,8 +325,12 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
       if (statusFilter === "needs" && has) return false;
       if (statusFilter === "staffed" && !has) return false;
       if (vsdFilter !== "All") {
-        const v = d.vsd?.trim() || "Yet to be assigned";
-        if (v !== vsdFilter) return false;
+        const v = d.vsd?.trim() || "";
+        if (vsdFilter === "Unassigned") {
+          if (v) return false;
+        } else if (v !== vsdFilter) {
+          return false;
+        }
       }
       if (!q) return true;
       return (
