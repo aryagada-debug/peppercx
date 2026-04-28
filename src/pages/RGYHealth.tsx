@@ -24,6 +24,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ColHeader } from "@/components/table/ColHeader";
 import { useAppUsers, useVsdUsers, useVsdHierarchy, nameKey } from "@/hooks/useAppUsers";
+import { useUserRole } from "@/hooks/useUserRole";
+import { useDealAccess } from "@/hooks/useDealAccess";
 
 type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
@@ -529,6 +531,9 @@ export default function RGYHealth() {
   const { users: appUsers, isRegisteredName } = useAppUsers();
   const { vsdUsers, isVsdName, canonVsd } = useVsdUsers();
   const { vsdForDeal, bopmsForVsd, allBopms } = useVsdHierarchy();
+  const { role } = useUserRole();
+  const { visibleDealIds, loading: accessLoading } = useDealAccess();
+  const isBopmPersona = role === "user";
   // Built dynamically from registered users + which VSDs actually appear on deals.
   const VSD_FILTERS = useMemo(() => {
     const items: { key: string; label: string }[] = [{ key: "All", label: "All" }];
@@ -934,6 +939,10 @@ export default function RGYHealth() {
   // Filtering
   const filteredDeals = useMemo(() => {
     let d = deals;
+    // BOPM persona: scope to deals tagged to her before any other filter applies.
+    if (isBopmPersona && !accessLoading) {
+      d = d.filter(deal => visibleDealIds.has(deal.id));
+    }
     if (!showClosed) d = d.filter(deal => ACTIVE_STATUSES.has(deal.deal_status));
     if (activeVsd === "Unassigned") {
       d = d.filter(deal => vsdForDeal(deal as any) === null);
@@ -961,7 +970,16 @@ export default function RGYHealth() {
       });
     }
     return d;
-  }, [deals, activeVsd, activeBopm, search, showClosed, rgyFilter, vsdForDeal]);
+  }, [deals, activeVsd, activeBopm, search, showClosed, rgyFilter, vsdForDeal, isBopmPersona, accessLoading, visibleDealIds]);
+
+  // For BOPM persona, force the table tab on first render so the Health Board /
+  // Insights surfaces never become her landing view.
+  useEffect(() => {
+    if (isBopmPersona && (activeTab === "health" || activeTab === "insights")) {
+      setActiveTab("table");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isBopmPersona]);
 
   // Apply per-column filters + sort to produce flat row list
   const tableRows = useMemo(() => {
@@ -1103,9 +1121,9 @@ export default function RGYHealth() {
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="mb-4">
           <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
             <TabsList>
-              <TabsTrigger value="health">Health Board</TabsTrigger>
+              {!isBopmPersona && <TabsTrigger value="health">Health Board</TabsTrigger>}
               <TabsTrigger value="table">Table</TabsTrigger>
-              <TabsTrigger value="insights">Insights</TabsTrigger>
+              {!isBopmPersona && <TabsTrigger value="insights">Insights</TabsTrigger>}
             </TabsList>
             {activeTab === "table" && (
               <Popover>
