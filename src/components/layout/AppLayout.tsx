@@ -15,7 +15,7 @@ export function AppLayout({ children, onSearchSelectDeal }: AppLayoutProps) {
     <div className="flex h-screen overflow-hidden">
       <AppSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="flex items-center justify-between px-4 md:px-8 h-12 border-b border-border shrink-0">
+        <header className="flex items-center justify-between px-3 md:px-4 h-12 border-b border-border shrink-0">
           <div />
           <div className="flex items-center gap-2">
             <RoleSwitcher />
@@ -25,7 +25,7 @@ export function AppLayout({ children, onSearchSelectDeal }: AppLayoutProps) {
           </div>
         </header>
         <main className="flex-1 overflow-y-auto">
-          <div className="max-w-[1440px] mx-auto">
+          <div className="w-full">
             {children}
           </div>
         </main>
