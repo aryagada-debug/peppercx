@@ -1,74 +1,49 @@
-## 1. Weekly Capacity Tracker — input as hours
+# Fix People View: VSD grouping + indentation + background tint
 
-`src/components/deals/WeeklyStaffingGrid.tsx`
+## Root cause
 
-- Replace the % allocation cell with **hours per week** input (0–60h, default cap 40h).
-- Internally still write `allocation_pct = round(hours / 40 * 100)` to `staffing_weekly_allocations.allocation_pct` so DB schema and downstream logic stay intact (no migration needed).
-- Display value: show "Xh" (no %). Color coding: 0 muted, 1–19h normal, 20–39h amber, ≥40h red (over-allocated).
-- Update header sub-text to: *"Log how many hours each person actually spent on this deal that week."*
-- Footer "Total %" row → "Total Hrs" row (sum hours per week).
-- Existing right-side "Total Hrs" column stays (already in hours).
+The 5 VSDs (Sneha, Aamir, Aditya, Sumit, Neema) have no entries in `assignments`, so the current filter `assignedPersonIds.has(p.id)` removes them from `visiblePeople`. With the VSD missing:
 
-## 2. RGY editor — auto-open issue form on each non-green change
+- Their BOPMs no longer find a manager in the visible set → each BOPM becomes its own root row.
+- The `VSD_GROUP_BG` tinting only kicks in for descendants of a rendered VSD → no background tint.
+- Indentation (`depth * 28px`) is reset to 0 for every BOPM → no nesting.
 
-Currently `EditableRGY` batches changes locally and only fires `onSave` when the user clicks the Save button — so toggling several dimensions opens the issue popup just once at the end.
+So even though the data is correct, the view never builds the VSD → BOPM tree.
 
-Change to **immediate-save model**:
+## Fix
 
-`src/components/deals/EditableRGY.tsx`
-- Remove the local `dirty` state and the "Save" button.
-- On every button click, call `onSave(updatedDimensions)` immediately for that single change.
-- Keep the local mirror only for instant visual feedback.
+In `src/components/staffing/PeopleViewTab.tsx`:
 
-`src/pages/DealDetail.tsx` (`handleRGYSave`)
-- Already opens `RGYIssueForm` whenever a Y/R is present. Adjust so each individual dimension flip that introduces a new Y/R re-opens the form (reset `showIssueForm` to true on each non-green save, even if the dialog was just closed).
-- Track `lastIssuedDimensionKey` so the popup focuses on the dimension just changed.
+1. **Always include the 5 VSDs in `visiblePeople`**, regardless of whether they have assignments. Detect them via the existing `VSD_NAMES` set or `roleTitle === "VSD"`.
+2. Keep the rest of the inclusion rule unchanged (assigned + mapped to one of the 5 dept groups + not TBH).
+3. Inside the "Delivery Ops and CS" group, sort roots so VSDs render in a fixed order (Sneha, Aamir, Aditya, Sumit, Neema) before any non-VSD roots.
+4. For VSD rows whose totals are zero (no assignments), display dashes for MRR / Total Rev / Hours instead of `₹0` to keep the row readable. Children continue to render their real numbers.
+5. Auto-expand the "Delivery Ops and CS" department and the 5 VSD rows on first mount so the hierarchy is visible by default. The existing Expand/Collapse toggle continues to work.
+6. Keep everything else (zebra striping for non-VSD subtrees, 28px indent per depth, `VSD_GROUP_BG` tint passed down to descendants, dot color per dept) as-is.
 
-`src/pages/RGYHealth.tsx` (inline RGY editing in the table)
-- Same pattern: each cell click immediately persists and triggers `RGYIssueFormDialog` for that dimension if value is Y/R. Re-trigger on subsequent flips.
+## Result
 
-Net behaviour: click Customer→Red → popup opens for Customer. Close/save it. Click Internal→Yellow → popup opens again for Internal. Etc.
-
-## 3. RGY Insights — Aging + consolidated chart
-
-`src/components/rgy/RGYInsightsTab.tsx`
-
-**Aging sort & highlighting**
-- Compute `daysSince(issue_date || created_at)` (already exists).
-- Define threshold `RED_AGING_THRESHOLD = 10` days (configurable constant; reuse existing 10/15 flag logic).
-- In **Active Issues** list and the **Aging Issues** card, sort: Red issues > threshold first (descending by days), then other Red, then Yellow.
-- Add an "Aged Red" badge on rows where `worst === "R" && days > 10`, with a stronger red background pill.
-
-**Replace 3 charts with 1 combined column chart**
-Remove:
-- "Red Count per Team" (BarChart)
-- "Yellow Count per Team" (BarChart)
-- "Service Line Health" (stacked BarChart)
-
-Add a single **"Team Health Breakdown"** chart:
-- Vertical (column) BarChart, x-axis = all 8 dimensions (Customer, Internal, Content, SEO, Supply, Copy, Design, Video).
-- Three stacked bars per team: Red / Yellow / Green counts (use existing `COLORS`).
-- Click a Red or Yellow segment → existing `setTeamDrill({ team, severity })` flow (preserved).
-- Tooltip shows R/Y/G counts; legend at top.
-
-Data shape:
-```ts
-const teamHealth = DIMENSIONS.map(dim => ({
-  team: dim.label,
-  key: dim.key,
-  Red: filteredDeals.filter(d => d[dim.key] === "R").length,
-  Yellow: filteredDeals.filter(d => d[dim.key] === "Y").length,
-  Green: filteredDeals.filter(d => d[dim.key] === "G").length,
-}));
+```text
+▼ ● Delivery Ops and CS
+    Sneha Iyer            VSD               —    —    —
+      Vrusha Mawani       Group BOPM        …    …    …     ← tinted info/[0.06]
+      Sumitha Shetty      Group BOPM        …    …    …     ← tinted
+      …
+    Aamir Khan            VSD               —    —    —
+      Vanshika Khandelia  Senior BOPM       …    …    …     ← tinted warning/[0.06]
+      Tushar Walia        Principal BOPM    …    …    …     ← tinted
+      …
+    Aditya Shaw           VSD               —    —    —
+      Shreshtha Pathak    Principal BOPM    …    …    …     ← tinted positive/[0.06]
+      …
+    Sumit Shekhawat       VSD               —    —    —
+      Karna Shah          Senior BOPM       …    …    …     ← tinted primary/[0.05]
+      …
+    Neema Jayadas         VSD               —    —    —
+      Tiffany Fernandes   Senior BOPM       …    …    …     ← tinted destructive/[0.05]
+      …
 ```
 
-Heatmap, VSD comparison, KPI row, donut: unchanged.
+## Files
 
-## Files to edit
-- `src/components/deals/WeeklyStaffingGrid.tsx`
-- `src/components/deals/EditableRGY.tsx`
-- `src/pages/DealDetail.tsx` (RGY save flow, both Overview + RGY Health tab usages)
-- `src/pages/RGYHealth.tsx` (inline cell save → re-open dialog per change)
-- `src/components/rgy/RGYInsightsTab.tsx`
-
-No DB migrations required.
+- `src/components/staffing/PeopleViewTab.tsx` (only file)
