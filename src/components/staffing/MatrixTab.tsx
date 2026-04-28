@@ -626,6 +626,11 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
                               <div className="w-40 text-caption text-muted-foreground shrink-0 truncate" title={role?.label || a.roleKey}>
                                 {role?.label || a.roleKey}
                               </div>
+                              {readOnly ? (
+                                <div className="flex-1 px-2 py-1 text-ui text-foreground truncate">
+                                  {personOptions.find(p => p.id === a.personId)?.name || "—"}
+                                </div>
+                              ) : (
                               <PersonPicker
                                 people={personOptions}
                                 selectedPersonId={a.personId}
@@ -639,6 +644,7 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
                                 dealServiceLine={selectedDeal?.serviceLineTagging || selectedDeal?.capabilityLine || ""}
                                 peopleByPod={peopleByPod}
                               />
+                              )}
                               <div className="flex items-center gap-1 ml-auto shrink-0">
                                 <input
                                   type="number"
