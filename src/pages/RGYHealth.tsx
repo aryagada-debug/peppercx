@@ -23,7 +23,7 @@ import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ColHeader } from "@/components/table/ColHeader";
-import { useAppUsers, useVsdUsers, nameKey } from "@/hooks/useAppUsers";
+import { useAppUsers, useVsdUsers, useVsdHierarchy, nameKey } from "@/hooks/useAppUsers";
 
 type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
@@ -528,11 +528,11 @@ function RGYIssueFormDialog({
 export default function RGYHealth() {
   const { users: appUsers, isRegisteredName } = useAppUsers();
   const { vsdUsers, isVsdName, canonVsd } = useVsdUsers();
+  const { vsdForDeal } = useVsdHierarchy();
   // Built dynamically from registered users + which VSDs actually appear on deals.
   const VSD_FILTERS = useMemo(() => {
     const items: { key: string; label: string }[] = [{ key: "All", label: "All" }];
     vsdUsers.forEach((u) => items.push({ key: u.displayName, label: u.displayName }));
-    items.push({ key: "Other", label: "Other" });
     items.push({ key: "Unassigned", label: "Unassigned" });
     return items;
   }, [vsdUsers]);
@@ -651,7 +651,7 @@ export default function RGYHealth() {
         pc_code: d.pc_code || "",
         account: d.account || "",
         pod: getPodForDeal(d.vsd || "", d.pod || ""),
-        vsd: d.vsd || "",
+        vsd: vsdForDeal(d as any) || "",
         deal_status: d.deal_status || "",
         issue_details: d.rgy_issue_details,
         issue_status: "Open",
@@ -664,7 +664,7 @@ export default function RGYHealth() {
       });
     }
     return out;
-  }, [insightsOpened, deals]);
+  }, [insightsOpened, deals, vsdForDeal]);
 
   const fetchData = useCallback(async () => {
     // Look back ~8 weeks for "current" RGY snapshot — small slice instead of full history.
@@ -889,11 +889,9 @@ export default function RGYHealth() {
     let d = deals;
     if (!showClosed) d = d.filter(deal => ACTIVE_STATUSES.has(deal.deal_status));
     if (activeVsd === "Unassigned") {
-      d = d.filter(deal => UNASSIGNED_VSD_VALUES.has((deal.vsd || "").trim()));
-    } else if (activeVsd === "Other") {
-      d = d.filter(deal => isOtherVsd(deal.vsd));
+      d = d.filter(deal => vsdForDeal(deal as any) === null);
     } else if (activeVsd !== "All") {
-      d = d.filter(deal => canonVsd(deal.vsd) === activeVsd);
+      d = d.filter(deal => vsdForDeal(deal as any) === activeVsd);
     }
     if (search) {
       const s = search.toLowerCase();
@@ -910,7 +908,7 @@ export default function RGYHealth() {
       });
     }
     return d;
-  }, [deals, activeVsd, search, showClosed, rgyFilter]);
+  }, [deals, activeVsd, search, showClosed, rgyFilter, vsdForDeal]);
 
   // Apply per-column filters + sort to produce flat row list
   const tableRows = useMemo(() => {
@@ -963,7 +961,7 @@ export default function RGYHealth() {
   // ── RGY Summary Insights ──
   // "All" → group by VSD. Specific VSD → group by Sr/Principal BOPM in that pod (with Pod Overall row).
   type RGYSummaryRow = { name: string; total: number; red: number; yellow: number; green: number; pending: number };
-  const showBopmRgyInsights = activeVsd !== "All" && activeVsd !== "Other" && activeVsd !== "Unassigned";
+  const showBopmRgyInsights = activeVsd !== "All" && activeVsd !== "Unassigned";
 
   const rgySummary = useMemo<RGYSummaryRow[]>(() => {
     const tally = (row: RGYSummaryRow, deal: DealWithRGY) => {
@@ -1000,16 +998,13 @@ export default function RGYHealth() {
     // VSD grouping
     const map = new Map<string, RGYSummaryRow>();
     for (const deal of filteredDeals) {
-      const raw = (deal.vsd || "").trim();
-      let bucket: string;
-      if (!raw || UNASSIGNED_VSD_VALUES.has(raw)) bucket = "Unassigned";
-        else if (isVsdName(raw)) bucket = canonVsd(raw) || "Other";
-      else bucket = "Other";
+      const v = vsdForDeal(deal as any);
+      const bucket = v || "Unassigned";
       if (!map.has(bucket)) map.set(bucket, { name: bucket, total: 0, red: 0, yellow: 0, green: 0, pending: 0 });
       tally(map.get(bucket)!, deal);
     }
     return Array.from(map.values()).filter(r => r.total > 0).sort((a, b) => b.total - a.total);
-  }, [filteredDeals, showBopmRgyInsights]);
+  }, [filteredDeals, showBopmRgyInsights, vsdForDeal]);
 
   const selectedDeal = useMemo(
     () => deals.find(d => d.id === selectedDealId) ?? null,

@@ -8,7 +8,7 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { TeamCountDrillDialog } from "./TeamCountDrillDialog";
 import { VSDDrillDialog } from "./VSDDrillDialog";
-import { useAppUsers, useVsdUsers } from "@/hooks/useAppUsers";
+import { useAppUsers, useVsdUsers, useVsdHierarchy } from "@/hooks/useAppUsers";
 
 const DIMENSIONS = [
   { key: "customer", label: "Customer" },
@@ -108,13 +108,14 @@ const VSD_SHORT: Record<string, string> = {
 export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd }: Props) {
   const { isRegisteredName } = useAppUsers();
   const { isVsdName, canonVsd } = useVsdUsers();
+  const { vsdForDeal, vsdForPerson } = useVsdHierarchy();
   const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
+  // `vsd` here is the resolved VSD (we set it from hierarchy in RGYHealth).
   const matchesActiveVsd = (vsd: string | undefined) => {
-    const v = (vsd || "").trim();
     if (activeVsd === "All") return true;
-    if (activeVsd === "Unassigned") return UNASSIGNED_VSD_VALUES.has(v);
-    if (activeVsd === "Other") return !!v && !UNASSIGNED_VSD_VALUES.has(v) && !isVsdName(v);
-    return canonVsd(v) === activeVsd;
+    const v = (vsd || "").trim();
+    if (activeVsd === "Unassigned") return !v;
+    return v === activeVsd;
   };
   const [teamDrill, setTeamDrill] = useState<{ team: string; severity: "R" | "Y" } | null>(null);
   const [vsdDrill, setVsdDrill] = useState<string | null>(null);
@@ -218,7 +219,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd }: Prop
       map.set(v, { vsd: VSD_SHORT[v] || v, vsdFull: v, Red: 0, Yellow: 0, Green: 0, total: 0 }),
     );
     deals.forEach((deal) => {
-      const v = deal.vsd || "";
+      const v = vsdForDeal(deal as any) || "";
       if (!map.has(v)) return;
       // Only count active deals
       if (!ACTIVE_STATUSES.has(deal.deal_status)) return;
@@ -230,12 +231,12 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd }: Prop
       entry.total = entry.Red + entry.Yellow + entry.Green;
     });
     return Array.from(map.values());
-  }, [deals]);
+  }, [deals, vsdForDeal]);
 
   const vsdDrillDeals = useMemo(() => {
     if (!vsdDrill) return [];
     return deals
-      .filter((d) => d.vsd === vsdDrill && ACTIVE_STATUSES.has(d.deal_status))
+      .filter((d) => vsdForDeal(d as any) === vsdDrill && ACTIVE_STATUSES.has(d.deal_status))
       .map((d) => ({
         id: d.id,
         deal_id: d.deal_id,
@@ -243,7 +244,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd }: Prop
         account: d.account,
         worst: getWorstRGY(d),
       }));
-  }, [vsdDrill, deals]);
+  }, [vsdDrill, deals, vsdForDeal]);
 
   // ── Active Issues — VSD-filtered, with timeline + flags ──
   const activeIssues = useMemo(() => {

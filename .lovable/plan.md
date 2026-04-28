@@ -1,48 +1,67 @@
-# Speed up RGY Health page load
+# Use Reporting Hierarchy for VSD Filtering
 
-## Why it's slow today
+## What changes
+The VSD chip filter on **MBR Tracker** and **RGY Health** will use the **reporting hierarchy from Settings → People & Reporting** (the `staffing_people` table) instead of the deal's free-text `vsd` cell.
 
-In `src/pages/RGYHealth.tsx` `fetchData()`:
+A deal will count as "under" a VSD if its `principal_bopm` (or `senior_bopm` / `bopm`, in that order) is a person whose `reporting_manager` chain rolls up to that VSD.
 
-1. **Sequential batched queries.** Deals are loaded, then `deal_rgy_weekly` is queried in a `for` loop in batches of 500, each `await`ed one after another. With ~550 deals that's already 2 round trips, and each subsequent UI action waits on all of them before *anything* renders.
-2. **Over-fetching.** It pulls **all** RGY rows for every deal across all history (`order("week_start", desc)` then keeps the first per deal). For deals with many weekly rows, this transfers a lot of data that's immediately discarded. Same query also does double duty to build `rgyIssues` (only used by the Insights tab, which most users don't open first).
-3. **Single blocking spinner.** Nothing renders until *both* deals + all RGY history are loaded, so users stare at a skeleton for the full duration.
-4. **`useAppUsers` realtime + repeated `find`s** add work on top of the initial render but aren't the main cost.
+## Behavior
 
-## Changes
+### Selecting a VSD chip (e.g. "Aditya Shaw")
+Shows every deal whose **principal/senior/junior BOPM reports to Aditya Shaw** (directly or transitively), e.g. all deals owned by Shreshtha Pathak / Mitchelle Joseph + anyone reporting to them.
 
-### 1. Parallelize and slim the initial fetch (biggest win)
-File: `src/pages/RGYHealth.tsx` (`fetchData`)
+The deal's `vsd` text field is no longer consulted for filtering.
 
-- Run `staffing_deals` query and the **latest** `deal_rgy_weekly` query in parallel with `Promise.all`.
-- Replace the 500-batch loop with a single query (no `.in("deal_id", batch)` — fetch the latest week's RGY rows directly):
-  - Compute `weekStart = getCurrentWeekStart()`. Query `deal_rgy_weekly` filtered to `week_start >= <last 8 weeks>` and order desc, then in JS keep the first per `deal_id`. This is enough to populate the current cell values + open issue (vs scanning all history).
-  - This collapses 2+ sequential queries into 2 parallel queries and dramatically reduces row volume.
-- Render the table as soon as `dealRows` arrives (set `loading=false`), then merge in RGY values when the second promise resolves (cells just flip from "Pending" to their real state).
+### "Unassigned" chip
+Deals where no BOPM is set, or the BOPM exists but doesn't roll up to any of the 5 VSDs.
 
-### 2. Defer Insights data
-- Move the `rgyIssues` construction out of `fetchData` and into a separate effect that runs **only when the Insights tab is first activated** (`activeTab === "insights"`). The Health Board doesn't need it.
-- Equivalent query, but only paid for when needed.
+### "Other" chip
+Removed — it becomes redundant with Unassigned under the hierarchy model.
 
-### 3. Memoize selected deal lookup
-- Replace `const selectedDeal = deals.find(...)` (runs every render) with a `useMemo` keyed on `[deals, selectedDealId]`. Tiny but free.
+### BOPM Insights / BOPM RGY Summary (second table when a VSD is selected)
+Buckets stay grouped by raw BOPM name (current behavior — already fixed last turn). With the new filter these will only show BOPMs whose chain rolls up to the selected VSD.
 
-### 4. Render long table more cheaply
-- The table currently renders every row + 8 RGY cells with `Tooltip` per cell. For 500+ deals that's 4000+ Radix tooltip subscriptions on first paint.
-- Wrap each row in `React.memo` (`RGYRow` extracted component) so re-renders during typing in search/filters don't rebuild every row.
-- Lazy mount tooltip content: switch `RGYCell`'s `Tooltip` to `delayDuration={300}` and only render `TooltipContent` when the trigger is hovered (current Radix behavior already does this, but ensure no `TooltipProvider` per cell — keep the single one at table level, which it already is). Minor; main gain comes from `React.memo` on the row.
+## Technical details
 
-### 5. Tiny cleanups
-- `useAppUsers` is invoked indirectly; ensure `useVsdUsers`/`useAppUsers` aren't re-subscribing realtime channels on every parent re-render (they shouldn't, but verify hook deps).
+### New helper: `useVsdHierarchy()` (in `src/hooks/useAppUsers.ts`)
+- Loads `staffing_people` (id, name, reporting_manager).
+- Builds a map: `personName → topVSD` by walking `reporting_manager` upward until it hits one of `VSD_NAMES` (max 6 hops, cycle guard).
+- Caches result; refreshes when `staffing_people` changes (existing realtime channel already covers this).
+- Exposes:
+  - `vsdForPerson(name) → "Aditya Shaw" | null`
+  - `peopleUnderVsd(vsdName) → Set<string>` (lowercase-keyed)
 
-## Expected result
+### Filter change in `src/pages/MBRTracker.tsx` and `src/pages/RGYHealth.tsx`
+Replace the existing branch:
+```ts
+} else if (activeVsd !== "All") {
+  d = d.filter(deal => canonVsd(deal.vsd) === activeVsd);
+}
+```
+with:
+```ts
+} else if (activeVsd !== "All") {
+  d = d.filter(deal => {
+    const bopm = deal.principal_bopm || deal.senior_bopm || deal.bopm;
+    return bopm && vsdForPerson(bopm) === activeVsd;
+  });
+}
+```
 
-- First meaningful paint of the deals table goes from "wait for all RGY history" to "as soon as deals query returns" (typically <500 ms).
-- RGY cells fill in shortly after with one slim query instead of N batched ones.
-- Switching to Insights triggers its own (cached) fetch instead of paying that cost up front.
+`Unassigned` branch: deal has no BOPM, OR `vsdForPerson(bopm) === null`.
+`Other` chip removed from `VSD_FILTERS`.
 
-## Files touched
+### Insights aggregation
+The VSD Insights panel (left side) will also bucket by `vsdForPerson(bopm)` instead of `deal.vsd` so the totals match the chip filter.
 
-- `src/pages/RGYHealth.tsx` — rewrite `fetchData`, split Insights data into its own effect, memoize selected deal, extract memoized `RGYRow`.
+## Tradeoffs to confirm
+1. **Deals where `vsd` is filled correctly but no BOPM is set** will move from their VSD's bucket to **Unassigned**. From the data sample, every active deal under a VSD does have a `principal_bopm`, but a few have placeholder values like "To be assigned" — those will land in Unassigned.
+2. **Sneha Iyer's reports include Sales/Strategy directors** (Aditya Joshi, Debdeep Banerjee, etc.), not just BOPMs. If any of them appear as a `principal_bopm` on a deal, those deals will now roll up to Sneha. This matches the org chart — confirming this is intended.
 
-No DB schema changes, no new dependencies.
+## Files
+- `src/hooks/useAppUsers.ts` — add `useVsdHierarchy` hook
+- `src/pages/MBRTracker.tsx` — swap filter + drop "Other" chip + update VSD Insights bucketing
+- `src/pages/RGYHealth.tsx` — same three changes
+
+## Open question
+Should I **also remove the "Other" chip**, or keep it to surface deals whose BOPM is in the directory but doesn't report up to any VSD (e.g. someone reporting to Sumitha Shetty who herself reports to Sneha — these *do* roll up, so "Other" would be empty in practice)?
