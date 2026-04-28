@@ -23,7 +23,7 @@ export function SummaryTab({ deals, people, assignments }: Props) {
   const analytics = useMemo(() => {
     const totalMRR = deals.reduce((s, d) => s + (d.mrr || 0), 0);
     const activeTeam = people.filter(p => !p.tbh && !p.leaving).length;
-    const activeDeals = deals.filter(d => d.dealStatus === "Active Deal" || d.dealStatus === "New Deal in SLA/PO").length;
+    const activeDeals = deals.filter(d => d.dealStatus === "Active Deal" || d.dealStatus === "New Deal in SLA/PO" || d.dealStatus === "Deal Disputed").length;
     const leavingPeople = people.filter(p => p.leaving);
 
     // Deals missing staffing data
