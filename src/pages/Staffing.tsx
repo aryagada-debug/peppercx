@@ -13,8 +13,9 @@ import { useDealAccess } from "@/hooks/useDealAccess";
 import { BopmEmptyState } from "@/components/access/BopmEmptyState";
 import { StaffingReviewRequestsButton } from "@/components/staffing/StaffingReviewRequests";
 import { BopmStaffingSummary } from "@/components/staffing/BopmStaffingSummary";
+import { BopmStaffingTables } from "@/components/staffing/BopmStaffingTables";
 
-type Tab = "deals" | "people" | "matrix";
+type Tab = "deals" | "people" | "matrix" | "tables";
 
 export default function Staffing() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -23,11 +24,11 @@ export default function Staffing() {
   const { role } = useUserRole();
   const { visibleDealIds, loading: accessLoading } = useDealAccess();
   const isBopmPersona = role === "user";
-  const [tab, setTab] = useState<Tab>(tabParam || (isBopmPersona ? "matrix" : "deals"));
+  const [tab, setTab] = useState<Tab>(tabParam || (isBopmPersona ? "tables" : "deals"));
 
-  // BOPM persona: only the Staffing matrix is available.
+  // BOPM persona: defaults to the new table-first view, can switch to Advanced (matrix).
   useEffect(() => {
-    if (isBopmPersona && tab !== "matrix") setTab("matrix");
+    if (isBopmPersona && tab !== "tables" && tab !== "matrix") setTab("tables");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isBopmPersona]);
 
@@ -81,7 +82,8 @@ export default function Staffing() {
 
   const TABS: { key: Tab; label: string }[] = isBopmPersona
     ? [
-        { key: "matrix", label: "Staffing" },
+        { key: "tables", label: "Overview" },
+        { key: "matrix", label: "Advanced view" },
       ]
     : [
         { key: "deals", label: "Deal view" },
@@ -134,8 +136,8 @@ export default function Staffing() {
 
         {showBopmEmpty && <BopmEmptyState section="Staffing & Capacity" />}
 
-        {isBopmPersona && !showBopmEmpty && (
-          <BopmStaffingSummary
+        {isBopmPersona && !showBopmEmpty && tab === "tables" && (
+          <BopmStaffingTables
             deals={uniqueScopedDeals}
             people={scopedPeople}
             assignments={scopedAssignments}
