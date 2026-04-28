@@ -495,6 +495,41 @@ export default function MBRTracker() {
             </table>
           </div>
         </div>
+          </TabsContent>
+
+          <TabsContent value="table" className="mt-0">
+            {/* VSD Filter + Current/MoM toggle */}
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">VSD:</span>
+              <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
+                {VSD_FILTERS.map(v => (
+                  <button key={v.key} onClick={() => setActiveVsd(v.key)} className={cn(
+                    "px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
+                    activeVsd === v.key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  )}>{v.label}</button>
+                ))}
+              </div>
+              <div className="ml-auto flex gap-1 bg-secondary rounded-lg p-1">
+                <button
+                  onClick={() => setViewMode("current")}
+                  className={cn(
+                    "px-3 py-1.5 rounded-md text-caption font-medium flex items-center gap-1.5 transition-colors",
+                    viewMode === "current" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <List className="h-3.5 w-3.5" /> Current
+                </button>
+                <button
+                  onClick={() => setViewMode("mom")}
+                  className={cn(
+                    "px-3 py-1.5 rounded-md text-caption font-medium flex items-center gap-1.5 transition-colors",
+                    viewMode === "mom" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <CalendarDays className="h-3.5 w-3.5" /> Month-on-Month
+                </button>
+              </div>
+            </div>
 
         {/* Filters */}
         <div className="flex items-center gap-4 mb-3 flex-wrap">
