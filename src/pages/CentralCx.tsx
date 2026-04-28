@@ -9,10 +9,12 @@ import { CxStatusManagerDialog } from "@/components/cx/CxStatusManagerDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { CxCalendarPanel } from "@/components/cx/CxCalendarPanel";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Users, Columns3, CalendarDays } from "lucide-react";
+import { Users, Columns3, CalendarDays, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Json } from "@/integrations/supabase/types";
+import { ApprovalsPipeline } from "@/components/cx/ApprovalsPipeline";
+import { useSearchParams } from "react-router-dom";
 
 export interface CxSpace {
   id: string;
@@ -65,6 +67,8 @@ const DEFAULT_STATUSES = [
 ];
 
 export default function CentralCx() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab") === "approvals" ? "approvals" : "board";
   const [spaces, setSpaces] = useState<CxSpace[]>([]);
   const [statuses, setStatuses] = useState<CxStatus[]>([]);
   const [tasks, setTasks] = useState<CxTask[]>([]);
@@ -221,11 +225,23 @@ export default function CentralCx() {
               <Skeleton className="h-64 w-full" />
             </div>
           ) : (
-            <Tabs defaultValue="board" className="px-6 pt-4">
+            <Tabs
+              defaultValue={initialTab}
+              className="px-6 pt-4"
+              onValueChange={(v) => {
+                const next = new URLSearchParams(searchParams);
+                if (v === "approvals") next.set("tab", "approvals");
+                else next.delete("tab");
+                setSearchParams(next, { replace: true });
+              }}
+            >
               <TabsList>
                 <TabsTrigger value="overview">Overview</TabsTrigger>
                 <TabsTrigger value="list">List</TabsTrigger>
                 <TabsTrigger value="board">Board</TabsTrigger>
+                <TabsTrigger value="approvals">
+                  <ShieldCheck className="h-3.5 w-3.5 mr-1.5" /> Approvals
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="overview">
@@ -260,6 +276,10 @@ export default function CentralCx() {
                   onUpdateTask={updateTask}
                   onDeleteTask={deleteTask}
                 />
+              </TabsContent>
+
+              <TabsContent value="approvals">
+                <ApprovalsPipeline />
               </TabsContent>
             </Tabs>
           )}
