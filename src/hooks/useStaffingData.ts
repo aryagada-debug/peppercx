@@ -5,6 +5,8 @@ import {
   type Deal, type Person, type StaffingAssignment, type HiringNeed, type RevenueCapacityTarget, type BWRule, uid
 } from "@/data/staffingData";
 import type { TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
+import { useUserRole } from "@/hooks/useUserRole";
+import { submitApprovalRequest } from "@/lib/approvals";
 
 // ── Mappers ──────────────────────────────────────────────────────────────────
 function dbToPerson(row: any): Person {
@@ -164,6 +166,7 @@ export function useStaffingData() {
   const [loading, setLoading] = useState(true);
   const [seeded, setSeeded] = useState(false);
   const seedingRef = useRef(false);
+  const { canEditAll } = useUserRole();
 
   useEffect(() => {
     loadAll();
@@ -305,12 +308,34 @@ export function useStaffingData() {
   }, []);
 
   const addAssignment = useCallback(async (assignment: StaffingAssignment) => {
+    if (!canEditAll) {
+      await submitApprovalRequest({
+        type: "staffing.add",
+        dealId: assignment.dealId,
+        targetKind: "staffing_assignment",
+        targetId: assignment.id,
+        payload: assignment,
+      });
+      return;
+    }
     setAssignments(prev => [...prev, assignment]);
     await supabase.from("staffing_assignments").insert(assignmentToDb(assignment));
     notifyStaffing(assignment.personId, assignment.dealId, assignment.roleKey, assignment.allocationPct);
-  }, [notifyStaffing]);
+  }, [notifyStaffing, canEditAll]);
 
   const updateAssignment = useCallback(async (id: string, updates: Partial<StaffingAssignment>) => {
+    if (!canEditAll) {
+      const current = assignments.find(a => a.id === id);
+      await submitApprovalRequest({
+        type: "staffing.update",
+        dealId: current?.dealId,
+        targetKind: "staffing_assignment",
+        targetId: id,
+        previous: current || {},
+        payload: { id, ...updates },
+      });
+      return;
+    }
     let next: StaffingAssignment | undefined;
     setAssignments(prev => prev.map(a => {
       if (a.id !== id) return a;
@@ -329,12 +354,24 @@ export function useStaffingData() {
     if (next && updates.personId) {
       notifyStaffing(next.personId, next.dealId, next.roleKey, next.allocationPct);
     }
-  }, [notifyStaffing]);
+  }, [notifyStaffing, canEditAll, assignments]);
 
   const deleteAssignment = useCallback(async (id: string) => {
+    if (!canEditAll) {
+      const current = assignments.find(a => a.id === id);
+      await submitApprovalRequest({
+        type: "staffing.remove",
+        dealId: current?.dealId,
+        targetKind: "staffing_assignment",
+        targetId: id,
+        previous: current || {},
+        payload: { id },
+      });
+      return;
+    }
     setAssignments(prev => prev.filter(a => a.id !== id));
     await supabase.from("staffing_assignments").delete().eq("id", id);
-  }, []);
+  }, [canEditAll, assignments]);
 
   // Upsert by (dealId, roleKey) — used by Matrix view.
   // If personId is empty, removes any existing assignment for that role on the deal.
