@@ -250,64 +250,86 @@ export default function SettingsPage() {
               />
             </div>
 
-            <div className="overflow-hidden rounded-xl border border-border bg-card">
-              <div className="overflow-x-auto">
-                <table className="w-full text-ui">
-                  <thead>
-                    <tr className="border-b border-border bg-secondary/40">
-                      {["Name", "Department", "Designation", "Band", "Pod", "Reporting Manager"].map((heading) => (
-                        <th
-                          key={heading}
-                          className="px-3 py-2.5 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground"
-                        >
-                          {heading}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visiblePeople.map((person) => (
-                      <tr key={person.id} className="border-b border-border/50 transition-colors hover:bg-secondary/30">
-                        <td className="px-3 py-2">
-                          <span
-                            className={cn(
-                              "text-xs font-medium",
-                              person.tbh
-                                ? "italic text-muted-foreground"
-                                : person.leaving
-                                  ? "text-destructive line-through"
-                                  : "text-foreground",
-                            )}
-                          >
-                            {person.name} {person.tbh && "(TBH)"}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2">
-                          <InlineEdit
-                            value={person.department || ""}
-                            onSave={(value) => updatePerson(person.id, { department: value })}
-                            listId="settings-departments"
-                            placeholder="— None —"
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <InlineEdit value={person.designation || ""} onSave={(value) => updatePerson(person.id, { designation: value })} />
-                        </td>
-                        <td className="px-3 py-2 text-xs text-muted-foreground">{person.band || "—"}</td>
-                        <td className="px-3 py-2 text-xs text-muted-foreground">{person.pod || "—"}</td>
-                        <td className="px-3 py-2">
-                          <InlineEdit
-                            value={person.reportingManager || ""}
-                            onSave={(value) => handleReportingChange(person.id, person.name, value)}
-                            listId="settings-managers"
-                            placeholder="— None —"
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {visiblePeople.map((person) => (
+                <div
+                  key={person.id}
+                  className={cn(
+                    "group relative rounded-xl border border-border bg-card p-3 transition-colors hover:border-primary/40",
+                    person.leaving && "opacity-70",
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDelete({ id: person.id, name: person.name })}
+                    className="absolute right-2 top-2 rounded-md p-1 text-muted-foreground opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+                    title="Delete person"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+
+                  <div className="mb-2 pr-6">
+                    <InlineEdit
+                      value={person.name}
+                      onSave={(value) => {
+                        if (!value.trim()) return toast.error("Name can't be empty");
+                        updatePerson(person.id, { name: value });
+                      }}
+                      className="text-sm font-medium"
+                    />
+                    {person.tbh && (
+                      <span className="ml-1 text-[10px] italic text-muted-foreground">(TBH)</span>
+                    )}
+                    {person.leaving && (
+                      <span className="ml-1 text-[10px] font-medium text-destructive">· Leaving</span>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5 text-[11px]">
+                    <Field label="Dept">
+                      <InlineEdit
+                        value={person.department || ""}
+                        onSave={(value) => updatePerson(person.id, { department: value })}
+                        listId="settings-departments"
+                        placeholder="— None —"
+                      />
+                    </Field>
+                    <Field label="Designation">
+                      <InlineEdit
+                        value={person.designation || ""}
+                        onSave={(value) => updatePerson(person.id, { designation: value })}
+                      />
+                    </Field>
+                    <Field label="Band">
+                      <InlineEdit
+                        value={person.band || ""}
+                        onSave={(value) => updatePerson(person.id, { band: value })}
+                        placeholder="— None —"
+                      />
+                    </Field>
+                    <Field label="Pod">
+                      <InlineEdit
+                        value={person.pod || ""}
+                        onSave={(value) => updatePerson(person.id, { pod: value })}
+                        placeholder="— None —"
+                      />
+                    </Field>
+                    <Field label="Reports to">
+                      <InlineEdit
+                        value={person.reportingManager || ""}
+                        onSave={(value) => handleReportingChange(person.id, person.name, value)}
+                        listId="settings-managers"
+                        placeholder="— None —"
+                      />
+                    </Field>
+                  </div>
+                </div>
+              ))}
+              {visiblePeople.length === 0 && (
+                <div className="col-span-full rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
+                  No people found.
+                </div>
+              )}
             </div>
           </div>
         )}
