@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { ALL_ROUTE_KEYS, ROLE_LABELS, ROLE_ORDER, type AppRole } from "@/hooks/useUserRole";
+import { DemoLoginsCard } from "@/components/admin/DemoLoginsCard";
 
 const ROUTE_LABELS: Record<string, string> = {
   "dashboard": "Dashboard",
@@ -322,6 +323,7 @@ export function UsersTab() {
 
   return (
     <div className="space-y-4">
+      <DemoLoginsCard />
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-base font-semibold text-foreground">Users & Roles</h2>
