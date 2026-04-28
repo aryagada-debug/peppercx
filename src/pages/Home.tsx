@@ -946,19 +946,22 @@ export default function HomePage() {
   );
 }
 
-function KpiPill({ label, value, tone, icon: Icon }: { label: string; value: number; tone: "destructive" | "warning" | "primary"; icon: any }) {
+function KpiPill({ label, value, tone, icon: Icon, onClick }: { label: string; value: number; tone: "destructive" | "warning" | "primary"; icon: any; onClick?: () => void }) {
   const toneCls =
     tone === "destructive" ? "border-destructive/30 bg-destructive/10 text-destructive"
     : tone === "warning" ? "border-warning/30 bg-warning/10 text-warning"
     : "border-primary/30 bg-primary/10 text-primary";
+  const Wrap: any = onClick ? "button" : "div";
   return (
-    <div className={cn("rounded-lg border px-3 py-2 flex items-center gap-2", toneCls)}>
+    <Wrap onClick={onClick} type={onClick ? "button" : undefined}
+      className={cn("rounded-lg border px-3 py-2 flex items-center gap-2 text-left", toneCls,
+        onClick && "hover:brightness-105 cursor-pointer transition-all")}>
       <Icon className="h-4 w-4 shrink-0" />
       <div className="leading-tight">
         <div className="text-base font-semibold tabular-nums font-mono">{value}</div>
         <div className="text-[10px] uppercase tracking-wider opacity-80">{label}</div>
       </div>
-    </div>
+    </Wrap>
   );
 }
 
