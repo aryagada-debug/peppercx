@@ -1056,20 +1056,11 @@ export default function RGYHealth() {
                               </Badge>
                             </td>
                             {DIMENSIONS.map(dim => {
-                              const val = (deal[dim.key as keyof DealWithRGY] as string || "NA") as RGYStatus;
+                              const raw = (deal[dim.key as keyof DealWithRGY] as string) || "";
+                              const val: RGYCellValue = raw === "" ? "PENDING" : (raw as RGYStatus);
                               return (
                                 <td key={dim.key} className="py-2 px-2 text-center">
-                                  {isPending ? (
-                                    <button
-                                      onClick={() => handleRGYUpdate(deal.id, dim.key, "G")}
-                                      className="inline-flex items-center justify-center px-2 h-7 rounded-md text-[10px] font-semibold rgy-pending hover:ring-2 hover:ring-primary/30 transition-all"
-                                      title="Pending — click to set"
-                                    >
-                                      Pending
-                                    </button>
-                                  ) : (
-                                    <RGYCell dealId={deal.id} dimKey={dim.key} value={val} label={dim.label} onUpdate={handleRGYUpdate} />
-                                  )}
+                                  <RGYCell dealId={deal.id} dimKey={dim.key} value={val} label={dim.label} onUpdate={handleRGYUpdate} />
                                 </td>
                               );
                             })}
