@@ -294,6 +294,32 @@ export default function MBRTracker() {
     return Array.from(vsdMap.values()).sort((a, b) => b.total - a.total);
   }, [filteredDeals, activeEntryMap]);
 
+  // BOPM insights (Sr / Principal) — used when a specific VSD is selected
+  const bopmInsights = useMemo(() => {
+    const map = new Map<string, { name: string; total: number; done: number; notDone: number; pending: number; green: number; yellow: number; red: number; scheduled: number }>();
+    for (const deal of filteredDeals) {
+      const owner = (deal.principalBopm || deal.seniorBopm || "Unassigned").trim() || "Unassigned";
+      if (!map.has(owner)) map.set(owner, { name: owner, total: 0, done: 0, notDone: 0, pending: 0, green: 0, yellow: 0, red: 0, scheduled: 0 });
+      const s = map.get(owner)!;
+      s.total++;
+      const entry = activeEntryMap.get(deal.id);
+      if (entry) {
+        if (entry.status === "Done") s.done++;
+        else if (entry.status === "Not Done") s.notDone++;
+        if (entry.sentiment === "Green") s.green++;
+        else if (entry.sentiment === "Yellow") s.yellow++;
+        else if (entry.sentiment === "Red") s.red++;
+        if (entry.scheduledDate) s.scheduled++;
+      }
+    }
+    for (const s of map.values()) {
+      s.pending = s.total - s.done - s.notDone;
+    }
+    return Array.from(map.values()).sort((a, b) => b.total - a.total);
+  }, [filteredDeals, activeEntryMap]);
+
+  const showBopmInsights = activeVsd !== "All" && activeVsd !== "Other" && activeVsd !== "Unassigned";
+
   if (loading) {
     return (
       <AppLayout>
@@ -374,18 +400,20 @@ export default function MBRTracker() {
 
         {/* VSD Insights — moved to top */}
         <div className="mb-4">
-          <h2 className="text-sm font-semibold text-foreground mb-2">VSD Insights</h2>
+          <h2 className="text-sm font-semibold text-foreground mb-2">
+            {showBopmInsights ? `BOPM Insights — ${activeVsd}` : "VSD Insights"}
+          </h2>
           <div className="bg-card border border-border rounded-xl overflow-hidden">
             <table className="w-full text-ui">
               <thead>
                 <tr className="bg-secondary/40 border-b border-border">
-                  {["VSD", "Accounts", "Done", "Not Done", "Pending", "🟢", "🟡", "🔴", "Scheduled"].map(h => (
+                  {[showBopmInsights ? "Sr / Principal BOPM" : "VSD", "Accounts", "Done", "Not Done", "Pending", "🟢", "🟡", "🔴", "Scheduled"].map(h => (
                     <th key={h} className="text-left py-2.5 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {vsdInsights.map(v => {
+                {(showBopmInsights ? bopmInsights.map(b => ({ vsd: b.name, ...b })) : vsdInsights).map(v => {
                   const schedCompliance = v.total > 0 ? `${v.scheduled}/${v.total}` : "—";
                   return (
                     <tr key={v.vsd} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
@@ -401,7 +429,7 @@ export default function MBRTracker() {
                     </tr>
                   );
                 })}
-                {vsdInsights.length === 0 && (
+                {((showBopmInsights ? bopmInsights : vsdInsights).length === 0) && (
                   <tr><td colSpan={9} className="text-center py-8 text-muted-foreground">No data</td></tr>
                 )}
               </tbody>
