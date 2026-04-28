@@ -553,30 +553,44 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
 
               {/* Inline editable selectors */}
               <div className="flex flex-wrap items-center gap-2 mt-3">
-                <SelectChip
-                  label="Type"
-                  value={selectedDeal.dealType || ""}
-                  options={["Retainer", "Non-Retainer", "Pilot"]}
-                  onChange={v => onUpdateDeal(selectedDeal.id, { dealType: v as Deal["dealType"] })}
-                />
-                <SelectChip
-                  label="Status"
-                  value={selectedDeal.dealStatus || ""}
-                  options={["Active Deal", "New Deal in SLA/PO", "Deal Disputed", "Deal Completed Successfully", "Deal Churned / Lost"]}
-                  onChange={v => onUpdateDeal(selectedDeal.id, { dealStatus: v })}
-                />
-                <SelectChip
-                  label="Staffing"
-                  value={selectedDeal.staffingStatus || ""}
-                  options={["Already Staffed", "Staffing Needed", "No Staffing Needed"]}
-                  onChange={v => onUpdateDeal(selectedDeal.id, { staffingStatus: v })}
-                />
-                <SelectChip
-                  label="Strategy BW"
-                  value={selectedDeal.strategyBandwidthRequired || ""}
-                  options={["Yes", "No", "Yes - Ad Hoc Strategy", "Not Applicable"]}
-                  onChange={v => onUpdateDeal(selectedDeal.id, { strategyBandwidthRequired: v })}
-                />
+                {readOnly ? (
+                  <>
+                    <ReadOnlyChip label="Type" value={selectedDeal.dealType || "—"} />
+                    <ReadOnlyChip label="Status" value={selectedDeal.dealStatus || "—"} />
+                    <ReadOnlyChip label="Staffing" value={selectedDeal.staffingStatus || "—"} />
+                    <ReadOnlyChip label="Strategy BW" value={selectedDeal.strategyBandwidthRequired || "—"} />
+                    <div className="ml-auto">
+                      <RequestStaffingReviewButton dealId={selectedDeal.id} dealLabel={selectedDeal.account || selectedDeal.dealName || ""} />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <SelectChip
+                      label="Type"
+                      value={selectedDeal.dealType || ""}
+                      options={["Retainer", "Non-Retainer", "Pilot"]}
+                      onChange={v => onUpdateDeal(selectedDeal.id, { dealType: v as Deal["dealType"] })}
+                    />
+                    <SelectChip
+                      label="Status"
+                      value={selectedDeal.dealStatus || ""}
+                      options={["Active Deal", "New Deal in SLA/PO", "Deal Disputed", "Deal Completed Successfully", "Deal Churned / Lost"]}
+                      onChange={v => onUpdateDeal(selectedDeal.id, { dealStatus: v })}
+                    />
+                    <SelectChip
+                      label="Staffing"
+                      value={selectedDeal.staffingStatus || ""}
+                      options={["Already Staffed", "Staffing Needed", "No Staffing Needed"]}
+                      onChange={v => onUpdateDeal(selectedDeal.id, { staffingStatus: v })}
+                    />
+                    <SelectChip
+                      label="Strategy BW"
+                      value={selectedDeal.strategyBandwidthRequired || ""}
+                      options={["Yes", "No", "Yes - Ad Hoc Strategy", "Not Applicable"]}
+                      onChange={v => onUpdateDeal(selectedDeal.id, { strategyBandwidthRequired: v })}
+                    />
+                  </>
+                )}
               </div>
             </div>
 
@@ -632,27 +646,32 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
                                   max={100}
                                   value={a.allocationPct || 0}
                                   onChange={e => handleChangePct(a, Number(e.target.value))}
-                                  className="w-14 h-7 text-ui text-right font-mono tabular-nums bg-background border border-border rounded px-1.5 focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none"
+                                  readOnly={readOnly}
+                                  disabled={readOnly}
+                                  className={cn(
+                                    "w-14 h-7 text-ui text-right font-mono tabular-nums bg-background border border-border rounded px-1.5 focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none",
+                                    readOnly && "opacity-70 cursor-default"
+                                  )}
                                 />
                                 <span className="text-caption text-muted-foreground w-4">%</span>
                                 <span className="text-caption text-muted-foreground font-mono tabular-nums w-10 text-right">
                                   {Math.round(((a.allocationPct || 0) / 100) * 160)}h
                                 </span>
-                                <button
+                                {!readOnly && <button
                                   type="button"
                                   onClick={() => handleRemove(a)}
                                   className="ml-1 h-7 w-7 inline-flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                                   title="Remove assignment"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
-                                </button>
+                                </button>}
                               </div>
                             </div>
                           );
                         })}
 
                         {/* Add-role row */}
-                        {isAddingHere ? (
+                        {readOnly ? null : isAddingHere ? (
                           <AddRoleRow
                             roles={availableRolesForGroup(group).filter(r =>
                               isRoleAllowedForServiceLine(r.key, selectedDeal?.serviceLineTagging || selectedDeal?.capabilityLine || "")
