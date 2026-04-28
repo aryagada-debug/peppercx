@@ -2,6 +2,7 @@ import { AppSidebar } from "./AppSidebar";
 import { GlobalSearch } from "@/components/dashboard/GlobalSearch";
 import { ThemeToggle } from "@/components/dashboard/ThemeToggle";
 import { UserMenu } from "@/components/auth/UserMenu";
+import { ApprovalsBadge } from "@/components/approvals/ApprovalsBadge";
 import { RoleSwitcher } from "./RoleSwitcher";
 import type { RGYRow } from "@/types/dashboard";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -31,6 +32,7 @@ export function AppLayout({ children, onSearchSelectDeal }: AppLayoutProps) {
           <div className="flex items-center gap-2">
             <RoleSwitcher />
             <GlobalSearch onSelectDeal={onSearchSelectDeal} />
+            <ApprovalsBadge />
             <ThemeToggle />
             <UserMenu />
           </div>
