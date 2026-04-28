@@ -20,6 +20,7 @@ const DIMENSIONS = [
 const SERVICE_LINES = ["content", "seo", "supply", "copy", "design", "video"];
 
 const COLORS = { R: "#ef4444", Y: "#f59e0b", G: "#22c55e", NA: "#94a3b8" };
+const RED_AGING_THRESHOLD = 10; // days — Red issues older than this are surfaced to the top
 
 const ACTIVE_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
 
@@ -136,23 +137,15 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Prop
   ].filter((d) => d.value > 0), [kpis]);
 
   // ── Per-team Red / Yellow counts ──
-  const redPerTeam = useMemo(
+  const teamHealth = useMemo(
     () =>
       DIMENSIONS.map((dim) => ({
         team: dim.label,
         key: dim.key,
-        count: filteredDeals.filter((d) => d[dim.key] === "R").length,
-      })).sort((a, b) => b.count - a.count),
-    [filteredDeals],
-  );
-
-  const yellowPerTeam = useMemo(
-    () =>
-      DIMENSIONS.map((dim) => ({
-        team: dim.label,
-        key: dim.key,
-        count: filteredDeals.filter((d) => d[dim.key] === "Y").length,
-      })).sort((a, b) => b.count - a.count),
+        Red: filteredDeals.filter((d) => d[dim.key] === "R").length,
+        Yellow: filteredDeals.filter((d) => d[dim.key] === "Y").length,
+        Green: filteredDeals.filter((d) => d[dim.key] === "G").length,
+      })),
     [filteredDeals],
   );
 
@@ -194,19 +187,6 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Prop
       })
       .sort((a, b) => b.redCount - a.redCount || b.yellowCount - a.yellowCount);
   }, [filteredDeals]);
-
-  // ── Service line health ──
-  const serviceLineHealth = useMemo(
-    () =>
-      SERVICE_LINES.map((key) => {
-        const dim = DIMENSIONS.find((d) => d.key === key)!;
-        const r = filteredDeals.filter((d) => d[key] === "R").length;
-        const y = filteredDeals.filter((d) => d[key] === "Y").length;
-        const g = filteredDeals.filter((d) => d[key] === "G").length;
-        return { name: dim.label, Red: r, Yellow: y, Green: g };
-      }),
-    [filteredDeals],
-  );
 
   // ── VSD Comparison: ALWAYS uses ALL deals (ignore POD filter) ──
   const vsdComparison = useMemo(() => {
@@ -252,11 +232,20 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Prop
         const flagged =
           (i.worst === "R" && days > 10) ||
           (i.worst === "Y" && days > 15);
-        return { ...i, days, flagged };
+        const agedRed = i.worst === "R" && days > RED_AGING_THRESHOLD;
+        return { ...i, days, flagged, agedRed };
       });
-    // Sort: flagged first, then by days desc
+    // Sort: aged Red first, then other Red, then Yellow — older first within each group
+    const rank = (i: typeof filtered[number]) => {
+      if (i.agedRed) return 0;
+      if (i.worst === "R") return 1;
+      if (i.worst === "Y") return 2;
+      return 3;
+    };
     return filtered.sort((a, b) => {
-      if (a.flagged !== b.flagged) return a.flagged ? -1 : 1;
+      const ra = rank(a);
+      const rb = rank(b);
+      if (ra !== rb) return ra - rb;
       return b.days - a.days;
     });
   }, [issues, activePod]);
@@ -403,62 +392,42 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activePod }: Prop
         </div>
       </div>
 
-      {/* Row 3: Red per Team + Yellow per Team (clickable) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-card border border-border rounded-lg p-4">
-          <h3 className="text-sm font-semibold mb-1">Red Count per Team</h3>
-          <p className="text-[11px] text-muted-foreground mb-2">Click a bar to see the deals</p>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={redPerTeam} layout="vertical" margin={{ left: 70 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-              <YAxis type="category" dataKey="team" tick={{ fontSize: 11 }} width={68} />
-              <RechartsTooltip cursor={{ fill: "hsl(var(--accent))", opacity: 0.15 }} />
-              <Bar
-                dataKey="count"
-                fill={COLORS.R}
-                radius={[0, 4, 4, 0]}
-                cursor="pointer"
-                onClick={(d: any) => d.count > 0 && setTeamDrill({ team: d.team, severity: "R" })}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="bg-card border border-border rounded-lg p-4">
-          <h3 className="text-sm font-semibold mb-1">Yellow Count per Team</h3>
-          <p className="text-[11px] text-muted-foreground mb-2">Click a bar to see the deals</p>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={yellowPerTeam} layout="vertical" margin={{ left: 70 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-              <YAxis type="category" dataKey="team" tick={{ fontSize: 11 }} width={68} />
-              <RechartsTooltip cursor={{ fill: "hsl(var(--accent))", opacity: 0.15 }} />
-              <Bar
-                dataKey="count"
-                fill={COLORS.Y}
-                radius={[0, 4, 4, 0]}
-                cursor="pointer"
-                onClick={(d: any) => d.count > 0 && setTeamDrill({ team: d.team, severity: "Y" })}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Service Line Health */}
+      {/* Team Health Breakdown (Red / Yellow / Green per dimension) */}
       <div className="bg-card border border-border rounded-lg p-4">
-        <h3 className="text-sm font-semibold mb-3">Service Line Health</h3>
-        <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={serviceLineHealth} margin={{ left: 10 }}>
+        <h3 className="text-sm font-semibold mb-1">Team Health Breakdown</h3>
+        <p className="text-[11px] text-muted-foreground mb-2">
+          Stacked R / Y / G deal count per team. Click a Red or Yellow segment to drill into the deals.
+        </p>
+        <ResponsiveContainer width="100%" height={320}>
+          <BarChart data={teamHealth} margin={{ left: 10, bottom: 5 }} barSize={42}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+            <XAxis dataKey="team" tick={{ fontSize: 11 }} interval={0} />
             <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-            <RechartsTooltip />
-            <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-            <Bar dataKey="Red" stackId="a" fill={COLORS.R} />
-            <Bar dataKey="Yellow" stackId="a" fill={COLORS.Y} />
-            <Bar dataKey="Green" stackId="a" fill={COLORS.G} />
+            <RechartsTooltip
+              contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }}
+              formatter={(value: number, name: string) => [`${value} deals`, name]}
+            />
+            <Legend iconSize={10} wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
+            <Bar
+              dataKey="Red"
+              stackId="health"
+              fill={COLORS.R}
+              cursor="pointer"
+              onClick={(d: any) => d.Red > 0 && setTeamDrill({ team: d.team, severity: "R" })}
+            />
+            <Bar
+              dataKey="Yellow"
+              stackId="health"
+              fill={COLORS.Y}
+              cursor="pointer"
+              onClick={(d: any) => d.Yellow > 0 && setTeamDrill({ team: d.team, severity: "Y" })}
+            />
+            <Bar
+              dataKey="Green"
+              stackId="health"
+              fill={COLORS.G}
+              radius={[4, 4, 0, 0]}
+            />
           </BarChart>
         </ResponsiveContainer>
       </div>

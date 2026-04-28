@@ -92,7 +92,7 @@ export function WeeklyStaffingGrid({ dealId, dealPeople, dealAssignments }: Prop
         <div>
           <h4 className="text-sm font-semibold text-foreground">Weekly Capacity Tracker</h4>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            Log how much of each person's week is committed to this deal. Click any cell to edit the allocation % for that week (40h = 100%).
+            Log how many hours each person actually spent on this deal that week. Click any cell to edit (40h = full week).
           </p>
         </div>
         <div className="flex items-center gap-1">
@@ -160,6 +160,7 @@ export function WeeklyStaffingGrid({ dealId, dealPeople, dealAssignments }: Prop
                   {weeks.map(w => {
                     const cell = getCell(p.id, w);
                     const pct = cell?.allocation_pct ?? 0;
+                    const hours = Math.round((pct / 100) * 40);
                     return (
                       <td
                         key={w}
@@ -168,9 +169,12 @@ export function WeeklyStaffingGrid({ dealId, dealPeople, dealAssignments }: Prop
                           w === todayIso && "bg-primary/5"
                         )}
                       >
-                        <AllocationInput
-                          value={pct}
-                          onSave={(v) => upsertCell(p.id, w, { allocation_pct: v })}
+                        <HoursInput
+                          value={hours}
+                          onSave={(h) => {
+                            const newPct = Math.max(0, Math.min(150, Math.round((h / 40) * 100)));
+                            upsertCell(p.id, w, { allocation_pct: newPct });
+                          }}
                         />
                       </td>
                     );
@@ -182,17 +186,20 @@ export function WeeklyStaffingGrid({ dealId, dealPeople, dealAssignments }: Prop
               );
             })}
           </tbody>
-          {/* Monthly totals footer */}
+          {/* Weekly totals footer */}
           <tfoot>
             <tr className="bg-secondary/30 border-t-2 border-border font-semibold">
               <td className="py-1.5 px-3 sticky left-0 bg-secondary/30 z-10 border-r border-border text-[10px] uppercase tracking-wider text-muted-foreground">
-                Total %
+                Total Hrs
               </td>
               {weeks.map(w => {
-                const sumPct = dealPeople.reduce((acc, p) => acc + (getCell(p.id, w)?.allocation_pct ?? 0), 0);
+                const sumHrs = dealPeople.reduce((acc, p) => {
+                  const pct = getCell(p.id, w)?.allocation_pct ?? 0;
+                  return acc + (pct / 100) * 40;
+                }, 0);
                 return (
                   <td key={w} className="text-center py-1.5 px-1 text-[10px] font-mono tabular-nums text-muted-foreground border-l border-border">
-                    {sumPct > 0 ? `${sumPct}%` : "—"}
+                    {sumHrs > 0 ? `${Math.round(sumHrs)}h` : "—"}
                   </td>
                 );
               })}
@@ -205,8 +212,8 @@ export function WeeklyStaffingGrid({ dealId, dealPeople, dealAssignments }: Prop
   );
 }
 
-// ─── Editable allocation cell ───
-function AllocationInput({ value, onSave }: { value: number; onSave: (v: number) => void }) {
+// ─── Editable hours cell ───
+function HoursInput({ value, onSave }: { value: number; onSave: (v: number) => void }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(value));
 
@@ -215,12 +222,12 @@ function AllocationInput({ value, onSave }: { value: number; onSave: (v: number)
       <Input
         type="number"
         min={0}
-        max={100}
+        max={60}
         value={draft}
         autoFocus
         onChange={e => setDraft(e.target.value)}
         onBlur={() => {
-          const v = Math.max(0, Math.min(100, Number(draft) || 0));
+          const v = Math.max(0, Math.min(60, Number(draft) || 0));
           if (v !== value) onSave(v);
           setEditing(false);
         }}
@@ -238,12 +245,12 @@ function AllocationInput({ value, onSave }: { value: number; onSave: (v: number)
       className={cn(
         "w-full h-7 text-xs font-mono tabular-nums hover:bg-accent/30 transition-colors",
         value === 0 && "text-muted-foreground/50",
-        value > 0 && value < 50 && "text-foreground",
-        value >= 50 && value < 100 && "text-warning font-medium",
-        value >= 100 && "text-destructive font-semibold"
+        value > 0 && value < 20 && "text-foreground",
+        value >= 20 && value < 40 && "text-warning font-medium",
+        value >= 40 && "text-destructive font-semibold"
       )}
     >
-      {value > 0 ? `${value}%` : "—"}
+      {value > 0 ? `${value}h` : "—"}
     </button>
   );
 }
