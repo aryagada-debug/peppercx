@@ -849,78 +849,222 @@ export default function MBRTracker() {
               <table className="w-full text-ui">
                 <thead>
                   <tr className="bg-secondary/40 border-b border-border">
-                    <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium sticky left-0 bg-secondary/40 z-10 min-w-[200px]">Client / Deal</th>
+                    <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium sticky left-0 bg-secondary/40 z-20 min-w-[160px]">Account</th>
+                    <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium min-w-[180px]">Deal</th>
+                    <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium min-w-[120px]">VSD</th>
+                    <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium min-w-[140px]">Sr. BOPM</th>
+                    <th className="text-right py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium min-w-[90px]">MRR</th>
                     {availableMonths.map(m => (
-                      <th key={m} className="text-center py-2 px-2 text-[11px] uppercase tracking-wider text-muted-foreground font-medium min-w-[70px]">
+                      <th key={m} className="text-center py-2 px-2 text-[11px] uppercase tracking-wider text-muted-foreground font-medium min-w-[110px]">
                         {formatMonthLabel(m)}
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {groupedDeals.map(({ client, deals: clientDeals }) => (
-                    <React.Fragment key={client}>
-                      {/* Client header row */}
-                      <tr className="border-b border-border bg-secondary/20">
-                        <td className="py-2 px-3 sticky left-0 bg-secondary/20 z-10">
-                          <span className="text-xs font-semibold text-foreground">{client}</span>
-                          <span className="ml-2 inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
-                            {clientDeals.length}
-                          </span>
-                        </td>
-                        {availableMonths.map(m => {
-                          const monthData = entriesByMonth.get(m);
-                          const doneCount = clientDeals.filter(d => monthData?.get(d.id)?.status === "Done").length;
-                          const pct = clientDeals.length > 0 ? Math.round((doneCount / clientDeals.length) * 100) : 0;
-                          return (
-                            <td key={m} className="text-center py-2 px-2" title={`${doneCount}/${clientDeals.length} done (${pct}%)`} />
-                          );
-                        })}
-                      </tr>
-                      {/* Deal rows */}
-                      {clientDeals.map(deal => (
-                        <tr key={deal.id} className="border-b border-border/50 hover:bg-accent/10 transition-colors">
-                          <td className="py-1.5 px-3 pl-6 sticky left-0 bg-card z-10">
-                            <Link to={`/deals/${deal.id}?tab=MBR`} className="text-primary hover:underline text-xs font-medium truncate block max-w-[180px]" title={deal.dealName}>
-                              {deal.dealName}
-                            </Link>
+                  {filteredDeals.map(deal => (
+                    <tr key={deal.id} className="border-b border-border/50 hover:bg-accent/10 transition-colors">
+                      <td className="py-1.5 px-3 sticky left-0 bg-card z-10 text-xs text-foreground truncate max-w-[180px]" title={deal.account}>
+                        {deal.account}
+                      </td>
+                      <td className="py-1.5 px-3">
+                        <Link to={`/deals/${deal.id}?tab=MBR`} className="text-primary hover:underline text-xs font-medium truncate block max-w-[200px]" title={deal.dealName}>
+                          {deal.dealName}
+                        </Link>
+                      </td>
+                      <td className="py-1.5 px-3 text-xs text-muted-foreground truncate max-w-[140px]">{deal.vsd || "—"}</td>
+                      <td className="py-1.5 px-3 text-xs text-muted-foreground truncate max-w-[160px]">{deal.seniorBopm || "—"}</td>
+                      <td className="py-1.5 px-3 text-right text-xs tabular-nums text-foreground">{deal.mrr ? formatCurrency(deal.mrr) : "—"}</td>
+                      {availableMonths.map(m => {
+                        const monthData = entriesByMonth.get(m);
+                        const entry = monthData?.get(deal.id);
+                        const status = entry?.status || "Pending";
+                        return (
+                          <td
+                            key={m}
+                            className="text-center py-1.5 px-2 cursor-pointer hover:bg-accent/20 transition-colors"
+                            onClick={() => handleRowClick(deal, entry || null)}
+                            title={`${deal.dealName} — ${formatMonthLabel(m)}: ${status}${entry?.sentiment ? ` · ${entry.sentiment}` : ""}`}
+                          >
+                            <StatusPill status={status} sentiment={entry?.sentiment} />
                           </td>
-                          {availableMonths.map(m => {
-                            const monthData = entriesByMonth.get(m);
-                            const entry = monthData?.get(deal.id);
-                            const status = entry?.status || "Pending";
-                            return (
-                              <td
-                                key={m}
-                                className="text-center py-1.5 px-2 cursor-pointer hover:bg-accent/20 transition-colors"
-                                onClick={() => handleRowClick(deal, entry || null)}
-                                title={`${deal.dealName} — ${formatMonthLabel(m)}: ${status}`}
-                              >
-                                <StatusDot status={status} />
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                    </React.Fragment>
+                        );
+                      })}
+                    </tr>
                   ))}
                 </tbody>
               </table>
             </div>
 
-            {groupedDeals.length === 0 && (
+            {filteredDeals.length === 0 && (
               <div className="text-center py-12">
                 <p className="text-muted-foreground">No deals found matching your filters.</p>
               </div>
             )}
 
             {/* Legend */}
-            <div className="flex items-center gap-4 px-4 py-2 border-t border-border bg-secondary/20">
+            <div className="flex items-center gap-4 px-4 py-2 border-t border-border bg-secondary/20 flex-wrap">
               <span className="text-[10px] text-muted-foreground font-medium">Legend:</span>
-              <div className="flex items-center gap-1.5"><StatusDot status="Done" /><span className="text-[10px] text-muted-foreground">Done</span></div>
-              <div className="flex items-center gap-1.5"><StatusDot status="Not Done" /><span className="text-[10px] text-muted-foreground">Not Done</span></div>
-              <div className="flex items-center gap-1.5"><StatusDot status="Pending" /><span className="text-[10px] text-muted-foreground">Pending</span></div>
-              <div className="flex items-center gap-1.5"><StatusDot status="Not Required" /><span className="text-[10px] text-muted-foreground">Not Required</span></div>
+              <StatusPill status="Done" sentiment="Green" />
+              <StatusPill status="Done" sentiment="Yellow" />
+              <StatusPill status="Done" sentiment="Red" />
+              <StatusPill status="Not Done" />
+              <StatusPill status="Pending" />
+              <StatusPill status="Not Required" />
+              <span className="text-[10px] text-muted-foreground">Dot beside "Done" = client sentiment</span>
+            </div>
+          </div>
+        )}
+
+        {/* ========== TREND VIEW ========== */}
+        {viewMode === "trend" && (
+          <div className="space-y-4">
+            {/* Top KPI strip */}
+            <div className="grid grid-cols-4 gap-3">
+              <div className="bg-card border border-border rounded-xl p-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Open action items</div>
+                <div className="text-2xl font-medium text-warning mt-1">{trendData.openItems}</div>
+              </div>
+              <div className="bg-card border border-border rounded-xl p-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Closed action items</div>
+                <div className="text-2xl font-medium text-positive mt-1">{trendData.doneItems}</div>
+              </div>
+              <div className="bg-card border border-border rounded-xl p-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Decliners (last 2 MBRs)</div>
+                <div className="text-2xl font-medium text-destructive mt-1">{trendData.decliners.length}</div>
+              </div>
+              <div className="bg-card border border-border rounded-xl p-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Green streaks (≥3 mo)</div>
+                <div className="text-2xl font-medium text-positive mt-1">{trendData.streaks.length}</div>
+              </div>
+            </div>
+
+            {/* Charts */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-card border border-border rounded-xl p-4">
+                <div className="text-xs font-medium text-foreground mb-3">MBR compliance over time</div>
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={trendData.compliance}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                    <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" domain={[0, 100]} />
+                    <RechartsTooltip />
+                    <Line type="monotone" dataKey="compliancePct" stroke="hsl(var(--primary))" strokeWidth={2} name="% Done" dot />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="bg-card border border-border rounded-xl p-4">
+                <div className="text-xs font-medium text-foreground mb-3">Client sentiment mix per month</div>
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={trendData.compliance}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                    <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                    <RechartsTooltip />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Bar dataKey="green" stackId="s" fill="hsl(var(--positive))" name="Green" />
+                    <Bar dataKey="yellow" stackId="s" fill="hsl(var(--warning))" name="Yellow" />
+                    <Bar dataKey="red" stackId="s" fill="hsl(var(--destructive))" name="Red" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Insight tables */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-card border border-border rounded-xl overflow-hidden">
+                <div className="px-4 py-2 border-b border-border bg-secondary/20 text-xs font-medium text-foreground flex items-center gap-2">
+                  <TrendingUp className="h-3.5 w-3.5 text-destructive rotate-180" /> Top decliners
+                </div>
+                {trendData.decliners.length === 0 ? (
+                  <div className="p-4 text-xs text-muted-foreground">No declining sentiment in the latest period.</div>
+                ) : (
+                  <table className="w-full text-xs">
+                    <thead className="bg-secondary/10">
+                      <tr><th className="text-left px-3 py-1.5 font-medium text-muted-foreground">Deal</th><th className="text-left px-3 py-1.5 font-medium text-muted-foreground">VSD</th><th className="text-left px-3 py-1.5 font-medium text-muted-foreground">Shift</th></tr>
+                    </thead>
+                    <tbody>
+                      {trendData.decliners.map(({ deal, from, to }) => (
+                        <tr key={deal.id} className="border-t border-border/50">
+                          <td className="px-3 py-1.5"><Link to={`/deals/${deal.id}?tab=MBR`} className="text-primary hover:underline">{deal.dealName}</Link></td>
+                          <td className="px-3 py-1.5 text-muted-foreground">{deal.vsd || "—"}</td>
+                          <td className="px-3 py-1.5">{from} → <span className="font-medium">{to}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+              <div className="bg-card border border-border rounded-xl overflow-hidden">
+                <div className="px-4 py-2 border-b border-border bg-secondary/20 text-xs font-medium text-foreground flex items-center gap-2">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-positive" /> Most consistent (Green streaks)
+                </div>
+                {trendData.streaks.length === 0 ? (
+                  <div className="p-4 text-xs text-muted-foreground">No 3+ month Green streaks yet.</div>
+                ) : (
+                  <table className="w-full text-xs">
+                    <thead className="bg-secondary/10">
+                      <tr><th className="text-left px-3 py-1.5 font-medium text-muted-foreground">Deal</th><th className="text-left px-3 py-1.5 font-medium text-muted-foreground">VSD</th><th className="text-right px-3 py-1.5 font-medium text-muted-foreground">Streak</th></tr>
+                    </thead>
+                    <tbody>
+                      {trendData.streaks.map(({ deal, streak }) => (
+                        <tr key={deal.id} className="border-t border-border/50">
+                          <td className="px-3 py-1.5"><Link to={`/deals/${deal.id}?tab=MBR`} className="text-primary hover:underline">{deal.dealName}</Link></td>
+                          <td className="px-3 py-1.5 text-muted-foreground">{deal.vsd || "—"}</td>
+                          <td className="px-3 py-1.5 text-right font-medium text-positive">{streak} mo</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+              <div className="bg-card border border-border rounded-xl overflow-hidden">
+                <div className="px-4 py-2 border-b border-border bg-secondary/20 text-xs font-medium text-foreground flex items-center gap-2">
+                  <XCircle className="h-3.5 w-3.5 text-destructive" /> Chronic skippers (last 6 mo)
+                </div>
+                {trendData.skippers.length === 0 ? (
+                  <div className="p-4 text-xs text-muted-foreground">No chronic skippers — nice work.</div>
+                ) : (
+                  <table className="w-full text-xs">
+                    <thead className="bg-secondary/10">
+                      <tr><th className="text-left px-3 py-1.5 font-medium text-muted-foreground">Deal</th><th className="text-left px-3 py-1.5 font-medium text-muted-foreground">VSD</th><th className="text-right px-3 py-1.5 font-medium text-muted-foreground">Missed</th></tr>
+                    </thead>
+                    <tbody>
+                      {trendData.skippers.map(({ deal, missed }) => (
+                        <tr key={deal.id} className="border-t border-border/50">
+                          <td className="px-3 py-1.5"><Link to={`/deals/${deal.id}?tab=MBR`} className="text-primary hover:underline">{deal.dealName}</Link></td>
+                          <td className="px-3 py-1.5 text-muted-foreground">{deal.vsd || "—"}</td>
+                          <td className="px-3 py-1.5 text-right font-medium text-destructive">{missed} mo</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+              <div className="bg-card border border-border rounded-xl overflow-hidden">
+                <div className="px-4 py-2 border-b border-border bg-secondary/20 text-xs font-medium text-foreground flex items-center gap-2">
+                  <Clock className="h-3.5 w-3.5 text-warning" /> Oldest open action items
+                </div>
+                {trendData.oldestOpen.length === 0 ? (
+                  <div className="p-4 text-xs text-muted-foreground">No open action items.</div>
+                ) : (
+                  <table className="w-full text-xs">
+                    <thead className="bg-secondary/10">
+                      <tr><th className="text-left px-3 py-1.5 font-medium text-muted-foreground">Deal</th><th className="text-left px-3 py-1.5 font-medium text-muted-foreground">Task</th><th className="text-left px-3 py-1.5 font-medium text-muted-foreground">Owner</th><th className="text-left px-3 py-1.5 font-medium text-muted-foreground">Due</th></tr>
+                    </thead>
+                    <tbody>
+                      {trendData.oldestOpen.map((it, i) => (
+                        <tr key={i} className="border-t border-border/50">
+                          <td className="px-3 py-1.5"><Link to={`/deals/${it.deal.id}?tab=MBR`} className="text-primary hover:underline">{it.deal.dealName}</Link></td>
+                          <td className="px-3 py-1.5 truncate max-w-[200px]" title={it.task}>{it.task}</td>
+                          <td className="px-3 py-1.5 text-muted-foreground">{it.owner || "—"}</td>
+                          <td className="px-3 py-1.5 text-muted-foreground">{it.deadline || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
             </div>
           </div>
         )}
