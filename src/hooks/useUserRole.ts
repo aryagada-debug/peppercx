@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { createContext, createElement, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
 
@@ -55,7 +55,9 @@ interface UserRoleState {
   isReadOnly: boolean;
 }
 
-export function useUserRole(): UserRoleState {
+const UserRoleContext = createContext<UserRoleState | null>(null);
+
+function useUserRoleInternal(): UserRoleState {
   const { user, loading: authLoading } = useAuth();
   const [actualRole, setActualRole] = useState<AppRole | null>(null);
   const [viewAsRole, setViewAsRoleState] = useState<AppRole | null>(null);
@@ -169,4 +171,16 @@ export function useUserRole(): UserRoleState {
     canEditOwn: effectiveRole === "admin" || effectiveRole === "member" || effectiveRole === "user",
     isReadOnly: effectiveRole === "view_only",
   };
+}
+
+export function UserRoleProvider({ children }: { children: ReactNode }) {
+  const value = useUserRoleInternal();
+  return createElement(UserRoleContext.Provider, { value }, children);
+}
+
+export function useUserRole(): UserRoleState {
+  const ctx = useContext(UserRoleContext);
+  if (ctx) return ctx;
+  // Fallback (e.g., if used outside provider) — preserves old behavior.
+  return useUserRoleInternal();
 }
