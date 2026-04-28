@@ -481,6 +481,11 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
                         <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
                           {d.pcCode && <span className="font-mono">{d.pcCode}</span>}
                           {d.vsd && <span className="truncate">· {d.vsd}</span>}
+                          {d.endDate && (
+                            <span className="font-mono ml-auto shrink-0" title="Deal end date">
+                              ↦ {new Date(d.endDate).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "2-digit" })}
+                            </span>
+                          )}
                         </div>
                       )}
                     </button>
@@ -513,12 +518,29 @@ export function MatrixTab({ deals, people, assignments, onUpdateDeal, onUpsertAs
                     <Building2 className="h-3.5 w-3.5" />
                     <span>{selectedDeal.account}</span>
                     {selectedDeal.pcCode && <span className="font-mono">· {selectedDeal.pcCode}</span>}
+                    {selectedDeal.endDate && (
+                      <span className="font-mono" title="Deal end date">
+                        · Ends {new Date(selectedDeal.endDate).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" })}
+                      </span>
+                    )}
                   </div>
                   <h2 className="text-subhead font-bold text-foreground truncate mt-0.5">{selectedDeal.dealName || "(unnamed deal)"}</h2>
                 </div>
                 <div className="flex flex-wrap gap-3 text-right shrink-0">
                   <Stat label="MRR" value={fmtCurrency(selectedDeal.mrr)} />
                   <Stat label="TCV" value={fmtCurrency(selectedDeal.totalDealValue)} />
+                  {selectedDeal.endDate && (
+                    <Stat
+                      label="End"
+                      value={new Date(selectedDeal.endDate).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "2-digit" })}
+                      tone={(() => {
+                        const days = Math.ceil((new Date(selectedDeal.endDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                        if (days < 0) return "warn";
+                        if (days <= 30) return "warn";
+                        return "muted";
+                      })()}
+                    />
+                  )}
                   <Stat
                     label="Allocated"
                     value={`${totalAlloc.toFixed(0)}% · ${totalHours}h`}
