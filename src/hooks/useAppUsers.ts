@@ -245,12 +245,16 @@ export function useVsdUsers() {
 // chip filter shows exactly the deals whose P-BOPM / Sr BOPM rolls up to the
 // selected VSD per the deals sheet.
 
-let hierarchyCache: { map: Map<string, string>; ts: number } | null = null;
-const hierarchySubs = new Set<(m: Map<string, string>) => void>();
+interface HierarchyData {
+  map: Map<string, string>;                    // person nameKey -> VSD
+  bopmsByVsd: Map<string, string[]>;           // VSD -> sorted BOPM display names
+}
+let hierarchyCache: { data: HierarchyData; ts: number } | null = null;
+const hierarchySubs = new Set<(d: HierarchyData) => void>();
 let hierarchyChannel: ReturnType<typeof supabase.channel> | null = null;
 let hierarchyBound = false;
 
-async function loadHierarchy(): Promise<Map<string, string>> {
+async function loadHierarchy(): Promise<HierarchyData> {
   const { data } = await supabase
     .from("staffing_deals")
     .select("vsd, principal_bopm, senior_bopm");
@@ -258,9 +262,13 @@ async function loadHierarchy(): Promise<Map<string, string>> {
   // person nameKey -> { vsd: count } so the most-frequent VSD wins when a
   // person appears on deals tagged to multiple VSDs (rare but possible).
   const tally = new Map<string, Map<string, number>>();
+  // Track preferred display label (first non-empty original casing) per nameKey
+  const displayByKey = new Map<string, string>();
   const bump = (rawName: string | null | undefined, vsd: string) => {
     const k = nameKey(rawName || "");
     if (!k) return;
+    const trimmed = (rawName || "").trim();
+    if (trimmed && !displayByKey.has(k)) displayByKey.set(k, trimmed);
     let inner = tally.get(k);
     if (!inner) {
       inner = new Map();
@@ -277,19 +285,34 @@ async function loadHierarchy(): Promise<Map<string, string>> {
   });
 
   const personToVsd = new Map<string, string>();
+  const bopmsByVsd = new Map<string, Set<string>>();
   for (const [personKey, vsdCounts] of tally.entries()) {
     let bestVsd = "";
     let bestN = -1;
     for (const [v, n] of vsdCounts.entries()) {
       if (n > bestN) { bestN = n; bestVsd = v; }
     }
-    if (bestVsd) personToVsd.set(personKey, bestVsd);
+    if (bestVsd) {
+      personToVsd.set(personKey, bestVsd);
+      const display = displayByKey.get(personKey);
+      // Skip self-mapping (VSD's own name) and empties
+      if (display && nameKey(display) !== nameKey(bestVsd)) {
+        let set = bopmsByVsd.get(bestVsd);
+        if (!set) { set = new Set(); bopmsByVsd.set(bestVsd, set); }
+        set.add(display);
+      }
+    }
   }
 
   // Also map each VSD name to itself, so a deal where the BOPM cell literally
   // contains the VSD's name still resolves cleanly.
   VSD_NAMES.forEach((v) => personToVsd.set(nameKey(v), v));
-  return personToVsd;
+
+  const bopmsSorted = new Map<string, string[]>();
+  for (const [v, set] of bopmsByVsd.entries()) {
+    bopmsSorted.set(v, Array.from(set).sort((a, b) => a.localeCompare(b)));
+  }
+  return { map: personToVsd, bopmsByVsd: bopmsSorted };
 }
 
 function bindHierarchyRealtime() {
@@ -301,7 +324,7 @@ function bindHierarchyRealtime() {
   }
   const refresh = async () => {
     const next = await loadHierarchy();
-    hierarchyCache = { map: next, ts: Date.now() };
+    hierarchyCache = { data: next, ts: Date.now() };
     hierarchySubs.forEach((s) => s(next));
   };
   const ch = supabase.channel(`vsd-hierarchy-sync-${Date.now()}`);
@@ -311,20 +334,22 @@ function bindHierarchyRealtime() {
 }
 
 export function useVsdHierarchy() {
-  const [map, setMap] = useState<Map<string, string>>(hierarchyCache?.map || new Map());
+  const [data, setData] = useState<HierarchyData>(
+    hierarchyCache?.data || { map: new Map(), bopmsByVsd: new Map() },
+  );
   const [loading, setLoading] = useState(!hierarchyCache);
 
   useEffect(() => {
     bindHierarchyRealtime();
     let alive = true;
-    const sub = (m: Map<string, string>) => alive && setMap(m);
+    const sub = (d: HierarchyData) => alive && setData(d);
     hierarchySubs.add(sub);
 
     if (!hierarchyCache || Date.now() - hierarchyCache.ts > 60_000) {
       loadHierarchy().then((next) => {
         if (!alive) return;
-        hierarchyCache = { map: next, ts: Date.now() };
-        setMap(next);
+        hierarchyCache = { data: next, ts: Date.now() };
+        setData(next);
         setLoading(false);
       });
     } else {
@@ -341,9 +366,9 @@ export function useVsdHierarchy() {
     (name: string | null | undefined): string | null => {
       const k = nameKey(name || "");
       if (!k) return null;
-      return map.get(k) || null;
+      return data.map.get(k) || null;
     },
-    [map],
+    [data],
   );
 
   /** Resolve a deal's owning VSD by checking principal → senior BOPM only. */
@@ -367,5 +392,13 @@ export function useVsdHierarchy() {
     [vsdForPerson],
   );
 
-  return { vsdForPerson, vsdForDeal, loading };
+  const bopmsForVsd = useCallback(
+    (vsd: string | null | undefined): string[] => {
+      if (!vsd) return [];
+      return data.bopmsByVsd.get(vsd) || [];
+    },
+    [data],
+  );
+
+  return { vsdForPerson, vsdForDeal, bopmsForVsd, loading };
 }
