@@ -102,6 +102,16 @@ Deno.serve(async (req) => {
         await admin.from("staffing_deals").insert(p);
         break;
       }
+      case "deal.update": {
+        const targetId = reqRow.target_id;
+        if (!targetId) {
+          return new Response(JSON.stringify({ error: "Missing target_id for deal.update" }), {
+            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        await admin.from("staffing_deals").update(p).eq("id", targetId);
+        break;
+      }
       default:
         return new Response(JSON.stringify({ error: "Unknown request_type" }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
