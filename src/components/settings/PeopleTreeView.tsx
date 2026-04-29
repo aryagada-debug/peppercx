@@ -271,21 +271,12 @@ export function PeopleTreeView({ people, onAdd, onUpdate, onRequestDelete }: Pro
           <div
             style={{ paddingLeft: 12 + indent * 18 }}
             className={cn(
-              "group grid items-center gap-2 rounded-md py-1.5 pr-2 hover:bg-secondary/30",
+              "group flex items-center gap-2 rounded-md py-1.5 pr-2 hover:bg-secondary/30",
               isDrag && "opacity-40",
               p.leaving && "opacity-60",
             )}
-            // Tabular columns: chevron | grip | name | designation | band | email | actions
-            // Use template-columns for alignment.
-            // eslint-disable-next-line react/forbid-dom-props
           >
-            {/* This grid uses inline style for dynamic column widths */}
-            <div
-              className="contents"
-              style={{ display: "contents" }}
-            />
-            <div className="flex items-center gap-2 min-w-0" style={{ gridColumn: "1 / -1" }}>
-              <button
+            <button
                 type="button"
                 onClick={() => hasReports && toggle(reportsKey)}
                 className={cn(
@@ -295,8 +286,8 @@ export function PeopleTreeView({ people, onAdd, onUpdate, onRequestDelete }: Pro
                 title={hasReports ? (reportsOpen ? "Collapse reports" : "Expand reports") : ""}
               >
                 {reportsOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-              </button>
-              <GripVertical className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 cursor-grab shrink-0" />
+            </button>
+            <GripVertical className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 cursor-grab shrink-0" />
 
               {/* Name column */}
               <div className="w-[200px] shrink-0 truncate text-sm font-medium text-foreground">
@@ -394,7 +385,6 @@ export function PeopleTreeView({ people, onAdd, onUpdate, onRequestDelete }: Pro
             >
               <Trash2 className="h-3.5 w-3.5" />
               </button>
-            </div>
           </div>
         </DraggableRow>
       </DropTarget>
