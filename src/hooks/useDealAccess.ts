@@ -205,10 +205,6 @@ export function useDealAccess(): DealAccessState {
 
     const ownDealIds = new Set<string>();
     for (const d of allDeals) {
-      if (myAssignedDealIds.has(d.id)) {
-        ownDealIds.add(d.id);
-        continue;
-      }
       if (!me) continue;
       if (
         nameMatchesPerson(d.principal_bopm, me) ||
@@ -232,6 +228,15 @@ export function useDealAccess(): DealAccessState {
         }
       }
     }
+
+    // NOTE: We intentionally do NOT use `myAssignedDealIds` (rows from
+    // `staffing_assignments`) to grant visibility here. That table contains
+    // legacy/ghost rows that don't reflect the deal sheet's actual
+    // BOPM/VSD cells, and using it leaks deals to people not tagged on
+    // them (e.g. a Sr. BOPM seeing a deal where someone else is the
+    // senior_bopm). Visibility is driven purely by what's in the deal
+    // sheet, matching what the UI renders. `staffing_assignments` is
+    // still used elsewhere (capacity / staffing math).
 
     // BOPMs see ONLY their own tagged/staffed deals — not peer deals
     // in the same VSD pod. (Earlier the hook expanded to same-VSD peers
