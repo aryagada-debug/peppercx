@@ -362,17 +362,6 @@ export function BopmStaffingTables({ deals, people, allPeople, assignments }: Pr
                 const acctStats = accountStats.get(d.account || "—") || { peopleCount: 0, avgUtilPct: 0 };
                 const isOverUtilised = acctStats.avgUtilPct > 100;
 
-                // Detailed per-team data for expanded view (re-using existing logic)
-                const byTeam = new Map<string, StaffingAssignment[]>();
-                for (const a of aList) {
-                  const p = personById.get(a.personId);
-                  const cat = (p?.roleCategory || "Other") as string;
-                  if (!byTeam.has(cat)) byTeam.set(cat, []);
-                  byTeam.get(cat)!.push(a);
-                }
-                const orderedTeams = TEAM_ORDER.filter(t => byTeam.has(t))
-                  .concat(Array.from(byTeam.keys()).filter(k => !TEAM_ORDER.includes(k as RoleCategory)) as RoleCategory[]);
-
                 return (
                   <>
                     <tr
