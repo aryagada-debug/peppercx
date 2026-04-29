@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, Fragment } from "react";
 import { formatINR } from "@/lib/csvTargets";
 import { Link } from "react-router-dom";
 import { AlertTriangle, Clock, MessageSquare, UserMinus, ChevronRight } from "lucide-react";
-import { format, startOfMonth, addDays, subDays } from "date-fns";
+import { format, startOfMonth, subMonths, addDays, subDays, differenceInCalendarDays } from "date-fns";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { UtilizationBar, UtilizationLegend } from "@/components/dashboard/UtilizationBar";
@@ -17,6 +17,9 @@ import { FinanceTargetsCard } from "@/components/targets/FinanceTargetsCard";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useDealAccess } from "@/hooks/useDealAccess";
 import { BopmEmptyState } from "@/components/access/BopmEmptyState";
+import { computePortfolioScore, type ScoreOutput } from "@/lib/portfolioScore";
+import { PortfolioHealthCard } from "@/components/dashboard/PortfolioHealthCard";
+import { DealScorecardTable, type ScorecardRow } from "@/components/dashboard/DealScorecardTable";
 
 const ACTIVE_STATUSES = ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"];
 const RGY_DIMS = ["Internal", "Customer", "Delivery", "Consumption"] as const;
