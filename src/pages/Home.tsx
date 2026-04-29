@@ -934,44 +934,44 @@ export default function HomePage() {
           <Card className="col-span-12 lg:col-span-6 rounded-xl">
             <CardHeader className="pb-3">
               <CardTitle className="text-[15px] font-bold flex items-center gap-2">
-                <Clock3 className="h-4 w-4 text-primary" /> Recently viewed
+                <ActivityIcon className="h-4 w-4 text-primary" /> Activity in my accounts
+                <Badge variant="secondary" className="ml-1 text-[10px]">{activityItems.length}</Badge>
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {loadingRecents ? <SkeletonRows /> : recents.length === 0 ? (
-                <p className="text-xs text-muted-foreground py-2">Records you visit will appear here for quick access.</p>
+            <CardContent>
+              {loadingActivity ? <SkeletonRows /> : activityItems.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-2">No recent activity on accounts you're tagged into.</p>
               ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  {recents.map(r => (
-                    <button key={r.id} onClick={() => navigate(`/${r.entity_type === "deal" ? "deals" : "clients"}/${r.entity_id}`)}
-                      onContextMenu={(e) => { e.preventDefault(); pinFromRecent(r); }}
-                      title={`Viewed ${format(parseISO(r.viewed_at), "dd MMM, h:mm a")} · right-click to pin`}
-                      className="inline-flex items-center gap-1.5 rounded-full bg-secondary hover:bg-card hover:border-border border border-transparent px-3 py-1 text-xs text-foreground transition-colors max-w-[200px]">
-                      <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", recentColor(r.entity_type))} />
-                      <span className="truncate">{r.entity_name}</span>
-                    </button>
-                  ))}
+                <div className="space-y-1 max-h-[320px] overflow-y-auto">
+                  {activityItems.map(a => {
+                    const tone =
+                      a.kind === "slack" ? "bg-primary/15 text-primary" :
+                      a.kind === "rgy" ? "bg-destructive/15 text-destructive" :
+                      a.kind === "mbr" ? "bg-warning/15 text-warning" :
+                      "bg-positive/15 text-positive";
+                    const Icon =
+                      a.kind === "slack" ? MessageSquare :
+                      a.kind === "rgy" ? Flag :
+                      a.kind === "mbr" ? CalendarDays :
+                      ListTodo;
+                    return (
+                      <button key={a.id} onClick={() => navigate(a.href)}
+                        className="w-full text-left flex items-start gap-2 rounded-md hover:bg-secondary/40 px-2 py-2 transition-colors">
+                        <div className={cn("h-7 w-7 rounded flex items-center justify-center shrink-0", tone)}>
+                          <Icon className="h-3.5 w-3.5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[12.5px] leading-snug text-foreground line-clamp-2">
+                            <span className="font-semibold">{a.actor}</span> · {a.text}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            {a.deal_name}{a.account ? ` · ${a.account}` : ""} · {format(parseISO(a.at), "dd MMM, h:mm a")}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
-              )}
-              {pins.length > 0 && (
-                <>
-                  <div className="border-t border-border pt-3">
-                    <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-2">
-                      <Pin className="h-3 w-3" /> Pinned
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {pins.map(p => (
-                        <button key={p.id} onClick={() => navigate(`/${p.entity_type === "deal" ? "deals" : "clients"}/${p.entity_id}`)}
-                          onContextMenu={(e) => { e.preventDefault(); unpin(p.id); }}
-                          title="Right-click to unpin"
-                          className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 hover:bg-primary/20 px-3 py-1 text-xs text-primary transition-colors max-w-[200px]">
-                          <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
-                          <span className="truncate">{p.entity_name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </>
               )}
             </CardContent>
           </Card>
