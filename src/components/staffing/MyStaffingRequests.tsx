@@ -420,6 +420,8 @@ interface DraftRow {
   remove: boolean;
   status: string;
   editable: boolean;
+  /** True if this row was added inside the dialog and doesn't exist in DB yet. */
+  isNew?: boolean;
 }
 
 function EditRequestDialog({ req, children, dealMap, personMap, onClose, onSaved }: EditRequestDialogProps) {
@@ -445,6 +447,9 @@ function EditRequestDialog({ req, children, dealMap, personMap, onClose, onSaved
   const [batchTitle, setBatchTitle] = useState(req.batch_title || "");
   const [batchNote, setBatchNote] = useState(req.requester_note || "");
   const [saving, setSaving] = useState(false);
+  const [showAddPicker, setShowAddPicker] = useState(false);
+  const [addPersonId, setAddPersonId] = useState<string>("");
+  const [addAlloc, setAddAlloc] = useState<number>(10);
 
   const updateDraft = (id: string, patch: Partial<DraftRow>) => {
     setDrafts(d => d.map(r => r.id === id ? { ...r, ...patch } : r));
@@ -452,12 +457,45 @@ function EditRequestDialog({ req, children, dealMap, personMap, onClose, onSaved
 
   const personLabel = (id: string) => personMap.get(id)?.name || id || "—";
   const deal = dealMap.get(req.deal_id);
+  const peopleList = useMemo(() => Array.from(personMap.values()).filter(p => !p.leaving), [personMap]);
+
+  const stageNewPerson = () => {
+    if (!addPersonId) { toast.error("Pick a person to add"); return; }
+    const person = personMap.get(addPersonId);
+    if (!person) return;
+    const dealId = req.deal_id || drafts[0]?.dealId || "";
+    const newRow: DraftRow = {
+      id: `new_${uid()}`,
+      requestType: "staffing.add",
+      dealId,
+      personId: addPersonId,
+      roleKey: person.roleTitle || person.roleCategory || "",
+      currentAlloc: null,
+      requestedAlloc: addAlloc,
+      note: "",
+      remove: false,
+      status: "pending",
+      editable: true,
+      isNew: true,
+    };
+    setDrafts(prev => [...prev, newRow]);
+    setAddPersonId("");
+    setAddAlloc(10);
+    setShowAddPicker(false);
+  };
 
   const save = async () => {
     setSaving(true);
     try {
-      const toDelete = drafts.filter(d => d.remove && d.editable).map(d => d.id);
-      const toUpdate = drafts.filter(d => !d.remove && d.editable);
+      // Drop any new-and-removed rows entirely (never persisted).
+      const liveDrafts = drafts.filter(d => !(d.isNew && d.remove));
+      const toDelete = liveDrafts
+        .filter(d => d.remove && d.editable && !d.isNew)
+        .map(d => d.id);
+      const toUpdate = liveDrafts
+        .filter(d => !d.remove && d.editable && !d.isNew);
+      const toInsert = liveDrafts
+        .filter(d => !d.remove && d.editable && d.isNew);
 
       // Per-sub-item updates: requested alloc + note.
       for (const d of toUpdate) {
@@ -466,6 +504,8 @@ function EditRequestDialog({ req, children, dealMap, personMap, onClose, onSaved
         if (d.requestedAlloc !== null && d.requestedAlloc !== undefined) {
           newPayload.allocationPct = d.requestedAlloc;
         }
+        if (d.personId) newPayload.personId = d.personId;
+        if (d.roleKey) newPayload.roleKey = d.roleKey;
         const patch: any = {
           payload: newPayload,
           requester_note: d.note,
@@ -478,19 +518,81 @@ function EditRequestDialog({ req, children, dealMap, personMap, onClose, onSaved
         await (supabase as any).from("approval_requests").delete().in("id", toDelete);
       }
 
+      // Promote a non-batch parent into a batch if we're inserting new sub-items.
+      let parentId = req.id;
+      let parentIsBatch = !!req.is_batch;
+      if (toInsert.length && !parentIsBatch) {
+        // Re-parent the original single-item request as a child of a new batch parent.
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { toast.error("Sign-in required"); return; }
+        const { data: newParent, error: pErr } = await (supabase as any)
+          .from("approval_requests")
+          .insert({
+            request_type: req.request_type,
+            payload: { item_count: 1 + toInsert.length },
+            previous: {},
+            deal_id: req.deal_id,
+            target_kind: "staffing_batch",
+            target_id: "",
+            requested_by: user.id,
+            requested_by_name: req.requested_by_name,
+            requester_note: batchNote || req.requester_note || "",
+            status: "pending",
+            is_batch: true,
+            batch_title: batchTitle || `${deal?.account || ""} — ${deal?.dealName || ""}`.trim(),
+          })
+          .select("*").single();
+        if (pErr || !newParent) { toast.error(pErr?.message || "Could not add items"); return; }
+        await (supabase as any)
+          .from("approval_requests")
+          .update({ parent_id: newParent.id })
+          .eq("id", req.id);
+        parentId = newParent.id;
+        parentIsBatch = true;
+      }
+
+      // Insert any new sub-items as children of the (possibly new) batch parent.
+      if (toInsert.length) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { toast.error("Sign-in required"); return; }
+        const childRows = toInsert.map(d => ({
+          request_type: "staffing.add",
+          payload: {
+            id: uid(),
+            dealId: d.dealId,
+            personId: d.personId,
+            roleKey: d.roleKey,
+            allocationPct: d.requestedAlloc ?? 0,
+          },
+          previous: {},
+          deal_id: d.dealId,
+          target_kind: "staffing_assignment",
+          target_id: "",
+          requested_by: user.id,
+          requested_by_name: req.requested_by_name,
+          requester_note: d.note,
+          status: "pending",
+          parent_id: parentId,
+        }));
+        const { error: cErr } = await (supabase as any)
+          .from("approval_requests").insert(childRows);
+        if (cErr) { toast.error(cErr.message || "Could not add items"); return; }
+      }
+
       // Batch parent updates.
-      if (req.is_batch) {
-        const remainingChildren = drafts.filter(d => !(d.remove && d.editable));
+      if (parentIsBatch) {
+        const remainingChildren = liveDrafts.filter(d => !(d.remove && d.editable));
         if (remainingChildren.length === 0) {
           // Nothing left → delete the parent too.
-          await (supabase as any).from("approval_requests").delete().eq("id", req.id);
+          await (supabase as any).from("approval_requests").delete().eq("id", parentId);
         } else {
           await (supabase as any).from("approval_requests").update({
             batch_title: batchTitle,
             requester_note: batchNote,
-          }).eq("id", req.id);
+          }).eq("id", parentId);
         }
       }
+      toast.success("Request updated");
       onSaved();
     } finally {
       setSaving(false);
@@ -499,7 +601,7 @@ function EditRequestDialog({ req, children, dealMap, personMap, onClose, onSaved
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle className="text-base">Edit change request</DialogTitle>
           <div className="text-xs text-muted-foreground">
@@ -507,25 +609,27 @@ function EditRequestDialog({ req, children, dealMap, personMap, onClose, onSaved
           </div>
         </DialogHeader>
 
-        {req.is_batch && (
-          <div className="space-y-2">
-            <label className="text-[11px] font-medium text-muted-foreground">Request title</label>
-            <input
-              value={batchTitle}
-              onChange={e => setBatchTitle(e.target.value)}
-              className="w-full h-8 px-2 rounded-md border border-border bg-background text-sm"
-              placeholder="Short title for this batch"
-            />
-            <label className="text-[11px] font-medium text-muted-foreground">Note for reviewer</label>
-            <textarea
-              value={batchNote}
-              onChange={e => setBatchNote(e.target.value)}
-              rows={2}
-              className="w-full px-2 py-1.5 rounded-md border border-border bg-background text-xs"
-              placeholder="Why are you proposing these changes?"
-            />
-          </div>
-        )}
+        <div className="space-y-2">
+          {req.is_batch && (
+            <>
+              <label className="text-[11px] font-medium text-muted-foreground">Request title</label>
+              <input
+                value={batchTitle}
+                onChange={e => setBatchTitle(e.target.value)}
+                className="w-full h-8 px-2 rounded-md border border-border bg-background text-sm"
+                placeholder="Short title for this batch"
+              />
+            </>
+          )}
+          <label className="text-[11px] font-medium text-muted-foreground">Note for reviewer</label>
+          <textarea
+            value={batchNote}
+            onChange={e => setBatchNote(e.target.value)}
+            rows={2}
+            className="w-full px-2 py-1.5 rounded-md border border-border bg-background text-xs"
+            placeholder="Why are you proposing these changes?"
+          />
+        </div>
 
         <div className="rounded-lg border border-border overflow-hidden">
           <table className="w-full text-xs">
@@ -543,6 +647,7 @@ function EditRequestDialog({ req, children, dealMap, personMap, onClose, onSaved
             <tbody className="divide-y divide-border/60">
               {drafts.map(d => {
                 const allocEditable = d.editable && d.requestType !== "staffing.remove";
+                const personEditable = d.editable && d.requestType !== "staffing.remove";
                 return (
                   <tr key={d.id} className={cn(d.remove && "opacity-40 line-through")}>
                     <td className="px-3 py-2">
@@ -550,12 +655,53 @@ function EditRequestDialog({ req, children, dealMap, personMap, onClose, onSaved
                         TYPE_PILL[d.requestType] || "bg-stone-50 text-stone-700 border-stone-200")}>
                         {TYPE_LABEL[d.requestType] || d.requestType}
                       </span>
+                      {d.isNew && (
+                        <div className="text-[9px] font-semibold uppercase tracking-wide text-emerald-700 mt-1">New</div>
+                      )}
                       {!d.editable && (
                         <div className="text-[10px] text-muted-foreground mt-1">{d.status}</div>
                       )}
                     </td>
-                    <td className="px-3 py-2 font-medium text-foreground">{personLabel(d.personId)}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{d.roleKey || "—"}</td>
+                    <td className="px-3 py-2 font-medium text-foreground">
+                      {personEditable ? (
+                        <select
+                          value={d.personId}
+                          onChange={e => {
+                            const newId = e.target.value;
+                            const p = personMap.get(newId);
+                            updateDraft(d.id, {
+                              personId: newId,
+                              ...(p && !d.roleKey ? { roleKey: p.roleTitle || p.roleCategory || "" } : {}),
+                            });
+                          }}
+                          className="h-7 px-2 rounded-md border border-border bg-background text-xs max-w-[200px]"
+                        >
+                          {!d.personId && <option value="">— pick a person —</option>}
+                          {d.personId && !personMap.get(d.personId) && (
+                            <option value={d.personId}>{d.personId}</option>
+                          )}
+                          {peopleList.map(pp => (
+                            <option key={pp.id} value={pp.id}>
+                              {pp.name}{pp.tbh ? " (TBH)" : ""} · {pp.roleCategory}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span>{personLabel(d.personId)}</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {d.editable ? (
+                        <input
+                          value={d.roleKey}
+                          onChange={e => updateDraft(d.id, { roleKey: e.target.value })}
+                          placeholder="Role"
+                          className="w-full h-7 px-2 rounded-md border border-border bg-background text-[11px]"
+                        />
+                      ) : (
+                        <span>{d.roleKey || "—"}</span>
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
                       {d.currentAlloc !== null ? `${d.currentAlloc}%` : "—"}
                     </td>
@@ -586,7 +732,7 @@ function EditRequestDialog({ req, children, dealMap, personMap, onClose, onSaved
                       )}
                     </td>
                     <td className="px-2 py-2 text-right">
-                      {d.editable && req.is_batch && (
+                      {d.editable && (
                         <button
                           onClick={() => updateDraft(d.id, { remove: !d.remove })}
                           title={d.remove ? "Keep this change" : "Remove this change from the request"}
@@ -602,6 +748,49 @@ function EditRequestDialog({ req, children, dealMap, personMap, onClose, onSaved
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Add a person to this request */}
+        <div className="rounded-lg border border-dashed border-border p-2.5 space-y-2">
+          {!showAddPicker ? (
+            <button
+              type="button"
+              onClick={() => setShowAddPicker(true)}
+              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-border bg-card hover:bg-secondary/40 text-[11px] font-medium text-foreground"
+            ><Plus className="h-3 w-3" /> Add person to this request</button>
+          ) : (
+            <div className="flex items-center gap-2 flex-wrap">
+              <select
+                value={addPersonId}
+                onChange={e => setAddPersonId(e.target.value)}
+                className="h-8 px-2 rounded-md border border-border bg-background text-xs flex-1 min-w-[200px]"
+              >
+                <option value="">— pick a person —</option>
+                {peopleList.map(pp => (
+                  <option key={pp.id} value={pp.id}>{pp.name} · {pp.roleCategory}</option>
+                ))}
+              </select>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={addAlloc}
+                  onChange={e => setAddAlloc(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+                  className="w-16 h-8 px-2 text-right rounded-md border border-border bg-background tabular-nums text-xs"
+                />
+                <span className="text-[11px] text-muted-foreground">%</span>
+              </div>
+              <button
+                onClick={stageNewPerson}
+                className="h-8 px-3 rounded-md bg-foreground text-background text-xs font-medium"
+              >Add</button>
+              <button
+                onClick={() => { setShowAddPicker(false); setAddPersonId(""); setAddAlloc(10); }}
+                className="h-8 px-2 rounded-md border border-border text-xs text-muted-foreground hover:bg-secondary/50"
+              >Cancel</button>
+            </div>
+          )}
         </div>
 
         {req.is_batch && (
