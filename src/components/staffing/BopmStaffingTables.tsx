@@ -486,6 +486,21 @@ export function BopmStaffingTables({ deals, people, allPeople, assignments, onAd
           </table>
         </div>
       </div>
+
+      {addForDeal && (
+        <AddStaffingMemberDialog
+          open={!!addForDeal}
+          onOpenChange={(v) => { if (!v) setAddForDeal(null); }}
+          people={allPeople}
+          assignments={assignments}
+          deals={deals}
+          dealId={addForDeal}
+          onAdd={(assignment) => {
+            onAddAssignment(assignment);
+            setAddForDeal(null);
+          }}
+        />
+      )}
     </section>
   );
 }
