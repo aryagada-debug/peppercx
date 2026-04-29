@@ -643,43 +643,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Row 1: Annual Target (compact) */}
-        <Card className="rounded-xl">
-          <CardHeader className="pb-3 flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-[15px] font-bold flex items-center gap-2">
-              <Target className="h-4 w-4 text-primary" /> Annual Target
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loadingQuota ? <Skeleton className="h-24" /> : !quota ? (
-              <div className="text-center py-4">
-                <Target className="h-7 w-7 text-muted-foreground/40 mx-auto mb-1.5" />
-                <p className="text-xs text-muted-foreground">No annual quota assigned.</p>
-                <p className="text-[10px] text-muted-foreground mt-1">Ask your admin to set a quota.</p>
-              </div>
-            ) : (
-              <div className="flex items-center gap-6 flex-wrap">
-                <QuotaDonut pct={quotaMath?.pct || 0} />
-                <div className="flex-1 grid grid-cols-3 gap-4 text-xs min-w-[280px]">
-                  <KvRow label="Closed" value={formatINR(closedAmount)} />
-                  <KvRow label="Target" value={formatINR(quota.target_amount)} />
-                  <KvRow label="Days left" value={String(quotaMath?.remaining || 0)} />
-                </div>
-                {quotaMath && (
-                  <PacePill
-                    onPace={quotaMath.onPace}
-                    paceDelta={quotaMath.paceDelta}
-                    dailyTarget={quotaMath.dailyTarget}
-                    elapsed={quotaMath.elapsed}
-                    pct={quotaMath.pct}
-                  />
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Row 2: My Tasks — full-width Kanban (2-way synced with deal tasks) */}
+        {/* My Tasks — full-width Kanban (2-way synced with deal tasks) */}
         <Card id="my-tasks-card" className="rounded-xl">
           <CardHeader className="pb-3">
             <CardTitle className="text-[15px] font-bold flex items-center gap-2">
@@ -705,6 +669,7 @@ export default function HomePage() {
                 onUpdate={handleKanbanUpdate}
                 onDelete={handleKanbanDelete}
                 disableAdd
+                compact
               />
             )}
           </CardContent>
