@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Search, Plus, Trash2, Info } from "lucide-react";
+import { ChevronDown, ChevronRight, Search, Plus, Trash2, Info, Send, RotateCcw, X, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatINR } from "@/lib/csvTargets";
 import type { Deal, Person, StaffingAssignment, RoleCategory } from "@/data/staffingData";
+import { uid } from "@/data/staffingData";
+import { submitStaffingBatch, type BatchItem } from "@/lib/approvals";
 import { AddStaffingMemberDialog } from "./AddStaffingMemberDialog";
 
 interface Props {
@@ -87,12 +89,119 @@ const personInitial = (name: string): string => {
 
 const MONTH_HOURS = 160;
 
+type DealDraft = {
+  adds: StaffingAssignment[];                         // newly proposed people
+  updates: Record<string, Partial<StaffingAssignment>>; // assignmentId → patch
+  removes: Record<string, true>;                       // assignmentId → mark for removal
+};
+
+const emptyDraft = (): DealDraft => ({ adds: [], updates: {}, removes: {} });
+
 export function BopmStaffingTables({ deals, people, allPeople, assignments, onAddAssignment, onUpdateAssignment, onDeleteAssignment }: Props) {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [addForDeal, setAddForDeal] = useState<string | null>(null);
   const [allocDraft, setAllocDraft] = useState<Record<string, string>>({});
   const personById = useMemo(() => new Map(people.map(p => [p.id, p])), [people]);
+  const allPersonById = useMemo(() => new Map(allPeople.map(p => [p.id, p])), [allPeople]);
+  // Per-deal staged change set. Submitted as a single batch of sub-requests.
+  const [drafts, setDrafts] = useState<Record<string, DealDraft>>({});
+  const [submitting, setSubmitting] = useState<Record<string, boolean>>({});
+  const [noteByDeal, setNoteByDeal] = useState<Record<string, string>>({});
+
+  const getDraft = (dealId: string): DealDraft => drafts[dealId] || emptyDraft();
+  const setDraft = (dealId: string, next: DealDraft) =>
+    setDrafts(prev => ({ ...prev, [dealId]: next }));
+  const draftCount = (d: DealDraft) =>
+    d.adds.length + Object.keys(d.updates).length + Object.keys(d.removes).length;
+
+  const stageAdd = (dealId: string, a: StaffingAssignment) => {
+    const cur = getDraft(dealId);
+    setDraft(dealId, { ...cur, adds: [...cur.adds, { ...a, id: a.id || uid() }] });
+  };
+  const stageUpdate = (dealId: string, assignmentId: string, patch: Partial<StaffingAssignment>) => {
+    const cur = getDraft(dealId);
+    // If this is a draft-add row (id starts with id_), apply the patch directly to the staged add.
+    const addIdx = cur.adds.findIndex(a => a.id === assignmentId);
+    if (addIdx >= 0) {
+      const nextAdds = cur.adds.slice();
+      nextAdds[addIdx] = { ...nextAdds[addIdx], ...patch };
+      setDraft(dealId, { ...cur, adds: nextAdds });
+      return;
+    }
+    setDraft(dealId, { ...cur, updates: { ...cur.updates, [assignmentId]: { ...(cur.updates[assignmentId] || {}), ...patch } } });
+  };
+  const stageRemove = (dealId: string, assignmentId: string) => {
+    const cur = getDraft(dealId);
+    const addIdx = cur.adds.findIndex(a => a.id === assignmentId);
+    if (addIdx >= 0) {
+      const nextAdds = cur.adds.slice(); nextAdds.splice(addIdx, 1);
+      setDraft(dealId, { ...cur, adds: nextAdds });
+      return;
+    }
+    setDraft(dealId, { ...cur, removes: { ...cur.removes, [assignmentId]: true } });
+  };
+  const unstageRemove = (dealId: string, assignmentId: string) => {
+    const cur = getDraft(dealId);
+    const { [assignmentId]: _, ...rest } = cur.removes;
+    setDraft(dealId, { ...cur, removes: rest });
+  };
+  const unstageUpdate = (dealId: string, assignmentId: string) => {
+    const cur = getDraft(dealId);
+    const { [assignmentId]: _, ...rest } = cur.updates;
+    setDraft(dealId, { ...cur, updates: rest });
+  };
+  const discardDraft = (dealId: string) => {
+    setDrafts(prev => {
+      const { [dealId]: _, ...rest } = prev; return rest;
+    });
+    setNoteByDeal(prev => {
+      const { [dealId]: _, ...rest } = prev; return rest;
+    });
+  };
+
+  const submitDraft = async (deal: Deal) => {
+    const d = getDraft(deal.id);
+    const items: BatchItem[] = [];
+    for (const a of d.adds) {
+      items.push({
+        type: "staffing.add",
+        dealId: deal.id,
+        targetId: a.id,
+        payload: a,
+      });
+    }
+    for (const [assignmentId, patch] of Object.entries(d.updates)) {
+      const current = assignments.find(x => x.id === assignmentId);
+      items.push({
+        type: "staffing.update",
+        dealId: deal.id,
+        targetId: assignmentId,
+        previous: current || {},
+        payload: { id: assignmentId, ...patch },
+      });
+    }
+    for (const assignmentId of Object.keys(d.removes)) {
+      const current = assignments.find(x => x.id === assignmentId);
+      items.push({
+        type: "staffing.remove",
+        dealId: deal.id,
+        targetId: assignmentId,
+        previous: current || {},
+        payload: { id: assignmentId },
+      });
+    }
+    if (!items.length) return;
+    setSubmitting(prev => ({ ...prev, [deal.id]: true }));
+    const title = `${deal.account} — ${deal.dealName} · ${items.length} staffing change${items.length === 1 ? "" : "s"}`;
+    const res = await submitStaffingBatch({
+      title,
+      note: (noteByDeal[deal.id] || "").trim(),
+      items,
+    });
+    setSubmitting(prev => ({ ...prev, [deal.id]: false }));
+    if (res) discardDraft(deal.id);
+  };
 
   const assignmentsByDeal = useMemo(() => {
     const m = new Map<string, StaffingAssignment[]>();
