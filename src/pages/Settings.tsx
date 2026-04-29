@@ -2,7 +2,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { cn } from "@/lib/utils";
 import { useState, useMemo } from "react";
 import { useStaffingData } from "@/hooks/useStaffingData";
-import { Loader2, Pencil, Check, X, Search, Trash2, LayoutGrid, Table as TableIcon } from "lucide-react";
+import { Loader2, Pencil, Check, X, Search, Trash2, LayoutGrid, Table as TableIcon, ListTree, Network, AtSign } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,6 +25,9 @@ import {
 } from "@dnd-kit/core";
 import { formatINR } from "@/lib/csvTargets";
 import { GripVertical } from "lucide-react";
+import { PeopleTreeView } from "@/components/settings/PeopleTreeView";
+import { OrgChartView } from "@/components/settings/OrgChartView";
+import { EmailMappingTable } from "@/components/settings/EmailMappingTable";
 
 const tabs = [
   "People & Reporting",
@@ -122,12 +125,12 @@ function InlineEdit({
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>("People & Reporting");
-  const { people, revenueTargets, loading, updatePerson, deletePerson, setRevenueTargets } = useStaffingData();
+  const { people, revenueTargets, loading, addPerson, updatePerson, deletePerson, setRevenueTargets } = useStaffingData();
   const { isActuallyAdmin } = useUserRole();
   const [search, setSearch] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const [draggingPersonId, setDraggingPersonId] = useState<string | null>(null);
-  const [peopleView, setPeopleView] = useState<"table" | "cards">("table");
+  const [peopleView, setPeopleView] = useState<"tree" | "org" | "email">("tree");
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const filteredPeople = useMemo(() => {
