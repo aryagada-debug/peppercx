@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { Loader2, X, ChevronDown, ChevronUp, Clock, CheckCircle2, XCircle, Pencil, Trash2 } from "lucide-react";
+import { Loader2, X, ChevronDown, ChevronUp, Clock, CheckCircle2, XCircle, Pencil, Trash2, Plus } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -7,6 +7,8 @@ import { deleteApprovalRequest } from "@/lib/approvals";
 import type { ApprovalRequestRow } from "@/lib/approvals";
 import { cn } from "@/lib/utils";
 import type { Deal, Person } from "@/data/staffingData";
+import { uid } from "@/data/staffingData";
+import { toast } from "sonner";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
