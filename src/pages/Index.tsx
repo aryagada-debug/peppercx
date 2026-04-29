@@ -319,13 +319,13 @@ function LegacyDashboard() {
       const prevActuals = (prevRev || []).filter((r: any) => activeIds.has(r.deal_id))
         .reduce((s: number, r: any) => s + (Number(r.actuals) || 0), 0);
       const prevAttain = prevTarget > 0 ? Math.round((prevActuals / prevTarget) * 100) : attainment;
-      const prevOverdue = (prevPendingMbrs || []).filter((m: any) => activeIds.has(m.deal_id)).length;
+      const prevOverdue = (prevPendingMbrs || []).filter((m: any) => activeIds.has(m.deal_id)).length + missingMbrCount;
       if (prevStatuses.length > 0 || (prevRev || []).length > 0) {
         const prev = computePortfolioScore({
           rgyStatuses: prevStatuses.length > 0 ? prevStatuses : allStatuses,
           attainmentPct: prevAttain,
           overdueMbrCount: prevOverdue,
-          unstaffedCount: unstaffedCount, // staffing snapshot rarely retro-available
+          unstaffedCount: unstaffedCount + noSlackChannelCount,
           totalDeals,
         });
         setPreviousScore(prev.score);
