@@ -1,13 +1,18 @@
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, Search, Plus, Trash2, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatINR } from "@/lib/csvTargets";
 import type { Deal, Person, StaffingAssignment, RoleCategory } from "@/data/staffingData";
+import { AddStaffingMemberDialog } from "./AddStaffingMemberDialog";
 
 interface Props {
   deals: Deal[];
   people: Person[];
+  allPeople: Person[];
   assignments: StaffingAssignment[];
+  onAddAssignment: (a: StaffingAssignment) => void;
+  onUpdateAssignment: (id: string, updates: Partial<StaffingAssignment>) => void;
+  onDeleteAssignment: (id: string) => void;
 }
 
 // Group people on a deal by their team capability (role category).
@@ -82,9 +87,11 @@ const personInitial = (name: string): string => {
 
 const MONTH_HOURS = 160;
 
-export function BopmStaffingTables({ deals, people, assignments }: Props) {
+export function BopmStaffingTables({ deals, people, allPeople, assignments, onAddAssignment, onUpdateAssignment, onDeleteAssignment }: Props) {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState<Set<string>>(new Set());
+  const [addForDeal, setAddForDeal] = useState<string | null>(null);
+  const [allocDraft, setAllocDraft] = useState<Record<string, string>>({});
   const personById = useMemo(() => new Map(people.map(p => [p.id, p])), [people]);
 
   const assignmentsByDeal = useMemo(() => {
