@@ -645,82 +645,72 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Row 1: Quota (4) + My Tasks (8) */}
-        <div className="grid grid-cols-12 gap-4">
-          <Card className="col-span-12 lg:col-span-4 rounded-xl">
-            <CardHeader className="pb-3 flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-[15px] font-bold flex items-center gap-2">
-                <Target className="h-4 w-4 text-primary" />
-                {periodType === "month" ? "Monthly Target" : "Annual Target"}
-              </CardTitle>
-              <Select value={periodType} onValueChange={(v) => setPeriodType(v as any)}>
-                <SelectTrigger className="h-7 w-[100px] text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="month">Monthly</SelectItem>
-                  <SelectItem value="year">Annual</SelectItem>
-                </SelectContent>
-              </Select>
-            </CardHeader>
-            <CardContent>
-              {loadingQuota ? <Skeleton className="h-32" /> : !quota ? (
-                <div className="text-center py-6">
-                  <Target className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
-                  <p className="text-xs text-muted-foreground">No quota assigned for this {periodType}.</p>
-                  <p className="text-[10px] text-muted-foreground mt-1">Ask your admin to set a quota.</p>
+        {/* Row 1: Annual Target (compact) */}
+        <Card className="rounded-xl">
+          <CardHeader className="pb-3 flex-row items-center justify-between space-y-0">
+            <CardTitle className="text-[15px] font-bold flex items-center gap-2">
+              <Target className="h-4 w-4 text-primary" /> Annual Target
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loadingQuota ? <Skeleton className="h-24" /> : !quota ? (
+              <div className="text-center py-4">
+                <Target className="h-7 w-7 text-muted-foreground/40 mx-auto mb-1.5" />
+                <p className="text-xs text-muted-foreground">No annual quota assigned.</p>
+                <p className="text-[10px] text-muted-foreground mt-1">Ask your admin to set a quota.</p>
+              </div>
+            ) : (
+              <div className="flex items-center gap-6 flex-wrap">
+                <QuotaDonut pct={quotaMath?.pct || 0} />
+                <div className="flex-1 grid grid-cols-3 gap-4 text-xs min-w-[280px]">
+                  <KvRow label="Closed" value={formatINR(closedAmount)} />
+                  <KvRow label="Target" value={formatINR(quota.target_amount)} />
+                  <KvRow label="Days left" value={String(quotaMath?.remaining || 0)} />
                 </div>
-              ) : (
-                <div>
-                  <div className="flex items-center gap-4">
-                    <QuotaDonut pct={quotaMath?.pct || 0} />
-                    <div className="flex-1 space-y-2 text-xs">
-                      <KvRow label="Closed" value={formatINR(closedAmount)} />
-                      <KvRow label="Target" value={formatINR(quota.target_amount)} />
-                      <KvRow label="Days left" value={String(quotaMath?.remaining || 0)} />
-                    </div>
-                  </div>
-                  {quotaMath && (
-                    <PacePill
-                      onPace={quotaMath.onPace}
-                      paceDelta={quotaMath.paceDelta}
-                      dailyTarget={quotaMath.dailyTarget}
-                      elapsed={quotaMath.elapsed}
-                      pct={quotaMath.pct}
-                    />
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                {quotaMath && (
+                  <PacePill
+                    onPace={quotaMath.onPace}
+                    paceDelta={quotaMath.paceDelta}
+                    dailyTarget={quotaMath.dailyTarget}
+                    elapsed={quotaMath.elapsed}
+                    pct={quotaMath.pct}
+                  />
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-          <Card id="my-tasks-card" className="col-span-12 lg:col-span-8 rounded-xl">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-[15px] font-bold flex items-center gap-2">
-                <ListTodo className="h-4 w-4 text-primary" /> My Tasks
-                <Badge variant="secondary" className="ml-1 text-[10px]">{allMyTasks.length}</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {loadingTasks ? <SkeletonRows /> : (
-                <Tabs value={taskFilter === "all" ? "today" : taskFilter} onValueChange={(v) => setTaskFilter(v as any)}>
-                  <TabsList className="mb-3 bg-secondary">
-                    <TabsTrigger value="overdue">Overdue ({overdue.length})</TabsTrigger>
-                    <TabsTrigger value="today">Today ({today.length})</TabsTrigger>
-                    <TabsTrigger value="upcoming">Upcoming ({upcoming.length})</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="overdue">
-                    <TaskRows tasks={overdue} onComplete={onTaskComplete} onOpenEdit={(t) => t.kind === "deal" && setEditingDealTask(t.raw)} emptyText="All caught up ✨" readOnly={isReadOnly} />
-                  </TabsContent>
-                  <TabsContent value="today">
-                    <TaskRows tasks={today} onComplete={onTaskComplete} onOpenEdit={(t) => t.kind === "deal" && setEditingDealTask(t.raw)} emptyText="Nothing due today. Nice." readOnly={isReadOnly} />
-                  </TabsContent>
-                  <TabsContent value="upcoming">
-                    <TaskRows tasks={upcoming} onComplete={onTaskComplete} onOpenEdit={(t) => t.kind === "deal" && setEditingDealTask(t.raw)} emptyText="Plan something for the week →" readOnly={isReadOnly} />
-                  </TabsContent>
-                </Tabs>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+        {/* Row 2: My Tasks — full-width Kanban (2-way synced with deal tasks) */}
+        <Card id="my-tasks-card" className="rounded-xl">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-[15px] font-bold flex items-center gap-2">
+              <ListTodo className="h-4 w-4 text-primary" /> My Tasks
+              <Badge variant="secondary" className="ml-1 text-[10px]">{myKanbanTasks.length}</Badge>
+              <span className="ml-2 text-[10px] font-normal text-muted-foreground">
+                Synced with deal tasks · changes here update everywhere
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loadingTasks ? <SkeletonRows /> : myKanbanTasks.length === 0 ? (
+              <div className="text-center py-8">
+                <CheckCircle2 className="h-8 w-8 text-positive/40 mx-auto mb-2" />
+                <p className="text-xs text-muted-foreground">No tasks assigned to you. Tasks created on a deal where you're tagged will appear here.</p>
+              </div>
+            ) : (
+              <TaskKanban
+                tasks={myKanbanTasks}
+                dealId=""
+                assignees={allPeople.filter(p => !p.tbh).map(p => ({ id: p.id, name: p.name }))}
+                onAdd={() => { /* adding without a deal context is disabled on Home */ }}
+                onUpdate={handleKanbanUpdate}
+                onDelete={handleKanbanDelete}
+                disableAdd
+              />
+            )}
+          </CardContent>
+        </Card>
 
         {/* Row 2: Today's Calendar (6) + Smart Nudges (6) */}
         <div className="grid grid-cols-12 gap-4">
