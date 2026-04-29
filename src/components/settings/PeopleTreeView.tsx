@@ -452,6 +452,43 @@ export function PeopleTreeView({ people, onAdd, onUpdate, onRequestDelete }: Pro
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={() => {
+              // Collapse all teams + subteams.
+              const next: Record<string, boolean> = { ...expanded };
+              sortedTeams.forEach(team => {
+                next[`team::${team}`] = false;
+                const subMap = grouped.get(team);
+                if (subMap) Array.from(subMap.keys()).forEach(sub => {
+                  next[`subteam::${team}::${sub}`] = false;
+                });
+              });
+              setExpanded(next);
+            }}
+            className="h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md border border-border text-xs text-muted-foreground hover:bg-secondary/50"
+            title="Collapse all teams"
+          >
+            <ChevronsDownUp className="h-3.5 w-3.5" /> Collapse all
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const next: Record<string, boolean> = { ...expanded };
+              sortedTeams.forEach(team => {
+                next[`team::${team}`] = true;
+                const subMap = grouped.get(team);
+                if (subMap) Array.from(subMap.keys()).forEach(sub => {
+                  next[`subteam::${team}::${sub}`] = true;
+                });
+              });
+              setExpanded(next);
+            }}
+            className="h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md border border-border text-xs text-muted-foreground hover:bg-secondary/50"
+            title="Expand all teams"
+          >
+            <ChevronsUpDown className="h-3.5 w-3.5" /> Expand all
+          </button>
+          <button
+            type="button"
             onClick={() => setAddTeamOpen(true)}
             className="h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md border border-border text-xs hover:bg-secondary/50"
           >
