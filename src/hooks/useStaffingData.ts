@@ -18,6 +18,7 @@ function dbToPerson(row: any): Person {
     hourlyRate: row.hourly_rate ? Number(row.hourly_rate) : 0,
     email: row.email || "",
     slackUserId: row.slack_user_id || "",
+    subTeam: row.sub_team || "",
   };
 }
 
@@ -30,6 +31,7 @@ function personToDb(p: Person): TablesInsert<"staffing_people"> {
     hourly_rate: p.hourlyRate || 0,
     email: p.email || "",
     slack_user_id: p.slackUserId || "",
+    sub_team: p.subTeam || "",
   };
 }
 
