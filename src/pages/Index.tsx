@@ -70,6 +70,9 @@ export default function Dashboard() {
   const [rgyRows, setRgyRows] = useState<RGYRow[]>([]);
   const [vsdRollup, setVsdRollup] = useState<VsdRollup[]>([]);
   const [expandedVsd, setExpandedVsd] = useState<Set<string>>(new Set());
+  const [currentScore, setCurrentScore] = useState<ScoreOutput | null>(null);
+  const [previousScore, setPreviousScore] = useState<number | null>(null);
+  const [scorecardRows, setScorecardRows] = useState<ScorecardRow[]>([]);
   const { role } = useUserRole();
   const { visibleDealIds, loading: accessLoading } = useDealAccess();
   const isBopmPersona = role === "user";
