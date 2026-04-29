@@ -14,9 +14,10 @@ import { BopmEmptyState } from "@/components/access/BopmEmptyState";
 import { StaffingReviewRequestsButton } from "@/components/staffing/StaffingReviewRequests";
 import { BopmStaffingSummary } from "@/components/staffing/BopmStaffingSummary";
 import { BopmStaffingTables } from "@/components/staffing/BopmStaffingTables";
+import { BopmStaffingFlatTable } from "@/components/staffing/BopmStaffingFlatTable";
 import { MyStaffingRequests } from "@/components/staffing/MyStaffingRequests";
 
-type Tab = "deals" | "people" | "matrix" | "tables" | "requests";
+type Tab = "deals" | "people" | "matrix" | "tables" | "table" | "requests";
 
 // Deal statuses considered "active" for the BOPM staffing view.
 // Closed deals (Completed / Churned) are hidden.
@@ -29,11 +30,11 @@ export default function Staffing() {
   const { role } = useUserRole();
   const { visibleDealIds, loading: accessLoading } = useDealAccess();
   const isBopmPersona = role === "user";
-  const [tab, setTab] = useState<Tab>(tabParam || (isBopmPersona ? "tables" : "deals"));
+  const [tab, setTab] = useState<Tab>(tabParam || (isBopmPersona ? "table" : "deals"));
 
   // BOPM persona: only the two BOPM-facing tabs are valid.
   useEffect(() => {
-    if (isBopmPersona && tab !== "tables" && tab !== "requests") setTab("tables");
+    if (isBopmPersona && tab !== "tables" && tab !== "table" && tab !== "requests") setTab("table");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isBopmPersona]);
 
@@ -95,7 +96,8 @@ export default function Staffing() {
 
   const TABS: { key: Tab; label: string }[] = isBopmPersona
     ? [
-        { key: "tables",   label: "Staffing" },
+        { key: "table",    label: "Table view" },
+        { key: "tables",   label: "Grouped view" },
         { key: "requests", label: "Change requests" },
       ]
     : [
@@ -147,7 +149,16 @@ export default function Staffing() {
           </div>
         </div>
 
-        {showBopmEmpty && tab === "tables" && <BopmEmptyState section="Staffing & Capacity" />}
+        {showBopmEmpty && (tab === "tables" || tab === "table") && <BopmEmptyState section="Staffing & Capacity" />}
+
+        {isBopmPersona && !showBopmEmpty && tab === "table" && (
+          <BopmStaffingFlatTable
+            deals={activeBopmDeals}
+            people={scopedPeople}
+            allPeople={people}
+            assignments={scopedAssignments}
+          />
+        )}
 
         {isBopmPersona && !showBopmEmpty && tab === "tables" && (
           <BopmStaffingTables
