@@ -277,7 +277,7 @@ export function TaskKanban({ tasks, dealId, assignees, onAdd, onUpdate, onDelete
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex gap-3 overflow-x-auto pb-4" style={{ minHeight: compact ? 200 : 400 }}>
+        <div className="flex items-start gap-3 overflow-x-auto pb-4" style={{ minHeight: compact ? 480 : 400 }}>
           {STAGES.map(stage => {
             const stageTasks = tasks.filter(t => t.stage === stage).sort((a, b) => a.sortOrder - b.sortOrder);
             const colors = STAGE_COLORS[stage];
