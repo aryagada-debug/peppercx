@@ -24,24 +24,11 @@ type DealDraft = {
 
 const emptyDraft = (): DealDraft => ({ adds: [], updates: {}, removes: {} });
 
-const TEAM_PILL: Record<string, string> = {
-  Operations:           "bg-blue-50 text-blue-900 border-blue-200",
-  Content:              "bg-stone-50 text-stone-900 border-stone-200",
-  "Content Strategy":   "bg-stone-50 text-stone-900 border-stone-200",
-  SEO:                  "bg-emerald-50 text-emerald-900 border-emerald-200",
-  "Performance & Growth":"bg-emerald-50 text-emerald-900 border-emerald-200",
-  "Creative Strategy":  "bg-amber-50 text-amber-900 border-amber-200",
-  "Creative Copy":      "bg-amber-50 text-amber-900 border-amber-200",
-  "Creative Art":       "bg-amber-50 text-amber-900 border-amber-200",
-  Video:                "bg-rose-50 text-rose-900 border-rose-200",
-  Other:                "bg-secondary text-foreground border-border",
-};
-
-const teamPillCls = (cat?: string) => TEAM_PILL[cat || "Other"] || TEAM_PILL.Other;
-
 /**
- * Flat tabular staffing view for BOPMs — one row per (deal × person).
- * Same staging + submit-to-Central-Cx flow as the grouped BopmStaffingTables.
+ * Horizontal pivot staffing view for BOPMs.
+ * Rows = (Account · Deal). Columns = Roles. Each cell shows the person(s)
+ * staffed for that role with an inline allocation %; hrs/wk are auto-derived.
+ * Functionality (staging + batched submit to Central Cx) is unchanged.
  */
 export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }: Props) {
   const [search, setSearch] = useState("");
@@ -60,10 +47,6 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
   const draftCount = (d: DealDraft) =>
     d.adds.length + Object.keys(d.updates).length + Object.keys(d.removes).length;
 
-  const stageAdd = (dealId: string, a: StaffingAssignment) => {
-    const cur = getDraft(dealId);
-    setDraft(dealId, { ...cur, adds: [...cur.adds, { ...a, id: a.id || uid() }] });
-  };
   const stageUpdate = (dealId: string, assignmentId: string, patch: Partial<StaffingAssignment>) => {
     const cur = getDraft(dealId);
     const addIdx = cur.adds.findIndex(a => a.id === assignmentId);
@@ -74,6 +57,10 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
       return;
     }
     setDraft(dealId, { ...cur, updates: { ...cur.updates, [assignmentId]: { ...(cur.updates[assignmentId] || {}), ...patch } } });
+  };
+  const stageAdd = (dealId: string, a: StaffingAssignment) => {
+    const cur = getDraft(dealId);
+    setDraft(dealId, { ...cur, adds: [...cur.adds, { ...a, id: a.id || uid() }] });
   };
   const stageRemove = (dealId: string, assignmentId: string) => {
     const cur = getDraft(dealId);
@@ -132,81 +119,79 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
     if (res) discardDraft(deal.id);
   };
 
-  // Build flat row list: existing assignments (with draft updates / remove flags)
-  // followed by any staged adds.
-  type FlatRow = {
-    kind: "existing" | "added";
+  // ── Build the horizontal pivot data ───────────────────────────────────────
+  type CellEntry = {
     assignmentId: string;
-    dealId: string;
     personId: string;
-    roleKey: string;
     allocationPct: number;
-    isMarkedRemove: boolean;
     isAdded: boolean;
     isUpdated: boolean;
+    isMarkedRemove: boolean;
   };
 
-  const flatRows: FlatRow[] = useMemo(() => {
-    const out: FlatRow[] = [];
+  // For each deal, get the effective assignment list (existing + adds, applying updates/removes)
+  const dealRoleMap = useMemo(() => {
+    // Map<dealId, Map<roleKey, CellEntry[]>>
+    const out = new Map<string, Map<string, CellEntry[]>>();
     for (const d of deals) {
       const dDraft = drafts[d.id] || emptyDraft();
+      const byRole = new Map<string, CellEntry[]>();
       const aList = assignments.filter(a => a.dealId === d.id);
       for (const a of aList) {
         const patch = dDraft.updates[a.id];
-        out.push({
-          kind: "existing",
+        const entry: CellEntry = {
           assignmentId: a.id,
-          dealId: d.id,
           personId: patch?.personId ?? a.personId,
-          roleKey: patch?.roleKey ?? a.roleKey,
           allocationPct: patch?.allocationPct ?? a.allocationPct,
-          isMarkedRemove: !!dDraft.removes[a.id],
           isAdded: false,
           isUpdated: !!patch,
-        });
+          isMarkedRemove: !!dDraft.removes[a.id],
+        };
+        const key = patch?.roleKey ?? a.roleKey ?? "—";
+        if (!byRole.has(key)) byRole.set(key, []);
+        byRole.get(key)!.push(entry);
       }
       for (const a of dDraft.adds) {
-        out.push({
-          kind: "added",
+        const entry: CellEntry = {
           assignmentId: a.id,
-          dealId: d.id,
           personId: a.personId,
-          roleKey: a.roleKey,
           allocationPct: a.allocationPct,
-          isMarkedRemove: false,
           isAdded: true,
           isUpdated: false,
-        });
+          isMarkedRemove: false,
+        };
+        const key = a.roleKey || "—";
+        if (!byRole.has(key)) byRole.set(key, []);
+        byRole.get(key)!.push(entry);
       }
+      out.set(d.id, byRole);
     }
     return out;
   }, [deals, assignments, drafts]);
 
-  const filteredRows = useMemo(() => {
+  // Union of all role keys across visible deals
+  const allRoleKeys = useMemo(() => {
+    const set = new Set<string>();
+    dealRoleMap.forEach(byRole => byRole.forEach((_, k) => set.add(k)));
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [dealRoleMap]);
+
+  // Filter deals by search (matches account/deal/person within deal)
+  const filteredDeals = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return flatRows;
-    return flatRows.filter(r => {
-      const d = dealById.get(r.dealId);
-      const p = allPersonById.get(r.personId);
-      const hay = `${d?.account || ""} ${d?.dealName || ""} ${d?.dealId || ""} ${p?.name || ""} ${p?.roleTitle || ""} ${p?.roleCategory || ""} ${r.roleKey || ""}`.toLowerCase();
+    const sorted = [...deals].sort((a, b) =>
+      (a.account || "").localeCompare(b.account || "") ||
+      (a.dealName || "").localeCompare(b.dealName || "")
+    );
+    if (!q) return sorted;
+    return sorted.filter(d => {
+      const byRole = dealRoleMap.get(d.id);
+      const personHay = byRole ? Array.from(byRole.values()).flat()
+        .map(e => allPersonById.get(e.personId)?.name || "").join(" ").toLowerCase() : "";
+      const hay = `${d.account} ${d.dealName} ${d.dealId} ${personHay}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [flatRows, search, dealById, allPersonById]);
-
-  // Sort rows: by account → deal → team → person
-  const sortedRows = useMemo(() => {
-    return [...filteredRows].sort((a, b) => {
-      const da = dealById.get(a.dealId), db = dealById.get(b.dealId);
-      const acA = (da?.account || "").localeCompare(db?.account || "");
-      if (acA !== 0) return acA;
-      const dnA = (da?.dealName || "").localeCompare(db?.dealName || "");
-      if (dnA !== 0) return dnA;
-      const pa = allPersonById.get(a.personId), pb = allPersonById.get(b.personId);
-      const tA = (pa?.roleCategory || "").localeCompare(pb?.roleCategory || "");
-      if (tA !== 0) return tA;
-      return (pa?.name || "").localeCompare(pb?.name || "");
-    });
-  }, [filteredRows, dealById, allPersonById]);
+  }, [deals, search, dealRoleMap, allPersonById]);
 
   // Aggregate top stats
   const totals = useMemo(() => {
@@ -220,16 +205,116 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
       dealCount: deals.length,
       peopleCount: uniquePeople.size,
       avgUtilPct: uniquePeople.size > 0 ? Math.round(allocSum / uniquePeople.size) : 0,
+      assignmentCount: assignments.length,
     };
   }, [deals, assignments]);
 
-  // Group sortedRows by dealId so we can render per-deal staging footers
   const dealsWithDrafts = Object.keys(drafts).filter(dId => draftCount(drafts[dId]) > 0);
 
-  // Find first deal id without an existing assignment row (used by "Add person to a deal")
   const dealsForAdd = useMemo(() => deals.slice().sort((a, b) =>
     (a.account || "").localeCompare(b.account || "") || (a.dealName || "").localeCompare(b.dealName || "")
   ), [deals]);
+
+  // ── Render a single cell entry (one staffed person under a deal+role) ────
+  const renderEntry = (deal: Deal, roleKey: string, e: CellEntry) => {
+    const p = allPersonById.get(e.personId);
+    const teamCat = (p?.roleCategory || "Other") as RoleCategory;
+    const sameTeam = allPeople.filter(pp => pp.roleCategory === teamCat && !pp.leaving);
+    const others = allPeople.filter(pp => pp.roleCategory !== teamCat && !pp.leaving);
+
+    const draftKey = e.assignmentId;
+    const draftVal = allocDraft[draftKey];
+    const allocVal = draftVal !== undefined ? draftVal : String(e.allocationPct);
+    const allocNum = Number(allocVal);
+    const hrs = ((Number.isFinite(allocNum) ? allocNum : e.allocationPct) / 100) * MONTH_HOURS / 4.33;
+
+    return (
+      <div
+        key={e.assignmentId}
+        className={cn(
+          "rounded-md border px-1.5 py-1 space-y-1 transition-colors",
+          e.isMarkedRemove ? "bg-rose-50/70 border-rose-200" :
+          e.isAdded ? "bg-emerald-50/70 border-emerald-200" :
+          e.isUpdated ? "bg-amber-50/70 border-amber-200" :
+          "bg-background border-border/60"
+        )}
+      >
+        <div className="flex items-center gap-1">
+          <select
+            value={e.personId}
+            disabled={e.isMarkedRemove}
+            onChange={ev => {
+              const val = ev.target.value;
+              if (val && val !== e.personId) stageUpdate(deal.id, e.assignmentId, { personId: val });
+            }}
+            className={cn(
+              "h-6 px-1.5 rounded border border-border bg-background text-[11px] flex-1 min-w-0 truncate",
+              e.isMarkedRemove && "line-through opacity-60"
+            )}
+            title="Choose a different person"
+          >
+            <option value={e.personId}>{p?.name || "—"}{p?.tbh ? " (TBH)" : ""}</option>
+            <optgroup label={`Same team (${teamCat})`}>
+              {sameTeam.filter(pp => pp.id !== e.personId).slice(0, 80).map(pp => (
+                <option key={pp.id} value={pp.id}>{pp.name}{pp.tbh ? " (TBH)" : ""}</option>
+              ))}
+            </optgroup>
+            <optgroup label="Other teams">
+              {others.slice(0, 80).map(pp => (
+                <option key={pp.id} value={pp.id}>{pp.name} · {pp.roleCategory}</option>
+              ))}
+            </optgroup>
+          </select>
+          {e.isUpdated && !e.isMarkedRemove && (
+            <button
+              type="button"
+              onClick={() => unstageUpdate(deal.id, e.assignmentId)}
+              title="Revert edits"
+              className="h-6 w-6 inline-flex items-center justify-center rounded border border-border text-muted-foreground hover:bg-secondary/50"
+            ><RotateCcw className="h-3 w-3" /></button>
+          )}
+          {e.isMarkedRemove ? (
+            <button
+              type="button"
+              onClick={() => unstageRemove(deal.id, e.assignmentId)}
+              title="Cancel removal"
+              className="h-6 px-1.5 inline-flex items-center gap-0.5 rounded border border-border text-[10px] text-muted-foreground hover:bg-secondary/50"
+            ><X className="h-2.5 w-2.5" /></button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => stageRemove(deal.id, e.assignmentId)}
+              title={e.isAdded ? "Remove from this request" : "Mark for removal"}
+              className="h-6 w-6 inline-flex items-center justify-center rounded border border-border text-muted-foreground hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200"
+            ><Trash2 className="h-3 w-3" /></button>
+          )}
+        </div>
+        <div className="flex items-center justify-between gap-1">
+          <div className="flex items-center gap-0.5">
+            <input
+              type="number"
+              min={0}
+              max={100}
+              step={1}
+              disabled={e.isMarkedRemove}
+              value={allocVal}
+              onChange={ev => setAllocDraft(prev => ({ ...prev, [draftKey]: ev.target.value }))}
+              onBlur={() => {
+                const n = Math.max(0, Math.min(100, Number(allocVal)));
+                if (Number.isFinite(n) && n !== e.allocationPct) {
+                  stageUpdate(deal.id, e.assignmentId, { allocationPct: n });
+                }
+                setAllocDraft(prev => { const next = { ...prev }; delete next[draftKey]; return next; });
+              }}
+              className="h-6 w-12 px-1 rounded border border-border bg-background text-right font-mono text-[11px] disabled:opacity-50"
+            />
+            <span className="text-[10px] text-muted-foreground">%</span>
+          </div>
+          <span className="font-mono text-[10px] text-muted-foreground">{hrs.toFixed(1)}h/wk</span>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <section className="space-y-3">
@@ -242,16 +327,16 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
           <span className="mx-1.5">·</span>
           <span className="font-medium text-foreground">{totals.avgUtilPct}% avg utilization</span>
           <span className="mx-1.5">·</span>
-          <span className="font-medium text-foreground">{sortedRows.length} rows</span>
+          <span className="font-medium text-foreground">{totals.assignmentCount} assignments</span>
         </p>
       </div>
 
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <header className="px-4 py-3 border-b border-border flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <h3 className="text-sm font-semibold text-foreground">Staffing — table view</h3>
+            <h3 className="text-sm font-semibold text-foreground">Staffing — pivot view</h3>
             <p className="text-[11px] text-muted-foreground">
-              One row per person. Edit allocation % or person inline; changes are sent to Central Cx for approval.
+              One row per deal · one column per role. Edit person or % inline; changes are sent to Central Cx.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -278,159 +363,63 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
         </header>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead className="bg-secondary/40 text-[10px] uppercase tracking-wider text-muted-foreground">
+          <table className="text-xs border-collapse" style={{ minWidth: "100%" }}>
+            <thead className="bg-secondary/40 text-[10px] uppercase tracking-wider text-muted-foreground sticky top-0">
               <tr>
-                <th className="px-3 py-2 text-left w-[180px]">Account</th>
-                <th className="px-3 py-2 text-left w-[200px]">Deal</th>
-                <th className="px-3 py-2 text-left w-[110px]">Team</th>
-                <th className="px-3 py-2 text-left">Person</th>
-                <th className="px-3 py-2 text-left">Role</th>
-                <th className="px-3 py-2 text-right w-[110px]">Allocation %</th>
-                <th className="px-3 py-2 text-right w-[80px]">Hrs / wk</th>
-                <th className="px-3 py-2 text-right w-[100px]">MRR</th>
-                <th className="px-3 py-2 text-right w-[100px]">Actions</th>
+                <th className="px-3 py-2 text-left w-[220px] sticky left-0 bg-secondary/60 z-10 border-r border-border">Account · Deal</th>
+                <th className="px-3 py-2 text-right w-[90px] border-r border-border">MRR</th>
+                {allRoleKeys.length === 0 ? (
+                  <th className="px-3 py-2 text-left text-muted-foreground/60">No roles staffed yet</th>
+                ) : allRoleKeys.map(rk => (
+                  <th key={rk} className="px-2 py-2 text-left w-[200px] border-r border-border/60 whitespace-nowrap">
+                    {rk}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {sortedRows.length === 0 && (
-                <tr><td colSpan={9} className="px-3 py-6 text-center text-muted-foreground text-xs">
-                  {search ? "No rows match your search." : "No staffing yet on your active deals."}
+              {filteredDeals.length === 0 && (
+                <tr><td colSpan={2 + Math.max(1, allRoleKeys.length)} className="px-3 py-6 text-center text-muted-foreground text-xs">
+                  {search ? "No deals match your search." : "No active deals to staff."}
                 </td></tr>
               )}
-              {sortedRows.map((r, idx) => {
-                const d = dealById.get(r.dealId);
-                const p = allPersonById.get(r.personId);
-                const draftKey = r.assignmentId;
-                const draftVal = allocDraft[draftKey];
-                const allocVal = draftVal !== undefined ? draftVal : String(r.allocationPct);
-                const allocNum = Number(allocVal);
-                const hrs = ((Number.isFinite(allocNum) ? allocNum : r.allocationPct) / 100) * MONTH_HOURS / 4.33;
-                const teamCat = (p?.roleCategory || "Other") as RoleCategory;
-                // people candidates: prefer same role category, then everyone
-                const sameTeam = allPeople.filter(pp => pp.roleCategory === teamCat && !pp.leaving);
-                const others = allPeople.filter(pp => pp.roleCategory !== teamCat && !pp.leaving);
-                const prevRow = idx > 0 ? sortedRows[idx - 1] : null;
-                const sameAccountAsPrev = prevRow && dealById.get(prevRow.dealId)?.account === d?.account;
-                const sameDealAsPrev = prevRow && prevRow.dealId === r.dealId;
+              {filteredDeals.map(d => {
+                const byRole = dealRoleMap.get(d.id) || new Map<string, CellEntry[]>();
                 return (
-                  <tr
-                    key={`${r.dealId}-${r.assignmentId}`}
-                    className={cn(
-                      "border-t border-border/50 hover:bg-secondary/10",
-                      r.isMarkedRemove && "bg-rose-50/50",
-                      r.isAdded && "bg-emerald-50/40",
-                      r.isUpdated && !r.isMarkedRemove && "bg-amber-50/40",
+                  <tr key={d.id} className="border-t border-border/50 align-top">
+                    <td className="px-3 py-2 sticky left-0 bg-card z-10 border-r border-border">
+                      <div className="font-medium text-foreground truncate max-w-[220px]">{d.account}</div>
+                      <div className="text-[11px] text-muted-foreground truncate max-w-[220px]">{d.dealName}</div>
+                      <div className="font-mono text-[10px] text-muted-foreground">{d.dealId}</div>
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono text-foreground border-r border-border whitespace-nowrap">
+                      {formatINR(d.mrr || 0)}
+                    </td>
+                    {allRoleKeys.length === 0 && (
+                      <td className="px-2 py-2">
+                        <button
+                          type="button"
+                          onClick={() => setAddForDeal(d.id)}
+                          className="h-6 px-2 inline-flex items-center gap-1 rounded border border-dashed border-border text-[11px] text-muted-foreground hover:bg-secondary/50"
+                        ><Plus className="h-3 w-3" /> Add person</button>
+                      </td>
                     )}
-                  >
-                    <td className="px-3 py-2 align-top">
-                      {!sameAccountAsPrev ? (
-                        <span className="font-medium text-foreground">{d?.account || "—"}</span>
-                      ) : (
-                        <span className="text-muted-foreground/40">"</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 align-top">
-                      {!sameDealAsPrev ? (
-                        <>
-                          <div className="font-medium text-foreground truncate max-w-[200px]">{d?.dealName || "—"}</div>
-                          <div className="font-mono text-[10px] text-muted-foreground">{d?.dealId}</div>
-                        </>
-                      ) : (
-                        <span className="text-muted-foreground/40">"</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 align-top">
-                      <span className={cn("inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium", teamPillCls(teamCat))}>
-                        {teamCat}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 align-top">
-                      <div className="flex items-center gap-1.5">
-                        <select
-                          value={r.personId}
-                          disabled={r.isMarkedRemove}
-                          onChange={e => {
-                            const val = e.target.value;
-                            if (val && val !== r.personId) stageUpdate(r.dealId, r.assignmentId, { personId: val });
-                          }}
-                          className={cn(
-                            "h-7 px-2 rounded-md border border-border bg-background text-xs max-w-[200px]",
-                            r.isMarkedRemove && "line-through opacity-60"
-                          )}
-                          title="Choose a different person"
-                        >
-                          <option value={r.personId}>{p?.name || "—"}{p?.tbh ? " (TBH)" : ""}</option>
-                          <optgroup label={`Same team (${teamCat})`}>
-                            {sameTeam.filter(pp => pp.id !== r.personId).slice(0, 80).map(pp => (
-                              <option key={pp.id} value={pp.id}>{pp.name}{pp.tbh ? " (TBH)" : ""}</option>
-                            ))}
-                          </optgroup>
-                          <optgroup label="Other teams">
-                            {others.slice(0, 80).map(pp => (
-                              <option key={pp.id} value={pp.id}>{pp.name} · {pp.roleCategory}</option>
-                            ))}
-                          </optgroup>
-                        </select>
-                        {r.isAdded && <span className="text-[9px] font-semibold uppercase tracking-wide rounded px-1 py-0.5 bg-emerald-100 text-emerald-800">New</span>}
-                        {r.isUpdated && !r.isMarkedRemove && <span className="text-[9px] font-semibold uppercase tracking-wide rounded px-1 py-0.5 bg-amber-100 text-amber-800">Edited</span>}
-                        {r.isMarkedRemove && <span className="text-[9px] font-semibold uppercase tracking-wide rounded px-1 py-0.5 bg-rose-100 text-rose-800">Remove</span>}
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 text-muted-foreground align-top truncate max-w-[180px]">
-                      {p?.roleTitle || r.roleKey || "—"}
-                    </td>
-                    <td className="px-3 py-2 text-right align-top">
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        step={1}
-                        disabled={r.isMarkedRemove}
-                        value={allocVal}
-                        onChange={e => setAllocDraft(prev => ({ ...prev, [draftKey]: e.target.value }))}
-                        onBlur={() => {
-                          const n = Math.max(0, Math.min(100, Number(allocVal)));
-                          if (Number.isFinite(n) && n !== r.allocationPct) {
-                            stageUpdate(r.dealId, r.assignmentId, { allocationPct: n });
-                          }
-                          setAllocDraft(prev => { const next = { ...prev }; delete next[draftKey]; return next; });
-                        }}
-                        className="h-7 w-16 px-2 rounded-md border border-border bg-background text-right font-mono text-xs disabled:opacity-50"
-                      />
-                      <span className="ml-1 text-muted-foreground">%</span>
-                    </td>
-                    <td className="px-3 py-2 text-right font-mono text-muted-foreground align-top">{hrs.toFixed(1)}h</td>
-                    <td className="px-3 py-2 text-right font-mono text-foreground align-top whitespace-nowrap">
-                      {!sameDealAsPrev ? formatINR(d?.mrr || 0) : <span className="text-muted-foreground/40">"</span>}
-                    </td>
-                    <td className="px-3 py-2 text-right align-top">
-                      <div className="inline-flex items-center gap-1">
-                        {r.isUpdated && !r.isMarkedRemove && (
-                          <button
-                            type="button"
-                            onClick={() => unstageUpdate(r.dealId, r.assignmentId)}
-                            title="Revert edits"
-                            className="h-7 w-7 inline-flex items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-secondary/50"
-                          ><RotateCcw className="h-3.5 w-3.5" /></button>
-                        )}
-                        {r.isMarkedRemove ? (
-                          <button
-                            type="button"
-                            onClick={() => unstageRemove(r.dealId, r.assignmentId)}
-                            title="Cancel removal"
-                            className="h-7 px-2 inline-flex items-center gap-1 rounded-md border border-border text-[11px] text-muted-foreground hover:bg-secondary/50"
-                          ><X className="h-3 w-3" /> Undo</button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => stageRemove(r.dealId, r.assignmentId)}
-                            title={r.isAdded ? "Remove from this request" : "Mark for removal"}
-                            className="h-7 w-7 inline-flex items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200"
-                          ><Trash2 className="h-3.5 w-3.5" /></button>
-                        )}
-                      </div>
-                    </td>
+                    {allRoleKeys.map(rk => {
+                      const entries = byRole.get(rk) || [];
+                      return (
+                        <td key={rk} className="px-2 py-2 border-r border-border/60 align-top">
+                          <div className="space-y-1">
+                            {entries.map(e => renderEntry(d, rk, e))}
+                            <button
+                              type="button"
+                              onClick={() => setAddForDeal(d.id)}
+                              className="h-6 w-full inline-flex items-center justify-center gap-1 rounded border border-dashed border-border/60 text-[10px] text-muted-foreground/80 hover:bg-secondary/30 hover:text-foreground"
+                              title={`Add another person to ${rk}`}
+                            ><Plus className="h-3 w-3" />{entries.length === 0 ? "Add" : ""}</button>
+                          </div>
+                        </td>
+                      );
+                    })}
                   </tr>
                 );
               })}
