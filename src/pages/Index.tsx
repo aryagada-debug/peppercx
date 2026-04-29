@@ -238,8 +238,13 @@ function LegacyDashboard() {
       setVsdRollup(rollup);
 
       // ---- Alerts ----
-      const overdueMbrCount = (pendingMbrs || []).filter((m: any) => activeIds.has(m.deal_id)).length;
+      const dealsWithAnyMbr = new Set((anyMbrs || []).map((m: any) => m.deal_id));
+      const overduePendingCount = (pendingMbrs || []).filter((m: any) => activeIds.has(m.deal_id)).length;
+      const missingMbrCount = dealList.filter((d: any) => !dealsWithAnyMbr.has(d.id)).length;
+      // Total MBR non-compliance: deals with overdue pending MBR + deals with no MBR mapped at all.
+      const overdueMbrCount = overduePendingCount + missingMbrCount;
       const inactiveChannels = new Set((inact || []).map((i: any) => i.channel_id)).size;
+      const noSlackChannelCount = dealList.filter((d: any) => !d.slack_channel_id).length;
       const staffedDeals = new Set((assigns || []).map((a: any) => a.deal_id));
       const unstaffedCount = dealList.filter((d: any) => !staffedDeals.has(d.id)).length;
 
@@ -286,7 +291,7 @@ function LegacyDashboard() {
         rgyStatuses: allStatuses,
         attainmentPct: attainment,
         overdueMbrCount: overdueMbrCount,
-        unstaffedCount: unstaffedCount,
+        unstaffedCount: unstaffedCount + noSlackChannelCount,
         totalDeals,
       });
       setCurrentScore(score);
