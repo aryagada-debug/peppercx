@@ -40,7 +40,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ColHeader } from "@/components/table/ColHeader";
 import { useAppUsers, useVsdUsers } from "@/hooks/useAppUsers";
 import { ReadOnlyBanner } from "@/components/access/ReadOnlyBanner";
-import { BopmClientsHeader } from "@/components/clients/BopmClientsHeader";
+// BopmClientsHeader removed per request — KPIs below now serve that role.
 
 type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
@@ -526,13 +526,10 @@ export default function Clients() {
     <AppLayout>
       <div className="px-3 py-4">
         <ReadOnlyBanner routeKey="clients" label="Clients & Deals" />
-        {!access.isAdmin && filteredDeals.length > 0 && (
-          <BopmClientsHeader deals={filteredDeals as any} />
-        )}
         {/* Row 1: Title + KPIs + Actions */}
-        <div className="flex items-center gap-3 mb-2 flex-wrap">
-          <h1 className="text-subhead font-bold tracking-tight text-foreground whitespace-nowrap">Clients & Deals</h1>
-          <div className="flex flex-none gap-1.5 flex-wrap">
+        <div className="flex items-start gap-4 mb-3 flex-wrap">
+          <h1 className="text-subhead font-bold tracking-tight text-foreground whitespace-nowrap mt-2">Clients & Deals</h1>
+          <div className="flex flex-1 gap-2.5 flex-wrap min-w-0">
           {[
             { label: "Clients", value: String(kpis.clients), Icon: Building2, tint: "sky" },
             { label: "Total Deals", value: String(kpis.deals), Icon: Briefcase, tint: "violet" },
@@ -552,16 +549,16 @@ export default function Clients() {
               <div
                 key={label}
                 className={cn(
-                  "flex items-center gap-2 px-2.5 py-1.5 rounded-lg border bg-gradient-to-br to-transparent backdrop-blur-sm transition-all hover:shadow-sm",
+                  "flex flex-1 min-w-[140px] items-center gap-3 px-4 py-3 rounded-xl border bg-gradient-to-br to-transparent backdrop-blur-sm transition-all hover:shadow-sm",
                   t.bg, t.ring,
                 )}
               >
-                <div className={cn("rounded-md p-1", t.chip)}>
-                  <Icon className={cn("h-4 w-4", t.icon)} />
+                <div className={cn("rounded-lg p-2", t.chip)}>
+                  <Icon className={cn("h-5 w-5", t.icon)} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground leading-tight">{label}</p>
-                  <p className="text-base font-semibold tracking-tight text-foreground font-mono leading-tight truncate">{value}</p>
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground leading-tight">{label}</p>
+                  <p className="text-2xl font-semibold tracking-tight text-foreground font-mono leading-tight truncate mt-0.5">{value}</p>
                 </div>
               </div>
             );
