@@ -2,18 +2,34 @@ import { createContext, createElement, useContext, useEffect, useState, useCallb
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
 
-export type AppRole = "admin" | "member" | "user" | "view_only";
+export type AppRole =
+  | "admin"
+  | "member"
+  | "user"
+  | "capability_lead"
+  | "capability_member"
+  | "view_only";
 
 export type AccessMode = "hidden" | "read" | "edit";
 
 export const ROLE_LABELS: Record<AppRole, string> = {
-  admin: "Admin",
-  member: "Member",
-  user: "User",
+  admin: "Admin / Central CX",
+  member: "VSD",
+  user: "BOPM",
+  capability_lead: "Capability Leader",
+  capability_member: "Capability Member",
   view_only: "View Only",
 };
 
-export const ROLE_ORDER: AppRole[] = ["view_only", "user", "member", "admin"];
+// Higher index = more powerful when collapsing multiple role rows for one user.
+export const ROLE_ORDER: AppRole[] = [
+  "view_only",
+  "capability_member",
+  "user",
+  "capability_lead",
+  "member",
+  "admin",
+];
 
 export const ALL_ROUTE_KEYS = [
   "home",
@@ -68,7 +84,14 @@ function useUserRoleInternal(): UserRoleState {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const v = localStorage.getItem(VIEW_AS_KEY);
-    if (v === "admin" || v === "member" || v === "user" || v === "view_only") {
+    if (
+      v === "admin" ||
+      v === "member" ||
+      v === "user" ||
+      v === "capability_lead" ||
+      v === "capability_member" ||
+      v === "view_only"
+    ) {
       setViewAsRoleState(v as AppRole);
     }
   }, []);
@@ -103,11 +126,12 @@ function useUserRoleInternal(): UserRoleState {
       .eq("user_id", user.id);
 
     const userRoles = (roleRows || []).map((r) => r.role as AppRole);
-    // Pick the highest role the user has
-    const trueRole: AppRole =
-      userRoles.includes("admin") ? "admin"
-      : userRoles.includes("member") ? "member"
-      : userRoles.includes("view_only") ? "view_only"
+    // Pick the highest role the user has based on ROLE_ORDER.
+    const trueRole: AppRole = userRoles.length
+      ? userRoles.reduce(
+          (best, r) => (ROLE_ORDER.indexOf(r) > ROLE_ORDER.indexOf(best) ? r : best),
+          userRoles[0],
+        )
       : "user";
     setActualRole(trueRole);
 
