@@ -89,7 +89,15 @@ export function MyStaffingRequests({ deals, people }: Props) {
   };
 
   const cancel = async (id: string) => {
+    const target = items.find(i => i.id === id);
     const ok = await cancelApprovalRequest(id);
+    if (ok && target?.is_batch) {
+      // Cascade cancel to any open children
+      const children = items.filter(c => c.parent_id === id && (c.status === "pending" || c.status === "under_review"));
+      for (const c of children) {
+        await cancelApprovalRequest(c.id);
+      }
+    }
     if (ok) refresh();
   };
 
