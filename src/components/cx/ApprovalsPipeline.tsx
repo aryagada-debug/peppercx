@@ -104,6 +104,15 @@ export function ApprovalsPipeline() {
     if (!active) return;
     setBusy(true);
     await setRequestStatus(active.id, "rejected", reviewerNote);
+    if (active.is_batch) {
+      // Cascade reject to any still-open children
+      const children = grouped.childrenByParent.get(active.id) || [];
+      for (const c of children) {
+        if (c.status === "pending" || c.status === "under_review") {
+          await setRequestStatus(c.id, "rejected", reviewerNote || "Rejected with batch");
+        }
+      }
+    }
     setBusy(false);
     setActive(null);
   };
