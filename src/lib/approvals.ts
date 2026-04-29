@@ -6,7 +6,8 @@ export type ApprovalRequestType =
   | "staffing.update"
   | "staffing.remove"
   | "client.create"
-  | "deal.create";
+  | "deal.create"
+  | "deal.update";
 
 export interface ApprovalRequestRow {
   id: string;
