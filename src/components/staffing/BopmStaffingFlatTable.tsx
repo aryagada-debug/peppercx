@@ -728,32 +728,29 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
                 <th className="px-3 py-2 text-right w-[90px] border-r border-border">MRR</th>
                 {visibleRoleKeys.length === 0 ? (
                   <th className="px-3 py-2 text-left text-muted-foreground/60">No roles staffed yet</th>
-                ) : visibleRoleKeys.map(rk => {
-                  const cat = roleCategory.get(rk) || "Other";
-                  const s = styleFor(cat);
-                  const w = colWidths[rk] ?? 200;
-                  return (
-                    <th
-                      key={rk}
-                      style={{ width: w, minWidth: w, maxWidth: w }}
-                      className={cn(
-                        "relative px-2 py-2 text-left whitespace-nowrap border-r border-border/60 group",
-                        s.head
-                      )}
-                      title={`${rk} · ${cat}`}
-                    >
-                      <div className="flex items-center gap-1.5 pr-2">
-                        <span className={cn("h-1.5 w-1.5 rounded-full flex-shrink-0", s.dot)} />
-                        <span className="truncate">{rk}</span>
-                      </div>
-                      <span
-                        onMouseDown={(ev) => startResize(rk, ev)}
-                        className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize opacity-0 group-hover:opacity-100 hover:bg-primary/40 transition-opacity"
-                        title="Drag to resize"
-                      />
-                    </th>
-                  );
-                })}
+                ) : (
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleColumnDragEnd}
+                  >
+                    <SortableContext items={visibleRoleKeys} strategy={horizontalListSortingStrategy}>
+                      {visibleRoleKeys.map(rk => {
+                        const cat = roleCategory.get(rk) || "Other";
+                        const w = colWidths[rk] ?? 200;
+                        return (
+                          <SortableColHeader
+                            key={rk}
+                            rk={rk}
+                            cat={cat}
+                            width={w}
+                            onResize={(ev) => startResize(rk, ev)}
+                          />
+                        );
+                      })}
+                    </SortableContext>
+                  </DndContext>
+                )}
               </tr>
             </thead>
             <tbody>
