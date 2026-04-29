@@ -644,15 +644,17 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
                 </span>
               </button>
               {pickerOpen && (
-                <div className="absolute right-0 mt-1 z-30 w-72 max-h-[60vh] overflow-y-auto rounded-md border border-border bg-popover shadow-lg p-2 text-xs">
+                <div className="absolute right-0 mt-1 z-30 w-80 max-h-[70vh] overflow-y-auto rounded-md border border-border bg-popover shadow-lg p-2 text-xs">
                   <div className="flex items-center justify-between px-1.5 py-1">
-                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Role columns</span>
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+                      Role columns · drag to reorder
+                    </span>
                     <div className="flex gap-1">
                       <button
                         type="button"
-                        onClick={() => setHiddenCols(new Set())}
+                        onClick={() => { setHiddenCols(new Set()); setTeamOrder(null); setColOrderByTeam({}); }}
                         className="text-[10px] text-primary hover:underline"
-                      >Show all</button>
+                      >Reset</button>
                       <span className="text-muted-foreground">·</span>
                       <button
                         type="button"
@@ -661,44 +663,47 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
                       >Hide all</button>
                     </div>
                   </div>
-                  {Object.keys(CATEGORY_STYLES).map(cat => {
-                    const inCat = orderedRoleKeys.filter(rk => (roleCategory.get(rk) || "Other") === cat);
-                    if (inCat.length === 0) return null;
-                    const s = styleFor(cat);
-                    return (
-                      <div key={cat} className="mt-1.5">
-                        <div className="flex items-center gap-1.5 px-1.5 py-1">
-                          <span className={cn("h-2 w-2 rounded-full", s.dot)} />
-                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{s.label}</span>
-                        </div>
-                        {inCat.map(rk => {
-                          const checked = !hiddenCols.has(rk);
-                          return (
-                            <button
-                              type="button"
-                              key={rk}
-                              onClick={() => {
-                                setHiddenCols(prev => {
-                                  const next = new Set(prev);
-                                  if (next.has(rk)) next.delete(rk); else next.add(rk);
-                                  return next;
-                                });
-                              }}
-                              className="w-full flex items-center gap-2 px-1.5 py-1 rounded hover:bg-secondary/60 text-left"
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleTeamDragEnd}
+                  >
+                    <SortableContext
+                      items={groupedColumns.teams.map(t => `team:${t}`)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      {groupedColumns.teams.map(team => {
+                        const inCat = groupedColumns.byTeam[team] || [];
+                        if (inCat.length === 0) return null;
+                        return (
+                          <SortableTeamSection key={team} team={team}>
+                            <DndContext
+                              sensors={sensors}
+                              collisionDetection={closestCenter}
+                              onDragEnd={handleColumnDragEnd}
                             >
-                              <span className={cn(
-                                "h-3.5 w-3.5 rounded border flex items-center justify-center flex-shrink-0",
-                                checked ? "bg-primary border-primary" : "border-border bg-background"
-                              )}>
-                                {checked && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
-                              </span>
-                              <span className="text-foreground truncate">{rk}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    );
-                  })}
+                              <SortableContext items={inCat} strategy={verticalListSortingStrategy}>
+                                {inCat.map(rk => (
+                                  <SortablePickerRow
+                                    key={rk}
+                                    rk={rk}
+                                    checked={!hiddenCols.has(rk)}
+                                    onToggle={() => {
+                                      setHiddenCols(prev => {
+                                        const next = new Set(prev);
+                                        if (next.has(rk)) next.delete(rk); else next.add(rk);
+                                        return next;
+                                      });
+                                    }}
+                                  />
+                                ))}
+                              </SortableContext>
+                            </DndContext>
+                          </SortableTeamSection>
+                        );
+                      })}
+                    </SortableContext>
+                  </DndContext>
                 </div>
               )}
             </div>
