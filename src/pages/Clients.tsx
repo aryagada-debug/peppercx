@@ -596,6 +596,12 @@ export default function Clients() {
             </div>
           )}
 
+          <BopmFilter
+            value={activeBopm}
+            onChange={setActiveBopm}
+            scopedVsd={access.isAdmin && activeVsd !== "All" && activeVsd !== "Other" && activeVsd !== "Unassigned" ? activeVsd : undefined}
+          />
+
           <div className="relative max-w-[220px] flex-1">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <input type="text" placeholder="Search clients or deals..." value={search} onChange={e => setSearch(e.target.value)}
