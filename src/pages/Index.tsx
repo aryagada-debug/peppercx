@@ -103,8 +103,6 @@ export default function Dashboard() {
         { data: alloc },
         { data: prevRev },
         { data: prevPendingMbrs },
-        { data: dealExtras },
-        { data: dealFin },
       ] = await Promise.all([
         supabase.from("staffing_deals")
           .select("id, deal_name, account, mrr, total_deal_value, deal_status, vsd, principal_bopm, senior_bopm, bopm, end_date")
@@ -135,12 +133,6 @@ export default function Dashboard() {
           .select("deal_id, status, week_start")
           .eq("status", "Pending")
           .lt("week_start", prevOverdueCutoff),
-        supabase.from("deal_financials")
-          .select("deal_id, month, consumption, invoiced")
-          .eq("month", monthIso),
-        supabase.from("deal_financials")
-          .select("deal_id, month, consumption")
-          .eq("month", monthIso),
       ]);
 
       if (cancelled) return;
