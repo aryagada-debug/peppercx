@@ -203,6 +203,26 @@ export async function cancelApprovalRequest(id: string) {
   return true;
 }
 
+/**
+ * Hard-delete an approval request. If the row is a batch parent, all child
+ * sub-requests are deleted first. Used when a requester withdraws a request —
+ * we don't want stale "cancelled" rows lingering in their list.
+ */
+export async function deleteApprovalRequest(id: string): Promise<boolean> {
+  // Delete any children first (covers batch parents; harmless otherwise).
+  await (supabase as any).from("approval_requests").delete().eq("parent_id", id);
+  const { error } = await (supabase as any)
+    .from("approval_requests")
+    .delete()
+    .eq("id", id);
+  if (error) {
+    toast.error(error.message || "Could not withdraw request");
+    return false;
+  }
+  toast.success("Request withdrawn");
+  return true;
+}
+
 export async function setRequestStatus(
   id: string,
   status: "under_review" | "approved" | "rejected",
