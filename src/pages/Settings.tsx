@@ -2,7 +2,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { cn } from "@/lib/utils";
 import { useState, useMemo } from "react";
 import { useStaffingData } from "@/hooks/useStaffingData";
-import { Loader2, Pencil, Check, X, Search, Trash2, LayoutGrid, Table as TableIcon } from "lucide-react";
+import { Loader2, Pencil, Check, X, Search, Trash2, LayoutGrid, Table as TableIcon, ListTree, Network, AtSign } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,6 +25,9 @@ import {
 } from "@dnd-kit/core";
 import { formatINR } from "@/lib/csvTargets";
 import { GripVertical } from "lucide-react";
+import { PeopleTreeView } from "@/components/settings/PeopleTreeView";
+import { OrgChartView } from "@/components/settings/OrgChartView";
+import { EmailMappingTable } from "@/components/settings/EmailMappingTable";
 
 const tabs = [
   "People & Reporting",
@@ -122,12 +125,12 @@ function InlineEdit({
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>("People & Reporting");
-  const { people, revenueTargets, loading, updatePerson, deletePerson, setRevenueTargets } = useStaffingData();
+  const { people, revenueTargets, loading, addPerson, updatePerson, deletePerson, setRevenueTargets } = useStaffingData();
   const { isActuallyAdmin } = useUserRole();
   const [search, setSearch] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const [draggingPersonId, setDraggingPersonId] = useState<string | null>(null);
-  const [peopleView, setPeopleView] = useState<"table" | "cards">("table");
+  const [peopleView, setPeopleView] = useState<"tree" | "org" | "email">("tree");
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const filteredPeople = useMemo(() => {
@@ -251,225 +254,44 @@ export default function SettingsPage() {
 
         {activeTab === "People & Reporting" && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="relative max-w-xs flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Search people..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="h-9 w-full rounded-lg border border-border bg-card pl-9 pr-3 text-ui text-foreground transition-all placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                />
-              </div>
-              <div className="flex items-center gap-1 rounded-md border border-border bg-card p-0.5 text-xs">
+            <div className="flex items-center gap-1 rounded-md border border-border bg-card p-0.5 text-xs w-fit">
+              {([
+                { id: "tree", label: "Tree", Icon: ListTree },
+                { id: "org", label: "Org chart", Icon: Network },
+                { id: "email", label: "Email mapping", Icon: AtSign },
+              ] as const).map(t => (
                 <button
+                  key={t.id}
                   type="button"
-                  onClick={() => setPeopleView("table")}
+                  onClick={() => setPeopleView(t.id)}
                   className={cn(
-                    "flex items-center gap-1.5 px-2.5 py-1 rounded-sm transition-colors",
-                    peopleView === "table" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+                    "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-sm transition-colors",
+                    peopleView === t.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
                   )}
-                  title="Table view"
                 >
-                  <TableIcon className="h-3.5 w-3.5" /> Table
+                  <t.Icon className="h-3.5 w-3.5" /> {t.label}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setPeopleView("cards")}
-                  className={cn(
-                    "flex items-center gap-1.5 px-2.5 py-1 rounded-sm transition-colors",
-                    peopleView === "cards" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
-                  )}
-                  title="Card view"
-                >
-                  <LayoutGrid className="h-3.5 w-3.5" /> Cards
-                </button>
-              </div>
-            </div>
-
-            {peopleView === "table" ? (
-              <div className="overflow-x-auto rounded-xl border border-border bg-card">
-                <table className="w-full text-xs">
-                  <thead className="bg-secondary/40 text-[10px] uppercase tracking-wider text-muted-foreground">
-                    <tr>
-                      <th className="px-3 py-2 text-left font-medium">Name</th>
-                      <th className="px-3 py-2 text-left font-medium">Dept</th>
-                      <th className="px-3 py-2 text-left font-medium">Designation</th>
-                      <th className="px-3 py-2 text-left font-medium">Band</th>
-                      <th className="px-3 py-2 text-left font-medium">Pod</th>
-                      <th className="px-3 py-2 text-left font-medium">Reports to</th>
-                      <th className="px-3 py-2 text-right font-medium w-10"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visiblePeople.map((person) => (
-                      <tr
-                        key={person.id}
-                        className={cn(
-                          "group border-t border-border/60 transition-colors hover:bg-secondary/20",
-                          person.leaving && "opacity-70",
-                        )}
-                      >
-                        <td className="px-3 py-2">
-                          <div className="flex items-center gap-1.5">
-                            <InlineEdit
-                              value={person.name}
-                              onSave={(value) => {
-                                if (!value.trim()) return toast.error("Name can't be empty");
-                                updatePerson(person.id, { name: value });
-                              }}
-                              className="text-xs font-medium"
-                            />
-                            {person.tbh && (
-                              <span className="text-[10px] italic text-muted-foreground">(TBH)</span>
-                            )}
-                            {person.leaving && (
-                              <span className="text-[10px] font-medium text-destructive">· Leaving</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-3 py-2">
-                          <InlineEdit
-                            value={person.department || ""}
-                            onSave={(value) => updatePerson(person.id, { department: value })}
-                            listId="settings-departments"
-                            placeholder="—"
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <InlineEdit
-                            value={person.designation || ""}
-                            onSave={(value) => updatePerson(person.id, { designation: value })}
-                            placeholder="—"
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <InlineEdit
-                            value={person.band || ""}
-                            onSave={(value) => updatePerson(person.id, { band: value })}
-                            placeholder="—"
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <InlineEdit
-                            value={person.pod || ""}
-                            onSave={(value) => updatePerson(person.id, { pod: value })}
-                            placeholder="—"
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <InlineEdit
-                            value={person.reportingManager || ""}
-                            onSave={(value) => handleReportingChange(person.id, person.name, value)}
-                            listId="settings-managers"
-                            placeholder="—"
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          <button
-                            type="button"
-                            onClick={() => setConfirmDelete({ id: person.id, name: person.name })}
-                            className="rounded-md p-1 text-muted-foreground opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
-                            title="Delete person"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                    {visiblePeople.length === 0 && (
-                      <tr>
-                        <td colSpan={7} className="px-3 py-8 text-center text-sm text-muted-foreground">
-                          No people found.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {visiblePeople.map((person) => (
-                <div
-                  key={person.id}
-                  className={cn(
-                    "group relative rounded-xl border border-border bg-card p-3 transition-colors hover:border-primary/40",
-                    person.leaving && "opacity-70",
-                  )}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setConfirmDelete({ id: person.id, name: person.name })}
-                    className="absolute right-2 top-2 rounded-md p-1 text-muted-foreground opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
-                    title="Delete person"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-
-                  <div className="mb-2 pr-6">
-                    <InlineEdit
-                      value={person.name}
-                      onSave={(value) => {
-                        if (!value.trim()) return toast.error("Name can't be empty");
-                        updatePerson(person.id, { name: value });
-                      }}
-                      className="text-sm font-medium"
-                    />
-                    {person.tbh && (
-                      <span className="ml-1 text-[10px] italic text-muted-foreground">(TBH)</span>
-                    )}
-                    {person.leaving && (
-                      <span className="ml-1 text-[10px] font-medium text-destructive">· Leaving</span>
-                    )}
-                  </div>
-
-                  <div className="space-y-1.5 text-[11px]">
-                    <Field label="Dept">
-                      <InlineEdit
-                        value={person.department || ""}
-                        onSave={(value) => updatePerson(person.id, { department: value })}
-                        listId="settings-departments"
-                        placeholder="— None —"
-                      />
-                    </Field>
-                    <Field label="Designation">
-                      <InlineEdit
-                        value={person.designation || ""}
-                        onSave={(value) => updatePerson(person.id, { designation: value })}
-                      />
-                    </Field>
-                    <Field label="Band">
-                      <InlineEdit
-                        value={person.band || ""}
-                        onSave={(value) => updatePerson(person.id, { band: value })}
-                        placeholder="— None —"
-                      />
-                    </Field>
-                    <Field label="Pod">
-                      <InlineEdit
-                        value={person.pod || ""}
-                        onSave={(value) => updatePerson(person.id, { pod: value })}
-                        placeholder="— None —"
-                      />
-                    </Field>
-                    <Field label="Reports to">
-                      <InlineEdit
-                        value={person.reportingManager || ""}
-                        onSave={(value) => handleReportingChange(person.id, person.name, value)}
-                        listId="settings-managers"
-                        placeholder="— None —"
-                      />
-                    </Field>
-                  </div>
-                </div>
               ))}
-              {visiblePeople.length === 0 && (
-                <div className="col-span-full rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
-                  No people found.
-                </div>
-              )}
             </div>
+
+            {peopleView === "tree" && (
+              <PeopleTreeView
+                people={people}
+                onAdd={addPerson}
+                onUpdate={updatePerson}
+                onDelete={deletePerson}
+                onRequestDelete={(p) => setConfirmDelete({ id: p.id, name: p.name })}
+              />
+            )}
+            {peopleView === "org" && (
+              <OrgChartView
+                people={people}
+                onUpdate={updatePerson}
+                onRequestDelete={(p) => setConfirmDelete({ id: p.id, name: p.name })}
+              />
+            )}
+            {peopleView === "email" && (
+              <EmailMappingTable people={people} onUpdate={updatePerson} />
             )}
           </div>
         )}

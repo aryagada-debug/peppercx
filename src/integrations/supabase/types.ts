@@ -1528,6 +1528,7 @@ export type Database = {
           role_category: string
           role_title: string
           slack_user_id: string
+          sub_team: string
           tbh: boolean
           updated_at: string
         }
@@ -1547,6 +1548,7 @@ export type Database = {
           role_category: string
           role_title?: string
           slack_user_id?: string
+          sub_team?: string
           tbh?: boolean
           updated_at?: string
         }
@@ -1566,6 +1568,7 @@ export type Database = {
           role_category?: string
           role_title?: string
           slack_user_id?: string
+          sub_team?: string
           tbh?: boolean
           updated_at?: string
         }
