@@ -276,9 +276,8 @@ export default function HomePage() {
     if (!user) return;
     setLoadingQuota(true);
     const today = new Date();
-    let start: Date, end: Date;
-    if (periodType === "month") { start = startOfMonth(today); end = endOfMonth(today); }
-    else { start = startOfYear(today); end = endOfYear(today); }
+    const start: Date = startOfYear(today);
+    const end: Date = endOfYear(today);
 
     const { data: q } = await supabase.from("user_quotas").select("*")
       .eq("user_id", user.id).eq("period_type", periodType)
