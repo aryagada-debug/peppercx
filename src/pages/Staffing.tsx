@@ -16,7 +16,11 @@ import { BopmStaffingSummary } from "@/components/staffing/BopmStaffingSummary";
 import { BopmStaffingTables } from "@/components/staffing/BopmStaffingTables";
 import { MyStaffingRequests } from "@/components/staffing/MyStaffingRequests";
 
-type Tab = "deals" | "people" | "matrix" | "tables";
+type Tab = "deals" | "people" | "matrix" | "tables" | "requests";
+
+// Deal statuses considered "active" for the BOPM staffing view.
+// Closed deals (Completed / Churned) are hidden.
+const ACTIVE_DEAL_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
 
 export default function Staffing() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -27,9 +31,9 @@ export default function Staffing() {
   const isBopmPersona = role === "user";
   const [tab, setTab] = useState<Tab>(tabParam || (isBopmPersona ? "tables" : "deals"));
 
-  // BOPM persona: only one view — the unified table.
+  // BOPM persona: only the two BOPM-facing tabs are valid.
   useEffect(() => {
-    if (isBopmPersona && tab !== "tables") setTab("tables");
+    if (isBopmPersona && tab !== "tables" && tab !== "requests") setTab("tables");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isBopmPersona]);
 
@@ -62,8 +66,15 @@ export default function Staffing() {
   const uniqueScopedDeals = isBopmPersona
     ? Array.from(new Map(scopedDeals.map(d => [d.id, d])).values())
     : scopedDeals;
+  // Active-only deals for the BOPM staffing surface (closed deals are hidden).
+  const activeBopmDeals = isBopmPersona
+    ? uniqueScopedDeals.filter(d => ACTIVE_DEAL_STATUSES.has(d.dealStatus))
+    : uniqueScopedDeals;
   const scopedAssignments = isBopmPersona && !accessLoading
-    ? assignments.filter(a => visibleDealIds.has(a.dealId))
+    ? (() => {
+        const activeIds = new Set(activeBopmDeals.map(d => d.id));
+        return assignments.filter(a => activeIds.has(a.dealId));
+      })()
     : assignments;
   const scopedPeople = isBopmPersona && !accessLoading
     ? (() => {
@@ -83,14 +94,17 @@ export default function Staffing() {
   }
 
   const TABS: { key: Tab; label: string }[] = isBopmPersona
-    ? []
+    ? [
+        { key: "tables",   label: "Staffing" },
+        { key: "requests", label: "Change requests" },
+      ]
     : [
         { key: "deals", label: "Deal view" },
         { key: "people", label: "People view" },
         { key: "matrix", label: "Staffing" },
       ];
 
-  const showBopmEmpty = isBopmPersona && !accessLoading && scopedDeals.length === 0;
+  const showBopmEmpty = isBopmPersona && !accessLoading && activeBopmDeals.length === 0;
 
   return (
     <AppLayout>
@@ -107,7 +121,7 @@ export default function Staffing() {
               )}
             </div>
             <p className="text-ui text-muted-foreground mt-1">
-              {uniqueScopedDeals.length} deals • {(isBopmPersona ? scopedPeople : people.filter(p => !p.tbh)).length} people
+              {(isBopmPersona ? activeBopmDeals : uniqueScopedDeals).length} {isBopmPersona ? "active deals" : "deals"} • {(isBopmPersona ? scopedPeople : people.filter(p => !p.tbh)).length} people
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -133,21 +147,22 @@ export default function Staffing() {
           </div>
         </div>
 
-        {showBopmEmpty && <BopmEmptyState section="Staffing & Capacity" />}
+        {showBopmEmpty && tab === "tables" && <BopmEmptyState section="Staffing & Capacity" />}
 
         {isBopmPersona && !showBopmEmpty && tab === "tables" && (
-          <div className="space-y-4">
-            <MyStaffingRequests deals={uniqueScopedDeals} people={people} />
-            <BopmStaffingTables
-              deals={uniqueScopedDeals}
-              people={scopedPeople}
-              allPeople={people}
-              assignments={scopedAssignments}
-              onAddAssignment={addAssignment}
-              onUpdateAssignment={updateAssignment}
-              onDeleteAssignment={deleteAssignment}
-            />
-          </div>
+          <BopmStaffingTables
+            deals={activeBopmDeals}
+            people={scopedPeople}
+            allPeople={people}
+            assignments={scopedAssignments}
+            onAddAssignment={addAssignment}
+            onUpdateAssignment={updateAssignment}
+            onDeleteAssignment={deleteAssignment}
+          />
+        )}
+
+        {isBopmPersona && tab === "requests" && (
+          <MyStaffingRequests deals={uniqueScopedDeals} people={people} variant="table" />
         )}
 
         {tab === "deals" && !isBopmPersona && (
