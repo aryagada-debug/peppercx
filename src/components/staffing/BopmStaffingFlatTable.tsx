@@ -68,6 +68,12 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
   const [pickerOpen, setPickerOpen] = useState(false);
   const pickerRef = useRef<HTMLDivElement | null>(null);
 
+  // Persisted user reordering: team order + per-team role-key order.
+  const [teamOrder, setTeamOrder] = useState<string[] | null>(null);
+  const [colOrderByTeam, setColOrderByTeam] = useState<Record<string, string[]>>({});
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
   // Close picker on outside click
   useEffect(() => {
     if (!pickerOpen) return;
@@ -235,25 +241,75 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
     return out;
   }, [allRoleKeys, dealRoleMap, allPersonById]);
 
-  // Group role columns by category, preserving sorted order within group.
-  const orderedRoleKeys = useMemo(() => {
+  // Group role columns by category. User-customised orders (teamOrder /
+  // colOrderByTeam) win; new teams or new role keys fall back to defaults.
+  const groupedColumns = useMemo(() => {
     const groups: Record<string, string[]> = {};
     for (const rk of allRoleKeys) {
       const c = roleCategory.get(rk) || "Other";
       (groups[c] ||= []).push(rk);
     }
+    // Apply per-team custom order, append any new keys at the end.
+    const orderedGroups: Record<string, string[]> = {};
+    for (const team of Object.keys(groups)) {
+      const custom = colOrderByTeam[team] || [];
+      const set = new Set(groups[team]);
+      const ordered = custom.filter(k => set.has(k));
+      const orderedSet = new Set(ordered);
+      const rest = groups[team].filter(k => !orderedSet.has(k)).sort((a, b) => a.localeCompare(b));
+      orderedGroups[team] = [...ordered, ...rest];
+    }
+
+    // Apply team order, append new teams at the end (default catalogue order).
     const catOrder = Object.keys(CATEGORY_STYLES);
-    const result: string[] = [];
-    for (const c of catOrder) if (groups[c]) result.push(...groups[c]);
-    // any unknown categories last
-    for (const c of Object.keys(groups)) if (!catOrder.includes(c)) result.push(...groups[c]);
-    return result;
-  }, [allRoleKeys, roleCategory]);
+    const presentTeams = Object.keys(orderedGroups);
+    const presentSet = new Set(presentTeams);
+    const customTeam = (teamOrder || []).filter(t => presentSet.has(t));
+    const customTeamSet = new Set(customTeam);
+    const restTeams = [
+      ...catOrder.filter(t => presentSet.has(t) && !customTeamSet.has(t)),
+      ...presentTeams.filter(t => !catOrder.includes(t) && !customTeamSet.has(t)),
+    ];
+    const finalTeams = [...customTeam, ...restTeams];
+    return { teams: finalTeams, byTeam: orderedGroups };
+  }, [allRoleKeys, roleCategory, teamOrder, colOrderByTeam]);
+
+  const orderedRoleKeys = useMemo(
+    () => groupedColumns.teams.flatMap(t => groupedColumns.byTeam[t] || []),
+    [groupedColumns]
+  );
 
   const visibleRoleKeys = useMemo(
     () => orderedRoleKeys.filter(rk => !hiddenCols.has(rk)),
     [orderedRoleKeys, hiddenCols]
   );
+
+  // Drag handlers
+  const handleColumnDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const aId = String(active.id);
+    const oId = String(over.id);
+    const team = roleCategory.get(aId) || "Other";
+    const teamOf = roleCategory.get(oId) || "Other";
+    if (team !== teamOf) return; // only reorder within same team
+    const list = groupedColumns.byTeam[team] || [];
+    const fromIdx = list.indexOf(aId);
+    const toIdx = list.indexOf(oId);
+    if (fromIdx < 0 || toIdx < 0) return;
+    const next = arrayMove(list, fromIdx, toIdx);
+    setColOrderByTeam(prev => ({ ...prev, [team]: next }));
+  };
+
+  const handleTeamDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const teams = groupedColumns.teams;
+    const fromIdx = teams.indexOf(String(active.id));
+    const toIdx = teams.indexOf(String(over.id));
+    if (fromIdx < 0 || toIdx < 0) return;
+    setTeamOrder(arrayMove(teams, fromIdx, toIdx));
+  };
 
   // ── Column resize handlers ───────────────────────────────────────────────
   const startResize = (rk: string, e: React.MouseEvent) => {
