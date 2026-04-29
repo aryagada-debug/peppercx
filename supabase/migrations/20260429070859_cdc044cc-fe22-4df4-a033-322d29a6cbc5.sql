@@ -1,0 +1,1 @@
+ALTER TABLE public.staffing_people ADD COLUMN IF NOT EXISTS sub_team text NOT NULL DEFAULT ''::text;
