@@ -715,7 +715,21 @@ export default function Clients() {
                         <td className="py-2 px-3">
                           <Select
                             value={deal.dealType === "Retainer" ? "Retainer" : "Non-Retainer"}
-                            onValueChange={(v) => { guardedUpdateDeal(deal.id, { dealType: v as any }); toast.success("Type updated"); }}
+                            onValueChange={async (v) => {
+                              if (isBopm) {
+                                await submitApprovalRequest({
+                                  type: "deal.update",
+                                  targetKind: "deal",
+                                  targetId: deal.id,
+                                  dealId: deal.id,
+                                  payload: { deal_type: v },
+                                  previous: { deal_type: deal.dealType },
+                                } as any);
+                                return;
+                              }
+                              guardedUpdateDeal(deal.id, { dealType: v as any });
+                              toast.success("Type updated");
+                            }}
                           >
                             <SelectTrigger
                               className={cn(
