@@ -8,11 +8,16 @@ Deno.serve(async (req) => {
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
   const PASSWORD = "Pepper@2026";
 
+  const url = new URL(req.url);
+  const offset = parseInt(url.searchParams.get("offset") || "0", 10);
+  const limit = parseInt(url.searchParams.get("limit") || "60", 10);
+
   const { data: people } = await admin
     .from("staffing_people")
     .select("id, name, email")
     .neq("email", "")
-    .not("email", "is", null);
+    .not("email", "is", null)
+    .order("id", { ascending: true });
 
   const dedup = new Map<string, any>();
   for (const p of people || []) {
@@ -20,6 +25,9 @@ Deno.serve(async (req) => {
     if (!e || !e.includes("@")) continue;
     if (!dedup.has(p.id)) dedup.set(p.id, { ...p, email: e });
   }
+  const allList = Array.from(dedup.values());
+  const slice = allList.slice(offset, offset + limit);
+  const total = allList.length;
 
   // Page through all auth users
   const existingByEmail = new Map<string, string>();
@@ -34,7 +42,7 @@ Deno.serve(async (req) => {
   }
 
   const results: any[] = [];
-  for (const p of dedup.values()) {
+  for (const p of slice) {
     const targetEmail = p.email;
     const emailLower = targetEmail.toLowerCase();
     let userId = existingByEmail.get(emailLower);
