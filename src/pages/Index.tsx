@@ -83,9 +83,13 @@ export default function Dashboard() {
       setLoading(true);
       const monthStart = startOfMonth(new Date(`${selectedMonth}-01T00:00:00`));
       const monthIso = format(monthStart, "yyyy-MM-dd");
+      const prevMonthStart = subMonths(monthStart, 1);
+      const prevMonthIso = format(prevMonthStart, "yyyy-MM-dd");
       const monday = currentMonday();
       const mondayIso = format(monday, "yyyy-MM-dd");
       const overdueCutoff = format(subDays(new Date(), 35), "yyyy-MM-dd");
+      const prevOverdueCutoff = format(subDays(new Date(), 65), "yyyy-MM-dd");
+      const prevWeekCutoff = format(subDays(new Date(), 30), "yyyy-MM-dd");
       const sevenDaysAgo = format(subDays(new Date(), 7), "yyyy-MM-dd");
 
       const [
@@ -97,9 +101,13 @@ export default function Dashboard() {
         { data: assigns },
         { data: people },
         { data: alloc },
+        { data: prevRev },
+        { data: prevPendingMbrs },
+        { data: dealExtras },
+        { data: dealFin },
       ] = await Promise.all([
         supabase.from("staffing_deals")
-          .select("id, deal_name, account, mrr, total_deal_value, deal_status, vsd, principal_bopm, senior_bopm, bopm")
+          .select("id, deal_name, account, mrr, total_deal_value, deal_status, vsd, principal_bopm, senior_bopm, bopm, end_date")
           .in("deal_status", ACTIVE_STATUSES),
         supabase.from("deal_revenue_monthly")
           .select("deal_id, mrr, actuals")
@@ -120,6 +128,19 @@ export default function Dashboard() {
         supabase.from("staffing_weekly_allocations")
           .select("person_id, deal_id, allocation_pct")
           .eq("week_start", mondayIso),
+        supabase.from("deal_revenue_monthly")
+          .select("deal_id, mrr, actuals")
+          .eq("month", prevMonthIso),
+        supabase.from("mbr_entries")
+          .select("deal_id, status, week_start")
+          .eq("status", "Pending")
+          .lt("week_start", prevOverdueCutoff),
+        supabase.from("deal_financials")
+          .select("deal_id, month, consumption, invoiced")
+          .eq("month", monthIso),
+        supabase.from("deal_financials")
+          .select("deal_id, month, consumption")
+          .eq("month", monthIso),
       ]);
 
       if (cancelled) return;
