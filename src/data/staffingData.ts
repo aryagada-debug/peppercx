@@ -15,6 +15,7 @@ export interface Person {
   hourlyRate?: number;
   email?: string;
   slackUserId?: string;
+  subTeam?: string;
 }
 
 export const DEPARTMENTS = [
