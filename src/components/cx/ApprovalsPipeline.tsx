@@ -52,11 +52,31 @@ export function ApprovalsPipeline() {
   const [active, setActive] = useState<ApprovalRequestRow | null>(null);
   const [reviewerNote, setReviewerNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [expandedBatch, setExpandedBatch] = useState<Set<string>>(new Set());
+
+  const toggleBatch = (id: string) => {
+    setExpandedBatch(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
   const grouped = useMemo(() => {
+    // Children are NOT shown as top-level cards. They appear inside their parent batch card.
+    // Cards in each column are: standalone requests + batch parents.
+    // A batch parent's column is determined by its own status, but children have independent statuses.
+    const childrenByParent = new Map<string, ApprovalRequestRow[]>();
+    items.forEach(r => {
+      if (r.parent_id) {
+        if (!childrenByParent.has(r.parent_id)) childrenByParent.set(r.parent_id, []);
+        childrenByParent.get(r.parent_id)!.push(r);
+      }
+    });
+    const topLevel = items.filter(r => !r.parent_id);
     const m: Record<string, ApprovalRequestRow[]> = { pending: [], under_review: [], approved: [], rejected: [] };
-    items.forEach(r => { if (m[r.status]) m[r.status].push(r); });
-    return m;
+    topLevel.forEach(r => { if (m[r.status]) m[r.status].push(r); });
+    return { columns: m, childrenByParent };
   }, [items]);
 
   const openDetail = (r: ApprovalRequestRow) => {
@@ -96,6 +116,7 @@ export function ApprovalsPipeline() {
   };
 
   const diff = active ? diffPairs(active.previous, active.payload) : [];
+  const activeChildren = active && active.is_batch ? (grouped.childrenByParent.get(active.id) || []) : [];
 
   return (
     <div className="space-y-4">
@@ -122,38 +143,80 @@ export function ApprovalsPipeline() {
                   {col.label}
                 </span>
                 <Badge variant="secondary" className="text-[10px]">
-                  {grouped[col.key]?.length || 0}
+                  {grouped.columns[col.key]?.length || 0}
                 </Badge>
               </div>
               <div className="space-y-2 min-h-[100px]">
-                {(grouped[col.key] || []).map(r => (
-                  <Card
-                    key={r.id}
-                    onClick={() => openDetail(r)}
-                    className={`p-3 cursor-pointer hover:bg-accent/30 transition-colors border-l-4 ${col.tint}`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="text-xs font-medium text-foreground">
-                        {TYPE_LABEL[r.request_type]}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground shrink-0">
-                        {formatDistanceToNow(new Date(r.created_at), { addSuffix: true })}
-                      </span>
-                    </div>
-                    {r.deal_id && (
-                      <div className="text-[11px] text-muted-foreground mt-1 truncate">
-                        Deal: {r.deal_id}
+                {(grouped.columns[col.key] || []).map(r => {
+                  const children = r.is_batch ? (grouped.childrenByParent.get(r.id) || []) : [];
+                  const isExpanded = expandedBatch.has(r.id);
+                  return (
+                    <Card
+                      key={r.id}
+                      className={`p-3 border-l-4 ${col.tint}`}
+                    >
+                      <div
+                        className="cursor-pointer"
+                        onClick={() => openDetail(r)}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="text-xs font-medium text-foreground">
+                            {r.is_batch ? (r.batch_title || "Staffing batch") : TYPE_LABEL[r.request_type]}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground shrink-0">
+                            {formatDistanceToNow(new Date(r.created_at), { addSuffix: true })}
+                          </span>
+                        </div>
+                        {r.deal_id && (
+                          <div className="text-[11px] text-muted-foreground mt-1 truncate">
+                            Deal: {r.deal_id}
+                          </div>
+                        )}
+                        <div className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1">
+                          <User2 className="h-3 w-3" /> {r.requested_by_name || "Unknown"}
+                        </div>
+                        {r.requester_note && (
+                          <div className="text-[11px] text-foreground mt-1 line-clamp-2">"{r.requester_note}"</div>
+                        )}
                       </div>
-                    )}
-                    <div className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1">
-                      <User2 className="h-3 w-3" /> {r.requested_by_name || "Unknown"}
-                    </div>
-                    {r.requester_note && (
-                      <div className="text-[11px] text-foreground mt-1 line-clamp-2">"{r.requester_note}"</div>
-                    )}
-                  </Card>
-                ))}
-                {(grouped[col.key] || []).length === 0 && (
+                      {r.is_batch && (
+                        <div className="mt-2 border-t border-border/60 pt-2">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); toggleBatch(r.id); }}
+                            className="text-[10px] font-medium text-primary hover:underline"
+                          >
+                            {isExpanded ? "Hide" : `Show ${children.length} sub-request${children.length === 1 ? "" : "s"}`}
+                          </button>
+                          {isExpanded && (
+                            <div className="mt-1.5 space-y-1">
+                              {children.map(c => {
+                                const cTint = c.status === "approved" ? "text-positive"
+                                  : c.status === "rejected" ? "text-destructive"
+                                  : c.status === "under_review" ? "text-primary"
+                                  : c.status === "cancelled" ? "text-muted-foreground"
+                                  : "text-warning";
+                                return (
+                                  <div
+                                    key={c.id}
+                                    onClick={(e) => { e.stopPropagation(); openDetail(c); }}
+                                    className="flex items-center justify-between gap-2 rounded-md border border-border bg-background px-2 py-1 cursor-pointer hover:bg-accent/30"
+                                  >
+                                    <span className="text-[11px] truncate">{TYPE_LABEL[c.request_type]}</span>
+                                    <span className={`text-[10px] font-medium uppercase tracking-wide ${cTint}`}>
+                                      {c.status.replace("_", " ")}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </Card>
+                  );
+                })}
+                {(grouped.columns[col.key] || []).length === 0 && (
                   <div className="text-[11px] text-muted-foreground text-center py-6 italic">No requests</div>
                 )}
               </div>
@@ -167,10 +230,13 @@ export function ApprovalsPipeline() {
           {active && (
             <>
               <SheetHeader>
-                <SheetTitle>{TYPE_LABEL[active.request_type]}</SheetTitle>
+                <SheetTitle>
+                  {active.is_batch ? (active.batch_title || "Staffing batch") : TYPE_LABEL[active.request_type]}
+                </SheetTitle>
                 <SheetDescription>
                   Requested by <span className="font-medium text-foreground">{active.requested_by_name}</span>
                   {" · "}{formatDistanceToNow(new Date(active.created_at), { addSuffix: true })}
+                  {active.parent_id && <> · part of a batch request</>}
                 </SheetDescription>
               </SheetHeader>
 
@@ -187,6 +253,30 @@ export function ApprovalsPipeline() {
                   </div>
                 )}
 
+                {active.is_batch && activeChildren.length > 0 && (
+                  <div>
+                    <div className="text-xs font-medium text-muted-foreground mb-1">
+                      Sub-requests ({activeChildren.length}) — each is reviewed independently
+                    </div>
+                    <div className="rounded-md border border-border divide-y divide-border">
+                      {activeChildren.map(c => (
+                        <div
+                          key={c.id}
+                          onClick={() => openDetail(c)}
+                          className="px-3 py-2 grid grid-cols-[1fr_auto] items-center gap-2 text-xs cursor-pointer hover:bg-accent/30"
+                        >
+                          <span className="truncate">{TYPE_LABEL[c.request_type]}</span>
+                          <Badge variant="outline" className="text-[10px]">{c.status.replace("_", " ")}</Badge>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-1.5">
+                      Open any sub-request to approve or reject it on its own.
+                    </p>
+                  </div>
+                )}
+
+                {!active.is_batch && (
                 <div>
                   <div className="text-xs font-medium text-muted-foreground mb-1">
                     {active.request_type === "staffing.update" || active.request_type === "staffing.remove"
@@ -209,6 +299,7 @@ export function ApprovalsPipeline() {
                     </pre>
                   )}
                 </div>
+                )}
 
                 {canEditAll && (active.status === "pending" || active.status === "under_review") && (
                   <div>
@@ -232,12 +323,12 @@ export function ApprovalsPipeline() {
                     Cancel my request
                   </Button>
                 )}
-                {canEditAll && active.status === "pending" && (
+                {canEditAll && active.status === "pending" && !active.is_batch && (
                   <Button variant="outline" size="sm" onClick={handleStartReview} disabled={busy}>
                     <Eye className="h-3.5 w-3.5 mr-1.5" /> Mark under review
                   </Button>
                 )}
-                {canEditAll && (active.status === "pending" || active.status === "under_review") && (
+                {canEditAll && (active.status === "pending" || active.status === "under_review") && !active.is_batch && (
                   <>
                     <Button variant="outline" size="sm" onClick={handleReject} disabled={busy} className="text-destructive">
                       <XCircle className="h-3.5 w-3.5 mr-1.5" /> Reject
@@ -247,6 +338,11 @@ export function ApprovalsPipeline() {
                       Approve & apply
                     </Button>
                   </>
+                )}
+                {canEditAll && active.is_batch && (active.status === "pending" || active.status === "under_review") && (
+                  <Button variant="outline" size="sm" onClick={handleReject} disabled={busy} className="text-destructive">
+                    <XCircle className="h-3.5 w-3.5 mr-1.5" /> Reject all sub-requests
+                  </Button>
                 )}
               </div>
             </>
