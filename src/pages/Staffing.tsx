@@ -21,7 +21,12 @@ type Tab = "deals" | "people" | "matrix" | "tables" | "table" | "requests";
 
 // Deal statuses considered "active" for the BOPM staffing view.
 // Closed deals (Completed / Churned) are hidden.
-const ACTIVE_DEAL_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
+const ACTIVE_DEAL_STATUSES = new Set([
+  "Active Deal",
+  "New Deal in SLA/PO",
+  "Deal Disputed",
+  "Deal in Renewal Process",
+]);
 
 export default function Staffing() {
   const [searchParams, setSearchParams] = useSearchParams();
