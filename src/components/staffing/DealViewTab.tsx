@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, Search, Users, UserPlus } from "lucide-react
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import type { Deal, StaffingAssignment, Person } from "@/data/staffingData";
+import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
 
 const STAFFING_BUCKETS = ["Already Staffed", "No Staffing Needed", "Staffing Needed"] as const;
 type StaffingBucket = typeof STAFFING_BUCKETS[number];
@@ -80,6 +81,7 @@ export function DealViewTab({ deals, people, assignments, onUpdateDeal }: Props)
   const [dealType, setDealType] = useState<typeof DEAL_TYPE_OPTIONS[number]>(ALL);
   const [dealStatus, setDealStatus] = useState<typeof DEAL_STATUS_OPTIONS[number]>("Active Deal");
   const [vsdFilter, setVsdFilter] = useState<string>(ALL);
+  const [bopmFilter, setBopmFilter] = useState<string>(ALL);
   const [expandedVsd, setExpandedVsd] = useState<Set<string>>(new Set());
   const [expandedDeal, setExpandedDeal] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
@@ -105,6 +107,7 @@ export function DealViewTab({ deals, people, assignments, onUpdateDeal }: Props)
         const v = d.vsd?.trim() || "Yet to be assigned";
         if (v !== vsdFilter) return false;
       }
+      if (bopmFilter !== ALL && !dealMatchesBopm(d as any, bopmFilter)) return false;
       if (search) {
         const q = search.toLowerCase();
         if (!(d.dealName.toLowerCase().includes(q) || d.account.toLowerCase().includes(q) || (d.vsd || "").toLowerCase().includes(q))) {
@@ -113,7 +116,7 @@ export function DealViewTab({ deals, people, assignments, onUpdateDeal }: Props)
       }
       return true;
     });
-  }, [deals, dealType, dealStatus, vsdFilter, search]);
+  }, [deals, dealType, dealStatus, vsdFilter, bopmFilter, search]);
 
   const vsdOptions = useMemo(() => {
     const set = new Set<string>();
@@ -207,6 +210,16 @@ export function DealViewTab({ deals, people, assignments, onUpdateDeal }: Props)
           >
             {vsdOptions.map(o => <option key={o} value={o}>{o}</option>)}
           </select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <label className="text-caption text-muted-foreground">BOPM</label>
+          <BopmFilter
+            value={bopmFilter}
+            onChange={setBopmFilter}
+            scopedVsd={vsdFilter !== ALL && vsdFilter !== "Yet to be assigned" ? vsdFilter : undefined}
+            className="h-9 w-[200px] text-ui"
+          />
         </div>
 
         <div className="flex items-center gap-2">
