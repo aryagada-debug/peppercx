@@ -14,6 +14,11 @@ import {
 interface Props {
   deals: Deal[];
   people: Person[];
+  /**
+   * "card"  → original collapsible card view (used inline above the staffing table).
+   * "table" → full tabular view for the dedicated "Change requests" sub-tab.
+   */
+  variant?: "card" | "table";
 }
 
 const STAFFING_TYPES = ["staffing.add", "staffing.update", "staffing.remove"];
@@ -37,7 +42,7 @@ const TYPE_PILL: Record<string, string> = {
   "staffing.remove": "bg-rose-50 text-rose-800 border-rose-200",
 };
 
-export function MyStaffingRequests({ deals, people }: Props) {
+export function MyStaffingRequests({ deals, people, variant = "card" }: Props) {
   const { user } = useAuth();
   const [items, setItems] = useState<ApprovalRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -122,12 +127,156 @@ export function MyStaffingRequests({ deals, people }: Props) {
     );
   }
 
-  if (items.length === 0) return null;
+  if (items.length === 0) {
+    if (variant === "table") {
+      return (
+        <div className="rounded-xl border border-border bg-card px-6 py-10 text-center">
+          <p className="text-sm font-medium text-foreground">No change requests yet</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Stage changes on the Staffing tab and submit them to Central Cx — they'll show up here.
+          </p>
+        </div>
+      );
+    }
+    return null;
+  }
 
   const editingReq = editTargetId ? items.find(r => r.id === editTargetId) || null : null;
   const editingChildren = editingReq && editingReq.is_batch
     ? (childrenByParent.get(editingReq.id) || [])
     : [];
+
+  if (variant === "table") {
+    return (
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">My change requests</h3>
+            <p className="text-[11px] text-muted-foreground">
+              {open.length} awaiting Central Cx · {decided.length} decided
+            </p>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="bg-secondary/40 text-[10px] uppercase tracking-wider text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2 text-left w-[140px]">Status</th>
+                <th className="px-3 py-2 text-left w-[120px]">Type</th>
+                <th className="px-3 py-2 text-left">Deal</th>
+                <th className="px-3 py-2 text-left">Change</th>
+                <th className="px-3 py-2 text-left w-[220px]">Note</th>
+                <th className="px-3 py-2 text-left w-[110px]">Submitted</th>
+                <th className="px-3 py-2 text-right w-[150px]">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/60">
+              {topLevel.map(req => {
+                const sb = STATUS_BADGE[req.status] || STATUS_BADGE.pending;
+                const Icon = sb.Icon;
+                const deal = dealMap.get(req.deal_id);
+                const isOpen = req.status === "pending" || req.status === "under_review";
+                const children = req.is_batch ? (childrenByParent.get(req.id) || []) : [];
+                return (
+                  <tr key={req.id} className="align-top">
+                    <td className="px-3 py-2.5">
+                      <span className={cn("inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium", sb.cls)}>
+                        <Icon className="h-3 w-3" /> {sb.label}
+                      </span>
+                      {req.is_batch && children.length > 0 && (
+                        <div className="mt-1 text-[10px] text-muted-foreground">
+                          {children.filter(c => c.status === "approved").length}/{children.length} approved
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 text-muted-foreground">
+                      {req.is_batch
+                        ? `Batch · ${children.length}`
+                        : (TYPE_LABEL[req.request_type] || req.request_type)}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <div className="font-medium text-foreground truncate max-w-[260px]">
+                        {deal ? deal.account : (req.deal_id || "—")}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground truncate max-w-[260px]">
+                        {deal?.dealName || ""}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 text-foreground">
+                      {req.is_batch ? (
+                        <div className="space-y-0.5">
+                          {children.slice(0, 3).map(c => {
+                            const csb = STATUS_BADGE[c.status] || STATUS_BADGE.pending;
+                            return (
+                              <div key={c.id} className="flex items-start gap-1.5">
+                                <span className={cn("inline-block h-1.5 w-1.5 rounded-full mt-1.5 shrink-0",
+                                  c.status === "approved" ? "bg-emerald-500" :
+                                  c.status === "rejected" ? "bg-rose-500" : "bg-amber-500")} />
+                                <span className="text-[11px] truncate">{describePayload(c)}</span>
+                              </div>
+                            );
+                          })}
+                          {children.length > 3 && (
+                            <div className="text-[10px] text-muted-foreground">+{children.length - 3} more</div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-[11px]">{describePayload(req)}</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {req.requester_note ? (
+                        <span className="text-[11px] text-foreground italic">"{req.requester_note}"</span>
+                      ) : (
+                        <span className="text-[11px] text-muted-foreground">—</span>
+                      )}
+                      {req.reviewer_note && (
+                        <div className="mt-1 text-[10px] text-foreground">
+                          <span className="text-muted-foreground">Reviewer:</span> {req.reviewer_note}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 text-[10px] text-muted-foreground whitespace-nowrap">
+                      {formatDistanceToNow(new Date(req.created_at), { addSuffix: true })}
+                    </td>
+                    <td className="px-3 py-2.5 text-right">
+                      {isOpen ? (
+                        <div className="inline-flex items-center gap-1">
+                          <button
+                            onClick={() => setEditTargetId(req.id)}
+                            title="Edit request"
+                            className="h-7 px-2 inline-flex items-center gap-1 rounded-md border border-border text-[11px] text-muted-foreground hover:bg-secondary/50"
+                          ><Pencil className="h-3 w-3" /> Edit</button>
+                          <button
+                            onClick={() => withdraw(req.id)}
+                            title={req.is_batch ? "Withdraw and delete entire batch" : "Withdraw and delete request"}
+                            className="h-7 px-2 inline-flex items-center gap-1 rounded-md border border-border text-[11px] text-muted-foreground hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200"
+                          ><Trash2 className="h-3 w-3" /> Withdraw</button>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground">—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {editingReq && (
+          <EditRequestDialog
+            req={editingReq}
+            children={editingChildren}
+            dealMap={dealMap}
+            personMap={personMap}
+            onClose={() => setEditTargetId(null)}
+            onSaved={() => { setEditTargetId(null); refresh(); }}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
