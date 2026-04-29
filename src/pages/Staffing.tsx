@@ -14,6 +14,7 @@ import { BopmEmptyState } from "@/components/access/BopmEmptyState";
 import { StaffingReviewRequestsButton } from "@/components/staffing/StaffingReviewRequests";
 import { BopmStaffingSummary } from "@/components/staffing/BopmStaffingSummary";
 import { BopmStaffingTables } from "@/components/staffing/BopmStaffingTables";
+import { MyStaffingRequests } from "@/components/staffing/MyStaffingRequests";
 
 type Tab = "deals" | "people" | "matrix" | "tables";
 
@@ -48,6 +49,7 @@ export default function Staffing() {
   const {
     people, deals, assignments, revenueTargets, loading,
     updateAssignment, updateDeal, upsertAssignmentByRole,
+    addAssignment, deleteAssignment,
   } = useStaffingData();
 
   // For BOPM persona, narrow deals + assignments to her tagged deals — and
@@ -134,11 +136,18 @@ export default function Staffing() {
         {showBopmEmpty && <BopmEmptyState section="Staffing & Capacity" />}
 
         {isBopmPersona && !showBopmEmpty && tab === "tables" && (
-          <BopmStaffingTables
-            deals={uniqueScopedDeals}
-            people={scopedPeople}
-            assignments={scopedAssignments}
-          />
+          <div className="space-y-4">
+            <MyStaffingRequests deals={uniqueScopedDeals} people={people} />
+            <BopmStaffingTables
+              deals={uniqueScopedDeals}
+              people={scopedPeople}
+              allPeople={people}
+              assignments={scopedAssignments}
+              onAddAssignment={addAssignment}
+              onUpdateAssignment={updateAssignment}
+              onDeleteAssignment={deleteAssignment}
+            />
+          </div>
         )}
 
         {tab === "deals" && !isBopmPersona && (
