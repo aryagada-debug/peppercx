@@ -383,7 +383,7 @@ export default function Dashboard() {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-subhead font-semibold tracking-tight text-foreground">Portfolio Overview</h1>
-              {alerts.length > 0 && <Badge variant="destructive" className="text-xs">{alerts.length}</Badge>}
+              {!isBopmPersona && alerts.length > 0 && <Badge variant="destructive" className="text-xs">{alerts.length}</Badge>}
             </div>
             <p className="text-ui text-muted-foreground mt-1">{isBopmPersona ? "Your tagged & staffed deals" : "Live portfolio data"}</p>
           </div>
@@ -408,27 +408,58 @@ export default function Dashboard() {
           <FinanceTargetsCard monthYYYYMM={selectedMonth} dealIdScope={isBopmPersona ? visibleDealIds : undefined} />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
-          {/* Alerts */}
-          <div className="data-card col-span-1">
-            <p className="metric-label mb-4">Alerts</p>
-            {loading ? <AlertsSkeleton /> : alerts.length === 0 ? (
-              <p className="text-ui text-muted-foreground">All clear — no active alerts.</p>
-            ) : (
-              <div className="space-y-3">
-                {alerts.map((alert) => (
-                  <div key={alert.id} className="flex items-start gap-2.5">
-                    <alert.icon className={`h-4 w-4 mt-0.5 flex-shrink-0 ${alert.severity === "destructive" ? "text-destructive" : "text-warning"}`} />
-                    <span className="text-ui text-foreground flex-1">{alert.text}</span>
-                    <Link to={alert.actionHref} className="text-ui text-primary hover:underline whitespace-nowrap">{alert.actionLabel}</Link>
-                  </div>
-                ))}
-              </div>
-            )}
+        {/* Composite health (BOPM only) */}
+        {isBopmPersona && currentScore && !loading && (
+          <div className="mb-6">
+            <PortfolioHealthCard
+              current={currentScore}
+              previousScore={previousScore}
+              periodLabel={format(new Date(`${selectedMonth}-01T00:00:00`), "MMM yyyy")}
+              comparisonLabel="vs prior 30d"
+            />
           </div>
+        )}
+
+        {/* Per-deal scorecard (BOPM only) */}
+        {isBopmPersona && !loading && (
+          <div className="data-card mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <p className="metric-label">Per-deal scorecard</p>
+              <span className="text-caption text-muted-foreground">Sorted worst → best by grade</span>
+            </div>
+            <DealScorecardTable
+              rows={scorecardRows}
+              onRowClick={(id) => {
+                const row = rgyRows.find(r => r.id === id);
+                if (row) openDeal(row);
+              }}
+            />
+          </div>
+        )}
+
+        <div className={cn("grid grid-cols-1 gap-4 mb-8", !isBopmPersona && "lg:grid-cols-3")}>
+          {/* Alerts (admins only) */}
+          {!isBopmPersona && (
+            <div className="data-card col-span-1">
+              <p className="metric-label mb-4">Alerts</p>
+              {loading ? <AlertsSkeleton /> : alerts.length === 0 ? (
+                <p className="text-ui text-muted-foreground">All clear — no active alerts.</p>
+              ) : (
+                <div className="space-y-3">
+                  {alerts.map((alert) => (
+                    <div key={alert.id} className="flex items-start gap-2.5">
+                      <alert.icon className={`h-4 w-4 mt-0.5 flex-shrink-0 ${alert.severity === "destructive" ? "text-destructive" : "text-warning"}`} />
+                      <span className="text-ui text-foreground flex-1">{alert.text}</span>
+                      <Link to={alert.actionHref} className="text-ui text-primary hover:underline whitespace-nowrap">{alert.actionLabel}</Link>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Pod Utilization */}
-          <div className="data-card col-span-1 lg:col-span-2">
+          <div className={cn("data-card col-span-1", !isBopmPersona && "lg:col-span-2")}>
             <p className="metric-label mb-4">Top Utilization (this week)</p>
             {loading ? <PodTableSkeleton /> : pod.length === 0 ? (
               <p className="text-ui text-muted-foreground">No allocations recorded for this week.</p>
