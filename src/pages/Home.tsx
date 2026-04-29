@@ -27,6 +27,10 @@ import { TaskFormDialog } from "@/components/deals/TaskFormDialog";
 import { useGoogleCalendar, type GCalEvent } from "@/hooks/useGoogleCalendar";
 import { CalendarConnectButton } from "@/components/calendar/CalendarConnectButton";
 import { useUserRole } from "@/hooks/useUserRole";
+import { TaskKanban, type DealTask } from "@/components/deals/TaskKanban";
+import { CxDatePickerPopover } from "@/components/cx/CxDatePickerPopover";
+import { useAccountActivity } from "@/hooks/useAccountActivity";
+import { Activity as ActivityIcon } from "lucide-react";
 
 const DEAL_STAGES = ["To Do", "In Progress", "In Review", "Done", "Dropped"] as const;
 
@@ -89,7 +93,7 @@ export default function HomePage() {
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [quota, setQuota] = useState<QuotaRow | null>(null);
   const [closedAmount, setClosedAmount] = useState(0);
-  const [periodType, setPeriodType] = useState<"month" | "year">("month");
+  const [periodType, setPeriodType] = useState<"year">("year");
   const [taskFilter, setTaskFilter] = useState<"all" | "overdue" | "today" | "upcoming">("today");
   const [notifTab, setNotifTab] = useState<"activity" | "mentions">("activity");
   const [mentions, setMentions] = useState<any[]>([]);
@@ -272,9 +276,8 @@ export default function HomePage() {
     if (!user) return;
     setLoadingQuota(true);
     const today = new Date();
-    let start: Date, end: Date;
-    if (periodType === "month") { start = startOfMonth(today); end = endOfMonth(today); }
-    else { start = startOfYear(today); end = endOfYear(today); }
+    const start: Date = startOfYear(today);
+    const end: Date = endOfYear(today);
 
     const { data: q } = await supabase.from("user_quotas").select("*")
       .eq("user_id", user.id).eq("period_type", periodType)
@@ -359,6 +362,56 @@ export default function HomePage() {
     }));
     return [...dt, ...ct];
   }, [dealTasks, cxTasks, deals]);
+
+  // Kanban view of my deal tasks (2-way synced via deal_tasks table — same source DealDetail/Staffing uses)
+  const myKanbanTasks: DealTask[] = useMemo(() => {
+    return dealTasks.map(t => ({
+      id: t.id,
+      dealId: t.deal_id,
+      title: deals[t.deal_id]?.deal_name ? `${t.title} · ${deals[t.deal_id].deal_name}` : t.title,
+      description: t.description || "",
+      stage: t.stage,
+      assignee: t.assignee,
+      startDate: t.start_date || undefined,
+      endDate: t.end_date || undefined,
+      urgency: t.urgency,
+      loggedHours: Number(t.logged_hours) || 0,
+      sortOrder: t.sort_order || 0,
+      estimatedHours: Number(t.estimated_hours) || 0,
+      subtasks: (Array.isArray(t.subtasks) ? t.subtasks : []) as any,
+      autoRegen: !!t.auto_regen,
+      phase: t.phase || "",
+    }));
+  }, [dealTasks, deals]);
+
+  const handleKanbanUpdate = useCallback(async (id: string, updates: Partial<DealTask>) => {
+    const dbUpdates: any = {};
+    if (updates.title !== undefined) dbUpdates.title = updates.title;
+    if (updates.description !== undefined) dbUpdates.description = updates.description;
+    if (updates.stage !== undefined) dbUpdates.stage = updates.stage;
+    if (updates.assignee !== undefined) dbUpdates.assignee = updates.assignee;
+    if (updates.startDate !== undefined) dbUpdates.start_date = updates.startDate || null;
+    if (updates.endDate !== undefined) dbUpdates.end_date = updates.endDate || null;
+    if (updates.urgency !== undefined) dbUpdates.urgency = updates.urgency;
+    if (updates.estimatedHours !== undefined) dbUpdates.estimated_hours = updates.estimatedHours;
+    if (updates.loggedHours !== undefined) dbUpdates.logged_hours = updates.loggedHours;
+    if (updates.subtasks !== undefined) dbUpdates.subtasks = updates.subtasks;
+    if (updates.autoRegen !== undefined) dbUpdates.auto_regen = updates.autoRegen;
+    // Optimistic
+    setDealTasks(prev => prev.map(t => t.id === id ? { ...t, ...dbUpdates } : t));
+    const { error } = await supabase.from("deal_tasks").update(dbUpdates).eq("id", id);
+    if (error) { toast.error(error.message); loadTasks(); }
+  }, [loadTasks]);
+
+  const handleKanbanDelete = useCallback(async (id: string) => {
+    setDealTasks(prev => prev.filter(t => t.id !== id));
+    const { error } = await supabase.from("deal_tasks").delete().eq("id", id);
+    if (error) toast.error(error.message);
+    else toast.success("Task deleted");
+  }, []);
+
+  // Account activity (replaces Recently Viewed) — recomputes when alias set changes
+  const { items: activityItems, loading: loadingActivity } = useAccountActivity(aliasesRef.current, !!displayName, 25);
 
   const overdue = useMemo(() => allMyTasks.filter(t => isOverdue(t.due)), [allMyTasks]);
   const today = useMemo(() => allMyTasks.filter(t => isDueToday(t.due)), [allMyTasks]);
@@ -590,82 +643,72 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Row 1: Quota (4) + My Tasks (8) */}
-        <div className="grid grid-cols-12 gap-4">
-          <Card className="col-span-12 lg:col-span-4 rounded-xl">
-            <CardHeader className="pb-3 flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-[15px] font-bold flex items-center gap-2">
-                <Target className="h-4 w-4 text-primary" />
-                {periodType === "month" ? "Monthly Target" : "Annual Target"}
-              </CardTitle>
-              <Select value={periodType} onValueChange={(v) => setPeriodType(v as any)}>
-                <SelectTrigger className="h-7 w-[100px] text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="month">Monthly</SelectItem>
-                  <SelectItem value="year">Annual</SelectItem>
-                </SelectContent>
-              </Select>
-            </CardHeader>
-            <CardContent>
-              {loadingQuota ? <Skeleton className="h-32" /> : !quota ? (
-                <div className="text-center py-6">
-                  <Target className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
-                  <p className="text-xs text-muted-foreground">No quota assigned for this {periodType}.</p>
-                  <p className="text-[10px] text-muted-foreground mt-1">Ask your admin to set a quota.</p>
+        {/* Row 1: Annual Target (compact) */}
+        <Card className="rounded-xl">
+          <CardHeader className="pb-3 flex-row items-center justify-between space-y-0">
+            <CardTitle className="text-[15px] font-bold flex items-center gap-2">
+              <Target className="h-4 w-4 text-primary" /> Annual Target
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loadingQuota ? <Skeleton className="h-24" /> : !quota ? (
+              <div className="text-center py-4">
+                <Target className="h-7 w-7 text-muted-foreground/40 mx-auto mb-1.5" />
+                <p className="text-xs text-muted-foreground">No annual quota assigned.</p>
+                <p className="text-[10px] text-muted-foreground mt-1">Ask your admin to set a quota.</p>
+              </div>
+            ) : (
+              <div className="flex items-center gap-6 flex-wrap">
+                <QuotaDonut pct={quotaMath?.pct || 0} />
+                <div className="flex-1 grid grid-cols-3 gap-4 text-xs min-w-[280px]">
+                  <KvRow label="Closed" value={formatINR(closedAmount)} />
+                  <KvRow label="Target" value={formatINR(quota.target_amount)} />
+                  <KvRow label="Days left" value={String(quotaMath?.remaining || 0)} />
                 </div>
-              ) : (
-                <div>
-                  <div className="flex items-center gap-4">
-                    <QuotaDonut pct={quotaMath?.pct || 0} />
-                    <div className="flex-1 space-y-2 text-xs">
-                      <KvRow label="Closed" value={formatINR(closedAmount)} />
-                      <KvRow label="Target" value={formatINR(quota.target_amount)} />
-                      <KvRow label="Days left" value={String(quotaMath?.remaining || 0)} />
-                    </div>
-                  </div>
-                  {quotaMath && (
-                    <PacePill
-                      onPace={quotaMath.onPace}
-                      paceDelta={quotaMath.paceDelta}
-                      dailyTarget={quotaMath.dailyTarget}
-                      elapsed={quotaMath.elapsed}
-                      pct={quotaMath.pct}
-                    />
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                {quotaMath && (
+                  <PacePill
+                    onPace={quotaMath.onPace}
+                    paceDelta={quotaMath.paceDelta}
+                    dailyTarget={quotaMath.dailyTarget}
+                    elapsed={quotaMath.elapsed}
+                    pct={quotaMath.pct}
+                  />
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-          <Card id="my-tasks-card" className="col-span-12 lg:col-span-8 rounded-xl">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-[15px] font-bold flex items-center gap-2">
-                <ListTodo className="h-4 w-4 text-primary" /> My Tasks
-                <Badge variant="secondary" className="ml-1 text-[10px]">{allMyTasks.length}</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {loadingTasks ? <SkeletonRows /> : (
-                <Tabs value={taskFilter === "all" ? "today" : taskFilter} onValueChange={(v) => setTaskFilter(v as any)}>
-                  <TabsList className="mb-3 bg-secondary">
-                    <TabsTrigger value="overdue">Overdue ({overdue.length})</TabsTrigger>
-                    <TabsTrigger value="today">Today ({today.length})</TabsTrigger>
-                    <TabsTrigger value="upcoming">Upcoming ({upcoming.length})</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="overdue">
-                    <TaskRows tasks={overdue} onComplete={onTaskComplete} onOpenEdit={(t) => t.kind === "deal" && setEditingDealTask(t.raw)} emptyText="All caught up ✨" readOnly={isReadOnly} />
-                  </TabsContent>
-                  <TabsContent value="today">
-                    <TaskRows tasks={today} onComplete={onTaskComplete} onOpenEdit={(t) => t.kind === "deal" && setEditingDealTask(t.raw)} emptyText="Nothing due today. Nice." readOnly={isReadOnly} />
-                  </TabsContent>
-                  <TabsContent value="upcoming">
-                    <TaskRows tasks={upcoming} onComplete={onTaskComplete} onOpenEdit={(t) => t.kind === "deal" && setEditingDealTask(t.raw)} emptyText="Plan something for the week →" readOnly={isReadOnly} />
-                  </TabsContent>
-                </Tabs>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+        {/* Row 2: My Tasks — full-width Kanban (2-way synced with deal tasks) */}
+        <Card id="my-tasks-card" className="rounded-xl">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-[15px] font-bold flex items-center gap-2">
+              <ListTodo className="h-4 w-4 text-primary" /> My Tasks
+              <Badge variant="secondary" className="ml-1 text-[10px]">{myKanbanTasks.length}</Badge>
+              <span className="ml-2 text-[10px] font-normal text-muted-foreground">
+                Synced with deal tasks · changes here update everywhere
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loadingTasks ? <SkeletonRows /> : myKanbanTasks.length === 0 ? (
+              <div className="text-center py-8">
+                <CheckCircle2 className="h-8 w-8 text-positive/40 mx-auto mb-2" />
+                <p className="text-xs text-muted-foreground">No tasks assigned to you. Tasks created on a deal where you're tagged will appear here.</p>
+              </div>
+            ) : (
+              <TaskKanban
+                tasks={myKanbanTasks}
+                dealId=""
+                assignees={allPeople.filter(p => !p.tbh).map(p => ({ id: p.id, name: p.name }))}
+                onAdd={() => { /* adding without a deal context is disabled on Home */ }}
+                onUpdate={handleKanbanUpdate}
+                onDelete={handleKanbanDelete}
+                disableAdd
+              />
+            )}
+          </CardContent>
+        </Card>
 
         {/* Row 2: Today's Calendar (6) + Smart Nudges (6) */}
         <div className="grid grid-cols-12 gap-4">
@@ -858,11 +901,25 @@ export default function HomePage() {
                   <div key={t.id} className={cn("group flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-secondary/40 transition-colors", t.done && "opacity-60")}>
                     <Checkbox checked={t.done} onCheckedChange={() => toggleTodo(t)} />
                     <span className={cn("flex-1 text-sm leading-snug", t.done && "line-through text-muted-foreground")}>{t.title}</span>
-                    {t.due_date && (
-                      <span className="text-[10px] font-mono text-muted-foreground whitespace-nowrap">
-                        {format(parseISO(t.due_date), "dd MMM")}
-                      </span>
-                    )}
+                    <CxDatePickerPopover
+                      value={t.due_date}
+                      onChange={async (v) => {
+                        setTodos(prev => prev.map(x => x.id === t.id ? { ...x, due_date: v } : x));
+                        const { error } = await supabase.from("personal_todos").update({ due_date: v }).eq("id", t.id);
+                        if (error) toast.error(error.message);
+                      }}
+                    >
+                      <button
+                        type="button"
+                        className={cn(
+                          "text-[10px] font-mono whitespace-nowrap rounded px-1.5 py-0.5 border border-transparent hover:border-border hover:bg-card transition-colors",
+                          t.due_date ? "text-muted-foreground" : "text-muted-foreground/50 opacity-0 group-hover:opacity-100"
+                        )}
+                        aria-label="Set due date"
+                      >
+                        {t.due_date ? format(parseISO(t.due_date), "dd MMM") : "+ due date"}
+                      </button>
+                    </CxDatePickerPopover>
                     <button type="button" onClick={() => deleteTodo(t.id)}
                       className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
                       aria-label="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
@@ -875,44 +932,44 @@ export default function HomePage() {
           <Card className="col-span-12 lg:col-span-6 rounded-xl">
             <CardHeader className="pb-3">
               <CardTitle className="text-[15px] font-bold flex items-center gap-2">
-                <Clock3 className="h-4 w-4 text-primary" /> Recently viewed
+                <ActivityIcon className="h-4 w-4 text-primary" /> Activity in my accounts
+                <Badge variant="secondary" className="ml-1 text-[10px]">{activityItems.length}</Badge>
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {loadingRecents ? <SkeletonRows /> : recents.length === 0 ? (
-                <p className="text-xs text-muted-foreground py-2">Records you visit will appear here for quick access.</p>
+            <CardContent>
+              {loadingActivity ? <SkeletonRows /> : activityItems.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-2">No recent activity on accounts you're tagged into.</p>
               ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  {recents.map(r => (
-                    <button key={r.id} onClick={() => navigate(`/${r.entity_type === "deal" ? "deals" : "clients"}/${r.entity_id}`)}
-                      onContextMenu={(e) => { e.preventDefault(); pinFromRecent(r); }}
-                      title={`Viewed ${format(parseISO(r.viewed_at), "dd MMM, h:mm a")} · right-click to pin`}
-                      className="inline-flex items-center gap-1.5 rounded-full bg-secondary hover:bg-card hover:border-border border border-transparent px-3 py-1 text-xs text-foreground transition-colors max-w-[200px]">
-                      <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", recentColor(r.entity_type))} />
-                      <span className="truncate">{r.entity_name}</span>
-                    </button>
-                  ))}
+                <div className="space-y-1 max-h-[320px] overflow-y-auto">
+                  {activityItems.map(a => {
+                    const tone =
+                      a.kind === "slack" ? "bg-primary/15 text-primary" :
+                      a.kind === "rgy" ? "bg-destructive/15 text-destructive" :
+                      a.kind === "mbr" ? "bg-warning/15 text-warning" :
+                      "bg-positive/15 text-positive";
+                    const Icon =
+                      a.kind === "slack" ? MessageSquare :
+                      a.kind === "rgy" ? Flag :
+                      a.kind === "mbr" ? CalendarDays :
+                      ListTodo;
+                    return (
+                      <button key={a.id} onClick={() => navigate(a.href)}
+                        className="w-full text-left flex items-start gap-2 rounded-md hover:bg-secondary/40 px-2 py-2 transition-colors">
+                        <div className={cn("h-7 w-7 rounded flex items-center justify-center shrink-0", tone)}>
+                          <Icon className="h-3.5 w-3.5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[12.5px] leading-snug text-foreground line-clamp-2">
+                            <span className="font-semibold">{a.actor}</span> · {a.text}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            {a.deal_name}{a.account ? ` · ${a.account}` : ""} · {format(parseISO(a.at), "dd MMM, h:mm a")}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
-              )}
-              {pins.length > 0 && (
-                <>
-                  <div className="border-t border-border pt-3">
-                    <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-2">
-                      <Pin className="h-3 w-3" /> Pinned
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {pins.map(p => (
-                        <button key={p.id} onClick={() => navigate(`/${p.entity_type === "deal" ? "deals" : "clients"}/${p.entity_id}`)}
-                          onContextMenu={(e) => { e.preventDefault(); unpin(p.id); }}
-                          title="Right-click to unpin"
-                          className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 hover:bg-primary/20 px-3 py-1 text-xs text-primary transition-colors max-w-[200px]">
-                          <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
-                          <span className="truncate">{p.entity_name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </>
               )}
             </CardContent>
           </Card>
