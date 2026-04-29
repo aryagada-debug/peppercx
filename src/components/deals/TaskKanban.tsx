@@ -70,17 +70,20 @@ interface Props {
   onUpdate: (id: string, updates: Partial<DealTask>) => void;
   onDelete: (id: string) => void;
   disableAdd?: boolean;
+  /** When true, each column shows only ~3 tasks at a time and scrolls vertically. */
+  compact?: boolean;
 }
 
 /* ── Droppable Column ── */
-function DroppableColumn({ stage, children }: { stage: string; children: React.ReactNode }) {
+function DroppableColumn({ stage, children, compact }: { stage: string; children: React.ReactNode; compact?: boolean }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage });
   const colors = STAGE_COLORS[stage];
   return (
     <div
       ref={setNodeRef}
       className={cn(
-        "space-y-2 p-2 rounded-b-lg border border-t-0 min-h-[300px] transition-colors",
+        "space-y-2 p-2 rounded-b-lg border border-t-0 transition-colors",
+        compact ? "min-h-[120px] max-h-[280px] overflow-y-auto" : "min-h-[300px]",
         colors.border,
         isOver ? "bg-primary/5 ring-2 ring-primary/20" : "bg-background"
       )}
@@ -186,7 +189,7 @@ function DraggableTaskCard({ task, onClick }: { task: DealTask; onClick: () => v
   );
 }
 
-export function TaskKanban({ tasks, dealId, assignees, onAdd, onUpdate, onDelete, disableAdd }: Props) {
+export function TaskKanban({ tasks, dealId, assignees, onAdd, onUpdate, onDelete, disableAdd, compact }: Props) {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [createForStage, setCreateForStage] = useState<string>("To Do");
   const [editTask, setEditTask] = useState<DealTask | null>(null);
@@ -274,7 +277,7 @@ export function TaskKanban({ tasks, dealId, assignees, onAdd, onUpdate, onDelete
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex gap-3 overflow-x-auto pb-4" style={{ minHeight: 400 }}>
+        <div className="flex gap-3 overflow-x-auto pb-4" style={{ minHeight: compact ? 200 : 400 }}>
           {STAGES.map(stage => {
             const stageTasks = tasks.filter(t => t.stage === stage).sort((a, b) => a.sortOrder - b.sortOrder);
             const colors = STAGE_COLORS[stage];
@@ -298,7 +301,7 @@ export function TaskKanban({ tasks, dealId, assignees, onAdd, onUpdate, onDelete
                 </div>
 
                 {/* Droppable zone */}
-                <DroppableColumn stage={stage}>
+                <DroppableColumn stage={stage} compact={compact}>
                   {stageTasks.map(task => (
                     <DraggableTaskCard
                       key={task.id}
