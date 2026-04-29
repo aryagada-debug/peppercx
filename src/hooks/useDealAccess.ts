@@ -205,14 +205,17 @@ export function useDealAccess(): DealAccessState {
     // as read-only, which leaked the entire pod into Clients/Staffing/
     // MBR/RGY.)
     const visibleDealIds = new Set<string>(ownDealIds);
-    const editableDealIds = new Set<string>(ownDealIds);
+    // BOPMs / non-admin users are READ-ONLY on Clients & Deals.
+    // They can view their mapped deals but cannot add, edit, or remove
+    // clients, deals, or any related records. Editing is reserved for
+    // admins (handled in the isAdmin branch above).
+    const editableDealIds = new Set<string>();
 
     const visibleClientIds = new Set<string>();
     const editableClientIds = new Set<string>();
     for (const d of allDeals) {
       if (!d.client_id) continue;
       if (visibleDealIds.has(d.id)) visibleClientIds.add(d.client_id);
-      if (editableDealIds.has(d.id)) editableClientIds.add(d.client_id);
     }
 
     return {
