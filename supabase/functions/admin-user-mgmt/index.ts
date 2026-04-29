@@ -284,14 +284,24 @@ Deno.serve(async (req) => {
     }
 
     if (action === "provision_bopm_logins") {
-      // Provision auth accounts for every BOPM (BOPM, Senior BOPM, Principal BOPM)
-      // using their real email, with a known shared password for A/B testing.
-      // Also (re)links profile.staffing_person_id so deal-visibility works.
+      // Provision/sync auth accounts for every BOPM-style person using their
+      // real settings email, with a known shared password for A/B testing.
+      // - Matches by role_title OR designation containing "BOPM" / Account Engagement / Business Operations.
+      // - If an auth account already exists but with a different email, the auth
+      //   email is updated to match staffing_people.email (settings → users).
+      // - (Re)links profile.staffing_person_id so deal-visibility works.
       const BOPM_PASSWORD = "Pepper@2026";
       const { data: bopms, error: bErr } = await adminClient
         .from("staffing_people")
-        .select("id, name, email, role_title")
-        .in("role_title", ["BOPM", "Senior BOPM", "Principal BOPM"]);
+        .select("id, name, email, role_title, designation")
+        .or(
+          [
+            "role_title.ilike.%BOPM%",
+            "designation.ilike.%BOPM%",
+            "designation.ilike.%Account Engagement%",
+            "designation.ilike.%Business Operations Project Manager%",
+          ].join(","),
+        );
       if (bErr) {
         return new Response(JSON.stringify({ error: bErr.message }), {
           status: 500,
@@ -300,10 +310,11 @@ Deno.serve(async (req) => {
       }
 
       // Dedupe by id (the table can carry duplicate rows for the same person).
-      const dedup = new Map<string, { id: string; name: string; email: string; role_title: string }>();
+      type Bopm = { id: string; name: string; email: string; role_title: string; designation: string };
+      const dedup = new Map<string, Bopm>();
       for (const p of bopms || []) {
         if (!p.email || !p.email.trim()) continue;
-        if (!dedup.has(p.id)) dedup.set(p.id, p as any);
+        if (!dedup.has(p.id)) dedup.set(p.id, p as Bopm);
       }
 
       const { data: authList } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
@@ -319,13 +330,37 @@ Deno.serve(async (req) => {
       const skipped: { name: string; reason: string }[] = [];
 
       for (const p of dedup.values()) {
-        const emailLower = p.email.trim().toLowerCase();
+        const targetEmail = p.email.trim();
+        const emailLower = targetEmail.toLowerCase();
         let userId = existingByEmail.get(emailLower);
         let status = "linked";
 
+        // If we don't have an auth user with this exact email, check if a
+        // profile already linked this person to a different auth account —
+        // in that case, update that auth user's email to the settings email.
+        if (!userId) {
+          const { data: existingProfile } = await adminClient
+            .from("profiles")
+            .select("user_id")
+            .eq("staffing_person_id", p.id)
+            .limit(1)
+            .maybeSingle();
+          if (existingProfile?.user_id) {
+            const { error: updErr } = await adminClient.auth.admin.updateUserById(
+              existingProfile.user_id,
+              { email: targetEmail, password: BOPM_PASSWORD, email_confirm: true },
+            );
+            if (!updErr) {
+              userId = existingProfile.user_id;
+              existingByEmail.set(emailLower, userId);
+              status = "email_synced";
+            }
+          }
+        }
+
         if (!userId) {
           const { data: newUser, error: cErr } = await adminClient.auth.admin.createUser({
-            email: p.email.trim(),
+            email: targetEmail,
             password: BOPM_PASSWORD,
             email_confirm: true,
             user_metadata: { full_name: p.name },
@@ -339,7 +374,7 @@ Deno.serve(async (req) => {
           }
           userId = newUser.user.id;
           status = "created";
-        } else {
+        } else if (status === "linked") {
           // Reset password to known shared value for A/B testing.
           await adminClient.auth.admin.updateUserById(userId, {
             password: BOPM_PASSWORD,
@@ -360,7 +395,7 @@ Deno.serve(async (req) => {
           .then((r) => r, () => null);
 
         results.push({
-          person_id: p.id, name: p.name, email: p.email,
+          person_id: p.id, name: p.name, email: targetEmail,
           role_title: p.role_title, status,
         });
       }
