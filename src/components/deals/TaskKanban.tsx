@@ -83,7 +83,7 @@ function DroppableColumn({ stage, children, compact }: { stage: string; children
       ref={setNodeRef}
       className={cn(
         "space-y-2 p-2 rounded-b-lg border border-t-0 transition-colors",
-        compact ? "min-h-[120px] max-h-[280px] overflow-y-auto" : "min-h-[300px]",
+        compact ? "h-[440px] overflow-y-auto" : "min-h-[300px]",
         colors.border,
         isOver ? "bg-primary/5 ring-2 ring-primary/20" : "bg-background"
       )}
@@ -277,7 +277,7 @@ export function TaskKanban({ tasks, dealId, assignees, onAdd, onUpdate, onDelete
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex gap-3 overflow-x-auto pb-4" style={{ minHeight: compact ? 200 : 400 }}>
+        <div className="flex items-start gap-3 overflow-x-auto pb-4" style={{ minHeight: compact ? 480 : 400 }}>
           {STAGES.map(stage => {
             const stageTasks = tasks.filter(t => t.stage === stage).sort((a, b) => a.sortOrder - b.sortOrder);
             const colors = STAGE_COLORS[stage];
