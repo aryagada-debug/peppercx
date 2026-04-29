@@ -126,6 +126,65 @@ export type Database = {
           },
         ]
       }
+      capability_groups: {
+        Row: {
+          created_at: string
+          id: string
+          lead_person_id: string | null
+          name: string
+          role_categories: string[]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lead_person_id?: string | null
+          name: string
+          role_categories?: string[]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lead_person_id?: string | null
+          name?: string
+          role_categories?: string[]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      capability_memberships: {
+        Row: {
+          capability_id: string
+          created_at: string
+          id: string
+          is_lead: boolean
+          person_id: string
+        }
+        Insert: {
+          capability_id: string
+          created_at?: string
+          id?: string
+          is_lead?: boolean
+          person_id: string
+        }
+        Update: {
+          capability_id?: string
+          created_at?: string
+          id?: string
+          is_lead?: boolean
+          person_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "capability_memberships_capability_id_fkey"
+            columns: ["capability_id"]
+            isOneToOne: false
+            referencedRelation: "capability_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           account_status: string
@@ -2002,7 +2061,13 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "member" | "user" | "view_only"
+      app_role:
+        | "admin"
+        | "member"
+        | "user"
+        | "view_only"
+        | "capability_lead"
+        | "capability_member"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2130,7 +2195,14 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "member", "user", "view_only"],
+      app_role: [
+        "admin",
+        "member",
+        "user",
+        "view_only",
+        "capability_lead",
+        "capability_member",
+      ],
     },
   },
 } as const
