@@ -191,41 +191,14 @@ export function MyStaffingRequests({ deals, people }: Props) {
                               <span className={cn("inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium shrink-0", csb.cls)}>
                                 <CIcon className="h-3 w-3" /> {csb.label}
                               </span>
-                              {(c.status === "pending" || c.status === "under_review") && (
-                                <button
-                                  onClick={() => cancel(c.id)}
-                                  title="Withdraw this sub-request"
-                                  className="h-6 w-6 inline-flex items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 shrink-0"
-                                ><X className="h-3 w-3" /></button>
-                              )}
                             </div>
                           );
                         })}
                       </div>
                     )}
 
-                    {editingId === req.id ? (
-                      <div className="mt-2 flex items-center gap-2">
-                        <input
-                          autoFocus
-                          value={draftNote}
-                          onChange={e => setDraftNote(e.target.value)}
-                          placeholder="Add a note for the reviewer…"
-                          className="flex-1 h-7 px-2 rounded-md border border-border bg-background text-xs"
-                        />
-                        <button
-                          onClick={() => saveNote(req.id)}
-                          className="h-7 px-2 rounded-md bg-foreground text-background text-[11px] font-medium"
-                        >Save</button>
-                        <button
-                          onClick={() => setEditingId(null)}
-                          className="h-7 px-2 rounded-md border border-border text-[11px]"
-                        >Cancel</button>
-                      </div>
-                    ) : (
-                      req.requester_note && (
-                        <div className="mt-1 text-[11px] text-muted-foreground italic">"{req.requester_note}"</div>
-                      )
+                    {req.requester_note && (
+                      <div className="mt-1 text-[11px] text-muted-foreground italic">"{req.requester_note}"</div>
                     )}
                     {req.reviewer_note && (
                       <div className="mt-1 text-[11px] text-foreground">
