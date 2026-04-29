@@ -33,6 +33,132 @@ const CATEGORY_STYLES: Record<string, { head: string; cell: string; dot: string;
 };
 const styleFor = (cat?: string) => CATEGORY_STYLES[cat || "Other"] || CATEGORY_STYLES["Other"];
 
+// ── Sortable column header (drag-and-drop reorder within a team) ──────────
+function SortableColHeader({
+  rk, cat, width, onResize, children,
+}: {
+  rk: string; cat: string; width: number;
+  onResize: (e: React.MouseEvent) => void;
+  children?: React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: rk });
+  const s = styleFor(cat);
+  const style: React.CSSProperties = {
+    width, minWidth: width, maxWidth: width,
+    transform: CSS.Translate.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+    zIndex: isDragging ? 5 : undefined,
+  };
+  return (
+    <th
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "relative px-2 py-2 text-left whitespace-nowrap border-r border-border/60 group",
+        s.head
+      )}
+      title={`${rk} · ${cat}`}
+    >
+      <div className="flex items-center gap-1 pr-2">
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing opacity-40 hover:opacity-100 -ml-0.5"
+          title="Drag to reorder column"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical className="h-3 w-3" />
+        </button>
+        <span className={cn("h-1.5 w-1.5 rounded-full flex-shrink-0", s.dot)} />
+        <span className="truncate">{rk}</span>
+        {children}
+      </div>
+      <span
+        onMouseDown={onResize}
+        className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize opacity-0 group-hover:opacity-100 hover:bg-primary/40 transition-opacity"
+        title="Drag to resize"
+      />
+    </th>
+  );
+}
+
+// ── Picker rows: sortable team group + sortable role inside ───────────────
+function SortableTeamSection({
+  team, children,
+}: { team: string; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: `team:${team}` });
+  const s = styleFor(team);
+  const style: React.CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+  };
+  return (
+    <div ref={setNodeRef} style={style} className="mt-1.5 rounded border border-transparent hover:border-border/60">
+      <div className="flex items-center gap-1.5 px-1.5 py-1">
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
+          title="Drag to reorder team"
+        >
+          <GripVertical className="h-3 w-3" />
+        </button>
+        <span className={cn("h-2 w-2 rounded-full", s.dot)} />
+        <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{s.label}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function SortablePickerRow({
+  rk, checked, onToggle,
+}: { rk: string; checked: boolean; onToggle: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: rk });
+  const style: React.CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-1 pl-1 pr-1.5 py-0.5 rounded hover:bg-secondary/60"
+    >
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
+        title="Drag to reorder"
+      >
+        <GripVertical className="h-3 w-3" />
+      </button>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex-1 flex items-center gap-2 py-0.5 text-left"
+      >
+        <span className={cn(
+          "h-3.5 w-3.5 rounded border flex items-center justify-center flex-shrink-0",
+          checked ? "bg-primary border-primary" : "border-border bg-background"
+        )}>
+          {checked && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
+        </span>
+        <span className="text-foreground truncate">{rk}</span>
+      </button>
+    </div>
+  );
+}
+
 interface Props {
   deals: Deal[];
   people: Person[];
