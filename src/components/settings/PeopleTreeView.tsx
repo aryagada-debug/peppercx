@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback } from "react";
 import {
   ChevronRight, ChevronDown, GripVertical, Plus, Trash2, UserPlus, Search,
-  Users, FolderPlus, AlertTriangle,
+  Users, FolderPlus, AlertTriangle, Pencil, Check, X,
 } from "lucide-react";
 import {
   DndContext, DragEndEvent, DragOverlay, DragStartEvent,
@@ -34,25 +34,55 @@ interface ReportNode {
   children: ReportNode[];
 }
 
-function buildReportTree(rows: Person[]): ReportNode[] {
+/**
+ * Build a report tree for a sub-set of people. If a manager of someone in
+ * `rows` is not themselves in `rows` (e.g. cross-team manager like Sneha
+ * managing both Sales and Delivery Ops), we still surface that manager at
+ * the top of this section — looked up from `allPeople` — so their reports
+ * nest under them visually. The same manager can therefore appear in
+ * multiple team sections.
+ */
+function buildReportTree(rows: Person[], allPeople: Person[]): ReportNode[] {
+  const inSet = new Set(rows.map(p => p.id));
   const byName = new Map<string, Person>();
-  rows.forEach(p => byName.set(p.name, p));
+  allPeople.forEach(p => byName.set(p.name, p));
+
+  // Children map keyed by manager name; values are people who report to them
+  // AND are part of `rows`.
   const childrenMap = new Map<string, Person[]>();
+  // Synthetic managers we need to inject (manager not in `rows`).
+  const syntheticManagers = new Set<string>();
+
   rows.forEach(p => {
     const mgr = (p.reportingManager || "").trim();
-    const key = mgr && byName.has(mgr) && mgr !== p.name ? mgr : "__root__";
-    if (!childrenMap.has(key)) childrenMap.set(key, []);
-    childrenMap.get(key)!.push(p);
+    if (mgr && byName.has(mgr) && mgr !== p.name) {
+      const mgrPerson = byName.get(mgr)!;
+      if (!childrenMap.has(mgr)) childrenMap.set(mgr, []);
+      childrenMap.get(mgr)!.push(p);
+      if (!inSet.has(mgrPerson.id)) syntheticManagers.add(mgr);
+    } else {
+      if (!childrenMap.has("__root__")) childrenMap.set("__root__", []);
+      childrenMap.get("__root__")!.push(p);
+    }
   });
+
   const build = (p: Person): ReportNode => ({
     person: p,
     children: (childrenMap.get(p.name) || [])
       .sort((a, b) => a.name.localeCompare(b.name))
       .map(build),
   });
-  return (childrenMap.get("__root__") || [])
+
+  const roots: ReportNode[] = [];
+  // Inject synthetic managers as roots first.
+  Array.from(syntheticManagers).sort().forEach(mgrName => {
+    const mgrPerson = byName.get(mgrName)!;
+    roots.push(build(mgrPerson));
+  });
+  (childrenMap.get("__root__") || [])
     .sort((a, b) => a.name.localeCompare(b.name))
-    .map(build);
+    .forEach(p => roots.push(build(p)));
+  return roots;
 }
 
 /* ── Drag primitives ─────────────────────────────────────────────────────── */
@@ -84,6 +114,8 @@ export function PeopleTreeView({ people, onAdd, onUpdate, onRequestDelete }: Pro
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<{ id: string; field: "designation" | "email" } | null>(null);
+  const [editValue, setEditValue] = useState("");
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   // Local-only buckets so admins can pre-create empty teams/sub-teams.
@@ -215,39 +247,128 @@ export function PeopleTreeView({ people, onAdd, onUpdate, onRequestDelete }: Pro
 
   const renderPersonRow = (p: Person, indent: number) => {
     const isDrag = draggingId === p.id;
+    const hasReports = people.some(x => (x.reportingManager || "") === p.name && x.id !== p.id);
+    const reportsKey = `reports::${p.id}::${indent}`;
+    const reportsOpen = isExpanded(reportsKey, indent === 0);
+
+    const startEdit = (field: "designation" | "email") => {
+      setEditing({ id: p.id, field });
+      setEditValue((field === "designation" ? p.designation : p.email) || "");
+    };
+    const commitEdit = async () => {
+      if (!editing) return;
+      const field = editing.field;
+      await onUpdate(p.id, { [field]: editValue.trim() } as any);
+      setEditing(null);
+    };
+    const cancelEdit = () => setEditing(null);
+    const isEditingField = (f: "designation" | "email") =>
+      editing?.id === p.id && editing.field === f;
+
     return (
       <DropTarget id={`person::${p.id}`} kind="person" key={p.id}>
         <DraggableRow id={p.id}>
           <div
             style={{ paddingLeft: 12 + indent * 18 }}
             className={cn(
-              "group flex items-center gap-2 rounded-md py-1.5 pr-2 hover:bg-secondary/30 cursor-grab",
+              "group flex items-center gap-2 rounded-md py-1.5 pr-2 hover:bg-secondary/30",
               isDrag && "opacity-40",
               p.leaving && "opacity-60",
             )}
           >
-            <GripVertical className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
-            <div className="flex-1 min-w-0 flex items-baseline gap-2">
-              <span className="text-sm font-medium text-foreground truncate">{p.name}</span>
-              <span className="text-[11px] text-muted-foreground truncate">{p.designation || "—"}</span>
-              {p.band && (
-                <span className="text-[10px] rounded px-1 py-0.5 border border-border text-muted-foreground">{p.band}</span>
-              )}
-              {p.tbh && (
-                <span className="text-[10px] italic text-muted-foreground">(TBH)</span>
-              )}
-              {p.leaving && (
-                <span className="text-[10px] font-medium text-destructive">· Leaving</span>
-              )}
-            </div>
-            {p.email && (
-              <span className="text-[11px] text-muted-foreground truncate max-w-[180px]" title={p.email}>{p.email}</span>
-            )}
             <button
+                type="button"
+                onClick={() => hasReports && toggle(reportsKey)}
+                className={cn(
+                  "h-4 w-4 inline-flex items-center justify-center text-muted-foreground hover:text-foreground shrink-0",
+                  !hasReports && "invisible",
+                )}
+                title={hasReports ? (reportsOpen ? "Collapse reports" : "Expand reports") : ""}
+              >
+                {reportsOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+            </button>
+            <GripVertical className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 cursor-grab shrink-0" />
+
+              {/* Name column */}
+              <div className="w-[200px] shrink-0 truncate text-sm font-medium text-foreground">
+                {p.name}
+                {p.tbh && <span className="ml-1 text-[10px] italic text-muted-foreground">(TBH)</span>}
+                {p.leaving && <span className="ml-1 text-[10px] font-medium text-destructive">· Leaving</span>}
+              </div>
+
+              {/* Designation column — editable */}
+              <div className="w-[260px] shrink-0 text-[12px] text-muted-foreground truncate flex items-center gap-1">
+                {isEditingField("designation") ? (
+                  <>
+                    <input
+                      autoFocus
+                      value={editValue}
+                      onChange={e => setEditValue(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === "Enter") commitEdit();
+                        if (e.key === "Escape") cancelEdit();
+                      }}
+                      className="h-6 flex-1 min-w-0 rounded border border-border bg-card px-1.5 text-[12px] focus:border-primary focus:outline-none"
+                    />
+                    <button type="button" onClick={commitEdit} className="text-emerald-600 hover:text-emerald-700"><Check className="h-3.5 w-3.5" /></button>
+                    <button type="button" onClick={cancelEdit} className="text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => startEdit("designation")}
+                    className="flex-1 min-w-0 truncate text-left hover:text-foreground"
+                    title={p.designation || "Click to add designation"}
+                  >
+                    {p.designation || <span className="italic">— add designation —</span>}
+                  </button>
+                )}
+              </div>
+
+              {/* Band column */}
+              <div className="w-[60px] shrink-0">
+                {p.band ? (
+                  <span className="text-[10px] rounded px-1 py-0.5 border border-border text-muted-foreground">{p.band}</span>
+                ) : null}
+              </div>
+
+              {/* Email column — editable */}
+              <div className="flex-1 min-w-0 text-[12px] text-muted-foreground flex items-center gap-1">
+                {isEditingField("email") ? (
+                  <>
+                    <input
+                      autoFocus
+                      type="email"
+                      value={editValue}
+                      onChange={e => setEditValue(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === "Enter") commitEdit();
+                        if (e.key === "Escape") cancelEdit();
+                      }}
+                      className="h-6 flex-1 min-w-0 rounded border border-border bg-card px-1.5 text-[12px] focus:border-primary focus:outline-none"
+                    />
+                    <button type="button" onClick={commitEdit} className="text-emerald-600 hover:text-emerald-700"><Check className="h-3.5 w-3.5" /></button>
+                    <button type="button" onClick={cancelEdit} className="text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => startEdit("email")}
+                    className="flex-1 min-w-0 truncate text-left hover:text-foreground"
+                    title={p.email || "Click to add email"}
+                  >
+                    {p.email || <span className="italic">— add email —</span>}
+                  </button>
+                )}
+                <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-60 shrink-0" />
+              </div>
+
+              {/* Actions */}
+              <button
               type="button"
               onClick={() => onUpdate(p.id, { leaving: !p.leaving })}
               className={cn(
-                "h-6 px-2 rounded border text-[10px] font-medium transition-colors",
+                "h-6 px-2 rounded border text-[10px] font-medium transition-colors shrink-0",
                 p.leaving
                   ? "border-destructive/40 text-destructive hover:bg-destructive/10"
                   : "border-border text-muted-foreground hover:bg-secondary/50",
@@ -255,15 +376,15 @@ export function PeopleTreeView({ people, onAdd, onUpdate, onRequestDelete }: Pro
               title={p.leaving ? "Unmark as leaving" : "Mark as leaving"}
             >
               {p.leaving ? "Unmark leaving" : "Leaving"}
-            </button>
-            <button
+              </button>
+              <button
               type="button"
               onClick={() => onRequestDelete(p)}
-              className="h-6 w-6 rounded inline-flex items-center justify-center text-muted-foreground hover:bg-destructive/10 hover:text-destructive opacity-0 group-hover:opacity-100"
+              className="h-6 w-6 rounded inline-flex items-center justify-center text-muted-foreground hover:bg-destructive/10 hover:text-destructive opacity-0 group-hover:opacity-100 shrink-0"
               title="Delete person"
             >
               <Trash2 className="h-3.5 w-3.5" />
-            </button>
+              </button>
           </div>
         </DraggableRow>
       </DropTarget>
@@ -271,17 +392,27 @@ export function PeopleTreeView({ people, onAdd, onUpdate, onRequestDelete }: Pro
   };
 
   /**
-   * Inside a sub-team, build a small reporting tree out of just those people
-   * so reports are visually nested under their managers.
+   * Inside a sub-team, build a small reporting tree out of those people so
+   * reports are visually nested under their managers. Cross-team managers
+   * are surfaced at the top of this section. Each manager's reports group
+   * is independently collapsible.
    */
   const renderSubteamPeople = (peopleInSub: Person[]) => {
-    const nodes = buildReportTree(peopleInSub);
-    const render = (n: ReportNode, depth: number): React.ReactNode => (
-      <div key={n.person.id}>
-        {renderPersonRow(n.person, depth)}
-        {n.children.map(c => render(c, depth + 1))}
-      </div>
-    );
+    const nodes = buildReportTree(peopleInSub, people);
+    const render = (n: ReportNode, depth: number): React.ReactNode => {
+      const reportsKey = `reports::${n.person.id}::${depth}`;
+      const open = isExpanded(reportsKey, depth === 0);
+      return (
+        <div key={`${n.person.id}::${depth}`}>
+          {renderPersonRow(n.person, depth)}
+          {n.children.length > 0 && open && (
+            <div>
+              {n.children.map(c => render(c, depth + 1))}
+            </div>
+          )}
+        </div>
+      );
+    };
     return nodes.map(n => render(n, 0));
   };
 
