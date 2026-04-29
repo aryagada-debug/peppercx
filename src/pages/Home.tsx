@@ -27,6 +27,10 @@ import { TaskFormDialog } from "@/components/deals/TaskFormDialog";
 import { useGoogleCalendar, type GCalEvent } from "@/hooks/useGoogleCalendar";
 import { CalendarConnectButton } from "@/components/calendar/CalendarConnectButton";
 import { useUserRole } from "@/hooks/useUserRole";
+import { TaskKanban, type DealTask } from "@/components/deals/TaskKanban";
+import { CxDatePickerPopover } from "@/components/cx/CxDatePickerPopover";
+import { useAccountActivity } from "@/hooks/useAccountActivity";
+import { MessageSquare as MsgIcon, Activity as ActivityIcon } from "lucide-react";
 
 const DEAL_STAGES = ["To Do", "In Progress", "In Review", "Done", "Dropped"] as const;
 
