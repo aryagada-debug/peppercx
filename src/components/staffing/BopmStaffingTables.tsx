@@ -24,6 +24,64 @@ const TEAM_ORDER: RoleCategory[] = [
   "Other",
 ];
 
+// Display group → which RoleCategories belong, color, and short label/sub-label
+type DisplayGroup = {
+  key: string;
+  label: string;          // e.g. "OPS"
+  longLabel: string;      // e.g. "Ops"
+  sub: string;            // e.g. "VSD · BOPM"
+  cats: RoleCategory[];
+  dotClass: string;       // tailwind bg for legend dot
+  pillBg: string;         // tailwind bg for chip
+  pillText: string;       // tailwind text colour for chip
+  initialBg: string;      // bg for initials bubble
+};
+
+const DISPLAY_GROUPS: DisplayGroup[] = [
+  { key: "ops",      label: "OPS",      longLabel: "Ops",      sub: "VSD · BOPM",
+    cats: ["Operations"],
+    dotClass: "bg-blue-500",
+    pillBg: "bg-blue-50 border border-blue-200",
+    pillText: "text-blue-900",
+    initialBg: "bg-white border border-blue-200 text-blue-900" },
+  { key: "content",  label: "CONTENT",  longLabel: "Content",  sub: "Editors · Leads",
+    cats: ["Content", "Content Strategy"],
+    dotClass: "bg-stone-700",
+    pillBg: "bg-stone-50 border border-stone-200",
+    pillText: "text-stone-900",
+    initialBg: "bg-white border border-stone-300 text-stone-900" },
+  { key: "seo",      label: "SEO",      longLabel: "SEO",      sub: "Leader · Growth · Ops",
+    cats: ["SEO", "Performance & Growth"],
+    dotClass: "bg-emerald-600",
+    pillBg: "bg-emerald-50 border border-emerald-200",
+    pillText: "text-emerald-900",
+    initialBg: "bg-white border border-emerald-200 text-emerald-900" },
+  { key: "creative", label: "CREATIVE", longLabel: "Creative", sub: "Strategy · Copy · Art",
+    cats: ["Creative Strategy", "Creative Copy", "Creative Art"],
+    dotClass: "bg-amber-600",
+    pillBg: "bg-amber-50 border border-amber-200",
+    pillText: "text-amber-900",
+    initialBg: "bg-white border border-amber-200 text-amber-900" },
+  { key: "production", label: "PRODUCTION", longLabel: "Production", sub: "Video · Influencer",
+    cats: ["Video"],
+    dotClass: "bg-rose-700",
+    pillBg: "bg-rose-50 border border-rose-200",
+    pillText: "text-rose-900",
+    initialBg: "bg-white border border-rose-200 text-rose-900" },
+];
+
+const groupForCategory = (cat: RoleCategory): DisplayGroup => {
+  return DISPLAY_GROUPS.find(g => g.cats.includes(cat)) || DISPLAY_GROUPS[0];
+};
+
+// One letter initial for a person (handles multi-word names)
+const personInitial = (name: string): string => {
+  const parts = (name || "?").trim().split(/\s+/);
+  return (parts[0]?.[0] || "?").toUpperCase();
+};
+
+const MONTH_HOURS = 160;
+
 export function BopmStaffingTables({ deals, people, assignments }: Props) {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState<Set<string>>(new Set());
@@ -37,6 +95,51 @@ export function BopmStaffingTables({ deals, people, assignments }: Props) {
     }
     return m;
   }, [assignments]);
+
+  // Per-account aggregate: unique people across all deals + average utilization
+  const accountStats = useMemo(() => {
+    const byAccount = new Map<string, { dealIds: Set<string>; people: Map<string, number> }>();
+    for (const d of deals) {
+      const acct = d.account || "—";
+      if (!byAccount.has(acct)) byAccount.set(acct, { dealIds: new Set(), people: new Map() });
+      const entry = byAccount.get(acct)!;
+      entry.dealIds.add(d.id);
+      const aList = assignmentsByDeal.get(d.id) || [];
+      for (const a of aList) {
+        entry.people.set(a.personId, (entry.people.get(a.personId) || 0) + a.allocationPct);
+      }
+    }
+    const map = new Map<string, { peopleCount: number; avgUtilPct: number }>();
+    byAccount.forEach((v, k) => {
+      const peopleCount = v.people.size;
+      const totalAlloc = Array.from(v.people.values()).reduce((s, n) => s + n, 0);
+      const avgUtilPct = peopleCount > 0 ? Math.round(totalAlloc / peopleCount) : 0;
+      map.set(k, { peopleCount, avgUtilPct });
+    });
+    return map;
+  }, [deals, assignmentsByDeal]);
+
+  // Top-level totals for the header
+  const totals = useMemo(() => {
+    const uniquePeople = new Set<string>();
+    let allocSum = 0;
+    let allocCount = 0;
+    assignments.forEach(a => {
+      uniquePeople.add(a.personId);
+    });
+    uniquePeople.forEach(pid => {
+      const sum = assignments
+        .filter(a => a.personId === pid)
+        .reduce((s, a) => s + a.allocationPct, 0);
+      allocSum += sum;
+      allocCount += 1;
+    });
+    return {
+      dealCount: deals.length,
+      peopleCount: uniquePeople.size,
+      avgUtilPct: allocCount > 0 ? Math.round(allocSum / allocCount) : 0,
+    };
+  }, [deals, assignments]);
 
   // Build a per-deal "teams summary" string for the collapsed row, e.g. "SEO 3 · Content 2 · Ops 1"
   const dealTeamSummary = (dealId: string) => {
@@ -70,150 +173,243 @@ export function BopmStaffingTables({ deals, people, assignments }: Props) {
   };
 
   return (
-    <section className="rounded-xl border border-border bg-card overflow-hidden">
-      <header className="px-4 py-3 border-b border-border flex items-center justify-between gap-3">
+    <section className="space-y-3">
+      {/* Header summary line */}
+      <div className="flex items-end justify-between gap-3 px-1">
         <div>
-          <h3 className="text-sm font-semibold text-foreground">Your deals & staffing</h3>
-          <p className="text-[11px] text-muted-foreground">Click any deal to see who is staffed from each team</p>
+          <p className="text-[11px] text-muted-foreground">
+            <span className="font-medium text-foreground">{totals.dealCount} deals</span>
+            <span className="mx-1.5">·</span>
+            <span className="font-medium text-foreground">{totals.peopleCount} people</span>
+            <span className="mx-1.5">·</span>
+            <span className="font-medium text-foreground">{totals.avgUtilPct}% avg utilization</span>
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search account, deal…"
-              className="h-8 pl-7 pr-3 rounded-md border border-border bg-background text-xs w-56 focus:outline-none focus:ring-1 focus:ring-accent"
-            />
+      </div>
+
+      {/* Teams legend */}
+      <div className="rounded-lg border border-border bg-secondary/30 px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+        <span className="text-[10px] uppercase tracking-wider font-medium text-muted-foreground">Teams</span>
+        {DISPLAY_GROUPS.map(g => (
+          <span key={g.key} className="inline-flex items-center gap-1.5 text-[11px]">
+            <span className={cn("h-1.5 w-1.5 rounded-full", g.dotClass)} />
+            <span className="font-medium text-foreground">{g.longLabel}</span>
+            <span className="text-muted-foreground">{g.sub}</span>
+          </span>
+        ))}
+      </div>
+
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
+        {/* Inner header: title + search */}
+        <header className="px-4 py-3 border-b border-border flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Your deals & staffing</h3>
+            <p className="text-[11px] text-muted-foreground">Hover any team chip to see individual allocations and roles</p>
           </div>
-          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{filtered.length} deals</span>
-        </div>
-      </header>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search account, deal, person…"
+                className="h-8 pl-7 pr-3 rounded-md border border-border bg-background text-xs w-64 focus:outline-none focus:ring-1 focus:ring-accent"
+              />
+            </div>
+          </div>
+        </header>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-secondary/50 text-[10px] uppercase tracking-wide text-muted-foreground">
-            <tr>
-              <th className="px-3 py-2 text-left w-8"></th>
-              <th className="px-3 py-2 text-left">Account</th>
-              <th className="px-3 py-2 text-left">Deal name</th>
-              <th className="px-3 py-2 text-left font-mono">Deal ID</th>
-              <th className="px-3 py-2 text-left">Teams staffed</th>
-              <th className="px-3 py-2 text-right">People</th>
-              <th className="px-3 py-2 text-right">MRR</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map(d => {
-              const aList = assignmentsByDeal.get(d.id) || [];
-              const isOpen = open.has(d.id);
-              const summary = dealTeamSummary(d.id);
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-secondary/40 text-[10px] uppercase tracking-wider text-muted-foreground">
+              <tr>
+                <th className="px-4 py-2 text-left w-[200px]">Account</th>
+                <th className="px-4 py-2 text-left">Deal & Staffing</th>
+                <th className="px-4 py-2 text-right w-[100px]">MRR</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(d => {
+                const aList = assignmentsByDeal.get(d.id) || [];
+                const isOpen = open.has(d.id);
 
-              // Group assignments by team capability for the expanded view
-              const byTeam = new Map<string, StaffingAssignment[]>();
-              for (const a of aList) {
-                const p = personById.get(a.personId);
-                const cat = (p?.roleCategory || "Other") as string;
-                if (!byTeam.has(cat)) byTeam.set(cat, []);
-                byTeam.get(cat)!.push(a);
-              }
-              const orderedTeams = TEAM_ORDER.filter(t => byTeam.has(t))
-                .concat(Array.from(byTeam.keys()).filter(k => !TEAM_ORDER.includes(k as RoleCategory)) as RoleCategory[]);
+                // Group assignments by display group → list of {person, alloc}
+                const byGroup = new Map<string, { person: Person | undefined; alloc: number }[]>();
+                for (const a of aList) {
+                  const p = personById.get(a.personId);
+                  const cat = (p?.roleCategory || "Other") as RoleCategory;
+                  const g = groupForCategory(cat);
+                  if (!byGroup.has(g.key)) byGroup.set(g.key, []);
+                  byGroup.get(g.key)!.push({ person: p, alloc: a.allocationPct });
+                }
 
-              return (
-                <>
-                  <tr
-                    key={d.id}
-                    className={cn(
-                      "border-t border-border hover:bg-secondary/30 cursor-pointer transition-colors",
-                      isOpen && "bg-secondary/20"
-                    )}
-                    onClick={() => toggle(d.id)}
-                  >
-                    <td className="px-3 py-2.5 text-muted-foreground">
-                      {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                    </td>
-                    <td className="px-3 py-2.5 font-medium text-foreground">{d.account}</td>
-                    <td className="px-3 py-2.5 text-foreground">{d.dealName}</td>
-                    <td className="px-3 py-2.5 font-mono text-xs text-accent">{d.dealId}</td>
-                    <td className="px-3 py-2.5">
-                      {summary.length === 0 ? (
-                        <span className="text-xs italic text-muted-foreground">No team staffed</span>
-                      ) : (
-                        <div className="flex flex-wrap gap-1">
-                          {summary.slice(0, 5).map(s => (
-                            <span key={s} className="inline-block px-1.5 py-0.5 rounded bg-secondary text-[10px] text-foreground">
-                              {s}
-                            </span>
-                          ))}
-                          {summary.length > 5 && (
-                            <span className="text-[10px] text-muted-foreground">+{summary.length - 5}</span>
-                          )}
-                        </div>
+                const acctStats = accountStats.get(d.account || "—") || { peopleCount: 0, avgUtilPct: 0 };
+                const isOverUtilised = acctStats.avgUtilPct > 100;
+
+                // Detailed per-team data for expanded view (re-using existing logic)
+                const byTeam = new Map<string, StaffingAssignment[]>();
+                for (const a of aList) {
+                  const p = personById.get(a.personId);
+                  const cat = (p?.roleCategory || "Other") as string;
+                  if (!byTeam.has(cat)) byTeam.set(cat, []);
+                  byTeam.get(cat)!.push(a);
+                }
+                const orderedTeams = TEAM_ORDER.filter(t => byTeam.has(t))
+                  .concat(Array.from(byTeam.keys()).filter(k => !TEAM_ORDER.includes(k as RoleCategory)) as RoleCategory[]);
+
+                return (
+                  <>
+                    <tr
+                      key={d.id}
+                      className={cn(
+                        "border-t border-border hover:bg-secondary/20 cursor-pointer transition-colors group",
+                        isOpen && "bg-secondary/20"
                       )}
-                    </td>
-                    <td className="px-3 py-2.5 text-right font-mono">{aList.length}</td>
-                    <td className="px-3 py-2.5 text-right font-mono">{formatINR(d.mrr || 0)}</td>
-                  </tr>
+                      onClick={() => toggle(d.id)}
+                    >
+                      {/* Account: name + people · util% */}
+                      <td className="px-4 py-3 align-top">
+                        <div className="flex items-start gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[14px] font-medium text-foreground leading-tight">{d.account || "—"}</div>
+                            <div className={cn(
+                              "text-[11px] mt-0.5",
+                              isOverUtilised ? "text-rose-600" : "text-muted-foreground"
+                            )}>
+                              {acctStats.peopleCount} people · {acctStats.avgUtilPct}%
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            aria-label={isOpen ? "Collapse" : "Expand"}
+                            className={cn(
+                              "shrink-0 h-6 w-6 rounded-full border border-border bg-background flex items-center justify-center text-muted-foreground transition-opacity",
+                              isOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                            )}
+                          >
+                            {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                          </button>
+                        </div>
+                      </td>
 
-                  {isOpen && (
-                    <tr key={`${d.id}-x`}>
-                      <td colSpan={7} className="bg-secondary/10 border-t border-border/50 px-6 py-4">
+                      {/* Deal name + chips */}
+                      <td className="px-4 py-3 align-top">
+                        <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                          <span className="text-[14px] font-medium text-foreground">{d.dealName}</span>
+                          <span className="font-mono text-[10px] text-muted-foreground">{d.dealId}</span>
+                        </div>
                         {aList.length === 0 ? (
-                          <p className="text-xs text-muted-foreground italic">No one staffed on this deal yet.</p>
+                          <span className="text-xs italic text-muted-foreground">No team staffed</span>
                         ) : (
-                          <div className="rounded-lg border border-border bg-card overflow-hidden">
-                            <table className="w-full text-xs">
-                              <thead className="bg-secondary/40 text-[10px] uppercase tracking-wide text-muted-foreground">
-                                <tr>
-                                  <th className="px-3 py-2 text-left w-[160px]">Team</th>
-                                  <th className="px-3 py-2 text-left">Person</th>
-                                  <th className="px-3 py-2 text-left">Role</th>
-                                  <th className="px-3 py-2 text-right w-[100px]">Allocation</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {orderedTeams.map(team => {
-                                  const rows = byTeam.get(team) || [];
-                                  return rows.map((a, idx) => {
-                                    const p = personById.get(a.personId);
-                                    return (
-                                      <tr key={a.id} className="border-t border-border/50">
-                                        <td className="px-3 py-1.5 text-muted-foreground">
-                                          {idx === 0 ? (
-                                            <span className="font-medium text-foreground">{team}</span>
-                                          ) : ""}
-                                        </td>
-                                        <td className="px-3 py-1.5 text-foreground">
-                                          {p?.name || "—"}
-                                          {p?.tbh && <span className="ml-1 text-[10px] text-amber-600">(TBH)</span>}
-                                          {p?.leaving && <span className="ml-1 text-[10px] text-rose-600">(Leaving)</span>}
-                                        </td>
-                                        <td className="px-3 py-1.5 text-muted-foreground">
-                                          {p?.roleTitle || a.roleKey}
-                                        </td>
-                                        <td className="px-3 py-1.5 text-right font-mono text-muted-foreground">
-                                          {a.allocationPct}%
-                                        </td>
-                                      </tr>
-                                    );
-                                  });
-                                })}
-                              </tbody>
-                            </table>
+                          <div className="flex flex-wrap gap-1.5">
+                            {DISPLAY_GROUPS.map(g => {
+                              const rows = byGroup.get(g.key);
+                              if (!rows || rows.length === 0) return null;
+                              const totalAlloc = rows.reduce((s, r) => s + r.alloc, 0);
+                              const peopleN = rows.length;
+                              return (
+                                <span
+                                  key={g.key}
+                                  className={cn("inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px]", g.pillBg, g.pillText)}
+                                  title={rows.map(r => `${r.person?.name || "?"} ${r.alloc}%`).join(" · ")}
+                                >
+                                  <span className="font-medium tracking-wide">{g.label}</span>
+                                  <span className="inline-flex items-center gap-0.5">
+                                    {rows.slice(0, 4).map((r, i) => (
+                                      <span
+                                        key={i}
+                                        className={cn(
+                                          "inline-flex items-center justify-center h-4 w-4 rounded text-[9px] font-medium",
+                                          g.initialBg
+                                        )}
+                                      >
+                                        {personInitial(r.person?.name || "?")}
+                                      </span>
+                                    ))}
+                                    {rows.length > 4 && (
+                                      <span className="inline-flex items-center justify-center h-4 min-w-[16px] px-1 rounded text-[9px] font-medium bg-rose-600 text-white">
+                                        +{rows.length - 4}
+                                      </span>
+                                    )}
+                                  </span>
+                                  <span className="opacity-70">{peopleN}p · {totalAlloc}%</span>
+                                </span>
+                              );
+                            })}
                           </div>
                         )}
                       </td>
+
+                      {/* MRR */}
+                      <td className="px-4 py-3 text-right font-mono text-[14px] text-foreground align-top whitespace-nowrap">
+                        {formatINR(d.mrr || 0)}
+                      </td>
                     </tr>
-                  )}
-                </>
-              );
-            })}
-            {filtered.length === 0 && (
-              <tr><td colSpan={7} className="px-3 py-6 text-center text-muted-foreground text-xs">No deals match your search.</td></tr>
-            )}
-          </tbody>
-        </table>
+
+                    {isOpen && (
+                      <tr key={`${d.id}-x`}>
+                        <td colSpan={3} className="bg-secondary/10 border-t border-border/50 px-6 py-4">
+                          {aList.length === 0 ? (
+                            <p className="text-xs text-muted-foreground italic">No one staffed on this deal yet.</p>
+                          ) : (
+                            <div className="rounded-lg border border-border bg-card overflow-hidden">
+                              <table className="w-full text-xs">
+                                <thead className="bg-secondary/40 text-[10px] uppercase tracking-wide text-muted-foreground">
+                                  <tr>
+                                    <th className="px-3 py-2 text-left w-[160px]">Team</th>
+                                    <th className="px-3 py-2 text-left">Person</th>
+                                    <th className="px-3 py-2 text-left">Role</th>
+                                    <th className="px-3 py-2 text-right w-[100px]">Allocation</th>
+                                    <th className="px-3 py-2 text-right w-[120px]">Hrs / week</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {orderedTeams.map(team => {
+                                    const rows = byTeam.get(team) || [];
+                                    return rows.map((a, idx) => {
+                                      const p = personById.get(a.personId);
+                                      const hrs = ((a.allocationPct / 100) * MONTH_HOURS) / 4.33;
+                                      return (
+                                        <tr key={a.id} className="border-t border-border/50">
+                                          <td className="px-3 py-1.5 text-muted-foreground">
+                                            {idx === 0 ? (
+                                              <span className="font-medium text-foreground">{team}</span>
+                                            ) : ""}
+                                          </td>
+                                          <td className="px-3 py-1.5 text-foreground">
+                                            {p?.name || "—"}
+                                            {p?.tbh && <span className="ml-1 text-[10px] text-amber-600">(TBH)</span>}
+                                            {p?.leaving && <span className="ml-1 text-[10px] text-rose-600">(Leaving)</span>}
+                                          </td>
+                                          <td className="px-3 py-1.5 text-muted-foreground">
+                                            {p?.roleTitle || a.roleKey}
+                                          </td>
+                                          <td className="px-3 py-1.5 text-right font-mono text-muted-foreground">
+                                            {a.allocationPct}%
+                                          </td>
+                                          <td className="px-3 py-1.5 text-right font-mono text-muted-foreground">
+                                            {hrs.toFixed(1)}h
+                                          </td>
+                                        </tr>
+                                      );
+                                    });
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                );
+              })}
+              {filtered.length === 0 && (
+                <tr><td colSpan={3} className="px-3 py-6 text-center text-muted-foreground text-xs">No deals match your search.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </section>
   );
