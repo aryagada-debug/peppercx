@@ -93,7 +93,7 @@ export default function HomePage() {
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [quota, setQuota] = useState<QuotaRow | null>(null);
   const [closedAmount, setClosedAmount] = useState(0);
-  const [periodType, setPeriodType] = useState<"month" | "year">("month");
+  const [periodType, setPeriodType] = useState<"year">("year");
   const [taskFilter, setTaskFilter] = useState<"all" | "overdue" | "today" | "upcoming">("today");
   const [notifTab, setNotifTab] = useState<"activity" | "mentions">("activity");
   const [mentions, setMentions] = useState<any[]>([]);
