@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, Fragment } from "react";
 import { formatINR } from "@/lib/csvTargets";
 import { Link } from "react-router-dom";
 import { AlertTriangle, Clock, MessageSquare, UserMinus, ChevronRight } from "lucide-react";
-import { format, startOfMonth, addDays, subDays } from "date-fns";
+import { format, startOfMonth, subMonths, addDays, subDays, differenceInCalendarDays } from "date-fns";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { UtilizationBar, UtilizationLegend } from "@/components/dashboard/UtilizationBar";
@@ -17,6 +17,9 @@ import { FinanceTargetsCard } from "@/components/targets/FinanceTargetsCard";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useDealAccess } from "@/hooks/useDealAccess";
 import { BopmEmptyState } from "@/components/access/BopmEmptyState";
+import { computePortfolioScore, type ScoreOutput } from "@/lib/portfolioScore";
+import { PortfolioHealthCard } from "@/components/dashboard/PortfolioHealthCard";
+import { DealScorecardTable, type ScorecardRow } from "@/components/dashboard/DealScorecardTable";
 
 const ACTIVE_STATUSES = ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"];
 const RGY_DIMS = ["Internal", "Customer", "Delivery", "Consumption"] as const;
@@ -67,6 +70,9 @@ export default function Dashboard() {
   const [rgyRows, setRgyRows] = useState<RGYRow[]>([]);
   const [vsdRollup, setVsdRollup] = useState<VsdRollup[]>([]);
   const [expandedVsd, setExpandedVsd] = useState<Set<string>>(new Set());
+  const [currentScore, setCurrentScore] = useState<ScoreOutput | null>(null);
+  const [previousScore, setPreviousScore] = useState<number | null>(null);
+  const [scorecardRows, setScorecardRows] = useState<ScorecardRow[]>([]);
   const { role } = useUserRole();
   const { visibleDealIds, loading: accessLoading } = useDealAccess();
   const isBopmPersona = role === "user";
@@ -77,9 +83,13 @@ export default function Dashboard() {
       setLoading(true);
       const monthStart = startOfMonth(new Date(`${selectedMonth}-01T00:00:00`));
       const monthIso = format(monthStart, "yyyy-MM-dd");
+      const prevMonthStart = subMonths(monthStart, 1);
+      const prevMonthIso = format(prevMonthStart, "yyyy-MM-dd");
       const monday = currentMonday();
       const mondayIso = format(monday, "yyyy-MM-dd");
       const overdueCutoff = format(subDays(new Date(), 35), "yyyy-MM-dd");
+      const prevOverdueCutoff = format(subDays(new Date(), 65), "yyyy-MM-dd");
+      const prevWeekCutoff = format(subDays(new Date(), 30), "yyyy-MM-dd");
       const sevenDaysAgo = format(subDays(new Date(), 7), "yyyy-MM-dd");
 
       const [
@@ -91,9 +101,11 @@ export default function Dashboard() {
         { data: assigns },
         { data: people },
         { data: alloc },
+        { data: prevRev },
+        { data: prevPendingMbrs },
       ] = await Promise.all([
         supabase.from("staffing_deals")
-          .select("id, deal_name, account, mrr, total_deal_value, deal_status, vsd, principal_bopm, senior_bopm, bopm")
+          .select("id, deal_name, account, mrr, total_deal_value, deal_status, vsd, principal_bopm, senior_bopm, bopm, end_date")
           .in("deal_status", ACTIVE_STATUSES),
         supabase.from("deal_revenue_monthly")
           .select("deal_id, mrr, actuals")
@@ -114,6 +126,13 @@ export default function Dashboard() {
         supabase.from("staffing_weekly_allocations")
           .select("person_id, deal_id, allocation_pct")
           .eq("week_start", mondayIso),
+        supabase.from("deal_revenue_monthly")
+          .select("deal_id, mrr, actuals")
+          .eq("month", prevMonthIso),
+        supabase.from("mbr_entries")
+          .select("deal_id, status, week_start")
+          .eq("status", "Pending")
+          .lt("week_start", prevOverdueCutoff),
       ]);
 
       if (cancelled) return;
@@ -244,6 +263,103 @@ export default function Dashboard() {
         .slice(0, 8);
       setPod(podBuilt);
 
+      // ---- Composite Portfolio Health Score ----
+      const allStatuses: RGYStatus[] = rgyRowsBuilt.map(r => worstStatus(r.dimensions));
+      const totalDeals = dealList.length;
+      const score = computePortfolioScore({
+        rgyStatuses: allStatuses,
+        attainmentPct: attainment,
+        overdueMbrCount: overdueMbrCount,
+        unstaffedCount: unstaffedCount,
+        totalDeals,
+      });
+      setCurrentScore(score);
+
+      // Previous period score — reuse RGY history filtered to ~30+ days ago,
+      // and previous month's revenue / overdue MBR snapshot.
+      const prevLatestRgy = new Map<string, any>();
+      for (const r of (rgyAll || [])) {
+        if (!activeIds.has(r.deal_id)) continue;
+        if (r.week_start > prevWeekCutoff) continue; // only weeks BEFORE 30 days ago
+        if (!prevLatestRgy.has(r.deal_id)) prevLatestRgy.set(r.deal_id, r);
+      }
+      const prevStatuses: RGYStatus[] = [];
+      for (const r of prevLatestRgy.values()) {
+        const dims: Record<string, RGYStatus> = {
+          Internal: toRGY(r.internal),
+          Customer: toRGY(r.customer),
+          Delivery: toRGY(r.delivery),
+          Consumption: toRGY(r.consumption),
+        };
+        prevStatuses.push(worstStatus(dims));
+      }
+      const prevTarget = (prevRev || []).filter((r: any) => activeIds.has(r.deal_id))
+        .reduce((s: number, r: any) => s + (Number(r.mrr) || 0), 0);
+      const prevActuals = (prevRev || []).filter((r: any) => activeIds.has(r.deal_id))
+        .reduce((s: number, r: any) => s + (Number(r.actuals) || 0), 0);
+      const prevAttain = prevTarget > 0 ? Math.round((prevActuals / prevTarget) * 100) : attainment;
+      const prevOverdue = (prevPendingMbrs || []).filter((m: any) => activeIds.has(m.deal_id)).length;
+      if (prevStatuses.length > 0 || (prevRev || []).length > 0) {
+        const prev = computePortfolioScore({
+          rgyStatuses: prevStatuses.length > 0 ? prevStatuses : allStatuses,
+          attainmentPct: prevAttain,
+          overdueMbrCount: prevOverdue,
+          unstaffedCount: unstaffedCount, // staffing snapshot rarely retro-available
+          totalDeals,
+        });
+        setPreviousScore(prev.score);
+      } else {
+        setPreviousScore(null);
+      }
+
+      // ---- Per-deal scorecard ----
+      const revByDeal = new Map<string, any>((rev || []).map((r: any) => [r.deal_id, r]));
+      const today = new Date();
+      const cards: ScorecardRow[] = rgyRowsBuilt.map(row => {
+        const deal = dealById.get(row.id);
+        const dims = row.dimensions;
+        const dimVals = Object.values(dims);
+        const total = Math.max(1, dimVals.length);
+        const greens = dimVals.filter(v => v === "G").length;
+        const yellows = dimVals.filter(v => v === "Y").length;
+        const reds = dimVals.filter(v => v === "R").length;
+        const satisfactionPct = Math.round(((greens + yellows * 0.5) / total) * 100);
+        const status = worstStatus(dims);
+        const dealHealthScore = Math.round(
+          (greens / total) * 100 * 0.7 + (1 - reds / total) * 100 * 0.3,
+        );
+        const letter =
+          dealHealthScore >= 90 ? "A" :
+          dealHealthScore >= 80 ? "B" :
+          dealHealthScore >= 70 ? "C" :
+          dealHealthScore >= 60 ? "D" : "F";
+        const band: "Healthy" | "Watch" | "Critical" =
+          dealHealthScore >= 80 ? "Healthy" : dealHealthScore >= 65 ? "Watch" : "Critical";
+
+        const mrrTarget = Number(revByDeal.get(row.id)?.mrr) || Number(deal?.mrr) || 0;
+        const actuals = Number(revByDeal.get(row.id)?.actuals) || 0;
+        const progressPct = mrrTarget > 0 ? Math.round((actuals / mrrTarget) * 100) : 0;
+        const budgetPct = mrrTarget > 0 ? Math.round((actuals / mrrTarget) * 100) : 0;
+
+        const endDate = deal?.end_date ? String(deal.end_date) : null;
+        const daysRemaining = endDate ? differenceInCalendarDays(new Date(endDate), today) : null;
+
+        return {
+          id: row.id,
+          deal: row.deal,
+          client: row.client,
+          healthScore: dealHealthScore,
+          letter,
+          band,
+          progressPct,
+          budgetPct,
+          satisfactionPct,
+          daysRemaining,
+          endDate,
+        };
+      });
+      setScorecardRows(cards);
+
       setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -267,7 +383,7 @@ export default function Dashboard() {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-subhead font-semibold tracking-tight text-foreground">Portfolio Overview</h1>
-              {alerts.length > 0 && <Badge variant="destructive" className="text-xs">{alerts.length}</Badge>}
+              {!isBopmPersona && alerts.length > 0 && <Badge variant="destructive" className="text-xs">{alerts.length}</Badge>}
             </div>
             <p className="text-ui text-muted-foreground mt-1">{isBopmPersona ? "Your tagged & staffed deals" : "Live portfolio data"}</p>
           </div>
@@ -292,27 +408,58 @@ export default function Dashboard() {
           <FinanceTargetsCard monthYYYYMM={selectedMonth} dealIdScope={isBopmPersona ? visibleDealIds : undefined} />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
-          {/* Alerts */}
-          <div className="data-card col-span-1">
-            <p className="metric-label mb-4">Alerts</p>
-            {loading ? <AlertsSkeleton /> : alerts.length === 0 ? (
-              <p className="text-ui text-muted-foreground">All clear — no active alerts.</p>
-            ) : (
-              <div className="space-y-3">
-                {alerts.map((alert) => (
-                  <div key={alert.id} className="flex items-start gap-2.5">
-                    <alert.icon className={`h-4 w-4 mt-0.5 flex-shrink-0 ${alert.severity === "destructive" ? "text-destructive" : "text-warning"}`} />
-                    <span className="text-ui text-foreground flex-1">{alert.text}</span>
-                    <Link to={alert.actionHref} className="text-ui text-primary hover:underline whitespace-nowrap">{alert.actionLabel}</Link>
-                  </div>
-                ))}
-              </div>
-            )}
+        {/* Composite health (BOPM only) */}
+        {isBopmPersona && currentScore && !loading && (
+          <div className="mb-6">
+            <PortfolioHealthCard
+              current={currentScore}
+              previousScore={previousScore}
+              periodLabel={format(new Date(`${selectedMonth}-01T00:00:00`), "MMM yyyy")}
+              comparisonLabel="vs prior 30d"
+            />
           </div>
+        )}
+
+        {/* Per-deal scorecard (BOPM only) */}
+        {isBopmPersona && !loading && (
+          <div className="data-card mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <p className="metric-label">Per-deal scorecard</p>
+              <span className="text-caption text-muted-foreground">Sorted worst → best by grade</span>
+            </div>
+            <DealScorecardTable
+              rows={scorecardRows}
+              onRowClick={(id) => {
+                const row = rgyRows.find(r => r.id === id);
+                if (row) openDeal(row);
+              }}
+            />
+          </div>
+        )}
+
+        <div className={cn("grid grid-cols-1 gap-4 mb-8", !isBopmPersona && "lg:grid-cols-3")}>
+          {/* Alerts (admins only) */}
+          {!isBopmPersona && (
+            <div className="data-card col-span-1">
+              <p className="metric-label mb-4">Alerts</p>
+              {loading ? <AlertsSkeleton /> : alerts.length === 0 ? (
+                <p className="text-ui text-muted-foreground">All clear — no active alerts.</p>
+              ) : (
+                <div className="space-y-3">
+                  {alerts.map((alert) => (
+                    <div key={alert.id} className="flex items-start gap-2.5">
+                      <alert.icon className={`h-4 w-4 mt-0.5 flex-shrink-0 ${alert.severity === "destructive" ? "text-destructive" : "text-warning"}`} />
+                      <span className="text-ui text-foreground flex-1">{alert.text}</span>
+                      <Link to={alert.actionHref} className="text-ui text-primary hover:underline whitespace-nowrap">{alert.actionLabel}</Link>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Pod Utilization */}
-          <div className="data-card col-span-1 lg:col-span-2">
+          <div className={cn("data-card col-span-1", !isBopmPersona && "lg:col-span-2")}>
             <p className="metric-label mb-4">Top Utilization (this week)</p>
             {loading ? <PodTableSkeleton /> : pod.length === 0 ? (
               <p className="text-ui text-muted-foreground">No allocations recorded for this week.</p>
