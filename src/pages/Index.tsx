@@ -115,7 +115,7 @@ function LegacyDashboard() {
         { data: prevPendingMbrs },
       ] = await Promise.all([
         supabase.from("staffing_deals")
-          .select("id, deal_name, account, mrr, total_deal_value, deal_status, vsd, principal_bopm, senior_bopm, bopm, end_date")
+          .select("id, deal_name, account, mrr, total_deal_value, deal_status, vsd, principal_bopm, senior_bopm, bopm, end_date, slack_channel_id")
           .in("deal_status", ACTIVE_STATUSES),
         supabase.from("deal_revenue_monthly")
           .select("deal_id, mrr, actuals")
@@ -144,6 +144,12 @@ function LegacyDashboard() {
           .eq("status", "Pending")
           .lt("week_start", prevOverdueCutoff),
       ]);
+
+      // Fetch all MBR entries (any status) for active deals to detect deals
+      // that have NO MBR mapping at all. We treat those as "non-compliant" too.
+      const { data: anyMbrs } = await supabase
+        .from("mbr_entries")
+        .select("deal_id");
 
       if (cancelled) return;
 
@@ -232,8 +238,13 @@ function LegacyDashboard() {
       setVsdRollup(rollup);
 
       // ---- Alerts ----
-      const overdueMbrCount = (pendingMbrs || []).filter((m: any) => activeIds.has(m.deal_id)).length;
+      const dealsWithAnyMbr = new Set((anyMbrs || []).map((m: any) => m.deal_id));
+      const overduePendingCount = (pendingMbrs || []).filter((m: any) => activeIds.has(m.deal_id)).length;
+      const missingMbrCount = dealList.filter((d: any) => !dealsWithAnyMbr.has(d.id)).length;
+      // Total MBR non-compliance: deals with overdue pending MBR + deals with no MBR mapped at all.
+      const overdueMbrCount = overduePendingCount + missingMbrCount;
       const inactiveChannels = new Set((inact || []).map((i: any) => i.channel_id)).size;
+      const noSlackChannelCount = dealList.filter((d: any) => !d.slack_channel_id).length;
       const staffedDeals = new Set((assigns || []).map((a: any) => a.deal_id));
       const unstaffedCount = dealList.filter((d: any) => !staffedDeals.has(d.id)).length;
 
@@ -280,7 +291,7 @@ function LegacyDashboard() {
         rgyStatuses: allStatuses,
         attainmentPct: attainment,
         overdueMbrCount: overdueMbrCount,
-        unstaffedCount: unstaffedCount,
+        unstaffedCount: unstaffedCount + noSlackChannelCount,
         totalDeals,
       });
       setCurrentScore(score);
@@ -308,13 +319,13 @@ function LegacyDashboard() {
       const prevActuals = (prevRev || []).filter((r: any) => activeIds.has(r.deal_id))
         .reduce((s: number, r: any) => s + (Number(r.actuals) || 0), 0);
       const prevAttain = prevTarget > 0 ? Math.round((prevActuals / prevTarget) * 100) : attainment;
-      const prevOverdue = (prevPendingMbrs || []).filter((m: any) => activeIds.has(m.deal_id)).length;
+      const prevOverdue = (prevPendingMbrs || []).filter((m: any) => activeIds.has(m.deal_id)).length + missingMbrCount;
       if (prevStatuses.length > 0 || (prevRev || []).length > 0) {
         const prev = computePortfolioScore({
           rgyStatuses: prevStatuses.length > 0 ? prevStatuses : allStatuses,
           attainmentPct: prevAttain,
           overdueMbrCount: prevOverdue,
-          unstaffedCount: unstaffedCount, // staffing snapshot rarely retro-available
+          unstaffedCount: unstaffedCount + noSlackChannelCount,
           totalDeals,
         });
         setPreviousScore(prev.score);

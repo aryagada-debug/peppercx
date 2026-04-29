@@ -91,7 +91,8 @@ export default function Clients() {
   const { deals: allDeals, people, assignments, loading: staffLoading, refresh: refreshStaffing, updateDeal, addAssignment, updateAssignment, deleteAssignment } = useStaffingData();
   const { clients: allClients, loading: clientsLoading, addClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
   const access = useDealAccess();
-  const { canEditAll } = useUserRole();
+  const { canEditAll, role } = useUserRole();
+  const isBopm = role === "user";
   const { users: appUsers } = useAppUsers();
   const { vsdUsers, isVsdName, canonVsd } = useVsdUsers();
   const VSD_FILTERS = useMemo(() => {
@@ -440,6 +441,18 @@ export default function Clients() {
   };
 
   const handleStatusChange = async (dealId: string, newStatus: string) => {
+    if (isBopm) {
+      const deal = deals.find(d => d.id === dealId);
+      await submitApprovalRequest({
+        type: "deal.update",
+        targetKind: "deal",
+        targetId: dealId,
+        dealId,
+        payload: { deal_status: newStatus, deal_status_cx: newStatus },
+        previous: { deal_status: deal?.dealStatus, deal_status_cx: (deal as any)?.dealStatusCx },
+      } as any);
+      return;
+    }
     await supabase.from("staffing_deals").update({ deal_status: newStatus, deal_status_cx: newStatus } as any).eq("id", dealId);
     refreshStaffing();
   };
@@ -702,7 +715,21 @@ export default function Clients() {
                         <td className="py-2 px-3">
                           <Select
                             value={deal.dealType === "Retainer" ? "Retainer" : "Non-Retainer"}
-                            onValueChange={(v) => { guardedUpdateDeal(deal.id, { dealType: v as any }); toast.success("Type updated"); }}
+                            onValueChange={async (v) => {
+                              if (isBopm) {
+                                await submitApprovalRequest({
+                                  type: "deal.update",
+                                  targetKind: "deal",
+                                  targetId: deal.id,
+                                  dealId: deal.id,
+                                  payload: { deal_type: v },
+                                  previous: { deal_type: deal.dealType },
+                                } as any);
+                                return;
+                              }
+                              guardedUpdateDeal(deal.id, { dealType: v as any });
+                              toast.success("Type updated");
+                            }}
                           >
                             <SelectTrigger
                               className={cn(

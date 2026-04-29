@@ -28,6 +28,7 @@ const TYPE_LABEL: Record<ApprovalRequestRow["request_type"], string> = {
   "staffing.remove": "Staffing — remove",
   "client.create":   "Create client",
   "deal.create":     "Create deal",
+  "deal.update":     "Edit deal",
 };
 
 function diffPairs(prev: any, next: any): { key: string; before: any; after: any }[] {
