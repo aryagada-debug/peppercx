@@ -1,11 +1,20 @@
 import { useMemo, useRef, useState, useEffect } from "react";
-import { Search, Plus, Trash2, RotateCcw, X, Send, Info, Columns3, Check } from "lucide-react";
+import { Search, Plus, Trash2, RotateCcw, X, Send, Info, Columns3, Check, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatINR } from "@/lib/csvTargets";
 import type { Deal, Person, StaffingAssignment, RoleCategory } from "@/data/staffingData";
 import { uid } from "@/data/staffingData";
 import { submitStaffingBatch, type BatchItem } from "@/lib/approvals";
 import { AddStaffingMemberDialog } from "./AddStaffingMemberDialog";
+import {
+  DndContext, DragEndEvent, PointerSensor, useSensor, useSensors,
+  closestCenter,
+} from "@dnd-kit/core";
+import {
+  SortableContext, useSortable, arrayMove,
+  horizontalListSortingStrategy, verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 // Pastel HSL palette per role category. Header gets a saturated swatch,
 // cells inherit a very subtle tint so the column groups are visually scannable
@@ -23,6 +32,132 @@ const CATEGORY_STYLES: Record<string, { head: string; cell: string; dot: string;
   "Other":               { head: "bg-slate-100/80 text-slate-900 border-slate-200",      cell: "bg-slate-50/40",   dot: "bg-slate-500",   label: "Other" },
 };
 const styleFor = (cat?: string) => CATEGORY_STYLES[cat || "Other"] || CATEGORY_STYLES["Other"];
+
+// ── Sortable column header (drag-and-drop reorder within a team) ──────────
+function SortableColHeader({
+  rk, cat, width, onResize, children,
+}: {
+  rk: string; cat: string; width: number;
+  onResize: (e: React.MouseEvent) => void;
+  children?: React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: rk });
+  const s = styleFor(cat);
+  const style: React.CSSProperties = {
+    width, minWidth: width, maxWidth: width,
+    transform: CSS.Translate.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+    zIndex: isDragging ? 5 : undefined,
+  };
+  return (
+    <th
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "relative px-2 py-2 text-left whitespace-nowrap border-r border-border/60 group",
+        s.head
+      )}
+      title={`${rk} · ${cat}`}
+    >
+      <div className="flex items-center gap-1 pr-2">
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing opacity-40 hover:opacity-100 -ml-0.5"
+          title="Drag to reorder column"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical className="h-3 w-3" />
+        </button>
+        <span className={cn("h-1.5 w-1.5 rounded-full flex-shrink-0", s.dot)} />
+        <span className="truncate">{rk}</span>
+        {children}
+      </div>
+      <span
+        onMouseDown={onResize}
+        className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize opacity-0 group-hover:opacity-100 hover:bg-primary/40 transition-opacity"
+        title="Drag to resize"
+      />
+    </th>
+  );
+}
+
+// ── Picker rows: sortable team group + sortable role inside ───────────────
+function SortableTeamSection({
+  team, children,
+}: { team: string; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: `team:${team}` });
+  const s = styleFor(team);
+  const style: React.CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+  };
+  return (
+    <div ref={setNodeRef} style={style} className="mt-1.5 rounded border border-transparent hover:border-border/60">
+      <div className="flex items-center gap-1.5 px-1.5 py-1">
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
+          title="Drag to reorder team"
+        >
+          <GripVertical className="h-3 w-3" />
+        </button>
+        <span className={cn("h-2 w-2 rounded-full", s.dot)} />
+        <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{s.label}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function SortablePickerRow({
+  rk, checked, onToggle,
+}: { rk: string; checked: boolean; onToggle: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: rk });
+  const style: React.CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-1 pl-1 pr-1.5 py-0.5 rounded hover:bg-secondary/60"
+    >
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
+        title="Drag to reorder"
+      >
+        <GripVertical className="h-3 w-3" />
+      </button>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex-1 flex items-center gap-2 py-0.5 text-left"
+      >
+        <span className={cn(
+          "h-3.5 w-3.5 rounded border flex items-center justify-center flex-shrink-0",
+          checked ? "bg-primary border-primary" : "border-border bg-background"
+        )}>
+          {checked && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
+        </span>
+        <span className="text-foreground truncate">{rk}</span>
+      </button>
+    </div>
+  );
+}
 
 interface Props {
   deals: Deal[];
@@ -58,6 +193,12 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set());
   const [pickerOpen, setPickerOpen] = useState(false);
   const pickerRef = useRef<HTMLDivElement | null>(null);
+
+  // Persisted user reordering: team order + per-team role-key order.
+  const [teamOrder, setTeamOrder] = useState<string[] | null>(null);
+  const [colOrderByTeam, setColOrderByTeam] = useState<Record<string, string[]>>({});
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   // Close picker on outside click
   useEffect(() => {
@@ -226,25 +367,75 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
     return out;
   }, [allRoleKeys, dealRoleMap, allPersonById]);
 
-  // Group role columns by category, preserving sorted order within group.
-  const orderedRoleKeys = useMemo(() => {
+  // Group role columns by category. User-customised orders (teamOrder /
+  // colOrderByTeam) win; new teams or new role keys fall back to defaults.
+  const groupedColumns = useMemo(() => {
     const groups: Record<string, string[]> = {};
     for (const rk of allRoleKeys) {
       const c = roleCategory.get(rk) || "Other";
       (groups[c] ||= []).push(rk);
     }
+    // Apply per-team custom order, append any new keys at the end.
+    const orderedGroups: Record<string, string[]> = {};
+    for (const team of Object.keys(groups)) {
+      const custom = colOrderByTeam[team] || [];
+      const set = new Set(groups[team]);
+      const ordered = custom.filter(k => set.has(k));
+      const orderedSet = new Set(ordered);
+      const rest = groups[team].filter(k => !orderedSet.has(k)).sort((a, b) => a.localeCompare(b));
+      orderedGroups[team] = [...ordered, ...rest];
+    }
+
+    // Apply team order, append new teams at the end (default catalogue order).
     const catOrder = Object.keys(CATEGORY_STYLES);
-    const result: string[] = [];
-    for (const c of catOrder) if (groups[c]) result.push(...groups[c]);
-    // any unknown categories last
-    for (const c of Object.keys(groups)) if (!catOrder.includes(c)) result.push(...groups[c]);
-    return result;
-  }, [allRoleKeys, roleCategory]);
+    const presentTeams = Object.keys(orderedGroups);
+    const presentSet = new Set(presentTeams);
+    const customTeam = (teamOrder || []).filter(t => presentSet.has(t));
+    const customTeamSet = new Set(customTeam);
+    const restTeams = [
+      ...catOrder.filter(t => presentSet.has(t) && !customTeamSet.has(t)),
+      ...presentTeams.filter(t => !catOrder.includes(t) && !customTeamSet.has(t)),
+    ];
+    const finalTeams = [...customTeam, ...restTeams];
+    return { teams: finalTeams, byTeam: orderedGroups };
+  }, [allRoleKeys, roleCategory, teamOrder, colOrderByTeam]);
+
+  const orderedRoleKeys = useMemo(
+    () => groupedColumns.teams.flatMap(t => groupedColumns.byTeam[t] || []),
+    [groupedColumns]
+  );
 
   const visibleRoleKeys = useMemo(
     () => orderedRoleKeys.filter(rk => !hiddenCols.has(rk)),
     [orderedRoleKeys, hiddenCols]
   );
+
+  // Drag handlers
+  const handleColumnDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const aId = String(active.id);
+    const oId = String(over.id);
+    const team = roleCategory.get(aId) || "Other";
+    const teamOf = roleCategory.get(oId) || "Other";
+    if (team !== teamOf) return; // only reorder within same team
+    const list = groupedColumns.byTeam[team] || [];
+    const fromIdx = list.indexOf(aId);
+    const toIdx = list.indexOf(oId);
+    if (fromIdx < 0 || toIdx < 0) return;
+    const next = arrayMove(list, fromIdx, toIdx);
+    setColOrderByTeam(prev => ({ ...prev, [team]: next }));
+  };
+
+  const handleTeamDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const teams = groupedColumns.teams;
+    const fromIdx = teams.indexOf(String(active.id));
+    const toIdx = teams.indexOf(String(over.id));
+    if (fromIdx < 0 || toIdx < 0) return;
+    setTeamOrder(arrayMove(teams, fromIdx, toIdx));
+  };
 
   // ── Column resize handlers ───────────────────────────────────────────────
   const startResize = (rk: string, e: React.MouseEvent) => {
@@ -453,15 +644,17 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
                 </span>
               </button>
               {pickerOpen && (
-                <div className="absolute right-0 mt-1 z-30 w-72 max-h-[60vh] overflow-y-auto rounded-md border border-border bg-popover shadow-lg p-2 text-xs">
+                <div className="absolute right-0 mt-1 z-30 w-80 max-h-[70vh] overflow-y-auto rounded-md border border-border bg-popover shadow-lg p-2 text-xs">
                   <div className="flex items-center justify-between px-1.5 py-1">
-                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Role columns</span>
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+                      Role columns · drag to reorder
+                    </span>
                     <div className="flex gap-1">
                       <button
                         type="button"
-                        onClick={() => setHiddenCols(new Set())}
+                        onClick={() => { setHiddenCols(new Set()); setTeamOrder(null); setColOrderByTeam({}); }}
                         className="text-[10px] text-primary hover:underline"
-                      >Show all</button>
+                      >Reset</button>
                       <span className="text-muted-foreground">·</span>
                       <button
                         type="button"
@@ -470,44 +663,47 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
                       >Hide all</button>
                     </div>
                   </div>
-                  {Object.keys(CATEGORY_STYLES).map(cat => {
-                    const inCat = orderedRoleKeys.filter(rk => (roleCategory.get(rk) || "Other") === cat);
-                    if (inCat.length === 0) return null;
-                    const s = styleFor(cat);
-                    return (
-                      <div key={cat} className="mt-1.5">
-                        <div className="flex items-center gap-1.5 px-1.5 py-1">
-                          <span className={cn("h-2 w-2 rounded-full", s.dot)} />
-                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{s.label}</span>
-                        </div>
-                        {inCat.map(rk => {
-                          const checked = !hiddenCols.has(rk);
-                          return (
-                            <button
-                              type="button"
-                              key={rk}
-                              onClick={() => {
-                                setHiddenCols(prev => {
-                                  const next = new Set(prev);
-                                  if (next.has(rk)) next.delete(rk); else next.add(rk);
-                                  return next;
-                                });
-                              }}
-                              className="w-full flex items-center gap-2 px-1.5 py-1 rounded hover:bg-secondary/60 text-left"
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleTeamDragEnd}
+                  >
+                    <SortableContext
+                      items={groupedColumns.teams.map(t => `team:${t}`)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      {groupedColumns.teams.map(team => {
+                        const inCat = groupedColumns.byTeam[team] || [];
+                        if (inCat.length === 0) return null;
+                        return (
+                          <SortableTeamSection key={team} team={team}>
+                            <DndContext
+                              sensors={sensors}
+                              collisionDetection={closestCenter}
+                              onDragEnd={handleColumnDragEnd}
                             >
-                              <span className={cn(
-                                "h-3.5 w-3.5 rounded border flex items-center justify-center flex-shrink-0",
-                                checked ? "bg-primary border-primary" : "border-border bg-background"
-                              )}>
-                                {checked && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
-                              </span>
-                              <span className="text-foreground truncate">{rk}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    );
-                  })}
+                              <SortableContext items={inCat} strategy={verticalListSortingStrategy}>
+                                {inCat.map(rk => (
+                                  <SortablePickerRow
+                                    key={rk}
+                                    rk={rk}
+                                    checked={!hiddenCols.has(rk)}
+                                    onToggle={() => {
+                                      setHiddenCols(prev => {
+                                        const next = new Set(prev);
+                                        if (next.has(rk)) next.delete(rk); else next.add(rk);
+                                        return next;
+                                      });
+                                    }}
+                                  />
+                                ))}
+                              </SortableContext>
+                            </DndContext>
+                          </SortableTeamSection>
+                        );
+                      })}
+                    </SortableContext>
+                  </DndContext>
                 </div>
               )}
             </div>
@@ -532,32 +728,29 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
                 <th className="px-3 py-2 text-right w-[90px] border-r border-border">MRR</th>
                 {visibleRoleKeys.length === 0 ? (
                   <th className="px-3 py-2 text-left text-muted-foreground/60">No roles staffed yet</th>
-                ) : visibleRoleKeys.map(rk => {
-                  const cat = roleCategory.get(rk) || "Other";
-                  const s = styleFor(cat);
-                  const w = colWidths[rk] ?? 200;
-                  return (
-                    <th
-                      key={rk}
-                      style={{ width: w, minWidth: w, maxWidth: w }}
-                      className={cn(
-                        "relative px-2 py-2 text-left whitespace-nowrap border-r border-border/60 group",
-                        s.head
-                      )}
-                      title={`${rk} · ${cat}`}
-                    >
-                      <div className="flex items-center gap-1.5 pr-2">
-                        <span className={cn("h-1.5 w-1.5 rounded-full flex-shrink-0", s.dot)} />
-                        <span className="truncate">{rk}</span>
-                      </div>
-                      <span
-                        onMouseDown={(ev) => startResize(rk, ev)}
-                        className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize opacity-0 group-hover:opacity-100 hover:bg-primary/40 transition-opacity"
-                        title="Drag to resize"
-                      />
-                    </th>
-                  );
-                })}
+                ) : (
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleColumnDragEnd}
+                  >
+                    <SortableContext items={visibleRoleKeys} strategy={horizontalListSortingStrategy}>
+                      {visibleRoleKeys.map(rk => {
+                        const cat = roleCategory.get(rk) || "Other";
+                        const w = colWidths[rk] ?? 200;
+                        return (
+                          <SortableColHeader
+                            key={rk}
+                            rk={rk}
+                            cat={cat}
+                            width={w}
+                            onResize={(ev) => startResize(rk, ev)}
+                          />
+                        );
+                      })}
+                    </SortableContext>
+                  </DndContext>
+                )}
               </tr>
             </thead>
             <tbody>

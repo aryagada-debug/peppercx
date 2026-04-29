@@ -283,6 +283,99 @@ Deno.serve(async (req) => {
       );
     }
 
+    if (action === "provision_bopm_logins") {
+      // Provision auth accounts for every BOPM (BOPM, Senior BOPM, Principal BOPM)
+      // using their real email, with a known shared password for A/B testing.
+      // Also (re)links profile.staffing_person_id so deal-visibility works.
+      const BOPM_PASSWORD = "Pepper@2026";
+      const { data: bopms, error: bErr } = await adminClient
+        .from("staffing_people")
+        .select("id, name, email, role_title")
+        .in("role_title", ["BOPM", "Senior BOPM", "Principal BOPM"]);
+      if (bErr) {
+        return new Response(JSON.stringify({ error: bErr.message }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Dedupe by id (the table can carry duplicate rows for the same person).
+      const dedup = new Map<string, { id: string; name: string; email: string; role_title: string }>();
+      for (const p of bopms || []) {
+        if (!p.email || !p.email.trim()) continue;
+        if (!dedup.has(p.id)) dedup.set(p.id, p as any);
+      }
+
+      const { data: authList } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
+      const existingByEmail = new Map<string, string>();
+      (authList?.users || []).forEach((u) => {
+        if (u.email) existingByEmail.set(u.email.toLowerCase(), u.id);
+      });
+
+      const results: {
+        person_id: string; name: string; email: string; role_title: string;
+        status: string; error?: string;
+      }[] = [];
+      const skipped: { name: string; reason: string }[] = [];
+
+      for (const p of dedup.values()) {
+        const emailLower = p.email.trim().toLowerCase();
+        let userId = existingByEmail.get(emailLower);
+        let status = "linked";
+
+        if (!userId) {
+          const { data: newUser, error: cErr } = await adminClient.auth.admin.createUser({
+            email: p.email.trim(),
+            password: BOPM_PASSWORD,
+            email_confirm: true,
+            user_metadata: { full_name: p.name },
+          });
+          if (cErr || !newUser?.user) {
+            results.push({
+              person_id: p.id, name: p.name, email: p.email, role_title: p.role_title,
+              status: "error", error: cErr?.message || "create failed",
+            });
+            continue;
+          }
+          userId = newUser.user.id;
+          status = "created";
+        } else {
+          // Reset password to known shared value for A/B testing.
+          await adminClient.auth.admin.updateUserById(userId, {
+            password: BOPM_PASSWORD,
+            email_confirm: true,
+          }).catch(() => {});
+          status = "reset";
+        }
+
+        // (Re)link profile to person — critical for deal visibility.
+        await adminClient.from("profiles").upsert(
+          { user_id: userId, display_name: p.name, staffing_person_id: p.id },
+          { onConflict: "user_id" },
+        );
+        await adminClient
+          .from("user_roles")
+          .insert({ user_id: userId, role: "user" })
+          .select()
+          .then((r) => r, () => null);
+
+        results.push({
+          person_id: p.id, name: p.name, email: p.email,
+          role_title: p.role_title, status,
+        });
+      }
+
+      // Note any BOPMs we couldn't process for missing emails
+      for (const p of bopms || []) {
+        if (!p.email || !p.email.trim()) skipped.push({ name: p.name, reason: "missing email" });
+      }
+
+      return new Response(
+        JSON.stringify({ password: BOPM_PASSWORD, count: results.length, results, skipped }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     return new Response(JSON.stringify({ error: "Unknown action" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
