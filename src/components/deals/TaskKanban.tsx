@@ -69,6 +69,7 @@ interface Props {
   onAdd: (task: Omit<DealTask, "id">) => void;
   onUpdate: (id: string, updates: Partial<DealTask>) => void;
   onDelete: (id: string) => void;
+  disableAdd?: boolean;
 }
 
 /* ── Droppable Column ── */
@@ -185,7 +186,7 @@ function DraggableTaskCard({ task, onClick }: { task: DealTask; onClick: () => v
   );
 }
 
-export function TaskKanban({ tasks, dealId, assignees, onAdd, onUpdate, onDelete }: Props) {
+export function TaskKanban({ tasks, dealId, assignees, onAdd, onUpdate, onDelete, disableAdd }: Props) {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [createForStage, setCreateForStage] = useState<string>("To Do");
   const [editTask, setEditTask] = useState<DealTask | null>(null);
@@ -286,12 +287,14 @@ export function TaskKanban({ tasks, dealId, assignees, onAdd, onUpdate, onDelete
                     <span className="text-ui font-bold text-foreground">{stage}</span>
                     <span className="text-caption text-muted-foreground font-mono">{stageTasks.length}</span>
                   </div>
-                  <button
-                    onClick={() => { setCreateForStage(stage); setCreateDialogOpen(true); }}
-                    className="h-6 w-6 rounded-md flex items-center justify-center hover:bg-accent transition-colors"
-                  >
-                    <Plus className="h-3.5 w-3.5 text-muted-foreground" />
-                  </button>
+                  {!disableAdd && (
+                    <button
+                      onClick={() => { setCreateForStage(stage); setCreateDialogOpen(true); }}
+                      className="h-6 w-6 rounded-md flex items-center justify-center hover:bg-accent transition-colors"
+                    >
+                      <Plus className="h-3.5 w-3.5 text-muted-foreground" />
+                    </button>
+                  )}
                 </div>
 
                 {/* Droppable zone */}
@@ -307,12 +310,14 @@ export function TaskKanban({ tasks, dealId, assignees, onAdd, onUpdate, onDelete
                   {stageTasks.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-8 text-center">
                       <p className="text-caption text-muted-foreground mb-2">No tasks</p>
-                      <button
-                        onClick={() => { setCreateForStage(stage); setCreateDialogOpen(true); }}
-                        className="text-caption text-primary hover:underline"
-                      >
-                        + Add task
-                      </button>
+                      {!disableAdd && (
+                        <button
+                          onClick={() => { setCreateForStage(stage); setCreateDialogOpen(true); }}
+                          className="text-caption text-primary hover:underline"
+                        >
+                          + Add task
+                        </button>
+                      )}
                     </div>
                   )}
                 </DroppableColumn>
