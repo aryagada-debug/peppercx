@@ -51,10 +51,13 @@ export type Database = {
       }
       approval_requests: {
         Row: {
+          batch_title: string
           created_at: string
           deal_id: string
           decided_at: string | null
           id: string
+          is_batch: boolean
+          parent_id: string | null
           payload: Json
           previous: Json
           request_type: string
@@ -70,10 +73,13 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          batch_title?: string
           created_at?: string
           deal_id?: string
           decided_at?: string | null
           id?: string
+          is_batch?: boolean
+          parent_id?: string | null
           payload?: Json
           previous?: Json
           request_type: string
@@ -89,10 +95,13 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          batch_title?: string
           created_at?: string
           deal_id?: string
           decided_at?: string | null
           id?: string
+          is_batch?: boolean
+          parent_id?: string | null
           payload?: Json
           previous?: Json
           request_type?: string
@@ -107,7 +116,15 @@ export type Database = {
           target_kind?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "approval_requests_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "approval_requests"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       clients: {
         Row: {

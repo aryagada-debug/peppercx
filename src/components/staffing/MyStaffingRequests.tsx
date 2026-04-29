@@ -40,13 +40,14 @@ export function MyStaffingRequests({ deals, people }: Props) {
   const refresh = useCallback(async () => {
     if (!user) { setItems([]); setLoading(false); return; }
     setLoading(true);
+    // Pull both staffing rows and any batch parent rows the user submitted.
     const { data } = await (supabase as any)
       .from("approval_requests")
       .select("*")
       .eq("requested_by", user.id)
-      .in("request_type", STAFFING_TYPES)
+      .or(`request_type.in.(${STAFFING_TYPES.join(",")}),is_batch.eq.true`)
       .order("created_at", { ascending: false })
-      .limit(50);
+      .limit(200);
     setItems((data as ApprovalRequestRow[]) || []);
     setLoading(false);
   }, [user]);
@@ -88,7 +89,15 @@ export function MyStaffingRequests({ deals, people }: Props) {
   };
 
   const cancel = async (id: string) => {
+    const target = items.find(i => i.id === id);
     const ok = await cancelApprovalRequest(id);
+    if (ok && target?.is_batch) {
+      // Cascade cancel to any open children
+      const children = items.filter(c => c.parent_id === id && (c.status === "pending" || c.status === "under_review"));
+      for (const c of children) {
+        await cancelApprovalRequest(c.id);
+      }
+    }
     if (ok) refresh();
   };
 
@@ -108,8 +117,17 @@ export function MyStaffingRequests({ deals, people }: Props) {
     }
   };
 
-  const open = items.filter(i => i.status === "pending" || i.status === "under_review");
-  const decided = items.filter(i => i.status === "approved" || i.status === "rejected" || i.status === "cancelled");
+  // Build parent → children map; standalone rows render alone.
+  const childrenByParent = new Map<string, ApprovalRequestRow[]>();
+  items.forEach(r => {
+    if (r.parent_id) {
+      if (!childrenByParent.has(r.parent_id)) childrenByParent.set(r.parent_id, []);
+      childrenByParent.get(r.parent_id)!.push(r);
+    }
+  });
+  const topLevel = items.filter(r => !r.parent_id);
+  const open = topLevel.filter(i => i.status === "pending" || i.status === "under_review");
+  const decided = topLevel.filter(i => i.status === "approved" || i.status === "rejected" || i.status === "cancelled");
 
   if (loading) {
     return (
@@ -144,11 +162,12 @@ export function MyStaffingRequests({ deals, people }: Props) {
 
       {!collapsed && (
         <div className="border-t border-border divide-y divide-border/60">
-          {items.map(req => {
+          {topLevel.map(req => {
             const sb = STATUS_BADGE[req.status] || STATUS_BADGE.pending;
             const Icon = sb.Icon;
             const deal = dealMap.get(req.deal_id);
             const isOpen = req.status === "pending" || req.status === "under_review";
+            const children = req.is_batch ? (childrenByParent.get(req.id) || []) : [];
             return (
               <div key={req.id} className="px-4 py-3">
                 <div className="flex items-start justify-between gap-3">
@@ -157,13 +176,43 @@ export function MyStaffingRequests({ deals, people }: Props) {
                       <span className={cn("inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium", sb.cls)}>
                         <Icon className="h-3 w-3" /> {sb.label}
                       </span>
-                      <span className="text-[11px] text-muted-foreground">{TYPE_LABEL[req.request_type] || req.request_type}</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        {req.is_batch ? `Batch · ${children.length} change${children.length === 1 ? "" : "s"}` : (TYPE_LABEL[req.request_type] || req.request_type)}
+                      </span>
                       <span className="text-[10px] text-muted-foreground">· {formatDistanceToNow(new Date(req.created_at), { addSuffix: true })}</span>
                     </div>
                     <div className="mt-1 text-sm font-medium text-foreground truncate">
-                      {deal ? `${deal.account} — ${deal.dealName}` : req.deal_id || "—"}
+                      {req.is_batch && req.batch_title ? req.batch_title : (deal ? `${deal.account} — ${deal.dealName}` : req.deal_id || "—")}
                     </div>
-                    <div className="text-xs text-muted-foreground">{describePayload(req)}</div>
+                    {!req.is_batch && (
+                      <div className="text-xs text-muted-foreground">{describePayload(req)}</div>
+                    )}
+
+                    {req.is_batch && children.length > 0 && (
+                      <div className="mt-2 space-y-1 rounded-md border border-border bg-secondary/20 p-2">
+                        {children.map(c => {
+                          const csb = STATUS_BADGE[c.status] || STATUS_BADGE.pending;
+                          const CIcon = csb.Icon;
+                          return (
+                            <div key={c.id} className="flex items-start justify-between gap-2 text-[11px]">
+                              <div className="min-w-0 flex-1">
+                                <div className="text-foreground truncate">{describePayload(c)}</div>
+                              </div>
+                              <span className={cn("inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium shrink-0", csb.cls)}>
+                                <CIcon className="h-3 w-3" /> {csb.label}
+                              </span>
+                              {(c.status === "pending" || c.status === "under_review") && (
+                                <button
+                                  onClick={() => cancel(c.id)}
+                                  title="Withdraw this sub-request"
+                                  className="h-6 w-6 inline-flex items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 shrink-0"
+                                ><X className="h-3 w-3" /></button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
 
                     {editingId === req.id ? (
                       <div className="mt-2 flex items-center gap-2">
@@ -206,7 +255,7 @@ export function MyStaffingRequests({ deals, people }: Props) {
                       )}
                       <button
                         onClick={() => cancel(req.id)}
-                        title="Withdraw request"
+                        title={req.is_batch ? "Withdraw entire batch" : "Withdraw request"}
                         className="h-7 px-2 inline-flex items-center gap-1 rounded-md border border-border text-[11px] text-muted-foreground hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200"
                       ><X className="h-3 w-3" /> Withdraw</button>
                     </div>

@@ -26,6 +26,9 @@ export interface ApprovalRequestRow {
   decided_at: string | null;
   created_at: string;
   updated_at: string;
+  parent_id?: string | null;
+  is_batch?: boolean;
+  batch_title?: string;
 }
 
 async function currentUser() {
@@ -50,6 +53,7 @@ export interface SubmitInput {
   targetKind?: string;
   targetId?: string;
   note?: string;
+  parentId?: string;
 }
 
 export async function submitApprovalRequest(input: SubmitInput): Promise<ApprovalRequestRow | null> {
@@ -60,16 +64,17 @@ export async function submitApprovalRequest(input: SubmitInput): Promise<Approva
   }
   const name = await currentDisplayName(user.id, user.email || "");
 
-  // Pre-check: only one open request per deal
-  if (input.dealId) {
+  // Pre-check: prevent duplicate open request for the SAME target (assignment) only.
+  // Multiple open requests per deal are allowed (a batch can include several edits).
+  if (input.targetId && !input.parentId) {
     const { data: existing } = await (supabase as any)
       .from("approval_requests")
-      .select("id, request_type, requested_by_name")
-      .eq("deal_id", input.dealId)
+      .select("id")
+      .eq("target_id", input.targetId)
       .in("status", ["pending", "under_review"])
       .limit(1);
     if (existing && existing.length > 0) {
-      toast.error("A change request is already open for this deal. Please wait for it to be reviewed.");
+      toast.error("A change request is already open for this item.");
       return null;
     }
   }
@@ -87,6 +92,7 @@ export async function submitApprovalRequest(input: SubmitInput): Promise<Approva
       requested_by_name: name,
       requester_note: input.note || "",
       status: "pending",
+      parent_id: input.parentId || null,
     })
     .select("*")
     .single();
@@ -101,6 +107,87 @@ export async function submitApprovalRequest(input: SubmitInput): Promise<Approva
   }
   toast.success("Change request submitted — awaiting Central Cx approval.");
   return data as ApprovalRequestRow;
+}
+
+export interface BatchItem {
+  type: Extract<ApprovalRequestType, "staffing.add" | "staffing.update" | "staffing.remove">;
+  dealId: string;
+  targetId: string;
+  payload: any;
+  previous?: any;
+}
+
+/**
+ * Submit a batch of staffing change sub-requests grouped under a single parent.
+ * The parent row is a marker (is_batch=true) that carries a friendly title.
+ * Each sub-request stays independently approvable / rejectable.
+ */
+export async function submitStaffingBatch(opts: {
+  title: string;
+  note?: string;
+  items: BatchItem[];
+}): Promise<{ parentId: string; subIds: string[] } | null> {
+  const user = await currentUser();
+  if (!user) {
+    toast.error("You must be signed in to submit a change request.");
+    return null;
+  }
+  if (!opts.items.length) {
+    toast.error("Add at least one change to the request.");
+    return null;
+  }
+  const name = await currentDisplayName(user.id, user.email || "");
+  const dealIds = Array.from(new Set(opts.items.map(i => i.dealId).filter(Boolean)));
+  const dealIdForParent = dealIds.length === 1 ? dealIds[0] : "";
+
+  const { data: parent, error: parentErr } = await (supabase as any)
+    .from("approval_requests")
+    .insert({
+      request_type: opts.items[0].type, // arbitrary; parent is a marker
+      payload: { item_count: opts.items.length, deal_ids: dealIds },
+      previous: {},
+      deal_id: dealIdForParent,
+      target_kind: "staffing_batch",
+      target_id: "",
+      requested_by: user.id,
+      requested_by_name: name,
+      requester_note: opts.note || "",
+      status: "pending",
+      is_batch: true,
+      batch_title: opts.title,
+    })
+    .select("*")
+    .single();
+  if (parentErr || !parent) {
+    toast.error(parentErr?.message || "Could not submit batch request");
+    return null;
+  }
+
+  const childRows = opts.items.map(it => ({
+    request_type: it.type,
+    payload: it.payload || {},
+    previous: it.previous || {},
+    deal_id: it.dealId || "",
+    target_kind: "staffing_assignment",
+    target_id: it.targetId || "",
+    requested_by: user.id,
+    requested_by_name: name,
+    requester_note: opts.note || "",
+    status: "pending",
+    parent_id: parent.id,
+  }));
+  const { data: children, error: childErr } = await (supabase as any)
+    .from("approval_requests")
+    .insert(childRows)
+    .select("id");
+  if (childErr) {
+    // Roll back the parent so we don't leave an orphan
+    await (supabase as any).from("approval_requests").delete().eq("id", parent.id);
+    toast.error(childErr.message || "Could not submit sub-requests");
+    return null;
+  }
+  toast.success(`${opts.items.length} change${opts.items.length === 1 ? "" : "s"} sent to Central Cx`);
+  return { parentId: parent.id, subIds: (children || []).map((c: any) => c.id) };
 }
 
 export async function cancelApprovalRequest(id: string) {
