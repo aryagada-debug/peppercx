@@ -20,6 +20,8 @@ import { BopmEmptyState } from "@/components/access/BopmEmptyState";
 import { computePortfolioScore, type ScoreOutput } from "@/lib/portfolioScore";
 import { PortfolioHealthCard } from "@/components/dashboard/PortfolioHealthCard";
 import { DealScorecardTable, type ScorecardRow } from "@/components/dashboard/DealScorecardTable";
+import { CapabilityLeaderDashboard } from "@/components/dashboard/CapabilityLeaderDashboard";
+import { CapabilityMemberDashboard } from "@/components/dashboard/CapabilityMemberDashboard";
 
 const ACTIVE_STATUSES = ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"];
 const RGY_DIMS = ["Internal", "Customer", "Delivery", "Consumption"] as const;
@@ -60,6 +62,14 @@ const addStatus = (c: RgyCounts, s: RGYStatus) => {
 };
 
 export default function Dashboard() {
+  const { role } = useUserRole();
+  // Persona-specific dashboards short-circuit before loading legacy data.
+  if (role === "capability_lead") return <CapabilityLeaderDashboard />;
+  if (role === "capability_member") return <CapabilityMemberDashboard />;
+  return <LegacyDashboard />;
+}
+
+function LegacyDashboard() {
   const [selectedDeal, setSelectedDeal] = useState<RGYRow | null>(null);
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), "yyyy-MM"));
   const [loading, setLoading] = useState(true);

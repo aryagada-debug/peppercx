@@ -61,7 +61,7 @@ interface DealAccessState {
  */
 export function useDealAccess(): DealAccessState {
   const { user, loading: authLoading } = useAuth();
-  const { isAdmin, loading: roleLoading } = useUserRole();
+  const { isAdmin, role, loading: roleLoading } = useUserRole();
 
   const [loading, setLoading] = useState(true);
   const [allDeals, setAllDeals] = useState<
@@ -79,6 +79,7 @@ export function useDealAccess(): DealAccessState {
   const [myRoleTitle, setMyRoleTitle] = useState<string>("");
   const [myRoleCategory, setMyRoleCategory] = useState<string>("");
   const [myDesignation, setMyDesignation] = useState<string>("");
+  const [myTeamDealIds, setMyTeamDealIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -149,6 +150,30 @@ export function useDealAccess(): DealAccessState {
 
       const { data: deals } = await dealsP;
 
+      // For Capability Leaders: build the set of deals their team is staffed on.
+      let teamDealIds = new Set<string>();
+      if (personId && role === "capability_lead") {
+        const { data: myMems } = await supabase
+          .from("capability_memberships")
+          .select("capability_id")
+          .eq("person_id", personId);
+        const capIds = (myMems || []).map((m: any) => m.capability_id);
+        if (capIds.length > 0) {
+          const { data: teamMems } = await supabase
+            .from("capability_memberships")
+            .select("person_id")
+            .in("capability_id", capIds);
+          const teamPersonIds = (teamMems || []).map((m: any) => m.person_id);
+          if (teamPersonIds.length > 0) {
+            const { data: teamAssigns } = await supabase
+              .from("staffing_assignments")
+              .select("deal_id")
+              .in("person_id", teamPersonIds);
+            teamDealIds = new Set((teamAssigns || []).map((a: any) => a.deal_id));
+          }
+        }
+      }
+
       if (cancelled) return;
       setAllDeals(deals || []);
       setMyAssignedDealIds(assignedIds);
@@ -156,13 +181,14 @@ export function useDealAccess(): DealAccessState {
       setMyRoleTitle(roleTitle);
       setMyRoleCategory(roleCategory);
       setMyDesignation(designation);
+      setMyTeamDealIds(teamDealIds);
       setLoading(false);
     }
     load();
     return () => {
       cancelled = true;
     };
-  }, [user, authLoading, roleLoading, isAdmin]);
+  }, [user, authLoading, roleLoading, isAdmin, role]);
 
   const result = useMemo<DealAccessState>(() => {
     if (isAdmin) {
@@ -189,6 +215,51 @@ export function useDealAccess(): DealAccessState {
       /\bvsd\b|vertical service delivery|service delivery (leader|director)/i.test(
         `${myRoleTitle} ${myDesignation}`,
       );
+
+    // Capability Leader → sees deals their whole team is staffed on.
+    if (role === "capability_lead") {
+      const visibleDealIds = new Set<string>(myTeamDealIds);
+      // Editing on staffing/RGY for those deals; record visibility in clients/etc is read-only via Access Controls.
+      const editableDealIds = new Set<string>();
+      const visibleClientIds = new Set<string>();
+      for (const d of allDeals) {
+        if (d.client_id && visibleDealIds.has(d.id)) visibleClientIds.add(d.client_id);
+      }
+      return {
+        loading,
+        isAdmin: false,
+        visibleDealIds,
+        editableDealIds,
+        visibleClientIds,
+        editableClientIds: new Set<string>(),
+        canViewDeal: (id) => visibleDealIds.has(id),
+        canEditDeal: () => false,
+        canViewClient: (id) => !!id && visibleClientIds.has(id),
+        canEditClient: () => false,
+      };
+    }
+
+    // Capability Member → only deals where they personally are assigned (with
+    // a freshness guard to drop ghost assignment rows).
+    if (role === "capability_member") {
+      const visibleDealIds = new Set<string>(myAssignedDealIds);
+      const visibleClientIds = new Set<string>();
+      for (const d of allDeals) {
+        if (d.client_id && visibleDealIds.has(d.id)) visibleClientIds.add(d.client_id);
+      }
+      return {
+        loading,
+        isAdmin: false,
+        visibleDealIds,
+        editableDealIds: new Set<string>(),
+        visibleClientIds,
+        editableClientIds: new Set<string>(),
+        canViewDeal: (id) => visibleDealIds.has(id),
+        canEditDeal: () => false,
+        canViewClient: (id) => !!id && visibleClientIds.has(id),
+        canEditClient: () => false,
+      };
+    }
 
     // Build the set of BOPM-name keys that report into THIS VSD, derived
     // from the deals themselves (principal/senior BOPM ↔ vsd field), so a
@@ -268,7 +339,7 @@ export function useDealAccess(): DealAccessState {
       canViewClient: (id) => !!id && visibleClientIds.has(id),
       canEditClient: (id) => !!id && editableClientIds.has(id),
     };
-  }, [isAdmin, allDeals, myAssignedDealIds, myPersonName, myRoleTitle, myDesignation, myRoleCategory, loading]);
+  }, [isAdmin, role, allDeals, myAssignedDealIds, myTeamDealIds, myPersonName, myRoleTitle, myDesignation, myRoleCategory, loading]);
 
   return result;
 }

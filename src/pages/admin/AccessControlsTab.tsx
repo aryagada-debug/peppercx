@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   CheckCircle2,
 } from "lucide-react";
+import { Sparkles, User as UserIcon } from "lucide-react";
 import { toast } from "sonner";
 import { ALL_ROUTE_KEYS, type AppRole, type AccessMode } from "@/hooks/useUserRole";
 import { cn } from "@/lib/utils";
@@ -49,10 +50,12 @@ type PersonaCol = {
 };
 
 const PERSONA_COLUMNS: PersonaCol[] = [
-  { role: "admin",     label: "Admin",     sublabel: "Full access — every section, edit everything", icon: ShieldCheck },
-  { role: "member",    label: "VSD",       sublabel: "Sees their pod's deals end-to-end",            icon: Briefcase },
-  { role: "user",      label: "BOPM",      sublabel: "Sees only deals they're staffed on",           icon: Users },
-  { role: "view_only", label: "Viewer",    sublabel: "Read-only — no edits anywhere",                icon: Eye },
+  { role: "admin",             label: "Admin / CX",          sublabel: "Full access — every section, edit everything", icon: ShieldCheck },
+  { role: "member",            label: "VSD",                 sublabel: "Sees their pod's deals end-to-end",            icon: Briefcase },
+  { role: "user",              label: "BOPM",                sublabel: "Sees only deals they're tagged on",            icon: Users },
+  { role: "capability_lead",   label: "Capability Leader",   sublabel: "SEO / Creative / Editorial — owns delivery for their team",  icon: Sparkles },
+  { role: "capability_member", label: "Capability Member",   sublabel: "IC view — only own allocations & tasks",       icon: UserIcon },
+  { role: "view_only",         label: "Viewer",              sublabel: "Read-only — no edits anywhere",                icon: Eye },
 ];
 
 const VIEW_OPTIONS: Record<string, string[]> = {
@@ -109,6 +112,24 @@ const DEFAULT_SUMMARY: Record<AppRole, Partial<Record<string, { view: string[]; 
     "rgy-health":  { view: ["Own deals RGY", "Issue history"],       edit: ["Mark RGY (own deals)", "Log issues & action plans"] },
     "mbr-tracker": { view: ["Own deals MBRs", "Notes & transcripts"], edit: ["Schedule MBRs", "Upload notes", "Mark done"] },
     "staffing":    { view: ["Own deals staffing"],                   edit: ["Assign people (own deals)"] },
+  },
+  capability_lead: {
+    "dashboard":   { view: ["Own pod KPIs"],                          edit: [] },
+    "clients":     { view: ["Own deals only"],                        edit: [] },
+    "staffing":    { view: ["Own pod allocations", "Capacity heatmap", "Hiring gaps"], edit: ["Assign people (own deals)", "Edit allocations", "Mark hiring needs"] },
+    "rgy-health":  { view: ["Own deals RGY"],                         edit: ["Mark RGY (own deals)"] },
+    "mbr-tracker": { view: ["Own deals MBRs"],                        edit: [] },
+    "revenue":     { view: ["Pod revenue"],                           edit: ["No edit access"] },
+    "deal-desk":   { view: ["Own requests"],                          edit: ["Submit requests", "Approve / reject"] },
+    "seo-staffing":{ view: ["Own SEO allocations"],                   edit: ["Edit SEO allocations"] },
+  },
+  capability_member: {
+    "home":        { view: ["My tasks", "Pinned deals"],              edit: ["Mark tasks done"] },
+    "clients":     { view: ["Own deals only"],                        edit: [] },
+    "staffing":    { view: ["Own allocations only"],                  edit: [] },
+    "rgy-health":  { view: ["Own deals RGY"],                         edit: [] },
+    "mbr-tracker": { view: ["Own deals MBRs"],                        edit: [] },
+    "central-cx":  { view: ["Own space tasks"],                       edit: ["Create tasks", "Edit own tasks"] },
   },
   view_only: {},
 };
@@ -382,7 +403,7 @@ export function AccessControlsTab() {
       </div>
 
       {/* Persona pills */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
         {PERSONA_COLUMNS.map((p) => {
           const Icon = p.icon;
           const isActive = activePersona === p.role;

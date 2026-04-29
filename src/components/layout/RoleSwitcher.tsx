@@ -1,10 +1,10 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { useUserRole, type AppRole } from "@/hooks/useUserRole";
-import { ShieldCheck, Briefcase, Users } from "lucide-react";
+import { ShieldCheck, Briefcase, Users, Sparkles, User as UserIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Persona = {
-  key: "admin" | "vsd" | "bopm";
+  key: "admin" | "vsd" | "bopm" | "cap_lead" | "cap_member";
   label: string;
   icon: typeof ShieldCheck;
   /** AppRole to apply via setViewAsRole (null = no override → use true admin role) */
@@ -12,14 +12,19 @@ type Persona = {
 };
 
 const PERSONAS: Persona[] = [
-  { key: "admin", label: "Admin", icon: ShieldCheck, viewAs: null },
-  { key: "vsd", label: "VSD", icon: Briefcase, viewAs: "member" },
-  { key: "bopm", label: "BOPMs/Creative", icon: Users, viewAs: "user" },
+  { key: "admin",      label: "Admin",     icon: ShieldCheck, viewAs: null },
+  { key: "vsd",        label: "VSD",       icon: Briefcase,   viewAs: "member" },
+  { key: "bopm",       label: "BOPM",      icon: Users,       viewAs: "user" },
+  { key: "cap_lead",   label: "Cap. Lead", icon: Sparkles,    viewAs: "capability_lead" },
+  { key: "cap_member", label: "Cap. IC",   icon: UserIcon,    viewAs: "capability_member" },
 ];
 
 function activePersonaKey(viewAsRole: AppRole | null): Persona["key"] {
   if (!viewAsRole) return "admin";
   if (viewAsRole === "member") return "vsd";
+  if (viewAsRole === "user") return "bopm";
+  if (viewAsRole === "capability_lead") return "cap_lead";
+  if (viewAsRole === "capability_member") return "cap_member";
   return "bopm";
 }
 
