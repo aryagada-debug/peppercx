@@ -115,7 +115,7 @@ function LegacyDashboard() {
         { data: prevPendingMbrs },
       ] = await Promise.all([
         supabase.from("staffing_deals")
-          .select("id, deal_name, account, mrr, total_deal_value, deal_status, vsd, principal_bopm, senior_bopm, bopm, end_date")
+          .select("id, deal_name, account, mrr, total_deal_value, deal_status, vsd, principal_bopm, senior_bopm, bopm, end_date, slack_channel_id")
           .in("deal_status", ACTIVE_STATUSES),
         supabase.from("deal_revenue_monthly")
           .select("deal_id, mrr, actuals")
@@ -144,6 +144,12 @@ function LegacyDashboard() {
           .eq("status", "Pending")
           .lt("week_start", prevOverdueCutoff),
       ]);
+
+      // Fetch all MBR entries (any status) for active deals to detect deals
+      // that have NO MBR mapping at all. We treat those as "non-compliant" too.
+      const { data: anyMbrs } = await supabase
+        .from("mbr_entries")
+        .select("deal_id");
 
       if (cancelled) return;
 
