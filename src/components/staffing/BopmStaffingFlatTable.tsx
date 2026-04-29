@@ -1,11 +1,20 @@
 import { useMemo, useRef, useState, useEffect } from "react";
-import { Search, Plus, Trash2, RotateCcw, X, Send, Info, Columns3, Check } from "lucide-react";
+import { Search, Plus, Trash2, RotateCcw, X, Send, Info, Columns3, Check, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatINR } from "@/lib/csvTargets";
 import type { Deal, Person, StaffingAssignment, RoleCategory } from "@/data/staffingData";
 import { uid } from "@/data/staffingData";
 import { submitStaffingBatch, type BatchItem } from "@/lib/approvals";
 import { AddStaffingMemberDialog } from "./AddStaffingMemberDialog";
+import {
+  DndContext, DragEndEvent, PointerSensor, useSensor, useSensors,
+  closestCenter,
+} from "@dnd-kit/core";
+import {
+  SortableContext, useSortable, arrayMove,
+  horizontalListSortingStrategy, verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 // Pastel HSL palette per role category. Header gets a saturated swatch,
 // cells inherit a very subtle tint so the column groups are visually scannable
