@@ -363,6 +363,58 @@ export default function HomePage() {
     return [...dt, ...ct];
   }, [dealTasks, cxTasks, deals]);
 
+  // Kanban view of my deal tasks (2-way synced via deal_tasks table — same source DealDetail/Staffing uses)
+  const myKanbanTasks: DealTask[] = useMemo(() => {
+    return dealTasks.map(t => ({
+      id: t.id,
+      dealId: t.deal_id,
+      title: deals[t.deal_id]?.deal_name ? `${t.title} · ${deals[t.deal_id].deal_name}` : t.title,
+      description: t.description || "",
+      stage: t.stage,
+      assignee: t.assignee,
+      startDate: t.start_date || undefined,
+      endDate: t.end_date || undefined,
+      urgency: t.urgency,
+      loggedHours: Number(t.logged_hours) || 0,
+      sortOrder: t.sort_order || 0,
+      estimatedHours: Number(t.estimated_hours) || 0,
+      subtasks: (Array.isArray(t.subtasks) ? t.subtasks : []) as any,
+      autoRegen: !!t.auto_regen,
+      phase: t.phase || "",
+    }));
+  }, [dealTasks, deals]);
+
+  const handleKanbanUpdate = useCallback(async (id: string, updates: Partial<DealTask>) => {
+    const dbUpdates: any = {};
+    if (updates.title !== undefined) dbUpdates.title = updates.title;
+    if (updates.description !== undefined) dbUpdates.description = updates.description;
+    if (updates.stage !== undefined) dbUpdates.stage = updates.stage;
+    if (updates.assignee !== undefined) dbUpdates.assignee = updates.assignee;
+    if (updates.startDate !== undefined) dbUpdates.start_date = updates.startDate || null;
+    if (updates.endDate !== undefined) dbUpdates.end_date = updates.endDate || null;
+    if (updates.urgency !== undefined) dbUpdates.urgency = updates.urgency;
+    if (updates.estimatedHours !== undefined) dbUpdates.estimated_hours = updates.estimatedHours;
+    if (updates.loggedHours !== undefined) dbUpdates.logged_hours = updates.loggedHours;
+    if (updates.subtasks !== undefined) dbUpdates.subtasks = updates.subtasks;
+    if (updates.autoRegen !== undefined) dbUpdates.auto_regen = updates.autoRegen;
+    // Optimistic
+    setDealTasks(prev => prev.map(t => t.id === id ? { ...t, ...dbUpdates } : t));
+    const { error } = await supabase.from("deal_tasks").update(dbUpdates).eq("id", id);
+    if (error) { toast.error(error.message); loadTasks(); }
+  }, [loadTasks]);
+
+  const handleKanbanDelete = useCallback(async (id: string) => {
+    setDealTasks(prev => prev.filter(t => t.id !== id));
+    const { error } = await supabase.from("deal_tasks").delete().eq("id", id);
+    if (error) toast.error(error.message);
+    else toast.success("Task deleted");
+  }, []);
+
+  // Account activity (replaces Recently Viewed)
+  const [aliasTick, setAliasTick] = useState(0);
+  useEffect(() => { if (aliasesRef.current.size > 0) setAliasTick(t => t + 1); }, [displayName, staffingName]);
+  const { items: activityItems, loading: loadingActivity } = useAccountActivity(aliasesRef.current, aliasTick > 0, 25);
+
   const overdue = useMemo(() => allMyTasks.filter(t => isOverdue(t.due)), [allMyTasks]);
   const today = useMemo(() => allMyTasks.filter(t => isDueToday(t.due)), [allMyTasks]);
   const upcoming = useMemo(() => allMyTasks.filter(t => !isOverdue(t.due) && !isDueToday(t.due) && isDueWithin(t.due, 7)), [allMyTasks]);
