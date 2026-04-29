@@ -283,6 +283,7 @@ export function useStaffingData() {
     if (updates.hourlyRate !== undefined) dbUpdates.hourly_rate = updates.hourlyRate;
     if (updates.email !== undefined) dbUpdates.email = updates.email;
     if (updates.slackUserId !== undefined) dbUpdates.slack_user_id = updates.slackUserId;
+    if (updates.subTeam !== undefined) dbUpdates.sub_team = updates.subTeam;
     await supabase.from("staffing_people").update(dbUpdates).eq("id", personId);
   }, []);
 
