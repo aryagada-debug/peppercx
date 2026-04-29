@@ -40,6 +40,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ColHeader } from "@/components/table/ColHeader";
 import { useAppUsers, useVsdUsers } from "@/hooks/useAppUsers";
 import { ReadOnlyBanner } from "@/components/access/ReadOnlyBanner";
+import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
 // BopmClientsHeader removed per request — KPIs below now serve that role.
 
 type VsdFilterKey = string;
@@ -147,6 +148,7 @@ export default function Clients() {
   }, [deleteClient, isClientEditable]);
   const [search, setSearch] = useState("");
   const [activeVsd, setActiveVsd] = useState<VsdFilterKey>("All");
+  const [activeBopm, setActiveBopm] = useState<string>("All");
   const [showClosed, setShowClosed] = useState(false);
 
   const [clientDialogOpen, setClientDialogOpen] = useState(false);
@@ -287,9 +289,12 @@ export default function Clients() {
     } else if (activeVsd !== "All") {
       d = d.filter(deal => canonVsd(deal.vsd) === activeVsd);
     }
+    if (activeBopm !== "All") {
+      d = d.filter(deal => dealMatchesBopm(deal as any, activeBopm));
+    }
     if (search) d = d.filter(deal => deal.account.toLowerCase().includes(search.toLowerCase()) || deal.dealName.toLowerCase().includes(search.toLowerCase()));
     return d;
-  }, [deals, activeVsd, search, showClosed]);
+  }, [deals, activeVsd, activeBopm, search, showClosed]);
 
   // Apply per-column filters + sort to produce flat row list
   const tableRows = useMemo(() => {
