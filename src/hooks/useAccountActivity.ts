@@ -20,6 +20,8 @@ export interface ActivityItem {
 export function useAccountActivity(aliases: Set<string>, enabled: boolean, limit = 20) {
   const [items, setItems] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
+  // Re-derive a primitive key so callers passing a mutated ref still trigger reloads
+  const aliasKey = Array.from(aliases).sort().join("|");
 
   const load = useCallback(async () => {
     if (!enabled || aliases.size === 0) { setItems([]); setLoading(false); return; }
@@ -96,7 +98,8 @@ export function useAccountActivity(aliases: Set<string>, enabled: boolean, limit
     out.sort((a, b) => (b.at || "").localeCompare(a.at || ""));
     setItems(out.slice(0, limit));
     setLoading(false);
-  }, [aliases, enabled, limit]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aliasKey, enabled, limit]);
 
   useEffect(() => { load(); }, [load]);
 
