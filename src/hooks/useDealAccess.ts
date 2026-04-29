@@ -3,6 +3,40 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useUserRole } from "@/hooks/useUserRole";
 
+/** Fuzzy name comparison: lowercase + collapse whitespace + strip punctuation. */
+function nameTokens(s: string | null | undefined): string[] {
+  return (s || "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^a-z\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .filter(Boolean);
+}
+
+/**
+ * Returns true if `dealName` (e.g. "Anisha J") refers to `personName`
+ * (e.g. "Anisha Jaisinghani") — token-based match so shortened cells in
+ * deal sheets still resolve to the correct person.
+ */
+function nameMatchesPerson(dealName: string | null | undefined, personName: string | null | undefined): boolean {
+  const a = nameTokens(dealName);
+  const b = nameTokens(personName);
+  if (a.length === 0 || b.length === 0) return false;
+  if (a.join(" ") === b.join(" ")) return true;
+  // First name must match exactly.
+  if (a[0] !== b[0]) return false;
+  // Each remaining token in the deal cell must be a prefix of some token in
+  // the person name (so "J" matches "Jaisinghani", "Jais" matches too).
+  for (let i = 1; i < a.length; i++) {
+    const t = a[i];
+    const ok = b.some((bt) => bt.startsWith(t) || t.startsWith(bt));
+    if (!ok) return false;
+  }
+  return true;
+}
+
 interface DealAccessState {
   loading: boolean;
   isAdmin: boolean;
@@ -150,8 +184,7 @@ export function useDealAccess(): DealAccessState {
       };
     }
 
-    const nameNorm = (s: string | null | undefined) => (s || "").trim().toLowerCase();
-    const me = nameNorm(myPersonName);
+    const me = myPersonName || "";
     const looksLikeVsd =
       /\bvsd\b|vertical service delivery|service delivery (leader|director)/i.test(
         `${myRoleTitle} ${myDesignation}`,
@@ -161,12 +194,12 @@ export function useDealAccess(): DealAccessState {
     // from the deals themselves (principal/senior BOPM ↔ vsd field), so a
     // VSD's pod includes both deals tagged to them AND deals where their
     // BOPMs appear without an explicit vsd cell.
-    const bopmKeysForThisVsd = new Set<string>();
+    const bopmNamesForThisVsd: string[] = [];
     if (looksLikeVsd && me) {
       for (const d of allDeals) {
-        if (nameNorm(d.vsd) !== me) continue;
-        if (d.principal_bopm) bopmKeysForThisVsd.add(nameNorm(d.principal_bopm));
-        if (d.senior_bopm) bopmKeysForThisVsd.add(nameNorm(d.senior_bopm));
+        if (!nameMatchesPerson(d.vsd, me)) continue;
+        if (d.principal_bopm) bopmNamesForThisVsd.push(d.principal_bopm);
+        if (d.senior_bopm) bopmNamesForThisVsd.push(d.senior_bopm);
       }
     }
 
@@ -178,23 +211,23 @@ export function useDealAccess(): DealAccessState {
       }
       if (!me) continue;
       if (
-        nameNorm(d.principal_bopm) === me ||
-        nameNorm(d.senior_bopm) === me ||
-        nameNorm(d.bopm) === me
+        nameMatchesPerson(d.principal_bopm, me) ||
+        nameMatchesPerson(d.senior_bopm, me) ||
+        nameMatchesPerson(d.bopm, me)
       ) {
         ownDealIds.add(d.id);
         continue;
       }
       if (looksLikeVsd) {
         // 1. deal explicitly tagged to this VSD
-        if (nameNorm(d.vsd) === me) {
+        if (nameMatchesPerson(d.vsd, me)) {
           ownDealIds.add(d.id);
           continue;
         }
         // 2. deal has a principal/senior BOPM who reports to this VSD
-        const pkey = nameNorm(d.principal_bopm);
-        const skey = nameNorm(d.senior_bopm);
-        if ((pkey && bopmKeysForThisVsd.has(pkey)) || (skey && bopmKeysForThisVsd.has(skey))) {
+        const matches = (cell: string | null) =>
+          !!cell && bopmNamesForThisVsd.some((b) => nameMatchesPerson(cell, b) || nameMatchesPerson(b, cell));
+        if (matches(d.principal_bopm) || matches(d.senior_bopm)) {
           ownDealIds.add(d.id);
         }
       }
