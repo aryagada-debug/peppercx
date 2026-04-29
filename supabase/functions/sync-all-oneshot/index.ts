@@ -79,6 +79,6 @@ Deno.serve(async (req) => {
   }
 
   results.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-  return new Response(JSON.stringify({ password: PASSWORD, count: results.length, results }, null, 2),
+  return new Response(JSON.stringify({ password: PASSWORD, total, offset, limit, processed: results.length, next_offset: offset + slice.length < total ? offset + slice.length : null, results }, null, 2),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 });
