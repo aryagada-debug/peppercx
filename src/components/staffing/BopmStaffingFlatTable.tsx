@@ -1,11 +1,28 @@
-import { useMemo, useState } from "react";
-import { Search, Plus, Trash2, RotateCcw, X, Send, Info } from "lucide-react";
+import { useMemo, useRef, useState, useEffect } from "react";
+import { Search, Plus, Trash2, RotateCcw, X, Send, Info, Columns3, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatINR } from "@/lib/csvTargets";
 import type { Deal, Person, StaffingAssignment, RoleCategory } from "@/data/staffingData";
 import { uid } from "@/data/staffingData";
 import { submitStaffingBatch, type BatchItem } from "@/lib/approvals";
 import { AddStaffingMemberDialog } from "./AddStaffingMemberDialog";
+
+// Pastel HSL palette per role category. Header gets a saturated swatch,
+// cells inherit a very subtle tint so the column groups are visually scannable
+// without overwhelming the data.
+const CATEGORY_STYLES: Record<string, { head: string; cell: string; dot: string; label: string }> = {
+  "Operations":          { head: "bg-violet-100/80 text-violet-900 border-violet-200",  cell: "bg-violet-50/40",  dot: "bg-violet-500",  label: "Operations" },
+  "Content":             { head: "bg-sky-100/80 text-sky-900 border-sky-200",            cell: "bg-sky-50/40",     dot: "bg-sky-500",     label: "Content" },
+  "Content Strategy":    { head: "bg-cyan-100/80 text-cyan-900 border-cyan-200",         cell: "bg-cyan-50/40",    dot: "bg-cyan-500",    label: "Content Strategy" },
+  "SEO":                 { head: "bg-emerald-100/80 text-emerald-900 border-emerald-200",cell: "bg-emerald-50/40", dot: "bg-emerald-500", label: "SEO" },
+  "Creative Strategy":   { head: "bg-fuchsia-100/80 text-fuchsia-900 border-fuchsia-200",cell: "bg-fuchsia-50/40", dot: "bg-fuchsia-500", label: "Creative Strategy" },
+  "Creative Copy":       { head: "bg-pink-100/80 text-pink-900 border-pink-200",         cell: "bg-pink-50/40",    dot: "bg-pink-500",    label: "Creative Copy" },
+  "Creative Art":        { head: "bg-rose-100/80 text-rose-900 border-rose-200",         cell: "bg-rose-50/40",    dot: "bg-rose-500",    label: "Creative Art" },
+  "Video":               { head: "bg-orange-100/80 text-orange-900 border-orange-200",   cell: "bg-orange-50/40",  dot: "bg-orange-500",  label: "Video" },
+  "Performance & Growth":{ head: "bg-amber-100/80 text-amber-900 border-amber-200",      cell: "bg-amber-50/40",   dot: "bg-amber-500",   label: "Performance & Growth" },
+  "Other":               { head: "bg-slate-100/80 text-slate-900 border-slate-200",      cell: "bg-slate-50/40",   dot: "bg-slate-500",   label: "Other" },
+};
+const styleFor = (cat?: string) => CATEGORY_STYLES[cat || "Other"] || CATEGORY_STYLES["Other"];
 
 interface Props {
   deals: Deal[];
@@ -37,6 +54,20 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
   const [drafts, setDrafts] = useState<Record<string, DealDraft>>({});
   const [submitting, setSubmitting] = useState<Record<string, boolean>>({});
   const [noteByDeal, setNoteByDeal] = useState<Record<string, string>>({});
+  const [colWidths, setColWidths] = useState<Record<string, number>>({});
+  const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set());
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const pickerRef = useRef<HTMLDivElement | null>(null);
+
+  // Close picker on outside click
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) setPickerOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [pickerOpen]);
 
   const allPersonById = useMemo(() => new Map(allPeople.map(p => [p.id, p])), [allPeople]);
   const dealById = useMemo(() => new Map(deals.map(d => [d.id, d])), [deals]);
@@ -175,6 +206,65 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
     dealRoleMap.forEach(byRole => byRole.forEach((_, k) => set.add(k)));
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [dealRoleMap]);
+
+  // Derive the dominant RoleCategory for each role column from the people
+  // currently staffed in it (so we can colour-group same-department columns).
+  const roleCategory = useMemo(() => {
+    const out = new Map<string, string>();
+    for (const rk of allRoleKeys) {
+      const counts = new Map<string, number>();
+      dealRoleMap.forEach(byRole => {
+        (byRole.get(rk) || []).forEach(e => {
+          const cat = allPersonById.get(e.personId)?.roleCategory || "Other";
+          counts.set(cat, (counts.get(cat) || 0) + 1);
+        });
+      });
+      let best = "Other"; let bestN = -1;
+      counts.forEach((n, c) => { if (n > bestN) { best = c; bestN = n; } });
+      out.set(rk, best);
+    }
+    return out;
+  }, [allRoleKeys, dealRoleMap, allPersonById]);
+
+  // Group role columns by category, preserving sorted order within group.
+  const orderedRoleKeys = useMemo(() => {
+    const groups: Record<string, string[]> = {};
+    for (const rk of allRoleKeys) {
+      const c = roleCategory.get(rk) || "Other";
+      (groups[c] ||= []).push(rk);
+    }
+    const catOrder = Object.keys(CATEGORY_STYLES);
+    const result: string[] = [];
+    for (const c of catOrder) if (groups[c]) result.push(...groups[c]);
+    // any unknown categories last
+    for (const c of Object.keys(groups)) if (!catOrder.includes(c)) result.push(...groups[c]);
+    return result;
+  }, [allRoleKeys, roleCategory]);
+
+  const visibleRoleKeys = useMemo(
+    () => orderedRoleKeys.filter(rk => !hiddenCols.has(rk)),
+    [orderedRoleKeys, hiddenCols]
+  );
+
+  // ── Column resize handlers ───────────────────────────────────────────────
+  const startResize = (rk: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startW = colWidths[rk] ?? 200;
+    const onMove = (ev: MouseEvent) => {
+      const w = Math.max(120, Math.min(560, startW + (ev.clientX - startX)));
+      setColWidths(prev => ({ ...prev, [rk]: w }));
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    document.body.style.cursor = "col-resize";
+  };
 
   // Filter deals by search (matches account/deal/person within deal)
   const filteredDeals = useMemo(() => {
@@ -349,6 +439,78 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
                 className="h-8 pl-7 pr-3 rounded-md border border-border bg-background text-xs w-64 focus:outline-none focus:ring-1 focus:ring-accent"
               />
             </div>
+            <div className="relative" ref={pickerRef}>
+              <button
+                type="button"
+                onClick={() => setPickerOpen(o => !o)}
+                className="h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md border border-border bg-background text-xs text-foreground hover:bg-secondary/50"
+                title="Show / hide role columns"
+              >
+                <Columns3 className="h-3.5 w-3.5" />
+                Columns
+                <span className="text-[10px] text-muted-foreground">
+                  {visibleRoleKeys.length}/{orderedRoleKeys.length}
+                </span>
+              </button>
+              {pickerOpen && (
+                <div className="absolute right-0 mt-1 z-30 w-72 max-h-[60vh] overflow-y-auto rounded-md border border-border bg-popover shadow-lg p-2 text-xs">
+                  <div className="flex items-center justify-between px-1.5 py-1">
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Role columns</span>
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setHiddenCols(new Set())}
+                        className="text-[10px] text-primary hover:underline"
+                      >Show all</button>
+                      <span className="text-muted-foreground">·</span>
+                      <button
+                        type="button"
+                        onClick={() => setHiddenCols(new Set(orderedRoleKeys))}
+                        className="text-[10px] text-muted-foreground hover:underline"
+                      >Hide all</button>
+                    </div>
+                  </div>
+                  {Object.keys(CATEGORY_STYLES).map(cat => {
+                    const inCat = orderedRoleKeys.filter(rk => (roleCategory.get(rk) || "Other") === cat);
+                    if (inCat.length === 0) return null;
+                    const s = styleFor(cat);
+                    return (
+                      <div key={cat} className="mt-1.5">
+                        <div className="flex items-center gap-1.5 px-1.5 py-1">
+                          <span className={cn("h-2 w-2 rounded-full", s.dot)} />
+                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{s.label}</span>
+                        </div>
+                        {inCat.map(rk => {
+                          const checked = !hiddenCols.has(rk);
+                          return (
+                            <button
+                              type="button"
+                              key={rk}
+                              onClick={() => {
+                                setHiddenCols(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(rk)) next.delete(rk); else next.add(rk);
+                                  return next;
+                                });
+                              }}
+                              className="w-full flex items-center gap-2 px-1.5 py-1 rounded hover:bg-secondary/60 text-left"
+                            >
+                              <span className={cn(
+                                "h-3.5 w-3.5 rounded border flex items-center justify-center flex-shrink-0",
+                                checked ? "bg-primary border-primary" : "border-border bg-background"
+                              )}>
+                                {checked && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
+                              </span>
+                              <span className="text-foreground truncate">{rk}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
             <select
               onChange={e => { if (e.target.value) { setAddForDeal(e.target.value); e.target.value = ""; } }}
               className="h-8 px-2 rounded-md border border-border bg-background text-xs text-muted-foreground"
@@ -363,30 +525,51 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
         </header>
 
         <div className="overflow-x-auto">
-          <table className="text-xs border-collapse" style={{ minWidth: "100%" }}>
+          <table className="text-xs border-collapse" style={{ minWidth: "100%", tableLayout: "fixed" }}>
             <thead className="bg-secondary/40 text-[10px] uppercase tracking-wider text-muted-foreground sticky top-0">
               <tr>
                 <th className="px-3 py-2 text-left w-[220px] sticky left-0 bg-secondary/60 z-10 border-r border-border">Account · Deal</th>
                 <th className="px-3 py-2 text-right w-[90px] border-r border-border">MRR</th>
-                {allRoleKeys.length === 0 ? (
+                {visibleRoleKeys.length === 0 ? (
                   <th className="px-3 py-2 text-left text-muted-foreground/60">No roles staffed yet</th>
-                ) : allRoleKeys.map(rk => (
-                  <th key={rk} className="px-2 py-2 text-left w-[200px] border-r border-border/60 whitespace-nowrap">
-                    {rk}
-                  </th>
-                ))}
+                ) : visibleRoleKeys.map(rk => {
+                  const cat = roleCategory.get(rk) || "Other";
+                  const s = styleFor(cat);
+                  const w = colWidths[rk] ?? 200;
+                  return (
+                    <th
+                      key={rk}
+                      style={{ width: w, minWidth: w, maxWidth: w }}
+                      className={cn(
+                        "relative px-2 py-2 text-left whitespace-nowrap border-r border-border/60 group",
+                        s.head
+                      )}
+                      title={`${rk} · ${cat}`}
+                    >
+                      <div className="flex items-center gap-1.5 pr-2">
+                        <span className={cn("h-1.5 w-1.5 rounded-full flex-shrink-0", s.dot)} />
+                        <span className="truncate">{rk}</span>
+                      </div>
+                      <span
+                        onMouseDown={(ev) => startResize(rk, ev)}
+                        className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize opacity-0 group-hover:opacity-100 hover:bg-primary/40 transition-opacity"
+                        title="Drag to resize"
+                      />
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
               {filteredDeals.length === 0 && (
-                <tr><td colSpan={2 + Math.max(1, allRoleKeys.length)} className="px-3 py-6 text-center text-muted-foreground text-xs">
+                <tr><td colSpan={2 + Math.max(1, visibleRoleKeys.length)} className="px-3 py-6 text-center text-muted-foreground text-xs">
                   {search ? "No deals match your search." : "No active deals to staff."}
                 </td></tr>
               )}
               {filteredDeals.map(d => {
                 const byRole = dealRoleMap.get(d.id) || new Map<string, CellEntry[]>();
                 return (
-                  <tr key={d.id} className="border-t border-border/50 align-top">
+                  <tr key={d.id} className="border-t border-border/50 align-top hover:bg-secondary/20">
                     <td className="px-3 py-2 sticky left-0 bg-card z-10 border-r border-border">
                       <div className="font-medium text-foreground truncate max-w-[220px]">{d.account}</div>
                       <div className="text-[11px] text-muted-foreground truncate max-w-[220px]">{d.dealName}</div>
@@ -395,7 +578,7 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
                     <td className="px-3 py-2 text-right font-mono text-foreground border-r border-border whitespace-nowrap">
                       {formatINR(d.mrr || 0)}
                     </td>
-                    {allRoleKeys.length === 0 && (
+                    {visibleRoleKeys.length === 0 && (
                       <td className="px-2 py-2">
                         <button
                           type="button"
@@ -404,10 +587,17 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
                         ><Plus className="h-3 w-3" /> Add person</button>
                       </td>
                     )}
-                    {allRoleKeys.map(rk => {
+                    {visibleRoleKeys.map(rk => {
                       const entries = byRole.get(rk) || [];
+                      const cat = roleCategory.get(rk) || "Other";
+                      const s = styleFor(cat);
+                      const w = colWidths[rk] ?? 200;
                       return (
-                        <td key={rk} className="px-2 py-2 border-r border-border/60 align-top">
+                        <td
+                          key={rk}
+                          style={{ width: w, minWidth: w, maxWidth: w }}
+                          className={cn("px-2 py-2 border-r border-border/60 align-top", s.cell)}
+                        >
                           <div className="space-y-1">
                             {entries.map(e => renderEntry(d, rk, e))}
                             <button
