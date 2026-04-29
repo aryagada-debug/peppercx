@@ -410,10 +410,8 @@ export default function HomePage() {
     else toast.success("Task deleted");
   }, []);
 
-  // Account activity (replaces Recently Viewed)
-  const [aliasTick, setAliasTick] = useState(0);
-  useEffect(() => { if (aliasesRef.current.size > 0) setAliasTick(t => t + 1); }, [displayName, staffingName]);
-  const { items: activityItems, loading: loadingActivity } = useAccountActivity(aliasesRef.current, aliasTick > 0, 25);
+  // Account activity (replaces Recently Viewed) — recomputes when alias set changes
+  const { items: activityItems, loading: loadingActivity } = useAccountActivity(aliasesRef.current, !!displayName, 25);
 
   const overdue = useMemo(() => allMyTasks.filter(t => isOverdue(t.due)), [allMyTasks]);
   const today = useMemo(() => allMyTasks.filter(t => isDueToday(t.due)), [allMyTasks]);
