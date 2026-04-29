@@ -356,6 +356,19 @@ export function BopmStaffingTables({ deals, people, allPeople, assignments, onAd
                     {isOpen && (
                       <tr key={`${d.id}-x`}>
                         <td colSpan={3} className="bg-secondary/10 border-t border-border/50 px-6 py-4">
+                          <div className="flex items-center justify-between gap-3 mb-2">
+                            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                              <Info className="h-3 w-3" />
+                              Edits go to Central Cx for approval. Track them in <span className="font-medium text-foreground">My change requests</span> above.
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setAddForDeal(d.id); }}
+                              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-border bg-card hover:bg-secondary/40 text-[11px] font-medium text-foreground"
+                            >
+                              <Plus className="h-3 w-3" /> Request to add staff
+                            </button>
+                          </div>
                           {aList.length === 0 ? (
                             <p className="text-xs text-muted-foreground italic">No one staffed on this deal yet.</p>
                           ) : (
@@ -363,39 +376,94 @@ export function BopmStaffingTables({ deals, people, allPeople, assignments, onAd
                               <table className="w-full text-xs">
                                 <thead className="bg-secondary/40 text-[10px] uppercase tracking-wide text-muted-foreground">
                                   <tr>
-                                    <th className="px-3 py-2 text-left w-[160px]">Team</th>
+                                    <th className="px-3 py-2 text-left w-[140px]">Team</th>
                                     <th className="px-3 py-2 text-left">Person</th>
                                     <th className="px-3 py-2 text-left">Role</th>
-                                    <th className="px-3 py-2 text-right w-[100px]">Allocation</th>
-                                    <th className="px-3 py-2 text-right w-[120px]">Hrs / week</th>
+                                    <th className="px-3 py-2 text-right w-[120px]">Allocation %</th>
+                                    <th className="px-3 py-2 text-right w-[90px]">Hrs / wk</th>
+                                    <th className="px-3 py-2 text-right w-[60px]"></th>
                                   </tr>
                                 </thead>
-                                <tbody>
+                                <tbody onClick={(e) => e.stopPropagation()}>
                                   {orderedTeams.map(team => {
                                     const rows = byTeam.get(team) || [];
                                     return rows.map((a, idx) => {
                                       const p = personById.get(a.personId);
-                                      const hrs = ((a.allocationPct / 100) * MONTH_HOURS) / 4.33;
+                                      const draftKey = a.id;
+                                      const draftVal = allocDraft[draftKey];
+                                      const allocVal = draftVal !== undefined ? draftVal : String(a.allocationPct);
+                                      const allocNum = Number(allocVal);
+                                      const hrs = ((Number.isFinite(allocNum) ? allocNum : a.allocationPct) / 100) * MONTH_HOURS / 4.33;
+                                      const sameTeamPeople = allPeople.filter(pp => groupForCategory(pp.roleCategory as RoleCategory).key === groupForCategory((p?.roleCategory || "Other") as RoleCategory).key);
                                       return (
                                         <tr key={a.id} className="border-t border-border/50">
                                           <td className="px-3 py-1.5 text-muted-foreground">
-                                            {idx === 0 ? (
-                                              <span className="font-medium text-foreground">{team}</span>
-                                            ) : ""}
+                                            {idx === 0 ? <span className="font-medium text-foreground">{team}</span> : ""}
                                           </td>
                                           <td className="px-3 py-1.5 text-foreground">
-                                            {p?.name || "—"}
-                                            {p?.tbh && <span className="ml-1 text-[10px] text-amber-600">(TBH)</span>}
+                                            <select
+                                              value={a.personId}
+                                              onChange={(e) => {
+                                                const val = e.target.value;
+                                                if (val && val !== a.personId) onUpdateAssignment(a.id, { personId: val });
+                                              }}
+                                              className="h-7 px-2 rounded-md border border-border bg-background text-xs max-w-[220px]"
+                                              title="Request a different person"
+                                            >
+                                              <option value={a.personId}>{p?.name || "—"}{p?.tbh ? " (TBH)" : ""}</option>
+                                              {sameTeamPeople
+                                                .filter(pp => pp.id !== a.personId && !pp.leaving)
+                                                .slice(0, 100)
+                                                .map(pp => (
+                                                  <option key={pp.id} value={pp.id}>
+                                                    {pp.name}{pp.tbh ? " (TBH)" : ""}
+                                                  </option>
+                                                ))}
+                                            </select>
                                             {p?.leaving && <span className="ml-1 text-[10px] text-rose-600">(Leaving)</span>}
                                           </td>
                                           <td className="px-3 py-1.5 text-muted-foreground">
                                             {p?.roleTitle || a.roleKey}
                                           </td>
-                                          <td className="px-3 py-1.5 text-right font-mono text-muted-foreground">
-                                            {a.allocationPct}%
+                                          <td className="px-3 py-1.5 text-right">
+                                            <input
+                                              type="number"
+                                              min={0}
+                                              max={100}
+                                              step={1}
+                                              value={allocVal}
+                                              onChange={(e) => setAllocDraft(prev => ({ ...prev, [draftKey]: e.target.value }))}
+                                              onBlur={() => {
+                                                const n = Math.max(0, Math.min(100, Number(allocVal)));
+                                                if (Number.isFinite(n) && n !== a.allocationPct) {
+                                                  onUpdateAssignment(a.id, { allocationPct: n });
+                                                }
+                                                setAllocDraft(prev => {
+                                                  const next = { ...prev };
+                                                  delete next[draftKey];
+                                                  return next;
+                                                });
+                                              }}
+                                              className="h-7 w-20 px-2 rounded-md border border-border bg-background text-right font-mono text-xs"
+                                            />
+                                            <span className="ml-1 text-muted-foreground">%</span>
                                           </td>
                                           <td className="px-3 py-1.5 text-right font-mono text-muted-foreground">
                                             {hrs.toFixed(1)}h
+                                          </td>
+                                          <td className="px-3 py-1.5 text-right">
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                if (confirm(`Request to remove ${p?.name || "this person"} from ${d.dealName}?`)) {
+                                                  onDeleteAssignment(a.id);
+                                                }
+                                              }}
+                                              title="Request removal"
+                                              className="h-7 w-7 inline-flex items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200"
+                                            >
+                                              <Trash2 className="h-3.5 w-3.5" />
+                                            </button>
                                           </td>
                                         </tr>
                                       );
