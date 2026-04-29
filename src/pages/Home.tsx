@@ -903,11 +903,25 @@ export default function HomePage() {
                   <div key={t.id} className={cn("group flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-secondary/40 transition-colors", t.done && "opacity-60")}>
                     <Checkbox checked={t.done} onCheckedChange={() => toggleTodo(t)} />
                     <span className={cn("flex-1 text-sm leading-snug", t.done && "line-through text-muted-foreground")}>{t.title}</span>
-                    {t.due_date && (
-                      <span className="text-[10px] font-mono text-muted-foreground whitespace-nowrap">
-                        {format(parseISO(t.due_date), "dd MMM")}
-                      </span>
-                    )}
+                    <CxDatePickerPopover
+                      value={t.due_date}
+                      onChange={async (v) => {
+                        setTodos(prev => prev.map(x => x.id === t.id ? { ...x, due_date: v } : x));
+                        const { error } = await supabase.from("personal_todos").update({ due_date: v }).eq("id", t.id);
+                        if (error) toast.error(error.message);
+                      }}
+                    >
+                      <button
+                        type="button"
+                        className={cn(
+                          "text-[10px] font-mono whitespace-nowrap rounded px-1.5 py-0.5 border border-transparent hover:border-border hover:bg-card transition-colors",
+                          t.due_date ? "text-muted-foreground" : "text-muted-foreground/50 opacity-0 group-hover:opacity-100"
+                        )}
+                        aria-label="Set due date"
+                      >
+                        {t.due_date ? format(parseISO(t.due_date), "dd MMM") : "+ due date"}
+                      </button>
+                    </CxDatePickerPopover>
                     <button type="button" onClick={() => deleteTodo(t.id)}
                       className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
                       aria-label="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
