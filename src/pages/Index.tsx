@@ -263,6 +263,103 @@ export default function Dashboard() {
         .slice(0, 8);
       setPod(podBuilt);
 
+      // ---- Composite Portfolio Health Score ----
+      const allStatuses: RGYStatus[] = rgyRowsBuilt.map(r => worstStatus(r.dimensions));
+      const totalDeals = dealList.length;
+      const score = computePortfolioScore({
+        rgyStatuses: allStatuses,
+        attainmentPct: attainment,
+        overdueMbrCount: overdueMbrCount,
+        unstaffedCount: unstaffedCount,
+        totalDeals,
+      });
+      setCurrentScore(score);
+
+      // Previous period score — reuse RGY history filtered to ~30+ days ago,
+      // and previous month's revenue / overdue MBR snapshot.
+      const prevLatestRgy = new Map<string, any>();
+      for (const r of (rgyAll || [])) {
+        if (!activeIds.has(r.deal_id)) continue;
+        if (r.week_start > prevWeekCutoff) continue; // only weeks BEFORE 30 days ago
+        if (!prevLatestRgy.has(r.deal_id)) prevLatestRgy.set(r.deal_id, r);
+      }
+      const prevStatuses: RGYStatus[] = [];
+      for (const r of prevLatestRgy.values()) {
+        const dims: Record<string, RGYStatus> = {
+          Internal: toRGY(r.internal),
+          Customer: toRGY(r.customer),
+          Delivery: toRGY(r.delivery),
+          Consumption: toRGY(r.consumption),
+        };
+        prevStatuses.push(worstStatus(dims));
+      }
+      const prevTarget = (prevRev || []).filter((r: any) => activeIds.has(r.deal_id))
+        .reduce((s: number, r: any) => s + (Number(r.mrr) || 0), 0);
+      const prevActuals = (prevRev || []).filter((r: any) => activeIds.has(r.deal_id))
+        .reduce((s: number, r: any) => s + (Number(r.actuals) || 0), 0);
+      const prevAttain = prevTarget > 0 ? Math.round((prevActuals / prevTarget) * 100) : attainment;
+      const prevOverdue = (prevPendingMbrs || []).filter((m: any) => activeIds.has(m.deal_id)).length;
+      if (prevStatuses.length > 0 || (prevRev || []).length > 0) {
+        const prev = computePortfolioScore({
+          rgyStatuses: prevStatuses.length > 0 ? prevStatuses : allStatuses,
+          attainmentPct: prevAttain,
+          overdueMbrCount: prevOverdue,
+          unstaffedCount: unstaffedCount, // staffing snapshot rarely retro-available
+          totalDeals,
+        });
+        setPreviousScore(prev.score);
+      } else {
+        setPreviousScore(null);
+      }
+
+      // ---- Per-deal scorecard ----
+      const revByDeal = new Map<string, any>((rev || []).map((r: any) => [r.deal_id, r]));
+      const today = new Date();
+      const cards: ScorecardRow[] = rgyRowsBuilt.map(row => {
+        const deal = dealById.get(row.id);
+        const dims = row.dimensions;
+        const dimVals = Object.values(dims);
+        const total = Math.max(1, dimVals.length);
+        const greens = dimVals.filter(v => v === "G").length;
+        const yellows = dimVals.filter(v => v === "Y").length;
+        const reds = dimVals.filter(v => v === "R").length;
+        const satisfactionPct = Math.round(((greens + yellows * 0.5) / total) * 100);
+        const status = worstStatus(dims);
+        const dealHealthScore = Math.round(
+          (greens / total) * 100 * 0.7 + (1 - reds / total) * 100 * 0.3,
+        );
+        const letter =
+          dealHealthScore >= 90 ? "A" :
+          dealHealthScore >= 80 ? "B" :
+          dealHealthScore >= 70 ? "C" :
+          dealHealthScore >= 60 ? "D" : "F";
+        const band: "Healthy" | "Watch" | "Critical" =
+          dealHealthScore >= 80 ? "Healthy" : dealHealthScore >= 65 ? "Watch" : "Critical";
+
+        const mrrTarget = Number(revByDeal.get(row.id)?.mrr) || Number(deal?.mrr) || 0;
+        const actuals = Number(revByDeal.get(row.id)?.actuals) || 0;
+        const progressPct = mrrTarget > 0 ? Math.round((actuals / mrrTarget) * 100) : 0;
+        const budgetPct = mrrTarget > 0 ? Math.round((actuals / mrrTarget) * 100) : 0;
+
+        const endDate = deal?.end_date ? String(deal.end_date) : null;
+        const daysRemaining = endDate ? differenceInCalendarDays(new Date(endDate), today) : null;
+
+        return {
+          id: row.id,
+          deal: row.deal,
+          client: row.client,
+          healthScore: dealHealthScore,
+          letter,
+          band,
+          progressPct,
+          budgetPct,
+          satisfactionPct,
+          daysRemaining,
+          endDate,
+        };
+      });
+      setScorecardRows(cards);
+
       setLoading(false);
     })();
     return () => { cancelled = true; };
