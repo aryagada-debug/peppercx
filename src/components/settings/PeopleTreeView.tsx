@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback } from "react";
 import {
   ChevronRight, ChevronDown, GripVertical, Plus, Trash2, UserPlus, Search,
-  Users, FolderPlus, AlertTriangle, Pencil, Check, X,
+  Users, FolderPlus, AlertTriangle, Pencil, Check, X, ChevronsDownUp, ChevronsUpDown,
 } from "lucide-react";
 import {
   DndContext, DragEndEvent, DragOverlay, DragStartEvent,
@@ -251,6 +251,17 @@ export function PeopleTreeView({ people, onAdd, onUpdate, onRequestDelete }: Pro
     const reportsKey = `reports::${p.id}::${indent}`;
     const reportsOpen = isExpanded(reportsKey, indent === 0);
 
+    // Subtle color tinting for manager rows so the hierarchy reads at a glance.
+    // Depth 0 manager (top of section) = stronger primary tint with left accent.
+    // Depth 1 manager = lighter tint. Leaf rows stay clean.
+    const managerStyle = hasReports
+      ? indent === 0
+        ? "bg-primary/[0.06] border-l-2 border-l-primary/60"
+        : indent === 1
+          ? "bg-primary/[0.035] border-l-2 border-l-primary/30"
+          : "border-l-2 border-l-primary/15"
+      : "border-l-2 border-l-transparent";
+
     const startEdit = (field: "designation" | "email") => {
       setEditing({ id: p.id, field });
       setEditValue((field === "designation" ? p.designation : p.email) || "");
@@ -272,6 +283,7 @@ export function PeopleTreeView({ people, onAdd, onUpdate, onRequestDelete }: Pro
             style={{ paddingLeft: 12 + indent * 18 }}
             className={cn(
               "group flex items-center gap-2 rounded-md py-1.5 pr-2 hover:bg-secondary/30",
+              managerStyle,
               isDrag && "opacity-40",
               p.leaving && "opacity-60",
             )}
@@ -292,6 +304,11 @@ export function PeopleTreeView({ people, onAdd, onUpdate, onRequestDelete }: Pro
               {/* Name column */}
               <div className="w-[200px] shrink-0 truncate text-sm font-medium text-foreground">
                 {p.name}
+                {hasReports && (
+                  <span className="ml-1.5 text-[9px] uppercase tracking-wide text-primary/70 font-medium">
+                    Mgr
+                  </span>
+                )}
                 {p.tbh && <span className="ml-1 text-[10px] italic text-muted-foreground">(TBH)</span>}
                 {p.leaving && <span className="ml-1 text-[10px] font-medium text-destructive">· Leaving</span>}
               </div>
