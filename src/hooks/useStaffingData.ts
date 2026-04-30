@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { createContext, createElement, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   DEFAULT_DEALS, DEFAULT_PEOPLE, DEFAULT_ASSIGNMENTS, DEFAULT_HIRING_NEEDS, DEFAULT_REVENUE_TARGETS,
@@ -6,6 +6,7 @@ import {
 } from "@/data/staffingData";
 import type { TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { submitApprovalRequest } from "@/lib/approvals";
 
 // ── Mappers ──────────────────────────────────────────────────────────────────
@@ -158,7 +159,7 @@ async function batchUpsert<T extends Record<string, unknown>>(table: string, row
 }
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
-export function useStaffingData() {
+function useStaffingDataInternal() {
   const [people, setPeople] = useState<Person[]>(DEFAULT_PEOPLE);
   const [deals, setDeals] = useState<Deal[]>(DEFAULT_DEALS);
   const [assignments, setAssignments] = useState<StaffingAssignment[]>(DEFAULT_ASSIGNMENTS);
@@ -169,8 +170,11 @@ export function useStaffingData() {
   const [seeded, setSeeded] = useState(false);
   const seedingRef = useRef(false);
   const { canEditAll } = useUserRole();
+  const { session, loading: authLoading } = useAuth();
+  const isAuthenticated = !authLoading && !!session;
 
   useEffect(() => {
+    if (!isAuthenticated) return;
     loadAll();
 
     // Realtime subscriptions so changes sync across pages.
@@ -215,7 +219,8 @@ export function useStaffingData() {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
 
   async function loadAll() {
     setLoading(true);
@@ -553,4 +558,27 @@ export function useStaffingData() {
     updateBWRule, addBWRule, deleteBWRule, setBwRules,
     refresh: loadAll,
   };
+}
+
+// ── Provider ─────────────────────────────────────────────────────────────────
+// Hoist the hook into a context so every page (Clients, DealDetail, Settings,
+// Staffing) shares one instance. This means the staffing tables are fetched
+// once for the session — not once per page — and the realtime channel and
+// seeding logic only run once.
+
+type StaffingDataValue = ReturnType<typeof useStaffingDataInternal>;
+
+const StaffingDataContext = createContext<StaffingDataValue | null>(null);
+
+export function StaffingDataProvider({ children }: { children: ReactNode }) {
+  const value = useStaffingDataInternal();
+  return createElement(StaffingDataContext.Provider, { value }, children);
+}
+
+export function useStaffingData(): StaffingDataValue {
+  const ctx = useContext(StaffingDataContext);
+  if (!ctx) {
+    throw new Error("useStaffingData must be used within <StaffingDataProvider>");
+  }
+  return ctx;
 }
