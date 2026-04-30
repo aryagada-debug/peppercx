@@ -739,14 +739,7 @@ export function BopmStaffingFlatTable({
       </div>
 
       <div className="rounded-xl border border-border bg-card overflow-hidden">
-        <header className="px-4 py-3 border-b border-border flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <h3 className="text-sm font-semibold text-foreground">Staffing — pivot view</h3>
-            <p className="text-[11px] text-muted-foreground">
-              One row per deal · one column per role. Edit person or % inline; changes are sent to Central Cx.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
+        <header className="px-3 py-2 border-b border-border flex items-center justify-end gap-2 flex-wrap">
             <div className="relative">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <input
