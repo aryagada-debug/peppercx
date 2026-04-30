@@ -579,12 +579,32 @@ export default function Clients() {
           <h1 className="text-subhead font-bold tracking-tight text-foreground whitespace-nowrap mt-2">Clients & Deals</h1>
           <div className="flex flex-1 gap-2.5 flex-wrap min-w-0">
           {[
-            { label: "Clients", value: String(kpis.clients), Icon: Building2, tint: "sky" },
-            { label: "Total Deals", value: String(kpis.deals), Icon: Briefcase, tint: "violet" },
-            { label: "Active Deals", value: String(kpis.activeDeals), Icon: Activity, tint: "emerald" },
-            { label: "Total MRR", value: fmtCurrency(kpis.totalMRR), Icon: TrendingUp, tint: "amber" },
-            { label: "Total Value", value: fmtCurrency(kpis.totalValue), Icon: DollarSign, tint: "rose" },
-          ].map(({ label, value, Icon, tint }) => {
+            {
+              label: "Clients", value: String(kpis.clients), Icon: Building2, tint: "sky",
+              insight: kpis.newClientsThisQ > 0 ? `${kpis.newClientsThisQ} new this quarter` : "No new this quarter",
+              tone: "muted" as const,
+            },
+            {
+              label: "Renewals < 60d", value: String(kpis.renewals60), Icon: Briefcase, tint: "violet",
+              insight: kpis.nextRenewalLabel,
+              tone: kpis.renewals60 > 0 ? "warning" as const : "muted" as const,
+            },
+            {
+              label: "Active Deals", value: String(kpis.activeDeals), Icon: Activity, tint: "emerald",
+              insight: kpis.atRisk > 0 ? `${kpis.atRisk} at risk` : "All on track",
+              tone: kpis.atRisk > 0 ? "destructive" as const : "muted" as const,
+            },
+            {
+              label: "Total MRR", value: fmtCurrency(kpis.totalMRR), Icon: TrendingUp, tint: "amber",
+              insight: `${kpis.activeDeals} active contributing`,
+              tone: "muted" as const,
+            },
+            {
+              label: "Total Value", value: fmtCurrency(kpis.totalValue), Icon: DollarSign, tint: "rose",
+              insight: kpis.topDealLabel,
+              tone: "muted" as const,
+            },
+          ].map(({ label, value, Icon, tint, insight, tone }) => {
             const tintMap: Record<string, { bg: string; ring: string; chip: string; icon: string }> = {
               sky: { bg: "from-sky-500/10", ring: "border-sky-500/20", chip: "bg-sky-500/15", icon: "text-sky-500" },
               violet: { bg: "from-violet-500/10", ring: "border-violet-500/20", chip: "bg-violet-500/15", icon: "text-violet-500" },
@@ -593,6 +613,10 @@ export default function Clients() {
               rose: { bg: "from-rose-500/10", ring: "border-rose-500/20", chip: "bg-rose-500/15", icon: "text-rose-500" },
             };
             const t = tintMap[tint];
+            const toneClass =
+              tone === "destructive" ? "text-destructive"
+              : tone === "warning" ? "text-warning"
+              : "text-muted-foreground";
             return (
               <div
                 key={label}
@@ -607,6 +631,7 @@ export default function Clients() {
                 <div className="min-w-0">
                   <p className="text-[11px] uppercase tracking-wide text-muted-foreground leading-tight">{label}</p>
                   <p className="text-2xl font-semibold tracking-tight text-foreground font-mono leading-tight truncate mt-0.5">{value}</p>
+                  <p className={cn("text-[10px] mt-0.5 truncate", toneClass)} title={insight}>{insight}</p>
                 </div>
               </div>
             );
