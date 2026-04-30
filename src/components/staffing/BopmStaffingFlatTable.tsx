@@ -575,34 +575,21 @@ export function BopmStaffingFlatTable({
         )}
       >
         <div className="flex items-center gap-1.5">
-          {/* Name as clickable native select (same row as %) */}
-          <div className="relative flex-1 min-w-0">
-            <span
-              className={cn(
-                "block truncate text-[11px] font-medium text-foreground pointer-events-none",
+          {/* Name as styled popover trigger (same row as %) */}
+          <div className="flex-1 min-w-0">
+            <PersonPickerPopover
+              currentId={e.personId}
+              candidates={colMatches}
+              disabled={!!e.isMarkedRemove}
+              triggerLabel={`${p?.name || "—"}${p?.tbh ? " (TBH)" : ""}`}
+              triggerClassName={cn(
+                "w-full inline-flex items-center justify-between gap-1 px-1 py-0.5 rounded-sm text-[11px] font-medium text-foreground hover:bg-foreground/5 hover:ring-1 hover:ring-border transition-colors",
                 e.isMarkedRemove && "line-through opacity-60"
               )}
-              title={p?.name || "—"}
-            >
-              {p?.name || "—"}{p?.tbh ? " (TBH)" : ""}
-            </span>
-            <select
-              value={e.personId}
-              disabled={e.isMarkedRemove}
-              onChange={ev => {
-                const val = ev.target.value;
-                if (val && val !== e.personId) stageUpdate(deal.id, e.assignmentId, { personId: val });
+              onSelect={(id) => {
+                if (id && id !== e.personId) stageUpdate(deal.id, e.assignmentId, { personId: id });
               }}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-default"
-              title="Click to change person"
-            >
-              <option value={e.personId}>{p?.name || "—"}{p?.tbh ? " (TBH)" : ""}</option>
-              {colMatches.filter(pp => pp.id !== e.personId).map(pp => (
-                <option key={pp.id} value={pp.id}>
-                  {pp.name}{pp.tbh ? " (TBH)" : ""}
-                </option>
-              ))}
-            </select>
+            />
           </div>
           {/* % allocation inline */}
           <input
