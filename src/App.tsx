@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -6,29 +7,47 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { UserRoleProvider } from "@/hooks/useUserRole";
+import { RouteFallback } from "./components/layout/RouteFallback";
+
+// Auth pages stay eager — login screen must paint instantly.
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
-import Index from "./pages/Index";
-import Home from "./pages/Home";
-import Clients from "./pages/Clients";
-import DealDetail from "./pages/DealDetail";
-import Staffing from "./pages/Staffing";
-import Revenue from "./pages/Revenue";
-import Targets from "./pages/Targets";
-import RGYHealth from "./pages/RGYHealth";
-import MBRTracker from "./pages/MBRTracker";
-import SlackHealth from "./pages/SlackHealth";
-import Onboarding from "./pages/Onboarding";
-import DealDesk from "./pages/DealDesk";
-import SEOStaffing from "./pages/SEOStaffing";
-import GM2Calculator from "./pages/GM2Calculator";
-import SettingsPage from "./pages/Settings";
-import CentralCx from "./pages/CentralCx";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+// Authenticated pages are code-split — each becomes its own chunk so the
+// initial bundle drops from ~2.7 MB to roughly the shell + the landing route.
+const Index = lazy(() => import("./pages/Index"));
+const Home = lazy(() => import("./pages/Home"));
+const Clients = lazy(() => import("./pages/Clients"));
+const DealDetail = lazy(() => import("./pages/DealDetail"));
+const Staffing = lazy(() => import("./pages/Staffing"));
+const Revenue = lazy(() => import("./pages/Revenue"));
+const Targets = lazy(() => import("./pages/Targets"));
+const RGYHealth = lazy(() => import("./pages/RGYHealth"));
+const MBRTracker = lazy(() => import("./pages/MBRTracker"));
+const SlackHealth = lazy(() => import("./pages/SlackHealth"));
+const Onboarding = lazy(() => import("./pages/Onboarding"));
+const DealDesk = lazy(() => import("./pages/DealDesk"));
+const SEOStaffing = lazy(() => import("./pages/SEOStaffing"));
+const GM2Calculator = lazy(() => import("./pages/GM2Calculator"));
+const SettingsPage = lazy(() => import("./pages/Settings"));
+const CentralCx = lazy(() => import("./pages/CentralCx"));
+
+// React Query defaults tuned for an internal data app: keep responses fresh
+// for 5 min and cache for 30 min so navigating between pages doesn't refetch
+// the same tables, and don't refetch on every window focus.
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,
+      gcTime: 30 * 60 * 1000,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -38,6 +57,7 @@ const App = () => (
         <BrowserRouter>
           <AuthProvider>
           <UserRoleProvider>
+          <Suspense fallback={<RouteFallback />}>
           <Routes>
             {/* Public auth routes */}
             <Route path="/login" element={<Login />} />
@@ -65,6 +85,7 @@ const App = () => (
             <Route path="/central-cx" element={<ProtectedRoute routeKey="central-cx"><CentralCx /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </Suspense>
           </UserRoleProvider>
           </AuthProvider>
         </BrowserRouter>
