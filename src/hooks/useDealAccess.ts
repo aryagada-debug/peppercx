@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useUserRole } from "@/hooks/useUserRole";
+import { dealCellMatchesPerson } from "@/hooks/useAppUsers";
 
 /** Fuzzy name comparison: lowercase + collapse whitespace + strip punctuation. */
 function nameTokens(s: string | null | undefined): string[] {
@@ -80,6 +81,10 @@ export function useDealAccess(): DealAccessState {
   const [myRoleCategory, setMyRoleCategory] = useState<string>("");
   const [myDesignation, setMyDesignation] = useState<string>("");
   const [myTeamDealIds, setMyTeamDealIds] = useState<Set<string>>(new Set());
+  // Names of every active person in Settings → People. Used by the strict
+  // BOPM matcher to refuse ambiguous "Shreshtha P" → "Shreshtha Patel" type
+  // collisions when more than one registered person could satisfy the cell.
+  const [allPersonNames, setAllPersonNames] = useState<string[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -91,12 +96,18 @@ export function useDealAccess(): DealAccessState {
       const dealsP = supabase
         .from("staffing_deals")
         .select("id, client_id, vsd, principal_bopm, senior_bopm, bopm");
+      const allPeopleP = supabase
+        .from("staffing_people")
+        .select("name")
+        .eq("leaving", false)
+        .eq("tbh", false);
 
       // Admin: skip user-specific lookups.
       if (isAdmin) {
-        const { data: deals } = await dealsP;
+        const [{ data: deals }, { data: peopleAll }] = await Promise.all([dealsP, allPeopleP]);
         if (cancelled) return;
         setAllDeals(deals || []);
+        setAllPersonNames(((peopleAll as any[]) || []).map((p: any) => p.name).filter(Boolean));
         setMyAssignedDealIds(new Set());
         setMyPersonName(null);
         setMyRoleTitle("");
@@ -105,9 +116,10 @@ export function useDealAccess(): DealAccessState {
       }
 
       if (!user) {
-        const { data: deals } = await dealsP;
+        const [{ data: deals }, { data: peopleAll }] = await Promise.all([dealsP, allPeopleP]);
         if (cancelled) return;
         setAllDeals(deals || []);
+        setAllPersonNames(((peopleAll as any[]) || []).map((p: any) => p.name).filter(Boolean));
         setMyAssignedDealIds(new Set());
         setMyPersonName(null);
         setMyRoleTitle("");
@@ -148,7 +160,8 @@ export function useDealAccess(): DealAccessState {
         assignedIds = new Set((assigns || []).map((a: any) => a.deal_id));
       }
 
-      const { data: deals } = await dealsP;
+      const [{ data: deals }, { data: peopleAll }] = await Promise.all([dealsP, allPeopleP]);
+      const personNames = ((peopleAll as any[]) || []).map((p: any) => p.name).filter(Boolean);
 
       // For Capability Leaders: build the set of deals their team is staffed on.
       let teamDealIds = new Set<string>();
@@ -176,6 +189,7 @@ export function useDealAccess(): DealAccessState {
 
       if (cancelled) return;
       setAllDeals(deals || []);
+      setAllPersonNames(personNames);
       setMyAssignedDealIds(assignedIds);
       setMyPersonName(personName);
       setMyRoleTitle(roleTitle);
@@ -266,17 +280,20 @@ export function useDealAccess(): DealAccessState {
     // reports to this VSD" — that pod-expansion was leaking deals where the
     // VSD cell points to someone else (or is blank) into this VSD's view.
     const ownDealIds = new Set<string>();
+    // Strict BOPM/VSD match: reject deals where the cell could refer to
+    // someone else with the same first name (e.g. "Shreshtha P" must not
+    // match a different "Shreshtha" if one is also in Settings → People).
     for (const d of allDeals) {
       if (!me) continue;
       if (
-        nameMatchesPerson(d.principal_bopm, me) ||
-        nameMatchesPerson(d.senior_bopm, me) ||
-        nameMatchesPerson(d.bopm, me)
+        dealCellMatchesPerson(d.principal_bopm, me, allPersonNames) ||
+        dealCellMatchesPerson(d.senior_bopm, me, allPersonNames) ||
+        dealCellMatchesPerson(d.bopm, me, allPersonNames)
       ) {
         ownDealIds.add(d.id);
         continue;
       }
-      if (looksLikeVsd && nameMatchesPerson(d.vsd, me)) {
+      if (looksLikeVsd && dealCellMatchesPerson(d.vsd, me, allPersonNames)) {
         ownDealIds.add(d.id);
       }
     }
@@ -320,7 +337,7 @@ export function useDealAccess(): DealAccessState {
       canViewClient: (id) => !!id && visibleClientIds.has(id),
       canEditClient: (id) => !!id && editableClientIds.has(id),
     };
-  }, [isAdmin, role, allDeals, myAssignedDealIds, myTeamDealIds, myPersonName, myRoleTitle, myDesignation, myRoleCategory, loading]);
+  }, [isAdmin, role, allDeals, allPersonNames, myAssignedDealIds, myTeamDealIds, myPersonName, myRoleTitle, myDesignation, myRoleCategory, loading]);
 
   return result;
 }
