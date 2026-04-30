@@ -1052,6 +1052,31 @@ export default function HomePage() {
           }}
           onSubmit={handleDealTaskSave} onDelete={handleDealTaskDelete} />
       )}
+
+      {/* Add Task — pick a deal first, then fill task form */}
+      {addingTask && (
+        <AddTaskDialog
+          open={addingTask}
+          onOpenChange={(o) => { if (!o) { setAddingTask(false); setAddTaskDealId(""); } }}
+          deals={allActiveDeals}
+          dealId={addTaskDealId}
+          onDealChange={setAddTaskDealId}
+          assignees={
+            (() => {
+              const staffedSet = addTaskDealId ? (dealAssignmentsMap[addTaskDealId] || new Set<string>()) : new Set<string>();
+              const staffed: any[] = []; const others: any[] = [];
+              allPeople.forEach(p => {
+                if (p.tbh) return;
+                const item = { id: p.id, name: p.name, staffed: staffedSet.has(p.id), designation: p.designation || "" };
+                if (item.staffed) staffed.push(item); else others.push(item);
+              });
+              return [...staffed, ...others];
+            })()
+          }
+          onSubmit={handleAddTaskSubmit}
+          defaultAssignee={staffingName || displayName || ""}
+        />
+      )}
     </AppLayout>
   );
 }
