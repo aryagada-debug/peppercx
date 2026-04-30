@@ -38,9 +38,10 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ColHeader } from "@/components/table/ColHeader";
-import { useAppUsers, useVsdUsers } from "@/hooks/useAppUsers";
+import { useAppUsers, useVsdUsers, useVsdHierarchy, nameKey } from "@/hooks/useAppUsers";
 import { ReadOnlyBanner } from "@/components/access/ReadOnlyBanner";
 import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
+import { useAuth } from "@/components/auth/AuthProvider";
 // BopmClientsHeader removed per request — KPIs below now serve that role.
 
 type VsdFilterKey = string;
@@ -95,6 +96,33 @@ export default function Clients() {
   const isBopm = role === "user";
   const { users: appUsers } = useAppUsers();
   const { vsdUsers, isVsdName, canonVsd } = useVsdUsers();
+  const { bopmsForVsd } = useVsdHierarchy();
+  const { user: authUser } = useAuth();
+  const [myVsdName, setMyVsdName] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!authUser) { setMyVsdName(null); return; }
+      const { data: profile } = await supabase
+        .from("profiles").select("staffing_person_id").eq("user_id", authUser.id).maybeSingle();
+      const personId = (profile as any)?.staffing_person_id;
+      if (!personId) { if (!cancelled) setMyVsdName(null); return; }
+      const { data: person } = await supabase
+        .from("staffing_people").select("name, role_title, designation").eq("id", personId).maybeSingle();
+      const p: any = person;
+      if (!p) { if (!cancelled) setMyVsdName(null); return; }
+      const looksLikeVsd = /\bvsd\b|vertical service delivery|service delivery (leader|director)/i
+        .test(`${p.role_title || ""} ${p.designation || ""}`);
+      const canon = canonVsd(p.name);
+      if (!cancelled) setMyVsdName(looksLikeVsd && canon ? canon : null);
+    })();
+    return () => { cancelled = true; };
+  }, [authUser, canonVsd]);
+  const isVsdViewer = !access.isAdmin && !!myVsdName;
+  const myBopms = useMemo(
+    () => (myVsdName ? bopmsForVsd(myVsdName) : []),
+    [myVsdName, bopmsForVsd]
+  );
   const VSD_FILTERS = useMemo(() => {
     const items: { key: string; label: string }[] = [{ key: "All", label: "All" }];
     vsdUsers.forEach((u) => items.push({ key: u.displayName, label: u.displayName }));
@@ -664,17 +692,45 @@ export default function Clients() {
             </div>
           )}
 
-          <BopmFilter
-            value={activeBopm}
-            onChange={setActiveBopm}
-            scopedVsd={access.isAdmin && activeVsd !== "All" && activeVsd !== "Other" && activeVsd !== "Unassigned" ? activeVsd : undefined}
-          />
+          {!isVsdViewer && (
+            <BopmFilter
+              value={activeBopm}
+              onChange={setActiveBopm}
+              scopedVsd={access.isAdmin && activeVsd !== "All" && activeVsd !== "Other" && activeVsd !== "Unassigned" ? activeVsd : undefined}
+            />
+          )}
 
-          <div className="relative max-w-[220px] flex-1">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <input type="text" placeholder="Search clients or deals..." value={search} onChange={e => setSearch(e.target.value)}
-              className="w-full h-8 pl-8 pr-2 rounded-lg bg-card border border-border text-[12px] text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all" />
-          </div>
+          {isVsdViewer ? (
+            <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5 overflow-x-auto max-w-full">
+              <button
+                onClick={() => setActiveBopm("All")}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
+                  activeBopm === "All" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                All BOPMs
+              </button>
+              {myBopms.map((b) => (
+                <button
+                  key={nameKey(b)}
+                  onClick={() => setActiveBopm(b)}
+                  className={cn(
+                    "px-2.5 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
+                    activeBopm === b ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {b}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="relative max-w-[220px] flex-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <input type="text" placeholder="Search clients or deals..." value={search} onChange={e => setSearch(e.target.value)}
+                className="w-full h-8 pl-8 pr-2 rounded-lg bg-card border border-border text-[12px] text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all" />
+            </div>
+          )}
 
           <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer whitespace-nowrap" title="Show closed / completed deals">
             <input type="checkbox" checked={showClosed} onChange={e => setShowClosed(e.target.checked)} className="rounded border-border" />
