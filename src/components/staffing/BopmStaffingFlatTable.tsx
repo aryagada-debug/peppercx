@@ -836,7 +836,6 @@ export function BopmStaffingFlatTable({
                 <option key={d.id} value={d.id}>{d.account} — {d.dealName}</option>
               ))}
             </select>
-          </div>
         </header>
 
         <div className="overflow-x-auto">
