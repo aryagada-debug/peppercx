@@ -598,7 +598,7 @@ export function BopmStaffingFlatTable({
       const hay = `${d.account} ${d.dealName} ${d.dealId} ${personHay}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [deals, search, bopmFilter, dealRoleMap, allPersonById]);
+  }, [deals, search, bopmFilter, dealRoleMap, allPersonById, allPersonNames]);
 
   // Aggregate top stats
   const totals = useMemo(() => {
