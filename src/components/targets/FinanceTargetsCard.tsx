@@ -11,9 +11,10 @@ import { TargetDrillDialog } from "./TargetDrillDialog";
 interface Props {
   monthYYYYMM: string;
   dealIdScope?: Set<string>;
+  overallAttainmentPct?: number | null;
 }
 
-export function FinanceTargetsCard({ monthYYYYMM, dealIdScope }: Props) {
+export function FinanceTargetsCard({ monthYYYYMM, dealIdScope, overallAttainmentPct }: Props) {
   const { totals, loading } = useVsdTargets(monthYYYYMM);
   const monthLabel = format(new Date(`${monthYYYYMM}-01T00:00:00`), "MMM yyyy");
   const allZero = METRICS.every((m) => totals[m].target === 0 && totals[m].actual === 0);
@@ -25,6 +26,15 @@ export function FinanceTargetsCard({ monthYYYYMM, dealIdScope }: Props) {
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-base flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-primary" /> Finance Targets — {monthLabel}
+            {overallAttainmentPct != null && (
+              <span className={cn(
+                "ml-2 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-mono tabular-nums font-medium",
+                "border-border bg-secondary/40",
+                attainmentTone(overallAttainmentPct),
+              )}>
+                Attainment {overallAttainmentPct}%
+              </span>
+            )}
           </CardTitle>
           <Link to="/targets" className="text-xs text-primary hover:underline">View all →</Link>
         </div>
