@@ -6,6 +6,7 @@ import type { Deal, Person, StaffingAssignment, RoleCategory } from "@/data/staf
 import { uid, ROLE_SLOTS, ROLE_TO_PEOPLE_FILTER } from "@/data/staffingData";
 import { submitStaffingBatch, type BatchItem } from "@/lib/approvals";
 import { AddStaffingMemberDialog } from "./AddStaffingMemberDialog";
+import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ChevronDown } from "lucide-react";
 import {
@@ -267,6 +268,10 @@ interface Props {
   onAddAssignment?: (a: StaffingAssignment) => Promise<any> | any;
   onUpdateAssignment?: (id: string, patch: Partial<StaffingAssignment>) => Promise<any> | any;
   onDeleteAssignment?: (id: string) => Promise<any> | any;
+  /** When true, render a "Filter by BOPM" dropdown in the header. Used by VSD/Admin views. */
+  enableBopmFilter?: boolean;
+  /** Optional VSD scope for the BOPM filter dropdown (limits options to that VSD's pod). */
+  bopmFilterScopedVsd?: string | null;
 }
 
 const MONTH_HOURS = 160;
@@ -288,8 +293,10 @@ const emptyDraft = (): DealDraft => ({ adds: [], updates: {}, removes: {} });
 export function BopmStaffingFlatTable({
   deals, people, allPeople, assignments,
   directEdit, onAddAssignment, onUpdateAssignment, onDeleteAssignment,
+  enableBopmFilter, bopmFilterScopedVsd,
 }: Props) {
   const [search, setSearch] = useState("");
+  const [bopmFilter, setBopmFilter] = useState<string>("All");
   const [addForDeal, setAddForDeal] = useState<string | null>(null);
   const [allocDraft, setAllocDraft] = useState<Record<string, string>>({});
   const [drafts, setDrafts] = useState<Record<string, DealDraft>>({});
