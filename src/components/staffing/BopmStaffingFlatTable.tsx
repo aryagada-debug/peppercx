@@ -7,7 +7,7 @@ import { uid, ROLE_SLOTS, ROLE_TO_PEOPLE_FILTER } from "@/data/staffingData";
 import { submitStaffingBatch, type BatchItem } from "@/lib/approvals";
 import { AddStaffingMemberDialog } from "./AddStaffingMemberDialog";
 import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
-import { useAllPersonNames } from "@/hooks/useAppUsers";
+import { useAllPersonNames, dealCellMatchesPerson } from "@/hooks/useAppUsers";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ChevronDown } from "lucide-react";
 import {
@@ -426,6 +426,12 @@ export function BopmStaffingFlatTable({
     isAdded: boolean;
     isUpdated: boolean;
     isMarkedRemove: boolean;
+    /** Read-only entry derived from the deal sheet (principal_bopm /
+     *  senior_bopm / bopm text fields) — not an actual staffing_assignment row. */
+    isVirtual?: boolean;
+    /** Raw cell text when no Person record could be resolved. Render as a
+     *  muted chip so the user still sees who's tagged on the deal sheet. */
+    rawText?: string;
   };
 
   // For each deal, get the effective assignment list (existing + adds, applying updates/removes)
@@ -463,10 +469,65 @@ export function BopmStaffingFlatTable({
         if (!byRole.has(key)) byRole.set(key, []);
         byRole.get(key)!.push(entry);
       }
+      // Synthesise read-only "virtual" entries for the BOPM-tier columns from
+      // the deal sheet text. The sheet (principal_bopm / senior_bopm / bopm)
+      // is the source of truth for *who* is on a deal; staffing_assignments
+      // for those role keys are an override layer for explicit allocations.
+      // We only inject a virtual entry when no real assignment for the same
+      // (roleKey, personId) already exists, so admins who *do* explicitly
+      // staff a BOPM with a % continue to see their entry untouched.
+      const virtualBopmFields: Array<{ roleKey: string; cell: string | undefined }> = [
+        { roleKey: "principal_bopm", cell: d.principalBopm },
+        { roleKey: "senior_bopm",    cell: d.seniorBopm },
+        { roleKey: "bopm",           cell: d.bopm },
+      ];
+      for (const { roleKey, cell } of virtualBopmFields) {
+        const text = (cell || "").trim();
+        if (!text) continue;
+        const existing = byRole.get(roleKey) || [];
+        const tokens = text.split(/[,;/]|\band\b|&/i).map(s => s.trim()).filter(Boolean);
+        const seenPids = new Set<string>(existing.map(en => en.personId));
+        const list = existing.slice();
+        for (const tok of tokens) {
+          // Try to resolve the cell text to a Person via the same
+          // unambiguous matcher we use for access scoping.
+          const candidates = allPeople.filter(pp =>
+            !pp.leaving && dealCellMatchesPerson(tok, pp.name, allPersonNames)
+          );
+          if (candidates.length === 1) {
+            const pp = candidates[0];
+            if (seenPids.has(pp.id)) continue;
+            seenPids.add(pp.id);
+            list.push({
+              assignmentId: `virtual:${d.id}:${roleKey}:${pp.id}`,
+              personId: pp.id,
+              allocationPct: 0,
+              isAdded: false,
+              isUpdated: false,
+              isMarkedRemove: false,
+              isVirtual: true,
+            });
+          } else {
+            // Either ambiguous or no profile — render the raw text as a
+            // muted chip so the user can see who is named on the sheet.
+            list.push({
+              assignmentId: `virtual:${d.id}:${roleKey}:raw:${tok}`,
+              personId: "",
+              allocationPct: 0,
+              isAdded: false,
+              isUpdated: false,
+              isMarkedRemove: false,
+              isVirtual: true,
+              rawText: tok,
+            });
+          }
+        }
+        if (list.length > 0) byRole.set(roleKey, list);
+      }
       out.set(d.id, byRole);
     }
     return out;
-  }, [deals, assignments, drafts]);
+  }, [deals, assignments, drafts, allPeople, allPersonNames]);
 
   // Default columns = full role catalogue, top-down hierarchy from ROLE_SLOTS,
   // plus any extra role keys we encounter on existing assignments (legacy).
@@ -625,6 +686,42 @@ export function BopmStaffingFlatTable({
   // ── Render a single cell entry (one staffed person under a deal+role) ────
   const renderEntry = (deal: Deal, roleKey: string, e: CellEntry) => {
     const p = allPersonById.get(e.personId);
+    // Virtual entries are sourced from the deal sheet (principal_bopm /
+    // senior_bopm / bopm cells). Render them as read-only chips so identity
+    // stays in sync app-wide without offering edit affordances that would
+    // need to round-trip back to staffing_deals.
+    if (e.isVirtual) {
+      const label = e.rawText
+        ? e.rawText
+        : `${p?.name || "—"}${p?.tbh ? " (TBH)" : ""}`;
+      const tooltip = e.rawText
+        ? "Tagged on the deal sheet but no matching profile in People — update Settings → People or the deal record to align."
+        : "From the deal sheet (Principal/Senior BOPM). Edit the deal to change.";
+      return (
+        <div
+          key={e.assignmentId}
+          className={cn(
+            "rounded-md border px-1.5 py-1 transition-colors",
+            e.rawText
+              ? "bg-muted/40 border-dashed border-muted-foreground/30"
+              : "bg-violet-50/50 border-violet-200/70"
+          )}
+          title={tooltip}
+        >
+          <div className="flex items-center gap-1.5">
+            <span
+              className={cn(
+                "flex-1 min-w-0 truncate px-1 py-0.5 text-[11px] font-medium",
+                e.rawText ? "text-muted-foreground italic" : "text-foreground"
+              )}
+            >
+              {label}
+            </span>
+            <span className="text-[10px] text-muted-foreground/70 font-mono select-none">—</span>
+          </div>
+        </div>
+      );
+    }
     // Strict scope: only people whose designation matches this column AND who
     // (when a more senior teammate is already staffed) report to that manager.
     const cat = ROLE_CATEGORY_OF(roleKey);
