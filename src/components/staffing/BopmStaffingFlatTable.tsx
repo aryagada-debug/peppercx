@@ -953,54 +953,37 @@ export function BopmStaffingFlatTable({
                         >
                           <div className="space-y-1">
                             {entries.map(e => renderEntry(d, rk, e))}
-                            <div className="relative">
-                              <span
-                                className={cn(
-                                  "block px-1.5 py-1 text-[10.5px] italic pointer-events-none rounded-md border border-dashed",
-                                  pickerOptions.length === 0
-                                    ? "text-muted-foreground/50 border-border/30"
-                                    : "text-muted-foreground border-border/50 hover:text-foreground"
-                                )}
-                              >
-                                {pickerOptions.length === 0
+                            <PersonPickerPopover
+                              key={pickerKey}
+                              candidates={pickerOptions}
+                              disabled={pickerOptions.length === 0}
+                              triggerLabel={
+                                pickerOptions.length === 0
                                   ? (manager
                                       ? `No reports under ${manager.name.split(" ")[0]}`
                                       : `No ${ROLE_LABEL(rk)} available`)
                                   : (manager
                                       ? `+ Add (under ${manager.name.split(" ")[0]})`
-                                      : `+ Add ${ROLE_LABEL(rk)}`)}
-                              </span>
-                              <select
-                                key={pickerKey}
-                                value=""
-                                onChange={ev => {
-                                  const personId = ev.target.value;
-                                  if (!personId) return;
-                                  stageAdd(d.id, {
-                                    id: uid(),
-                                    dealId: d.id,
-                                    roleKey: rk,
-                                    personId,
-                                    allocationPct: 10,
-                                  });
-                                  ev.target.value = "";
-                                }}
-                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
-                                disabled={pickerOptions.length === 0}
-                                title={
-                                  manager
-                                    ? `Add ${ROLE_LABEL(rk)} reporting to ${manager.name}`
-                                    : `Add ${ROLE_LABEL(rk)}`
-                                }
-                              >
-                                <option value="">Select…</option>
-                                {pickerOptions.map(pp => (
-                                  <option key={pp.id} value={pp.id}>
-                                    {pp.name}{pp.tbh ? " (TBH)" : ""}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
+                                      : `+ Add ${ROLE_LABEL(rk)}`)
+                              }
+                              triggerClassName={cn(
+                                "w-full flex items-center justify-between gap-1 px-1.5 py-1 text-[10.5px] italic rounded-md border border-dashed transition-colors",
+                                pickerOptions.length === 0
+                                  ? "text-muted-foreground/50 border-border/30 cursor-not-allowed"
+                                  : "text-muted-foreground border-border/50 hover:text-foreground hover:border-border hover:bg-secondary/40"
+                              )}
+                              emptyLabel={manager ? `No reports under ${manager.name}` : `No ${ROLE_LABEL(rk)} available`}
+                              placeholder={`Search ${ROLE_LABEL(rk)}…`}
+                              onSelect={(personId) => {
+                                stageAdd(d.id, {
+                                  id: uid(),
+                                  dealId: d.id,
+                                  roleKey: rk,
+                                  personId,
+                                  allocationPct: 10,
+                                });
+                              }}
+                            />
                           </div>
                         </td>
                       );
