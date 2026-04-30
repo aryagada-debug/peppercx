@@ -557,6 +557,43 @@ export function useBopmDirectory() {
   return { allBopmUsers, bopmUsersForVsd, loading };
 }
 
+/**
+ * Hook returning all active person names from Settings → People. Used by
+ * `dealMatchesBopm` so the strict matcher can run its ambiguity guard.
+ */
+export function useAllPersonNames(): string[] {
+  const { rows } = (function useRows() {
+    // Reuse the BOPM directory cache when warm; otherwise fall back to a
+    // direct subscription. We only need the names list which is a subset
+    // of staffing_people; piggy-back on bopmDirCache when present.
+    return bopmDirCache?.data || { rows: [] as BopmDirectoryRow[] };
+  })();
+  // Subscribe to the directory so the list updates if Settings changes.
+  const { allBopmUsers } = useBopmDirectory();
+  const [extra, setExtra] = useState<string[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from("staffing_people")
+      .select("name")
+      .eq("leaving", false)
+      .eq("tbh", false)
+      .then(({ data }) => {
+        if (cancelled) return;
+        setExtra(((data as any[]) || []).map((p) => (p.name || "").trim()).filter(Boolean));
+      });
+    return () => { cancelled = true; };
+  }, []);
+  // Merge: BOPM directory rows + the broader staffing_people roster.
+  return useMemo(() => {
+    const set = new Set<string>();
+    rows.forEach((r) => r.name && set.add(r.name));
+    allBopmUsers.forEach((r) => r.name && set.add(r.name));
+    extra.forEach((n) => n && set.add(n));
+    return Array.from(set);
+  }, [rows, allBopmUsers, extra]);
+}
+
 // ----- Strict person matching for deal BOPM cells -----
 // Used by useDealAccess so a BOPM persona only sees deals where the deal's
 // BOPM cells unambiguously point to *their* registered Settings person.
