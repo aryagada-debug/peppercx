@@ -6,18 +6,16 @@ import { Loader2, Eye } from "lucide-react";
 import { useStaffingData } from "@/hooks/useStaffingData";
 import { DealViewTab } from "@/components/staffing/DealViewTab";
 import { PeopleViewTab } from "@/components/staffing/PeopleViewTab";
-import { MatrixTab } from "@/components/staffing/MatrixTab";
 import { useUserRole } from "@/hooks/useUserRole";
 import { ReadOnlyBanner } from "@/components/access/ReadOnlyBanner";
 import { useDealAccess } from "@/hooks/useDealAccess";
 import { BopmEmptyState } from "@/components/access/BopmEmptyState";
 import { StaffingReviewRequestsButton } from "@/components/staffing/StaffingReviewRequests";
 import { BopmStaffingSummary } from "@/components/staffing/BopmStaffingSummary";
-import { BopmStaffingTables } from "@/components/staffing/BopmStaffingTables";
 import { BopmStaffingFlatTable } from "@/components/staffing/BopmStaffingFlatTable";
 import { MyStaffingRequests } from "@/components/staffing/MyStaffingRequests";
 
-type Tab = "deals" | "people" | "matrix" | "tables" | "table" | "requests";
+type Tab = "deals" | "people" | "table" | "requests";
 
 // Deal statuses considered "active" for the BOPM staffing view.
 // Closed deals (Completed / Churned) are hidden.
@@ -35,16 +33,20 @@ export default function Staffing() {
   const { role } = useUserRole();
   const { visibleDealIds, loading: accessLoading } = useDealAccess();
   const isBopmPersona = role === "user";
-  const [tab, setTab] = useState<Tab>(tabParam || (isBopmPersona ? "table" : "deals"));
+  const normalizedTabParam: Tab | null =
+    tabParam === ("matrix" as any) || tabParam === ("tables" as any)
+      ? "table"
+      : (tabParam as Tab | null);
+  const [tab, setTab] = useState<Tab>(normalizedTabParam || (isBopmPersona ? "table" : "deals"));
 
-  // BOPM persona: only the two BOPM-facing tabs are valid.
+  // BOPM persona: only Table view + Change requests are valid.
   useEffect(() => {
-    if (isBopmPersona && tab !== "tables" && tab !== "table" && tab !== "requests") setTab("table");
+    if (isBopmPersona && tab !== "table" && tab !== "requests") setTab("table");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isBopmPersona]);
 
   useEffect(() => {
-    if (tabParam && tabParam !== tab) setTab(tabParam);
+    if (normalizedTabParam && normalizedTabParam !== tab) setTab(normalizedTabParam);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabParam]);
 
@@ -52,7 +54,7 @@ export default function Staffing() {
     setTab(t);
     const next = new URLSearchParams(searchParams);
     next.set("tab", t);
-    if (t !== "matrix") next.delete("deal");
+    if (t !== "table") next.delete("deal");
     setSearchParams(next, { replace: true });
   };
 
@@ -102,13 +104,12 @@ export default function Staffing() {
   const TABS: { key: Tab; label: string }[] = isBopmPersona
     ? [
         { key: "table",    label: "Table view" },
-        { key: "tables",   label: "Grouped view" },
         { key: "requests", label: "Change requests" },
       ]
     : [
         { key: "deals", label: "Deal view" },
         { key: "people", label: "People view" },
-        { key: "matrix", label: "Staffing" },
+        { key: "table", label: "Staffing" },
       ];
 
   const showBopmEmpty = isBopmPersona && !accessLoading && activeBopmDeals.length === 0;
@@ -154,7 +155,7 @@ export default function Staffing() {
           </div>
         </div>
 
-        {showBopmEmpty && (tab === "tables" || tab === "table") && <BopmEmptyState section="Staffing & Capacity" />}
+        {showBopmEmpty && tab === "table" && <BopmEmptyState section="Staffing & Capacity" />}
 
         {isBopmPersona && !showBopmEmpty && tab === "table" && (
           <BopmStaffingFlatTable
@@ -162,18 +163,6 @@ export default function Staffing() {
             people={scopedPeople}
             allPeople={people}
             assignments={scopedAssignments}
-          />
-        )}
-
-        {isBopmPersona && !showBopmEmpty && tab === "tables" && (
-          <BopmStaffingTables
-            deals={activeBopmDeals}
-            people={scopedPeople}
-            allPeople={people}
-            assignments={scopedAssignments}
-            onAddAssignment={addAssignment}
-            onUpdateAssignment={updateAssignment}
-            onDeleteAssignment={deleteAssignment}
           />
         )}
 
@@ -193,15 +182,16 @@ export default function Staffing() {
             onUpdateAssignment={updateAssignment}
           />
         )}
-        {tab === "matrix" && !isBopmPersona && (
-          <MatrixTab
-            deals={isBopmPersona ? uniqueScopedDeals : scopedDeals}
-            people={isBopmPersona ? scopedPeople : people}
+        {tab === "table" && !isBopmPersona && (
+          <BopmStaffingFlatTable
+            deals={scopedDeals}
+            people={people}
+            allPeople={people}
             assignments={scopedAssignments}
-            onUpdateDeal={isBopmPersona ? () => {} : updateDeal}
-            onUpsertAssignment={isBopmPersona ? () => {} : upsertAssignmentByRole}
-            readOnly={isBopmPersona}
-            initialDealId={dealParam || undefined}
+            directEdit
+            onAddAssignment={addAssignment}
+            onUpdateAssignment={updateAssignment}
+            onDeleteAssignment={deleteAssignment}
           />
         )}
       </div>
