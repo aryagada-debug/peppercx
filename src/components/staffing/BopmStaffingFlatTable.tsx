@@ -298,6 +298,7 @@ export function BopmStaffingFlatTable({
 }: Props) {
   const [search, setSearch] = useState("");
   const [bopmFilter, setBopmFilter] = useState<string>("All");
+  const allPersonNames = useAllPersonNames();
   const [addForDeal, setAddForDeal] = useState<string | null>(null);
   const [allocDraft, setAllocDraft] = useState<Record<string, string>>({});
   const [drafts, setDrafts] = useState<Record<string, DealDraft>>({});
@@ -587,7 +588,7 @@ export function BopmStaffingFlatTable({
       (a.dealName || "").localeCompare(b.dealName || "")
     );
     const bopmFiltered = bopmFilter && bopmFilter !== "All"
-      ? sorted.filter(d => dealMatchesBopm(d as any, bopmFilter))
+      ? sorted.filter(d => dealMatchesBopm(d as any, bopmFilter, allPersonNames))
       : sorted;
     if (!q) return bopmFiltered;
     return bopmFiltered.filter(d => {
