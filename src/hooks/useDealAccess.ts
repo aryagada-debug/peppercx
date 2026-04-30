@@ -261,19 +261,10 @@ export function useDealAccess(): DealAccessState {
       };
     }
 
-    // Build the set of BOPM-name keys that report into THIS VSD, derived
-    // from the deals themselves (principal/senior BOPM ↔ vsd field), so a
-    // VSD's pod includes both deals tagged to them AND deals where their
-    // BOPMs appear without an explicit vsd cell.
-    const bopmNamesForThisVsd: string[] = [];
-    if (looksLikeVsd && me) {
-      for (const d of allDeals) {
-        if (!nameMatchesPerson(d.vsd, me)) continue;
-        if (d.principal_bopm) bopmNamesForThisVsd.push(d.principal_bopm);
-        if (d.senior_bopm) bopmNamesForThisVsd.push(d.senior_bopm);
-      }
-    }
-
+    // VSD visibility is driven STRICTLY by the deal's `vsd` cell.
+    // We intentionally do NOT expand to "deals whose principal/senior BOPM
+    // reports to this VSD" — that pod-expansion was leaking deals where the
+    // VSD cell points to someone else (or is blank) into this VSD's view.
     const ownDealIds = new Set<string>();
     for (const d of allDeals) {
       if (!me) continue;
@@ -285,18 +276,8 @@ export function useDealAccess(): DealAccessState {
         ownDealIds.add(d.id);
         continue;
       }
-      if (looksLikeVsd) {
-        // 1. deal explicitly tagged to this VSD
-        if (nameMatchesPerson(d.vsd, me)) {
-          ownDealIds.add(d.id);
-          continue;
-        }
-        // 2. deal has a principal/senior BOPM who reports to this VSD
-        const matches = (cell: string | null) =>
-          !!cell && bopmNamesForThisVsd.some((b) => nameMatchesPerson(cell, b) || nameMatchesPerson(b, cell));
-        if (matches(d.principal_bopm) || matches(d.senior_bopm)) {
-          ownDealIds.add(d.id);
-        }
+      if (looksLikeVsd && nameMatchesPerson(d.vsd, me)) {
+        ownDealIds.add(d.id);
       }
     }
 
