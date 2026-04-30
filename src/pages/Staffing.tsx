@@ -33,6 +33,9 @@ export default function Staffing() {
   const { role } = useUserRole();
   const { visibleDealIds, loading: accessLoading } = useDealAccess();
   const isBopmPersona = role === "user";
+  const isVsdPersona = role === "member";
+  // VSDs and BOPMs both have their own deal-set scope. Admin/capability roles see everything.
+  const shouldScopeToOwnDeals = isBopmPersona || isVsdPersona;
   const normalizedTabParam: Tab | null =
     tabParam === ("matrix" as any) || tabParam === ("tables" as any)
       ? "table"
@@ -64,34 +67,41 @@ export default function Staffing() {
     addAssignment, deleteAssignment,
   } = useStaffingData();
 
-  // For BOPM persona, narrow deals + assignments to her tagged deals — and
-  // narrow `people` to only those staffed on those deals (so the People
-  // picker / matrix rows don't leak the wider org).
-  const scopedDeals = isBopmPersona && !accessLoading
+  // For BOPM and VSD personas, narrow deals + assignments to their tagged
+  // deals (per useDealAccess). VSDs see deals where they are the VSD or
+  // where one of their P-BOPM / Sr BOPM is on the deal. BOPMs see only
+  // their own tagged deals.
+  const scopedDeals = shouldScopeToOwnDeals && !accessLoading
     ? deals.filter(d => visibleDealIds.has(d.id))
     : deals;
   // De-duplicate by id (defensive — visibleDealIds is already a Set)
-  const uniqueScopedDeals = isBopmPersona
+  const uniqueScopedDeals = shouldScopeToOwnDeals
     ? Array.from(new Map(scopedDeals.map(d => [d.id, d])).values())
     : scopedDeals;
   // Active-only deals for the BOPM staffing surface (closed deals are hidden).
   const activeBopmDeals = isBopmPersona
     ? uniqueScopedDeals.filter(d => ACTIVE_DEAL_STATUSES.has(d.dealStatus))
     : uniqueScopedDeals;
-  const scopedAssignments = isBopmPersona && !accessLoading
+  const scopedAssignments = shouldScopeToOwnDeals && !accessLoading
     ? (() => {
-        const activeIds = new Set(activeBopmDeals.map(d => d.id));
-        return assignments.filter(a => activeIds.has(a.dealId));
+        const ids = new Set(uniqueScopedDeals.map(d => d.id));
+        return assignments.filter(a => ids.has(a.dealId));
       })()
     : assignments;
+  const activeBopmDealIds = isBopmPersona
+    ? new Set(activeBopmDeals.map(d => d.id))
+    : null;
+  const bopmActiveAssignments = isBopmPersona && activeBopmDealIds
+    ? assignments.filter(a => activeBopmDealIds.has(a.dealId))
+    : scopedAssignments;
   const scopedPeople = isBopmPersona && !accessLoading
     ? (() => {
-        const ids = new Set(scopedAssignments.map(a => a.personId));
+        const ids = new Set(bopmActiveAssignments.map(a => a.personId));
         return people.filter(p => ids.has(p.id));
       })()
     : people;
 
-  if (loading || (isBopmPersona && accessLoading)) {
+  if (loading || (shouldScopeToOwnDeals && accessLoading)) {
     return (
       <AppLayout>
         <div className="p-8 flex items-center justify-center min-h-[60vh]">
@@ -172,7 +182,7 @@ export default function Staffing() {
                     deals={activeBopmDeals}
                     people={scopedPeople}
                     allPeople={people}
-                    assignments={scopedAssignments}
+                    assignments={bopmActiveAssignments}
                   />
                 )
               }
