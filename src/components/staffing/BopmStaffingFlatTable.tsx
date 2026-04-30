@@ -508,9 +508,12 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
   // ── Render a single cell entry (one staffed person under a deal+role) ────
   const renderEntry = (deal: Deal, roleKey: string, e: CellEntry) => {
     const p = allPersonById.get(e.personId);
-    const teamCat = (p?.roleCategory || "Other") as RoleCategory;
-    const sameTeam = allPeople.filter(pp => pp.roleCategory === teamCat && !pp.leaving);
-    const others = allPeople.filter(pp => pp.roleCategory !== teamCat && !pp.leaving);
+    // Same column = same designation; restrict the person dropdown to that
+    // designation list. Everyone else (other roles/teams) stays available
+    // under "Other roles" so we never block legitimate edits.
+    const colMatches = peopleForRole(roleKey, allPeople);
+    const colMatchIds = new Set(colMatches.map(pp => pp.id));
+    const others = allPeople.filter(pp => !colMatchIds.has(pp.id) && !pp.leaving);
 
     const draftKey = e.assignmentId;
     const draftVal = allocDraft[draftKey];
@@ -522,7 +525,7 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
       <div
         key={e.assignmentId}
         className={cn(
-          "rounded-md border px-1.5 py-1 space-y-1 transition-colors",
+          "rounded-md border px-1 py-0.5 transition-colors",
           e.isMarkedRemove ? "bg-rose-50/70 border-rose-200" :
           e.isAdded ? "bg-emerald-50/70 border-emerald-200" :
           e.isUpdated ? "bg-amber-50/70 border-amber-200" :
@@ -544,14 +547,18 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
             title="Choose a different person"
           >
             <option value={e.personId}>{p?.name || "—"}{p?.tbh ? " (TBH)" : ""}</option>
-            <optgroup label={`Same team (${teamCat})`}>
-              {sameTeam.filter(pp => pp.id !== e.personId).slice(0, 80).map(pp => (
-                <option key={pp.id} value={pp.id}>{pp.name}{pp.tbh ? " (TBH)" : ""}</option>
-              ))}
-            </optgroup>
-            <optgroup label="Other teams">
-              {others.slice(0, 80).map(pp => (
-                <option key={pp.id} value={pp.id}>{pp.name} · {pp.roleCategory}</option>
+            {colMatches.length > 0 && (
+              <optgroup label={`${ROLE_LABEL(roleKey)} (${colMatches.length})`}>
+                {colMatches.filter(pp => pp.id !== e.personId).map(pp => (
+                  <option key={pp.id} value={pp.id}>
+                    {pp.name}{pp.tbh ? " (TBH)" : ""}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            <optgroup label="Other roles">
+              {others.slice(0, 120).map(pp => (
+                <option key={pp.id} value={pp.id}>{pp.name} · {pp.roleTitle}</option>
               ))}
             </optgroup>
           </select>
@@ -560,7 +567,7 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
               type="button"
               onClick={() => unstageUpdate(deal.id, e.assignmentId)}
               title="Revert edits"
-              className="h-6 w-6 inline-flex items-center justify-center rounded border border-border text-muted-foreground hover:bg-secondary/50"
+              className="h-6 w-5 inline-flex items-center justify-center rounded border border-border text-muted-foreground hover:bg-secondary/50"
             ><RotateCcw className="h-3 w-3" /></button>
           )}
           {e.isMarkedRemove ? (
@@ -575,32 +582,30 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
               type="button"
               onClick={() => stageRemove(deal.id, e.assignmentId)}
               title={e.isAdded ? "Remove from this request" : "Mark for removal"}
-              className="h-6 w-6 inline-flex items-center justify-center rounded border border-border text-muted-foreground hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200"
+              className="h-6 w-5 inline-flex items-center justify-center rounded border border-border text-muted-foreground hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200"
             ><Trash2 className="h-3 w-3" /></button>
           )}
         </div>
-        <div className="flex items-center justify-between gap-1">
-          <div className="flex items-center gap-0.5">
-            <input
-              type="number"
-              min={0}
-              max={100}
-              step={1}
-              disabled={e.isMarkedRemove}
-              value={allocVal}
-              onChange={ev => setAllocDraft(prev => ({ ...prev, [draftKey]: ev.target.value }))}
-              onBlur={() => {
-                const n = Math.max(0, Math.min(100, Number(allocVal)));
-                if (Number.isFinite(n) && n !== e.allocationPct) {
-                  stageUpdate(deal.id, e.assignmentId, { allocationPct: n });
-                }
-                setAllocDraft(prev => { const next = { ...prev }; delete next[draftKey]; return next; });
-              }}
-              className="h-6 w-12 px-1 rounded border border-border bg-background text-right font-mono text-[11px] disabled:opacity-50"
-            />
-            <span className="text-[10px] text-muted-foreground">%</span>
-          </div>
-          <span className="font-mono text-[10px] text-muted-foreground">{hrs.toFixed(1)}h/wk</span>
+        <div className="flex items-center gap-1 mt-0.5 pl-0.5">
+          <input
+            type="number"
+            min={0}
+            max={100}
+            step={1}
+            disabled={e.isMarkedRemove}
+            value={allocVal}
+            onChange={ev => setAllocDraft(prev => ({ ...prev, [draftKey]: ev.target.value }))}
+            onBlur={() => {
+              const n = Math.max(0, Math.min(100, Number(allocVal)));
+              if (Number.isFinite(n) && n !== e.allocationPct) {
+                stageUpdate(deal.id, e.assignmentId, { allocationPct: n });
+              }
+              setAllocDraft(prev => { const next = { ...prev }; delete next[draftKey]; return next; });
+            }}
+            className="h-5 w-9 px-1 rounded border border-border bg-background text-right font-mono text-[10px] disabled:opacity-50"
+          />
+          <span className="text-[9px] text-muted-foreground">%</span>
+          <span className="ml-auto font-mono text-[9px] text-muted-foreground">{hrs.toFixed(1)}h/wk</span>
         </div>
       </div>
     );
