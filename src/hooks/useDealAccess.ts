@@ -20,10 +20,11 @@ interface DealAccessState {
 /**
  * Centralised access control for Clients & Deals.
  * - Admin: sees & edits everything.
- * - User mapped to a staffing person: sees the deals they're "on" (listed as
- *   principal/senior/regular BOPM, or assigned via staffing_assignments).
- *   BOPM-tier users additionally see (read-only) every deal that shares a VSD
- *   with one of their own deals.
+ * - User mapped to a staffing person: sees only the deals where the deal sheet
+ *   explicitly tags them in the matching access cell. Principal/Senior BOPMs
+ *   are matched only against principal_bopm/senior_bopm; regular BOPMs are
+ *   matched only against bopm. Legacy staffing_assignments rows never grant
+ *   deal visibility.
  * - Anyone else: empty.
  */
 export function useDealAccess(): DealAccessState {
@@ -246,16 +247,24 @@ export function useDealAccess(): DealAccessState {
     // reports to this VSD" — that pod-expansion was leaking deals where the
     // VSD cell points to someone else (or is blank) into this VSD's view.
     const ownDealIds = new Set<string>();
+    const roleText = `${myRoleTitle} ${myRoleCategory} ${myDesignation}`.toLowerCase();
+    const isPrincipalOrSeniorBopm =
+      /\b(principal|senior|sr\.?)\s+bopm\b/.test(roleText)
+      || /principal\s+account\s+engagement\s+lead/.test(roleText)
+      || (roleText.includes("bopm") && (roleText.includes("principal") || roleText.includes("senior") || roleText.includes("sr")));
+    const isRegularBopm = /\bbopm\b/.test(roleText) && !isPrincipalOrSeniorBopm;
+
     // Strict BOPM/VSD match: reject deals where the cell could refer to
     // someone else with the same first name (e.g. "Shreshtha P" must not
     // match a different "Shreshtha" if one is also in Settings → People).
     for (const d of allDeals) {
       if (!me) continue;
-      if (
+      const matchesPrincipalOrSenior = isPrincipalOrSeniorBopm && (
         dealCellMatchesPerson(d.principal_bopm, me, allPersonNames) ||
-        dealCellMatchesPerson(d.senior_bopm, me, allPersonNames) ||
-        dealCellMatchesPerson(d.bopm, me, allPersonNames)
-      ) {
+        dealCellMatchesPerson(d.senior_bopm, me, allPersonNames)
+      );
+      const matchesRegularBopm = isRegularBopm && dealCellMatchesPerson(d.bopm, me, allPersonNames);
+      if (matchesPrincipalOrSenior || matchesRegularBopm) {
         ownDealIds.add(d.id);
         continue;
       }

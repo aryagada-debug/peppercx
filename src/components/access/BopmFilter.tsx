@@ -92,7 +92,7 @@ export function BopmFilter({ value, onChange, scopedVsd, className }: Props) {
   );
 }
 
-/** Helper: does a deal's BOPM fields match the selected BOPM filter? */
+/** Helper: does a deal's Principal/Senior BOPM fields match the selected BOPM filter? */
 export function dealMatchesBopm(
   deal: { principalBopm?: string | null; seniorBopm?: string | null; bopm?: string | null;
           principal_bopm?: string | null; senior_bopm?: string | null; },
@@ -103,7 +103,6 @@ export function dealMatchesBopm(
   const fields: Array<string | null | undefined> = [
     (deal as any).principalBopm ?? (deal as any).principal_bopm,
     (deal as any).seniorBopm ?? (deal as any).senior_bopm,
-    (deal as any).bopm,
   ];
   // Strict identity match: a deal cell like "Shreshtha P" matches the
   // filter "Shreshtha Pathak" only when no other registered person could
