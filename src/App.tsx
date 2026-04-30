@@ -44,7 +44,9 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 5 * 60 * 1000,
       gcTime: 30 * 60 * 1000,
-      refetchOnWindowFocus: false,
+      // Refetch when the tab regains focus so edits made elsewhere
+      // (other tabs, other users) show up without manual reload.
+      refetchOnWindowFocus: true,
       retry: 1,
     },
   },
