@@ -357,6 +357,7 @@ export default function HomePage() {
       loadTasks();
       loadTodos();
       loadRecentsAndPins();
+      loadActiveDeals();
       // Then signals
       setTimeout(() => {
         loadFlags();
@@ -371,7 +372,7 @@ export default function HomePage() {
         })();
       }, 100);
     })();
-  }, [user, loadProfile, loadQuota, loadTasks, loadTodos, loadFlags, loadNotifications, loadRecentsAndPins, loadMyDeals, loadMentions]);
+  }, [user, loadProfile, loadQuota, loadTasks, loadTodos, loadFlags, loadNotifications, loadRecentsAndPins, loadMyDeals, loadMentions, loadActiveDeals]);
 
   useEffect(() => { if (user) loadQuota(); }, [periodType, user, loadQuota]);
 
