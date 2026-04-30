@@ -1100,6 +1100,90 @@ function KpiPill({ label, value, tone, icon: Icon, onClick }: { label: string; v
   );
 }
 
+/* ── Add Task Dialog (Home) ─────────────────────────────────────────────── */
+function AddTaskDialog({
+  open, onOpenChange, deals, dealId, onDealChange, assignees, onSubmit, defaultAssignee,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  deals: { id: string; deal_name: string; account: string }[];
+  dealId: string;
+  onDealChange: (id: string) => void;
+  assignees: { id: string; name: string; staffed?: boolean; designation?: string }[];
+  onSubmit: (data: any) => void;
+  defaultAssignee: string;
+}) {
+  // Search filter for the deal dropdown.
+  const [dealQuery, setDealQuery] = useState("");
+  const filtered = useMemo(() => {
+    const q = dealQuery.trim().toLowerCase();
+    if (!q) return deals.slice(0, 200);
+    return deals.filter(d =>
+      d.deal_name.toLowerCase().includes(q) || (d.account || "").toLowerCase().includes(q),
+    ).slice(0, 200);
+  }, [deals, dealQuery]);
+
+  // If a deal is picked, defer to the existing TaskFormDialog so the form
+  // matches the rest of the app exactly.
+  if (dealId) {
+    const picked = deals.find(d => d.id === dealId);
+    return (
+      <TaskFormDialog
+        open={open}
+        onOpenChange={onOpenChange}
+        title={`New Task — ${picked?.deal_name || dealId}`}
+        assignees={assignees}
+        initial={{
+          title: "",
+          description: "",
+          stage: "To Do",
+          assignee: defaultAssignee,
+          startDate: "",
+          endDate: "",
+          urgency: "Medium",
+          estimatedHours: 0,
+          subtasks: [],
+          autoRegen: false,
+        }}
+        onSubmit={onSubmit}
+      />
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[480px]">
+        <DialogHeader>
+          <DialogTitle className="text-base">Add Task — pick a deal</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <Input
+            autoFocus
+            placeholder="Search deals or accounts…"
+            value={dealQuery}
+            onChange={e => setDealQuery(e.target.value)}
+          />
+          <div className="max-h-[320px] overflow-y-auto border rounded-md divide-y divide-border">
+            {filtered.length === 0 ? (
+              <div className="p-3 text-xs text-muted-foreground text-center">No matching deals</div>
+            ) : filtered.map(d => (
+              <button
+                key={d.id}
+                type="button"
+                onClick={() => onDealChange(d.id)}
+                className="w-full text-left px-3 py-2 hover:bg-accent/50 transition-colors"
+              >
+                <div className="text-sm font-medium truncate">{d.deal_name}</div>
+                <div className="text-[11px] text-muted-foreground truncate">{d.account}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function QuotaDonut({ pct }: { pct: number }) {
   const r = 45, c = 2 * Math.PI * r;
   const dash = (pct / 100) * c;
