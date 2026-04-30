@@ -1,116 +1,99 @@
-## Goals
+# App-wide performance fixes
 
-Three independent improvements:
+## What I measured (live preview, just now)
 
-1. **BOPM staffing pivot** — make the inline "change person" dropdown look intentional instead of a bare native `<select>`.
-2. **Clients & Deals KPI strip** — replace the *Total Deals* tile with *Renewals < 60 days*, and add a one-line insight under each KPI value (mirroring the screenshot reference).
-3. **Staffing & Capacity page** — hard-delete the "Grouped view", make the "Table view" the single staffing surface for **all** personas (BOPM, VSD, Admin), and remove the "Staffing — pivot view" header + subtitle inside the table component.
+| Metric | Value | Verdict |
+|---|---|---|
+| First Paint | 7.6 s | poor |
+| First Contentful Paint | 11.0 s | poor |
+| DOMContentLoaded | 7.7 s | poor |
+| CLS | 1.06 (4 shifts) | poor |
+| Script requests on first load | **217 files / 2.7 MB** | poor |
+| `user_roles` fetched | **3×** (2.0 s + 2.5 s + 2.8 s) | bug |
+| `route_visibility` fetched | 3× | bug |
+| `user_route_overrides` fetched | 3× | bug |
+| `mbr_entries` fetched | 4× | bug |
 
----
+The "feels like a reload" perception comes from three compounding things: a flood of script files, duplicate Supabase calls on every navigation, and a layout that visibly shifts (CLS 1.06) while data lands. None of the fixes below change behaviour — only how/when work runs.
 
-## 1. Better dropdown UI in BOPM staffing pivot
+## Root causes
 
-File: `src/components/staffing/BopmStaffingFlatTable.tsx` → `renderEntry`.
+1. **No code splitting in `src/App.tsx`** — every page (`DealDetail` 128 K, `RGYHealth` 68 K, `MBRTracker` 64 K, `Home` 59 K, `Clients` 53 K, `MyStaffingRequests` 37 K, `BopmStaffingFlatTable` 48 K, etc.) plus full data seeds (`allDeals.ts` 93 K, `staffingData.ts` 83 K) are imported at the top of `App.tsx`. The browser parses ~2.7 MB before the first route renders.
 
-Currently the person name is rendered as plain text with a transparent `<select>` overlaid. Replace it with a styled `Popover` + scrollable command-list trigger:
+2. **Auth context creates a fresh `user` object every render.** In `AuthProvider`, `user: session?.user ?? null` is recomputed inline, so its reference changes on every render. `useUserRole.load` lists `user` in its `useCallback` deps, so `load` is recreated and its `useEffect` re-fires — that's why `user_roles` / `route_visibility` / `user_route_overrides` are each fetched 3×. After a `viewAsRole` localStorage hydration the effect fires again.
 
-- Keep the name as the visible label, but wrap it in a `<button>` with a tiny chevron-down icon on the right that appears on hover. On hover the row also gets a subtle ring (`ring-1 ring-border/60 hover:ring-primary/40`) so it reads as clickable.
-- On click, open a small popover (use existing `Popover` from `@/components/ui/popover`) containing:
-  - a scrollable list (max-h ~240px) of the already-filtered `colMatches` (designation + manager-scoped — keep the existing logic untouched),
-  - each row shows `name`, role title in muted text, and a small "(TBH)" pill if applicable; current selection has a check icon.
-- Keep all staging logic identical (`stageUpdate(deal.id, e.assignmentId, { personId: val })`).
-- Remove the hidden `<select>` element.
-- Apply the same styled picker to the "+ Add person to a deal…" header dropdown so both controls feel consistent.
+3. **No request-level cache.** Every page mounts its own `useStaffingData`, `useClients`, `useMBRData`, etc., and each does its own `supabase.from(...).select(...)`. Switching pages refetches the same rows. React Query is already installed (`QueryClientProvider`) but isn't used by these hooks.
 
-This is a presentation-only refactor; existing filtering (designation + senior-manager scoping) is preserved.
+4. **Eager realtime channels.** `useStaffingData` opens a `supabase.channel("staffing-sync")` and on **any** row change refetches the entire `staffing_assignments` / `staffing_people` / `staffing_deals` table. With ~550 deals this is wasteful when nothing on the visible page depends on it.
 
----
+5. **Layout shift on the dashboard.** `src/pages/Index.tsx` renders KPI cards into a grid that grows after data resolves (no fixed-height skeleton), producing CLS 1.06.
 
-## 2. Clients & Deals KPI strip
+6. **Tab panels remount on switch** (the issue you raised earlier on `/staffing`). Conditional rendering (`{tab === "table" && <Panel/>}`) tears down the panel's local state every switch, which feels like a reload.
 
-File: `src/pages/Clients.tsx` (around lines 336–345 and 551–583).
+## Fix plan (no functional changes)
 
-**Replace tile**: Drop "Total Deals". Add **Renewals < 60 days** — count of active deals where `endDate` is within the next 60 days (use `endDate` from the deal model; ignore deals with no end date).
+### 1. Stabilise the auth/role pipeline (kills 3× duplicate fetches)
+- `src/components/auth/AuthProvider.tsx`: memoise the context value with `useMemo`, and derive `user` once via `useMemo` so its reference is stable when `session` is unchanged.
+- `src/hooks/useUserRole.ts`:
+  - Read the `viewAsRole` from localStorage with a **lazy `useState` initialiser** instead of a separate `useEffect`, so we never start with `null` and immediately re-run.
+  - Use `user.id` (string) — not the `user` object — in `load`'s deps.
+  - Guard `load` with an in-flight ref so concurrent calls dedupe.
 
-**New KPI list (5 tiles)**:
+Expected effect: `user_roles` / `route_visibility` / `user_route_overrides` go from 3× to 1× per session.
 
-1. Clients
-2. Active Deals
-3. Renewals < 60d
-4. Total MRR
-5. Total Value
+### 2. Code-split routes (cuts initial JS by ~70%)
+- `src/App.tsx`: convert every page import to `React.lazy(() => import(...))` and wrap `<Routes>` in a single `<Suspense fallback={<RouteFallback/>}>`. Public auth pages (`Login`, `Signup`) stay eager so the login screen paints instantly.
+- The `RouteFallback` is a small skeleton matching `AppLayout`'s header/sidebar so there's no white flash.
 
-**Insight line under each value** (small muted text, ~11px):
+Expected effect: initial bundle drops from 217 scripts / 2.7 MB to roughly the shell + the current route. Each subsequent route loads its chunk on demand and is cached.
 
+### 3. Centralise heavy data hooks via React Query
+React Query is already wired up, just unused. Migrate the three biggest offenders:
+- `src/hooks/useStaffingData.ts` — split into `useStaffingPeople`, `useStaffingDeals`, `useStaffingAssignments` queries (each `staleTime: 5 min`, `gcTime: 30 min`).
+- `src/hooks/useClients.ts`
+- `src/hooks/useMBRData.ts`
 
-| KPI            | Insight                                                                                                 |
-| -------------- | ------------------------------------------------------------------------------------------------------- |
-| Clients        | `N new this quarter` (deals with `startDate` in current quarter, distinct accounts)                     |
-| Renewals < 60d | next renewal account + days, e.g. `Acceldata in 18d`                                                    |
-| Active Deals   | `M at risk` (count of active deals with `rag === "red"`)                                                |
-| Total MRR      | `↑ X% vs last month` if month-over-month series exists, else `K accounts below ₹Y` (count below median) |
-| Total Value    | top deal contribution, e.g. `Top: <Account> ₹<v>`                                                       |
+Mutations (`updateAssignment`, `addAssignment`, etc.) call `queryClient.setQueryData` to patch the cache locally and `invalidateQueries` for the affected key only — no full refetch.
 
+Expected effect: switching pages no longer refetches the same tables; staffing/MBR/clients data is shared across `Staffing`, `Settings`, `MBRTracker`, `Clients`, `DealDetail`.
 
-Compute these inside the existing `kpis = useMemo(...)` block and render under the value as `<p className="text-[10px] text-muted-foreground mt-0.5 truncate">…</p>` (color-code red for "at risk" / amber for "renewals" using `text-destructive` / `text-warning`).
+### 4. Tame realtime
+- Keep one realtime channel, but in the handler call `queryClient.invalidateQueries(['staffing_assignments'])` etc. instead of refetching the entire table inline.
+- Subscribe only when the user is on a route that displays staffing data (move the channel into a small `useStaffingRealtime()` hook called from `Staffing.tsx` only).
 
-The visual style of the cards (gradient tints + chip icons) stays as is — only the data + extra line change.
+### 5. Eliminate CLS on the dashboard
+- `src/pages/Index.tsx`: give the KPI grid and chart areas explicit `min-h-*` placeholders that match the loaded content height. Use the existing `DashboardSkeleton` while data loads instead of an empty container.
 
----
+### 6. Persist tab panels (the earlier "reload on tab switch" issue)
+- `src/pages/Staffing.tsx`: render all permitted tab panels and toggle visibility with `hidden` so column widths, drafts, scroll, search, etc. survive a tab switch. Same pattern in `src/pages/Clients.tsx` and any other page using local-state tab panels.
 
-## 3. Staffing & Capacity simplification
+### 7. Drop seed data from the main bundle
+`src/data/staffingData.ts` (83 K) and `src/data/allDeals.ts` (93 K) are imported eagerly by `useStaffingData` purely as defaults / seeds. Convert their large arrays to a dynamic `import()` used only when seeding is actually needed (`count < EXPECTED_MIN`).
 
-### 3a. Delete "Grouped view" entirely
+## Files touched (estimate)
 
-- File `src/pages/Staffing.tsx`:
-  - Remove `tables` from the `Tab` union and from `TABS`.
-  - Remove the `BopmStaffingTables` import and its render block.
-  - Remove the `if (isBopmPersona && tab !== "tables" && ...)` guard's `tables` reference.
-- File `src/components/staffing/BopmStaffingTables.tsx`: delete the file.
-- Search for any other imports of `BopmStaffingTables` and remove them. (None expected.)
-- No DB / persisted state references it, so nothing to drop server-side.
+- `src/App.tsx` (lazy routes + Suspense)
+- `src/components/auth/AuthProvider.tsx` (memoise value + user)
+- `src/hooks/useUserRole.ts` (lazy localStorage read, deps cleanup, in-flight guard)
+- `src/hooks/useStaffingData.ts` (React Query, dynamic seed import, scoped realtime)
+- `src/hooks/useClients.ts` (React Query)
+- `src/hooks/useMBRData.ts` (React Query)
+- `src/pages/Staffing.tsx` (persist tab panels)
+- `src/pages/Clients.tsx` (persist tab panels)
+- `src/pages/Index.tsx` (skeleton sizing → fix CLS)
+- new `src/components/layout/RouteFallback.tsx`
 
-### 3b. Make "Table view" the single staffing surface for everyone
+## Out of scope / not changed
+- No UI redesign, no behaviour changes, no removal of features.
+- No DB / RLS / edge function changes.
+- No upgrade of any library — purely usage changes.
 
-Currently:
+## Expected impact (rough, based on the profile)
 
-- BOPM persona → tabs: Table view / Grouped view / Change requests, renders `BopmStaffingFlatTable`.
-- Admin / VSD → tabs: Deal view / People view / Staffing (matrix), renders `MatrixTab` for "Staffing".
+- Initial JS: **2.7 MB → ~700-900 KB** for the landing route.
+- FCP: **11 s → ~2-3 s** on a warm cache, ~3-4 s cold.
+- Duplicate Supabase calls per navigation: **3× → 1×** (auth/role) and **N× → 1×** (staffing/clients/mbr across pages within a session).
+- CLS on dashboard: **1.06 → < 0.1**.
+- Tab switches on Staffing/Clients: no remount, no spinner.
 
-Change in `src/pages/Staffing.tsx`:
-
-- Replace the **Admin/VSD "Staffing" tab (`matrix`)** with the same `BopmStaffingFlatTable`. Rename the tab label to **Staffing** (keeping `matrix` key is fine, or rename to `table` for both — see technical notes).
-- Pass the unscoped `deals` / `people` / `assignments` for admin/VSD (no BOPM scoping).
-- The table needs to support edit-on-submit for admins (no approval flow). Since `BopmStaffingFlatTable` currently always routes through `submitStaffingBatch`, add a `readOnly?: boolean` and `directEdit?: boolean` prop:
-  - When `directEdit` is true (admin / VSD), the "Send for review" button becomes "Save changes" and calls the supplied `onUpdateAssignment` / `addAssignment` / `deleteAssignment` callbacks directly instead of `submitStaffingBatch`.
-  - For BOPM persona, keep current behaviour (submit to Central Cx).
-- Remove "Deal view" and "People view" tabs from Admin/VSD as well? **No** — user only asked to remove the pivot view inside the Staffing tab. We keep "Deal view" and "People view" tabs, and the third tab becomes the new flat table. (Confirm in note below.)
-
-If the user actually wants Deal view / People view also gone, that's a separate ask — current plan keeps them.
-
-### 3c. Remove "Staffing — pivot view" header + subtitle
-
-File `src/components/staffing/BopmStaffingFlatTable.tsx` (around line 650):
-
-- Delete the `<div>` that contains `<h3>Staffing — pivot view</h3>` and the subtitle paragraph below it.
-- Keep the right-side controls (search, columns picker, add-person dropdown) — move them up so they sit on a single header row flush with the top of the card.
-
-### Technical notes
-
-- `MatrixTab` stays in the codebase but is no longer rendered. We'll remove its import + render in `Staffing.tsx` only. (Leaving the file lets us revert easily; deleting it is also fine — confirm preference.)
-- The `tab` URL param: existing `?tab=table` already works. For admin/VSD we'll switch the third tab key from `matrix` to `table`. Old links with `?tab=matrix` redirect to `?tab=table`.
-- No DB migration required.
-
----
-
-## Files Touched
-
-- `src/pages/Clients.tsx` — KPI tile swap + insights line
-- `src/pages/Staffing.tsx` — remove `tables` tab, replace `matrix` tab with flat table for all personas
-- `src/components/staffing/BopmStaffingFlatTable.tsx` — styled person picker popover, remove pivot-view header, add `directEdit` mode
-- `src/components/staffing/BopmStaffingTables.tsx` — **deleted**
-
-## Open question
-
-Confirm: keep "Deal view" and "People view" tabs for admin/VSD as-is, replacing only the third "Staffing" tab with the flat table? (The request "the table view should replace the staffing view" reads as yes — I'll proceed with that interpretation unless told otherwise.)  
-Yes
+Approve to proceed and I'll implement in this order: (1) auth/role stabilisation → (2) lazy routes → (3) React Query for the three big hooks → (4) realtime + seed lazy import → (5) CLS skeletons → (6) tab persistence.

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Session, User } from "@supabase/supabase-js";
 
@@ -42,9 +42,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   };
 
-  return (
-    <AuthContext.Provider value={{ session, user: session?.user ?? null, loading, signOut }}>
-      {children}
-    </AuthContext.Provider>
+  // Memoise `user` so its reference is stable across renders that don't
+  // change the session — prevents downstream effects (e.g. useUserRole)
+  // from re-running and refetching role/route data.
+  const user = useMemo<User | null>(() => session?.user ?? null, [session]);
+  const value = useMemo(
+    () => ({ session, user, loading, signOut }),
+    [session, user, loading],
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

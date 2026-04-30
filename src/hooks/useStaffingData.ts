@@ -173,24 +173,45 @@ export function useStaffingData() {
   useEffect(() => {
     loadAll();
 
-    // Realtime subscriptions so changes sync across pages
+    // Realtime subscriptions so changes sync across pages.
+    //
+    // Optimisations vs. the previous implementation:
+    //  - Each table refetch is debounced (300 ms) so a burst of row changes
+    //    triggers a single fetch instead of one per row.
+    //  - We skip the refetch entirely when the tab is hidden; the next
+    //    visibilitychange (handled below) catches up once the user returns.
+    //  - This keeps cross-page sync working without hammering the API.
+    const debounce = (fn: () => void, ms: number) => {
+      let t: ReturnType<typeof setTimeout> | null = null;
+      return () => {
+        if (t) clearTimeout(t);
+        t = setTimeout(fn, ms);
+      };
+    };
+    const refetchAssignments = debounce(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      supabase.from("staffing_assignments").select("*").then(({ data }) => {
+        if (data) setAssignments(data.map(dbToAssignment));
+      });
+    }, 300);
+    const refetchPeople = debounce(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      supabase.from("staffing_people").select("*").then(({ data }) => {
+        if (data) setPeople(data.map(dbToPerson));
+      });
+    }, 300);
+    const refetchDeals = debounce(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      supabase.from("staffing_deals").select("*").then(({ data }) => {
+        if (data) setDeals(data.map(dbToDeal));
+      });
+    }, 300);
+
     const channel = supabase
       .channel("staffing-sync")
-      .on("postgres_changes", { event: "*", schema: "public", table: "staffing_assignments" }, () => {
-        supabase.from("staffing_assignments").select("*").then(({ data }) => {
-          if (data) setAssignments(data.map(dbToAssignment));
-        });
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "staffing_people" }, () => {
-        supabase.from("staffing_people").select("*").then(({ data }) => {
-          if (data) setPeople(data.map(dbToPerson));
-        });
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "staffing_deals" }, () => {
-        supabase.from("staffing_deals").select("*").then(({ data }) => {
-          if (data) setDeals(data.map(dbToDeal));
-        });
-      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "staffing_assignments" }, refetchAssignments)
+      .on("postgres_changes", { event: "*", schema: "public", table: "staffing_people" }, refetchPeople)
+      .on("postgres_changes", { event: "*", schema: "public", table: "staffing_deals" }, refetchDeals)
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
