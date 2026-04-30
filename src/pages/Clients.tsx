@@ -41,6 +41,7 @@ import { ColHeader } from "@/components/table/ColHeader";
 import { useAppUsers, useVsdUsers, useVsdHierarchy, nameKey } from "@/hooks/useAppUsers";
 import { ReadOnlyBanner } from "@/components/access/ReadOnlyBanner";
 import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
+import { useAuth } from "@/components/auth/AuthProvider";
 // BopmClientsHeader removed per request — KPIs below now serve that role.
 
 type VsdFilterKey = string;
