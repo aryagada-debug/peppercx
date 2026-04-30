@@ -178,7 +178,7 @@ export default function Staffing() {
                     deals={activeBopmDeals}
                     people={scopedPeople}
                     allPeople={people}
-                    assignments={scopedAssignments}
+                    assignments={scopedAssignments.filter(a => activeBopmDeals.some(d => d.id === a.dealId))}
                   />
                 )
               }
