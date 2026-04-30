@@ -759,6 +759,14 @@ export function BopmStaffingFlatTable({
                 className="h-8 pl-7 pr-3 rounded-md border border-border bg-background text-xs w-64 focus:outline-none focus:ring-1 focus:ring-accent"
               />
             </div>
+            {enableBopmFilter && (
+              <BopmFilter
+                value={bopmFilter}
+                onChange={setBopmFilter}
+                scopedVsd={bopmFilterScopedVsd ?? undefined}
+                className="h-8 w-[200px] text-xs"
+              />
+            )}
             <div className="relative" ref={pickerRef}>
               <button
                 type="button"
