@@ -75,6 +75,7 @@ function LegacyDashboard() {
   const [loading, setLoading] = useState(true);
 
   const [kpis, setKpis] = useState<KPI[]>([]);
+  const [overallAttainment, setOverallAttainment] = useState<number | null>(null);
   const [alerts, setAlerts] = useState<DashboardAlert[]>([]);
   const [pod, setPod] = useState<PodMember[]>([]);
   const [rgyRows, setRgyRows] = useState<RGYRow[]>([]);
@@ -173,6 +174,7 @@ function LegacyDashboard() {
         { id: "k2", label: "Total MRR", value: formatINR(totalMRR) },
         { id: "k3", label: "Total Deal Value", value: formatINR(totalTCV) },
       ]);
+      setOverallAttainment(monthMRRTarget > 0 ? attainment : null);
 
       // ---- Latest RGY per deal ----
       const latestRgy = new Map<string, any>();
@@ -413,7 +415,7 @@ function LegacyDashboard() {
         {/* KPI Row */}
         <div className="mb-8">
           {loading ? <KPISkeleton /> : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {kpis.map((kpi) => <MetricCard key={kpi.id} {...kpi} />)}
             </div>
           )}
@@ -425,7 +427,7 @@ function LegacyDashboard() {
 
         {/* Finance Targets */}
         <div className="mb-8 space-y-4">
-          <FinanceTargetsCard monthYYYYMM={selectedMonth} dealIdScope={isBopmPersona ? visibleDealIds : undefined} />
+          <FinanceTargetsCard monthYYYYMM={selectedMonth} dealIdScope={isBopmPersona ? visibleDealIds : undefined} overallAttainmentPct={overallAttainment} />
         </div>
 
         {/* Composite health (BOPM only) */}
