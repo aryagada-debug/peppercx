@@ -6,6 +6,7 @@ import {
 } from "@/data/staffingData";
 import type { TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { submitApprovalRequest } from "@/lib/approvals";
 
 // ── Mappers ──────────────────────────────────────────────────────────────────
@@ -169,8 +170,11 @@ function useStaffingDataInternal() {
   const [seeded, setSeeded] = useState(false);
   const seedingRef = useRef(false);
   const { canEditAll } = useUserRole();
+  const { session, loading: authLoading } = useAuth();
+  const isAuthenticated = !authLoading && !!session;
 
   useEffect(() => {
+    if (!isAuthenticated) return;
     loadAll();
 
     // Realtime subscriptions so changes sync across pages.
@@ -215,7 +219,8 @@ function useStaffingDataInternal() {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
 
   async function loadAll() {
     setLoading(true);
