@@ -799,6 +799,40 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
                       const cat = roleCategory.get(rk) || "Other";
                       const s = styleFor(cat);
                       const w = colWidths[rk] ?? 200;
+                      // Determine "manager" filter for this column on this deal:
+                      // if a more-senior person from the same team is already
+                      // staffed, restrict the picker to that manager's reports
+                      // (plus the manager themselves). The column's own role
+                      // hierarchy rank is the cutoff.
+                      const colRank = ROLE_RANK(rk);
+                      const sameTeamEntries: { person: Person; rank: number }[] = [];
+                      byRole.forEach((arr, otherRk) => {
+                        if (ROLE_CATEGORY_OF(otherRk) !== cat) return;
+                        const r = ROLE_RANK(otherRk);
+                        arr.forEach(en => {
+                          if (en.isMarkedRemove) return;
+                          const pp = allPersonById.get(en.personId);
+                          if (pp) sameTeamEntries.push({ person: pp, rank: r });
+                        });
+                      });
+                      // The "manager" is the most senior staffed person in the
+                      // team whose rank is strictly more senior than the
+                      // column's own role. Falls back to roleTitle/designation
+                      // if a senior team member is staffed elsewhere.
+                      const manager = sameTeamEntries
+                        .filter(x => x.rank < colRank)
+                        .sort((a, b) => a.rank - b.rank)[0]?.person;
+                      const candidates = peopleForRole(rk, allPeople);
+                      const filtered = manager
+                        ? candidates.filter(pp =>
+                            (pp.reportingManager || "").toLowerCase() === manager.name.toLowerCase()
+                              || pp.id === manager.id
+                          )
+                        : candidates;
+                      // Exclude people already staffed on this deal in this role.
+                      const usedIds = new Set(entries.filter(x => !x.isMarkedRemove).map(x => x.personId));
+                      const pickerOptions = filtered.filter(pp => !usedIds.has(pp.id));
+                      const pickerKey = `picker:${d.id}:${rk}`;
                       return (
                         <td
                           key={rk}
@@ -807,12 +841,45 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
                         >
                           <div className="space-y-1">
                             {entries.map(e => renderEntry(d, rk, e))}
-                            <button
-                              type="button"
-                              onClick={() => setAddForDeal(d.id)}
-                              className="h-6 w-full inline-flex items-center justify-center gap-1 rounded border border-dashed border-border/60 text-[10px] text-muted-foreground/80 hover:bg-secondary/30 hover:text-foreground"
-                              title={`Add another person to ${rk}`}
-                            ><Plus className="h-3 w-3" />{entries.length === 0 ? "Add" : ""}</button>
+                            <select
+                              key={pickerKey}
+                              value=""
+                              onChange={ev => {
+                                const personId = ev.target.value;
+                                if (!personId) return;
+                                stageAdd(d.id, {
+                                  id: uid(),
+                                  dealId: d.id,
+                                  roleKey: rk,
+                                  personId,
+                                  allocationPct: 10,
+                                });
+                                ev.target.value = "";
+                              }}
+                              className="h-6 w-full px-1 rounded border border-dashed border-border/60 bg-background/60 text-[10px] text-muted-foreground hover:text-foreground hover:bg-background disabled:opacity-50"
+                              disabled={pickerOptions.length === 0}
+                              title={
+                                manager
+                                  ? `Add ${ROLE_LABEL(rk)} reporting to ${manager.name}`
+                                  : `Add ${ROLE_LABEL(rk)}`
+                              }
+                            >
+                              <option value="">
+                                {pickerOptions.length === 0
+                                  ? (manager
+                                      ? `No reports under ${manager.name}`
+                                      : `No ${ROLE_LABEL(rk)} available`)
+                                  : (manager
+                                      ? `+ Add (under ${manager.name.split(" ")[0]})`
+                                      : `+ Add ${ROLE_LABEL(rk)}`)
+                                }
+                              </option>
+                              {pickerOptions.map(pp => (
+                                <option key={pp.id} value={pp.id}>
+                                  {pp.name}{pp.tbh ? " (TBH)" : ""}
+                                </option>
+                              ))}
+                            </select>
                           </div>
                         </td>
                       );
