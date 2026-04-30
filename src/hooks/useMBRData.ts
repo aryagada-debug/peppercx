@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface MBRDeal {
@@ -104,82 +105,85 @@ function mapEntry(e: any): MBREntry {
   };
 }
 
+const MBR_DEALS_KEY = ["mbr", "deals"] as const;
+const MBR_ENTRIES_KEY = ["mbr", "entries"] as const;
+
+async function fetchMBRDeals(): Promise<MBRDeal[]> {
+  const { data } = await supabase
+    .from("staffing_deals")
+    .select("id, pc_code, deal_id, account, deal_name, vsd, principal_bopm, senior_bopm, bopm, customer_status, customer_type, service_line_tagging, business_unit, mrr, total_deal_value, net_deal_value, deal_type");
+  if (!data) return [];
+  return data
+    .filter((d: any) => {
+      const ct = (d.customer_type || "").toLowerCase().trim();
+      if (!ct) return true;
+      if (ct.includes("non retainer") || ct.includes("non-retainer")) return false;
+      if (ct === "churned" || ct.includes("churned")) return false;
+      if (ct === "irrelevant") return false;
+      return true;
+    })
+    .map((d: any) => ({
+      id: d.id,
+      pcCode: d.pc_code,
+      dealId: d.deal_id,
+      account: d.account,
+      dealName: d.deal_name,
+      vsd: d.vsd || "Unknown",
+      principalBopm: d.principal_bopm || "",
+      seniorBopm: d.senior_bopm || "",
+      bopm: d.bopm || "",
+      customerStatus: d.customer_status || "",
+      customerType: d.customer_type || "",
+      serviceLineTagging: d.service_line_tagging || "",
+      businessUnit: d.business_unit || "",
+      mrr: d.mrr ? Number(d.mrr) : null,
+      totalDealValue: d.total_deal_value ? Number(d.total_deal_value) : null,
+      netDealValue: d.net_deal_value ? Number(d.net_deal_value) : null,
+    }));
+}
+
+async function fetchMBREntries(): Promise<MBREntry[]> {
+  const { data } = await supabase
+    .from("mbr_entries")
+    .select("*")
+    .order("week_start", { ascending: false });
+  return (data || []).map(mapEntry);
+}
+
 export function useMBRData() {
-  const [deals, setDeals] = useState<MBRDeal[]>([]);
-  const [allEntries, setAllEntries] = useState<MBREntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const qc = useQueryClient();
 
-  const loadDeals = useCallback(async () => {
-    const { data } = await supabase
-      .from("staffing_deals")
-      .select("id, pc_code, deal_id, account, deal_name, vsd, principal_bopm, senior_bopm, bopm, customer_status, customer_type, service_line_tagging, business_unit, mrr, total_deal_value, net_deal_value, deal_type")
-      ;
+  const { data: deals = [], isLoading: dealsLoading } = useQuery({
+    queryKey: MBR_DEALS_KEY,
+    queryFn: fetchMBRDeals,
+  });
+  const { data: allEntries = [], isLoading: entriesLoading, refetch: refetchEntries } = useQuery({
+    queryKey: MBR_ENTRIES_KEY,
+    queryFn: fetchMBREntries,
+  });
+  const loading = dealsLoading || entriesLoading;
 
-    if (data) {
-      setDeals(
-        data
-          .filter((d: any) => {
-            // Exclude only deals explicitly marked as non-retainer / churned in customer_type.
-            // Empty / Active Retainer / Retainer / Renewal etc. all qualify.
-            const ct = (d.customer_type || "").toLowerCase().trim();
-            if (!ct) return true;
-            if (ct.includes("non retainer") || ct.includes("non-retainer")) return false;
-            if (ct === "churned" || ct.includes("churned")) return false;
-            if (ct === "irrelevant") return false;
-            return true;
-          })
-          .map((d: any) => ({
-            id: d.id,
-            pcCode: d.pc_code,
-            dealId: d.deal_id,
-            account: d.account,
-            dealName: d.deal_name,
-            vsd: d.vsd || "Unknown",
-            principalBopm: d.principal_bopm || "",
-            seniorBopm: d.senior_bopm || "",
-            bopm: d.bopm || "",
-            customerStatus: d.customer_status || "",
-            customerType: d.customer_type || "",
-            serviceLineTagging: d.service_line_tagging || "",
-            businessUnit: d.business_unit || "",
-            mrr: d.mrr ? Number(d.mrr) : null,
-            totalDealValue: d.total_deal_value ? Number(d.total_deal_value) : null,
-            netDealValue: d.net_deal_value ? Number(d.net_deal_value) : null,
-          }))
-      );
-    }
-  }, []);
-
-  const loadAllEntries = useCallback(async () => {
-    const { data } = await supabase
-      .from("mbr_entries")
-      .select("*")
-      .order("week_start", { ascending: false });
-
-    if (data) {
-      setAllEntries(data.map(mapEntry));
-    }
-  }, []);
-
+  // Realtime sync for mbr_entries — debounced via React Query invalidation,
+  // skipped while the tab is hidden, and shared by every consumer of the
+  // ["mbr","entries"] query.
   useEffect(() => {
-    (async () => {
-      setLoading(true);
-      await Promise.all([loadDeals(), loadAllEntries()]);
-      setLoading(false);
-    })();
-  }, []);
-
-  // Realtime sync for mbr_entries
-  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const schedule = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (typeof document !== "undefined" && document.hidden) return;
+        qc.invalidateQueries({ queryKey: MBR_ENTRIES_KEY });
+      }, 300);
+    };
     const channel = supabase
       .channel("mbr-sync")
-      .on("postgres_changes", { event: "*", schema: "public", table: "mbr_entries" }, () => {
-        loadAllEntries();
-      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "mbr_entries" }, schedule)
       .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [loadAllEntries]);
+    return () => {
+      if (timer) clearTimeout(timer);
+      supabase.removeChannel(channel);
+    };
+  }, [qc]);
 
   // Get the latest entry per deal (most recent week_start)
   const latestEntryPerDeal = (() => {
@@ -257,7 +261,7 @@ export function useMBRData() {
 
       // Realtime will handle refresh
     },
-    []
+    [],
   );
 
   const toggleAnirudhJoining = useCallback(
@@ -324,6 +328,6 @@ export function useMBRData() {
     totals,
     entriesByMonth,
     availableMonths,
-    refresh: loadAllEntries,
+    refresh: () => refetchEntries(),
   };
 }
