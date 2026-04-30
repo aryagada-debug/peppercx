@@ -14,6 +14,9 @@ import { StaffingReviewRequestsButton } from "@/components/staffing/StaffingRevi
 import { BopmStaffingSummary } from "@/components/staffing/BopmStaffingSummary";
 import { BopmStaffingFlatTable } from "@/components/staffing/BopmStaffingFlatTable";
 import { MyStaffingRequests } from "@/components/staffing/MyStaffingRequests";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { useVsdUsers } from "@/hooks/useAppUsers";
+import { supabase } from "@/integrations/supabase/client";
 
 type Tab = "deals" | "people" | "table" | "requests";
 
@@ -32,6 +35,31 @@ export default function Staffing() {
   const dealParam = searchParams.get("deal");
   const { role } = useUserRole();
   const { visibleDealIds, loading: accessLoading } = useDealAccess();
+  const { user: authUser } = useAuth();
+  const { canonVsd } = useVsdUsers();
+  // Resolve the logged-in person's VSD context (if they ARE a VSD) so the
+  // BOPM filter on Staffing & Capacity can be scoped to their pod, exactly
+  // like Clients & Deals does.
+  const [myVsdName, setMyVsdName] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!authUser) { setMyVsdName(null); return; }
+      const { data: profile } = await supabase
+        .from("profiles").select("staffing_person_id").eq("user_id", authUser.id).maybeSingle();
+      const personId = (profile as any)?.staffing_person_id;
+      if (!personId) { if (!cancelled) setMyVsdName(null); return; }
+      const { data: person } = await supabase
+        .from("staffing_people").select("name, role_title, designation").eq("id", personId).maybeSingle();
+      const p: any = person;
+      if (!p) { if (!cancelled) setMyVsdName(null); return; }
+      const looksLikeVsd = /\bvsd\b|vertical service delivery|service delivery (leader|director)/i
+        .test(`${p.role_title || ""} ${p.designation || ""}`);
+      const canon = canonVsd(p.name);
+      if (!cancelled) setMyVsdName(looksLikeVsd && canon ? canon : null);
+    })();
+    return () => { cancelled = true; };
+  }, [authUser, canonVsd]);
   const isBopmPersona = role === "user";
   const isVsdPersona = role === "member";
   // VSDs and BOPMs both have their own deal-set scope. Admin/capability roles see everything.
@@ -194,7 +222,13 @@ export default function Staffing() {
         ) : (
           <>
             <div className={cn(tab !== "deals" && "hidden")}>
-              <DealViewTab deals={scopedDeals} people={people} assignments={scopedAssignments} onUpdateDeal={updateDeal} />
+              <DealViewTab
+                deals={scopedDeals}
+                people={people}
+                assignments={scopedAssignments}
+                onUpdateDeal={updateDeal}
+                bopmFilterScopedVsd={myVsdName}
+              />
             </div>
             <div className={cn(tab !== "people" && "hidden")}>
               <PeopleViewTab
@@ -204,6 +238,7 @@ export default function Staffing() {
                 revenueTargets={revenueTargets}
                 onUpdateAssignment={updateAssignment}
                 enableBopmFilter
+                bopmFilterScopedVsd={myVsdName}
               />
             </div>
             <div className={cn(tab !== "table" && "hidden")}>
@@ -217,6 +252,7 @@ export default function Staffing() {
                 onUpdateAssignment={updateAssignment}
                 onDeleteAssignment={deleteAssignment}
                 enableBopmFilter
+                bopmFilterScopedVsd={myVsdName}
               />
             </div>
           </>

@@ -68,6 +68,8 @@ interface Props {
   people: Person[];
   assignments: StaffingAssignment[];
   onUpdateDeal?: (dealId: string, updates: Partial<Deal>) => void;
+  /** Optional VSD scope for the BOPM filter dropdown (limits options to that VSD's pod). */
+  bopmFilterScopedVsd?: string | null;
 }
 
 const ALL = "All";
@@ -77,7 +79,7 @@ const TYPE_EDIT_OPTIONS = ["Retainer", "Non-Retainer", "Pilot"] as const;
 const STATUS_EDIT_OPTIONS = ["Active Deal", "New Deal in SLA/PO", "Deal Disputed", "Deal Completed Successfully", "Deal Churned / Lost"] as const;
 const STAFFING_EDIT_OPTIONS: StaffingBucket[] = ["Already Staffed", "Staffing Needed", "No Staffing Needed"];
 
-export function DealViewTab({ deals, people, assignments, onUpdateDeal }: Props) {
+export function DealViewTab({ deals, people, assignments, onUpdateDeal, bopmFilterScopedVsd }: Props) {
   const [dealType, setDealType] = useState<typeof DEAL_TYPE_OPTIONS[number]>(ALL);
   const [dealStatus, setDealStatus] = useState<typeof DEAL_STATUS_OPTIONS[number]>("Active Deal");
   const [vsdFilter, setVsdFilter] = useState<string>(ALL);
@@ -217,7 +219,11 @@ export function DealViewTab({ deals, people, assignments, onUpdateDeal }: Props)
           <BopmFilter
             value={bopmFilter}
             onChange={setBopmFilter}
-            scopedVsd={vsdFilter !== ALL && vsdFilter !== "Yet to be assigned" ? vsdFilter : undefined}
+            scopedVsd={
+              vsdFilter !== ALL && vsdFilter !== "Yet to be assigned"
+                ? vsdFilter
+                : (bopmFilterScopedVsd ?? undefined)
+            }
             className="h-9 w-[200px] text-ui"
           />
         </div>
