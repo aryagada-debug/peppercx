@@ -155,44 +155,59 @@ export default function Staffing() {
           </div>
         </div>
 
-        {showBopmEmpty && tab === "table" && <BopmEmptyState section="Staffing & Capacity" />}
-
-        {isBopmPersona && !showBopmEmpty && tab === "table" && (
-          <BopmStaffingFlatTable
-            deals={activeBopmDeals}
-            people={scopedPeople}
-            allPeople={people}
-            assignments={scopedAssignments}
-          />
-        )}
-
-        {isBopmPersona && tab === "requests" && (
-          <MyStaffingRequests deals={uniqueScopedDeals} people={people} variant="table" />
-        )}
-
-        {tab === "deals" && !isBopmPersona && (
-          <DealViewTab deals={scopedDeals} people={people} assignments={scopedAssignments} onUpdateDeal={updateDeal} />
-        )}
-        {tab === "people" && !isBopmPersona && (
-          <PeopleViewTab
-            people={people}
-            deals={scopedDeals}
-            assignments={scopedAssignments}
-            revenueTargets={revenueTargets}
-            onUpdateAssignment={updateAssignment}
-          />
-        )}
-        {tab === "table" && !isBopmPersona && (
-          <BopmStaffingFlatTable
-            deals={scopedDeals}
-            people={people}
-            allPeople={people}
-            assignments={scopedAssignments}
-            directEdit
-            onAddAssignment={addAssignment}
-            onUpdateAssignment={updateAssignment}
-            onDeleteAssignment={deleteAssignment}
-          />
+        {/*
+          Tab panels stay mounted across switches (visibility toggled with
+          `hidden`) so column widths, drafts, scroll position, search text,
+          etc. survive when the user moves between tabs — switching no longer
+          feels like a page reload. Only panels permitted for the current
+          persona are mounted.
+        */}
+        {isBopmPersona ? (
+          <>
+            <div className={cn(tab !== "table" && "hidden")}>
+              {showBopmEmpty
+                ? <BopmEmptyState section="Staffing & Capacity" />
+                : (
+                  <BopmStaffingFlatTable
+                    deals={activeBopmDeals}
+                    people={scopedPeople}
+                    allPeople={people}
+                    assignments={scopedAssignments}
+                  />
+                )
+              }
+            </div>
+            <div className={cn(tab !== "requests" && "hidden")}>
+              <MyStaffingRequests deals={uniqueScopedDeals} people={people} variant="table" />
+            </div>
+          </>
+        ) : (
+          <>
+            <div className={cn(tab !== "deals" && "hidden")}>
+              <DealViewTab deals={scopedDeals} people={people} assignments={scopedAssignments} onUpdateDeal={updateDeal} />
+            </div>
+            <div className={cn(tab !== "people" && "hidden")}>
+              <PeopleViewTab
+                people={people}
+                deals={scopedDeals}
+                assignments={scopedAssignments}
+                revenueTargets={revenueTargets}
+                onUpdateAssignment={updateAssignment}
+              />
+            </div>
+            <div className={cn(tab !== "table" && "hidden")}>
+              <BopmStaffingFlatTable
+                deals={scopedDeals}
+                people={people}
+                allPeople={people}
+                assignments={scopedAssignments}
+                directEdit
+                onAddAssignment={addAssignment}
+                onUpdateAssignment={updateAssignment}
+                onDeleteAssignment={deleteAssignment}
+              />
+            </div>
+          </>
         )}
       </div>
     </AppLayout>
