@@ -23,6 +23,7 @@ import { MBRDetailDialog } from "@/components/mbr/MBRDetailDialog";
 import { AddStaffingMemberDialog } from "@/components/staffing/AddStaffingMemberDialog";
 import { WeeklyStaffingGrid } from "@/components/deals/WeeklyStaffingGrid";
 import { SoWImportDialog } from "@/components/deals/SoWImportDialog";
+import { DealDocsUpload } from "@/components/deals/DealDocsUpload";
 import { SlackChatBot } from "@/components/deals/SlackChatBot";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2071,6 +2072,11 @@ export default function DealDetail() {
               <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-3">
                 Scope of Work
               </p>
+              {/* Uploaded documents (Contract + SoW file) — synced with Clients page */}
+              <div className="bg-card border border-border rounded-xl mb-3 px-5 py-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <DealDocsUpload dealId={dealId!} variant="contract" />
+                <DealDocsUpload dealId={dealId!} variant="sow" />
+              </div>
               <div className="bg-card border border-border rounded-xl overflow-hidden">
                 {/* Header */}
                 <div className="flex items-center justify-between px-5 py-3 border-b border-border">
