@@ -335,12 +335,42 @@ export default function Clients() {
 
   const kpis = useMemo(() => {
     const clientSet = new Set(filteredDeals.map(d => d.account));
+    // Renewals < 60 days — active deals whose endDate is within next 60d
+    const now = new Date();
+    const in60 = new Date(); in60.setDate(in60.getDate() + 60);
+    const renewing = filteredDeals
+      .filter(d => ACTIVE_STATUSES.has(d.dealStatus) && d.endDate)
+      .map(d => ({ d, end: new Date(d.endDate as string) }))
+      .filter(x => !isNaN(x.end.getTime()) && x.end >= now && x.end <= in60)
+      .sort((a, b) => a.end.getTime() - b.end.getTime());
+    const nextRenewal = renewing[0];
+    const nextRenewalDays = nextRenewal
+      ? Math.max(0, Math.round((nextRenewal.end.getTime() - now.getTime()) / 86400000))
+      : null;
+    // Clients new this quarter (by deal startDate)
+    const qStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
+    const newClientsThisQ = new Set(
+      filteredDeals
+        .filter(d => d.startDate && new Date(d.startDate) >= qStart)
+        .map(d => d.account)
+    ).size;
+    // At-risk active deals (rag === red)
+    const atRisk = filteredDeals.filter(d => ACTIVE_STATUSES.has(d.dealStatus) && (d.rag || "").toLowerCase() === "red").length;
+    // Top deal by total value
+    const topDeal = [...filteredDeals].sort((a, b) => (Number(b.totalDealValue) || 0) - (Number(a.totalDealValue) || 0))[0];
     return {
       clients: clientSet.size,
       deals: filteredDeals.length,
       activeDeals: filteredDeals.filter(d => ACTIVE_STATUSES.has(d.dealStatus)).length,
       totalMRR: filteredDeals.reduce((s, d) => s + (d.mrr || 0), 0),
       totalValue: filteredDeals.reduce((s, d) => s + (d.totalDealValue || 0), 0),
+      renewals60: renewing.length,
+      nextRenewalLabel: nextRenewal
+        ? `${nextRenewal.d.account} in ${nextRenewalDays}d`
+        : "None upcoming",
+      newClientsThisQ,
+      atRisk,
+      topDealLabel: topDeal ? `Top: ${topDeal.account} ${fmtCurrency(topDeal.totalDealValue || 0)}` : "—",
     };
   }, [filteredDeals]);
 
