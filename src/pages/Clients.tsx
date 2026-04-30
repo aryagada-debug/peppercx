@@ -692,17 +692,45 @@ export default function Clients() {
             </div>
           )}
 
-          <BopmFilter
-            value={activeBopm}
-            onChange={setActiveBopm}
-            scopedVsd={access.isAdmin && activeVsd !== "All" && activeVsd !== "Other" && activeVsd !== "Unassigned" ? activeVsd : undefined}
-          />
+          {!isVsdViewer && (
+            <BopmFilter
+              value={activeBopm}
+              onChange={setActiveBopm}
+              scopedVsd={access.isAdmin && activeVsd !== "All" && activeVsd !== "Other" && activeVsd !== "Unassigned" ? activeVsd : undefined}
+            />
+          )}
 
-          <div className="relative max-w-[220px] flex-1">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <input type="text" placeholder="Search clients or deals..." value={search} onChange={e => setSearch(e.target.value)}
-              className="w-full h-8 pl-8 pr-2 rounded-lg bg-card border border-border text-[12px] text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all" />
-          </div>
+          {isVsdViewer ? (
+            <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5 overflow-x-auto max-w-full">
+              <button
+                onClick={() => setActiveBopm("All")}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
+                  activeBopm === "All" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                All BOPMs
+              </button>
+              {myBopms.map((b) => (
+                <button
+                  key={nameKey(b)}
+                  onClick={() => setActiveBopm(b)}
+                  className={cn(
+                    "px-2.5 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
+                    activeBopm === b ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {b}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="relative max-w-[220px] flex-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <input type="text" placeholder="Search clients or deals..." value={search} onChange={e => setSearch(e.target.value)}
+                className="w-full h-8 pl-8 pr-2 rounded-lg bg-card border border-border text-[12px] text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all" />
+            </div>
+          )}
 
           <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer whitespace-nowrap" title="Show closed / completed deals">
             <input type="checkbox" checked={showClosed} onChange={e => setShowClosed(e.target.checked)} className="rounded border-border" />
