@@ -13,6 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -89,6 +90,9 @@ export default function HomePage() {
   const [todos, setTodos] = useState<PersonalTodo[]>([]);
   const [editingDealTask, setEditingDealTask] = useState<DealTaskRow | null>(null);
   const [dealAssignmentsMap, setDealAssignmentsMap] = useState<Record<string, Set<string>>>({});
+  const [addingTask, setAddingTask] = useState(false);
+  const [addTaskDealId, setAddTaskDealId] = useState<string>("");
+  const [allActiveDeals, setAllActiveDeals] = useState<{ id: string; deal_name: string; account: string }[]>([]);
   const [nudges, setNudges] = useState<SmartNudge[]>([]);
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [quota, setQuota] = useState<QuotaRow | null>(null);
@@ -310,6 +314,40 @@ export default function HomePage() {
     setLoadingRecents(false);
   }, [user]);
 
+  // Load all active deals for the "Add Task" deal picker.
+  const loadActiveDeals = useCallback(async () => {
+    const { data } = await supabase.from("staffing_deals")
+      .select("id, deal_name, account, deal_status")
+      .in("deal_status", ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"])
+      .order("deal_name");
+    setAllActiveDeals((data || []).map((d: any) => ({ id: d.id, deal_name: d.deal_name, account: d.account })));
+  }, []);
+
+  // Create a new deal task from Home (two-way synced with the deal's Kanban).
+  const handleAddTaskSubmit = useCallback(async (data: any) => {
+    if (!addTaskDealId) { toast.error("Pick a deal first"); return; }
+    const { error } = await supabase.from("deal_tasks").insert({
+      deal_id: addTaskDealId,
+      title: data.title || "Untitled task",
+      description: data.description || "",
+      stage: data.stage || "To Do",
+      assignee: data.assignee || staffingName || displayName || "",
+      start_date: data.startDate || null,
+      end_date: data.endDate || null,
+      urgency: data.urgency || "Medium",
+      estimated_hours: data.estimatedHours || 0,
+      logged_hours: 0,
+      subtasks: data.subtasks || [],
+      auto_regen: !!data.autoRegen,
+      phase: "",
+    });
+    if (error) { toast.error(error.message); return; }
+    toast.success("Task added");
+    setAddingTask(false);
+    setAddTaskDealId("");
+    loadTasks();
+  }, [addTaskDealId, staffingName, displayName, loadTasks]);
+
   // Initial load - staggered
   useEffect(() => {
     if (!user) return;
@@ -320,6 +358,7 @@ export default function HomePage() {
       loadTasks();
       loadTodos();
       loadRecentsAndPins();
+      loadActiveDeals();
       // Then signals
       setTimeout(() => {
         loadFlags();
@@ -334,7 +373,7 @@ export default function HomePage() {
         })();
       }, 100);
     })();
-  }, [user, loadProfile, loadQuota, loadTasks, loadTodos, loadFlags, loadNotifications, loadRecentsAndPins, loadMyDeals, loadMentions]);
+  }, [user, loadProfile, loadQuota, loadTasks, loadTodos, loadFlags, loadNotifications, loadRecentsAndPins, loadMyDeals, loadMentions, loadActiveDeals]);
 
   useEffect(() => { if (user) loadQuota(); }, [periodType, user, loadQuota]);
 
@@ -646,13 +685,23 @@ export default function HomePage() {
         {/* My Tasks — full-width Kanban (2-way synced with deal tasks) */}
         <Card id="my-tasks-card" className="rounded-xl">
           <CardHeader className="pb-3">
-            <CardTitle className="text-[15px] font-bold flex items-center gap-2">
-              <ListTodo className="h-4 w-4 text-primary" /> My Tasks
-              <Badge variant="secondary" className="ml-1 text-[10px]">{myKanbanTasks.length}</Badge>
-              <span className="ml-2 text-[10px] font-normal text-muted-foreground">
-                Synced with deal tasks · changes here update everywhere
-              </span>
-            </CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-[15px] font-bold flex items-center gap-2">
+                <ListTodo className="h-4 w-4 text-primary" /> My Tasks
+                <Badge variant="secondary" className="ml-1 text-[10px]">{myKanbanTasks.length}</Badge>
+                <span className="ml-2 text-[10px] font-normal text-muted-foreground">
+                  Synced with deal tasks · changes here update everywhere
+                </span>
+              </CardTitle>
+              <Button
+                size="sm"
+                onClick={() => { setAddTaskDealId(""); setAddingTask(true); }}
+                className="h-7 px-2 text-[12px]"
+                disabled={isReadOnly}
+              >
+                <Plus className="h-3.5 w-3.5 mr-1" /> Add Task
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {loadingTasks ? <SkeletonRows /> : myKanbanTasks.length === 0 ? (
@@ -1004,6 +1053,31 @@ export default function HomePage() {
           }}
           onSubmit={handleDealTaskSave} onDelete={handleDealTaskDelete} />
       )}
+
+      {/* Add Task — pick a deal first, then fill task form */}
+      {addingTask && (
+        <AddTaskDialog
+          open={addingTask}
+          onOpenChange={(o) => { if (!o) { setAddingTask(false); setAddTaskDealId(""); } }}
+          deals={allActiveDeals}
+          dealId={addTaskDealId}
+          onDealChange={setAddTaskDealId}
+          assignees={
+            (() => {
+              const staffedSet = addTaskDealId ? (dealAssignmentsMap[addTaskDealId] || new Set<string>()) : new Set<string>();
+              const staffed: any[] = []; const others: any[] = [];
+              allPeople.forEach(p => {
+                if (p.tbh) return;
+                const item = { id: p.id, name: p.name, staffed: staffedSet.has(p.id), designation: p.designation || "" };
+                if (item.staffed) staffed.push(item); else others.push(item);
+              });
+              return [...staffed, ...others];
+            })()
+          }
+          onSubmit={handleAddTaskSubmit}
+          defaultAssignee={staffingName || displayName || ""}
+        />
+      )}
     </AppLayout>
   );
 }
@@ -1024,6 +1098,90 @@ function KpiPill({ label, value, tone, icon: Icon, onClick }: { label: string; v
         <div className="text-[10px] uppercase tracking-wider opacity-80">{label}</div>
       </div>
     </Wrap>
+  );
+}
+
+/* ── Add Task Dialog (Home) ─────────────────────────────────────────────── */
+function AddTaskDialog({
+  open, onOpenChange, deals, dealId, onDealChange, assignees, onSubmit, defaultAssignee,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  deals: { id: string; deal_name: string; account: string }[];
+  dealId: string;
+  onDealChange: (id: string) => void;
+  assignees: { id: string; name: string; staffed?: boolean; designation?: string }[];
+  onSubmit: (data: any) => void;
+  defaultAssignee: string;
+}) {
+  // Search filter for the deal dropdown.
+  const [dealQuery, setDealQuery] = useState("");
+  const filtered = useMemo(() => {
+    const q = dealQuery.trim().toLowerCase();
+    if (!q) return deals.slice(0, 200);
+    return deals.filter(d =>
+      d.deal_name.toLowerCase().includes(q) || (d.account || "").toLowerCase().includes(q),
+    ).slice(0, 200);
+  }, [deals, dealQuery]);
+
+  // If a deal is picked, defer to the existing TaskFormDialog so the form
+  // matches the rest of the app exactly.
+  if (dealId) {
+    const picked = deals.find(d => d.id === dealId);
+    return (
+      <TaskFormDialog
+        open={open}
+        onOpenChange={onOpenChange}
+        title={`New Task — ${picked?.deal_name || dealId}`}
+        assignees={assignees}
+        initial={{
+          title: "",
+          description: "",
+          stage: "To Do",
+          assignee: defaultAssignee,
+          startDate: "",
+          endDate: "",
+          urgency: "Medium",
+          estimatedHours: 0,
+          subtasks: [],
+          autoRegen: false,
+        }}
+        onSubmit={onSubmit}
+      />
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[480px]">
+        <DialogHeader>
+          <DialogTitle className="text-base">Add Task — pick a deal</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <Input
+            autoFocus
+            placeholder="Search deals or accounts…"
+            value={dealQuery}
+            onChange={e => setDealQuery(e.target.value)}
+          />
+          <div className="max-h-[320px] overflow-y-auto border rounded-md divide-y divide-border">
+            {filtered.length === 0 ? (
+              <div className="p-3 text-xs text-muted-foreground text-center">No matching deals</div>
+            ) : filtered.map(d => (
+              <button
+                key={d.id}
+                type="button"
+                onClick={() => onDealChange(d.id)}
+                className="w-full text-left px-3 py-2 hover:bg-accent/50 transition-colors"
+              >
+                <div className="text-sm font-medium truncate">{d.deal_name}</div>
+                <div className="text-[11px] text-muted-foreground truncate">{d.account}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

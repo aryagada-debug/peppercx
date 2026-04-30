@@ -1298,6 +1298,13 @@ export type Database = {
             foreignKeyName: "staffing_assignments_deal_id_fkey"
             columns: ["deal_id"]
             isOneToOne: false
+            referencedRelation: "deals_unified"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staffing_assignments_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
             referencedRelation: "staffing_deals"
             referencedColumns: ["id"]
           },
@@ -2049,7 +2056,89 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      deals_unified: {
+        Row: {
+          account: string | null
+          assigned_headcount: number | null
+          baseline_metrics: string | null
+          bopm: string | null
+          business_unit: string | null
+          capability_line: string | null
+          client_account_status: string | null
+          client_geography: string | null
+          client_id: string | null
+          client_industry: string | null
+          client_name: string | null
+          client_pc_code: string | null
+          client_sales_poc: string | null
+          client_signing_entity: string | null
+          client_website: string | null
+          consumption_value: number | null
+          created_at: string | null
+          creative_staffing: boolean | null
+          customer_status: string | null
+          customer_type: string | null
+          deal_id: string | null
+          deal_name: string | null
+          deal_status: string | null
+          deal_status_cx: string | null
+          deal_target_status: string | null
+          deal_type: string | null
+          deal_value_lost: number | null
+          duration: string | null
+          end_date: string | null
+          id: string | null
+          invoiced_deal_value: number | null
+          latest_consumption: number | null
+          latest_financial_month: string | null
+          latest_invoiced: number | null
+          latest_outstanding: number | null
+          latest_received: number | null
+          mis_vs_consumption: number | null
+          month_closed_won: string | null
+          mrr: number | null
+          net_deal_value: number | null
+          new_deal_id_formulated: string | null
+          new_deal_id_temp: string | null
+          non_retainer_deal_value: number | null
+          payment_terms: string | null
+          pc_code: string | null
+          pepper_bu_l2: string | null
+          pepper_business_unit: string | null
+          pod: string | null
+          principal_bopm: string | null
+          projected_outcomes: Json | null
+          rag: string | null
+          retainer_deal_value: number | null
+          senior_bopm: string | null
+          seo_staffing: boolean | null
+          service_line_tagging: string | null
+          slack_channel_id: string | null
+          staffing_status: string | null
+          start_date: string | null
+          strategy_bandwidth_required: string | null
+          success_metrics: Json | null
+          tcv_usd: number | null
+          total_allocation_pct: number | null
+          total_deal_value: number | null
+          total_mis_recognition: number | null
+          total_pending_recognition: number | null
+          undelivered_funnel: number | null
+          updated_at: string | null
+          validation: string | null
+          validation_central_cx: string | null
+          vsd: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staffing_deals_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       has_role: {
