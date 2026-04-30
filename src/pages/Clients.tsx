@@ -97,7 +97,7 @@ export default function Clients() {
   const { users: appUsers } = useAppUsers();
   const { vsdUsers, isVsdName, canonVsd } = useVsdUsers();
   const { bopmsForVsd } = useVsdHierarchy();
-  const { user: authUser } = (require("@/components/auth/AuthProvider") as typeof import("@/components/auth/AuthProvider")).useAuth();
+  const { user: authUser } = useAuth();
   const [myVsdName, setMyVsdName] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
