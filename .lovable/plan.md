@@ -1,68 +1,71 @@
-## Problem
+# Plan: Slack on Home, Attainment in Financials, Contract/SoW Uploads
 
-In the Staffing → Table view (used by BOPMs and admins), the **Principal BOPM** and **Senior BOPM** columns appear empty for most deals. They are populated only from rows in `staffing_assignments` where `role_key = 'principal_bopm' / 'senior_bopm'`, and those rows are sparse (verified: out of Shreshtha's 18+ tagged deals, only 2 have a `senior_bopm` assignment row).
+## 1. Slack Chat Bot on Home tab
 
-However, the **deal sheet itself** has these fields filled in (`staffing_deals.principal_bopm`, `staffing_deals.senior_bopm`). They are the canonical source of truth — used by access scoping, MBR, account activity, etc. — but the Staffing table doesn't display them, so the BOPM grid feels "broken" to people like Shreshtha who know they're tagged on those deals.
+The same `SlackChatBot` component used on Deal Detail (`src/components/deals/SlackChatBot.tsx`) will be embedded on the Home page. Since Slack channels are linked per-deal (`staffing_deals.slack_channel_id`), the Home version needs a deal context.
 
-## Goal
+**Approach** — add a "Slack" floating chat panel on Home that:
+- Shows a deal picker (defaults to user's most recently viewed deal or first "My Deal").
+- Reuses the existing `<SlackChatBot dealId dealName />` so behavior, history, send, channel-link all match Deal Detail exactly.
+- Lives in the bottom-right (same fixed-position pattern it already uses on Deal Detail) so it never blocks the dashboard cards.
 
-1. **Fill Principal/Senior BOPM cells** in `BopmStaffingFlatTable` from the deal record when no explicit assignment row exists, so the column is never blank for a deal that names a BOPM on the sheet.
-2. **Keep one source of truth**: deal sheet text fields (`principal_bopm`, `senior_bopm`, `bopm`, `vsd`) drive the mapping. Assignment rows for those role keys are an *override only* (i.e., when somebody has explicitly staffed an additional / different BOPM with an allocation).
-3. Use the same name-resolution logic everywhere (the existing `dealCellMatchesPerson` from `useAppUsers.ts`) so identity stays consistent across Staffing, Capacity, Clients, Deals, MBR, and Access.
+**File touched**: `src/pages/Home.tsx` (import + mount + tiny deal-picker state). No changes to `SlackChatBot.tsx` itself, ensuring 1:1 parity.
 
-## Approach
+## 2. Move "Attainment %" into Financials section
 
-### A. Virtual assignments derived from the deal sheet
+Currently `src/pages/Index.tsx` shows 4 KPI tiles: Active Deals, Total MRR, Total Deal Value, **Attainment**. Below them is the **Finance Targets** card (`FinanceTargetsCard`).
 
-In `BopmStaffingFlatTable.tsx`, when building `dealRoleMap`, after collecting real assignments + drafts, **synthesize read-only virtual entries** for `principal_bopm`, `senior_bopm`, and `bopm` whenever:
+Changes:
+- Remove the `k4` Attainment tile from the top KPI row (KPI row becomes 3-up grid).
+- Pass `attainmentPct` into `FinanceTargetsCard` and render it as a header chip next to "Finance Targets — MMM yyyy" (e.g. *"Overall Attainment: 87.4%"*) using `attainmentTone()` for color.
+- Keep the per-metric attainment percentages already shown inside each tile (Delivery / Invoicing / Contracted / Contraction).
 
-- the deal has a non-blank value in that field, AND
-- no real assignment already exists for that `(dealId, roleKey, personId)` pair.
+**Files touched**:
+- `src/pages/Index.tsx` — drop `k4`, switch grid to `lg:grid-cols-3`, pass overall attainment to card.
+- `src/components/targets/FinanceTargetsCard.tsx` — accept optional `overallAttainmentPct` prop and render header chip.
 
-For each comma-separated name in the cell:
-- Resolve it to a `Person` via `dealCellMatchesPerson(cellName, person.name, allPersonNames)` against `allPeople`.
-- If resolved → create a virtual entry `{ assignmentId: "virtual:{dealId}:{roleKey}:{personId}", personId, allocationPct: 0, isVirtual: true }`.
-- If unresolved → still render the raw text as a non-clickable chip so the user sees it ("Shreshtha P" → grey chip, hover tooltip "No matching profile in People").
+## 3. Upload Client Contract + SoW document — synced with Deal Detail SoW tab
 
-Virtual entries:
-- Render with the regular cell layout but slightly muted, no edit affordances, no draft staging.
-- Allocation hours appear as "—" (no `allocation_pct`, since it's not really a workload claim).
-- Ignored from drag/drop, removal, draft submission paths.
+### Storage
+Create one private storage bucket `deal-documents` with two folders by convention:
+- `contracts/{deal_id}/...` — client contract PDFs/DOCX
+- `sow/{deal_id}/...` — SoW Excel/PDF (the file the user already drops into `SoWImportDialog`)
 
-This keeps the existing approval / direct-edit flow untouched for real assignments, while filling the visible gap.
+RLS: authenticated users can read; insert/update/delete restricted to authenticated (matches the rest of the app's permissive read model — admins/BOPMs already gated at deal level).
 
-### B. Same data shown in DealViewTab drill-down
+### Schema
+Add two nullable columns to `staffing_deals`:
+- `contract_file_path TEXT`
+- `sow_file_path TEXT`
 
-In `DealViewTab` (Deals view, used by Admins/VSDs), expand the deal drill-down row to show **Principal BOPM**, **Senior BOPM**, and **BOPM** columns (currently only Deal/Account/Type/Status/MRR/Staffing/Team are shown). Source: deal record fields directly. This makes the same identity visible across the two staffing views.
+These hold the bucket path (not URL) so signed URLs can be generated on demand.
 
-### C. Sync identity resolution
+### UI changes
 
-Confirm a single resolver path is used everywhere a deal-cell name needs to map to a Person:
+**Clients page** (`src/pages/Clients.tsx`)
+- Add a small paperclip icon column ("Docs") in the deal rows. Clicking opens a popover with two upload slots:
+  - **Client Contract** — upload / replace / download / remove.
+  - **SoW Document** — upload / replace / download / remove. Also exposes the existing "Parse with AI" action (reuses `SoWImportDialog`) so uploading here is the *same file* that gets parsed into `deal_sow_items`.
+- Persists `contract_file_path` / `sow_file_path` on `staffing_deals`.
 
-- `useDealAccess.ts` — already uses `dealCellMatchesPerson`.
-- `useAppUsers.ts › vsdForDeal` — already uses canonical resolution.
-- `BopmStaffingFlatTable` (new virtual assignments) — will use `dealCellMatchesPerson`.
-- `DealViewTab` drill-down — pure text display, no resolver needed.
-- `PeopleViewTab` (Capacity) — already filters via `dealMatchesBopm` (which uses the same resolver).
+**Deals page** (`src/pages/Deals.tsx`)
+- This page is currently mock-data only. We'll wire it to `staffing_deals` (read) and add the same paperclip popover so uploads here mirror Clients exactly. (Aligns with prior "single source of truth" decision.)
 
-No new resolution logic; the four callsites that touch BOPM matching all funnel through `dealCellMatchesPerson` with the `useAllPersonNames()` registry as the ambiguity guard.
+**Deal Detail → SoW tab**
+- Already shows SoW line items. Add a header strip showing the uploaded SoW file (filename, uploaded date, download, replace) backed by `sow_file_path`. So a file uploaded from Clients/Deals shows up here, and uploading here shows up in the Clients/Deals popovers — true two-way sync via the shared column.
+- Same for contract: surface the contract file in the deal header (small "Contract" chip with download).
 
-### D. Audit / verification step (post-implementation)
+### Reused component
+A new `<DealDocsUpload dealId variant="contract|sow" />` component handles upload/replace/download/remove; it's mounted from Clients popover, Deals popover, and Deal Detail SoW tab. Single component → guaranteed sync.
 
-Run a quick database read for ~3 BOPMs (Shreshtha Pathak, Preet Desai, Eshika Joshi) listing:
-- deals where they appear in the deal sheet (`vsd / principal_bopm / senior_bopm / bopm`),
-- vs. deals where `useDealAccess` would grant them visibility,
-- vs. deals where they appear in `BopmStaffingFlatTable` (virtual + real).
+**Files touched**:
+- New migration: add `contract_file_path`, `sow_file_path` to `staffing_deals` + create `deal-documents` bucket + RLS policies.
+- New `src/components/deals/DealDocsUpload.tsx`.
+- `src/pages/Clients.tsx` — add Docs column / popover.
+- `src/pages/Deals.tsx` — wire to live data + add Docs column.
+- `src/pages/DealDetail.tsx` (SoW tab section) — show uploaded SoW + contract chips.
 
-These three sets should be identical for each tier. Document mismatches (if any) in a follow-up note.
-
-## Files to edit
-
-- `src/components/staffing/BopmStaffingFlatTable.tsx` — synthesize virtual `principal_bopm` / `senior_bopm` / `bopm` cell entries from the deal record; render as read-only chips; gate edit handlers on `isVirtual`.
-- `src/components/staffing/DealViewTab.tsx` — add Principal BOPM / Senior BOPM / BOPM columns to the expanded deal sub-table.
-- (No changes to `useAppUsers.ts`, `useDealAccess.ts`, `BopmFilter.tsx` — the resolver and scoping are already correct after the previous round.)
-
-## Out of scope
-
-- Backfilling actual `staffing_assignments` rows from deal-sheet BOPM text. The deal sheet stays the single source of truth; assignments are the override layer.
-- Changing how non-BOPM roles (designers, editors, etc.) are sourced — those continue to come from `staffing_assignments` only.
+## Out of scope / assumptions
+- Slack on Home reuses existing connection; no new Slack scopes.
+- Contract/SoW are single-file slots (replace-on-upload), not version history. Can add versioning later if needed.
+- Existing `SoWImportDialog` keeps working; once a SoW file is on disk, the "Parse with AI" button uses that stored file directly instead of asking for a new upload.
