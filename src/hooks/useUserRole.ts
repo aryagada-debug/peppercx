@@ -1,4 +1,4 @@
-import { createContext, createElement, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
+import { createContext, createElement, useContext, useEffect, useRef, useState, useCallback, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
 
@@ -75,26 +75,23 @@ const UserRoleContext = createContext<UserRoleState | null>(null);
 
 function useUserRoleInternal(): UserRoleState {
   const { user, loading: authLoading } = useAuth();
+  const userId = user?.id ?? null;
   const [actualRole, setActualRole] = useState<AppRole | null>(null);
-  const [viewAsRole, setViewAsRoleState] = useState<AppRole | null>(null);
+  // Lazy initialiser — read localStorage once on mount so we never start
+  // with `null` and then immediately re-fetch after hydrating.
+  const [viewAsRole, setViewAsRoleState] = useState<AppRole | null>(() => {
+    if (typeof window === "undefined") return null;
+    const v = localStorage.getItem(VIEW_AS_KEY);
+    if (
+      v === "admin" || v === "member" || v === "user" ||
+      v === "capability_lead" || v === "capability_member" || v === "view_only"
+    ) return v as AppRole;
+    return null;
+  });
   const [visibleRoutes, setVisibleRoutes] = useState<Set<string>>(new Set());
   const [routeAccess, setRouteAccess] = useState<Map<string, AccessMode>>(new Map());
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const v = localStorage.getItem(VIEW_AS_KEY);
-    if (
-      v === "admin" ||
-      v === "member" ||
-      v === "user" ||
-      v === "capability_lead" ||
-      v === "capability_member" ||
-      v === "view_only"
-    ) {
-      setViewAsRoleState(v as AppRole);
-    }
-  }, []);
+  const inFlightRef = useRef(false);
 
   const effectiveRole: AppRole | null = (() => {
     if (!actualRole) return null;
@@ -111,19 +108,21 @@ function useUserRoleInternal(): UserRoleState {
   }, []);
 
   const load = useCallback(async () => {
-    if (!user) {
+    if (!userId) {
       setActualRole(null);
       setVisibleRoutes(new Set());
       setLoading(false);
       return;
     }
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
 
     setLoading(true);
-
-    const { data: roleRows } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id);
+    try {
+      const { data: roleRows } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId);
 
     const userRoles = (roleRows || []).map((r) => r.role as AppRole);
     // Pick the highest role the user has based on ROLE_ORDER.
@@ -160,7 +159,7 @@ function useUserRoleInternal(): UserRoleState {
     const { data: overrides } = await supabase
       .from("user_route_overrides")
       .select("route_key, visible, access_mode")
-      .eq("user_id", user.id);
+      .eq("user_id", userId);
     (overrides || []).forEach((o: any) => {
       const mode: AccessMode =
         o.access_mode === "hidden" || o.access_mode === "read" || o.access_mode === "edit"
@@ -177,8 +176,11 @@ function useUserRoleInternal(): UserRoleState {
     });
     setRouteAccess(access);
     setVisibleRoutes(visible);
-    setLoading(false);
-  }, [user, viewAsRole]);
+    } finally {
+      setLoading(false);
+      inFlightRef.current = false;
+    }
+  }, [userId, viewAsRole]);
 
   useEffect(() => {
     if (!authLoading) load();
