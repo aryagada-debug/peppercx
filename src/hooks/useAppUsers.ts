@@ -605,11 +605,28 @@ export function dealCellMatchesPerson(
   if (a.join(" ") === b.join(" ")) return true;
   if (a[0] !== b[0]) return false;
 
-  // Every remaining token in the cell must be prefix-compatible with some
-  // token in the person's name (so "Shreshtha P" → "Shreshtha Pathak").
+  // Every remaining token in the cell must be prefix-compatible OR a near
+  // typo of some token in the person's name (so "Shreshtha P" →
+  // "Shreshtha Pathak", and "Shreshtha Phatak" → "Shreshtha Pathak").
+  const fuzzy = (x: string, y: string) => {
+    if (!x || !y) return false;
+    if (x.startsWith(y) || y.startsWith(x)) return true;
+    if (Math.abs(x.length - y.length) > 1) return false;
+    if (x.length < 3 || y.length < 3) return false;
+    // Levenshtein distance ≤ 1
+    let i = 0, j = 0, edits = 0;
+    while (i < x.length && j < y.length) {
+      if (x[i] === y[j]) { i++; j++; continue; }
+      if (++edits > 1) return false;
+      if (x.length === y.length) { i++; j++; }
+      else if (x.length > y.length) i++;
+      else j++;
+    }
+    return true;
+  };
   for (let i = 1; i < a.length; i++) {
     const t = a[i];
-    const ok = b.some((bt) => bt.startsWith(t) || t.startsWith(bt));
+    const ok = b.some((bt) => fuzzy(bt, t));
     if (!ok) return false;
   }
 
@@ -625,9 +642,27 @@ export function dealCellMatchesPerson(
     let conflicts = true;
     for (let i = 1; i < a.length; i++) {
       const t = a[i];
-      if (!o.some((ot) => ot.startsWith(t) || t.startsWith(ot))) { conflicts = false; break; }
+      if (!o.some((ot) => fuzzyOuter(ot, t))) { conflicts = false; break; }
     }
     if (conflicts) return false;
+  }
+  return true;
+}
+
+// Same fuzzy comparator used by the ambiguity guard above. Declared here
+// (outside the inner closure) so it is in scope for the second loop.
+function fuzzyOuter(x: string, y: string): boolean {
+  if (!x || !y) return false;
+  if (x.startsWith(y) || y.startsWith(x)) return true;
+  if (Math.abs(x.length - y.length) > 1) return false;
+  if (x.length < 3 || y.length < 3) return false;
+  let i = 0, j = 0, edits = 0;
+  while (i < x.length && j < y.length) {
+    if (x[i] === y[j]) { i++; j++; continue; }
+    if (++edits > 1) return false;
+    if (x.length === y.length) { i++; j++; }
+    else if (x.length > y.length) i++;
+    else j++;
   }
   return true;
 }
