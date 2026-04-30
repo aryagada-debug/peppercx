@@ -38,7 +38,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ColHeader } from "@/components/table/ColHeader";
-import { useAppUsers, useVsdUsers, useBopmDirectory, nameKey } from "@/hooks/useAppUsers";
+import { useAppUsers, useVsdUsers, useBopmDirectory, nameKey, useAllPersonNames } from "@/hooks/useAppUsers";
 import { ReadOnlyBanner } from "@/components/access/ReadOnlyBanner";
 import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -97,6 +97,7 @@ export default function Clients() {
   const { users: appUsers } = useAppUsers();
   const { vsdUsers, isVsdName, canonVsd } = useVsdUsers();
   const { bopmUsersForVsd } = useBopmDirectory();
+  const allPersonNames = useAllPersonNames();
   const { user: authUser } = useAuth();
   const [myVsdName, setMyVsdName] = useState<string | null>(null);
   useEffect(() => {
@@ -319,11 +320,11 @@ export default function Clients() {
       d = d.filter(deal => canonVsd(deal.vsd) === activeVsd);
     }
     if (activeBopm !== "All") {
-      d = d.filter(deal => dealMatchesBopm(deal as any, activeBopm));
+      d = d.filter(deal => dealMatchesBopm(deal as any, activeBopm, allPersonNames));
     }
     if (search) d = d.filter(deal => deal.account.toLowerCase().includes(search.toLowerCase()) || deal.dealName.toLowerCase().includes(search.toLowerCase()));
     return d;
-  }, [deals, activeVsd, activeBopm, search, showClosed]);
+  }, [deals, activeVsd, activeBopm, search, showClosed, allPersonNames]);
 
   // Apply per-column filters + sort to produce flat row list
   const tableRows = useMemo(() => {

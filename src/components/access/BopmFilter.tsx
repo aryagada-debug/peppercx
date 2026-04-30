@@ -64,13 +64,15 @@ export function BopmFilter({ value, onChange, scopedVsd, className }: Props) {
 
   // Source list of BOPM users = Settings → People. For VSDs we restrict to
   // people whose reportingManager chain rolls up to that VSD. For admins
-  // (with no VSD picked) we show all Principal/Senior BOPMs.
+  // (or admin viewing-as VSD without a specific pod) we fall back to ALL
+  // Principal/Senior BOPMs so the filter still renders.
+  const showAllForAdminLike = isAdmin || (isActuallyAdmin && viewAsRole === "member");
   const options = useMemo(() => {
     const list = effectiveScopedVsd
       ? bopmUsersForVsd(effectiveScopedVsd)
-      : (isAdmin ? allBopmUsers : []);
+      : (showAllForAdminLike ? allBopmUsers : []);
     return list.map((p) => p.name).filter(Boolean);
-  }, [effectiveScopedVsd, isAdmin, bopmUsersForVsd, allBopmUsers]);
+  }, [effectiveScopedVsd, showAllForAdminLike, bopmUsersForVsd, allBopmUsers]);
 
   // Hide entirely if there are no options to choose from (e.g. plain BOPM user).
   if (options.length === 0) return null;
@@ -95,6 +97,7 @@ export function dealMatchesBopm(
   deal: { principalBopm?: string | null; seniorBopm?: string | null; bopm?: string | null;
           principal_bopm?: string | null; senior_bopm?: string | null; },
   selected: string,
+  registeredNames: string[] = [],
 ): boolean {
   if (!selected || selected === "All") return true;
   const fields: Array<string | null | undefined> = [
@@ -104,7 +107,7 @@ export function dealMatchesBopm(
   ];
   // Strict identity match: a deal cell like "Shreshtha P" matches the
   // filter "Shreshtha Pathak" only when no other registered person could
-  // also satisfy that cell. Falls back gracefully when the registry is
-  // momentarily empty (treats only exact normalised matches as a hit).
-  return fields.some((v) => v && dealCellMatchesPerson(v, selected, []));
+  // also satisfy that cell. Pass `registeredNames` from Settings → People
+  // so the ambiguity guard works reliably across the app.
+  return fields.some((v) => v && dealCellMatchesPerson(v, selected, registeredNames));
 }

@@ -7,6 +7,7 @@ import { uid, ROLE_SLOTS, ROLE_TO_PEOPLE_FILTER } from "@/data/staffingData";
 import { submitStaffingBatch, type BatchItem } from "@/lib/approvals";
 import { AddStaffingMemberDialog } from "./AddStaffingMemberDialog";
 import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
+import { useAllPersonNames } from "@/hooks/useAppUsers";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ChevronDown } from "lucide-react";
 import {
@@ -297,6 +298,7 @@ export function BopmStaffingFlatTable({
 }: Props) {
   const [search, setSearch] = useState("");
   const [bopmFilter, setBopmFilter] = useState<string>("All");
+  const allPersonNames = useAllPersonNames();
   const [addForDeal, setAddForDeal] = useState<string | null>(null);
   const [allocDraft, setAllocDraft] = useState<Record<string, string>>({});
   const [drafts, setDrafts] = useState<Record<string, DealDraft>>({});
@@ -586,7 +588,7 @@ export function BopmStaffingFlatTable({
       (a.dealName || "").localeCompare(b.dealName || "")
     );
     const bopmFiltered = bopmFilter && bopmFilter !== "All"
-      ? sorted.filter(d => dealMatchesBopm(d as any, bopmFilter))
+      ? sorted.filter(d => dealMatchesBopm(d as any, bopmFilter, allPersonNames))
       : sorted;
     if (!q) return bopmFiltered;
     return bopmFiltered.filter(d => {
@@ -596,7 +598,7 @@ export function BopmStaffingFlatTable({
       const hay = `${d.account} ${d.dealName} ${d.dealId} ${personHay}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [deals, search, bopmFilter, dealRoleMap, allPersonById]);
+  }, [deals, search, bopmFilter, dealRoleMap, allPersonById, allPersonNames]);
 
   // Aggregate top stats
   const totals = useMemo(() => {

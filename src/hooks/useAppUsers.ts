@@ -557,6 +557,28 @@ export function useBopmDirectory() {
   return { allBopmUsers, bopmUsersForVsd, loading };
 }
 
+/**
+ * Hook returning all active person names from Settings → People. Used by
+ * `dealMatchesBopm` so the strict matcher can run its ambiguity guard.
+ */
+export function useAllPersonNames(): string[] {
+  const [extra, setExtra] = useState<string[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from("staffing_people")
+      .select("name")
+      .eq("leaving", false)
+      .eq("tbh", false)
+      .then(({ data }) => {
+        if (cancelled) return;
+        setExtra(((data as any[]) || []).map((p) => (p.name || "").trim()).filter(Boolean));
+      });
+    return () => { cancelled = true; };
+  }, []);
+  return useMemo(() => Array.from(new Set(extra)), [extra]);
+}
+
 // ----- Strict person matching for deal BOPM cells -----
 // Used by useDealAccess so a BOPM persona only sees deals where the deal's
 // BOPM cells unambiguously point to *their* registered Settings person.
@@ -583,11 +605,12 @@ export function dealCellMatchesPerson(
   if (a.join(" ") === b.join(" ")) return true;
   if (a[0] !== b[0]) return false;
 
-  // Every remaining token in the cell must be prefix-compatible with some
-  // token in the person's name (so "Shreshtha P" → "Shreshtha Pathak").
+  // Every remaining token in the cell must be prefix-compatible OR a near
+  // typo of some token in the person's name (so "Shreshtha P" →
+  // "Shreshtha Pathak", and "Shreshtha Phatak" → "Shreshtha Pathak").
   for (let i = 1; i < a.length; i++) {
     const t = a[i];
-    const ok = b.some((bt) => bt.startsWith(t) || t.startsWith(bt));
+    const ok = b.some((bt) => fuzzyOuter(bt, t));
     if (!ok) return false;
   }
 
@@ -603,9 +626,27 @@ export function dealCellMatchesPerson(
     let conflicts = true;
     for (let i = 1; i < a.length; i++) {
       const t = a[i];
-      if (!o.some((ot) => ot.startsWith(t) || t.startsWith(ot))) { conflicts = false; break; }
+      if (!o.some((ot) => fuzzyOuter(ot, t))) { conflicts = false; break; }
     }
     if (conflicts) return false;
+  }
+  return true;
+}
+
+// Same fuzzy comparator used by the ambiguity guard above. Declared here
+// (outside the inner closure) so it is in scope for the second loop.
+function fuzzyOuter(x: string, y: string): boolean {
+  if (!x || !y) return false;
+  if (x.startsWith(y) || y.startsWith(x)) return true;
+  if (Math.abs(x.length - y.length) > 1) return false;
+  if (x.length < 3 || y.length < 3) return false;
+  let i = 0, j = 0, edits = 0;
+  while (i < x.length && j < y.length) {
+    if (x[i] === y[j]) { i++; j++; continue; }
+    if (++edits > 1) return false;
+    if (x.length === y.length) { i++; j++; }
+    else if (x.length > y.length) i++;
+    else j++;
   }
   return true;
 }

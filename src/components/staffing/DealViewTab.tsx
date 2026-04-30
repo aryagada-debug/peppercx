@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import type { Deal, StaffingAssignment, Person } from "@/data/staffingData";
 import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
+import { useAllPersonNames } from "@/hooks/useAppUsers";
 
 const STAFFING_BUCKETS = ["Already Staffed", "No Staffing Needed", "Staffing Needed"] as const;
 type StaffingBucket = typeof STAFFING_BUCKETS[number];
@@ -87,6 +88,7 @@ export function DealViewTab({ deals, people, assignments, onUpdateDeal, bopmFilt
   const [expandedVsd, setExpandedVsd] = useState<Set<string>>(new Set());
   const [expandedDeal, setExpandedDeal] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
+  const allPersonNames = useAllPersonNames();
 
   const personMap = useMemo(() => {
     const m: Record<string, Person> = {};
@@ -109,7 +111,7 @@ export function DealViewTab({ deals, people, assignments, onUpdateDeal, bopmFilt
         const v = d.vsd?.trim() || "Yet to be assigned";
         if (v !== vsdFilter) return false;
       }
-      if (bopmFilter !== ALL && !dealMatchesBopm(d as any, bopmFilter)) return false;
+      if (bopmFilter !== ALL && !dealMatchesBopm(d as any, bopmFilter, allPersonNames)) return false;
       if (search) {
         const q = search.toLowerCase();
         if (!(d.dealName.toLowerCase().includes(q) || d.account.toLowerCase().includes(q) || (d.vsd || "").toLowerCase().includes(q))) {
@@ -118,7 +120,7 @@ export function DealViewTab({ deals, people, assignments, onUpdateDeal, bopmFilt
       }
       return true;
     });
-  }, [deals, dealType, dealStatus, vsdFilter, bopmFilter, search]);
+  }, [deals, dealType, dealStatus, vsdFilter, bopmFilter, search, allPersonNames]);
 
   const vsdOptions = useMemo(() => {
     const set = new Set<string>();
