@@ -585,15 +585,18 @@ export function BopmStaffingFlatTable({
       (a.account || "").localeCompare(b.account || "") ||
       (a.dealName || "").localeCompare(b.dealName || "")
     );
-    if (!q) return sorted;
-    return sorted.filter(d => {
+    const bopmFiltered = bopmFilter && bopmFilter !== "All"
+      ? sorted.filter(d => dealMatchesBopm(d as any, bopmFilter))
+      : sorted;
+    if (!q) return bopmFiltered;
+    return bopmFiltered.filter(d => {
       const byRole = dealRoleMap.get(d.id);
       const personHay = byRole ? Array.from(byRole.values()).flat()
         .map(e => allPersonById.get(e.personId)?.name || "").join(" ").toLowerCase() : "";
       const hay = `${d.account} ${d.dealName} ${d.dealId} ${personHay}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [deals, search, dealRoleMap, allPersonById]);
+  }, [deals, search, bopmFilter, dealRoleMap, allPersonById]);
 
   // Aggregate top stats
   const totals = useMemo(() => {
