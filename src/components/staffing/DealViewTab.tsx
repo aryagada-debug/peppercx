@@ -296,6 +296,9 @@ export function DealViewTab({ deals, people, assignments, onUpdateDeal, bopmFilt
                               <tr className="text-muted-foreground">
                                 <th className="text-left py-1 pr-4 font-medium">Deal</th>
                                 <th className="text-left py-1 pr-4 font-medium">Account</th>
+                                <th className="text-left py-1 pr-4 font-medium">Principal BOPM</th>
+                                <th className="text-left py-1 pr-4 font-medium">Senior BOPM</th>
+                                <th className="text-left py-1 pr-4 font-medium">BOPM</th>
                                 <th className="text-left py-1 pr-4 font-medium">Type</th>
                                 <th className="text-left py-1 pr-4 font-medium">Status</th>
                                 <th className="text-right py-1 pr-4 font-medium">MRR</th>
@@ -317,6 +320,15 @@ export function DealViewTab({ deals, people, assignments, onUpdateDeal, bopmFilt
                                         <Link to={`/deals/${d.id}`} className="text-primary hover:underline">{d.dealName}</Link>
                                       </td>
                                       <td className="py-1.5 pr-4 text-muted-foreground">{d.account}</td>
+                                      <td className="py-1.5 pr-4 text-foreground">
+                                        {d.principalBopm?.trim() || <span className="text-muted-foreground italic">—</span>}
+                                      </td>
+                                      <td className="py-1.5 pr-4 text-foreground">
+                                        {d.seniorBopm?.trim() || <span className="text-muted-foreground italic">—</span>}
+                                      </td>
+                                      <td className="py-1.5 pr-4 text-foreground">
+                                        {d.bopm?.trim() || <span className="text-muted-foreground italic">—</span>}
+                                      </td>
                                       <td className="py-1.5 pr-4">
                                         <select
                                           value={d.dealType || ""}
@@ -377,7 +389,7 @@ export function DealViewTab({ deals, people, assignments, onUpdateDeal, bopmFilt
                                     </tr>
                                     {isDealExp && (
                                       <tr>
-                                        <td colSpan={7} className="p-0 bg-secondary/20">
+                                        <td colSpan={10} className="p-0 bg-secondary/20">
                                           <div className="px-6 py-3">
                                              {dealAssigns.length === 0 ? (
                                                <div className="flex items-center justify-between gap-3 flex-wrap">
