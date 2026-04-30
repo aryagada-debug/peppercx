@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, useEffect } from "react";
-import { Search, Plus, Trash2, RotateCcw, X, Send, Info, Columns3, Check, GripVertical } from "lucide-react";
+import { Search, Plus, RotateCcw, X, Send, Info, Columns3, Check, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatINR } from "@/lib/csvTargets";
 import type { Deal, Person, StaffingAssignment, RoleCategory } from "@/data/staffingData";
