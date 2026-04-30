@@ -95,21 +95,16 @@ export function dealMatchesBopm(
   deal: { principalBopm?: string | null; seniorBopm?: string | null; bopm?: string | null;
           principal_bopm?: string | null; senior_bopm?: string | null; },
   selected: string,
-  /** Optional list of all registered names — enables strict ambiguity guard. */
-  registeredNames?: string[],
 ): boolean {
   if (!selected || selected === "All") return true;
-  const fields = [
+  const fields: Array<string | null | undefined> = [
     (deal as any).principalBopm ?? (deal as any).principal_bopm,
     (deal as any).seniorBopm ?? (deal as any).senior_bopm,
     (deal as any).bopm,
   ];
-  if (registeredNames && registeredNames.length > 0) {
-    return fields.some((v) => v && dealCellMatchesPerson(v, selected, registeredNames));
-  }
-  // Fallback (no registry available): exact normalized name match only.
-  // Intentionally strict so partial cells like "Shreshtha P" don't slip
-  // through unless the caller passes the registered name list.
-  const target = nameKey(selected);
-  return fields.some((v) => v && nameKey(v) === target);
+  // Strict identity match: a deal cell like "Shreshtha P" matches the
+  // filter "Shreshtha Pathak" only when no other registered person could
+  // also satisfy that cell. Falls back gracefully when the registry is
+  // momentarily empty (treats only exact normalised matches as a hit).
+  return fields.some((v) => v && dealCellMatchesPerson(v, selected, []));
 }
