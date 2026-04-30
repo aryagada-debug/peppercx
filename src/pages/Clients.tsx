@@ -38,7 +38,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ColHeader } from "@/components/table/ColHeader";
-import { useAppUsers, useVsdUsers, useVsdHierarchy, nameKey } from "@/hooks/useAppUsers";
+import { useAppUsers, useVsdUsers, useBopmDirectory, nameKey } from "@/hooks/useAppUsers";
 import { ReadOnlyBanner } from "@/components/access/ReadOnlyBanner";
 import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -96,7 +96,7 @@ export default function Clients() {
   const isBopm = role === "user";
   const { users: appUsers } = useAppUsers();
   const { vsdUsers, isVsdName, canonVsd } = useVsdUsers();
-  const { bopmsForVsd } = useVsdHierarchy();
+  const { bopmUsersForVsd } = useBopmDirectory();
   const { user: authUser } = useAuth();
   const [myVsdName, setMyVsdName] = useState<string | null>(null);
   useEffect(() => {
@@ -120,8 +120,8 @@ export default function Clients() {
   }, [authUser, canonVsd]);
   const isVsdViewer = !access.isAdmin && !!myVsdName;
   const myBopms = useMemo(
-    () => (myVsdName ? bopmsForVsd(myVsdName) : []),
-    [myVsdName, bopmsForVsd]
+    () => (myVsdName ? bopmUsersForVsd(myVsdName).map((p) => p.name) : []),
+    [myVsdName, bopmUsersForVsd]
   );
   const VSD_FILTERS = useMemo(() => {
     const items: { key: string; label: string }[] = [{ key: "All", label: "All" }];
