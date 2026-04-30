@@ -6,6 +6,8 @@ import type { Deal, Person, StaffingAssignment, RoleCategory } from "@/data/staf
 import { uid, ROLE_SLOTS, ROLE_TO_PEOPLE_FILTER } from "@/data/staffingData";
 import { submitStaffingBatch, type BatchItem } from "@/lib/approvals";
 import { AddStaffingMemberDialog } from "./AddStaffingMemberDialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ChevronDown } from "lucide-react";
 import {
   DndContext, DragEndEvent, PointerSensor, useSensor, useSensors,
   closestCenter,
@@ -177,6 +179,11 @@ interface Props {
   people: Person[];
   allPeople: Person[];
   assignments: StaffingAssignment[];
+  /** When true, edits commit directly via the supplied handlers instead of routing through Central Cx approval. */
+  directEdit?: boolean;
+  onAddAssignment?: (a: StaffingAssignment) => Promise<any> | any;
+  onUpdateAssignment?: (id: string, patch: Partial<StaffingAssignment>) => Promise<any> | any;
+  onDeleteAssignment?: (id: string) => Promise<any> | any;
 }
 
 const MONTH_HOURS = 160;
@@ -195,7 +202,10 @@ const emptyDraft = (): DealDraft => ({ adds: [], updates: {}, removes: {} });
  * staffed for that role with an inline allocation %; hrs/wk are auto-derived.
  * Functionality (staging + batched submit to Central Cx) is unchanged.
  */
-export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }: Props) {
+export function BopmStaffingFlatTable({
+  deals, people, allPeople, assignments,
+  directEdit, onAddAssignment, onUpdateAssignment, onDeleteAssignment,
+}: Props) {
   const [search, setSearch] = useState("");
   const [addForDeal, setAddForDeal] = useState<string | null>(null);
   const [allocDraft, setAllocDraft] = useState<Record<string, string>>({});
