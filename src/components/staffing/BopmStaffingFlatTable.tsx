@@ -48,6 +48,89 @@ function peopleForRole(rk: string, allPeople: Person[]): Person[] {
   return allPeople.filter(p => !p.leaving && set.has((p.roleTitle || "").toLowerCase()));
 }
 
+// ── Styled person picker (replaces the bare native <select>) ──────────────
+function PersonPickerPopover({
+  currentId, candidates, disabled, triggerLabel, triggerClassName,
+  emptyLabel = "No people available",
+  placeholder = "Search…",
+  onSelect,
+  align = "start",
+}: {
+  currentId?: string;
+  candidates: Person[];
+  disabled?: boolean;
+  triggerLabel: React.ReactNode;
+  triggerClassName?: string;
+  emptyLabel?: string;
+  placeholder?: string;
+  onSelect: (personId: string) => void;
+  align?: "start" | "center" | "end";
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return candidates;
+    return candidates.filter(p =>
+      (p.name || "").toLowerCase().includes(needle) ||
+      (p.roleTitle || "").toLowerCase().includes(needle)
+    );
+  }, [q, candidates]);
+  return (
+    <Popover open={open} onOpenChange={(v) => { setOpen(v); if (!v) setQ(""); }}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          disabled={disabled}
+          className={cn("group/picker", triggerClassName)}
+          title="Click to change person"
+        >
+          <span className="truncate">{triggerLabel}</span>
+          <ChevronDown className="h-3 w-3 opacity-0 group-hover/picker:opacity-60 flex-shrink-0" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align={align} className="w-64 p-1.5">
+        <div className="relative mb-1">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+          <input
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            placeholder={placeholder}
+            autoFocus
+            className="w-full h-7 pl-7 pr-2 rounded-md border border-border bg-background text-[11px] focus:outline-none focus:ring-1 focus:ring-primary/40"
+          />
+        </div>
+        <div className="max-h-60 overflow-y-auto">
+          {filtered.length === 0 ? (
+            <div className="px-2 py-3 text-center text-[11px] text-muted-foreground">{emptyLabel}</div>
+          ) : (
+            filtered.map(pp => (
+              <button
+                key={pp.id}
+                type="button"
+                onClick={() => { onSelect(pp.id); setOpen(false); setQ(""); }}
+                className={cn(
+                  "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-[11px] hover:bg-secondary transition-colors",
+                  pp.id === currentId && "bg-primary/5"
+                )}
+              >
+                <Check className={cn("h-3 w-3 flex-shrink-0", pp.id === currentId ? "text-primary" : "opacity-0")} />
+                <span className="flex-1 min-w-0 truncate font-medium text-foreground">
+                  {pp.name}
+                  {pp.tbh && <span className="ml-1 text-[9px] text-muted-foreground font-normal">(TBH)</span>}
+                </span>
+                {pp.roleTitle && (
+                  <span className="text-[10px] text-muted-foreground truncate max-w-[90px]">{pp.roleTitle}</span>
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 // ── Sortable column header (drag-and-drop reorder within a team) ──────────
 function SortableColHeader({
   rk, cat, width, onResize, children,
