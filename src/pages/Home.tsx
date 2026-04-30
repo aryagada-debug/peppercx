@@ -89,6 +89,9 @@ export default function HomePage() {
   const [todos, setTodos] = useState<PersonalTodo[]>([]);
   const [editingDealTask, setEditingDealTask] = useState<DealTaskRow | null>(null);
   const [dealAssignmentsMap, setDealAssignmentsMap] = useState<Record<string, Set<string>>>({});
+  const [addingTask, setAddingTask] = useState(false);
+  const [addTaskDealId, setAddTaskDealId] = useState<string>("");
+  const [allActiveDeals, setAllActiveDeals] = useState<{ id: string; deal_name: string; account: string }[]>([]);
   const [nudges, setNudges] = useState<SmartNudge[]>([]);
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [quota, setQuota] = useState<QuotaRow | null>(null);
