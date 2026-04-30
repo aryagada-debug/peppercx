@@ -608,25 +608,9 @@ export function dealCellMatchesPerson(
   // Every remaining token in the cell must be prefix-compatible OR a near
   // typo of some token in the person's name (so "Shreshtha P" →
   // "Shreshtha Pathak", and "Shreshtha Phatak" → "Shreshtha Pathak").
-  const fuzzy = (x: string, y: string) => {
-    if (!x || !y) return false;
-    if (x.startsWith(y) || y.startsWith(x)) return true;
-    if (Math.abs(x.length - y.length) > 1) return false;
-    if (x.length < 3 || y.length < 3) return false;
-    // Levenshtein distance ≤ 1
-    let i = 0, j = 0, edits = 0;
-    while (i < x.length && j < y.length) {
-      if (x[i] === y[j]) { i++; j++; continue; }
-      if (++edits > 1) return false;
-      if (x.length === y.length) { i++; j++; }
-      else if (x.length > y.length) i++;
-      else j++;
-    }
-    return true;
-  };
   for (let i = 1; i < a.length; i++) {
     const t = a[i];
-    const ok = b.some((bt) => fuzzy(bt, t));
+    const ok = b.some((bt) => fuzzyOuter(bt, t));
     if (!ok) return false;
   }
 
