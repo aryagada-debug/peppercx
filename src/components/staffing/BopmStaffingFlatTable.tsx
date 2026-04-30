@@ -33,6 +33,19 @@ const CATEGORY_STYLES: Record<string, { head: string; cell: string; dot: string;
 };
 const styleFor = (cat?: string) => CATEGORY_STYLES[cat || "Other"] || CATEGORY_STYLES["Other"];
 
+// ── Hierarchy helpers (driven by ROLE_SLOTS order, which is top-down) ────
+const ROLE_SLOT_BY_KEY = new Map(ROLE_SLOTS.map((s, i) => [s.roleKey, { ...s, rank: i }]));
+const ROLE_LABEL = (rk: string) => ROLE_SLOT_BY_KEY.get(rk)?.roleLabel || rk;
+const ROLE_CATEGORY_OF = (rk: string): string => ROLE_SLOT_BY_KEY.get(rk)?.category || "Other";
+const ROLE_RANK = (rk: string): number => ROLE_SLOT_BY_KEY.get(rk)?.rank ?? 999;
+/** Names allowed in a column (matches Person.roleTitle to ROLE_TO_PEOPLE_FILTER). */
+function peopleForRole(rk: string, allPeople: Person[]): Person[] {
+  const titles = ROLE_TO_PEOPLE_FILTER[rk] || [];
+  if (titles.length === 0) return [];
+  const set = new Set(titles.map(t => t.toLowerCase()));
+  return allPeople.filter(p => !p.leaving && set.has((p.roleTitle || "").toLowerCase()));
+}
+
 // ── Sortable column header (drag-and-drop reorder within a team) ──────────
 function SortableColHeader({
   rk, cat, width, onResize, children,
