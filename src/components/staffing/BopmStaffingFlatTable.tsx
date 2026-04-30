@@ -243,6 +243,10 @@ export function BopmStaffingFlatTable({
     d.adds.length + Object.keys(d.updates).length + Object.keys(d.removes).length;
 
   const stageUpdate = (dealId: string, assignmentId: string, patch: Partial<StaffingAssignment>) => {
+    if (directEdit && onUpdateAssignment) {
+      onUpdateAssignment(assignmentId, patch);
+      return;
+    }
     const cur = getDraft(dealId);
     const addIdx = cur.adds.findIndex(a => a.id === assignmentId);
     if (addIdx >= 0) {
@@ -254,10 +258,18 @@ export function BopmStaffingFlatTable({
     setDraft(dealId, { ...cur, updates: { ...cur.updates, [assignmentId]: { ...(cur.updates[assignmentId] || {}), ...patch } } });
   };
   const stageAdd = (dealId: string, a: StaffingAssignment) => {
+    if (directEdit && onAddAssignment) {
+      onAddAssignment(a);
+      return;
+    }
     const cur = getDraft(dealId);
     setDraft(dealId, { ...cur, adds: [...cur.adds, { ...a, id: a.id || uid() }] });
   };
   const stageRemove = (dealId: string, assignmentId: string) => {
+    if (directEdit && onDeleteAssignment) {
+      onDeleteAssignment(assignmentId);
+      return;
+    }
     const cur = getDraft(dealId);
     const addIdx = cur.adds.findIndex(a => a.id === assignmentId);
     if (addIdx >= 0) {
