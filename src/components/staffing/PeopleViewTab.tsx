@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import type { Deal, Person, StaffingAssignment, RevenueCapacityTarget } from "@/data/staffingData";
+import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
 
 const ACTIVE_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
 
@@ -35,11 +36,19 @@ interface Props {
   assignments: StaffingAssignment[];
   revenueTargets?: RevenueCapacityTarget[];
   onUpdateAssignment?: (id: string, updates: Partial<StaffingAssignment>) => void;
+  /** When true, render a "Filter by BOPM" dropdown that scopes deals + people. */
+  enableBopmFilter?: boolean;
+  /** Optional VSD scope for the BOPM filter dropdown. */
+  bopmFilterScopedVsd?: string | null;
 }
 
-export function PeopleViewTab({ people, deals, assignments, revenueTargets = [], onUpdateAssignment }: Props) {
+export function PeopleViewTab({
+  people, deals, assignments, revenueTargets = [], onUpdateAssignment,
+  enableBopmFilter, bopmFilterScopedVsd,
+}: Props) {
   const [search, setSearch] = useState("");
   const [bucketFilter, setBucketFilter] = useState<Bucket | null>(null);
+  const [bopmFilter, setBopmFilter] = useState<string>("All");
   const [expandedDept, setExpandedDept] = useState<Set<string>>(new Set());
   const [expandedPerson, setExpandedPerson] = useState<Set<string>>(new Set());
   const [editingAlloc, setEditingAlloc] = useState<string | null>(null);
@@ -47,20 +56,33 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
   const [allCollapsed, setAllCollapsed] = useState(true);
   const [didAutoExpand, setDidAutoExpand] = useState(false);
 
+  // Apply BOPM filter (if any) to the deal universe — utilisation/MRR/etc.
+  // are computed against `scopedDeals` so they reflect only the filtered pod.
+  const scopedDeals = useMemo(() => {
+    if (!enableBopmFilter || !bopmFilter || bopmFilter === "All") return deals;
+    return deals.filter(d => dealMatchesBopm(d as any, bopmFilter));
+  }, [deals, enableBopmFilter, bopmFilter]);
+
+  const scopedDealIds = useMemo(() => new Set(scopedDeals.map(d => d.id)), [scopedDeals]);
+  const scopedAssignments = useMemo(
+    () => assignments.filter(a => scopedDealIds.has(a.dealId)),
+    [assignments, scopedDealIds],
+  );
+
   const dealMap = useMemo(() => {
     const m: Record<string, Deal> = {};
-    deals.forEach(d => { m[d.id] = d; });
+    scopedDeals.forEach(d => { m[d.id] = d; });
     return m;
-  }, [deals]);
+  }, [scopedDeals]);
 
-  const activeDealIds = useMemo(() => new Set(deals.filter(d => ACTIVE_STATUSES.has(d.dealStatus)).map(d => d.id)), [deals]);
+  const activeDealIds = useMemo(() => new Set(scopedDeals.filter(d => ACTIVE_STATUSES.has(d.dealStatus)).map(d => d.id)), [scopedDeals]);
 
   // People with at least one assignment — only these are shown in this view.
   const assignedPersonIds = useMemo(() => {
     const set = new Set<string>();
-    assignments.forEach(a => { if (a.personId) set.add(a.personId); });
+    scopedAssignments.forEach(a => { if (a.personId) set.add(a.personId); });
     return set;
-  }, [assignments]);
+  }, [scopedAssignments]);
 
   // Map raw department names to one of 5 display groups.
   // Anything outside this mapping is hidden from this view.
@@ -116,7 +138,7 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
 
   const personUtil = useMemo(() => {
     const m: Record<string, { totalPct: number; assigns: StaffingAssignment[]; mrr: number; rev: number; hours: number }> = {};
-    assignments.forEach(a => {
+    scopedAssignments.forEach(a => {
       if (!m[a.personId]) m[a.personId] = { totalPct: 0, assigns: [], mrr: 0, rev: 0, hours: 0 };
       m[a.personId].assigns.push(a);
       const d = dealMap[a.dealId];
@@ -129,7 +151,7 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
       }
     });
     return m;
-  }, [assignments, dealMap, activeDealIds]);
+  }, [scopedAssignments, dealMap, activeDealIds]);
 
   const targetFor = (p: Person): number => {
     const t = revenueTargets.find(rt => rt.department === p.department && rt.designation === p.designation);
@@ -450,6 +472,18 @@ export function PeopleViewTab({ people, deals, assignments, revenueTargets = [],
             className="w-full h-9 pl-9 pr-3 rounded-lg bg-card border border-border text-ui text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all"
           />
         </div>
+
+        {enableBopmFilter && (
+          <div className="flex items-center gap-2">
+            <label className="text-caption text-muted-foreground">BOPM</label>
+            <BopmFilter
+              value={bopmFilter}
+              onChange={setBopmFilter}
+              scopedVsd={bopmFilterScopedVsd ?? undefined}
+              className="h-9 w-[200px] text-ui"
+            />
+          </div>
+        )}
 
         <button
           onClick={toggleAll}

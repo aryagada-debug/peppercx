@@ -203,6 +203,7 @@ export default function Staffing() {
                 assignments={scopedAssignments}
                 revenueTargets={revenueTargets}
                 onUpdateAssignment={updateAssignment}
+                enableBopmFilter
               />
             </div>
             <div className={cn(tab !== "table" && "hidden")}>
@@ -215,6 +216,7 @@ export default function Staffing() {
                 onAddAssignment={addAssignment}
                 onUpdateAssignment={updateAssignment}
                 onDeleteAssignment={deleteAssignment}
+                enableBopmFilter
               />
             </div>
           </>

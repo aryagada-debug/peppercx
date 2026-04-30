@@ -6,6 +6,7 @@ import type { Deal, Person, StaffingAssignment, RoleCategory } from "@/data/staf
 import { uid, ROLE_SLOTS, ROLE_TO_PEOPLE_FILTER } from "@/data/staffingData";
 import { submitStaffingBatch, type BatchItem } from "@/lib/approvals";
 import { AddStaffingMemberDialog } from "./AddStaffingMemberDialog";
+import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ChevronDown } from "lucide-react";
 import {
@@ -267,6 +268,10 @@ interface Props {
   onAddAssignment?: (a: StaffingAssignment) => Promise<any> | any;
   onUpdateAssignment?: (id: string, patch: Partial<StaffingAssignment>) => Promise<any> | any;
   onDeleteAssignment?: (id: string) => Promise<any> | any;
+  /** When true, render a "Filter by BOPM" dropdown in the header. Used by VSD/Admin views. */
+  enableBopmFilter?: boolean;
+  /** Optional VSD scope for the BOPM filter dropdown (limits options to that VSD's pod). */
+  bopmFilterScopedVsd?: string | null;
 }
 
 const MONTH_HOURS = 160;
@@ -288,8 +293,10 @@ const emptyDraft = (): DealDraft => ({ adds: [], updates: {}, removes: {} });
 export function BopmStaffingFlatTable({
   deals, people, allPeople, assignments,
   directEdit, onAddAssignment, onUpdateAssignment, onDeleteAssignment,
+  enableBopmFilter, bopmFilterScopedVsd,
 }: Props) {
   const [search, setSearch] = useState("");
+  const [bopmFilter, setBopmFilter] = useState<string>("All");
   const [addForDeal, setAddForDeal] = useState<string | null>(null);
   const [allocDraft, setAllocDraft] = useState<Record<string, string>>({});
   const [drafts, setDrafts] = useState<Record<string, DealDraft>>({});
@@ -578,15 +585,18 @@ export function BopmStaffingFlatTable({
       (a.account || "").localeCompare(b.account || "") ||
       (a.dealName || "").localeCompare(b.dealName || "")
     );
-    if (!q) return sorted;
-    return sorted.filter(d => {
+    const bopmFiltered = bopmFilter && bopmFilter !== "All"
+      ? sorted.filter(d => dealMatchesBopm(d as any, bopmFilter))
+      : sorted;
+    if (!q) return bopmFiltered;
+    return bopmFiltered.filter(d => {
       const byRole = dealRoleMap.get(d.id);
       const personHay = byRole ? Array.from(byRole.values()).flat()
         .map(e => allPersonById.get(e.personId)?.name || "").join(" ").toLowerCase() : "";
       const hay = `${d.account} ${d.dealName} ${d.dealId} ${personHay}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [deals, search, dealRoleMap, allPersonById]);
+  }, [deals, search, bopmFilter, dealRoleMap, allPersonById]);
 
   // Aggregate top stats
   const totals = useMemo(() => {
@@ -749,6 +759,14 @@ export function BopmStaffingFlatTable({
                 className="h-8 pl-7 pr-3 rounded-md border border-border bg-background text-xs w-64 focus:outline-none focus:ring-1 focus:ring-accent"
               />
             </div>
+            {enableBopmFilter && (
+              <BopmFilter
+                value={bopmFilter}
+                onChange={setBopmFilter}
+                scopedVsd={bopmFilterScopedVsd ?? undefined}
+                className="h-8 w-[200px] text-xs"
+              />
+            )}
             <div className="relative" ref={pickerRef}>
               <button
                 type="button"
