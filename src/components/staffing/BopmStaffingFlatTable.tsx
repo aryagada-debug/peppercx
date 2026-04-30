@@ -3,7 +3,7 @@ import { Search, Plus, Trash2, RotateCcw, X, Send, Info, Columns3, Check, GripVe
 import { cn } from "@/lib/utils";
 import { formatINR } from "@/lib/csvTargets";
 import type { Deal, Person, StaffingAssignment, RoleCategory } from "@/data/staffingData";
-import { uid } from "@/data/staffingData";
+import { uid, ROLE_SLOTS, ROLE_TO_PEOPLE_FILTER } from "@/data/staffingData";
 import { submitStaffingBatch, type BatchItem } from "@/lib/approvals";
 import { AddStaffingMemberDialog } from "./AddStaffingMemberDialog";
 import {
