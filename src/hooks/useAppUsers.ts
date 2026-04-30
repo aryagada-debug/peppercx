@@ -586,11 +586,11 @@ export function useAllPersonNames(): string[] {
 //   1. First-name-only matches across people who share a first name.
 //   2. Stale staffing_assignments rows that no longer reflect the deal sheet.
 /**
- * Strict comparison: deal cell text refers to `personName` if either
- *  - the normalised full name is identical, OR
- *  - the cell is "<first> <last-initial(s)>" where last-initial is a prefix
- *    of the person's last name AND no other registered person shares that
- *    first name + last-initial prefix.
+ * Strict comparison: deal cell text refers to `personName` only if either the
+ * normalised full name is identical, or the cell uses an unambiguous initial /
+ * prefix form such as "Shreshtha P" for "Shreshtha Pathak". We intentionally
+ * do not typo-match different names (e.g. "Phatak" → "Pathak") because that
+ * leaks deals whose source cell is not actually tagged to the person.
  */
 export function dealCellMatchesPerson(
   dealCell: string | null | undefined,
@@ -605,12 +605,11 @@ export function dealCellMatchesPerson(
   if (a.join(" ") === b.join(" ")) return true;
   if (a[0] !== b[0]) return false;
 
-  // Every remaining token in the cell must be prefix-compatible OR a near
-  // typo of some token in the person's name (so "Shreshtha P" →
-  // "Shreshtha Pathak", and "Shreshtha Phatak" → "Shreshtha Pathak").
+  // Every remaining token in the cell must be prefix-compatible with a token in
+  // the person's name. This keeps initials working while rejecting typos.
   for (let i = 1; i < a.length; i++) {
     const t = a[i];
-    const ok = b.some((bt) => fuzzyOuter(bt, t));
+    const ok = b.some((bt) => bt.startsWith(t) || t.startsWith(bt));
     if (!ok) return false;
   }
 
@@ -626,27 +625,9 @@ export function dealCellMatchesPerson(
     let conflicts = true;
     for (let i = 1; i < a.length; i++) {
       const t = a[i];
-      if (!o.some((ot) => fuzzyOuter(ot, t))) { conflicts = false; break; }
+      if (!o.some((ot) => ot.startsWith(t) || t.startsWith(ot))) { conflicts = false; break; }
     }
     if (conflicts) return false;
-  }
-  return true;
-}
-
-// Same fuzzy comparator used by the ambiguity guard above. Declared here
-// (outside the inner closure) so it is in scope for the second loop.
-function fuzzyOuter(x: string, y: string): boolean {
-  if (!x || !y) return false;
-  if (x.startsWith(y) || y.startsWith(x)) return true;
-  if (Math.abs(x.length - y.length) > 1) return false;
-  if (x.length < 3 || y.length < 3) return false;
-  let i = 0, j = 0, edits = 0;
-  while (i < x.length && j < y.length) {
-    if (x[i] === y[j]) { i++; j++; continue; }
-    if (++edits > 1) return false;
-    if (x.length === y.length) { i++; j++; }
-    else if (x.length > y.length) i++;
-    else j++;
   }
   return true;
 }
