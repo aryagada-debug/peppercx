@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { createContext, createElement, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   DEFAULT_DEALS, DEFAULT_PEOPLE, DEFAULT_ASSIGNMENTS, DEFAULT_HIRING_NEEDS, DEFAULT_REVENUE_TARGETS,
@@ -158,7 +158,7 @@ async function batchUpsert<T extends Record<string, unknown>>(table: string, row
 }
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
-export function useStaffingData() {
+function useStaffingDataInternal() {
   const [people, setPeople] = useState<Person[]>(DEFAULT_PEOPLE);
   const [deals, setDeals] = useState<Deal[]>(DEFAULT_DEALS);
   const [assignments, setAssignments] = useState<StaffingAssignment[]>(DEFAULT_ASSIGNMENTS);
