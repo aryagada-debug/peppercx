@@ -1365,6 +1365,7 @@ export type Database = {
           capability_line: string
           client_id: string | null
           consumption_value: number
+          contract_file_path: string | null
           created_at: string
           creative_staffing: boolean
           customer_status: string
@@ -1400,6 +1401,7 @@ export type Database = {
           seo_staffing: boolean
           service_line_tagging: string
           slack_channel_id: string
+          sow_file_path: string | null
           staffing_status: string
           start_date: string | null
           strategy_bandwidth_required: string
@@ -1422,6 +1424,7 @@ export type Database = {
           capability_line?: string
           client_id?: string | null
           consumption_value?: number
+          contract_file_path?: string | null
           created_at?: string
           creative_staffing?: boolean
           customer_status?: string
@@ -1457,6 +1460,7 @@ export type Database = {
           seo_staffing?: boolean
           service_line_tagging?: string
           slack_channel_id?: string
+          sow_file_path?: string | null
           staffing_status?: string
           start_date?: string | null
           strategy_bandwidth_required?: string
@@ -1479,6 +1483,7 @@ export type Database = {
           capability_line?: string
           client_id?: string | null
           consumption_value?: number
+          contract_file_path?: string | null
           created_at?: string
           creative_staffing?: boolean
           customer_status?: string
@@ -1514,6 +1519,7 @@ export type Database = {
           seo_staffing?: boolean
           service_line_tagging?: string
           slack_channel_id?: string
+          sow_file_path?: string | null
           staffing_status?: string
           start_date?: string | null
           strategy_bandwidth_required?: string

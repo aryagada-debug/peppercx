@@ -29,6 +29,7 @@ import { useGoogleCalendar, type GCalEvent } from "@/hooks/useGoogleCalendar";
 import { CalendarConnectButton } from "@/components/calendar/CalendarConnectButton";
 import { useUserRole } from "@/hooks/useUserRole";
 import { TaskKanban, type DealTask } from "@/components/deals/TaskKanban";
+import { SlackChatBot } from "@/components/deals/SlackChatBot";
 import { CxDatePickerPopover } from "@/components/cx/CxDatePickerPopover";
 import { useAccountActivity } from "@/hooks/useAccountActivity";
 import { Activity as ActivityIcon } from "lucide-react";
@@ -1077,6 +1078,10 @@ export default function HomePage() {
           onSubmit={handleAddTaskSubmit}
           defaultAssignee={staffingName || displayName || ""}
         />
+      )}
+      {/* Slack chat bot — floating bubble, mirrors Deal Detail. Defaults to user's first deal. */}
+      {myDeals.length > 0 && (
+        <SlackChatBot dealId={myDeals[0].id} dealName={myDeals[0].deal_name || myDeals[0].account || "Deal"} />
       )}
     </AppLayout>
   );

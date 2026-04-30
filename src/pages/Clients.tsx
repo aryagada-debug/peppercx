@@ -2,7 +2,7 @@ import React from "react";
 import { formatINR } from "@/lib/csvTargets";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Link } from "react-router-dom";
-import { Search, Plus, Loader2, Trash2, Pencil, Check, X, Building2, Briefcase, Activity, TrendingUp, DollarSign, Settings2 } from "lucide-react";
+import { Search, Plus, Loader2, Trash2, Pencil, Check, X, Building2, Briefcase, Activity, TrendingUp, DollarSign, Settings2, Paperclip } from "lucide-react";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useStaffingData } from "@/hooks/useStaffingData";
 import { useClients } from "@/hooks/useClients";
@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ClientFormDialog } from "@/components/deals/ClientFormDialog";
 import { DealFormWizard } from "@/components/deals/DealFormWizard";
+import { DealDocsUpload } from "@/components/deals/DealDocsUpload";
 import { AddStaffingMemberDialog } from "@/components/staffing/AddStaffingMemberDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { uid } from "@/data/staffingData";
@@ -952,6 +953,22 @@ export default function Clients() {
                       {isVisible("rag") && <td className="py-2 px-3 text-center">{ragDot(deal.rag || "green")}</td>}
                       <td className="py-2 px-1">
                         <div className="flex items-center gap-1.5 justify-end">
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button
+                                className="text-muted-foreground/60 hover:text-foreground transition-colors"
+                                title="Contract & SoW documents"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <Paperclip className="h-3.5 w-3.5" />
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent align="end" className="w-72 p-3 space-y-3">
+                              <DealDocsUpload dealId={deal.id} variant="contract" />
+                              <div className="h-px bg-border" />
+                              <DealDocsUpload dealId={deal.id} variant="sow" />
+                            </PopoverContent>
+                          </Popover>
                           <button
                             onClick={() => setDeleteTarget({ type: "deal", id: deal.id, name: deal.dealName })}
                             className="text-muted-foreground/40 hover:text-destructive opacity-0 group-hover/row:opacity-100 transition-opacity"
