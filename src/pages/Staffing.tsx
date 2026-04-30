@@ -88,11 +88,15 @@ export default function Staffing() {
         return assignments.filter(a => ids.has(a.dealId));
       })()
     : assignments;
+  const activeBopmDealIds = isBopmPersona
+    ? new Set(activeBopmDeals.map(d => d.id))
+    : null;
+  const bopmActiveAssignments = isBopmPersona && activeBopmDealIds
+    ? assignments.filter(a => activeBopmDealIds.has(a.dealId))
+    : scopedAssignments;
   const scopedPeople = isBopmPersona && !accessLoading
     ? (() => {
-        const activeIds = new Set(activeBopmDeals.map(d => d.id));
-        const activeAssigns = assignments.filter(a => activeIds.has(a.dealId));
-        const ids = new Set(activeAssigns.map(a => a.personId));
+        const ids = new Set(bopmActiveAssignments.map(a => a.personId));
         return people.filter(p => ids.has(p.id));
       })()
     : people;
@@ -178,7 +182,7 @@ export default function Staffing() {
                     deals={activeBopmDeals}
                     people={scopedPeople}
                     allPeople={people}
-                    assignments={scopedAssignments.filter(a => activeBopmDeals.some(d => d.id === a.dealId))}
+                    assignments={bopmActiveAssignments}
                   />
                 )
               }
