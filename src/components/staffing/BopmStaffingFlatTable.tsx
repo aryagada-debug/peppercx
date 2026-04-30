@@ -6,6 +6,8 @@ import type { Deal, Person, StaffingAssignment, RoleCategory } from "@/data/staf
 import { uid, ROLE_SLOTS, ROLE_TO_PEOPLE_FILTER } from "@/data/staffingData";
 import { submitStaffingBatch, type BatchItem } from "@/lib/approvals";
 import { AddStaffingMemberDialog } from "./AddStaffingMemberDialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ChevronDown } from "lucide-react";
 import {
   DndContext, DragEndEvent, PointerSensor, useSensor, useSensors,
   closestCenter,
@@ -44,6 +46,89 @@ function peopleForRole(rk: string, allPeople: Person[]): Person[] {
   if (titles.length === 0) return [];
   const set = new Set(titles.map(t => t.toLowerCase()));
   return allPeople.filter(p => !p.leaving && set.has((p.roleTitle || "").toLowerCase()));
+}
+
+// ── Styled person picker (replaces the bare native <select>) ──────────────
+function PersonPickerPopover({
+  currentId, candidates, disabled, triggerLabel, triggerClassName,
+  emptyLabel = "No people available",
+  placeholder = "Search…",
+  onSelect,
+  align = "start",
+}: {
+  currentId?: string;
+  candidates: Person[];
+  disabled?: boolean;
+  triggerLabel: React.ReactNode;
+  triggerClassName?: string;
+  emptyLabel?: string;
+  placeholder?: string;
+  onSelect: (personId: string) => void;
+  align?: "start" | "center" | "end";
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return candidates;
+    return candidates.filter(p =>
+      (p.name || "").toLowerCase().includes(needle) ||
+      (p.roleTitle || "").toLowerCase().includes(needle)
+    );
+  }, [q, candidates]);
+  return (
+    <Popover open={open} onOpenChange={(v) => { setOpen(v); if (!v) setQ(""); }}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          disabled={disabled}
+          className={cn("group/picker", triggerClassName)}
+          title="Click to change person"
+        >
+          <span className="truncate">{triggerLabel}</span>
+          <ChevronDown className="h-3 w-3 opacity-0 group-hover/picker:opacity-60 flex-shrink-0" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align={align} className="w-64 p-1.5">
+        <div className="relative mb-1">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+          <input
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            placeholder={placeholder}
+            autoFocus
+            className="w-full h-7 pl-7 pr-2 rounded-md border border-border bg-background text-[11px] focus:outline-none focus:ring-1 focus:ring-primary/40"
+          />
+        </div>
+        <div className="max-h-60 overflow-y-auto">
+          {filtered.length === 0 ? (
+            <div className="px-2 py-3 text-center text-[11px] text-muted-foreground">{emptyLabel}</div>
+          ) : (
+            filtered.map(pp => (
+              <button
+                key={pp.id}
+                type="button"
+                onClick={() => { onSelect(pp.id); setOpen(false); setQ(""); }}
+                className={cn(
+                  "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-[11px] hover:bg-secondary transition-colors",
+                  pp.id === currentId && "bg-primary/5"
+                )}
+              >
+                <Check className={cn("h-3 w-3 flex-shrink-0", pp.id === currentId ? "text-primary" : "opacity-0")} />
+                <span className="flex-1 min-w-0 truncate font-medium text-foreground">
+                  {pp.name}
+                  {pp.tbh && <span className="ml-1 text-[9px] text-muted-foreground font-normal">(TBH)</span>}
+                </span>
+                {pp.roleTitle && (
+                  <span className="text-[10px] text-muted-foreground truncate max-w-[90px]">{pp.roleTitle}</span>
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 // ── Sortable column header (drag-and-drop reorder within a team) ──────────
@@ -177,6 +262,11 @@ interface Props {
   people: Person[];
   allPeople: Person[];
   assignments: StaffingAssignment[];
+  /** When true, edits commit directly via the supplied handlers instead of routing through Central Cx approval. */
+  directEdit?: boolean;
+  onAddAssignment?: (a: StaffingAssignment) => Promise<any> | any;
+  onUpdateAssignment?: (id: string, patch: Partial<StaffingAssignment>) => Promise<any> | any;
+  onDeleteAssignment?: (id: string) => Promise<any> | any;
 }
 
 const MONTH_HOURS = 160;
@@ -195,7 +285,10 @@ const emptyDraft = (): DealDraft => ({ adds: [], updates: {}, removes: {} });
  * staffed for that role with an inline allocation %; hrs/wk are auto-derived.
  * Functionality (staging + batched submit to Central Cx) is unchanged.
  */
-export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }: Props) {
+export function BopmStaffingFlatTable({
+  deals, people, allPeople, assignments,
+  directEdit, onAddAssignment, onUpdateAssignment, onDeleteAssignment,
+}: Props) {
   const [search, setSearch] = useState("");
   const [addForDeal, setAddForDeal] = useState<string | null>(null);
   const [allocDraft, setAllocDraft] = useState<Record<string, string>>({});
@@ -233,6 +326,10 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
     d.adds.length + Object.keys(d.updates).length + Object.keys(d.removes).length;
 
   const stageUpdate = (dealId: string, assignmentId: string, patch: Partial<StaffingAssignment>) => {
+    if (directEdit && onUpdateAssignment) {
+      onUpdateAssignment(assignmentId, patch);
+      return;
+    }
     const cur = getDraft(dealId);
     const addIdx = cur.adds.findIndex(a => a.id === assignmentId);
     if (addIdx >= 0) {
@@ -244,10 +341,18 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
     setDraft(dealId, { ...cur, updates: { ...cur.updates, [assignmentId]: { ...(cur.updates[assignmentId] || {}), ...patch } } });
   };
   const stageAdd = (dealId: string, a: StaffingAssignment) => {
+    if (directEdit && onAddAssignment) {
+      onAddAssignment(a);
+      return;
+    }
     const cur = getDraft(dealId);
     setDraft(dealId, { ...cur, adds: [...cur.adds, { ...a, id: a.id || uid() }] });
   };
   const stageRemove = (dealId: string, assignmentId: string) => {
+    if (directEdit && onDeleteAssignment) {
+      onDeleteAssignment(assignmentId);
+      return;
+    }
     const cur = getDraft(dealId);
     const addIdx = cur.adds.findIndex(a => a.id === assignmentId);
     if (addIdx >= 0) {
@@ -553,34 +658,21 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
         )}
       >
         <div className="flex items-center gap-1.5">
-          {/* Name as clickable native select (same row as %) */}
-          <div className="relative flex-1 min-w-0">
-            <span
-              className={cn(
-                "block truncate text-[11px] font-medium text-foreground pointer-events-none",
+          {/* Name as styled popover trigger (same row as %) */}
+          <div className="flex-1 min-w-0">
+            <PersonPickerPopover
+              currentId={e.personId}
+              candidates={colMatches}
+              disabled={!!e.isMarkedRemove}
+              triggerLabel={`${p?.name || "—"}${p?.tbh ? " (TBH)" : ""}`}
+              triggerClassName={cn(
+                "w-full inline-flex items-center justify-between gap-1 px-1 py-0.5 rounded-sm text-[11px] font-medium text-foreground hover:bg-foreground/5 hover:ring-1 hover:ring-border transition-colors",
                 e.isMarkedRemove && "line-through opacity-60"
               )}
-              title={p?.name || "—"}
-            >
-              {p?.name || "—"}{p?.tbh ? " (TBH)" : ""}
-            </span>
-            <select
-              value={e.personId}
-              disabled={e.isMarkedRemove}
-              onChange={ev => {
-                const val = ev.target.value;
-                if (val && val !== e.personId) stageUpdate(deal.id, e.assignmentId, { personId: val });
+              onSelect={(id) => {
+                if (id && id !== e.personId) stageUpdate(deal.id, e.assignmentId, { personId: id });
               }}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-default"
-              title="Click to change person"
-            >
-              <option value={e.personId}>{p?.name || "—"}{p?.tbh ? " (TBH)" : ""}</option>
-              {colMatches.filter(pp => pp.id !== e.personId).map(pp => (
-                <option key={pp.id} value={pp.id}>
-                  {pp.name}{pp.tbh ? " (TBH)" : ""}
-                </option>
-              ))}
-            </select>
+            />
           </div>
           {/* % allocation inline */}
           <input
@@ -647,14 +739,7 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
       </div>
 
       <div className="rounded-xl border border-border bg-card overflow-hidden">
-        <header className="px-4 py-3 border-b border-border flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <h3 className="text-sm font-semibold text-foreground">Staffing — pivot view</h3>
-            <p className="text-[11px] text-muted-foreground">
-              One row per deal · one column per role. Edit person or % inline; changes are sent to Central Cx.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
+        <header className="px-3 py-2 border-b border-border flex items-center justify-end gap-2 flex-wrap">
             <div className="relative">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <input
@@ -751,7 +836,6 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
                 <option key={d.id} value={d.id}>{d.account} — {d.dealName}</option>
               ))}
             </select>
-          </div>
         </header>
 
         <div className="overflow-x-auto">
@@ -861,54 +945,37 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
                         >
                           <div className="space-y-1">
                             {entries.map(e => renderEntry(d, rk, e))}
-                            <div className="relative">
-                              <span
-                                className={cn(
-                                  "block px-1.5 py-1 text-[10.5px] italic pointer-events-none rounded-md border border-dashed",
-                                  pickerOptions.length === 0
-                                    ? "text-muted-foreground/50 border-border/30"
-                                    : "text-muted-foreground border-border/50 hover:text-foreground"
-                                )}
-                              >
-                                {pickerOptions.length === 0
+                            <PersonPickerPopover
+                              key={pickerKey}
+                              candidates={pickerOptions}
+                              disabled={pickerOptions.length === 0}
+                              triggerLabel={
+                                pickerOptions.length === 0
                                   ? (manager
                                       ? `No reports under ${manager.name.split(" ")[0]}`
                                       : `No ${ROLE_LABEL(rk)} available`)
                                   : (manager
                                       ? `+ Add (under ${manager.name.split(" ")[0]})`
-                                      : `+ Add ${ROLE_LABEL(rk)}`)}
-                              </span>
-                              <select
-                                key={pickerKey}
-                                value=""
-                                onChange={ev => {
-                                  const personId = ev.target.value;
-                                  if (!personId) return;
-                                  stageAdd(d.id, {
-                                    id: uid(),
-                                    dealId: d.id,
-                                    roleKey: rk,
-                                    personId,
-                                    allocationPct: 10,
-                                  });
-                                  ev.target.value = "";
-                                }}
-                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
-                                disabled={pickerOptions.length === 0}
-                                title={
-                                  manager
-                                    ? `Add ${ROLE_LABEL(rk)} reporting to ${manager.name}`
-                                    : `Add ${ROLE_LABEL(rk)}`
-                                }
-                              >
-                                <option value="">Select…</option>
-                                {pickerOptions.map(pp => (
-                                  <option key={pp.id} value={pp.id}>
-                                    {pp.name}{pp.tbh ? " (TBH)" : ""}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
+                                      : `+ Add ${ROLE_LABEL(rk)}`)
+                              }
+                              triggerClassName={cn(
+                                "w-full flex items-center justify-between gap-1 px-1.5 py-1 text-[10.5px] italic rounded-md border border-dashed transition-colors",
+                                pickerOptions.length === 0
+                                  ? "text-muted-foreground/50 border-border/30 cursor-not-allowed"
+                                  : "text-muted-foreground border-border/50 hover:text-foreground hover:border-border hover:bg-secondary/40"
+                              )}
+                              emptyLabel={manager ? `No reports under ${manager.name}` : `No ${ROLE_LABEL(rk)} available`}
+                              placeholder={`Search ${ROLE_LABEL(rk)}…`}
+                              onSelect={(personId) => {
+                                stageAdd(d.id, {
+                                  id: uid(),
+                                  dealId: d.id,
+                                  roleKey: rk,
+                                  personId,
+                                  allocationPct: 10,
+                                });
+                              }}
+                            />
                           </div>
                         </td>
                       );

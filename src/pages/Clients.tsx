@@ -335,12 +335,42 @@ export default function Clients() {
 
   const kpis = useMemo(() => {
     const clientSet = new Set(filteredDeals.map(d => d.account));
+    // Renewals < 60 days — active deals whose endDate is within next 60d
+    const now = new Date();
+    const in60 = new Date(); in60.setDate(in60.getDate() + 60);
+    const renewing = filteredDeals
+      .filter(d => ACTIVE_STATUSES.has(d.dealStatus) && d.endDate)
+      .map(d => ({ d, end: new Date(d.endDate as string) }))
+      .filter(x => !isNaN(x.end.getTime()) && x.end >= now && x.end <= in60)
+      .sort((a, b) => a.end.getTime() - b.end.getTime());
+    const nextRenewal = renewing[0];
+    const nextRenewalDays = nextRenewal
+      ? Math.max(0, Math.round((nextRenewal.end.getTime() - now.getTime()) / 86400000))
+      : null;
+    // Clients new this quarter (by deal startDate)
+    const qStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
+    const newClientsThisQ = new Set(
+      filteredDeals
+        .filter(d => d.startDate && new Date(d.startDate) >= qStart)
+        .map(d => d.account)
+    ).size;
+    // At-risk active deals (rag === red)
+    const atRisk = filteredDeals.filter(d => ACTIVE_STATUSES.has(d.dealStatus) && (d.rag || "").toLowerCase() === "red").length;
+    // Top deal by total value
+    const topDeal = [...filteredDeals].sort((a, b) => (Number(b.totalDealValue) || 0) - (Number(a.totalDealValue) || 0))[0];
     return {
       clients: clientSet.size,
       deals: filteredDeals.length,
       activeDeals: filteredDeals.filter(d => ACTIVE_STATUSES.has(d.dealStatus)).length,
       totalMRR: filteredDeals.reduce((s, d) => s + (d.mrr || 0), 0),
       totalValue: filteredDeals.reduce((s, d) => s + (d.totalDealValue || 0), 0),
+      renewals60: renewing.length,
+      nextRenewalLabel: nextRenewal
+        ? `${nextRenewal.d.account} in ${nextRenewalDays}d`
+        : "None upcoming",
+      newClientsThisQ,
+      atRisk,
+      topDealLabel: topDeal ? `Top: ${topDeal.account} ${fmtCurrency(topDeal.totalDealValue || 0)}` : "—",
     };
   }, [filteredDeals]);
 
@@ -549,12 +579,32 @@ export default function Clients() {
           <h1 className="text-subhead font-bold tracking-tight text-foreground whitespace-nowrap mt-2">Clients & Deals</h1>
           <div className="flex flex-1 gap-2.5 flex-wrap min-w-0">
           {[
-            { label: "Clients", value: String(kpis.clients), Icon: Building2, tint: "sky" },
-            { label: "Total Deals", value: String(kpis.deals), Icon: Briefcase, tint: "violet" },
-            { label: "Active Deals", value: String(kpis.activeDeals), Icon: Activity, tint: "emerald" },
-            { label: "Total MRR", value: fmtCurrency(kpis.totalMRR), Icon: TrendingUp, tint: "amber" },
-            { label: "Total Value", value: fmtCurrency(kpis.totalValue), Icon: DollarSign, tint: "rose" },
-          ].map(({ label, value, Icon, tint }) => {
+            {
+              label: "Clients", value: String(kpis.clients), Icon: Building2, tint: "sky",
+              insight: kpis.newClientsThisQ > 0 ? `${kpis.newClientsThisQ} new this quarter` : "No new this quarter",
+              tone: "muted" as const,
+            },
+            {
+              label: "Renewals < 60d", value: String(kpis.renewals60), Icon: Briefcase, tint: "violet",
+              insight: kpis.nextRenewalLabel,
+              tone: kpis.renewals60 > 0 ? "warning" as const : "muted" as const,
+            },
+            {
+              label: "Active Deals", value: String(kpis.activeDeals), Icon: Activity, tint: "emerald",
+              insight: kpis.atRisk > 0 ? `${kpis.atRisk} at risk` : "All on track",
+              tone: kpis.atRisk > 0 ? "destructive" as const : "muted" as const,
+            },
+            {
+              label: "Total MRR", value: fmtCurrency(kpis.totalMRR), Icon: TrendingUp, tint: "amber",
+              insight: `${kpis.activeDeals} active contributing`,
+              tone: "muted" as const,
+            },
+            {
+              label: "Total Value", value: fmtCurrency(kpis.totalValue), Icon: DollarSign, tint: "rose",
+              insight: kpis.topDealLabel,
+              tone: "muted" as const,
+            },
+          ].map(({ label, value, Icon, tint, insight, tone }) => {
             const tintMap: Record<string, { bg: string; ring: string; chip: string; icon: string }> = {
               sky: { bg: "from-sky-500/10", ring: "border-sky-500/20", chip: "bg-sky-500/15", icon: "text-sky-500" },
               violet: { bg: "from-violet-500/10", ring: "border-violet-500/20", chip: "bg-violet-500/15", icon: "text-violet-500" },
@@ -563,6 +613,10 @@ export default function Clients() {
               rose: { bg: "from-rose-500/10", ring: "border-rose-500/20", chip: "bg-rose-500/15", icon: "text-rose-500" },
             };
             const t = tintMap[tint];
+            const toneClass =
+              tone === "destructive" ? "text-destructive"
+              : tone === "warning" ? "text-warning"
+              : "text-muted-foreground";
             return (
               <div
                 key={label}
@@ -577,6 +631,7 @@ export default function Clients() {
                 <div className="min-w-0">
                   <p className="text-[11px] uppercase tracking-wide text-muted-foreground leading-tight">{label}</p>
                   <p className="text-2xl font-semibold tracking-tight text-foreground font-mono leading-tight truncate mt-0.5">{value}</p>
+                  <p className={cn("text-[10px] mt-0.5 truncate", toneClass)} title={insight}>{insight}</p>
                 </div>
               </div>
             );
