@@ -686,6 +686,42 @@ export function BopmStaffingFlatTable({
   // ── Render a single cell entry (one staffed person under a deal+role) ────
   const renderEntry = (deal: Deal, roleKey: string, e: CellEntry) => {
     const p = allPersonById.get(e.personId);
+    // Virtual entries are sourced from the deal sheet (principal_bopm /
+    // senior_bopm / bopm cells). Render them as read-only chips so identity
+    // stays in sync app-wide without offering edit affordances that would
+    // need to round-trip back to staffing_deals.
+    if (e.isVirtual) {
+      const label = e.rawText
+        ? e.rawText
+        : `${p?.name || "—"}${p?.tbh ? " (TBH)" : ""}`;
+      const tooltip = e.rawText
+        ? "Tagged on the deal sheet but no matching profile in People — update Settings → People or the deal record to align."
+        : "From the deal sheet (Principal/Senior BOPM). Edit the deal to change.";
+      return (
+        <div
+          key={e.assignmentId}
+          className={cn(
+            "rounded-md border px-1.5 py-1 transition-colors",
+            e.rawText
+              ? "bg-muted/40 border-dashed border-muted-foreground/30"
+              : "bg-violet-50/50 border-violet-200/70"
+          )}
+          title={tooltip}
+        >
+          <div className="flex items-center gap-1.5">
+            <span
+              className={cn(
+                "flex-1 min-w-0 truncate px-1 py-0.5 text-[11px] font-medium",
+                e.rawText ? "text-muted-foreground italic" : "text-foreground"
+              )}
+            >
+              {label}
+            </span>
+            <span className="text-[10px] text-muted-foreground/70 font-mono select-none">—</span>
+          </div>
+        </div>
+      );
+    }
     // Strict scope: only people whose designation matches this column AND who
     // (when a more senior teammate is already staffed) report to that manager.
     const cat = ROLE_CATEGORY_OF(roleKey);
