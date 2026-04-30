@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { UserRoleProvider } from "@/hooks/useUserRole";
+import { StaffingDataProvider } from "@/hooks/useStaffingData";
 import { RouteFallback } from "./components/layout/RouteFallback";
 
 // Auth pages stay eager — login screen must paint instantly.
@@ -57,6 +58,7 @@ const App = () => (
         <BrowserRouter>
           <AuthProvider>
           <UserRoleProvider>
+          <StaffingDataProvider>
           <Suspense fallback={<RouteFallback />}>
           <Routes>
             {/* Public auth routes */}
@@ -86,6 +88,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
           </Suspense>
+          </StaffingDataProvider>
           </UserRoleProvider>
           </AuthProvider>
         </BrowserRouter>
