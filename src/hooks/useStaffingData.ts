@@ -554,3 +554,26 @@ function useStaffingDataInternal() {
     refresh: loadAll,
   };
 }
+
+// ── Provider ─────────────────────────────────────────────────────────────────
+// Hoist the hook into a context so every page (Clients, DealDetail, Settings,
+// Staffing) shares one instance. This means the staffing tables are fetched
+// once for the session — not once per page — and the realtime channel and
+// seeding logic only run once.
+
+type StaffingDataValue = ReturnType<typeof useStaffingDataInternal>;
+
+const StaffingDataContext = createContext<StaffingDataValue | null>(null);
+
+export function StaffingDataProvider({ children }: { children: ReactNode }) {
+  const value = useStaffingDataInternal();
+  return createElement(StaffingDataContext.Provider, { value }, children);
+}
+
+export function useStaffingData(): StaffingDataValue {
+  const ctx = useContext(StaffingDataContext);
+  if (!ctx) {
+    throw new Error("useStaffingData must be used within <StaffingDataProvider>");
+  }
+  return ctx;
+}
