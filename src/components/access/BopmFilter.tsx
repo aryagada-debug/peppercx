@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useVsdHierarchy, useVsdUsers, useAppUsers, nameKey } from "@/hooks/useAppUsers";
+import { useVsdUsers, useBopmDirectory, nameKey } from "@/hooks/useAppUsers";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useEffect, useState } from "react";
@@ -23,9 +23,8 @@ interface Props {
 export function BopmFilter({ value, onChange, scopedVsd, className }: Props) {
   const { isAdmin, isActuallyAdmin, viewAsRole } = useUserRole();
   const { user } = useAuth();
-  const { allBopms, bopmsForVsd } = useVsdHierarchy();
+  const { allBopmUsers, bopmUsersForVsd } = useBopmDirectory();
   const { canonVsd } = useVsdUsers();
-  const { isRegisteredName } = useAppUsers();
   const [myVsdName, setMyVsdName] = useState<string | null>(null);
 
   // Resolve the logged-in person's VSD context (if they ARE a VSD).
@@ -63,17 +62,15 @@ export function BopmFilter({ value, onChange, scopedVsd, className }: Props) {
     || myVsdName
     || (isActuallyAdmin && viewAsRole === "member" ? null : null);
 
+  // Source list of BOPM users = Settings → People. For VSDs we restrict to
+  // people whose reportingManager chain rolls up to that VSD. For admins
+  // (with no VSD picked) we show all Principal/Senior BOPMs.
   const options = useMemo(() => {
-    // Source list of BOPM names from the deal sheet (per-VSD or all).
-    const raw = effectiveScopedVsd
-      ? bopmsForVsd(effectiveScopedVsd)
-      : (isAdmin ? allBopms : []);
-    // The deal sheet sometimes contains role labels (e.g. "Principal SEO
-    // Lead - Mumbai", "IT Services Lead") in the principal/senior BOPM
-    // columns instead of a real person. Drop anything that doesn't map to
-    // a real registered person from Settings → People.
-    return raw.filter((n) => isRegisteredName(n));
-  }, [effectiveScopedVsd, isAdmin, bopmsForVsd, allBopms, isRegisteredName]);
+    const list = effectiveScopedVsd
+      ? bopmUsersForVsd(effectiveScopedVsd)
+      : (isAdmin ? allBopmUsers : []);
+    return list.map((p) => p.name).filter(Boolean);
+  }, [effectiveScopedVsd, isAdmin, bopmUsersForVsd, allBopmUsers]);
 
   // Hide entirely if there are no options to choose from (e.g. plain BOPM user).
   if (options.length === 0) return null;

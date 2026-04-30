@@ -409,3 +409,203 @@ export function useVsdHierarchy() {
 
   return { vsdForPerson, vsdForDeal, bopmsForVsd, allBopms, loading };
 }
+
+// ----- BOPM directory (Settings → People as source of truth) -----
+// Returns the active Principal/Senior BOPMs registered in Settings → People,
+// grouped by their VSD (resolved through the reportingManager chain). Used
+// by the BOPM filter on Clients & Deals and Staffing so the dropdown shows
+// only real users that report under the selected VSD — not free-text names
+// pulled from `staffing_deals` BOPM cells (which can include role labels,
+// typos, or people who no longer report under that VSD).
+
+interface BopmDirectoryRow {
+  id: string;
+  name: string;
+  email: string;
+  roleTitle: string;
+  designation: string;
+  reportingManager: string;
+  vsd: string | null; // canonical VSD name (one of VSD_NAMES) or null
+}
+
+interface BopmDirectoryData {
+  rows: BopmDirectoryRow[];
+  byVsd: Map<string, BopmDirectoryRow[]>; // canonical VSD name -> rows
+}
+
+let bopmDirCache: { data: BopmDirectoryData; ts: number } | null = null;
+const bopmDirSubs = new Set<(d: BopmDirectoryData) => void>();
+let bopmDirChannel: ReturnType<typeof supabase.channel> | null = null;
+let bopmDirBound = false;
+
+function isBopmRoleTitle(roleTitle: string, designation: string): boolean {
+  const t = `${roleTitle || ""} ${designation || ""}`.toLowerCase();
+  return /\b(principal|senior|sr\.?)\s+bopm\b/.test(t)
+    || /principal\s+account\s+engagement\s+lead/.test(t)
+    || (t.includes("bopm") && (t.includes("principal") || t.includes("senior") || t.includes("sr")));
+}
+
+async function loadBopmDirectory(): Promise<BopmDirectoryData> {
+  const { data } = await supabase
+    .from("staffing_people")
+    .select("id, name, email, role_title, designation, reporting_manager, leaving, tbh")
+    .eq("leaving", false)
+    .eq("tbh", false);
+
+  const all = (data || []).map((r: any) => ({
+    id: r.id as string,
+    name: (r.name || "").trim(),
+    email: (r.email || "").trim(),
+    roleTitle: r.role_title || "",
+    designation: r.designation || "",
+    reportingManager: (r.reporting_manager || "").trim(),
+  }));
+  const byNameLower = new Map<string, typeof all[number]>();
+  all.forEach((p) => byNameLower.set(p.name.toLowerCase(), p));
+
+  // Walk the reporting chain (max 8 hops) until we find a registered VSD or
+  // run out of managers.
+  const resolveVsd = (start: typeof all[number]): string | null => {
+    let cursor: typeof all[number] | undefined = start;
+    const seen = new Set<string>();
+    for (let i = 0; i < 8 && cursor; i++) {
+      const canon = matchesVsd(cursor.name);
+      if (canon) return canon;
+      const mgr = (cursor.reportingManager || "").trim().toLowerCase();
+      if (!mgr || seen.has(mgr)) break;
+      seen.add(mgr);
+      cursor = byNameLower.get(mgr);
+    }
+    return null;
+  };
+
+  const rows: BopmDirectoryRow[] = [];
+  for (const p of all) {
+    if (!isBopmRoleTitle(p.roleTitle, p.designation)) continue;
+    const vsd = resolveVsd(p);
+    rows.push({ ...p, vsd });
+  }
+  rows.sort((a, b) => a.name.localeCompare(b.name));
+
+  const byVsd = new Map<string, BopmDirectoryRow[]>();
+  for (const r of rows) {
+    if (!r.vsd) continue;
+    let list = byVsd.get(r.vsd);
+    if (!list) { list = []; byVsd.set(r.vsd, list); }
+    list.push(r);
+  }
+  return { rows, byVsd };
+}
+
+function bindBopmDirRealtime() {
+  if (bopmDirBound) return;
+  bopmDirBound = true;
+  if (bopmDirChannel) {
+    supabase.removeChannel(bopmDirChannel);
+    bopmDirChannel = null;
+  }
+  const refresh = async () => {
+    const next = await loadBopmDirectory();
+    bopmDirCache = { data: next, ts: Date.now() };
+    bopmDirSubs.forEach((s) => s(next));
+  };
+  const ch = supabase.channel(`bopm-directory-sync-${Date.now()}`);
+  ch.on("postgres_changes", { event: "*", schema: "public", table: "staffing_people" }, refresh);
+  ch.subscribe();
+  bopmDirChannel = ch;
+}
+
+export function useBopmDirectory() {
+  const [data, setData] = useState<BopmDirectoryData>(
+    bopmDirCache?.data || { rows: [], byVsd: new Map() },
+  );
+  const [loading, setLoading] = useState(!bopmDirCache);
+
+  useEffect(() => {
+    bindBopmDirRealtime();
+    let alive = true;
+    const sub = (d: BopmDirectoryData) => alive && setData(d);
+    bopmDirSubs.add(sub);
+    if (!bopmDirCache || Date.now() - bopmDirCache.ts > 60_000) {
+      loadBopmDirectory().then((next) => {
+        if (!alive) return;
+        bopmDirCache = { data: next, ts: Date.now() };
+        setData(next);
+        setLoading(false);
+      });
+    } else {
+      setLoading(false);
+    }
+    return () => {
+      alive = false;
+      bopmDirSubs.delete(sub);
+    };
+  }, []);
+
+  /** All Principal/Senior BOPM users (from Settings → People), sorted A-Z. */
+  const allBopmUsers = useMemo(() => data.rows, [data]);
+
+  /** BOPM users whose reportingManager chain rolls up to the given VSD. */
+  const bopmUsersForVsd = useCallback(
+    (vsd: string | null | undefined): BopmDirectoryRow[] => {
+      if (!vsd) return [];
+      return data.byVsd.get(vsd) || [];
+    },
+    [data],
+  );
+
+  return { allBopmUsers, bopmUsersForVsd, loading };
+}
+
+// ----- Strict person matching for deal BOPM cells -----
+// Used by useDealAccess so a BOPM persona only sees deals where the deal's
+// BOPM cells unambiguously point to *their* registered Settings person.
+// Prevents two issues that have leaked unrelated deals into BOPM views:
+//   1. First-name-only matches across people who share a first name.
+//   2. Stale staffing_assignments rows that no longer reflect the deal sheet.
+/**
+ * Strict comparison: deal cell text refers to `personName` if either
+ *  - the normalised full name is identical, OR
+ *  - the cell is "<first> <last-initial(s)>" where last-initial is a prefix
+ *    of the person's last name AND no other registered person shares that
+ *    first name + last-initial prefix.
+ */
+export function dealCellMatchesPerson(
+  dealCell: string | null | undefined,
+  personName: string | null | undefined,
+  allRegisteredNames: string[],
+): boolean {
+  const a = (dealCell || "")
+    .toLowerCase().normalize("NFKD").replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+  const b = (personName || "")
+    .toLowerCase().normalize("NFKD").replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+  if (a.length === 0 || b.length === 0) return false;
+  if (a.join(" ") === b.join(" ")) return true;
+  if (a[0] !== b[0]) return false;
+
+  // Every remaining token in the cell must be prefix-compatible with some
+  // token in the person's name (so "Shreshtha P" → "Shreshtha Pathak").
+  for (let i = 1; i < a.length; i++) {
+    const t = a[i];
+    const ok = b.some((bt) => bt.startsWith(t) || t.startsWith(bt));
+    if (!ok) return false;
+  }
+
+  // Ambiguity guard: if any OTHER registered person also matches this cell
+  // under the same rule, refuse the match — better to drop the deal than
+  // leak it into the wrong person's view.
+  for (const otherRaw of allRegisteredNames) {
+    if (!otherRaw) continue;
+    const o = otherRaw.toLowerCase().normalize("NFKD").replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+    if (o.length === 0) continue;
+    if (o.join(" ") === b.join(" ")) continue; // same person
+    if (o[0] !== a[0]) continue;
+    let conflicts = true;
+    for (let i = 1; i < a.length; i++) {
+      const t = a[i];
+      if (!o.some((ot) => ot.startsWith(t) || t.startsWith(ot))) { conflicts = false; break; }
+    }
+    if (conflicts) return false;
+  }
+  return true;
+}
