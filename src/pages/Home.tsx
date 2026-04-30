@@ -313,6 +313,40 @@ export default function HomePage() {
     setLoadingRecents(false);
   }, [user]);
 
+  // Load all active deals for the "Add Task" deal picker.
+  const loadActiveDeals = useCallback(async () => {
+    const { data } = await supabase.from("staffing_deals")
+      .select("id, deal_name, account, deal_status")
+      .in("deal_status", ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"])
+      .order("deal_name");
+    setAllActiveDeals((data || []).map((d: any) => ({ id: d.id, deal_name: d.deal_name, account: d.account })));
+  }, []);
+
+  // Create a new deal task from Home (two-way synced with the deal's Kanban).
+  const handleAddTaskSubmit = useCallback(async (data: any) => {
+    if (!addTaskDealId) { toast.error("Pick a deal first"); return; }
+    const { error } = await supabase.from("deal_tasks").insert({
+      deal_id: addTaskDealId,
+      title: data.title || "Untitled task",
+      description: data.description || "",
+      stage: data.stage || "To Do",
+      assignee: data.assignee || staffingName || displayName || "",
+      start_date: data.startDate || null,
+      end_date: data.endDate || null,
+      urgency: data.urgency || "Medium",
+      estimated_hours: data.estimatedHours || 0,
+      logged_hours: 0,
+      subtasks: data.subtasks || [],
+      auto_regen: !!data.autoRegen,
+      phase: "",
+    });
+    if (error) { toast.error(error.message); return; }
+    toast.success("Task added");
+    setAddingTask(false);
+    setAddTaskDealId("");
+    loadTasks();
+  }, [addTaskDealId, staffingName, displayName, loadTasks]);
+
   // Initial load - staggered
   useEffect(() => {
     if (!user) return;
