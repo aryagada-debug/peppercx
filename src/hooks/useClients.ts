@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface Client {
@@ -53,21 +54,30 @@ function dbToClient(row: any): Client {
   };
 }
 
-export function useClients() {
-  const [clients, setClients] = useState<Client[]>([]);
-  const [loading, setLoading] = useState(true);
+const CLIENTS_QUERY_KEY = ["clients"] as const;
 
-  useEffect(() => {
-    loadClients();
-  }, []);
-
-  async function loadClients() {
-    setLoading(true);
-    const { data, error } = await supabase.from("clients").select("*").order("name");
-    if (data) setClients(data.map(dbToClient));
-    if (error) console.error("Failed to load clients:", error);
-    setLoading(false);
+async function fetchClients(): Promise<Client[]> {
+  const { data, error } = await supabase.from("clients").select("*").order("name");
+  if (error) {
+    console.error("Failed to load clients:", error);
+    return [];
   }
+  return (data || []).map(dbToClient);
+}
+
+export function useClients() {
+  const qc = useQueryClient();
+  const { data: clients = [], isLoading: loading, refetch } = useQuery({
+    queryKey: CLIENTS_QUERY_KEY,
+    queryFn: fetchClients,
+  });
+
+  const setClients = useCallback(
+    (updater: (prev: Client[]) => Client[]) => {
+      qc.setQueryData<Client[]>(CLIENTS_QUERY_KEY, (prev) => updater(prev || []));
+    },
+    [qc],
+  );
 
   const addClient = useCallback(async (client: Omit<Client, "id">) => {
     const { data, error } = await supabase.from("clients").insert({
@@ -100,7 +110,7 @@ export function useClients() {
     }
     if (error) console.error("Failed to add client:", error);
     return null;
-  }, []);
+  }, [setClients]);
 
   const updateClient = useCallback(async (id: string, updates: Partial<Client>) => {
     const dbUpdates: any = {};
@@ -128,7 +138,7 @@ export function useClients() {
 
     setClients(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
     await supabase.from("clients").update(dbUpdates).eq("id", id);
-  }, []);
+  }, [setClients]);
 
   const deleteClient = useCallback(async (clientId: string) => {
     // First delete all deals associated with this client
@@ -160,7 +170,7 @@ export function useClients() {
     }
     setClients(prev => prev.filter(c => c.id !== clientId));
     return true;
-  }, []);
+  }, [setClients]);
 
   const deleteDeal = useCallback(async (dealId: string) => {
     await Promise.all([
@@ -181,5 +191,13 @@ export function useClients() {
     return true;
   }, []);
 
-  return { clients, loading, addClient, updateClient, deleteClient, deleteDeal, refresh: loadClients };
+  return {
+    clients,
+    loading,
+    addClient,
+    updateClient,
+    deleteClient,
+    deleteDeal,
+    refresh: () => refetch(),
+  };
 }
