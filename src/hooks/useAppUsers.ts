@@ -562,14 +562,6 @@ export function useBopmDirectory() {
  * `dealMatchesBopm` so the strict matcher can run its ambiguity guard.
  */
 export function useAllPersonNames(): string[] {
-  const { rows } = (function useRows() {
-    // Reuse the BOPM directory cache when warm; otherwise fall back to a
-    // direct subscription. We only need the names list which is a subset
-    // of staffing_people; piggy-back on bopmDirCache when present.
-    return bopmDirCache?.data || { rows: [] as BopmDirectoryRow[] };
-  })();
-  // Subscribe to the directory so the list updates if Settings changes.
-  const { allBopmUsers } = useBopmDirectory();
   const [extra, setExtra] = useState<string[]>([]);
   useEffect(() => {
     let cancelled = false;
@@ -584,14 +576,7 @@ export function useAllPersonNames(): string[] {
       });
     return () => { cancelled = true; };
   }, []);
-  // Merge: BOPM directory rows + the broader staffing_people roster.
-  return useMemo(() => {
-    const set = new Set<string>();
-    rows.forEach((r) => r.name && set.add(r.name));
-    allBopmUsers.forEach((r) => r.name && set.add(r.name));
-    extra.forEach((n) => n && set.add(n));
-    return Array.from(set);
-  }, [rows, allBopmUsers, extra]);
+  return useMemo(() => Array.from(new Set(extra)), [extra]);
 }
 
 // ----- Strict person matching for deal BOPM cells -----
