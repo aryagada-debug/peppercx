@@ -684,13 +684,23 @@ export default function HomePage() {
         {/* My Tasks — full-width Kanban (2-way synced with deal tasks) */}
         <Card id="my-tasks-card" className="rounded-xl">
           <CardHeader className="pb-3">
-            <CardTitle className="text-[15px] font-bold flex items-center gap-2">
-              <ListTodo className="h-4 w-4 text-primary" /> My Tasks
-              <Badge variant="secondary" className="ml-1 text-[10px]">{myKanbanTasks.length}</Badge>
-              <span className="ml-2 text-[10px] font-normal text-muted-foreground">
-                Synced with deal tasks · changes here update everywhere
-              </span>
-            </CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-[15px] font-bold flex items-center gap-2">
+                <ListTodo className="h-4 w-4 text-primary" /> My Tasks
+                <Badge variant="secondary" className="ml-1 text-[10px]">{myKanbanTasks.length}</Badge>
+                <span className="ml-2 text-[10px] font-normal text-muted-foreground">
+                  Synced with deal tasks · changes here update everywhere
+                </span>
+              </CardTitle>
+              <Button
+                size="sm"
+                onClick={() => { setAddTaskDealId(""); setAddingTask(true); }}
+                className="h-7 px-2 text-[12px]"
+                disabled={isReadOnly}
+              >
+                <Plus className="h-3.5 w-3.5 mr-1" /> Add Task
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {loadingTasks ? <SkeletonRows /> : myKanbanTasks.length === 0 ? (
