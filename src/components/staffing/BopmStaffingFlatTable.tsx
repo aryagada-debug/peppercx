@@ -354,31 +354,24 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
     return out;
   }, [deals, assignments, drafts]);
 
-  // Union of all role keys across visible deals
+  // Default columns = full role catalogue, top-down hierarchy from ROLE_SLOTS,
+  // plus any extra role keys we encounter on existing assignments (legacy).
   const allRoleKeys = useMemo(() => {
-    const set = new Set<string>();
-    dealRoleMap.forEach(byRole => byRole.forEach((_, k) => set.add(k)));
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
+    const ordered: string[] = ROLE_SLOTS.map(s => s.roleKey);
+    const seen = new Set(ordered);
+    dealRoleMap.forEach(byRole => byRole.forEach((_, k) => {
+      if (!seen.has(k)) { ordered.push(k); seen.add(k); }
+    }));
+    return ordered;
   }, [dealRoleMap]);
 
-  // Derive the dominant RoleCategory for each role column from the people
-  // currently staffed in it (so we can colour-group same-department columns).
+  // Each role column inherits its team/category directly from ROLE_SLOTS so the
+  // colour-grouped headers stay stable even when nobody is staffed yet.
   const roleCategory = useMemo(() => {
     const out = new Map<string, string>();
-    for (const rk of allRoleKeys) {
-      const counts = new Map<string, number>();
-      dealRoleMap.forEach(byRole => {
-        (byRole.get(rk) || []).forEach(e => {
-          const cat = allPersonById.get(e.personId)?.roleCategory || "Other";
-          counts.set(cat, (counts.get(cat) || 0) + 1);
-        });
-      });
-      let best = "Other"; let bestN = -1;
-      counts.forEach((n, c) => { if (n > bestN) { best = c; bestN = n; } });
-      out.set(rk, best);
-    }
+    for (const rk of allRoleKeys) out.set(rk, ROLE_CATEGORY_OF(rk));
     return out;
-  }, [allRoleKeys, dealRoleMap, allPersonById]);
+  }, [allRoleKeys]);
 
   // Group role columns by category. User-customised orders (teamOrder /
   // colOrderByTeam) win; new teams or new role keys fall back to defaults.
@@ -388,14 +381,17 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
       const c = roleCategory.get(rk) || "Other";
       (groups[c] ||= []).push(rk);
     }
-    // Apply per-team custom order, append any new keys at the end.
+    // Apply per-team custom order, append any new keys at the end (top-down
+    // by ROLE_SLOTS rank — head first, then juniors).
     const orderedGroups: Record<string, string[]> = {};
     for (const team of Object.keys(groups)) {
       const custom = colOrderByTeam[team] || [];
       const set = new Set(groups[team]);
       const ordered = custom.filter(k => set.has(k));
       const orderedSet = new Set(ordered);
-      const rest = groups[team].filter(k => !orderedSet.has(k)).sort((a, b) => a.localeCompare(b));
+      const rest = groups[team]
+        .filter(k => !orderedSet.has(k))
+        .sort((a, b) => ROLE_RANK(a) - ROLE_RANK(b));
       orderedGroups[team] = [...ordered, ...rest];
     }
 
