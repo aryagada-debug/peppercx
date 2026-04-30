@@ -172,7 +172,6 @@ function LegacyDashboard() {
         { id: "k1", label: "Active Deals", value: String(dealList.length), suffix: "deals" },
         { id: "k2", label: "Total MRR", value: formatINR(totalMRR) },
         { id: "k3", label: "Total Deal Value", value: formatINR(totalTCV) },
-        { id: "k4", label: "Attainment", value: `${attainment}%` },
       ]);
 
       // ---- Latest RGY per deal ----
