@@ -473,6 +473,18 @@ export function PeopleViewTab({
           />
         </div>
 
+        {enableBopmFilter && (
+          <div className="flex items-center gap-2">
+            <label className="text-caption text-muted-foreground">BOPM</label>
+            <BopmFilter
+              value={bopmFilter}
+              onChange={setBopmFilter}
+              scopedVsd={bopmFilterScopedVsd ?? undefined}
+              className="h-9 w-[200px] text-ui"
+            />
+          </div>
+        )}
+
         <button
           onClick={toggleAll}
           className="ml-auto h-9 px-3 rounded-lg border border-border text-ui text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
