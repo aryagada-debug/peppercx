@@ -3,7 +3,7 @@ import { Search, Plus, Trash2, RotateCcw, X, Send, Info, Columns3, Check, GripVe
 import { cn } from "@/lib/utils";
 import { formatINR } from "@/lib/csvTargets";
 import type { Deal, Person, StaffingAssignment, RoleCategory } from "@/data/staffingData";
-import { uid } from "@/data/staffingData";
+import { uid, ROLE_SLOTS, ROLE_TO_PEOPLE_FILTER } from "@/data/staffingData";
 import { submitStaffingBatch, type BatchItem } from "@/lib/approvals";
 import { AddStaffingMemberDialog } from "./AddStaffingMemberDialog";
 import {
@@ -32,6 +32,19 @@ const CATEGORY_STYLES: Record<string, { head: string; cell: string; dot: string;
   "Other":               { head: "bg-slate-100/80 text-slate-900 border-slate-200",      cell: "bg-slate-50/40",   dot: "bg-slate-500",   label: "Other" },
 };
 const styleFor = (cat?: string) => CATEGORY_STYLES[cat || "Other"] || CATEGORY_STYLES["Other"];
+
+// ── Hierarchy helpers (driven by ROLE_SLOTS order, which is top-down) ────
+const ROLE_SLOT_BY_KEY = new Map(ROLE_SLOTS.map((s, i) => [s.roleKey, { ...s, rank: i }]));
+const ROLE_LABEL = (rk: string) => ROLE_SLOT_BY_KEY.get(rk)?.roleLabel || rk;
+const ROLE_CATEGORY_OF = (rk: string): string => ROLE_SLOT_BY_KEY.get(rk)?.category || "Other";
+const ROLE_RANK = (rk: string): number => ROLE_SLOT_BY_KEY.get(rk)?.rank ?? 999;
+/** Names allowed in a column (matches Person.roleTitle to ROLE_TO_PEOPLE_FILTER). */
+function peopleForRole(rk: string, allPeople: Person[]): Person[] {
+  const titles = ROLE_TO_PEOPLE_FILTER[rk] || [];
+  if (titles.length === 0) return [];
+  const set = new Set(titles.map(t => t.toLowerCase()));
+  return allPeople.filter(p => !p.leaving && set.has((p.roleTitle || "").toLowerCase()));
+}
 
 // ── Sortable column header (drag-and-drop reorder within a team) ──────────
 function SortableColHeader({
@@ -341,31 +354,24 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
     return out;
   }, [deals, assignments, drafts]);
 
-  // Union of all role keys across visible deals
+  // Default columns = full role catalogue, top-down hierarchy from ROLE_SLOTS,
+  // plus any extra role keys we encounter on existing assignments (legacy).
   const allRoleKeys = useMemo(() => {
-    const set = new Set<string>();
-    dealRoleMap.forEach(byRole => byRole.forEach((_, k) => set.add(k)));
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
+    const ordered: string[] = ROLE_SLOTS.map(s => s.roleKey);
+    const seen = new Set(ordered);
+    dealRoleMap.forEach(byRole => byRole.forEach((_, k) => {
+      if (!seen.has(k)) { ordered.push(k); seen.add(k); }
+    }));
+    return ordered;
   }, [dealRoleMap]);
 
-  // Derive the dominant RoleCategory for each role column from the people
-  // currently staffed in it (so we can colour-group same-department columns).
+  // Each role column inherits its team/category directly from ROLE_SLOTS so the
+  // colour-grouped headers stay stable even when nobody is staffed yet.
   const roleCategory = useMemo(() => {
     const out = new Map<string, string>();
-    for (const rk of allRoleKeys) {
-      const counts = new Map<string, number>();
-      dealRoleMap.forEach(byRole => {
-        (byRole.get(rk) || []).forEach(e => {
-          const cat = allPersonById.get(e.personId)?.roleCategory || "Other";
-          counts.set(cat, (counts.get(cat) || 0) + 1);
-        });
-      });
-      let best = "Other"; let bestN = -1;
-      counts.forEach((n, c) => { if (n > bestN) { best = c; bestN = n; } });
-      out.set(rk, best);
-    }
+    for (const rk of allRoleKeys) out.set(rk, ROLE_CATEGORY_OF(rk));
     return out;
-  }, [allRoleKeys, dealRoleMap, allPersonById]);
+  }, [allRoleKeys]);
 
   // Group role columns by category. User-customised orders (teamOrder /
   // colOrderByTeam) win; new teams or new role keys fall back to defaults.
@@ -375,14 +381,17 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
       const c = roleCategory.get(rk) || "Other";
       (groups[c] ||= []).push(rk);
     }
-    // Apply per-team custom order, append any new keys at the end.
+    // Apply per-team custom order, append any new keys at the end (top-down
+    // by ROLE_SLOTS rank — head first, then juniors).
     const orderedGroups: Record<string, string[]> = {};
     for (const team of Object.keys(groups)) {
       const custom = colOrderByTeam[team] || [];
       const set = new Set(groups[team]);
       const ordered = custom.filter(k => set.has(k));
       const orderedSet = new Set(ordered);
-      const rest = groups[team].filter(k => !orderedSet.has(k)).sort((a, b) => a.localeCompare(b));
+      const rest = groups[team]
+        .filter(k => !orderedSet.has(k))
+        .sort((a, b) => ROLE_RANK(a) - ROLE_RANK(b));
       orderedGroups[team] = [...ordered, ...rest];
     }
 
@@ -499,9 +508,12 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
   // ── Render a single cell entry (one staffed person under a deal+role) ────
   const renderEntry = (deal: Deal, roleKey: string, e: CellEntry) => {
     const p = allPersonById.get(e.personId);
-    const teamCat = (p?.roleCategory || "Other") as RoleCategory;
-    const sameTeam = allPeople.filter(pp => pp.roleCategory === teamCat && !pp.leaving);
-    const others = allPeople.filter(pp => pp.roleCategory !== teamCat && !pp.leaving);
+    // Same column = same designation; restrict the person dropdown to that
+    // designation list. Everyone else (other roles/teams) stays available
+    // under "Other roles" so we never block legitimate edits.
+    const colMatches = peopleForRole(roleKey, allPeople);
+    const colMatchIds = new Set(colMatches.map(pp => pp.id));
+    const others = allPeople.filter(pp => !colMatchIds.has(pp.id) && !pp.leaving);
 
     const draftKey = e.assignmentId;
     const draftVal = allocDraft[draftKey];
@@ -513,7 +525,7 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
       <div
         key={e.assignmentId}
         className={cn(
-          "rounded-md border px-1.5 py-1 space-y-1 transition-colors",
+          "rounded-md border px-1 py-0.5 transition-colors",
           e.isMarkedRemove ? "bg-rose-50/70 border-rose-200" :
           e.isAdded ? "bg-emerald-50/70 border-emerald-200" :
           e.isUpdated ? "bg-amber-50/70 border-amber-200" :
@@ -535,14 +547,18 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
             title="Choose a different person"
           >
             <option value={e.personId}>{p?.name || "—"}{p?.tbh ? " (TBH)" : ""}</option>
-            <optgroup label={`Same team (${teamCat})`}>
-              {sameTeam.filter(pp => pp.id !== e.personId).slice(0, 80).map(pp => (
-                <option key={pp.id} value={pp.id}>{pp.name}{pp.tbh ? " (TBH)" : ""}</option>
-              ))}
-            </optgroup>
-            <optgroup label="Other teams">
-              {others.slice(0, 80).map(pp => (
-                <option key={pp.id} value={pp.id}>{pp.name} · {pp.roleCategory}</option>
+            {colMatches.length > 0 && (
+              <optgroup label={`${ROLE_LABEL(roleKey)} (${colMatches.length})`}>
+                {colMatches.filter(pp => pp.id !== e.personId).map(pp => (
+                  <option key={pp.id} value={pp.id}>
+                    {pp.name}{pp.tbh ? " (TBH)" : ""}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            <optgroup label="Other roles">
+              {others.slice(0, 120).map(pp => (
+                <option key={pp.id} value={pp.id}>{pp.name} · {pp.roleTitle}</option>
               ))}
             </optgroup>
           </select>
@@ -551,7 +567,7 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
               type="button"
               onClick={() => unstageUpdate(deal.id, e.assignmentId)}
               title="Revert edits"
-              className="h-6 w-6 inline-flex items-center justify-center rounded border border-border text-muted-foreground hover:bg-secondary/50"
+              className="h-6 w-5 inline-flex items-center justify-center rounded border border-border text-muted-foreground hover:bg-secondary/50"
             ><RotateCcw className="h-3 w-3" /></button>
           )}
           {e.isMarkedRemove ? (
@@ -566,32 +582,30 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
               type="button"
               onClick={() => stageRemove(deal.id, e.assignmentId)}
               title={e.isAdded ? "Remove from this request" : "Mark for removal"}
-              className="h-6 w-6 inline-flex items-center justify-center rounded border border-border text-muted-foreground hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200"
+              className="h-6 w-5 inline-flex items-center justify-center rounded border border-border text-muted-foreground hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200"
             ><Trash2 className="h-3 w-3" /></button>
           )}
         </div>
-        <div className="flex items-center justify-between gap-1">
-          <div className="flex items-center gap-0.5">
-            <input
-              type="number"
-              min={0}
-              max={100}
-              step={1}
-              disabled={e.isMarkedRemove}
-              value={allocVal}
-              onChange={ev => setAllocDraft(prev => ({ ...prev, [draftKey]: ev.target.value }))}
-              onBlur={() => {
-                const n = Math.max(0, Math.min(100, Number(allocVal)));
-                if (Number.isFinite(n) && n !== e.allocationPct) {
-                  stageUpdate(deal.id, e.assignmentId, { allocationPct: n });
-                }
-                setAllocDraft(prev => { const next = { ...prev }; delete next[draftKey]; return next; });
-              }}
-              className="h-6 w-12 px-1 rounded border border-border bg-background text-right font-mono text-[11px] disabled:opacity-50"
-            />
-            <span className="text-[10px] text-muted-foreground">%</span>
-          </div>
-          <span className="font-mono text-[10px] text-muted-foreground">{hrs.toFixed(1)}h/wk</span>
+        <div className="flex items-center gap-1 mt-0.5 pl-0.5">
+          <input
+            type="number"
+            min={0}
+            max={100}
+            step={1}
+            disabled={e.isMarkedRemove}
+            value={allocVal}
+            onChange={ev => setAllocDraft(prev => ({ ...prev, [draftKey]: ev.target.value }))}
+            onBlur={() => {
+              const n = Math.max(0, Math.min(100, Number(allocVal)));
+              if (Number.isFinite(n) && n !== e.allocationPct) {
+                stageUpdate(deal.id, e.assignmentId, { allocationPct: n });
+              }
+              setAllocDraft(prev => { const next = { ...prev }; delete next[draftKey]; return next; });
+            }}
+            className="h-5 w-9 px-1 rounded border border-border bg-background text-right font-mono text-[10px] disabled:opacity-50"
+          />
+          <span className="text-[9px] text-muted-foreground">%</span>
+          <span className="ml-auto font-mono text-[9px] text-muted-foreground">{hrs.toFixed(1)}h/wk</span>
         </div>
       </div>
     );
@@ -785,6 +799,40 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
                       const cat = roleCategory.get(rk) || "Other";
                       const s = styleFor(cat);
                       const w = colWidths[rk] ?? 200;
+                      // Determine "manager" filter for this column on this deal:
+                      // if a more-senior person from the same team is already
+                      // staffed, restrict the picker to that manager's reports
+                      // (plus the manager themselves). The column's own role
+                      // hierarchy rank is the cutoff.
+                      const colRank = ROLE_RANK(rk);
+                      const sameTeamEntries: { person: Person; rank: number }[] = [];
+                      byRole.forEach((arr, otherRk) => {
+                        if (ROLE_CATEGORY_OF(otherRk) !== cat) return;
+                        const r = ROLE_RANK(otherRk);
+                        arr.forEach(en => {
+                          if (en.isMarkedRemove) return;
+                          const pp = allPersonById.get(en.personId);
+                          if (pp) sameTeamEntries.push({ person: pp, rank: r });
+                        });
+                      });
+                      // The "manager" is the most senior staffed person in the
+                      // team whose rank is strictly more senior than the
+                      // column's own role. Falls back to roleTitle/designation
+                      // if a senior team member is staffed elsewhere.
+                      const manager = sameTeamEntries
+                        .filter(x => x.rank < colRank)
+                        .sort((a, b) => a.rank - b.rank)[0]?.person;
+                      const candidates = peopleForRole(rk, allPeople);
+                      const filtered = manager
+                        ? candidates.filter(pp =>
+                            (pp.reportingManager || "").toLowerCase() === manager.name.toLowerCase()
+                              || pp.id === manager.id
+                          )
+                        : candidates;
+                      // Exclude people already staffed on this deal in this role.
+                      const usedIds = new Set(entries.filter(x => !x.isMarkedRemove).map(x => x.personId));
+                      const pickerOptions = filtered.filter(pp => !usedIds.has(pp.id));
+                      const pickerKey = `picker:${d.id}:${rk}`;
                       return (
                         <td
                           key={rk}
@@ -793,12 +841,45 @@ export function BopmStaffingFlatTable({ deals, people, allPeople, assignments }:
                         >
                           <div className="space-y-1">
                             {entries.map(e => renderEntry(d, rk, e))}
-                            <button
-                              type="button"
-                              onClick={() => setAddForDeal(d.id)}
-                              className="h-6 w-full inline-flex items-center justify-center gap-1 rounded border border-dashed border-border/60 text-[10px] text-muted-foreground/80 hover:bg-secondary/30 hover:text-foreground"
-                              title={`Add another person to ${rk}`}
-                            ><Plus className="h-3 w-3" />{entries.length === 0 ? "Add" : ""}</button>
+                            <select
+                              key={pickerKey}
+                              value=""
+                              onChange={ev => {
+                                const personId = ev.target.value;
+                                if (!personId) return;
+                                stageAdd(d.id, {
+                                  id: uid(),
+                                  dealId: d.id,
+                                  roleKey: rk,
+                                  personId,
+                                  allocationPct: 10,
+                                });
+                                ev.target.value = "";
+                              }}
+                              className="h-6 w-full px-1 rounded border border-dashed border-border/60 bg-background/60 text-[10px] text-muted-foreground hover:text-foreground hover:bg-background disabled:opacity-50"
+                              disabled={pickerOptions.length === 0}
+                              title={
+                                manager
+                                  ? `Add ${ROLE_LABEL(rk)} reporting to ${manager.name}`
+                                  : `Add ${ROLE_LABEL(rk)}`
+                              }
+                            >
+                              <option value="">
+                                {pickerOptions.length === 0
+                                  ? (manager
+                                      ? `No reports under ${manager.name}`
+                                      : `No ${ROLE_LABEL(rk)} available`)
+                                  : (manager
+                                      ? `+ Add (under ${manager.name.split(" ")[0]})`
+                                      : `+ Add ${ROLE_LABEL(rk)}`)
+                                }
+                              </option>
+                              {pickerOptions.map(pp => (
+                                <option key={pp.id} value={pp.id}>
+                                  {pp.name}{pp.tbh ? " (TBH)" : ""}
+                                </option>
+                              ))}
+                            </select>
                           </div>
                         </td>
                       );
