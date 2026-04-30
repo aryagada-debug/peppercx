@@ -1,38 +1,62 @@
-I’ll fix this in the staffing access path, not just in display filters.
+I audited the current Staffing & Capacity implementation and the live data for Shreshtha. The core issue is that some Staffing/Capacity calculations still use assignment rows and local component filters in ways that can drift from the canonical deal access rules. I will make the Staffing page use one shared, strict scoped dataset across deal view, people/capacity view, and table view.
 
-Planned changes:
+Findings from the audit:
 
-1. Tighten BOPM visibility in `useDealAccess.ts`
-   - For role `BOPM` (`user`), visible deals will be computed only from the deal sheet BOPM fields:
-     - `principal_bopm`
-     - `senior_bopm`
-     - `bopm`
-   - It will not use `staffing_assignments` for visibility, so stale/ghost staffed rows cannot leak deals.
-   - I’ll add an active-deal guard for BOPM staffing scope so Shreshtha’s staffing/capacity surface reflects only active tagged deals.
-   - I’ll strengthen matching to reject blank BOPM/VSD fields and avoid fuzzy matches that can accidentally include blank/incorrectly tagged deals.
+- Shreshtha Pathak is mapped to staffing person `P543` and has exactly 7 active tagged deals in the deal sheet.
+- There are legacy `staffing_assignments` rows for Shreshtha on completed deals where the VSD/BOPM fields do not match her; these rows must never grant BOPM visibility.
+- `useDealAccess` is already mostly strict, but Staffing components still apply BOPM filters with incomplete identity context and some table/capacity summary calculations are not fully synced to the filtered deal set.
+- The VSD BOPM filter exists in some Staffing components, but it is not consistently rendered in the same way as Clients & Deals, especially for the Capacity/People view and the Staffing table header.
 
-2. Fix Shreshtha-specific mismatch behavior
-   - I verified Shreshtha is mapped to person `P543` and has exactly 7 active deals where `principal_bopm = Shreshtha Pathak` in the current data.
-   - There are also stale assignment rows for Shreshtha on completed deals where she is not marked as principal/senior/BOPM. Those must not drive BOPM visibility.
-   - I’ll ensure the Staffing table, capacity/people view, and change-request list all consume the corrected active tagged deal set.
+Plan:
 
-3. Add the VSD BOPM filter to Staffing & Capacity consistently
-   - In `src/pages/Staffing.tsx`, resolve the current VSD’s canonical name, same as Clients & Deals.
-   - Pass that VSD scope into:
-     - `DealViewTab`
-     - `PeopleViewTab` / Capacity view
-     - `BopmStaffingFlatTable` / Staffing table
-   - This makes the dropdown options come from Settings → People reporting hierarchy, showing only Principal/Senior BOPMs under that VSD.
+1. Create one shared strict BOPM matching path
+  - Update `dealMatchesBopm` so it can use the full Settings -> People name registry instead of passing an empty registry.
+  - This will keep exact matches working, allow unambiguous initials like `Shreshtha P`, and block ambiguous/blank matches.
+  - Use the same helper everywhere: Clients & Deals, Staffing deal view, Capacity/People view, and Staffing table.
+2. Make BOPM view in Staffing rely only on tagged active deals
+  - In `Staffing.tsx`, keep BOPM visibility strictly based on `visibleDealIds` from `useDealAccess` plus active deal statuses.
+  - Filter assignments only after the final active visible deal set is created.
+  - Ensure Shreshtha’s Staffing table uses the same final active deal list as the header count, so it should show 7 active deals and no deals with blank/mismatched VSD/Principal/Senior BOPM fields.
+3. Sync Staffing and Capacity filtering
+  - In `PeopleViewTab` (Capacity), apply the BOPM-selected deal set before deriving:
+    - assignments
+    - visible people
+    - person utilisation
+    - active deal counts
+    - bucket counts
+  - In `BopmStaffingFlatTable` (Staffing), make the top stats and “add person to deal” list use the BOPM-filtered deal universe, not the unfiltered input deals.
+  - In `DealViewTab`, apply the same strict BOPM matcher and include all relevant dependencies so filter state updates correctly.
+4. Add the VSD BOPM filter consistently
+  - For VSD view, render the BOPM filter in:
+    - Deal view
+    - Capacity / People view
+    - Staffing table view
+  - Source options only from Settings -> Users / People hierarchy through `useBopmDirectory`, scoped to the logged-in VSD’s reporting chain.
+  - Keep role-placeholder labels out of the dropdown, e.g. “Principal SEO Lead - Mumbai” must not appear.
+5. Fix admin “view as VSD” edge case
+  - If an admin uses the role switcher to view as VSD but there is no real VSD person mapped to that login, show the BOPM filter with all real Principal/Senior BOPMs instead of hiding it.
+  - If a real VSD is logged in, scope the dropdown to that VSD only.
+6. Verification/audit after implementation
+  - Re-run data checks for Shreshtha:
+    - active tagged deal count = 7
+    - no active visible deals with blank VSD and blank Principal/Senior BOPM fields
+    - legacy assignment-only completed deals do not appear in BOPM Staffing view
+  - Inspect/verify the `/staffing` UI paths:
+    - BOPM view table count and rows align
+    - VSD Deal view has BOPM filter
+    - VSD Capacity/People view has BOPM filter
+    - VSD Staffing table has BOPM filter
+  - Search the code for any remaining Staffing/Capacity BOPM filtering paths that bypass the strict helper.
 
-4. Make BOPM filtering use strict identity matching
-   - Update `dealMatchesBopm` so it uses the same strict registered-person matcher as access control, rather than simple normalized equality.
-   - This will handle cases like `Shreshtha P` vs `Shreshtha Pathak` safely while still preventing ambiguous matches.
+Files expected to change:
 
-5. Clean up stale comments and data flow
-   - Update misleading comments in `Staffing.tsx` that still describe older VSD/BOPM expansion behavior.
-   - Ensure `scopedAssignments`, displayed counts, and capacity metrics are derived from the same scoped deal IDs.
+- `src/components/access/BopmFilter.tsx`
+- `src/pages/Staffing.tsx`
+- `src/components/staffing/DealViewTab.tsx`
+- `src/components/staffing/PeopleViewTab.tsx`
+- `src/components/staffing/BopmStaffingFlatTable.tsx`
+- Possibly `src/hooks/useAppUsers.ts` only if a small exported helper is needed for the shared name registry.
 
-Expected result:
-- Shreshtha’s BOPM staffing view should show only her 7 active tagged deals.
-- Deals with blank VSD + blank Principal/Senior BOPM will not appear in her BOPM staffing view.
-- VSD Staffing and Capacity views will have the same hierarchy-based BOPM filter behavior as Clients & Deals.
+No database migration is expected; this is an application logic/scoping fix.  
+  
+Do this so that all BOPMs accounts are accurate and there are no leaks
