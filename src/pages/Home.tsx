@@ -1079,6 +1079,10 @@ export default function HomePage() {
           defaultAssignee={staffingName || displayName || ""}
         />
       )}
+      {/* Slack chat bot — floating bubble, mirrors Deal Detail. Defaults to user's first deal. */}
+      {myDeals.length > 0 && (
+        <SlackChatBot dealId={myDeals[0].id} dealName={myDeals[0].deal_name || myDeals[0].account || "Deal"} />
+      )}
     </AppLayout>
   );
 }
