@@ -4,40 +4,6 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { useUserRole } from "@/hooks/useUserRole";
 import { dealCellMatchesPerson } from "@/hooks/useAppUsers";
 
-/** Fuzzy name comparison: lowercase + collapse whitespace + strip punctuation. */
-function nameTokens(s: string | null | undefined): string[] {
-  return (s || "")
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[^a-z\s]/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .split(" ")
-    .filter(Boolean);
-}
-
-/**
- * Returns true if `dealName` (e.g. "Anisha J") refers to `personName`
- * (e.g. "Anisha Jaisinghani") — token-based match so shortened cells in
- * deal sheets still resolve to the correct person.
- */
-function nameMatchesPerson(dealName: string | null | undefined, personName: string | null | undefined): boolean {
-  const a = nameTokens(dealName);
-  const b = nameTokens(personName);
-  if (a.length === 0 || b.length === 0) return false;
-  if (a.join(" ") === b.join(" ")) return true;
-  // First name must match exactly.
-  if (a[0] !== b[0]) return false;
-  // Each remaining token in the deal cell must be a prefix of some token in
-  // the person name (so "J" matches "Jaisinghani", "Jais" matches too).
-  for (let i = 1; i < a.length; i++) {
-    const t = a[i];
-    const ok = b.some((bt) => bt.startsWith(t) || t.startsWith(bt));
-    if (!ok) return false;
-  }
-  return true;
-}
-
 interface DealAccessState {
   loading: boolean;
   isAdmin: boolean;
