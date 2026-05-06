@@ -1454,6 +1454,8 @@ export default function RGYHealth() {
               issues={rgyIssues}
               activeVsd={activeVsd}
               isBopm={isBopmPersona}
+              isVsd={isVsdPersona}
+              myVsdName={myVsdName}
             />
           </TabsContent>
         </Tabs>
