@@ -182,7 +182,7 @@ function peopleForRole(rk: string, allPeople: Person[]): Person[] {
 
 // ── Styled person picker (replaces the bare native <select>) ──────────────
 function PersonPickerPopover({
-  currentId, candidates, disabled, triggerLabel, triggerClassName,
+  currentId, candidates, candidateGroups, managerName, disabled, triggerLabel, triggerClassName,
   emptyLabel = "No people available",
   placeholder = "Search…",
   onSelect,
@@ -192,7 +192,12 @@ function PersonPickerPopover({
   deals,
 }: {
   currentId?: string;
-  candidates: Person[];
+  /** Flat list — used when caller hasn't supplied groups. */
+  candidates?: Person[];
+  /** Pre-tiered candidate groups; takes precedence over `candidates` when present. */
+  candidateGroups?: PersonGroups;
+  /** Optional senior teammate; if provided, their direct reports float to the top of each group. */
+  managerName?: string;
   disabled?: boolean;
   triggerLabel: React.ReactNode;
   triggerClassName?: string;
@@ -223,14 +228,114 @@ function PersonPickerPopover({
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const filtered = useMemo(() => {
+  const [showOther, setShowOther] = useState(false);
+
+  // Sort each tier so direct reports of `managerName` come first.
+  const sortByManager = useCallback((arr: Person[]) => {
+    if (!managerName) return arr.slice();
+    const mn = managerName.toLowerCase();
+    return arr.slice().sort((a, b) => {
+      const am = ((a as any).reportingManager || "").toLowerCase() === mn ? 0 : 1;
+      const bm = ((b as any).reportingManager || "").toLowerCase() === mn ? 0 : 1;
+      return am - bm;
+    });
+  }, [managerName]);
+
+  const groups = useMemo<PersonGroups>(() => {
+    if (candidateGroups) return candidateGroups;
+    return { exact: candidates || [], family: [], other: [] };
+  }, [candidateGroups, candidates]);
+
+  const filteredGroups = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    if (!needle) return candidates;
-    return candidates.filter(p =>
+    const matchOne = (p: Person) =>
+      !needle ||
       (p.name || "").toLowerCase().includes(needle) ||
-      (p.roleTitle || "").toLowerCase().includes(needle)
+      (p.roleTitle || "").toLowerCase().includes(needle) ||
+      ((p as any).designation || "").toLowerCase().includes(needle);
+    return {
+      exact: sortByManager(groups.exact.filter(matchOne)),
+      family: sortByManager(groups.family.filter(matchOne)),
+      other: sortByManager(groups.other.filter(matchOne)),
+    };
+  }, [q, groups, sortByManager]);
+
+  const totalCount = filteredGroups.exact.length + filteredGroups.family.length + filteredGroups.other.length;
+
+  const renderRow = (pp: Person) => {
+    const u = utilByPerson.get(pp.id) || { total: 0, items: [] };
+    const free = Math.max(0, 100 - u.total);
+    const utilColor =
+      u.total > 100 ? "text-rose-600"
+      : u.total >= 80 ? "text-amber-600"
+      : "text-emerald-600";
+    const isExpanded = expandedId === pp.id;
+    return (
+      <div
+        key={pp.id}
+        className={cn(
+          "rounded-md mb-0.5 border border-transparent",
+          pp.id === currentId && "bg-primary/5"
+        )}
+      >
+        <div className="flex items-center gap-1.5 px-1.5 py-1.5">
+          <Check className={cn("h-3 w-3 flex-shrink-0", pp.id === currentId ? "text-primary" : "opacity-0")} />
+          <button
+            type="button"
+            onClick={() => { onSelect(pp.id); setOpen(false); setQ(""); }}
+            className="flex-1 min-w-0 text-left"
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-medium text-foreground truncate">{pp.name}</span>
+              {pp.tbh && <span className="text-[9px] text-amber-700 border border-amber-300 rounded px-1">TBH</span>}
+              {pp.leaving && <span className="text-[9px] text-rose-700 border border-rose-300 rounded px-1">Leaving</span>}
+            </div>
+            <div className="text-[10px] text-muted-foreground truncate">
+              {[pp.roleTitle, (pp as any).designation, (pp as any).pod, pp.region].filter(Boolean).join(" · ")}
+            </div>
+          </button>
+          <div className="text-right shrink-0 leading-tight">
+            <div className={cn("text-[10.5px] font-mono font-medium", utilColor)}>{u.total}%</div>
+            <div className="text-[9px] text-muted-foreground">{u.items.length} deal{u.items.length !== 1 ? "s" : ""} · {free}% free</div>
+          </div>
+          {assignments && (
+            <button
+              type="button"
+              onClick={(ev) => { ev.stopPropagation(); setExpandedId(isExpanded ? null : pp.id); }}
+              className="p-0.5 text-muted-foreground hover:text-foreground"
+              title="Show engagements"
+            >
+              <ChevronDown className={cn("h-3 w-3 transition-transform", isExpanded && "rotate-180")} />
+            </button>
+          )}
+        </div>
+        {isExpanded && (
+          <div className="px-2 pb-2 -mt-0.5 space-y-0.5 border-t border-border/40 bg-secondary/20">
+            {u.items.length === 0 ? (
+              <div className="text-[10px] text-muted-foreground py-1.5">No current assignments — fully available.</div>
+            ) : u.items.map((it, idx) => (
+              <div key={idx} className="flex items-center justify-between gap-2 pt-1">
+                <div className="min-w-0 flex-1">
+                  <div className="text-[10.5px] text-foreground truncate">{it.dealName}</div>
+                  <div className="text-[9px] text-muted-foreground truncate">{it.roleKey}</div>
+                </div>
+                <span className="text-[10px] font-mono text-foreground">{it.allocationPct}%</span>
+                <span className="text-[9px] font-mono text-muted-foreground">{(it.allocationPct/100*40).toFixed(1)}h/wk</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     );
-  }, [q, candidates]);
+  };
+
+  const SectionHeader = ({ label, count }: { label: string; count: number }) =>
+    count === 0 ? null : (
+      <div className="px-2 pt-1.5 pb-0.5 text-[9px] uppercase tracking-wider text-muted-foreground font-medium">
+        {label} <span className="opacity-60">· {count}</span>
+      </div>
+    );
+
   return (
     <Popover open={open} onOpenChange={(v) => { setOpen(v); if (!v) setQ(""); }}>
       <PopoverTrigger asChild>
@@ -256,75 +361,28 @@ function PersonPickerPopover({
           />
         </div>
         <div className="max-h-80 overflow-y-auto">
-          {filtered.length === 0 ? (
+          {totalCount === 0 ? (
             <div className="px-2 py-3 text-center text-[11px] text-muted-foreground">{emptyLabel}</div>
           ) : (
-            filtered.map(pp => {
-              const u = utilByPerson.get(pp.id) || { total: 0, items: [] };
-              const free = Math.max(0, 100 - u.total);
-              const utilColor =
-                u.total > 100 ? "text-rose-600"
-                : u.total >= 80 ? "text-amber-600"
-                : "text-emerald-600";
-              const isExpanded = expandedId === pp.id;
-              return (
-                <div
-                  key={pp.id}
-                  className={cn(
-                    "rounded-md mb-0.5 border border-transparent",
-                    pp.id === currentId && "bg-primary/5"
-                  )}
-                >
-                  <div className="flex items-center gap-1.5 px-1.5 py-1.5">
-                    <Check className={cn("h-3 w-3 flex-shrink-0", pp.id === currentId ? "text-primary" : "opacity-0")} />
-                    <button
-                      type="button"
-                      onClick={() => { onSelect(pp.id); setOpen(false); setQ(""); }}
-                      className="flex-1 min-w-0 text-left"
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[11px] font-medium text-foreground truncate">{pp.name}</span>
-                        {pp.tbh && <span className="text-[9px] text-amber-700 border border-amber-300 rounded px-1">TBH</span>}
-                        {pp.leaving && <span className="text-[9px] text-rose-700 border border-rose-300 rounded px-1">Leaving</span>}
-                      </div>
-                      <div className="text-[10px] text-muted-foreground truncate">
-                        {[pp.roleTitle, (pp as any).pod, pp.region].filter(Boolean).join(" · ")}
-                      </div>
-                    </button>
-                    <div className="text-right shrink-0 leading-tight">
-                      <div className={cn("text-[10.5px] font-mono font-medium", utilColor)}>{u.total}%</div>
-                      <div className="text-[9px] text-muted-foreground">{u.items.length} deal{u.items.length !== 1 ? "s" : ""} · {free}% free</div>
-                    </div>
-                    {assignments && (
-                      <button
-                        type="button"
-                        onClick={(ev) => { ev.stopPropagation(); setExpandedId(isExpanded ? null : pp.id); }}
-                        className="p-0.5 text-muted-foreground hover:text-foreground"
-                        title="Show engagements"
-                      >
-                        <ChevronDown className={cn("h-3 w-3 transition-transform", isExpanded && "rotate-180")} />
-                      </button>
-                    )}
-                  </div>
-                  {isExpanded && (
-                    <div className="px-2 pb-2 -mt-0.5 space-y-0.5 border-t border-border/40 bg-secondary/20">
-                      {u.items.length === 0 ? (
-                        <div className="text-[10px] text-muted-foreground py-1.5">No current assignments — fully available.</div>
-                      ) : u.items.map((it, idx) => (
-                        <div key={idx} className="flex items-center justify-between gap-2 pt-1">
-                          <div className="min-w-0 flex-1">
-                            <div className="text-[10.5px] text-foreground truncate">{it.dealName}</div>
-                            <div className="text-[9px] text-muted-foreground truncate">{it.roleKey}</div>
-                          </div>
-                          <span className="text-[10px] font-mono text-foreground">{it.allocationPct}%</span>
-                          <span className="text-[9px] font-mono text-muted-foreground">{(it.allocationPct/100*40).toFixed(1)}h/wk</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })
+            <>
+              <SectionHeader label="Best match" count={filteredGroups.exact.length} />
+              {filteredGroups.exact.map(renderRow)}
+              <SectionHeader label="Same role family" count={filteredGroups.family.length} />
+              {filteredGroups.family.map(renderRow)}
+              {filteredGroups.other.length > 0 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setShowOther(v => !v)}
+                    className="w-full text-left px-2 pt-1.5 pb-0.5 text-[9px] uppercase tracking-wider text-muted-foreground font-medium hover:text-foreground flex items-center gap-1"
+                  >
+                    <ChevronDown className={cn("h-3 w-3 transition-transform", showOther && "rotate-180")} />
+                    Other team members <span className="opacity-60">· {filteredGroups.other.length}</span>
+                  </button>
+                  {showOther && filteredGroups.other.map(renderRow)}
+                </>
+              )}
+            </>
           )}
         </div>
         {footer && (
