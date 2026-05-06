@@ -58,6 +58,8 @@ function PersonPickerPopover({
   onSelect,
   align = "start",
   footer,
+  assignments,
+  deals,
 }: {
   currentId?: string;
   candidates: Person[];
@@ -69,9 +71,28 @@ function PersonPickerPopover({
   onSelect: (personId: string) => void;
   align?: "start" | "center" | "end";
   footer?: (close: () => void) => React.ReactNode;
+  assignments?: StaffingAssignment[];
+  deals?: Deal[];
 }) {
+  const utilByPerson = useMemo(() => {
+    const m = new Map<string, { total: number; items: { dealId: string; dealName: string; allocationPct: number; roleKey: string }[] }>();
+    if (!assignments) return m;
+    const dealName = (id: string) => {
+      const d = deals?.find(x => x.id === id);
+      return d ? `${d.account} — ${d.dealName}` : id;
+    };
+    for (const a of assignments) {
+      if (isAssignmentExpired(a)) continue;
+      const cur = m.get(a.personId) || { total: 0, items: [] };
+      cur.total += a.allocationPct || 0;
+      cur.items.push({ dealId: a.dealId, dealName: dealName(a.dealId), allocationPct: a.allocationPct || 0, roleKey: a.roleKey });
+      m.set(a.personId, cur);
+    }
+    return m;
+  }, [assignments, deals]);
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     if (!needle) return candidates;
@@ -93,7 +114,7 @@ function PersonPickerPopover({
           <ChevronDown className="h-3 w-3 opacity-0 group-hover/picker:opacity-60 flex-shrink-0" />
         </button>
       </PopoverTrigger>
-      <PopoverContent align={align} className="w-64 p-1.5">
+      <PopoverContent align={align} className="w-80 p-1.5">
         <div className="relative mb-1">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
           <input
@@ -104,30 +125,76 @@ function PersonPickerPopover({
             className="w-full h-7 pl-7 pr-2 rounded-md border border-border bg-background text-[11px] focus:outline-none focus:ring-1 focus:ring-primary/40"
           />
         </div>
-        <div className="max-h-60 overflow-y-auto">
+        <div className="max-h-80 overflow-y-auto">
           {filtered.length === 0 ? (
             <div className="px-2 py-3 text-center text-[11px] text-muted-foreground">{emptyLabel}</div>
           ) : (
-            filtered.map(pp => (
-              <button
-                key={pp.id}
-                type="button"
-                onClick={() => { onSelect(pp.id); setOpen(false); setQ(""); }}
-                className={cn(
-                  "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-[11px] hover:bg-secondary transition-colors",
-                  pp.id === currentId && "bg-primary/5"
-                )}
-              >
-                <Check className={cn("h-3 w-3 flex-shrink-0", pp.id === currentId ? "text-primary" : "opacity-0")} />
-                <span className="flex-1 min-w-0 truncate font-medium text-foreground">
-                  {pp.name}
-                  {pp.tbh && <span className="ml-1 text-[9px] text-muted-foreground font-normal">(TBH)</span>}
-                </span>
-                {pp.roleTitle && (
-                  <span className="text-[10px] text-muted-foreground truncate max-w-[90px]">{pp.roleTitle}</span>
-                )}
-              </button>
-            ))
+            filtered.map(pp => {
+              const u = utilByPerson.get(pp.id) || { total: 0, items: [] };
+              const free = Math.max(0, 100 - u.total);
+              const utilColor =
+                u.total > 100 ? "text-rose-600"
+                : u.total >= 80 ? "text-amber-600"
+                : "text-emerald-600";
+              const isExpanded = expandedId === pp.id;
+              return (
+                <div
+                  key={pp.id}
+                  className={cn(
+                    "rounded-md mb-0.5 border border-transparent",
+                    pp.id === currentId && "bg-primary/5"
+                  )}
+                >
+                  <div className="flex items-center gap-1.5 px-1.5 py-1.5">
+                    <Check className={cn("h-3 w-3 flex-shrink-0", pp.id === currentId ? "text-primary" : "opacity-0")} />
+                    <button
+                      type="button"
+                      onClick={() => { onSelect(pp.id); setOpen(false); setQ(""); }}
+                      className="flex-1 min-w-0 text-left"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] font-medium text-foreground truncate">{pp.name}</span>
+                        {pp.tbh && <span className="text-[9px] text-amber-700 border border-amber-300 rounded px-1">TBH</span>}
+                        {pp.leaving && <span className="text-[9px] text-rose-700 border border-rose-300 rounded px-1">Leaving</span>}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground truncate">
+                        {[pp.roleTitle, (pp as any).pod, pp.region].filter(Boolean).join(" · ")}
+                      </div>
+                    </button>
+                    <div className="text-right shrink-0 leading-tight">
+                      <div className={cn("text-[10.5px] font-mono font-medium", utilColor)}>{u.total}%</div>
+                      <div className="text-[9px] text-muted-foreground">{u.items.length} deal{u.items.length !== 1 ? "s" : ""} · {free}% free</div>
+                    </div>
+                    {assignments && (
+                      <button
+                        type="button"
+                        onClick={(ev) => { ev.stopPropagation(); setExpandedId(isExpanded ? null : pp.id); }}
+                        className="p-0.5 text-muted-foreground hover:text-foreground"
+                        title="Show engagements"
+                      >
+                        <ChevronDown className={cn("h-3 w-3 transition-transform", isExpanded && "rotate-180")} />
+                      </button>
+                    )}
+                  </div>
+                  {isExpanded && (
+                    <div className="px-2 pb-2 -mt-0.5 space-y-0.5 border-t border-border/40 bg-secondary/20">
+                      {u.items.length === 0 ? (
+                        <div className="text-[10px] text-muted-foreground py-1.5">No current assignments — fully available.</div>
+                      ) : u.items.map((it, idx) => (
+                        <div key={idx} className="flex items-center justify-between gap-2 pt-1">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[10.5px] text-foreground truncate">{it.dealName}</div>
+                            <div className="text-[9px] text-muted-foreground truncate">{it.roleKey}</div>
+                          </div>
+                          <span className="text-[10px] font-mono text-foreground">{it.allocationPct}%</span>
+                          <span className="text-[9px] font-mono text-muted-foreground">{(it.allocationPct/100*40).toFixed(1)}h/wk</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })
           )}
         </div>
         {footer && (
@@ -796,6 +863,8 @@ export function BopmStaffingFlatTable({
             <PersonPickerPopover
               currentId={e.personId}
               candidates={colMatches}
+              assignments={assignments}
+              deals={deals}
               disabled={!!e.isMarkedRemove}
               triggerClassName={cn(
                 "w-full inline-flex items-center justify-between gap-1 px-1 py-0.5 rounded-sm text-[11px] font-medium text-foreground hover:bg-foreground/5 hover:ring-1 hover:ring-border transition-colors",
@@ -1092,6 +1161,8 @@ export function BopmStaffingFlatTable({
                             <PersonPickerPopover
                               key={pickerKey}
                               candidates={pickerOptions}
+                              assignments={assignments}
+                              deals={deals}
                               disabled={pickerOptions.length === 0}
                               triggerClassName={cn(
                                 "w-full flex items-center justify-between gap-1 px-1.5 py-1 text-[10.5px] italic rounded-md border border-dashed transition-colors",
