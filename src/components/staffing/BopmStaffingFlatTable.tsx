@@ -808,24 +808,6 @@ export function BopmStaffingFlatTable({
                   stageUpdate(deal.id, e.assignmentId, { personId });
                 }
               }}
-              footer={(close) => (
-                <button
-                  type="button"
-                  onClick={() => {
-                    close();
-                    setEditEntry({
-                      dealId: deal.id,
-                      assignmentId: e.assignmentId,
-                      roleKey,
-                      category: cat,
-                      allocationPct: e.allocationPct,
-                    });
-                  }}
-                  className="w-full px-2 py-1.5 text-left text-[11px] text-primary hover:bg-secondary rounded-md"
-                >
-                  Edit dates & engagement…
-                </button>
-              )}
             />
           </div>
           {/* % allocation inline */}
@@ -1135,18 +1117,6 @@ export function BopmStaffingFlatTable({
                                   endDate: d.endDate,
                                 } as StaffingAssignment);
                               }}
-                              footer={(close) => (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    close();
-                                    setAddCell({ dealId: d.id, roleKey: rk, category: cat });
-                                  }}
-                                  className="w-full px-2 py-1.5 text-left text-[11px] text-primary hover:bg-secondary rounded-md"
-                                >
-                                  More options (dates, allocation, engagements)…
-                                </button>
-                              )}
                             />
                           </div>
                         </td>
