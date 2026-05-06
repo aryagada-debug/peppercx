@@ -434,10 +434,18 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
       {!isBopm && (
       <div className="bg-card border border-border rounded-lg p-4">
         <div className="flex items-center justify-between mb-1">
-          <h3 className="text-sm font-semibold">VSD Portfolio Health Comparison</h3>
-          <span className="text-[10px] text-muted-foreground">All Pods · Click bar to drill in</span>
+          <h3 className="text-sm font-semibold">
+            {isVsd && myVsdName ? "BOPM Portfolio Health Comparison" : "VSD Portfolio Health Comparison"}
+          </h3>
+          <span className="text-[10px] text-muted-foreground">
+            {isVsd && myVsdName ? `${myVsdName}'s pod · P / Sr BOPMs` : "All Pods · Click bar to drill in"}
+          </span>
         </div>
-        <p className="text-xs text-muted-foreground mb-3">Stacked R / Y / G deal count per VSD across active deals</p>
+        <p className="text-xs text-muted-foreground mb-3">
+          {isVsd && myVsdName
+            ? "Stacked R / Y / G deal count per Principal / Senior BOPM across your active deals"
+            : "Stacked R / Y / G deal count per VSD across active deals"}
+        </p>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={vsdComparison} margin={{ left: 10, bottom: 5, top: 10 }} barSize={50}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
