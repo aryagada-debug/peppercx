@@ -243,14 +243,14 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
     // deals only.
     if (isVsd && effectiveVsdName) {
       let bopms = bopmsForVsd(effectiveVsdName);
+      const norm = (s: string | null | undefined) =>
+        (s || "").toLowerCase().normalize("NFKD").replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
       const directoryBopms = bopmUsersForVsd(effectiveVsdName).map((b) => b.name).filter(Boolean);
       if (directoryBopms.length > 0) {
         const byKey = new Map<string, string>();
         [...bopms, ...directoryBopms].forEach((b) => byKey.set(norm(b), b));
         bopms = Array.from(byKey.values()).sort((a, b) => a.localeCompare(b));
       }
-      const norm = (s: string | null | undefined) =>
-        (s || "").toLowerCase().normalize("NFKD").replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
       // Fallback: derive BOPMs from this VSD's active deals if the
       // hierarchy hook hasn't populated them yet.
       if (bopms.length === 0) {
