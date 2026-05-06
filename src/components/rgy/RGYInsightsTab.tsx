@@ -122,7 +122,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
     if (activeVsd === "Unassigned") return !v;
     return v === activeVsd;
   };
-  const [teamDrill, setTeamDrill] = useState<{ team: string; severity: "R" | "Y" } | null>(null);
+  const [teamDrill, setTeamDrill] = useState<{ team: string; severity: "R" | "Y" | "G" } | null>(null);
   const [vsdDrill, setVsdDrill] = useState<string | null>(null);
   const [aiSummary, setAiSummary] = useState<string>("");
   const [aiLoading, setAiLoading] = useState(false);
