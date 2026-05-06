@@ -1419,6 +1419,7 @@ export type Database = {
           duration: string | null
           end_date: string | null
           id: string
+          input_currency: string
           invoiced_deal_value: number
           mis_vs_consumption: number
           month_closed_won: string
@@ -1478,6 +1479,7 @@ export type Database = {
           duration?: string | null
           end_date?: string | null
           id: string
+          input_currency?: string
           invoiced_deal_value?: number
           mis_vs_consumption?: number
           month_closed_won?: string
@@ -1537,6 +1539,7 @@ export type Database = {
           duration?: string | null
           end_date?: string | null
           id?: string
+          input_currency?: string
           invoiced_deal_value?: number
           mis_vs_consumption?: number
           month_closed_won?: string
