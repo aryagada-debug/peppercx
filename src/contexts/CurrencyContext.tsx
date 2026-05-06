@@ -100,7 +100,13 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     [currency, fxRate, setCurrency, setFxRate, format],
   );
 
-  return <CurrencyContext.Provider value={value}>{children}</CurrencyContext.Provider>;
+  return (
+    <CurrencyContext.Provider value={value}>
+      <div key={`${currency}:${fxRate}`} className="contents">
+        {children}
+      </div>
+    </CurrencyContext.Provider>
+  );
 }
 
 export function useCurrency(): CurrencyState {
