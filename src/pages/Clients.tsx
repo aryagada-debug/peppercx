@@ -210,10 +210,11 @@ export default function Clients() {
     { key: "seoLead", label: "SEO Lead" },
     { key: "mrr", label: "MRR" },
     { key: "totalDealValue", label: "Total Revenue" },
+    { key: "duration", label: "Duration" },
     { key: "rag", label: "RGY" },
   ]), []);
 
-  const DEFAULT_VISIBLE = ["account","dealName","dealId","dealType","dealStatus","vsd","bopm","mrr","totalDealValue","rag"];
+  const DEFAULT_VISIBLE = ["account","dealName","dealId","dealType","dealStatus","vsd","bopm","mrr","totalDealValue","duration","rag"];
   const [visibleCols, setVisibleCols] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem("clients-visible-cols");
@@ -233,7 +234,7 @@ export default function Clients() {
   // Column widths (resizable)
   const DEFAULT_WIDTHS: Record<string, number> = {
     account: 160, dealName: 200, dealId: 100, dealType: 100, dealStatus: 130,
-    vsd: 130, bopm: 150, contentLead: 140, seoLead: 140, mrr: 110, totalDealValue: 130, rag: 70, actions: 40,
+    vsd: 130, bopm: 150, contentLead: 140, seoLead: 140, mrr: 110, totalDealValue: 130, duration: 130, rag: 70, actions: 40,
   };
   const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
     try {
