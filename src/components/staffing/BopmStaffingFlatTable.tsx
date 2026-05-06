@@ -1085,37 +1085,26 @@ export function BopmStaffingFlatTable({
                         >
                           <div className="space-y-1">
                             {entries.map(e => renderEntry(d, rk, e))}
-                            <PersonPickerPopover
+                            <button
                               key={pickerKey}
-                              candidates={pickerOptions}
+                              type="button"
                               disabled={pickerOptions.length === 0}
-                              triggerLabel={
-                                pickerOptions.length === 0
-                                  ? (manager
-                                      ? `No reports under ${manager.name.split(" ")[0]}`
-                                      : `No ${ROLE_LABEL(rk)} available`)
-                                  : (manager
-                                      ? `+ Add (under ${manager.name.split(" ")[0]})`
-                                      : `+ Add ${ROLE_LABEL(rk)}`)
-                              }
-                              triggerClassName={cn(
+                              onClick={() => setAddCell({ dealId: d.id, roleKey: rk, category: cat })}
+                              className={cn(
                                 "w-full flex items-center justify-between gap-1 px-1.5 py-1 text-[10.5px] italic rounded-md border border-dashed transition-colors",
                                 pickerOptions.length === 0
                                   ? "text-muted-foreground/50 border-border/30 cursor-not-allowed"
                                   : "text-muted-foreground border-border/50 hover:text-foreground hover:border-border hover:bg-secondary/40"
                               )}
-                              emptyLabel={manager ? `No reports under ${manager.name}` : `No ${ROLE_LABEL(rk)} available`}
-                              placeholder={`Search ${ROLE_LABEL(rk)}…`}
-                              onSelect={(personId) => {
-                                stageAdd(d.id, {
-                                  id: uid(),
-                                  dealId: d.id,
-                                  roleKey: rk,
-                                  personId,
-                                  allocationPct: 10,
-                                });
-                              }}
-                            />
+                              title="Open assignment dialog with engagement view + dates"
+                            >
+                              <span className="truncate">
+                                {pickerOptions.length === 0
+                                  ? (manager ? `No reports under ${manager.name.split(" ")[0]}` : `No ${ROLE_LABEL(rk)} available`)
+                                  : (manager ? `+ Add (under ${manager.name.split(" ")[0]})` : `+ Add ${ROLE_LABEL(rk)}`)}
+                              </span>
+                              <Plus className="h-3 w-3 opacity-60 flex-shrink-0" />
+                            </button>
                           </div>
                         </td>
                       );
