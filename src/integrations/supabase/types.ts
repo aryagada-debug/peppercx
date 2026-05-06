@@ -1130,6 +1130,42 @@ export type Database = {
         }
         Relationships: []
       }
+      slack_dm_threads: {
+        Row: {
+          app_user_id: string
+          created_at: string
+          id: string
+          im_channel_id: string
+          last_message_at: string | null
+          slack_user_email: string
+          slack_user_id: string
+          slack_user_name: string
+          updated_at: string
+        }
+        Insert: {
+          app_user_id: string
+          created_at?: string
+          id?: string
+          im_channel_id: string
+          last_message_at?: string | null
+          slack_user_email?: string
+          slack_user_id: string
+          slack_user_name?: string
+          updated_at?: string
+        }
+        Update: {
+          app_user_id?: string
+          created_at?: string
+          id?: string
+          im_channel_id?: string
+          last_message_at?: string | null
+          slack_user_email?: string
+          slack_user_id?: string
+          slack_user_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       slack_inactivity_nudges: {
         Row: {
           channel_id: string
@@ -1161,7 +1197,8 @@ export type Database = {
         Row: {
           channel_id: string
           created_at: string
-          deal_id: string
+          deal_id: string | null
+          dm_thread_id: string | null
           id: string
           raw: Json
           sent_by_app_user: string | null
@@ -1176,7 +1213,8 @@ export type Database = {
         Insert: {
           channel_id: string
           created_at?: string
-          deal_id: string
+          deal_id?: string | null
+          dm_thread_id?: string | null
           id?: string
           raw?: Json
           sent_by_app_user?: string | null
@@ -1191,7 +1229,8 @@ export type Database = {
         Update: {
           channel_id?: string
           created_at?: string
-          deal_id?: string
+          deal_id?: string | null
+          dm_thread_id?: string | null
           id?: string
           raw?: Json
           sent_by_app_user?: string | null
