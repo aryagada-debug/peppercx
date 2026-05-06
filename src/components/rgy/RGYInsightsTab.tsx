@@ -379,6 +379,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
       </div>
 
       {/* VSD Comparison — moved to top */}
+      {!isBopm && (
       <div className="bg-card border border-border rounded-lg p-4">
         <div className="flex items-center justify-between mb-1">
           <h3 className="text-sm font-semibold">VSD Portfolio Health Comparison</h3>
@@ -407,6 +408,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
           </BarChart>
         </ResponsiveContainer>
       </div>
+      )}
 
       {/* Row 2: Active Issues (POD-filtered) + Health Donut */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
