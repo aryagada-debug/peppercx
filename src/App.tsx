@@ -8,6 +8,7 @@ import { AuthProvider } from "@/components/auth/AuthProvider";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { UserRoleProvider } from "@/hooks/useUserRole";
 import { StaffingDataProvider } from "@/hooks/useStaffingData";
+import { CurrencyProvider } from "@/contexts/CurrencyContext";
 import { RouteFallback } from "./components/layout/RouteFallback";
 
 // Auth pages stay eager — login screen must paint instantly.
@@ -60,6 +61,7 @@ const App = () => (
         <BrowserRouter>
           <AuthProvider>
           <UserRoleProvider>
+          <CurrencyProvider>
           <StaffingDataProvider>
           <Suspense fallback={<RouteFallback />}>
           <Routes>
@@ -91,6 +93,7 @@ const App = () => (
           </Routes>
           </Suspense>
           </StaffingDataProvider>
+          </CurrencyProvider>
           </UserRoleProvider>
           </AuthProvider>
         </BrowserRouter>

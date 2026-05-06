@@ -262,7 +262,11 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
         else if (w === "G") entry.Green++;
         entry.total = entry.Red + entry.Yellow + entry.Green;
       });
-      return Array.from(map.values()).filter((e) => e.total > 0);
+      const result = Array.from(map.values());
+      // If at least one BOPM has activity, drop empty rows; otherwise keep
+      // them so the chart still renders the BOPM names on the X-axis.
+      const withData = result.filter((e) => e.total > 0);
+      return withData.length > 0 ? withData : result;
     }
     const map = new Map<string, { vsd: string; vsdFull: string; Red: number; Yellow: number; Green: number; total: number }>();
     CORE_VSDS_LIST.forEach((v) =>
