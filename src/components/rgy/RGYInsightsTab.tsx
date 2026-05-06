@@ -164,16 +164,30 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
   ].filter((d) => d.value > 0), [kpis]);
 
   // ── Per-team Red / Yellow counts ──
+  // VSD persona: own active deals (regardless of activeVsd filter chip).
+  const ownActiveDeals = useMemo(() => {
+    if (!isVsd || !myVsdName) return null;
+    return deals.filter(
+      (d) => ACTIVE_STATUSES.has(d.deal_status) && vsdForDeal(d as any) === myVsdName,
+    );
+  }, [isVsd, myVsdName, deals, vsdForDeal]);
+
+  const teamHealthSource = useMemo(() => {
+    if (ownActiveDeals) return ownActiveDeals;
+    if (isBopm) return filteredDeals.filter((d) => ACTIVE_STATUSES.has(d.deal_status));
+    return filteredDeals;
+  }, [ownActiveDeals, isBopm, filteredDeals]);
+
   const teamHealth = useMemo(
     () =>
       DIMENSIONS.map((dim) => ({
         team: dim.label,
         key: dim.key,
-        Red: filteredDeals.filter((d) => (!isBopm || ACTIVE_STATUSES.has(d.deal_status)) && d[dim.key] === "R").length,
-        Yellow: filteredDeals.filter((d) => (!isBopm || ACTIVE_STATUSES.has(d.deal_status)) && d[dim.key] === "Y").length,
-        Green: filteredDeals.filter((d) => (!isBopm || ACTIVE_STATUSES.has(d.deal_status)) && d[dim.key] === "G").length,
+        Red: teamHealthSource.filter((d) => d[dim.key] === "R").length,
+        Yellow: teamHealthSource.filter((d) => d[dim.key] === "Y").length,
+        Green: teamHealthSource.filter((d) => d[dim.key] === "G").length,
       })),
-    [filteredDeals, isBopm],
+    [teamHealthSource],
   );
 
   // Drill data for team-count
