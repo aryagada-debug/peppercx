@@ -672,16 +672,14 @@ export default function Clients() {
           })}
           </div>
           <div className="flex items-center gap-2 ml-auto">
-            {access.isAdmin && (
-              <>
-                <Button variant="outline" size="sm" onClick={() => setClientDialogOpen(true)}>
-                  <Plus className="h-4 w-4 mr-1" /> Add Client
-                </Button>
-                <Button size="sm" onClick={() => { setDealWizardClientId(undefined); setDealWizardOpen(true); }}>
-                  <Plus className="h-4 w-4 mr-1" /> Add Deal
-                </Button>
-              </>
-            )}
+            <Button variant="outline" size="sm" onClick={() => setClientDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" /> Add Client
+              {!canEditAll && <span className="ml-1.5 text-[10px] text-muted-foreground">(needs approval)</span>}
+            </Button>
+            <Button size="sm" onClick={() => { setDealWizardClientId(undefined); setDealWizardOpen(true); }}>
+              <Plus className="h-4 w-4 mr-1" /> Add Deal
+              {!canEditAll && <span className="ml-1.5 text-[10px] opacity-80">(needs approval)</span>}
+            </Button>
           </div>
         </div>
 
