@@ -2596,6 +2596,18 @@ export default function DealDetail() {
               </AlertDialog>
             )}
 
+            {/* R → Y optional resolve dialog */}
+            {showResolveOptional && dealId && (
+              <ResolveIssuesDialog
+                open
+                mode="optional"
+                dealId={dealId}
+                dealName={deal?.dealName}
+                onConfirm={() => setShowResolveOptional(false)}
+                onCancel={() => setShowResolveOptional(false)}
+              />
+            )}
+
             {/* Historic Timeline — Grouped by Week */}
             <div>
               <RGYHistorySection rgyWeekly={rgyWeekly} />
