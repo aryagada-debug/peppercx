@@ -461,10 +461,20 @@ export function AddStaffingMemberDialog({
                   <div>
                     <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Start date</label>
                     <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-8 text-sm" />
+                    {dealForDates?.startDate && (
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        Deal starts: <span className="font-mono text-foreground">{dealForDates.startDate}</span>
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="text-xs font-medium text-muted-foreground mb-1.5 block">End date</label>
                     <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-8 text-sm" />
+                    {dealForDates?.endDate && (
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        Deal ends: <span className="font-mono text-foreground">{dealForDates.endDate}</span>
+                      </p>
+                    )}
                   </div>
                 </div>
 
