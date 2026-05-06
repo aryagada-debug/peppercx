@@ -824,22 +824,34 @@ export default function RGYHealth() {
 
     const oldValue = (deal[dimKey as keyof DealWithRGY] as string) || "NA";
 
-    // R/Y → G: check for open [RGY Health] task(s) for THIS dimension.
-    // If any exist, require the user to close them before persisting Green.
+    // R/Y → G: always prompt the user to resolve open work tied to this
+    // dimension before persisting Green. We look at:
+    //   • [RGY Health] tasks whose title contains this dimension label
+    //   • any open weekly RGY issue on this deal
+    // If neither exists, we proceed silently to Green.
     if (newValue === "G" && (oldValue === "R" || oldValue === "Y")) {
       const dimLabel = DIMENSIONS.find(d => d.key === dimKey)?.label || dimKey;
-      const { data: openTasks } = await supabase
-        .from("deal_tasks")
-        .select("id, title, stage")
-        .eq("deal_id", dealId)
-        .like("title", "[RGY Health]%")
-        .neq("stage", "Done");
+      const [{ data: openTasks }, { data: openIssues }] = await Promise.all([
+        supabase
+          .from("deal_tasks")
+          .select("id, title, stage")
+          .eq("deal_id", dealId)
+          .like("title", "[RGY Health]%")
+          .neq("stage", "Done"),
+        supabase
+          .from("deal_rgy_weekly")
+          .select("id")
+          .eq("deal_id", dealId)
+          .in("issue_status", ["Open", "In Progress"])
+          .limit(1),
+      ]);
       const hasDimTask = (openTasks || []).some((t: any) => String(t.title || "").includes(dimLabel));
-      if (hasDimTask) {
+      const hasOpenIssue = (openIssues || []).length > 0;
+      if (hasDimTask || hasOpenIssue) {
         setPendingGreen({ dealId, dimKey, dimLabel, oldValue: oldValue as RGYCellValue });
         return;
       }
-      // No open tasks for this dimension — proceed to persist Green.
+      // No open dimension tasks or issues — proceed to persist Green.
     }
 
     await applyRGYUpdate(dealId, dimKey, newValue, deal);

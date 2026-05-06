@@ -63,22 +63,19 @@ export function ResolveIssuesDialog({ open, dealId, dealName, mode, title, dimen
       ]);
       if (cancelled) return;
       const out: OpenItem[] = [];
-      // When scoped to a dimension, hide generic open issues (they aren't
-      // dimension-tagged) and filter tasks to that dimension only.
-      if (!dimensionLabel) {
-        (issuesRes.data || []).forEach((r: any) => {
-          if (!r.issue_details) return;
-          out.push({
-            kind: "issue",
-            id: r.id,
-            label: r.issue_details,
-            meta: `Week of ${r.week_start}`,
-          });
-        });
-      }
       (tasksRes.data || []).forEach((t: any) => {
         if (dimensionLabel && !String(t.title).includes(dimensionLabel)) return;
         out.push({ kind: "task", id: t.id, label: t.title, meta: t.stage });
+      });
+      // Always include open weekly issues — they block Green at the deal level.
+      (issuesRes.data || []).forEach((r: any) => {
+        if (!r.issue_details) return;
+        out.push({
+          kind: "issue",
+          id: r.id,
+          label: r.issue_details,
+          meta: `Week of ${r.week_start}`,
+        });
       });
       setItems(out);
       setPicked(new Set());
