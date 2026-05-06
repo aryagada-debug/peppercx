@@ -265,9 +265,12 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
 
   // ── Active Issues — VSD-filtered, with timeline + flags ──
   const activeIssues = useMemo(() => {
-    const allowedIds = isBopm
-      ? new Set(filteredDeals.filter(d => ACTIVE_STATUSES.has(d.deal_status)).map(d => d.id))
-      : null;
+    let allowedIds: Set<string> | null = null;
+    if (isVsd && ownActiveDeals) {
+      allowedIds = new Set(ownActiveDeals.map((d) => d.id));
+    } else if (isBopm) {
+      allowedIds = new Set(filteredDeals.filter(d => ACTIVE_STATUSES.has(d.deal_status)).map(d => d.id));
+    }
     const filtered = issues
       .filter((i) => i.issue_status === "Open" || i.issue_status === "In Progress")
       .filter((i) => !allowedIds || allowedIds.has(i.deal_id))
@@ -293,7 +296,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
       if (ra !== rb) return ra - rb;
       return b.days - a.days;
     });
-  }, [issues, activeVsd, isBopm, filteredDeals]);
+  }, [issues, activeVsd, isBopm, isVsd, ownActiveDeals, filteredDeals]);
 
   // ── Aging issues (top 8 oldest open) ──
   const agingIssues = useMemo(() => activeIssues.slice(0, 8), [activeIssues]);
