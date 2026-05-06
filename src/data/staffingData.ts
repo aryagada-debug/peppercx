@@ -140,6 +140,7 @@ export interface Deal {
   tcvUsd?: number;
   strategyBandwidthRequired?: string;
   pepperBuL2?: string;
+  inputCurrency?: "INR" | "USD";
 }
 
 export interface BWRule {

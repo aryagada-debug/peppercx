@@ -1,6 +1,6 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { formatINR } from "@/lib/csvTargets";
-import { useCurrencyVersion } from "@/contexts/CurrencyContext";
+import { useCurrencyVersion, useCurrency } from "@/contexts/CurrencyContext";
 import { useParams, Link, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Loader2, Plus, Trash2, Pencil, Check, X, Calendar, Users, Eye, Edit2, ExternalLink, AlertTriangle, ChevronDown, ChevronUp, ChevronRight, Upload, CalendarCheck, Smile, TrendingUp, MessageSquare, Sparkles, RefreshCw, Wallet, Receipt, BadgeCheck, AlertCircle, Activity, IndianRupee } from "lucide-react";
 import { getLinkLabel, getFileIcon } from "@/lib/fileLink";
@@ -1484,6 +1484,14 @@ export default function DealDetail() {
   } = useDealDetail(dealId);
 
   const deal = useMemo(() => deals.find(d => d.id === dealId), [deals, dealId]);
+  // Default the display currency to the currency the deal was entered in.
+  // Runs once per deal id; user (admin) can still toggle it manually.
+  const { setCurrency } = useCurrency();
+  useEffect(() => {
+    if (!deal?.inputCurrency) return;
+    setCurrency(deal.inputCurrency);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deal?.id, deal?.inputCurrency]);
   const dealAssignments = useMemo(() => assignments.filter(a => a.dealId === dealId), [assignments, dealId]);
   const dealPeople = useMemo(() => {
     const personIds = new Set(dealAssignments.map(a => a.personId));

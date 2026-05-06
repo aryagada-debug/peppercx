@@ -1,0 +1,1 @@
+ALTER TABLE public.staffing_deals ADD COLUMN IF NOT EXISTS input_currency text NOT NULL DEFAULT 'INR';

@@ -14,6 +14,8 @@ interface CurrencyInputProps {
   disabled?: boolean;
   /** Initial display currency. Defaults to INR. */
   defaultCurrency?: Currency;
+  /** Notified when the user toggles between INR/USD. */
+  onCurrencyChange?: (c: Currency) => void;
   id?: string;
 }
 
@@ -29,9 +31,14 @@ export function CurrencyInput({
   inputClassName,
   disabled,
   defaultCurrency = "INR",
+  onCurrencyChange,
   id,
 }: CurrencyInputProps) {
   const [currency, setCurrency] = useState<Currency>(defaultCurrency);
+  // Keep in sync if parent updates the default (e.g. another CurrencyInput in the same form toggled).
+  useEffect(() => {
+    setCurrency((prev) => (prev === defaultCurrency ? prev : defaultCurrency));
+  }, [defaultCurrency]);
   const numericInr =
     valueInr === "" || valueInr === null || valueInr === undefined
       ? NaN
@@ -74,6 +81,7 @@ export function CurrencyInput({
       );
     }
     setCurrency(next);
+    onCurrencyChange?.(next);
   };
 
   const handleChange = (raw: string) => {

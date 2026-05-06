@@ -35,6 +35,7 @@ interface DealFormData {
   totalDealValue: string;
   retainerDealValue: string;
   nonRetainerDealValue: string;
+  inputCurrency: string;
   vsd: string;
   principalBopm: string;
   seniorBopm: string;
@@ -85,6 +86,7 @@ export function DealFormWizard({ open, onOpenChange, clients, preSelectedClientI
   const [form, setForm] = useState<DealFormData>({
     dealName: "", dealType: "Retainer", startDate: "", endDate: "",
     mrr: "", totalDealValue: "", retainerDealValue: "", nonRetainerDealValue: "",
+    inputCurrency: "INR",
     vsd: "", principalBopm: "", seniorBopm: "", bopm: "",
     paymentTerms: "", pepperBusinessUnit: "", pod: "", dealStatus: "Won",
     pcCode: "", capabilityLine: "", customerType: "",
@@ -255,12 +257,16 @@ export function DealFormWizard({ open, onOpenChange, clients, preSelectedClientI
                     <CurrencyInput
                       valueInr={form.mrr}
                       onChangeInr={(n) => set("mrr", n ? String(n) : "")}
+                      defaultCurrency={form.inputCurrency as any}
+                      onCurrencyChange={(c) => set("inputCurrency", c)}
                     />
                   </Field>
                   <Field label="Total Deal Value">
                     <CurrencyInput
                       valueInr={form.totalDealValue}
                       onChangeInr={(n) => set("totalDealValue", n ? String(n) : "")}
+                      defaultCurrency={form.inputCurrency as any}
+                      onCurrencyChange={(c) => set("inputCurrency", c)}
                     />
                   </Field>
                 </div>
@@ -269,12 +275,16 @@ export function DealFormWizard({ open, onOpenChange, clients, preSelectedClientI
                     <CurrencyInput
                       valueInr={form.retainerDealValue}
                       onChangeInr={(n) => set("retainerDealValue", n ? String(n) : "")}
+                      defaultCurrency={form.inputCurrency as any}
+                      onCurrencyChange={(c) => set("inputCurrency", c)}
                     />
                   </Field>
                   <Field label="Non-Retainer Value">
                     <CurrencyInput
                       valueInr={form.nonRetainerDealValue}
                       onChangeInr={(n) => set("nonRetainerDealValue", n ? String(n) : "")}
+                      defaultCurrency={form.inputCurrency as any}
+                      onCurrencyChange={(c) => set("inputCurrency", c)}
                     />
                   </Field>
                 </div>
