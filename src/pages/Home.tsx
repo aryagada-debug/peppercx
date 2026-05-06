@@ -109,8 +109,9 @@ export default function HomePage() {
   const [myDeals, setMyDeals] = useState<MyDeal[]>([]);
   const [loadingMyDeals, setLoadingMyDeals] = useState(true);
 
-  // Financial summary across deals visible to the user
+  // Financial summary across deals visible to the user — actual + target this month
   const [finSummary, setFinSummary] = useState<{ contraction: number; delivery: number; invoicing: number; receivables: number }>({ contraction: 0, delivery: 0, invoicing: 0, receivables: 0 });
+  const [finTargets, setFinTargets] = useState<{ contraction: number; delivery: number; invoicing: number; receivables: number }>({ contraction: 0, delivery: 0, invoicing: 0, receivables: 0 });
   const [finByDeal, setFinByDeal] = useState<Record<string, { contraction: number; delivery: number; invoicing: number; receivables: number }>>({});
   const [finDrill, setFinDrill] = useState<null | "contraction" | "delivery" | "invoicing" | "receivables">(null);
 
