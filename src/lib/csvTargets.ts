@@ -337,11 +337,13 @@ export function attainmentTone(pct: number | null): string {
   return "text-destructive";
 }
 
-// Format an INR amount (always in ₹). Currency conversion happens only
-// at the per-input level via <CurrencyInput>; display values stay in INR.
+// Format an INR-stored amount in the user's chosen display currency.
+// Reads the current currency / FX rate from the global currency store so
+// non-React utilities can format consistently with React components.
 import { formatMoney } from "./currency";
+import { getGlobalCurrency, getGlobalFx } from "@/contexts/CurrencyContext";
 export function formatINR(n: number): string {
-  return formatMoney(n, "INR", { compact: true });
+  return formatMoney(n, getGlobalCurrency(), { compact: true }, getGlobalFx());
 }
 
 export const METRIC_LABELS: Record<Metric, string> = {
