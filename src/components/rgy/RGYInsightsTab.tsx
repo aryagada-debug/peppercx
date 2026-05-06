@@ -79,6 +79,7 @@ interface Props {
   filteredDeals: DealWithRGY[];
   issues: RGYIssue[];
   activeVsd: string;
+  isBopm?: boolean;
 }
 
 function getWorstRGY(deal: DealWithRGY): "R" | "Y" | "G" | null {
@@ -105,7 +106,7 @@ const VSD_SHORT: Record<string, string> = {
   "Aditya Shaw": "Aditya",
 };
 
-export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd }: Props) {
+export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm = false }: Props) {
   const { isRegisteredName } = useAppUsers();
   const { isVsdName, canonVsd } = useVsdUsers();
   const { vsdForDeal, vsdForPerson } = useVsdHierarchy();
@@ -166,11 +167,11 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd }: Prop
       DIMENSIONS.map((dim) => ({
         team: dim.label,
         key: dim.key,
-        Red: filteredDeals.filter((d) => d[dim.key] === "R").length,
-        Yellow: filteredDeals.filter((d) => d[dim.key] === "Y").length,
-        Green: filteredDeals.filter((d) => d[dim.key] === "G").length,
+        Red: filteredDeals.filter((d) => (!isBopm || ACTIVE_STATUSES.has(d.deal_status)) && d[dim.key] === "R").length,
+        Yellow: filteredDeals.filter((d) => (!isBopm || ACTIVE_STATUSES.has(d.deal_status)) && d[dim.key] === "Y").length,
+        Green: filteredDeals.filter((d) => (!isBopm || ACTIVE_STATUSES.has(d.deal_status)) && d[dim.key] === "G").length,
       })),
-    [filteredDeals],
+    [filteredDeals, isBopm],
   );
 
   // Drill data for team-count
@@ -248,8 +249,12 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd }: Prop
 
   // ── Active Issues — VSD-filtered, with timeline + flags ──
   const activeIssues = useMemo(() => {
+    const allowedIds = isBopm
+      ? new Set(filteredDeals.filter(d => ACTIVE_STATUSES.has(d.deal_status)).map(d => d.id))
+      : null;
     const filtered = issues
       .filter((i) => i.issue_status === "Open" || i.issue_status === "In Progress")
+      .filter((i) => !allowedIds || allowedIds.has(i.deal_id))
       .filter((i) => matchesActiveVsd(i.vsd))
       .map((i) => {
         const days = daysSince(i.issue_date || i.created_at);
@@ -272,7 +277,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd }: Prop
       if (ra !== rb) return ra - rb;
       return b.days - a.days;
     });
-  }, [issues, activeVsd]);
+  }, [issues, activeVsd, isBopm, filteredDeals]);
 
   // ── Aging issues (top 8 oldest open) ──
   const agingIssues = useMemo(() => activeIssues.slice(0, 8), [activeIssues]);
@@ -374,6 +379,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd }: Prop
       </div>
 
       {/* VSD Comparison — moved to top */}
+      {!isBopm && (
       <div className="bg-card border border-border rounded-lg p-4">
         <div className="flex items-center justify-between mb-1">
           <h3 className="text-sm font-semibold">VSD Portfolio Health Comparison</h3>
@@ -402,6 +408,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd }: Prop
           </BarChart>
         </ResponsiveContainer>
       </div>
+      )}
 
       {/* Row 2: Active Issues (POD-filtered) + Health Donut */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
