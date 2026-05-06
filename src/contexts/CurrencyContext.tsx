@@ -100,9 +100,12 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     [currency, fxRate, setCurrency, setFxRate, format],
   );
 
+  // Remount children when the *currency* changes so non-hook formatters
+  // (e.g. formatINR) re-evaluate. FX rate changes don't remount — they
+  // re-render via context consumers and the next state-driven update.
   return (
     <CurrencyContext.Provider value={value}>
-      <div key={`${currency}:${fxRate}`} className="contents">
+      <div key={currency} className="contents">
         {children}
       </div>
     </CurrencyContext.Provider>
