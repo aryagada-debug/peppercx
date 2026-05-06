@@ -989,10 +989,25 @@ export function BopmStaffingFlatTable({
       });
       return best?.person;
     })();
-    // Tiered candidate resolution. Manager constraint is a soft sort, applied
-    // by the picker, so users always see the full team and never hit a
-    // "0 candidates" dead-end caused by a strict reportingManager filter.
-    const colGroups = resolvePeopleForRole(roleKey, allPeople);
+    // Hierarchy/pod-scoped candidate resolution. Manager soft-sort still applied
+    // inside the picker.
+    const dealAssignmentsEffective: StaffingAssignment[] = [];
+    byRoleForDeal.forEach((arr, otherRk) => {
+      arr.forEach(en => {
+        if (en.isMarkedRemove) return;
+        dealAssignmentsEffective.push({
+          id: en.assignmentId,
+          dealId: deal.id,
+          roleKey: otherRk,
+          personId: en.personId,
+          allocationPct: en.allocationPct,
+        });
+      });
+    });
+    const colGroups = resolvePeopleForRole(roleKey, allPeople, {
+      deal,
+      dealAssignments: dealAssignmentsEffective,
+    });
 
     const draftKey = e.assignmentId;
     const draftVal = allocDraft[draftKey];
@@ -1319,7 +1334,23 @@ export function BopmStaffingFlatTable({
                       // applied inside the picker. Exclude people already
                       // staffed on this deal in this role.
                       const usedIds = new Set(entries.filter(x => !x.isMarkedRemove).map(x => x.personId));
-                      const groupsAll = resolvePeopleForRole(rk, allPeople);
+                      const dealAssignmentsEffective: StaffingAssignment[] = [];
+                      byRole.forEach((arr, otherRk) => {
+                        arr.forEach(en => {
+                          if (en.isMarkedRemove) return;
+                          dealAssignmentsEffective.push({
+                            id: en.assignmentId,
+                            dealId: d.id,
+                            roleKey: otherRk,
+                            personId: en.personId,
+                            allocationPct: en.allocationPct,
+                          });
+                        });
+                      });
+                      const groupsAll = resolvePeopleForRole(rk, allPeople, {
+                        deal: d,
+                        dealAssignments: dealAssignmentsEffective,
+                      });
                       const pickerGroups: PersonGroups = {
                         exact: groupsAll.exact.filter(pp => !usedIds.has(pp.id)),
                         family: groupsAll.family.filter(pp => !usedIds.has(pp.id)),
