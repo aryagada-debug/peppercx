@@ -1429,6 +1429,7 @@ export default function RGYHealth() {
               filteredDeals={filteredDeals}
               issues={rgyIssues}
               activeVsd={activeVsd}
+              isBopm={isBopmPersona}
             />
           </TabsContent>
         </Tabs>
