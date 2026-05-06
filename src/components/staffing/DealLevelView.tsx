@@ -171,7 +171,8 @@ export function DealLevelView({ deals, people, assignments, revenueTargets = [] 
                             {vsdDeals.map(deal => {
                               const isExp = expandedDeals.has(deal.id);
                               const dealAssigns = assignments.filter(a => a.dealId === deal.id);
-                              const teamCount = new Set(dealAssigns.map(a => a.personId)).size;
+                              const activeAssigns = dealAssigns.filter(a => !isAssignmentExpired(a));
+                              const teamCount = new Set(activeAssigns.map(a => a.personId)).size;
                               const hasGap = teamCount === 0;
 
                               return (
