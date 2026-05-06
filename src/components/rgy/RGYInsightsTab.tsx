@@ -532,13 +532,13 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
               formatter={(value: number, name: string) => [`${value} deals`, name]}
             />
             <Legend iconSize={10} wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
-            <Bar dataKey="Red" stackId="vsd" fill={COLORS.R} cursor={isVsd ? "default" : "pointer"} onClick={(d: any) => { if (!isVsd) setVsdDrill(d.vsdFull); }}>
+            <Bar dataKey="Red" stackId="vsd" fill={COLORS.R} cursor="pointer" onClick={(d: any) => setVsdDrill(d.vsdFull)}>
               <LabelList dataKey="Red" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: number) => (v > 0 ? v : "")} />
             </Bar>
-            <Bar dataKey="Yellow" stackId="vsd" fill={COLORS.Y} cursor={isVsd ? "default" : "pointer"} onClick={(d: any) => { if (!isVsd) setVsdDrill(d.vsdFull); }}>
+            <Bar dataKey="Yellow" stackId="vsd" fill={COLORS.Y} cursor="pointer" onClick={(d: any) => setVsdDrill(d.vsdFull)}>
               <LabelList dataKey="Yellow" position="center" fill="#1f2937" fontSize={11} fontWeight={600} formatter={(v: number) => (v > 0 ? v : "")} />
             </Bar>
-            <Bar dataKey="Green" stackId="vsd" fill={COLORS.G} radius={[4, 4, 0, 0]} cursor={isVsd ? "default" : "pointer"} onClick={(d: any) => { if (!isVsd) setVsdDrill(d.vsdFull); }}>
+            <Bar dataKey="Green" stackId="vsd" fill={COLORS.G} radius={[4, 4, 0, 0]} cursor="pointer" onClick={(d: any) => setVsdDrill(d.vsdFull)}>
               <LabelList dataKey="Green" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: number) => (v > 0 ? v : "")} />
             </Bar>
           </BarChart>
@@ -735,6 +735,8 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
               stackId="health"
               fill={COLORS.G}
               radius={[4, 4, 0, 0]}
+              cursor="pointer"
+              onClick={(d: any) => d.Green > 0 && setTeamDrill({ team: d.team, severity: "G" as any })}
             >
               <LabelList dataKey="Green" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: number) => (v > 0 ? v : "")} />
             </Bar>
