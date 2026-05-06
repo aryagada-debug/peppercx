@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronRight, Search, Users, Filter } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { Deal, Person, StaffingAssignment, RevenueCapacityTarget } from "@/data/staffingData";
+import { isAssignmentExpired } from "@/data/staffingData";
 
 const ACTIVE_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
 
@@ -170,7 +171,8 @@ export function DealLevelView({ deals, people, assignments, revenueTargets = [] 
                             {vsdDeals.map(deal => {
                               const isExp = expandedDeals.has(deal.id);
                               const dealAssigns = assignments.filter(a => a.dealId === deal.id);
-                              const teamCount = new Set(dealAssigns.map(a => a.personId)).size;
+                              const activeAssigns = dealAssigns.filter(a => !isAssignmentExpired(a));
+                              const teamCount = new Set(activeAssigns.map(a => a.personId)).size;
                               const hasGap = teamCount === 0;
 
                               return (
@@ -208,8 +210,9 @@ export function DealLevelView({ deals, people, assignments, revenueTargets = [] 
                                               {dealAssigns.map(a => {
                                                 const p = personMap[a.personId];
                                                 if (!p) return null;
+                                                  const expired = isAssignmentExpired(a);
                                                 return (
-                                                  <div key={a.id} className="flex items-center gap-3 py-0.5 text-xs">
+                                                    <div key={a.id} className={cn("flex items-center gap-3 py-0.5 text-xs", expired && "opacity-50 font-light")}>
                                                     <span className="text-foreground font-medium w-40">{p.name}</span>
                                                     <span className="text-muted-foreground w-28">{p.roleTitle || p.designation}</span>
                                                     <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-accent text-accent-foreground">{p.roleCategory}</span>
@@ -224,6 +227,9 @@ export function DealLevelView({ deals, people, assignments, revenueTargets = [] 
                                                         {a.startDate || "—"} → {a.endDate || "—"}
                                                       </span>
                                                     )}
+                                                      {expired && (
+                                                        <span className="px-1 py-0.5 rounded text-[9px] bg-secondary text-muted-foreground shrink-0">Past</span>
+                                                      )}
                                                   </div>
                                                 );
                                               })}

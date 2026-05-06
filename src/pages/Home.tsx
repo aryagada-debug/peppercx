@@ -109,6 +109,11 @@ export default function HomePage() {
   const [myDeals, setMyDeals] = useState<MyDeal[]>([]);
   const [loadingMyDeals, setLoadingMyDeals] = useState(true);
 
+  // Financial summary across deals visible to the user
+  const [finSummary, setFinSummary] = useState<{ contraction: number; delivery: number; invoicing: number; receivables: number }>({ contraction: 0, delivery: 0, invoicing: 0, receivables: 0 });
+  const [finByDeal, setFinByDeal] = useState<Record<string, { contraction: number; delivery: number; invoicing: number; receivables: number }>>({});
+  const [finDrill, setFinDrill] = useState<null | "contraction" | "delivery" | "invoicing" | "receivables">(null);
+
   // Google Calendar
   const { connected: calConnected, listEvents: calListEvents } = useGoogleCalendar();
   const [calEvents, setCalEvents] = useState<GCalEvent[]>([]);
@@ -228,20 +233,50 @@ export default function HomePage() {
     const { data } = await supabase.from("staffing_deals")
       .select("id, deal_name, account, vsd, principal_bopm, senior_bopm, bopm, end_date, deal_status, mrr, total_deal_value")
       .in("deal_status", ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
-    const mine: MyDeal[] = (data || [])
-      .filter((d: any) => inAliases(d.vsd) || inAliases(d.principal_bopm) || inAliases(d.senior_bopm) || inAliases(d.bopm))
+    const visible = (data || []).filter((d: any) => isAdmin || inAliases(d.vsd) || inAliases(d.principal_bopm) || inAliases(d.senior_bopm) || inAliases(d.bopm));
+    const mine: MyDeal[] = visible
       .map((d: any) => {
         let role = "";
         if (inAliases(d.vsd)) role = "VSD";
         else if (inAliases(d.principal_bopm)) role = "Principal BOPM";
         else if (inAliases(d.senior_bopm)) role = "Senior BOPM";
         else if (inAliases(d.bopm)) role = "BOPM";
+        else if (isAdmin) role = "Admin";
         return { id: d.id, deal_name: d.deal_name, account: d.account, deal_status: d.deal_status, mrr: d.mrr, total_deal_value: d.total_deal_value, end_date: d.end_date, my_role: role };
       })
       .sort((a, b) => (b.mrr || 0) - (a.mrr || 0));
     setMyDeals(mine);
+    // Aggregate financials for these deals
+    const ids = mine.map(d => d.id);
+    if (ids.length) {
+      const { data: fins } = await supabase.from("deal_financials")
+        .select("deal_id, consumption, invoiced, received").in("deal_id", ids);
+      const byDeal: Record<string, { contraction: number; delivery: number; invoicing: number; receivables: number }> = {};
+      (fins || []).forEach((r: any) => {
+        const cur = byDeal[r.deal_id] || { contraction: 0, delivery: 0, invoicing: 0, receivables: 0 };
+        const cons = Number(r.consumption) || 0;
+        const inv = Number(r.invoiced) || 0;
+        const rec = Number(r.received) || 0;
+        cur.contraction += cons;
+        cur.delivery += cons;
+        cur.invoicing += inv;
+        cur.receivables += Math.max(0, inv - rec);
+        byDeal[r.deal_id] = cur;
+      });
+      setFinByDeal(byDeal);
+      const totals = Object.values(byDeal).reduce((s, v) => ({
+        contraction: s.contraction + v.contraction,
+        delivery: s.delivery + v.delivery,
+        invoicing: s.invoicing + v.invoicing,
+        receivables: s.receivables + v.receivables,
+      }), { contraction: 0, delivery: 0, invoicing: 0, receivables: 0 });
+      setFinSummary(totals);
+    } else {
+      setFinByDeal({});
+      setFinSummary({ contraction: 0, delivery: 0, invoicing: 0, receivables: 0 });
+    }
     setLoadingMyDeals(false);
-  }, [user]);
+  }, [user, isAdmin]);
 
   const loadTodos = useCallback(async () => {
     if (!user) return;
@@ -717,15 +752,77 @@ export default function HomePage() {
                 tasks={myKanbanTasks}
                 dealId=""
                 assignees={allPeople.filter(p => !p.tbh).map(p => ({ id: p.id, name: p.name }))}
-                onAdd={() => { /* adding without a deal context is disabled on Home */ }}
+                onAdd={() => { setAddTaskDealId(""); setAddingTask(true); }}
                 onUpdate={handleKanbanUpdate}
                 onDelete={handleKanbanDelete}
-                disableAdd
                 compact
               />
             )}
           </CardContent>
         </Card>
+
+        {/* Financial Summary — clickable tiles open a drill-down */}
+        <Card className="rounded-xl">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-[15px] font-bold flex items-center gap-2">
+              <Target className="h-4 w-4 text-primary" /> Financial Summary
+              <span className="ml-2 text-[10px] font-normal text-muted-foreground">Across {myDeals.length} deal{myDeals.length === 1 ? "" : "s"}</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {([
+                { key: "contraction" as const, label: "Contraction", value: finSummary.contraction },
+                { key: "delivery" as const, label: "Delivery", value: finSummary.delivery },
+                { key: "invoicing" as const, label: "Invoicing", value: finSummary.invoicing },
+                { key: "receivables" as const, label: "Receivables Outstanding", value: finSummary.receivables },
+              ]).map(t => (
+                <button key={t.key} onClick={() => setFinDrill(t.key)}
+                  className="rounded-lg border border-border bg-card hover:bg-accent/10 p-3 text-left transition-colors">
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{t.label}</p>
+                  <p className="text-lg font-semibold font-mono mt-1 text-foreground">{formatINR(t.value)}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Click to view deals</p>
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {finDrill && (
+          <Dialog open={!!finDrill} onOpenChange={(o) => !o && setFinDrill(null)}>
+            <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
+              <DialogHeader>
+                <DialogTitle className="capitalize">{finDrill} by deal</DialogTitle>
+              </DialogHeader>
+              <div className="overflow-auto">
+                <table className="w-full text-xs">
+                  <thead className="bg-secondary/40 sticky top-0">
+                    <tr>
+                      <th className="text-left py-2 px-3">Account</th>
+                      <th className="text-left py-2 px-3">Deal</th>
+                      <th className="text-right py-2 px-3">{finDrill === "receivables" ? "Outstanding" : "Amount"}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {myDeals
+                      .map(d => ({ d, v: finByDeal[d.id]?.[finDrill] || 0 }))
+                      .filter(r => r.v > 0)
+                      .sort((a, b) => b.v - a.v)
+                      .map(({ d, v }) => (
+                        <tr key={d.id} className="border-b border-border/40 hover:bg-accent/10">
+                          <td className="py-2 px-3">{d.account}</td>
+                          <td className="py-2 px-3">
+                            <Link to={`/deals/${d.id}`} className="text-primary hover:underline">{d.deal_name}</Link>
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono tabular-nums">{formatINR(v)}</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
 
         {/* Row 2: Today's Calendar (6) + Smart Nudges (6) */}
         <div className="grid grid-cols-12 gap-4">

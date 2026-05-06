@@ -210,10 +210,11 @@ export default function Clients() {
     { key: "seoLead", label: "SEO Lead" },
     { key: "mrr", label: "MRR" },
     { key: "totalDealValue", label: "Total Revenue" },
+    { key: "duration", label: "Duration" },
     { key: "rag", label: "RGY" },
   ]), []);
 
-  const DEFAULT_VISIBLE = ["account","dealName","dealId","dealType","dealStatus","vsd","bopm","mrr","totalDealValue","rag"];
+  const DEFAULT_VISIBLE = ["account","dealName","dealId","dealType","dealStatus","vsd","bopm","mrr","totalDealValue","duration","rag"];
   const [visibleCols, setVisibleCols] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem("clients-visible-cols");
@@ -233,7 +234,7 @@ export default function Clients() {
   // Column widths (resizable)
   const DEFAULT_WIDTHS: Record<string, number> = {
     account: 160, dealName: 200, dealId: 100, dealType: 100, dealStatus: 130,
-    vsd: 130, bopm: 150, contentLead: 140, seoLead: 140, mrr: 110, totalDealValue: 130, rag: 70, actions: 40,
+    vsd: 130, bopm: 150, contentLead: 140, seoLead: 140, mrr: 110, totalDealValue: 130, duration: 130, rag: 70, actions: 40,
   };
   const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
     try {
@@ -803,6 +804,7 @@ export default function Clients() {
                   {isVisible("seoLead") && <ColHeader label="SEO Lead" colKey="seoLead" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.seoLead} onResizeStart={startResize("seoLead")} />}
                   {isVisible("mrr") && <ColHeader label="MRR" align="right" sortKey="mrr" colKey="mrr" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} numeric placeholder="≥ amount" width={colWidths.mrr} onResizeStart={startResize("mrr")} />}
                   {isVisible("totalDealValue") && <ColHeader label="Total Revenue" align="right" sortKey="totalDealValue" colKey="totalDealValue" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} numeric placeholder="≥ amount" width={colWidths.totalDealValue} onResizeStart={startResize("totalDealValue")} />}
+                  {isVisible("duration") && <ColHeader label="Duration" colKey="duration" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.duration} onResizeStart={startResize("duration")} />}
                   {isVisible("rag") && <ColHeader label="RGY" align="center" colKey="rag" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["green","amber","red","na","pending"]} width={colWidths.rag} onResizeStart={startResize("rag")} />}
                   <th style={{ width: colWidths.actions, minWidth: colWidths.actions }}></th>
                 </tr>
@@ -950,6 +952,20 @@ export default function Clients() {
                       {isVisible("totalDealValue") && (
                         <td className="py-2 px-3 text-right">
                           <InlineEditCell value={String(deal.totalDealValue || "")} onSave={v => handleTotalRevenueSave(deal.id, v)} type="number" prefix="₹" placeholder="—" />
+                        </td>
+                      )}
+                      {isVisible("duration") && (
+                        <td className="py-2 px-3 text-xs text-muted-foreground truncate" title={`${deal.startDate || "—"} → ${deal.endDate || "—"}`}>
+                          {(() => {
+                            const sd = deal.startDate ? new Date(deal.startDate) : null;
+                            const ed = deal.endDate ? new Date(deal.endDate) : null;
+                            if (sd && ed && !isNaN(sd.getTime()) && !isNaN(ed.getTime())) {
+                              const months = Math.max(0, Math.round((ed.getTime() - sd.getTime()) / (1000 * 60 * 60 * 24 * 30.44)));
+                              return <span className="text-foreground">{months} mo</span>;
+                            }
+                            if (ed && !isNaN(ed.getTime())) return <span>ends {ed.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>;
+                            return <span className="text-muted-foreground">—</span>;
+                          })()}
                         </td>
                       )}
                       {isVisible("rag") && <td className="py-2 px-3 text-center">{ragDot(deal.rag || "green")}</td>}
