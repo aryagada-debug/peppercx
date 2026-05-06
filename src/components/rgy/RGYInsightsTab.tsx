@@ -8,7 +8,7 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { TeamCountDrillDialog } from "./TeamCountDrillDialog";
 import { VSDDrillDialog } from "./VSDDrillDialog";
-import { useAppUsers, useVsdUsers, useVsdHierarchy } from "@/hooks/useAppUsers";
+import { useAppUsers, useVsdUsers, useVsdHierarchy, useBopmDirectory } from "@/hooks/useAppUsers";
 
 const DIMENSIONS = [
   { key: "customer", label: "Customer" },
@@ -82,6 +82,8 @@ interface Props {
   isBopm?: boolean;
   isVsd?: boolean;
   myVsdName?: string | null;
+  summaryDeals?: DealWithRGY[];
+  isAdmin?: boolean;
 }
 
 function getWorstRGY(deal: DealWithRGY): "R" | "Y" | "G" | null {
@@ -108,10 +110,11 @@ const VSD_SHORT: Record<string, string> = {
   "Aditya Shaw": "Aditya",
 };
 
-export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm = false, isVsd = false, myVsdName = null }: Props) {
+export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm = false, isVsd = false, myVsdName = null, summaryDeals, isAdmin = false }: Props) {
   const { isRegisteredName } = useAppUsers();
   const { isVsdName, canonVsd } = useVsdUsers();
   const { vsdForDeal, vsdForPerson, bopmsForVsd } = useVsdHierarchy();
+  const { bopmUsersForVsd } = useBopmDirectory();
   const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
   // `vsd` here is the resolved VSD (we set it from hierarchy in RGYHealth).
   const matchesActiveVsd = (vsd: string | undefined) => {
@@ -163,14 +166,18 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
     { name: "Green", value: kpis.green, fill: COLORS.G },
   ].filter((d) => d.value > 0), [kpis]);
 
+  const effectiveVsdName = isVsd
+    ? (myVsdName || (activeVsd !== "All" && activeVsd !== "Unassigned" ? activeVsd : null))
+    : null;
+
   // ── Per-team Red / Yellow counts ──
   // VSD persona: own active deals (regardless of activeVsd filter chip).
   const ownActiveDeals = useMemo(() => {
-    if (!isVsd || !myVsdName) return null;
+    if (!isVsd || !effectiveVsdName) return null;
     return deals.filter(
-      (d) => ACTIVE_STATUSES.has(d.deal_status) && vsdForDeal(d as any) === myVsdName,
+      (d) => ACTIVE_STATUSES.has(d.deal_status) && vsdForDeal(d as any) === effectiveVsdName,
     );
-  }, [isVsd, myVsdName, deals, vsdForDeal]);
+  }, [isVsd, effectiveVsdName, deals, vsdForDeal]);
 
   const teamHealthSource = useMemo(() => {
     if (ownActiveDeals) return ownActiveDeals;
