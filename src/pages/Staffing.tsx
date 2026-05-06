@@ -31,6 +31,7 @@ const ACTIVE_DEAL_STATUSES = new Set([
 ]);
 
 export default function Staffing() {
+  useCurrencyVersion();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab") as Tab | null;
   const dealParam = searchParams.get("deal");
