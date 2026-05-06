@@ -110,10 +110,15 @@ function ChannelChat() {
       });
     const ch = supabase
       .channel(`slack-home-ch-${channelId}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "slack_messages", filter: `channel_id=eq.${channelId}` }, (payload) => {
+      .on("postgres_changes", { event: "*", schema: "public", table: "slack_messages", filter: `channel_id=eq.${channelId}` }, (payload) => {
         const m = payload.new as ChannelMsg;
         if ((payload.new as any).dm_thread_id) return;
-        setMessages(prev => prev.some(x => x.slack_ts === m.slack_ts) ? prev : [...prev, m]);
+        setMessages(prev => {
+          const next = prev.some(x => x.slack_ts === m.slack_ts)
+            ? prev.map(x => x.slack_ts === m.slack_ts ? { ...x, ...m } : x)
+            : [...prev, m];
+          return next.sort((a, b) => Number(a.slack_ts) - Number(b.slack_ts));
+        });
       })
       .subscribe();
     return () => { cancelled = true; supabase.removeChannel(ch); };
