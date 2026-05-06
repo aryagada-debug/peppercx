@@ -494,21 +494,26 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
       <div className="bg-card border border-border rounded-lg p-4">
         <div className="flex items-center justify-between mb-1">
           <h3 className="text-sm font-semibold">
-            {isVsd && myVsdName ? "BOPM Portfolio Health Comparison" : "VSD Portfolio Health Comparison"}
+            {isVsd && effectiveVsdName ? "BOPM Portfolio Health Comparison" : "VSD Portfolio Health Comparison"}
           </h3>
           <span className="text-[10px] text-muted-foreground">
-            {isVsd && myVsdName ? `${myVsdName}'s pod · P / Sr BOPMs` : "All Pods · Click bar to drill in"}
+            {isVsd && effectiveVsdName ? `${effectiveVsdName}'s pod · P / Sr BOPMs` : "All Pods · Click bar to drill in"}
           </span>
         </div>
         <p className="text-xs text-muted-foreground mb-3">
-          {isVsd && myVsdName
+          {isVsd && effectiveVsdName
             ? "Stacked R / Y / G deal count per Principal / Senior BOPM across your active deals"
             : "Stacked R / Y / G deal count per VSD across active deals"}
         </p>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={vsdComparison} margin={{ left: 10, bottom: 5, top: 10 }} barSize={50}>
+        {vsdComparison.length === 0 ? (
+          <div className="h-[220px] flex items-center justify-center rounded-md border border-dashed border-border text-xs text-muted-foreground">
+            No Principal / Senior BOPMs found for this VSD's active deals.
+          </div>
+        ) : (
+        <ResponsiveContainer width="100%" height={320}>
+          <BarChart data={vsdComparison} margin={{ left: 10, bottom: 42, top: 10 }} barSize={42}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis dataKey="vsd" tick={{ fontSize: 12, fontWeight: 500 }} interval={0} />
+            <XAxis dataKey="vsd" tick={{ fontSize: 11, fontWeight: 500 }} interval={0} angle={-35} textAnchor="end" height={48} />
             <YAxis tick={{ fontSize: 11 }} allowDecimals={false} label={{ value: "Deal Count", angle: -90, position: "insideLeft", style: { fontSize: 11, fill: "hsl(var(--muted-foreground))" } }} />
             <RechartsTooltip
               contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }}
@@ -526,6 +531,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
             </Bar>
           </BarChart>
         </ResponsiveContainer>
+        )}
       </div>
       )}
 
