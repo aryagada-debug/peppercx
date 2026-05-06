@@ -5,8 +5,12 @@ import { useUserRole } from "@/hooks/useUserRole";
 
 export function CurrencyToggle() {
   const { currency, setCurrency, fxRate, setFxRate } = useCurrency();
-  const { isAdmin } = useUserRole();
-  const readOnly = !isAdmin;
+  const { isAdmin, role } = useUserRole();
+  // Admins, VSDs (member) and BOPMs (user) can toggle the display currency.
+  // Only admins can change the FX rate.
+  const canToggle = isAdmin || role === "member" || role === "user";
+  const readOnly = !canToggle;
+  const fxReadOnly = !isAdmin;
   return (
     <div className="flex items-center gap-1.5">
       <div
@@ -16,7 +20,7 @@ export function CurrencyToggle() {
           "flex items-center rounded-md border border-border bg-muted/40 p-0.5",
           readOnly && "opacity-80",
         )}
-        title={readOnly ? "Only admins can change the display currency" : undefined}
+        title={readOnly ? "You don't have permission to change the display currency" : undefined}
       >
         <button
           type="button"
@@ -55,10 +59,10 @@ export function CurrencyToggle() {
           step={0.5}
           value={fxRate}
           onChange={(e) => setFxRate(Number(e.target.value))}
-          readOnly={readOnly}
-          disabled={readOnly}
+          readOnly={fxReadOnly}
+          disabled={fxReadOnly}
           className="h-6 w-[58px] px-1.5 text-[11px] tabular-nums"
-          title={readOnly ? "Only admins can change the exchange rate" : "USD → INR exchange rate"}
+          title={fxReadOnly ? "Only admins can change the exchange rate" : "USD → INR exchange rate"}
         />
         <span>₹</span>
       </label>

@@ -109,8 +109,9 @@ export default function HomePage() {
   const [myDeals, setMyDeals] = useState<MyDeal[]>([]);
   const [loadingMyDeals, setLoadingMyDeals] = useState(true);
 
-  // Financial summary across deals visible to the user
+  // Financial summary across deals visible to the user — actual + target this month
   const [finSummary, setFinSummary] = useState<{ contraction: number; delivery: number; invoicing: number; receivables: number }>({ contraction: 0, delivery: 0, invoicing: 0, receivables: 0 });
+  const [finTargets, setFinTargets] = useState<{ contraction: number; delivery: number; invoicing: number; receivables: number }>({ contraction: 0, delivery: 0, invoicing: 0, receivables: 0 });
   const [finByDeal, setFinByDeal] = useState<Record<string, { contraction: number; delivery: number; invoicing: number; receivables: number }>>({});
   const [finDrill, setFinDrill] = useState<null | "contraction" | "delivery" | "invoicing" | "receivables">(null);
 
@@ -271,9 +272,23 @@ export default function HomePage() {
         receivables: s.receivables + v.receivables,
       }), { contraction: 0, delivery: 0, invoicing: 0, receivables: 0 });
       setFinSummary(totals);
+      // Targets for the current month (cap to deal scope)
+      const monthStart = format(startOfMonth(new Date()), "yyyy-MM-dd");
+      const { data: tgts } = await supabase.from("deal_financial_targets")
+        .select("deal_id, contraction_target, delivery_target, invoicing_target, receivables_target")
+        .eq("month", monthStart)
+        .in("deal_id", ids);
+      const tTotals = (tgts || []).reduce((s, r: any) => ({
+        contraction: s.contraction + (Number(r.contraction_target) || 0),
+        delivery: s.delivery + (Number(r.delivery_target) || 0),
+        invoicing: s.invoicing + (Number(r.invoicing_target) || 0),
+        receivables: s.receivables + (Number(r.receivables_target) || 0),
+      }), { contraction: 0, delivery: 0, invoicing: 0, receivables: 0 });
+      setFinTargets(tTotals);
     } else {
       setFinByDeal({});
       setFinSummary({ contraction: 0, delivery: 0, invoicing: 0, receivables: 0 });
+      setFinTargets({ contraction: 0, delivery: 0, invoicing: 0, receivables: 0 });
     }
     setLoadingMyDeals(false);
   }, [user, isAdmin]);
@@ -771,24 +786,59 @@ export default function HomePage() {
           <CardHeader className="pb-3">
             <CardTitle className="text-[15px] font-bold flex items-center gap-2">
               <Target className="h-4 w-4 text-primary" /> Financial Summary
-              <span className="ml-2 text-[10px] font-normal text-muted-foreground">Across {myDeals.length} deal{myDeals.length === 1 ? "" : "s"}</span>
+              <span className="ml-2 text-[10px] font-normal text-muted-foreground">{format(new Date(), "MMM yyyy")} • {myDeals.length} deal{myDeals.length === 1 ? "" : "s"}</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               {([
-                { key: "contraction" as const, label: "Contraction", value: finSummary.contraction },
-                { key: "delivery" as const, label: "Delivery", value: finSummary.delivery },
-                { key: "invoicing" as const, label: "Invoicing", value: finSummary.invoicing },
-                { key: "receivables" as const, label: "Receivables Outstanding", value: finSummary.receivables },
-              ]).map(t => (
-                <button key={t.key} onClick={() => setFinDrill(t.key)}
-                  className="rounded-lg border border-border bg-card hover:bg-accent/10 p-3 text-left transition-colors">
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{t.label}</p>
-                  <p className="text-lg font-semibold font-mono mt-1 text-foreground">{formatINR(t.value)}</p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">Click to view deals</p>
-                </button>
-              ))}
+                { key: "contraction" as const, label: "Contraction", actual: finSummary.contraction, target: finTargets.contraction },
+                { key: "delivery" as const, label: "Delivery", actual: finSummary.delivery, target: finTargets.delivery },
+                { key: "invoicing" as const, label: "Invoicing", actual: finSummary.invoicing, target: finTargets.invoicing },
+                { key: "receivables" as const, label: "Receivables Outstanding", actual: finSummary.receivables, target: finTargets.receivables },
+              ]).map(t => {
+                const pct = t.target > 0 ? Math.min(100, Math.round((t.actual / t.target) * 100)) : 0;
+                const onTrack = pct >= 85;
+                const warn = pct >= 60 && pct < 85;
+                const barCls = onTrack ? "bg-positive" : warn ? "bg-warning" : "bg-destructive";
+                const pillCls = onTrack
+                  ? "bg-positive/10 text-positive"
+                  : warn
+                  ? "bg-warning/10 text-warning"
+                  : "bg-destructive/10 text-destructive";
+                return (
+                  <button
+                    key={t.key}
+                    onClick={() => setFinDrill(t.key)}
+                    className="group relative rounded-xl border border-border bg-card hover:border-primary/40 hover:bg-accent/5 p-4 text-left transition-all overflow-hidden"
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">{t.label}</p>
+                      {t.target > 0 && (
+                        <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded-full tabular-nums", pillCls)}>
+                          {pct}%
+                        </span>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <div>
+                        <p className="text-[9px] uppercase tracking-wide text-muted-foreground/70">Actual</p>
+                        <p className="text-lg font-semibold font-mono tabular-nums text-foreground leading-tight">{formatINR(t.actual)}</p>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-2 pt-1 border-t border-border/40">
+                        <p className="text-[9px] uppercase tracking-wide text-muted-foreground/70">Target</p>
+                        <p className="text-xs font-medium font-mono tabular-nums text-muted-foreground">{t.target > 0 ? formatINR(t.target) : "—"}</p>
+                      </div>
+                    </div>
+                    {t.target > 0 && (
+                      <div className="mt-3 h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                        <div className={cn("h-full rounded-full transition-all", barCls)} style={{ width: `${pct}%` }} />
+                      </div>
+                    )}
+                    <ChevronRight className="absolute top-3 right-3 h-3 w-3 text-muted-foreground/0 group-hover:text-muted-foreground/60 transition-colors" />
+                  </button>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
