@@ -300,6 +300,13 @@ export function BopmStaffingFlatTable({
   const [bopmFilter, setBopmFilter] = useState<string>("All");
   const allPersonNames = useAllPersonNames();
   const [addForDeal, setAddForDeal] = useState<string | null>(null);
+  // Engagement-aware add: opens the full dialog scoped to a specific role/category.
+  const [addCell, setAddCell] = useState<{ dealId: string; roleKey: string; category: string } | null>(null);
+  // Engagement-aware change: opens the dialog in edit mode for an existing assignment.
+  const [editEntry, setEditEntry] = useState<{
+    dealId: string; assignmentId: string; roleKey: string;
+    category: string; allocationPct: number;
+  } | null>(null);
   const [allocDraft, setAllocDraft] = useState<Record<string, string>>({});
   const [drafts, setDrafts] = useState<Record<string, DealDraft>>({});
   const [submitting, setSubmitting] = useState<Record<string, boolean>>({});
@@ -779,19 +786,25 @@ export function BopmStaffingFlatTable({
         <div className="flex items-center gap-1.5">
           {/* Name as styled popover trigger (same row as %) */}
           <div className="flex-1 min-w-0">
-            <PersonPickerPopover
-              currentId={e.personId}
-              candidates={colMatches}
+            <button
+              type="button"
               disabled={!!e.isMarkedRemove}
-              triggerLabel={`${p?.name || "—"}${p?.tbh ? " (TBH)" : ""}`}
-              triggerClassName={cn(
-                "w-full inline-flex items-center justify-between gap-1 px-1 py-0.5 rounded-sm text-[11px] font-medium text-foreground hover:bg-foreground/5 hover:ring-1 hover:ring-border transition-colors",
+              onClick={() => setEditEntry({
+                dealId: deal.id,
+                assignmentId: e.assignmentId,
+                roleKey,
+                category: cat,
+                allocationPct: e.allocationPct,
+              })}
+              className={cn(
+                "group/picker w-full inline-flex items-center justify-between gap-1 px-1 py-0.5 rounded-sm text-[11px] font-medium text-foreground hover:bg-foreground/5 hover:ring-1 hover:ring-border transition-colors",
                 e.isMarkedRemove && "line-through opacity-60"
               )}
-              onSelect={(id) => {
-                if (id && id !== e.personId) stageUpdate(deal.id, e.assignmentId, { personId: id });
-              }}
-            />
+              title="Click to change person, allocation or dates (with engagement view)"
+            >
+              <span className="truncate">{`${p?.name || "—"}${p?.tbh ? " (TBH)" : ""}`}</span>
+              <ChevronDown className="h-3 w-3 opacity-0 group-hover/picker:opacity-60 flex-shrink-0" />
+            </button>
           </div>
           {/* % allocation inline */}
           <input
@@ -1072,37 +1085,26 @@ export function BopmStaffingFlatTable({
                         >
                           <div className="space-y-1">
                             {entries.map(e => renderEntry(d, rk, e))}
-                            <PersonPickerPopover
+                            <button
                               key={pickerKey}
-                              candidates={pickerOptions}
+                              type="button"
                               disabled={pickerOptions.length === 0}
-                              triggerLabel={
-                                pickerOptions.length === 0
-                                  ? (manager
-                                      ? `No reports under ${manager.name.split(" ")[0]}`
-                                      : `No ${ROLE_LABEL(rk)} available`)
-                                  : (manager
-                                      ? `+ Add (under ${manager.name.split(" ")[0]})`
-                                      : `+ Add ${ROLE_LABEL(rk)}`)
-                              }
-                              triggerClassName={cn(
+                              onClick={() => setAddCell({ dealId: d.id, roleKey: rk, category: cat })}
+                              className={cn(
                                 "w-full flex items-center justify-between gap-1 px-1.5 py-1 text-[10.5px] italic rounded-md border border-dashed transition-colors",
                                 pickerOptions.length === 0
                                   ? "text-muted-foreground/50 border-border/30 cursor-not-allowed"
                                   : "text-muted-foreground border-border/50 hover:text-foreground hover:border-border hover:bg-secondary/40"
                               )}
-                              emptyLabel={manager ? `No reports under ${manager.name}` : `No ${ROLE_LABEL(rk)} available`}
-                              placeholder={`Search ${ROLE_LABEL(rk)}…`}
-                              onSelect={(personId) => {
-                                stageAdd(d.id, {
-                                  id: uid(),
-                                  dealId: d.id,
-                                  roleKey: rk,
-                                  personId,
-                                  allocationPct: 10,
-                                });
-                              }}
-                            />
+                              title="Open assignment dialog with engagement view + dates"
+                            >
+                              <span className="truncate">
+                                {pickerOptions.length === 0
+                                  ? (manager ? `No reports under ${manager.name.split(" ")[0]}` : `No ${ROLE_LABEL(rk)} available`)
+                                  : (manager ? `+ Add (under ${manager.name.split(" ")[0]})` : `+ Add ${ROLE_LABEL(rk)}`)}
+                              </span>
+                              <Plus className="h-3 w-3 opacity-60 flex-shrink-0" />
+                            </button>
                           </div>
                         </td>
                       );
@@ -1174,6 +1176,43 @@ export function BopmStaffingFlatTable({
           deals={deals}
           dealId={addForDeal}
           onAdd={(assignment) => { stageAdd(addForDeal!, assignment); setAddForDeal(null); }}
+        />
+      )}
+
+      {addCell && (
+        <AddStaffingMemberDialog
+          open={!!addCell}
+          onOpenChange={v => { if (!v) setAddCell(null); }}
+          people={allPeople}
+          assignments={assignments}
+          deals={deals}
+          dealId={addCell.dealId}
+          initialCategory={addCell.category as RoleCategory}
+          initialRoleKey={addCell.roleKey}
+          onAdd={(assignment) => {
+            stageAdd(addCell.dealId, { ...assignment, roleKey: addCell.roleKey });
+            setAddCell(null);
+          }}
+        />
+      )}
+
+      {editEntry && (
+        <AddStaffingMemberDialog
+          open={!!editEntry}
+          onOpenChange={v => { if (!v) setEditEntry(null); }}
+          people={allPeople}
+          assignments={assignments}
+          deals={deals}
+          dealId={editEntry.dealId}
+          initialCategory={editEntry.category as RoleCategory}
+          initialRoleKey={editEntry.roleKey}
+          initialAllocationPct={editEntry.allocationPct}
+          editingAssignmentId={editEntry.assignmentId}
+          onAdd={() => { /* not used in edit mode */ }}
+          onUpdate={(assignmentId, patch) => {
+            stageUpdate(editEntry.dealId, assignmentId, patch);
+            setEditEntry(null);
+          }}
         />
       )}
     </section>

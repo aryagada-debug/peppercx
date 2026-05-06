@@ -16,6 +16,7 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { CheckCircle2, XCircle, Eye, Loader2, ArrowRight, User2 } from "lucide-react";
 import { toast } from "sonner";
+import { StaffingApprovalEditor } from "./StaffingApprovalEditor";
 
 const COLUMNS: { key: ApprovalRequestRow["status"]; label: string; tint: string }[] = [
   { key: "pending",      label: "Pending",        tint: "border-l-warning bg-warning/5" },
@@ -176,6 +177,7 @@ export function ApprovalsPipeline() {
 
   const diff = active ? diffPairs(active.previous, active.payload) : [];
   const activeChildren = active && active.is_batch ? (grouped.childrenByParent.get(active.id) || []) : [];
+  const isStaffingReq = !!active && (active.request_type === "staffing.add" || active.request_type === "staffing.update" || active.request_type === "staffing.remove");
 
   return (
     <div className="space-y-4">
@@ -338,9 +340,16 @@ export function ApprovalsPipeline() {
                 {!active.is_batch && canEditAll && (active.status === "pending" || active.status === "under_review") && (
                   <div className="flex justify-end">
                     <Button variant="outline" size="sm" onClick={() => setEditMode(v => !v)} disabled={busy}>
-                      {editMode ? "Preview changes" : "Edit approval details"}
+                      {editMode ? "Hide advanced editor" : (isStaffingReq ? "Advanced JSON editor" : "Edit approval details")}
                     </Button>
                   </div>
+                )}
+
+                {!active.is_batch && isStaffingReq && active.request_type !== "staffing.remove" && canEditAll && (active.status === "pending" || active.status === "under_review") && (
+                  <StaffingApprovalEditor
+                    request={active}
+                    onSaved={(patch) => setActive({ ...active, ...patch } as any)}
+                  />
                 )}
 
                 {!active.is_batch && editMode && canEditAll && (active.status === "pending" || active.status === "under_review") ? (

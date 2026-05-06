@@ -29,13 +29,20 @@ interface AddStaffingMemberDialogProps {
   initialCategory?: RoleCategory;
   /** If provided, pre-select this person and go to step 3 */
   initialPersonName?: string;
+  /** Edit-mode: when set, dialog updates this assignment instead of adding a new one. */
+  editingAssignmentId?: string;
+  initialAllocationPct?: number;
+  initialRoleKey?: string;
+  onUpdate?: (assignmentId: string, patch: Partial<StaffingAssignment>) => void;
 }
 
 export function AddStaffingMemberDialog({
   open, onOpenChange, people, assignments, deals, dealId, onAdd, initialCategory, initialPersonName,
+  editingAssignmentId, initialAllocationPct, initialRoleKey, onUpdate,
 }: AddStaffingMemberDialogProps) {
   const { canEditAll } = useUserRole();
   const requiresApproval = !canEditAll;
+  const isEditMode = !!editingAssignmentId;
   const getInitialStep = (): 1 | 2 | 3 => {
     if (initialPersonName) return 3;
     if (initialCategory) return 2;
@@ -48,12 +55,17 @@ export function AddStaffingMemberDialog({
     if (initialPersonName) return people.find(p => p.name === initialPersonName) || null;
     return null;
   });
-  const [allocationPct, setAllocationPct] = useState(10);
+  const [allocationPct, setAllocationPct] = useState(initialAllocationPct ?? 10);
   const [expandedPerson, setExpandedPerson] = useState<string | null>(null);
   const dealForDates = useMemo(() => deals.find(d => d.id === dealId), [deals, dealId]);
-  const [startDate, setStartDate] = useState<string>(dealForDates?.startDate || "");
-  const [endDate, setEndDate] = useState<string>(dealForDates?.endDate || "");
+  const editingAssignment = useMemo(
+    () => editingAssignmentId ? assignments.find(a => a.id === editingAssignmentId) : undefined,
+    [editingAssignmentId, assignments]
+  );
+  const [startDate, setStartDate] = useState<string>(editingAssignment?.startDate || dealForDates?.startDate || "");
+  const [endDate, setEndDate] = useState<string>(editingAssignment?.endDate || dealForDates?.endDate || "");
   const [roleOnDeal, setRoleOnDeal] = useState(() => {
+    if (initialRoleKey) return initialRoleKey;
     if (initialPersonName) {
       const p = people.find(pp => pp.name === initialPersonName);
       return p?.roleTitle || p?.roleCategory || "";
@@ -96,19 +108,37 @@ export function AddStaffingMemberDialog({
     setStep(initialCategory ? 2 : 1);
     setSelectedCategory(initialCategory || null);
     setSelectedPerson(null);
-    setAllocationPct(10);
+    setAllocationPct(initialAllocationPct ?? 10);
     setExpandedPerson(null);
-    setRoleOnDeal("");
+    setRoleOnDeal(initialRoleKey || "");
     setAssignmentType("Internal");
     setExpandedOpsGroup(null);
     setSearchQuery("");
-    setStartDate(dealForDates?.startDate || "");
-    setEndDate(dealForDates?.endDate || "");
+    setStartDate(editingAssignment?.startDate || dealForDates?.startDate || "");
+    setEndDate(editingAssignment?.endDate || dealForDates?.endDate || "");
   };
 
   // Re-initialize when dialog opens with new props
   React.useEffect(() => {
     if (open) {
+      if (editingAssignmentId) {
+        const cur = assignments.find(a => a.id === editingAssignmentId);
+        const curPerson = cur ? people.find(pp => pp.id === cur.personId) : null;
+        if (curPerson) {
+          setSelectedPerson(curPerson);
+          setSelectedCategory((curPerson.roleCategory as RoleCategory) || initialCategory || null);
+        } else if (initialCategory) {
+          setSelectedCategory(initialCategory);
+        }
+        if (cur) {
+          setAllocationPct(cur.allocationPct ?? initialAllocationPct ?? 10);
+          setStartDate(cur.startDate || dealForDates?.startDate || "");
+          setEndDate(cur.endDate || dealForDates?.endDate || "");
+          setRoleOnDeal(cur.roleKey || initialRoleKey || curPerson?.roleTitle || "");
+        }
+        setStep(curPerson ? 3 : (initialCategory ? 2 : 1));
+        return;
+      }
       if (initialPersonName) {
         const p = people.find(pp => pp.name === initialPersonName);
         if (p) {
@@ -126,10 +156,23 @@ export function AddStaffingMemberDialog({
         setStep(1);
       }
     }
-  }, [open, initialCategory, initialPersonName, people]);
+  }, [open, initialCategory, initialPersonName, people, editingAssignmentId, assignments, initialRoleKey, initialAllocationPct, dealForDates?.startDate, dealForDates?.endDate]);
 
   const handleConfirm = () => {
     if (!selectedPerson) return;
+    if (isEditMode && editingAssignmentId && onUpdate) {
+      onUpdate(editingAssignmentId, {
+        personId: selectedPerson.id,
+        roleKey: roleOnDeal || selectedPerson.roleTitle || selectedPerson.roleCategory,
+        allocationPct,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+      });
+      if (!requiresApproval) toast.success(`${selectedPerson.name} updated`);
+      reset();
+      onOpenChange(false);
+      return;
+    }
     onAdd({
       id: uid(),
       dealId,
@@ -153,7 +196,7 @@ export function AddStaffingMemberDialog({
           <AlertDialogTitle>
             {step === 1 && "Select Team"}
             {step === 2 && `Select Member — ${selectedCategory}`}
-            {step === 3 && `Set Allocation — ${selectedPerson?.name}`}
+            {step === 3 && `${isEditMode ? "Update Assignment" : "Set Allocation"} — ${selectedPerson?.name}`}
           </AlertDialogTitle>
           <AlertDialogDescription>
             {step === 1 && "Choose a team/capability to browse available members."}
@@ -490,7 +533,9 @@ export function AddStaffingMemberDialog({
           <AlertDialogCancel onClick={reset}>Cancel</AlertDialogCancel>
           {step === 3 && (
             <AlertDialogAction onClick={handleConfirm}>
-              {requiresApproval ? "Send for Approval" : "Add to Plan"}
+              {requiresApproval
+                ? "Send for Approval"
+                : (isEditMode ? "Save changes" : "Add to Plan")}
             </AlertDialogAction>
           )}
         </AlertDialogFooter>

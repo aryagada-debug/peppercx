@@ -1,60 +1,62 @@
+## What's already done vs. what's missing
+
+The full `AddStaffingMemberDialog` already shows the proposed person's **Current Engagements** panel, free capacity, and **Start / End date** pickers (with hints showing the deal's own start/end). It is already used by Clients & Deals (`/clients`, `/deals/:id`) and the Staffing Table view's "+" buttons.
+
+Two gaps remain:
+
+1. **Quick-pick paths in the BOPM/VSD/Admin Staffing Table bypass the dialog.** In `BopmStaffingFlatTable.tsx` the inline `PersonPickerPopover` lets a user (a) add someone to a role cell or (b) swap one assigned person for another — both go straight to `stageAdd` / `stageUpdate` with **no engagement view, no start/end picker, default 10%**. This is the main thing the user is reporting on /staffing.
+2. **Central CX approval drawer** (`ApprovalsPipeline.tsx`) only exposes raw JSON textareas for editing. Reviewers can't see the proposed person's current engagements, and editing dates/allocations means hand-editing JSON.
+
 ## Plan
 
-Three changes scoped to Home, Staffing, and Clients & Deals.
+### 1. Make every "add / change person" path go through `AddStaffingMemberDialog`
 
----
+`src/components/staffing/AddStaffingMemberDialog.tsx`
+- Add two optional props:
+  - `initialAllocationPct?: number`
+  - `editingAssignmentId?: string` (when set, dialog title becomes "Change assignment" and the confirm button calls a new `onUpdate` callback instead of `onAdd`).
+  - `onUpdate?: (assignmentId: string, patch: Partial<StaffingAssignment>) => void`
+- When `editingAssignmentId` is provided, prefill role / allocation / dates from the existing assignment, but still recompute `Current Engagements` + free capacity for the **newly selected** person.
 
-### 1) Home — enable Add Task in Kanban + Financial Summary tile
+`src/components/staffing/BopmStaffingFlatTable.tsx`
+- Replace the in-cell "+ Add ROLE" `PersonPickerPopover` (around line 1075) with a button that opens `AddStaffingMemberDialog` for that deal, pre-filtered to the role's category (`initialCategory`) so the user lands on Step 2 with the right shortlist. The dialog handles engagements + dates + allocation; on confirm it calls `stageAdd`.
+- Replace the inline name-change `PersonPickerPopover` (around line 782) with a click that opens the same dialog in **edit mode** (`editingAssignmentId` set, `initialCategory` from the column, `initialAllocationPct` from the row). On confirm it calls `stageUpdate(deal.id, assignmentId, { personId, allocationPct, startDate, endDate, roleKey })`.
+- Keep direct allocation% inline edit as-is (no dialog) — that's just a number change and isn't what the user is asking for.
 
-**Add Task in Home Kanban**
-- Currently `TaskKanban` on Home is rendered with `disableAdd` and a no-op `onAdd`. Wire it up so clicking the per-column "+ Add" inside the kanban opens the existing `AddTaskDialog` (already used by the "Add Task" header button).
-- The dialog will reuse `addTaskDealId` flow so the user picks the deal + fills the form, and the new task is inserted into `deal_tasks` (already two-way synced with the deal's Kanban via existing `handleAddTaskSubmit`).
-- Keep "My Deals" filtering as-is — deals shown are already restricted to the logged-in user via alias matching against `vsd / principal_bopm / senior_bopm / bopm` on `staffing_deals` (same source used by Clients & Deals page). No change needed here other than confirming the scoping.
+`src/components/staffing/DealLevelView.tsx` and `PeopleLevelView.tsx`
+- These are read-only today; no changes needed. (Confirmed: all add flows on these pages already route through `AddStaffingMemberDialog` via DealDetail.)
 
-**New "Financial Summary" card on Home (all roles)**
-- Add a new card showing four totals across deals visible to the user (Admin: all deals; everyone else: their alias-matched deals — same scope as "My Deals"):
-  - Total Contraction (sum of `consumption` across `deal_financials`)
-  - Total Delivery (sum of `consumption` — currently used as delivered in `FinancialsTab`)
-  - Total Invoicing (sum of `invoiced`)
-  - Total Receivables Outstanding (sum of `invoiced - received`)
-- Each tile is clickable and opens a drill-down dialog with a table of contributing deals: Account, Deal Name (link → `/deals/:id`), VSD/BOPM, value for that metric. Sortable by value. Reuses existing dialog/table primitives.
-- Currency respects `useCurrencyVersion()` + `formatINR` already imported on Home.
+Result: VSD, BOPM, Admin — every persona that can stage a staffing change on /staffing now sees the same Current Engagements card + start/end pickers before submitting.
 
----
+### 2. Central CX — structured editor with engagement context
 
-### 2) Staffing & Capacity — start/end dates with auto-expiry + ghosted historical staffing
+`src/components/cx/ApprovalsPipeline.tsx`
+- Add a new component `StaffingApprovalEditor` rendered when `active.request_type` is `staffing.add | staffing.update | staffing.remove` and edit mode is on (or always, for staffing). It replaces the JSON textareas with:
+  - **Person** picker (typeahead from `staffing_people`, same UX as the dialog's search)
+  - **Role on deal** (text)
+  - **Allocation %** + auto-derived hrs/wk
+  - **Start date** / **End date** pickers, with the deal's start/end shown as hints (looked up from `staffing_deals` by `deal_id`)
+  - **Current Engagements** panel for the chosen person — reused via a small extracted component `<PersonEngagementsCard person assignments deals/>` lifted out of `AddStaffingMemberDialog.tsx` so both screens render the identical card.
+  - Free-form **Reviewer note** (already exists)
+- On Save it builds the same `payload` shape today's edge function expects and calls the existing `updateApprovalRequestDetails(active.id, …)` — no schema or edge-function changes.
+- Approve & apply still calls `applyApprovedRequest` with `editSummary: "Central CX edited approval details before approving."` so the existing notification fan-out (already wired in `supabase/functions/approval-execute/index.ts` to email/notify the requester, the deal's VSD, BOPMs, and the staffed person) carries the edited values through unchanged.
 
-**Date inputs**
-- `AddStaffingMemberDialog` already collects `startDate` / `endDate` and writes them to `staffing_assignments.start_date / end_date`. Surface and confirm both inputs in the dialog UI (already present at step 3 — verify and improve labels / validation: `endDate >= startDate`).
-- Add inline editable Start / End date fields on the existing staffing tables (`BopmStaffingFlatTable`, `DealLevelView`, `PeopleLevelView`) so VSD/BOPM can adjust dates without re-creating the assignment.
+Keep the JSON textarea editor as a hidden "Advanced" toggle for non-staffing types (client.create, deal.create, etc.) so nothing else regresses.
 
-**Auto-expiry + "no longer staffed" indicator**
-- Add a derived helper `isAssignmentExpired(a)` = `a.end_date && a.end_date < today`.
-- Treatment everywhere staffing is rendered (Deal staffing tab, People view, Capacity tab, Home Kanban assignee picker, `WeeklyStaffingGrid`):
-  - Expired rows remain visible but are styled with `opacity-60`, lighter font weight, and a subtle "Past" badge so VSD/BOPMs can see who used to be staffed if a deal is later extended.
-  - Capacity / utilization calculations exclude expired rows so a person isn't double-counted after their end_date passes.
-  - Filters/aggregations (e.g., "currently staffed people on deal X") use only non-expired rows.
-- No automatic DB delete — assignments stay in `staffing_assignments` so history is preserved. We hide them from "active" totals and ghost them in UI.
+### 3. Small data plumbing
 
----
+- Approvals drawer needs `staffing_people` + `staffing_assignments` + `staffing_deals` to render the engagements card. Use the existing `useStaffingData()` hook (already pulls all three) — call it inside `ApprovalsPipeline` so the drawer has people/deals/assignments available without new fetches.
 
-### 3) Clients & Deals — Duration column
+### 4. QA checklist
 
-- Add a new optional column `duration` to the `ALL_COLS` list in `src/pages/Clients.tsx`.
-- Computed from `staffing_deals.start_date` and `staffing_deals.end_date`:
-  - If both present: human-readable months (e.g. "12 mo", or "13 mo · ends 30 Jun 2026").
-  - If only end_date: "ends DD MMM YYYY".
-  - If neither: `—`.
-- Column is included in default visible set, sortable by length in days, supports the existing per-column filter pattern (text match).
+- VSD on /staffing > Staffing tab: clicking "+ Add" in any role cell opens the dialog, shows engagements + date pickers; confirming stages the change with the chosen dates.
+- Same for swapping a person inline.
+- BOPM persona (read-only) is unaffected — they still go through the existing "Request change" flow which already opens the dialog.
+- Central CX > Approvals: opening any staffing approval shows the structured editor, the proposed person's engagements card, and editable dates/allocation. Saving + Approving sends the edited payload to the requester, VSD, BOPM, and the staffed person via the existing notify path.
 
----
+### Files touched
 
-### Files to edit
-
-- `src/pages/Home.tsx` — wire kanban `onAdd` to existing AddTaskDialog flow; add Financial Summary card + drill-down dialog; query `deal_financials` filtered to user's deal IDs.
-- `src/components/staffing/AddStaffingMemberDialog.tsx` — explicit Start/End date inputs with validation.
-- `src/components/staffing/BopmStaffingFlatTable.tsx`, `DealLevelView.tsx`, `PeopleLevelView.tsx`, `WeeklyStaffingGrid.tsx`, `CapacityTab.tsx` — render expired assignments ghosted; exclude from active totals; allow inline editing of start/end dates.
-- `src/data/staffingData.ts` — add `isAssignmentExpired` helper; ensure utilization functions accept an "active only" flag.
-- `src/pages/Clients.tsx` — add Duration column to ALL_COLS, default visible, header + cell rendering.
-
-No DB schema changes — `start_date` / `end_date` already exist on `staffing_assignments` and `staffing_deals`.
+- `src/components/staffing/AddStaffingMemberDialog.tsx` — extract `PersonEngagementsCard`, add `editingAssignmentId` / `initialAllocationPct` / `onUpdate` props.
+- `src/components/staffing/BopmStaffingFlatTable.tsx` — route in-cell add and inline person-swap through the dialog.
+- `src/components/cx/ApprovalsPipeline.tsx` — new `StaffingApprovalEditor` for staffing requests, reusing `PersonEngagementsCard`.
+- (No DB schema changes, no edge-function changes.)
