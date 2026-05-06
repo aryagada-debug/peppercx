@@ -252,9 +252,24 @@ export async function setRequestStatus(
   return true;
 }
 
-export async function applyApprovedRequest(id: string) {
+export async function updateApprovalRequestDetails(
+  id: string,
+  patch: Partial<Pick<ApprovalRequestRow, "payload" | "previous" | "deal_id" | "target_kind" | "target_id" | "requester_note" | "reviewer_note">>,
+) {
+  const { error } = await (supabase as any)
+    .from("approval_requests")
+    .update(patch)
+    .eq("id", id);
+  if (error) {
+    toast.error(error.message || "Could not save approval edits");
+    return false;
+  }
+  return true;
+}
+
+export async function applyApprovedRequest(id: string, opts?: { editSummary?: string }) {
   const { data, error } = await supabase.functions.invoke("approval-execute", {
-    body: { request_id: id },
+    body: { request_id: id, edit_summary: opts?.editSummary || "" },
   });
   if (error) {
     toast.error(error.message || "Could not apply change");

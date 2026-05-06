@@ -8,7 +8,7 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { TeamCountDrillDialog } from "./TeamCountDrillDialog";
 import { VSDDrillDialog } from "./VSDDrillDialog";
-import { useAppUsers, useVsdUsers, useVsdHierarchy } from "@/hooks/useAppUsers";
+import { useAppUsers, useVsdUsers, useVsdHierarchy, useBopmDirectory } from "@/hooks/useAppUsers";
 
 const DIMENSIONS = [
   { key: "customer", label: "Customer" },
@@ -82,6 +82,7 @@ interface Props {
   isBopm?: boolean;
   isVsd?: boolean;
   myVsdName?: string | null;
+  summaryDeals?: DealWithRGY[];
 }
 
 function getWorstRGY(deal: DealWithRGY): "R" | "Y" | "G" | null {
@@ -108,10 +109,11 @@ const VSD_SHORT: Record<string, string> = {
   "Aditya Shaw": "Aditya",
 };
 
-export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm = false, isVsd = false, myVsdName = null }: Props) {
+export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm = false, isVsd = false, myVsdName = null, summaryDeals }: Props) {
   const { isRegisteredName } = useAppUsers();
   const { isVsdName, canonVsd } = useVsdUsers();
   const { vsdForDeal, vsdForPerson, bopmsForVsd } = useVsdHierarchy();
+  const { bopmUsersForVsd } = useBopmDirectory();
   const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
   // `vsd` here is the resolved VSD (we set it from hierarchy in RGYHealth).
   const matchesActiveVsd = (vsd: string | undefined) => {
@@ -163,14 +165,18 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
     { name: "Green", value: kpis.green, fill: COLORS.G },
   ].filter((d) => d.value > 0), [kpis]);
 
+  const effectiveVsdName = isVsd
+    ? (myVsdName || (activeVsd !== "All" && activeVsd !== "Unassigned" ? activeVsd : null))
+    : null;
+
   // ── Per-team Red / Yellow counts ──
   // VSD persona: own active deals (regardless of activeVsd filter chip).
   const ownActiveDeals = useMemo(() => {
-    if (!isVsd || !myVsdName) return null;
+    if (!isVsd || !effectiveVsdName) return null;
     return deals.filter(
-      (d) => ACTIVE_STATUSES.has(d.deal_status) && vsdForDeal(d as any) === myVsdName,
+      (d) => ACTIVE_STATUSES.has(d.deal_status) && vsdForDeal(d as any) === effectiveVsdName,
     );
-  }, [isVsd, myVsdName, deals, vsdForDeal]);
+  }, [isVsd, effectiveVsdName, deals, vsdForDeal]);
 
   const teamHealthSource = useMemo(() => {
     if (ownActiveDeals) return ownActiveDeals;
@@ -234,10 +240,16 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
     // VSD persona: replace the VSD comparison with a per-BOPM comparison
     // (Principal/Senior BOPMs that report under this VSD), across ACTIVE
     // deals only.
-    if (isVsd && myVsdName) {
-      let bopms = bopmsForVsd(myVsdName);
+    if (isVsd && effectiveVsdName) {
+      let bopms = bopmsForVsd(effectiveVsdName);
       const norm = (s: string | null | undefined) =>
         (s || "").toLowerCase().normalize("NFKD").replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+      const directoryBopms = bopmUsersForVsd(effectiveVsdName).map((b) => b.name).filter(Boolean);
+      if (directoryBopms.length > 0) {
+        const byKey = new Map<string, string>();
+        [...bopms, ...directoryBopms].forEach((b) => byKey.set(norm(b), b));
+        bopms = Array.from(byKey.values()).sort((a, b) => a.localeCompare(b));
+      }
       // Fallback: derive BOPMs from this VSD's active deals if the
       // hierarchy hook hasn't populated them yet.
       if (bopms.length === 0) {
@@ -245,13 +257,13 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
         const set = new Map<string, string>(); // norm -> display
         deals.forEach((d) => {
           if (!ACTIVE_STATUSES.has(d.deal_status)) return;
-          if (vsdForDeal(d as any) !== myVsdName) return;
+          if (vsdForDeal(d as any) !== effectiveVsdName) return;
           [(d as any).principal_bopm, (d as any).senior_bopm].forEach((raw: string | null | undefined) => {
             const display = (raw || "").trim();
             const key = norm(display);
             if (!key || placeholders.has(key)) return;
             // Skip the VSD themselves
-            if (key === norm(myVsdName)) return;
+            if (key === norm(effectiveVsdName)) return;
             if (!set.has(key)) set.set(key, display);
           });
         });
@@ -264,7 +276,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
       });
       deals.forEach((deal) => {
         if (!ACTIVE_STATUSES.has(deal.deal_status)) return;
-        if (vsdForDeal(deal as any) !== myVsdName) return;
+        if (vsdForDeal(deal as any) !== effectiveVsdName) return;
         const candidates = [
           (deal as any).principal_bopm,
           (deal as any).senior_bopm,
@@ -302,7 +314,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
       entry.total = entry.Red + entry.Yellow + entry.Green;
     });
     return Array.from(map.values());
-  }, [deals, vsdForDeal, isVsd, myVsdName, bopmsForVsd]);
+  }, [deals, vsdForDeal, isVsd, effectiveVsdName, bopmsForVsd, bopmUsersForVsd]);
 
   const vsdDrillDeals = useMemo(() => {
     if (!vsdDrill) return [];
@@ -360,12 +372,38 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
     setAiLoading(true);
     setAiError("");
     try {
+      const summarySource = (summaryDeals || filteredDeals).filter((d) => ACTIVE_STATUSES.has(d.deal_status));
+      const summaryIds = new Set(summarySource.map((d) => d.id));
+      const summaryKpis = summarySource.reduce(
+        (acc, d) => {
+          const w = getWorstRGY(d);
+          if (w === "R") acc.red++;
+          else if (w === "Y") acc.yellow++;
+          else if (w === "G") acc.green++;
+          else acc.pending++;
+          return acc;
+        },
+        { total: summarySource.length, red: 0, yellow: 0, green: 0, pending: 0 },
+      );
+      const summaryTeamHealth = DIMENSIONS.map((dim) => ({
+        team: dim.label,
+        Red: summarySource.filter((d) => d[dim.key] === "R").length,
+        Yellow: summarySource.filter((d) => d[dim.key] === "Y").length,
+        Green: summarySource.filter((d) => d[dim.key] === "G").length,
+      }));
+      const summaryAgedIssues = issues
+        .filter((i) => summaryIds.has(i.deal_id))
+        .filter((i) => i.issue_status === "Open" || i.issue_status === "In Progress")
+        .map((i) => ({ ...i, days: daysSince(i.issue_date || i.created_at) }))
+        .sort((a, b) => b.days - a.days);
       const snapshot = {
         window: aiWindow,
-        kpis,
-        teamHealth,
+        scope: isVsd && effectiveVsdName ? `VSD: ${effectiveVsdName}` : isBopm ? "Current user's assigned deals" : "Current view/user scope",
+        kpis: summaryKpis,
+        teamHealth: summaryTeamHealth,
+        deals: summarySource.slice(0, 60).map((d) => ({ deal: d.deal_name, account: d.account, status: d.deal_status, worst: getWorstRGY(d) })),
         vsdComparison: vsdComparison.map(v => ({ vsd: v.vsdFull, R: v.Red, Y: v.Yellow, G: v.Green })),
-        topAgedRedIssues: activeIssues
+        topAgedRedIssues: summaryAgedIssues
           .filter(i => i.worst === "R")
           .slice(0, 10)
           .map(i => ({ deal: i.deal_name, days: i.days, dims: i.red_dimensions, details: i.issue_details?.slice(0, 200) })),
@@ -456,21 +494,26 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
       <div className="bg-card border border-border rounded-lg p-4">
         <div className="flex items-center justify-between mb-1">
           <h3 className="text-sm font-semibold">
-            {isVsd && myVsdName ? "BOPM Portfolio Health Comparison" : "VSD Portfolio Health Comparison"}
+            {isVsd && effectiveVsdName ? "BOPM Portfolio Health Comparison" : "VSD Portfolio Health Comparison"}
           </h3>
           <span className="text-[10px] text-muted-foreground">
-            {isVsd && myVsdName ? `${myVsdName}'s pod · P / Sr BOPMs` : "All Pods · Click bar to drill in"}
+            {isVsd && effectiveVsdName ? `${effectiveVsdName}'s pod · P / Sr BOPMs` : "All Pods · Click bar to drill in"}
           </span>
         </div>
         <p className="text-xs text-muted-foreground mb-3">
-          {isVsd && myVsdName
+          {isVsd && effectiveVsdName
             ? "Stacked R / Y / G deal count per Principal / Senior BOPM across your active deals"
             : "Stacked R / Y / G deal count per VSD across active deals"}
         </p>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={vsdComparison} margin={{ left: 10, bottom: 5, top: 10 }} barSize={50}>
+        {vsdComparison.length === 0 ? (
+          <div className="h-[220px] flex items-center justify-center rounded-md border border-dashed border-border text-xs text-muted-foreground">
+            No Principal / Senior BOPMs found for this VSD's active deals.
+          </div>
+        ) : (
+        <ResponsiveContainer width="100%" height={320}>
+          <BarChart data={vsdComparison} margin={{ left: 10, bottom: 42, top: 10 }} barSize={42}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis dataKey="vsd" tick={{ fontSize: 12, fontWeight: 500 }} interval={0} />
+            <XAxis dataKey="vsd" tick={{ fontSize: 11, fontWeight: 500 }} interval={0} angle={-35} textAnchor="end" height={48} />
             <YAxis tick={{ fontSize: 11 }} allowDecimals={false} label={{ value: "Deal Count", angle: -90, position: "insideLeft", style: { fontSize: 11, fill: "hsl(var(--muted-foreground))" } }} />
             <RechartsTooltip
               contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }}
@@ -488,6 +531,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
             </Bar>
           </BarChart>
         </ResponsiveContainer>
+        )}
       </div>
       )}
 

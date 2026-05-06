@@ -2,18 +2,20 @@ import { useMemo, useState } from "react";
 import { useApprovals } from "@/hooks/useApprovals";
 import { useUserRole } from "@/hooks/useUserRole";
 import {
-  applyApprovedRequest, cancelApprovalRequest, setRequestStatus,
+  applyApprovedRequest, cancelApprovalRequest, setRequestStatus, updateApprovalRequestDetails,
   type ApprovalRequestRow,
 } from "@/lib/approvals";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/components/ui/sheet";
 import { formatDistanceToNow } from "date-fns";
 import { CheckCircle2, XCircle, Eye, Loader2, ArrowRight, User2 } from "lucide-react";
+import { toast } from "sonner";
 
 const COLUMNS: { key: ApprovalRequestRow["status"]; label: string; tint: string }[] = [
   { key: "pending",      label: "Pending",        tint: "border-l-warning bg-warning/5" },
@@ -52,6 +54,13 @@ export function ApprovalsPipeline() {
   const { canEditAll } = useUserRole();
   const [active, setActive] = useState<ApprovalRequestRow | null>(null);
   const [reviewerNote, setReviewerNote] = useState("");
+  const [editMode, setEditMode] = useState(false);
+  const [payloadText, setPayloadText] = useState("{}");
+  const [previousText, setPreviousText] = useState("{}");
+  const [dealIdDraft, setDealIdDraft] = useState("");
+  const [targetKindDraft, setTargetKindDraft] = useState("");
+  const [targetIdDraft, setTargetIdDraft] = useState("");
+  const [requesterNoteDraft, setRequesterNoteDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [expandedBatch, setExpandedBatch] = useState<Set<string>>(new Set());
 
@@ -83,6 +92,13 @@ export function ApprovalsPipeline() {
   const openDetail = (r: ApprovalRequestRow) => {
     setActive(r);
     setReviewerNote(r.reviewer_note || "");
+    setEditMode(false);
+    setPayloadText(JSON.stringify(r.payload || {}, null, 2));
+    setPreviousText(JSON.stringify(r.previous || {}, null, 2));
+    setDealIdDraft(r.deal_id || "");
+    setTargetKindDraft(r.target_kind || "");
+    setTargetIdDraft(r.target_id || "");
+    setRequesterNoteDraft(r.requester_note || "");
   };
 
   const handleStartReview = async () => {
@@ -91,13 +107,46 @@ export function ApprovalsPipeline() {
     await setRequestStatus(active.id, "under_review", reviewerNote);
     setBusy(false);
   };
+
+  const saveApprovalDraft = async (showToast = true): Promise<{ ok: boolean; changed: boolean }> => {
+    if (!active) return { ok: false, changed: false };
+    let payload: any;
+    let previous: any;
+    try {
+      payload = JSON.parse(payloadText || "{}");
+      previous = JSON.parse(previousText || "{}");
+    } catch {
+      toast.error("Payload and previous values must be valid JSON.");
+      return { ok: false, changed: false };
+    }
+    const patch = {
+      payload,
+      previous,
+      deal_id: dealIdDraft.trim(),
+      target_kind: targetKindDraft.trim(),
+      target_id: targetIdDraft.trim(),
+      requester_note: requesterNoteDraft,
+      reviewer_note: reviewerNote,
+    };
+    const changed = JSON.stringify({ payload: active.payload, previous: active.previous, deal_id: active.deal_id, target_kind: active.target_kind, target_id: active.target_id, requester_note: active.requester_note, reviewer_note: active.reviewer_note }) !== JSON.stringify(patch);
+    if (!changed) return { ok: true, changed: false };
+    const ok = await updateApprovalRequestDetails(active.id, patch);
+    if (ok) {
+      setActive({ ...active, ...patch });
+      if (showToast) toast.success("Approval details saved");
+    }
+    return { ok, changed: ok };
+  };
+
   const handleApprove = async () => {
     if (!active) return;
     setBusy(true);
-    if (reviewerNote && reviewerNote !== active.reviewer_note) {
+    const saved = active.is_batch ? { ok: true, changed: false } : await saveApprovalDraft(false);
+    if (!saved.ok) { setBusy(false); return; }
+    if (active.is_batch && reviewerNote && reviewerNote !== active.reviewer_note) {
       await setRequestStatus(active.id, "under_review", reviewerNote);
     }
-    await applyApprovedRequest(active.id);
+    await applyApprovedRequest(active.id, { editSummary: saved.changed ? "Central CX edited approval details before approving." : "" });
     setBusy(false);
     setActive(null);
   };
@@ -286,7 +335,27 @@ export function ApprovalsPipeline() {
                   </div>
                 )}
 
-                {!active.is_batch && (
+                {!active.is_batch && canEditAll && (active.status === "pending" || active.status === "under_review") && (
+                  <div className="flex justify-end">
+                    <Button variant="outline" size="sm" onClick={() => setEditMode(v => !v)} disabled={busy}>
+                      {editMode ? "Preview changes" : "Edit approval details"}
+                    </Button>
+                  </div>
+                )}
+
+                {!active.is_batch && editMode && canEditAll && (active.status === "pending" || active.status === "under_review") ? (
+                  <div className="space-y-3 rounded-md border border-border p-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div><div className="text-xs font-medium text-muted-foreground mb-1">Deal ID</div><Input value={dealIdDraft} onChange={e => setDealIdDraft(e.target.value)} className="h-8 text-xs" /></div>
+                      <div><div className="text-xs font-medium text-muted-foreground mb-1">Target kind</div><Input value={targetKindDraft} onChange={e => setTargetKindDraft(e.target.value)} className="h-8 text-xs" /></div>
+                      <div><div className="text-xs font-medium text-muted-foreground mb-1">Target ID</div><Input value={targetIdDraft} onChange={e => setTargetIdDraft(e.target.value)} className="h-8 text-xs" /></div>
+                    </div>
+                    <div><div className="text-xs font-medium text-muted-foreground mb-1">Requester note</div><Textarea value={requesterNoteDraft} onChange={e => setRequesterNoteDraft(e.target.value)} rows={2} /></div>
+                    <div><div className="text-xs font-medium text-muted-foreground mb-1">Payload JSON</div><Textarea value={payloadText} onChange={e => setPayloadText(e.target.value)} rows={8} className="font-mono text-xs" /></div>
+                    <div><div className="text-xs font-medium text-muted-foreground mb-1">Previous JSON</div><Textarea value={previousText} onChange={e => setPreviousText(e.target.value)} rows={5} className="font-mono text-xs" /></div>
+                    <div className="flex justify-end"><Button variant="outline" size="sm" onClick={() => saveApprovalDraft(true)} disabled={busy}>Save edited details</Button></div>
+                  </div>
+                ) : !active.is_batch && (
                 <div>
                   <div className="text-xs font-medium text-muted-foreground mb-1">
                     {active.request_type === "staffing.update" || active.request_type === "staffing.remove"

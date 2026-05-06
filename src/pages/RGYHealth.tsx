@@ -538,7 +538,7 @@ export default function RGYHealth() {
   const { vsdUsers, isVsdName, canonVsd } = useVsdUsers();
   const { vsdForDeal, bopmsForVsd, allBopms } = useVsdHierarchy();
   const { role } = useUserRole();
-  const { visibleDealIds, loading: accessLoading } = useDealAccess();
+  const { visibleDealIds, loading: accessLoading, isAdmin: hasAllDealAccess } = useDealAccess();
   const isBopmPersona = role === "user";
   const isVsdPersona = role === "member";
   // Resolve the logged-in person's VSD name (only when they ARE a VSD).
@@ -588,6 +588,9 @@ export default function RGYHealth() {
   const [search, setSearch] = useState("");
   const [rgyFilter, setRgyFilter] = useState<"All" | "Red" | "Yellow" | "Green">("All");
   const [activeTab, setActiveTab] = useState<"health" | "table" | "insights">("health");
+  useEffect(() => {
+    if (isVsdPersona && myVsdName && activeVsd !== myVsdName) setActiveVsd(myVsdName);
+  }, [isVsdPersona, myVsdName, activeVsd]);
   // Reset BOPM whenever VSD changes
   useEffect(() => { setActiveBopm("All"); }, [activeVsd]);
   const bopmOptions = useMemo(() => {
@@ -985,8 +988,8 @@ export default function RGYHealth() {
   // Filtering
   const filteredDeals = useMemo(() => {
     let d = deals;
-    // BOPM persona: scope to deals tagged to her before any other filter applies.
-    if (isBopmPersona && !accessLoading) {
+    // Non-admin personas: scope to the current user's permitted deals before any other filter applies.
+    if (!hasAllDealAccess && !accessLoading) {
       d = d.filter(deal => visibleDealIds.has(deal.id));
     }
     if (!showClosed) d = d.filter(deal => ACTIVE_STATUSES.has(deal.deal_status));
@@ -1016,7 +1019,14 @@ export default function RGYHealth() {
       });
     }
     return d;
-  }, [deals, activeVsd, activeBopm, search, showClosed, rgyFilter, vsdForDeal, isBopmPersona, accessLoading, visibleDealIds]);
+  }, [deals, activeVsd, activeBopm, search, showClosed, rgyFilter, vsdForDeal, hasAllDealAccess, accessLoading, visibleDealIds]);
+
+  const aiSummaryDeals = useMemo(() => {
+    if (hasAllDealAccess && !isVsdPersona && !isBopmPersona) return deals;
+    if (isVsdPersona && myVsdName) return deals.filter((deal) => vsdForDeal(deal as any) === myVsdName);
+    if (!accessLoading) return deals.filter((deal) => visibleDealIds.has(deal.id));
+    return [];
+  }, [deals, hasAllDealAccess, isVsdPersona, isBopmPersona, myVsdName, vsdForDeal, accessLoading, visibleDealIds]);
 
   // For BOPM persona, default landing is Insights (scoped to her deals);
   // Health Board remains admin-only.
@@ -1462,6 +1472,7 @@ export default function RGYHealth() {
               isBopm={isBopmPersona}
               isVsd={isVsdPersona}
               myVsdName={myVsdName}
+              summaryDeals={aiSummaryDeals}
             />
           </TabsContent>
         </Tabs>
