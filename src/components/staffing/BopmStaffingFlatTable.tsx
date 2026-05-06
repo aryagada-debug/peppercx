@@ -672,15 +672,16 @@ export function BopmStaffingFlatTable({
   const totals = useMemo(() => {
     const uniquePeople = new Set<string>();
     let allocSum = 0;
-    assignments.forEach(a => uniquePeople.add(a.personId));
+    const activeAssignments = assignments.filter(a => !isAssignmentExpired(a));
+    activeAssignments.forEach(a => uniquePeople.add(a.personId));
     uniquePeople.forEach(pid => {
-      allocSum += assignments.filter(a => a.personId === pid).reduce((s, a) => s + a.allocationPct, 0);
+      allocSum += activeAssignments.filter(a => a.personId === pid).reduce((s, a) => s + a.allocationPct, 0);
     });
     return {
       dealCount: deals.length,
       peopleCount: uniquePeople.size,
       avgUtilPct: uniquePeople.size > 0 ? Math.round(allocSum / uniquePeople.size) : 0,
-      assignmentCount: assignments.length,
+      assignmentCount: activeAssignments.length,
     };
   }, [deals, assignments]);
 
