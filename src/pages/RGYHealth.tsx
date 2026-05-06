@@ -714,7 +714,7 @@ export default function RGYHealth() {
   } | null>(null);
 
   // Pending Green commit waiting on the Resolve Issues dialog (R/Y → G).
-  const [pendingGreen, setPendingGreen] = useState<{ dealId: string; dimKey: string; oldValue: RGYCellValue } | null>(null);
+  const [pendingGreen, setPendingGreen] = useState<{ dealId: string; dimKey: string; dimLabel: string; oldValue: RGYCellValue } | null>(null);
   // R → Y: an optional resolve dialog opened after the change persisted.
   const [resolveAfterDowngrade, setResolveAfterDowngrade] = useState<{ dealId: string } | null>(null);
 
@@ -824,10 +824,22 @@ export default function RGYHealth() {
 
     const oldValue = (deal[dimKey as keyof DealWithRGY] as string) || "NA";
 
-    // R/Y → G: do NOT persist yet — open required Resolve Issues dialog.
+    // R/Y → G: check for open [RGY Health] task(s) for THIS dimension.
+    // If any exist, require the user to close them before persisting Green.
     if (newValue === "G" && (oldValue === "R" || oldValue === "Y")) {
-      setPendingGreen({ dealId, dimKey, oldValue: oldValue as RGYCellValue });
-      return;
+      const dimLabel = DIMENSIONS.find(d => d.key === dimKey)?.label || dimKey;
+      const { data: openTasks } = await supabase
+        .from("deal_tasks")
+        .select("id, title, stage")
+        .eq("deal_id", dealId)
+        .like("title", "[RGY Health]%")
+        .neq("stage", "Done");
+      const hasDimTask = (openTasks || []).some((t: any) => String(t.title || "").includes(dimLabel));
+      if (hasDimTask) {
+        setPendingGreen({ dealId, dimKey, dimLabel, oldValue: oldValue as RGYCellValue });
+        return;
+      }
+      // No open tasks for this dimension — proceed to persist Green.
     }
 
     await applyRGYUpdate(dealId, dimKey, newValue, deal);
@@ -1484,6 +1496,7 @@ export default function RGYHealth() {
             mode="required"
             dealId={pendingGreen.dealId}
             dealName={deals.find(d => d.id === pendingGreen.dealId)?.deal_name}
+            dimensionLabel={pendingGreen.dimLabel}
             onConfirm={handleGreenConfirm}
             onCancel={handleGreenCancel}
           />
