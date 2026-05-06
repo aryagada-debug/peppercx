@@ -36,13 +36,13 @@ const RGY_BUTTONS = [
   {
     value: "NA",
     label: "⊘",
-    active: "bg-muted text-muted-foreground border-border",
+    active: "bg-foreground text-background border-foreground",
     dot: "bg-muted-foreground/40",
   },
   {
     value: "TBU",
     label: "⋯",
-    active: "bg-secondary/40 text-muted-foreground border-dashed border-border",
+    active: "bg-foreground text-background border-dashed border-foreground",
     dot: "bg-transparent border border-dashed border-muted-foreground",
   },
 ] as const;
