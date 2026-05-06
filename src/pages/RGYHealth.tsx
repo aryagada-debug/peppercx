@@ -4,6 +4,7 @@ import { KpiTile } from "@/components/dashboard/KpiTile";
 import { DealDetailDialog } from "@/components/rgy/DealDetailDialog";
 import { RGYInsightsTab } from "@/components/rgy/RGYInsightsTab";
 import { RGYHistoryPopover } from "@/components/rgy/RGYHistoryPopover";
+import { ResolveIssuesDialog } from "@/components/rgy/ResolveIssuesDialog";
 import { logRGYChange } from "@/lib/rgyHistory";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -709,6 +710,11 @@ export default function RGYHealth() {
     tasks: { id: string; title: string; stage: string }[];
   } | null>(null);
 
+  // Pending Green commit waiting on the Resolve Issues dialog (R/Y → G).
+  const [pendingGreen, setPendingGreen] = useState<{ dealId: string; dimKey: string; oldValue: RGYCellValue } | null>(null);
+  // R → Y: an optional resolve dialog opened after the change persisted.
+  const [resolveAfterDowngrade, setResolveAfterDowngrade] = useState<{ dealId: string } | null>(null);
+
   // Issues for insights — derived lazily, only after Insights tab is opened.
   const [insightsOpened, setInsightsOpened] = useState(false);
   useEffect(() => {
@@ -815,22 +821,18 @@ export default function RGYHealth() {
 
     const oldValue = (deal[dimKey as keyof DealWithRGY] as string) || "NA";
 
-    // Green-gate: if going from R/Y to G, check for pending tasks
+    // R/Y → G: do NOT persist yet — open required Resolve Issues dialog.
     if (newValue === "G" && (oldValue === "R" || oldValue === "Y")) {
-      const { data: pendingTasks } = await supabase
-        .from("deal_tasks")
-        .select("id, title, stage")
-        .eq("deal_id", dealId)
-        .like("title", "[RGY Health]%")
-        .neq("stage", "Done");
-
-      if (pendingTasks && pendingTasks.length > 0) {
-        setGreenGate({ dealId, dimKey, tasks: pendingTasks });
-        return;
-      }
+      setPendingGreen({ dealId, dimKey, oldValue: oldValue as RGYCellValue });
+      return;
     }
 
     await applyRGYUpdate(dealId, dimKey, newValue, deal);
+
+    // R → Y: persist done above, then open optional resolve dialog.
+    if (oldValue === "R" && newValue === "Y") {
+      setResolveAfterDowngrade({ dealId });
+    }
   }, [deals]);
 
   const applyRGYUpdate = useCallback(async (dealId: string, dimKey: string, newValue: RGYCellValue, deal: DealWithRGY) => {
@@ -900,17 +902,21 @@ export default function RGYHealth() {
     }
   }, []);
 
-  const handleGreenGateConfirm = useCallback(async () => {
-    if (!greenGate) return;
-    const deal = deals.find(d => d.id === greenGate.dealId);
+  // R/Y → G: confirm path from Resolve Issues dialog.
+  const handleGreenConfirm = useCallback(async () => {
+    if (!pendingGreen) return;
+    const deal = deals.find(d => d.id === pendingGreen.dealId);
     if (deal) {
-      await applyRGYUpdate(greenGate.dealId, greenGate.dimKey, "G", deal);
+      await applyRGYUpdate(pendingGreen.dealId, pendingGreen.dimKey, "G", deal);
     }
-    setGreenGate(null);
-  }, [greenGate, deals, applyRGYUpdate]);
+    setPendingGreen(null);
+  }, [pendingGreen, deals]);
 
-  const handleMarkTaskDone = useCallback(async (taskId: string) => {
-    await supabase.from("deal_tasks").update({ stage: "Done" }).eq("id", taskId);
+  // R/Y → G: cancel path — revert nothing because we never persisted.
+  // The cell renders from `deals` state; no change required.
+  const handleGreenCancel = useCallback(() => {
+    setPendingGreen(null);
+    toast.info("Green change reverted — open issues remain");
   }, []);
 
   const handleIssueCancel = useCallback(() => {
