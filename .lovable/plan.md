@@ -1,36 +1,28 @@
-## Goal
+I’ll add the missing date controls directly into the current filtered staffing table flow, without restoring the full team-list dialog.
 
-Bring back the original inline person dropdown logic in the staffing table cells (a quick, role-filtered list of people right under each role column), while keeping the new engagement-aware dialog (with start/end date pickers, current engagements, capacity warnings) available for deeper edits.
+Plan:
+1. Add a compact date-picker control to `BopmStaffingFlatTable.tsx`
+   - Use the existing Shadcn calendar/popover pattern.
+   - Include `pointer-events-auto` on the calendar so it works inside popovers/dialogs.
+   - Store dates as `yyyy-MM-dd`, matching the existing assignment model.
 
-Today, every click on a cell — even just swapping a person — opens the full `AddStaffingMemberDialog`. That removed the fast inline picker users preferred. We want both: fast picker as default, full dialog as an explicit "advanced" action.
+2. Show start and end dates inline on each staffed person chip
+   - Existing assignments will show editable Start and End controls below/near allocation.
+   - Changing either date will stage an update, same as changing person or allocation.
+   - In direct-edit views, the change will call the existing direct update handler.
 
-## What changes
+3. Add start/end date selection when adding from the filtered person list
+   - Keep the filtered person list only; no full team list and no “More options”.
+   - When a user selects a person, they’ll still be added from that filtered list.
+   - The new assignment will include default dates from the deal (`deal.startDate` / `deal.endDate`) and those dates will be visible/editable immediately in the staged chip.
 
-### 1. `src/components/staffing/BopmStaffingFlatTable.tsx`
+4. Preserve Central Cx approval behavior
+   - Staged add/update payloads will include `startDate` and `endDate`.
+   - The existing Central Cx approval editor already has date fields, so approvers will continue to be able to edit these before approving.
 
-**Cell "+ add" button** (currently opens `AddStaffingMemberDialog` via `setAddCell`)
-- Restore inline `PersonPickerPopover` as the trigger. Candidates = `pickerOptions` already computed (role + manager filtered, excludes already-staffed).
-- Selecting a person stages an add immediately with default allocation (50%) and the deal's start/end dates as defaults — same behavior as the legacy version.
-- Add a small "More options…" footer row inside the popover that opens the full `AddStaffingMemberDialog` (current `setAddCell` flow) for cases where the user wants to set custom dates, allocation, or see engagement details before adding.
+5. Fix current staged-add display gap
+   - Ensure newly staged additions in the flat table carry `startDate` and `endDate` into the visible cell entry, so the picker appears immediately after selecting a filtered person.
 
-**Existing entry name button** (currently opens dialog in edit mode via `setEditEntry`)
-- Replace with `PersonPickerPopover` for quick person-swap (same candidates as today's `colMatches`).
-- Add a "Edit dates & engagement…" footer item that opens the existing `AddStaffingMemberDialog` edit flow (`setEditEntry`) for date/allocation edits with engagement context.
-
-**Result**: one click → list of valid people; two clicks → quick swap. Power users still reach the full dialog explicitly.
-
-### 2. Other staffing surfaces
-
-`DealLevelView.tsx` and `PeopleLevelView.tsx` already use the dialog for adds. Per the user message ("there should just be those options of people under each table"), apply the same pattern in the BOPM flat table primarily; leave VSD/Admin deal-level "Add staffing member" CTA opening the full dialog (it has no per-cell list to inline into).
-
-### 3. Behavior preserved
-
-- `directEdit` vs staged-batch path is unchanged — the inline picker still calls `stageAdd` / `stageUpdate`.
-- Date defaults for inline-add come from `deal.startDate` / `deal.endDate` (so end-date-aware expiry still works).
-- Engagement-aware dialog continues to be the editor used inside the Central CX approval drawer (`StaffingApprovalEditor`) — no change there.
-
-## Files to edit
-
-- `src/components/staffing/BopmStaffingFlatTable.tsx` — swap cell add trigger and entry name trigger to `PersonPickerPopover` with a "More options…" / "Edit dates…" escape hatch into `AddStaffingMemberDialog`.
-
-No new files. No schema changes.
+Files expected to change:
+- `src/components/staffing/BopmStaffingFlatTable.tsx`
+- Possibly `src/components/ui/calendar.tsx` only if the shared calendar wrapper still lacks `pointer-events-auto` by default.
