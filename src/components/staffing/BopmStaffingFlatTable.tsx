@@ -176,7 +176,6 @@ function PersonPickerPopover({
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [showOther, setShowOther] = useState(false);
 
   // Sort each tier so direct reports of `managerName` come first.
   const sortByManager = useCallback((arr: Person[]) => {
@@ -208,7 +207,11 @@ function PersonPickerPopover({
     };
   }, [q, groups, sortByManager]);
 
-  const totalCount = filteredGroups.exact.length + filteredGroups.family.length + filteredGroups.other.length;
+  const flatList = useMemo(
+    () => [...filteredGroups.exact, ...filteredGroups.family, ...filteredGroups.other],
+    [filteredGroups]
+  );
+  const totalCount = flatList.length;
 
   const renderRow = (pp: Person) => {
     const u = utilByPerson.get(pp.id) || { total: 0, items: [] };
@@ -277,13 +280,6 @@ function PersonPickerPopover({
     );
   };
 
-  const SectionHeader = ({ label, count }: { label: string; count: number }) =>
-    count === 0 ? null : (
-      <div className="px-2 pt-1.5 pb-0.5 text-[9px] uppercase tracking-wider text-muted-foreground font-medium">
-        {label} <span className="opacity-60">· {count}</span>
-      </div>
-    );
-
   return (
     <Popover open={open} onOpenChange={(v) => { setOpen(v); if (!v) setQ(""); }}>
       <PopoverTrigger asChild>
@@ -312,25 +308,7 @@ function PersonPickerPopover({
           {totalCount === 0 ? (
             <div className="px-2 py-3 text-center text-[11px] text-muted-foreground">{emptyLabel}</div>
           ) : (
-            <>
-              <SectionHeader label="Best match" count={filteredGroups.exact.length} />
-              {filteredGroups.exact.map(renderRow)}
-              <SectionHeader label="Same role family" count={filteredGroups.family.length} />
-              {filteredGroups.family.map(renderRow)}
-              {filteredGroups.other.length > 0 && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setShowOther(v => !v)}
-                    className="w-full text-left px-2 pt-1.5 pb-0.5 text-[9px] uppercase tracking-wider text-muted-foreground font-medium hover:text-foreground flex items-center gap-1"
-                  >
-                    <ChevronDown className={cn("h-3 w-3 transition-transform", showOther && "rotate-180")} />
-                    Other team members <span className="opacity-60">· {filteredGroups.other.length}</span>
-                  </button>
-                  {showOther && filteredGroups.other.map(renderRow)}
-                </>
-              )}
-            </>
+            <>{flatList.map(renderRow)}</>
           )}
         </div>
         {footer && (
