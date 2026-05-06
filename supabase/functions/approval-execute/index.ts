@@ -5,6 +5,32 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const slackToken = () => Deno.env.get("SLACK_BOT_TOKEN") || "";
+async function slack(method: string, body: Record<string, unknown>) {
+  const token = slackToken();
+  if (!token) return { ok: false, skipped: "no_slack_token" };
+  const r = await fetch(`https://slack.com/api/${method}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json; charset=utf-8" },
+    body: JSON.stringify(body),
+  });
+  return await r.json();
+}
+
+async function notifyPerson(person: any, text: string) {
+  const token = slackToken();
+  if (!token || !person) return;
+  let slackUserId = (person.slack_user_id || "").trim();
+  if (!slackUserId && person.email) {
+    const lookup: any = await slack("users.lookupByEmail", { email: person.email });
+    slackUserId = lookup?.ok ? lookup.user?.id || "" : "";
+  }
+  if (!slackUserId) return;
+  const opened: any = await slack("conversations.open", { users: slackUserId });
+  const channel = opened?.channel?.id;
+  if (channel) await slack("chat.postMessage", { channel, text, unfurl_links: false, unfurl_media: false });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -40,6 +66,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const requestId = body?.request_id;
+    const editSummary = String(body?.edit_summary || "").trim();
     if (!requestId) {
       return new Response(JSON.stringify({ error: "request_id required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
