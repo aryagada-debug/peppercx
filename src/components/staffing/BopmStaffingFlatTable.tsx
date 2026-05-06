@@ -1178,6 +1178,43 @@ export function BopmStaffingFlatTable({
           onAdd={(assignment) => { stageAdd(addForDeal!, assignment); setAddForDeal(null); }}
         />
       )}
+
+      {addCell && (
+        <AddStaffingMemberDialog
+          open={!!addCell}
+          onOpenChange={v => { if (!v) setAddCell(null); }}
+          people={allPeople}
+          assignments={assignments}
+          deals={deals}
+          dealId={addCell.dealId}
+          initialCategory={addCell.category as RoleCategory}
+          initialRoleKey={addCell.roleKey}
+          onAdd={(assignment) => {
+            stageAdd(addCell.dealId, { ...assignment, roleKey: addCell.roleKey });
+            setAddCell(null);
+          }}
+        />
+      )}
+
+      {editEntry && (
+        <AddStaffingMemberDialog
+          open={!!editEntry}
+          onOpenChange={v => { if (!v) setEditEntry(null); }}
+          people={allPeople}
+          assignments={assignments}
+          deals={deals}
+          dealId={editEntry.dealId}
+          initialCategory={editEntry.category as RoleCategory}
+          initialRoleKey={editEntry.roleKey}
+          initialAllocationPct={editEntry.allocationPct}
+          editingAssignmentId={editEntry.assignmentId}
+          onAdd={() => { /* not used in edit mode */ }}
+          onUpdate={(assignmentId, patch) => {
+            stageUpdate(editEntry.dealId, assignmentId, patch);
+            setEditEntry(null);
+          }}
+        />
+      )}
     </section>
   );
 }
