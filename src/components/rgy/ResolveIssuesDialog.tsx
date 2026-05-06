@@ -22,6 +22,10 @@ interface Props {
   mode: ResolveMode;
   /** Title override; defaults based on mode. */
   title?: string;
+  /** When set, scope listed issues/tasks to this dimension label only (e.g. "Content").
+   *  Used for "move dimension to Green" flows so the user only resolves the
+   *  task(s) tied to that specific dimension. */
+  dimensionLabel?: string;
   onConfirm: () => void | Promise<void>;
   onCancel: () => void;
 }
@@ -33,7 +37,7 @@ interface Props {
  * Resolving sets `deal_rgy_weekly.issue_status='Resolved'` and
  * `deal_tasks.stage='Done'` for the selected rows.
  */
-export function ResolveIssuesDialog({ open, dealId, dealName, mode, title, onConfirm, onCancel }: Props) {
+export function ResolveIssuesDialog({ open, dealId, dealName, mode, title, dimensionLabel, onConfirm, onCancel }: Props) {
   const [items, setItems] = useState<OpenItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -59,16 +63,21 @@ export function ResolveIssuesDialog({ open, dealId, dealName, mode, title, onCon
       ]);
       if (cancelled) return;
       const out: OpenItem[] = [];
-      (issuesRes.data || []).forEach((r: any) => {
-        if (!r.issue_details) return;
-        out.push({
-          kind: "issue",
-          id: r.id,
-          label: r.issue_details,
-          meta: `Week of ${r.week_start}`,
+      // When scoped to a dimension, hide generic open issues (they aren't
+      // dimension-tagged) and filter tasks to that dimension only.
+      if (!dimensionLabel) {
+        (issuesRes.data || []).forEach((r: any) => {
+          if (!r.issue_details) return;
+          out.push({
+            kind: "issue",
+            id: r.id,
+            label: r.issue_details,
+            meta: `Week of ${r.week_start}`,
+          });
         });
-      });
+      }
       (tasksRes.data || []).forEach((t: any) => {
+        if (dimensionLabel && !String(t.title).includes(dimensionLabel)) return;
         out.push({ kind: "task", id: t.id, label: t.title, meta: t.stage });
       });
       setItems(out);
@@ -76,7 +85,7 @@ export function ResolveIssuesDialog({ open, dealId, dealName, mode, title, onCon
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [open, dealId]);
+  }, [open, dealId, dimensionLabel]);
 
   const allTicked = items.length > 0 && items.every(i => picked.has(`${i.kind}:${i.id}`));
   const canConfirm = mode === "optional" ? !saving : (items.length === 0 || allTicked) && !saving;
@@ -123,7 +132,9 @@ export function ResolveIssuesDialog({ open, dealId, dealName, mode, title, onCon
   };
 
   const heading = title || (mode === "required"
-    ? "Resolve open issues to set Green"
+    ? (dimensionLabel
+        ? `Close ${dimensionLabel} task(s) to set Green`
+        : "Resolve open issues to set Green")
     : "Resolve open issues (optional)");
 
   return (
@@ -137,7 +148,9 @@ export function ResolveIssuesDialog({ open, dealId, dealName, mode, title, onCon
         </DialogHeader>
         <p className="text-xs text-muted-foreground">
           {mode === "required"
-            ? `Every open issue and task on ${dealName || "this deal"} must be marked resolved before this dimension can be set to Green.`
+            ? (dimensionLabel
+                ? `Mark the open ${dimensionLabel} task(s) below as closed to set ${dimensionLabel} to Green on ${dealName || "this deal"}.`
+                : `Every open issue and task on ${dealName || "this deal"} must be marked resolved before this dimension can be set to Green.`)
             : `Optionally mark issues on ${dealName || "this deal"} as resolved. You can skip and resolve them later.`}
         </p>
         {loading ? (
