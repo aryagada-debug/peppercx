@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useApprovals } from "@/hooks/useApprovals";
 import { useUserRole } from "@/hooks/useUserRole";
 import {
-  applyApprovedRequest, cancelApprovalRequest, setRequestStatus,
+  applyApprovedRequest, cancelApprovalRequest, setRequestStatus, updateApprovalRequestDetails,
   type ApprovalRequestRow,
 } from "@/lib/approvals";
 import { Card } from "@/components/ui/card";
@@ -52,6 +52,13 @@ export function ApprovalsPipeline() {
   const { canEditAll } = useUserRole();
   const [active, setActive] = useState<ApprovalRequestRow | null>(null);
   const [reviewerNote, setReviewerNote] = useState("");
+  const [editMode, setEditMode] = useState(false);
+  const [payloadText, setPayloadText] = useState("{}");
+  const [previousText, setPreviousText] = useState("{}");
+  const [dealIdDraft, setDealIdDraft] = useState("");
+  const [targetKindDraft, setTargetKindDraft] = useState("");
+  const [targetIdDraft, setTargetIdDraft] = useState("");
+  const [requesterNoteDraft, setRequesterNoteDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [expandedBatch, setExpandedBatch] = useState<Set<string>>(new Set());
 
@@ -83,6 +90,13 @@ export function ApprovalsPipeline() {
   const openDetail = (r: ApprovalRequestRow) => {
     setActive(r);
     setReviewerNote(r.reviewer_note || "");
+    setEditMode(false);
+    setPayloadText(JSON.stringify(r.payload || {}, null, 2));
+    setPreviousText(JSON.stringify(r.previous || {}, null, 2));
+    setDealIdDraft(r.deal_id || "");
+    setTargetKindDraft(r.target_kind || "");
+    setTargetIdDraft(r.target_id || "");
+    setRequesterNoteDraft(r.requester_note || "");
   };
 
   const handleStartReview = async () => {
