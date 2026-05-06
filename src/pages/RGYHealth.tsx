@@ -830,11 +830,10 @@ export default function RGYHealth() {
       const dimLabel = DIMENSIONS.find(d => d.key === dimKey)?.label || dimKey;
       const { data: openTasks } = await supabase
         .from("deal_tasks")
-        .select("id")
+        .select("id, title, stage")
         .eq("deal_id", dealId)
         .like("title", "[RGY Health]%")
-        .neq("stage", "Done")
-        .neq("stage", "Dropped");
+        .neq("stage", "Done");
       const hasDimTask = (openTasks || []).some((t: any) => String(t.title || "").includes(dimLabel));
       if (hasDimTask) {
         setPendingGreen({ dealId, dimKey, dimLabel, oldValue: oldValue as RGYCellValue });
