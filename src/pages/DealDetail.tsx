@@ -16,6 +16,7 @@ import { uid } from "@/data/staffingData";
 import type { StaffingAssignment, Person, Deal, RoleCategory } from "@/data/staffingData";
 import { useDealDetail } from "@/hooks/useDealDetail";
 import { EditableRGY } from "@/components/deals/EditableRGY";
+import { ResolveIssuesDialog } from "@/components/rgy/ResolveIssuesDialog";
 import { FinancialsTab } from "@/components/deals/FinancialsTab";
 import { TaskKanban } from "@/components/deals/TaskKanban";
 import { PhaseTasksView } from "@/components/deals/PhaseTasksView";
