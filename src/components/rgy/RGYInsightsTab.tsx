@@ -83,7 +83,6 @@ interface Props {
   isVsd?: boolean;
   myVsdName?: string | null;
   summaryDeals?: DealWithRGY[];
-  isAdmin?: boolean;
 }
 
 function getWorstRGY(deal: DealWithRGY): "R" | "Y" | "G" | null {
@@ -110,7 +109,7 @@ const VSD_SHORT: Record<string, string> = {
   "Aditya Shaw": "Aditya",
 };
 
-export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm = false, isVsd = false, myVsdName = null, summaryDeals, isAdmin = false }: Props) {
+export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm = false, isVsd = false, myVsdName = null, summaryDeals }: Props) {
   const { isRegisteredName } = useAppUsers();
   const { isVsdName, canonVsd } = useVsdUsers();
   const { vsdForDeal, vsdForPerson, bopmsForVsd } = useVsdHierarchy();
