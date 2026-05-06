@@ -462,12 +462,16 @@ export default function MBRTracker() {
 
   // VSD insights from filtered deals
   const vsdInsights = useMemo(() => {
-    const vsdMap = new Map<string, { vsd: string; total: number; done: number; notDone: number; pending: number; green: number; yellow: number; red: number; scheduled: number }>();
+    const vsdMap = new Map<string, { vsd: string; bopms: Set<string>; total: number; done: number; notDone: number; pending: number; green: number; yellow: number; red: number; scheduled: number }>();
     for (const deal of filteredDeals) {
       const v = vsdForDeal(deal as any);
       const bucket = v || "Unassigned";
-      if (!vsdMap.has(bucket)) vsdMap.set(bucket, { vsd: bucket, total: 0, done: 0, notDone: 0, pending: 0, green: 0, yellow: 0, red: 0, scheduled: 0 });
+      if (!vsdMap.has(bucket)) vsdMap.set(bucket, { vsd: bucket, bopms: new Set<string>(), total: 0, done: 0, notDone: 0, pending: 0, green: 0, yellow: 0, red: 0, scheduled: 0 });
       const s = vsdMap.get(bucket)!;
+      const principal = (deal.principalBopm || "").trim();
+      const senior = (deal.seniorBopm || "").trim();
+      if (principal) s.bopms.add(principal);
+      if (senior && senior !== principal) s.bopms.add(senior);
       s.total++;
       const entry = activeEntryMap.get(deal.id);
       if (entry) {
@@ -587,10 +591,10 @@ export default function MBRTracker() {
           <KpiTile label="Compliance" value={`${kpis.compliance}%`} tone="primary" icon={Gauge} />
         </div>
 
-        {/* Tabs: Insights / Table */}
-        <Tabs defaultValue="insights" className="mb-4">
+        {/* Tabs: Insights / Table — default to Table; BOPMs don't see Insights */}
+        <Tabs defaultValue="table" className="mb-4">
           <TabsList className="mb-3">
-            <TabsTrigger value="insights">Insights</TabsTrigger>
+            {!isBopmPersona && <TabsTrigger value="insights">Insights</TabsTrigger>}
             <TabsTrigger value="table">Table</TabsTrigger>
           </TabsList>
           {isBopmPersona && !accessLoading && filteredDeals.length === 0 && (
@@ -620,15 +624,20 @@ export default function MBRTracker() {
             <table className="w-full text-ui">
               <thead>
                 <tr className="bg-secondary/40 border-b border-border">
-                  {[showBopmInsights ? "Sr / Principal BOPM" : "VSD", "Accounts", "Done", "Not Done", "Pending", "🟢", "🟡", "🔴", "Scheduled"].map(h => (
+                  {[showBopmInsights ? "Sr / Principal BOPM" : "Sr / Principal BOPMs", "Accounts", "Done", "Not Done", "Pending", "🟢", "🟡", "🔴", "Scheduled"].map(h => (
                     <th key={h} className="text-left py-2.5 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {(showBopmInsights ? bopmInsights.map(b => ({ vsd: b.name, ...b })) : vsdInsights).map(v => {
+                {(showBopmInsights ? bopmInsights.map(b => ({ vsd: b.name, ...b, bopms: undefined as any })) : vsdInsights).map((v: any) => {
                   const schedCompliance = v.total > 0 ? `${v.scheduled}/${v.total}` : "—";
                   const isOverall = v.vsd === "Pod Overall";
+                  // For VSD-rollup rows, show the current BOPM/Sr BOPMs instead of the VSD name.
+                  const bopmList = !showBopmInsights && v.bopms && v.bopms.size > 0
+                    ? Array.from(v.bopms as Set<string>).sort().join(", ")
+                    : "";
+                  const displayLabel = !showBopmInsights ? (bopmList || "Unassigned") : v.vsd;
                   const rowLabel = v.vsd;
                   const openDrill = (metric: DrillMetric) => setDrill({ rowKey: rowLabel, rowLabel, metric });
                   const NumBtn = ({ value, metric, className }: { value: number; metric: DrillMetric; className?: string }) => (
@@ -649,7 +658,7 @@ export default function MBRTracker() {
                       "border-b border-border/50 hover:bg-secondary/30 transition-colors",
                       isOverall && "bg-primary/5 font-semibold"
                     )}>
-                      <td className="py-2.5 px-3 font-semibold text-foreground text-xs">{v.vsd}</td>
+                      <td className="py-2.5 px-3 font-semibold text-foreground text-xs">{displayLabel}</td>
                       <td className="py-2.5 px-3"><NumBtn value={v.total} metric="total" className="text-foreground" /></td>
                       <td className="py-2.5 px-3"><NumBtn value={v.done} metric="done" className="text-positive font-semibold" /></td>
                       <td className="py-2.5 px-3"><NumBtn value={v.notDone} metric="notDone" className="text-destructive font-semibold" /></td>
