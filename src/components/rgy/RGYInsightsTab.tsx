@@ -167,11 +167,11 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
       DIMENSIONS.map((dim) => ({
         team: dim.label,
         key: dim.key,
-        Red: filteredDeals.filter((d) => d[dim.key] === "R").length,
-        Yellow: filteredDeals.filter((d) => d[dim.key] === "Y").length,
-        Green: filteredDeals.filter((d) => d[dim.key] === "G").length,
+        Red: filteredDeals.filter((d) => (!isBopm || ACTIVE_STATUSES.has(d.deal_status)) && d[dim.key] === "R").length,
+        Yellow: filteredDeals.filter((d) => (!isBopm || ACTIVE_STATUSES.has(d.deal_status)) && d[dim.key] === "Y").length,
+        Green: filteredDeals.filter((d) => (!isBopm || ACTIVE_STATUSES.has(d.deal_status)) && d[dim.key] === "G").length,
       })),
-    [filteredDeals],
+    [filteredDeals, isBopm],
   );
 
   // Drill data for team-count
