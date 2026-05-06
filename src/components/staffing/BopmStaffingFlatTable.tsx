@@ -57,6 +57,7 @@ function PersonPickerPopover({
   placeholder = "Search…",
   onSelect,
   align = "start",
+  footer,
 }: {
   currentId?: string;
   candidates: Person[];
@@ -67,6 +68,7 @@ function PersonPickerPopover({
   placeholder?: string;
   onSelect: (personId: string) => void;
   align?: "start" | "center" | "end";
+  footer?: (close: () => void) => React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -128,6 +130,11 @@ function PersonPickerPopover({
             ))
           )}
         </div>
+        {footer && (
+          <div className="mt-1 pt-1 border-t border-border/60">
+            {footer(() => { setOpen(false); setQ(""); })}
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   );
@@ -786,25 +793,40 @@ export function BopmStaffingFlatTable({
         <div className="flex items-center gap-1.5">
           {/* Name as styled popover trigger (same row as %) */}
           <div className="flex-1 min-w-0">
-            <button
-              type="button"
+            <PersonPickerPopover
+              currentId={e.personId}
+              candidates={colMatches}
               disabled={!!e.isMarkedRemove}
-              onClick={() => setEditEntry({
-                dealId: deal.id,
-                assignmentId: e.assignmentId,
-                roleKey,
-                category: cat,
-                allocationPct: e.allocationPct,
-              })}
-              className={cn(
-                "group/picker w-full inline-flex items-center justify-between gap-1 px-1 py-0.5 rounded-sm text-[11px] font-medium text-foreground hover:bg-foreground/5 hover:ring-1 hover:ring-border transition-colors",
+              triggerClassName={cn(
+                "w-full inline-flex items-center justify-between gap-1 px-1 py-0.5 rounded-sm text-[11px] font-medium text-foreground hover:bg-foreground/5 hover:ring-1 hover:ring-border transition-colors",
                 e.isMarkedRemove && "line-through opacity-60"
               )}
-              title="Click to change person, allocation or dates (with engagement view)"
-            >
-              <span className="truncate">{`${p?.name || "—"}${p?.tbh ? " (TBH)" : ""}`}</span>
-              <ChevronDown className="h-3 w-3 opacity-0 group-hover/picker:opacity-60 flex-shrink-0" />
-            </button>
+              triggerLabel={`${p?.name || "—"}${p?.tbh ? " (TBH)" : ""}`}
+              emptyLabel={`No ${ROLE_LABEL(roleKey)} available`}
+              onSelect={(personId) => {
+                if (personId !== e.personId) {
+                  stageUpdate(deal.id, e.assignmentId, { personId });
+                }
+              }}
+              footer={(close) => (
+                <button
+                  type="button"
+                  onClick={() => {
+                    close();
+                    setEditEntry({
+                      dealId: deal.id,
+                      assignmentId: e.assignmentId,
+                      roleKey,
+                      category: cat,
+                      allocationPct: e.allocationPct,
+                    });
+                  }}
+                  className="w-full px-2 py-1.5 text-left text-[11px] text-primary hover:bg-secondary rounded-md"
+                >
+                  Edit dates & engagement…
+                </button>
+              )}
+            />
           </div>
           {/* % allocation inline */}
           <input
@@ -1085,26 +1107,47 @@ export function BopmStaffingFlatTable({
                         >
                           <div className="space-y-1">
                             {entries.map(e => renderEntry(d, rk, e))}
-                            <button
+                            <PersonPickerPopover
                               key={pickerKey}
-                              type="button"
+                              candidates={pickerOptions}
                               disabled={pickerOptions.length === 0}
-                              onClick={() => setAddCell({ dealId: d.id, roleKey: rk, category: cat })}
-                              className={cn(
+                              triggerClassName={cn(
                                 "w-full flex items-center justify-between gap-1 px-1.5 py-1 text-[10.5px] italic rounded-md border border-dashed transition-colors",
                                 pickerOptions.length === 0
                                   ? "text-muted-foreground/50 border-border/30 cursor-not-allowed"
                                   : "text-muted-foreground border-border/50 hover:text-foreground hover:border-border hover:bg-secondary/40"
                               )}
-                              title="Open assignment dialog with engagement view + dates"
-                            >
-                              <span className="truncate">
-                                {pickerOptions.length === 0
+                              triggerLabel={
+                                pickerOptions.length === 0
                                   ? (manager ? `No reports under ${manager.name.split(" ")[0]}` : `No ${ROLE_LABEL(rk)} available`)
-                                  : (manager ? `+ Add (under ${manager.name.split(" ")[0]})` : `+ Add ${ROLE_LABEL(rk)}`)}
-                              </span>
-                              <Plus className="h-3 w-3 opacity-60 flex-shrink-0" />
-                            </button>
+                                  : (manager ? `+ Add (under ${manager.name.split(" ")[0]})` : `+ Add ${ROLE_LABEL(rk)}`)
+                              }
+                              emptyLabel={`No ${ROLE_LABEL(rk)} available`}
+                              onSelect={(personId) => {
+                                stageAdd(d.id, {
+                                  id: uid(),
+                                  dealId: d.id,
+                                  personId,
+                                  roleKey: rk,
+                                  category: cat as RoleCategory,
+                                  allocationPct: 50,
+                                  startDate: d.startDate,
+                                  endDate: d.endDate,
+                                } as StaffingAssignment);
+                              }}
+                              footer={(close) => (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    close();
+                                    setAddCell({ dealId: d.id, roleKey: rk, category: cat });
+                                  }}
+                                  className="w-full px-2 py-1.5 text-left text-[11px] text-primary hover:bg-secondary rounded-md"
+                                >
+                                  More options (dates, allocation, engagements)…
+                                </button>
+                              )}
+                            />
                           </div>
                         </td>
                       );
