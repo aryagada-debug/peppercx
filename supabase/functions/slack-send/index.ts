@@ -32,7 +32,8 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { dealId, channelId, text, threadTs, recipientType, dmThreadId } = body || {};
     const isDm = recipientType === "user" || !!dmThreadId;
-    if (!text || (!isDm && (!dealId || !channelId)) || (isDm && !dmThreadId)) {
+    // Channel sends only require a channelId; dealId is optional (Home channel chat has no deal).
+    if (!text || (!isDm && !channelId) || (isDm && !dmThreadId)) {
       return new Response(JSON.stringify({ error: "missing required fields" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
@@ -89,7 +90,7 @@ Deno.serve(async (req) => {
 
     // Persist locally so realtime updates the chat immediately
     await admin.from("slack_messages").upsert({
-      deal_id: isDm ? null : dealId,
+      deal_id: isDm ? null : (dealId || null),
       channel_id: targetChannelId,
       slack_ts: j.ts,
       thread_ts: threadTs || null,
