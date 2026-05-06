@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useEffect } from "react";
+import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import { Search, Plus, RotateCcw, X, Send, Info, Columns3, Check, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatINR } from "@/lib/csvTargets";
@@ -103,17 +103,86 @@ const ROLE_SLOT_BY_KEY = new Map(ROLE_SLOTS.map((s, i) => [s.roleKey, { ...s, ra
 const ROLE_LABEL = (rk: string) => ROLE_SLOT_BY_KEY.get(rk)?.roleLabel || rk;
 const ROLE_CATEGORY_OF = (rk: string): string => ROLE_SLOT_BY_KEY.get(rk)?.category || "Other";
 const ROLE_RANK = (rk: string): number => ROLE_SLOT_BY_KEY.get(rk)?.rank ?? 999;
-/** Names allowed in a column (matches Person.roleTitle to ROLE_TO_PEOPLE_FILTER). */
+
+// Per-slot designation keywords used for tier-2 (broader) candidate matching.
+// People whose `designation` or `roleTitle` contains any of these tokens
+// (case-insensitive) and who share the slot's roleCategory are surfaced as
+// "Same role family" candidates even when their HRIS roleTitle doesn't
+// exactly equal the canonical labels in ROLE_TO_PEOPLE_FILTER.
+const ROLE_DESIGNATION_KEYWORDS: Record<string, string[]> = {
+  vsd: ["vsd", "vertical", "head of"],
+  principal_bopm: ["principal"],
+  senior_bopm: ["senior bopm", "sr bopm", "sr. bopm"],
+  bopm: ["bopm"],
+  managing_editor: ["managing editor", "director - content", "director content", "associate director - content"],
+  content_lead: ["content lead", "quality success"],
+  senior_editor: ["senior editor", "sr editor", "sr. editor"],
+  seo_leader: ["director", "avp", "head", "leader"],
+  seo_group_head: ["group head", "growth lead"],
+  sr_seo_manager: ["senior seo manager", "sr seo manager", "sr. seo manager", "senior manager"],
+  seo_manager: ["seo manager", "business manager"],
+  sr_seo_analyst: ["senior seo analyst", "sr seo analyst", "sr. seo analyst"],
+  seo_analyst: ["analyst", "assistant manager"],
+  strategy_cd: ["creative director - strategy", "cd - strategy", "creative director"],
+  strategy_acd: ["associate creative director - strategy", "acd - strategy"],
+  strategy_sr: ["strategist", "group head - strategy", "associate group head"],
+  cd_copy: ["cd - copy", "creative director - copy", "group head copy"],
+  acd_copy: ["acd - copy", "associate creative director - copy"],
+  sr_copywriter: ["senior copywriter", "sr copywriter", "sr. copywriter"],
+  jr_copywriter: ["copywriter"],
+  sr_cd_art: ["senior creative director", "sr cd", "sr. cd", "creative director - design"],
+  acd_art: ["acd - art", "associate creative director - design", "acd design"],
+  art_director: ["art director", "director - design"],
+  sr_designer: ["senior designer", "sr designer", "sr. designer"],
+  jr_designer: ["designer"],
+  production_head: ["production head", "head of production", "executive producer"],
+  ad_video_pm: ["ad - video", "associate director - video", "creative producer"],
+  video_pm: ["video pm", "acp", "producer"],
+  video_editor_1: ["video editor", "editor"],
+  video_editor_2: ["video editor", "editor"],
+  influencer: ["influencer"],
+  perf_growth: ["performance", "growth"],
+};
+
+type PersonGroups = { exact: Person[]; family: Person[]; other: Person[] };
+
+/**
+ * Tiered resolution of candidates for a role-slot column:
+ *  - Tier 1 (exact): roleTitle matches the canonical filter.
+ *  - Tier 2 (family): same roleCategory + designation/roleTitle hits a keyword.
+ *  - Tier 3 (other): same roleCategory, rest.
+ * Excludes leaving people. People appear in only one tier.
+ */
+function resolvePeopleForRole(rk: string, allPeople: Person[]): PersonGroups {
+  const slotCat = ROLE_CATEGORY_OF(rk);
+  const titles = new Set((ROLE_TO_PEOPLE_FILTER[rk] || []).map(t => t.toLowerCase()));
+  const keywords = (ROLE_DESIGNATION_KEYWORDS[rk] || []).map(k => k.toLowerCase());
+  const exact: Person[] = [];
+  const family: Person[] = [];
+  const other: Person[] = [];
+  for (const p of allPeople) {
+    if (p.leaving) continue;
+    const rt = (p.roleTitle || "").toLowerCase();
+    const dg = ((p as any).designation || "").toLowerCase();
+    if (titles.has(rt)) { exact.push(p); continue; }
+    const sameCat = (p.roleCategory || "") === slotCat;
+    if (!sameCat) continue;
+    const kw = keywords.length > 0 && keywords.some(k => rt.includes(k) || dg.includes(k));
+    if (kw) family.push(p);
+    else other.push(p);
+  }
+  return { exact, family, other };
+}
+
+/** Backwards-compatible flat list (unused now, kept for safety). */
 function peopleForRole(rk: string, allPeople: Person[]): Person[] {
-  const titles = ROLE_TO_PEOPLE_FILTER[rk] || [];
-  if (titles.length === 0) return [];
-  const set = new Set(titles.map(t => t.toLowerCase()));
-  return allPeople.filter(p => !p.leaving && set.has((p.roleTitle || "").toLowerCase()));
+  const g = resolvePeopleForRole(rk, allPeople);
+  return [...g.exact, ...g.family, ...g.other];
 }
 
 // ── Styled person picker (replaces the bare native <select>) ──────────────
 function PersonPickerPopover({
-  currentId, candidates, disabled, triggerLabel, triggerClassName,
+  currentId, candidates, candidateGroups, managerName, disabled, triggerLabel, triggerClassName,
   emptyLabel = "No people available",
   placeholder = "Search…",
   onSelect,
@@ -123,7 +192,12 @@ function PersonPickerPopover({
   deals,
 }: {
   currentId?: string;
-  candidates: Person[];
+  /** Flat list — used when caller hasn't supplied groups. */
+  candidates?: Person[];
+  /** Pre-tiered candidate groups; takes precedence over `candidates` when present. */
+  candidateGroups?: PersonGroups;
+  /** Optional senior teammate; if provided, their direct reports float to the top of each group. */
+  managerName?: string;
   disabled?: boolean;
   triggerLabel: React.ReactNode;
   triggerClassName?: string;
@@ -154,14 +228,114 @@ function PersonPickerPopover({
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const filtered = useMemo(() => {
+  const [showOther, setShowOther] = useState(false);
+
+  // Sort each tier so direct reports of `managerName` come first.
+  const sortByManager = useCallback((arr: Person[]) => {
+    if (!managerName) return arr.slice();
+    const mn = managerName.toLowerCase();
+    return arr.slice().sort((a, b) => {
+      const am = ((a as any).reportingManager || "").toLowerCase() === mn ? 0 : 1;
+      const bm = ((b as any).reportingManager || "").toLowerCase() === mn ? 0 : 1;
+      return am - bm;
+    });
+  }, [managerName]);
+
+  const groups = useMemo<PersonGroups>(() => {
+    if (candidateGroups) return candidateGroups;
+    return { exact: candidates || [], family: [], other: [] };
+  }, [candidateGroups, candidates]);
+
+  const filteredGroups = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    if (!needle) return candidates;
-    return candidates.filter(p =>
+    const matchOne = (p: Person) =>
+      !needle ||
       (p.name || "").toLowerCase().includes(needle) ||
-      (p.roleTitle || "").toLowerCase().includes(needle)
+      (p.roleTitle || "").toLowerCase().includes(needle) ||
+      ((p as any).designation || "").toLowerCase().includes(needle);
+    return {
+      exact: sortByManager(groups.exact.filter(matchOne)),
+      family: sortByManager(groups.family.filter(matchOne)),
+      other: sortByManager(groups.other.filter(matchOne)),
+    };
+  }, [q, groups, sortByManager]);
+
+  const totalCount = filteredGroups.exact.length + filteredGroups.family.length + filteredGroups.other.length;
+
+  const renderRow = (pp: Person) => {
+    const u = utilByPerson.get(pp.id) || { total: 0, items: [] };
+    const free = Math.max(0, 100 - u.total);
+    const utilColor =
+      u.total > 100 ? "text-rose-600"
+      : u.total >= 80 ? "text-amber-600"
+      : "text-emerald-600";
+    const isExpanded = expandedId === pp.id;
+    return (
+      <div
+        key={pp.id}
+        className={cn(
+          "rounded-md mb-0.5 border border-transparent",
+          pp.id === currentId && "bg-primary/5"
+        )}
+      >
+        <div className="flex items-center gap-1.5 px-1.5 py-1.5">
+          <Check className={cn("h-3 w-3 flex-shrink-0", pp.id === currentId ? "text-primary" : "opacity-0")} />
+          <button
+            type="button"
+            onClick={() => { onSelect(pp.id); setOpen(false); setQ(""); }}
+            className="flex-1 min-w-0 text-left"
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-medium text-foreground truncate">{pp.name}</span>
+              {pp.tbh && <span className="text-[9px] text-amber-700 border border-amber-300 rounded px-1">TBH</span>}
+              {pp.leaving && <span className="text-[9px] text-rose-700 border border-rose-300 rounded px-1">Leaving</span>}
+            </div>
+            <div className="text-[10px] text-muted-foreground truncate">
+              {[pp.roleTitle, (pp as any).designation, (pp as any).pod, pp.region].filter(Boolean).join(" · ")}
+            </div>
+          </button>
+          <div className="text-right shrink-0 leading-tight">
+            <div className={cn("text-[10.5px] font-mono font-medium", utilColor)}>{u.total}%</div>
+            <div className="text-[9px] text-muted-foreground">{u.items.length} deal{u.items.length !== 1 ? "s" : ""} · {free}% free</div>
+          </div>
+          {assignments && (
+            <button
+              type="button"
+              onClick={(ev) => { ev.stopPropagation(); setExpandedId(isExpanded ? null : pp.id); }}
+              className="p-0.5 text-muted-foreground hover:text-foreground"
+              title="Show engagements"
+            >
+              <ChevronDown className={cn("h-3 w-3 transition-transform", isExpanded && "rotate-180")} />
+            </button>
+          )}
+        </div>
+        {isExpanded && (
+          <div className="px-2 pb-2 -mt-0.5 space-y-0.5 border-t border-border/40 bg-secondary/20">
+            {u.items.length === 0 ? (
+              <div className="text-[10px] text-muted-foreground py-1.5">No current assignments — fully available.</div>
+            ) : u.items.map((it, idx) => (
+              <div key={idx} className="flex items-center justify-between gap-2 pt-1">
+                <div className="min-w-0 flex-1">
+                  <div className="text-[10.5px] text-foreground truncate">{it.dealName}</div>
+                  <div className="text-[9px] text-muted-foreground truncate">{it.roleKey}</div>
+                </div>
+                <span className="text-[10px] font-mono text-foreground">{it.allocationPct}%</span>
+                <span className="text-[9px] font-mono text-muted-foreground">{(it.allocationPct/100*40).toFixed(1)}h/wk</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     );
-  }, [q, candidates]);
+  };
+
+  const SectionHeader = ({ label, count }: { label: string; count: number }) =>
+    count === 0 ? null : (
+      <div className="px-2 pt-1.5 pb-0.5 text-[9px] uppercase tracking-wider text-muted-foreground font-medium">
+        {label} <span className="opacity-60">· {count}</span>
+      </div>
+    );
+
   return (
     <Popover open={open} onOpenChange={(v) => { setOpen(v); if (!v) setQ(""); }}>
       <PopoverTrigger asChild>
@@ -187,75 +361,28 @@ function PersonPickerPopover({
           />
         </div>
         <div className="max-h-80 overflow-y-auto">
-          {filtered.length === 0 ? (
+          {totalCount === 0 ? (
             <div className="px-2 py-3 text-center text-[11px] text-muted-foreground">{emptyLabel}</div>
           ) : (
-            filtered.map(pp => {
-              const u = utilByPerson.get(pp.id) || { total: 0, items: [] };
-              const free = Math.max(0, 100 - u.total);
-              const utilColor =
-                u.total > 100 ? "text-rose-600"
-                : u.total >= 80 ? "text-amber-600"
-                : "text-emerald-600";
-              const isExpanded = expandedId === pp.id;
-              return (
-                <div
-                  key={pp.id}
-                  className={cn(
-                    "rounded-md mb-0.5 border border-transparent",
-                    pp.id === currentId && "bg-primary/5"
-                  )}
-                >
-                  <div className="flex items-center gap-1.5 px-1.5 py-1.5">
-                    <Check className={cn("h-3 w-3 flex-shrink-0", pp.id === currentId ? "text-primary" : "opacity-0")} />
-                    <button
-                      type="button"
-                      onClick={() => { onSelect(pp.id); setOpen(false); setQ(""); }}
-                      className="flex-1 min-w-0 text-left"
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[11px] font-medium text-foreground truncate">{pp.name}</span>
-                        {pp.tbh && <span className="text-[9px] text-amber-700 border border-amber-300 rounded px-1">TBH</span>}
-                        {pp.leaving && <span className="text-[9px] text-rose-700 border border-rose-300 rounded px-1">Leaving</span>}
-                      </div>
-                      <div className="text-[10px] text-muted-foreground truncate">
-                        {[pp.roleTitle, (pp as any).pod, pp.region].filter(Boolean).join(" · ")}
-                      </div>
-                    </button>
-                    <div className="text-right shrink-0 leading-tight">
-                      <div className={cn("text-[10.5px] font-mono font-medium", utilColor)}>{u.total}%</div>
-                      <div className="text-[9px] text-muted-foreground">{u.items.length} deal{u.items.length !== 1 ? "s" : ""} · {free}% free</div>
-                    </div>
-                    {assignments && (
-                      <button
-                        type="button"
-                        onClick={(ev) => { ev.stopPropagation(); setExpandedId(isExpanded ? null : pp.id); }}
-                        className="p-0.5 text-muted-foreground hover:text-foreground"
-                        title="Show engagements"
-                      >
-                        <ChevronDown className={cn("h-3 w-3 transition-transform", isExpanded && "rotate-180")} />
-                      </button>
-                    )}
-                  </div>
-                  {isExpanded && (
-                    <div className="px-2 pb-2 -mt-0.5 space-y-0.5 border-t border-border/40 bg-secondary/20">
-                      {u.items.length === 0 ? (
-                        <div className="text-[10px] text-muted-foreground py-1.5">No current assignments — fully available.</div>
-                      ) : u.items.map((it, idx) => (
-                        <div key={idx} className="flex items-center justify-between gap-2 pt-1">
-                          <div className="min-w-0 flex-1">
-                            <div className="text-[10.5px] text-foreground truncate">{it.dealName}</div>
-                            <div className="text-[9px] text-muted-foreground truncate">{it.roleKey}</div>
-                          </div>
-                          <span className="text-[10px] font-mono text-foreground">{it.allocationPct}%</span>
-                          <span className="text-[9px] font-mono text-muted-foreground">{(it.allocationPct/100*40).toFixed(1)}h/wk</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })
+            <>
+              <SectionHeader label="Best match" count={filteredGroups.exact.length} />
+              {filteredGroups.exact.map(renderRow)}
+              <SectionHeader label="Same role family" count={filteredGroups.family.length} />
+              {filteredGroups.family.map(renderRow)}
+              {filteredGroups.other.length > 0 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setShowOther(v => !v)}
+                    className="w-full text-left px-2 pt-1.5 pb-0.5 text-[9px] uppercase tracking-wider text-muted-foreground font-medium hover:text-foreground flex items-center gap-1"
+                  >
+                    <ChevronDown className={cn("h-3 w-3 transition-transform", showOther && "rotate-180")} />
+                    Other team members <span className="opacity-60">· {filteredGroups.other.length}</span>
+                  </button>
+                  {showOther && filteredGroups.other.map(renderRow)}
+                </>
+              )}
+            </>
           )}
         </div>
         {footer && (
@@ -894,12 +1021,10 @@ export function BopmStaffingFlatTable({
       });
       return best?.person;
     })();
-    const colMatchesAll = peopleForRole(roleKey, allPeople);
-    const colMatches = seniorMgr
-      ? colMatchesAll.filter(pp =>
-          (pp.reportingManager || "").toLowerCase() === seniorMgr.name.toLowerCase()
-          || pp.id === seniorMgr.id)
-      : colMatchesAll;
+    // Tiered candidate resolution. Manager constraint is a soft sort, applied
+    // by the picker, so users always see the full team and never hit a
+    // "0 candidates" dead-end caused by a strict reportingManager filter.
+    const colGroups = resolvePeopleForRole(roleKey, allPeople);
 
     const draftKey = e.assignmentId;
     const draftVal = allocDraft[draftKey];
@@ -925,7 +1050,8 @@ export function BopmStaffingFlatTable({
           <div className="flex-1 min-w-0">
             <PersonPickerPopover
               currentId={e.personId}
-              candidates={colMatches}
+              candidateGroups={colGroups}
+              managerName={seniorMgr?.name}
               assignments={assignments}
               deals={deals}
               disabled={!!e.isMarkedRemove}
@@ -1221,16 +1347,17 @@ export function BopmStaffingFlatTable({
                       const manager = sameTeamEntries
                         .filter(x => x.rank < colRank)
                         .sort((a, b) => a.rank - b.rank)[0]?.person;
-                      const candidates = peopleForRole(rk, allPeople);
-                      const filtered = manager
-                        ? candidates.filter(pp =>
-                            (pp.reportingManager || "").toLowerCase() === manager.name.toLowerCase()
-                              || pp.id === manager.id
-                          )
-                        : candidates;
-                      // Exclude people already staffed on this deal in this role.
+                      // Tiered candidate resolution; manager is a soft sort
+                      // applied inside the picker. Exclude people already
+                      // staffed on this deal in this role.
                       const usedIds = new Set(entries.filter(x => !x.isMarkedRemove).map(x => x.personId));
-                      const pickerOptions = filtered.filter(pp => !usedIds.has(pp.id));
+                      const groupsAll = resolvePeopleForRole(rk, allPeople);
+                      const pickerGroups: PersonGroups = {
+                        exact: groupsAll.exact.filter(pp => !usedIds.has(pp.id)),
+                        family: groupsAll.family.filter(pp => !usedIds.has(pp.id)),
+                        other: groupsAll.other.filter(pp => !usedIds.has(pp.id)),
+                      };
+                      const pickerTotal = pickerGroups.exact.length + pickerGroups.family.length + pickerGroups.other.length;
                       const pickerKey = `picker:${d.id}:${rk}`;
                       return (
                         <td
@@ -1242,19 +1369,20 @@ export function BopmStaffingFlatTable({
                             {entries.map(e => renderEntry(d, rk, e))}
                             <PersonPickerPopover
                               key={pickerKey}
-                              candidates={pickerOptions}
+                              candidateGroups={pickerGroups}
+                              managerName={manager?.name}
                               assignments={assignments}
                               deals={deals}
-                              disabled={pickerOptions.length === 0}
+                              disabled={pickerTotal === 0}
                               triggerClassName={cn(
                                 "w-full flex items-center justify-between gap-1 px-1.5 py-1 text-[10.5px] italic rounded-md border border-dashed transition-colors",
-                                pickerOptions.length === 0
+                                pickerTotal === 0
                                   ? "text-muted-foreground/50 border-border/30 cursor-not-allowed"
                                   : "text-muted-foreground border-border/50 hover:text-foreground hover:border-border hover:bg-secondary/40"
                               )}
                               triggerLabel={
-                                pickerOptions.length === 0
-                                  ? (manager ? `No reports under ${manager.name.split(" ")[0]}` : `No ${ROLE_LABEL(rk)} available`)
+                                pickerTotal === 0
+                                  ? `No ${ROLE_LABEL(rk)} available`
                                   : (manager ? `+ Add (under ${manager.name.split(" ")[0]})` : `+ Add ${ROLE_LABEL(rk)}`)
                               }
                               emptyLabel={`No ${ROLE_LABEL(rk)} available`}
