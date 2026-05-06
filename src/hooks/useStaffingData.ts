@@ -76,6 +76,7 @@ function dbToDeal(row: any): Deal {
     tcvUsd: row.tcv_usd ? Number(row.tcv_usd) : 0,
     strategyBandwidthRequired: row.strategy_bandwidth_required || '',
     pepperBuL2: row.pepper_bu_l2 || '',
+    inputCurrency: (row.input_currency === "USD" ? "USD" : "INR") as "INR" | "USD",
   };
 }
 
