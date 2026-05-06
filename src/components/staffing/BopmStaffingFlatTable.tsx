@@ -863,6 +863,8 @@ export function BopmStaffingFlatTable({
             <PersonPickerPopover
               currentId={e.personId}
               candidates={colMatches}
+              assignments={assignments}
+              deals={deals}
               disabled={!!e.isMarkedRemove}
               triggerClassName={cn(
                 "w-full inline-flex items-center justify-between gap-1 px-1 py-0.5 rounded-sm text-[11px] font-medium text-foreground hover:bg-foreground/5 hover:ring-1 hover:ring-border transition-colors",
@@ -1159,6 +1161,8 @@ export function BopmStaffingFlatTable({
                             <PersonPickerPopover
                               key={pickerKey}
                               candidates={pickerOptions}
+                              assignments={assignments}
+                              deals={deals}
                               disabled={pickerOptions.length === 0}
                               triggerClassName={cn(
                                 "w-full flex items-center justify-between gap-1 px-1.5 py-1 text-[10.5px] italic rounded-md border border-dashed transition-colors",
