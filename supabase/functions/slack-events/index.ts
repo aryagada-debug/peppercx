@@ -13,6 +13,25 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-slack-signature, x-slack-request-timestamp",
 };
 
+interface SlackEvent {
+  type?: string;
+  subtype?: string;
+  channel?: string;
+  channel_type?: string;
+  bot_id?: string;
+  user?: string;
+  ts?: string;
+  text?: string;
+  thread_ts?: string;
+  message?: SlackEvent;
+}
+
+interface SlackPayload {
+  type?: string;
+  challenge?: string;
+  event?: SlackEvent;
+}
+
 async function verifySlackSignature(req: Request, rawBody: string): Promise<boolean> {
   if (!SIGNING_SECRET) return false;
   const ts = req.headers.get("x-slack-request-timestamp");
@@ -42,7 +61,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   const rawBody = await req.text();
-  let payload: any;
+  let payload: SlackPayload;
   try { payload = JSON.parse(rawBody); } catch { return new Response("bad json", { status: 400 }); }
 
   // Slack URL verification
