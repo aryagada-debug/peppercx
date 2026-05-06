@@ -57,6 +57,7 @@ function PersonPickerPopover({
   placeholder = "Search…",
   onSelect,
   align = "start",
+  footer,
 }: {
   currentId?: string;
   candidates: Person[];
@@ -67,6 +68,7 @@ function PersonPickerPopover({
   placeholder?: string;
   onSelect: (personId: string) => void;
   align?: "start" | "center" | "end";
+  footer?: (close: () => void) => React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -128,6 +130,11 @@ function PersonPickerPopover({
             ))
           )}
         </div>
+        {footer && (
+          <div className="mt-1 pt-1 border-t border-border/60">
+            {footer(() => { setOpen(false); setQ(""); })}
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   );
