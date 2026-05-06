@@ -80,6 +80,8 @@ interface Props {
   issues: RGYIssue[];
   activeVsd: string;
   isBopm?: boolean;
+  isVsd?: boolean;
+  myVsdName?: string | null;
 }
 
 function getWorstRGY(deal: DealWithRGY): "R" | "Y" | "G" | null {
@@ -106,10 +108,10 @@ const VSD_SHORT: Record<string, string> = {
   "Aditya Shaw": "Aditya",
 };
 
-export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm = false }: Props) {
+export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm = false, isVsd = false, myVsdName = null }: Props) {
   const { isRegisteredName } = useAppUsers();
   const { isVsdName, canonVsd } = useVsdUsers();
-  const { vsdForDeal, vsdForPerson } = useVsdHierarchy();
+  const { vsdForDeal, vsdForPerson, bopmsForVsd } = useVsdHierarchy();
   const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
   // `vsd` here is the resolved VSD (we set it from hierarchy in RGYHealth).
   const matchesActiveVsd = (vsd: string | undefined) => {
