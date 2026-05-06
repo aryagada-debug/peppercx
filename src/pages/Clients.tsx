@@ -954,6 +954,20 @@ export default function Clients() {
                           <InlineEditCell value={String(deal.totalDealValue || "")} onSave={v => handleTotalRevenueSave(deal.id, v)} type="number" prefix="₹" placeholder="—" />
                         </td>
                       )}
+                      {isVisible("duration") && (
+                        <td className="py-2 px-3 text-xs text-muted-foreground truncate" title={`${deal.startDate || "—"} → ${deal.endDate || "—"}`}>
+                          {(() => {
+                            const sd = deal.startDate ? new Date(deal.startDate) : null;
+                            const ed = deal.endDate ? new Date(deal.endDate) : null;
+                            if (sd && ed && !isNaN(sd.getTime()) && !isNaN(ed.getTime())) {
+                              const months = Math.max(0, Math.round((ed.getTime() - sd.getTime()) / (1000 * 60 * 60 * 24 * 30.44)));
+                              return <span className="text-foreground">{months} mo</span>;
+                            }
+                            if (ed && !isNaN(ed.getTime())) return <span>ends {ed.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>;
+                            return <span className="text-muted-foreground">—</span>;
+                          })()}
+                        </td>
+                      )}
                       {isVisible("rag") && <td className="py-2 px-3 text-center">{ragDot(deal.rag || "green")}</td>}
                       <td className="py-2 px-1">
                         <div className="flex items-center gap-1.5 justify-end">
