@@ -87,16 +87,17 @@ Deno.serve(async (req) => {
     }
     dmThreadId = t.id;
   } else {
-    const { data: deal } = await supa
+    const { data: deals } = await supa
       .from("staffing_deals")
       .select("id")
       .eq("slack_channel_id", ev.channel)
-      .maybeSingle();
+      .order("updated_at", { ascending: false })
+      .limit(1);
+    const deal = Array.isArray(deals) && deals.length > 0 ? deals[0] : null;
     if (!deal) {
-      console.log("[slack-events] no deal mapped for channel", ev.channel);
-      return new Response("no deal mapped", { status: 200, headers: corsHeaders });
+      console.log("[slack-events] no deal mapped for channel", ev.channel, "storing channel-only");
     }
-    dealId = deal.id;
+    dealId = deal?.id || null;
   }
 
   // For message_changed, the actual content lives under ev.message.
