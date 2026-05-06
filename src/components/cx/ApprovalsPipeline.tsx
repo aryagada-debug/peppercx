@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/sheet";
 import { formatDistanceToNow } from "date-fns";
 import { CheckCircle2, XCircle, Eye, Loader2, ArrowRight, User2 } from "lucide-react";
+import { toast } from "sonner";
 
 const COLUMNS: { key: ApprovalRequestRow["status"]; label: string; tint: string }[] = [
   { key: "pending",      label: "Pending",        tint: "border-l-warning bg-warning/5" },
@@ -105,13 +106,46 @@ export function ApprovalsPipeline() {
     await setRequestStatus(active.id, "under_review", reviewerNote);
     setBusy(false);
   };
+
+  const saveApprovalDraft = async (showToast = true): Promise<{ ok: boolean; changed: boolean }> => {
+    if (!active) return { ok: false, changed: false };
+    let payload: any;
+    let previous: any;
+    try {
+      payload = JSON.parse(payloadText || "{}");
+      previous = JSON.parse(previousText || "{}");
+    } catch {
+      toast.error("Payload and previous values must be valid JSON.");
+      return { ok: false, changed: false };
+    }
+    const patch = {
+      payload,
+      previous,
+      deal_id: dealIdDraft.trim(),
+      target_kind: targetKindDraft.trim(),
+      target_id: targetIdDraft.trim(),
+      requester_note: requesterNoteDraft,
+      reviewer_note: reviewerNote,
+    };
+    const changed = JSON.stringify({ payload: active.payload, previous: active.previous, deal_id: active.deal_id, target_kind: active.target_kind, target_id: active.target_id, requester_note: active.requester_note, reviewer_note: active.reviewer_note }) !== JSON.stringify(patch);
+    if (!changed) return { ok: true, changed: false };
+    const ok = await updateApprovalRequestDetails(active.id, patch);
+    if (ok) {
+      setActive({ ...active, ...patch });
+      if (showToast) toast.success("Approval details saved");
+    }
+    return { ok, changed: ok };
+  };
+
   const handleApprove = async () => {
     if (!active) return;
     setBusy(true);
-    if (reviewerNote && reviewerNote !== active.reviewer_note) {
+    const saved = active.is_batch ? { ok: true, changed: false } : await saveApprovalDraft(false);
+    if (!saved.ok) { setBusy(false); return; }
+    if (active.is_batch && reviewerNote && reviewerNote !== active.reviewer_note) {
       await setRequestStatus(active.id, "under_review", reviewerNote);
     }
-    await applyApprovedRequest(active.id);
+    await applyApprovedRequest(active.id, { editSummary: saved.changed ? "Central CX edited approval details before approving." : "" });
     setBusy(false);
     setActive(null);
   };
