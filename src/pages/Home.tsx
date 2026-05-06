@@ -109,6 +109,11 @@ export default function HomePage() {
   const [myDeals, setMyDeals] = useState<MyDeal[]>([]);
   const [loadingMyDeals, setLoadingMyDeals] = useState(true);
 
+  // Financial summary across deals visible to the user
+  const [finSummary, setFinSummary] = useState<{ contraction: number; delivery: number; invoicing: number; receivables: number }>({ contraction: 0, delivery: 0, invoicing: 0, receivables: 0 });
+  const [finByDeal, setFinByDeal] = useState<Record<string, { contraction: number; delivery: number; invoicing: number; receivables: number }>>({});
+  const [finDrill, setFinDrill] = useState<null | "contraction" | "delivery" | "invoicing" | "receivables">(null);
+
   // Google Calendar
   const { connected: calConnected, listEvents: calListEvents } = useGoogleCalendar();
   const [calEvents, setCalEvents] = useState<GCalEvent[]>([]);
@@ -228,20 +233,50 @@ export default function HomePage() {
     const { data } = await supabase.from("staffing_deals")
       .select("id, deal_name, account, vsd, principal_bopm, senior_bopm, bopm, end_date, deal_status, mrr, total_deal_value")
       .in("deal_status", ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
-    const mine: MyDeal[] = (data || [])
-      .filter((d: any) => inAliases(d.vsd) || inAliases(d.principal_bopm) || inAliases(d.senior_bopm) || inAliases(d.bopm))
+    const visible = (data || []).filter((d: any) => isAdmin || inAliases(d.vsd) || inAliases(d.principal_bopm) || inAliases(d.senior_bopm) || inAliases(d.bopm));
+    const mine: MyDeal[] = visible
       .map((d: any) => {
         let role = "";
         if (inAliases(d.vsd)) role = "VSD";
         else if (inAliases(d.principal_bopm)) role = "Principal BOPM";
         else if (inAliases(d.senior_bopm)) role = "Senior BOPM";
         else if (inAliases(d.bopm)) role = "BOPM";
+        else if (isAdmin) role = "Admin";
         return { id: d.id, deal_name: d.deal_name, account: d.account, deal_status: d.deal_status, mrr: d.mrr, total_deal_value: d.total_deal_value, end_date: d.end_date, my_role: role };
       })
       .sort((a, b) => (b.mrr || 0) - (a.mrr || 0));
     setMyDeals(mine);
+    // Aggregate financials for these deals
+    const ids = mine.map(d => d.id);
+    if (ids.length) {
+      const { data: fins } = await supabase.from("deal_financials")
+        .select("deal_id, consumption, invoiced, received").in("deal_id", ids);
+      const byDeal: Record<string, { contraction: number; delivery: number; invoicing: number; receivables: number }> = {};
+      (fins || []).forEach((r: any) => {
+        const cur = byDeal[r.deal_id] || { contraction: 0, delivery: 0, invoicing: 0, receivables: 0 };
+        const cons = Number(r.consumption) || 0;
+        const inv = Number(r.invoiced) || 0;
+        const rec = Number(r.received) || 0;
+        cur.contraction += cons;
+        cur.delivery += cons;
+        cur.invoicing += inv;
+        cur.receivables += Math.max(0, inv - rec);
+        byDeal[r.deal_id] = cur;
+      });
+      setFinByDeal(byDeal);
+      const totals = Object.values(byDeal).reduce((s, v) => ({
+        contraction: s.contraction + v.contraction,
+        delivery: s.delivery + v.delivery,
+        invoicing: s.invoicing + v.invoicing,
+        receivables: s.receivables + v.receivables,
+      }), { contraction: 0, delivery: 0, invoicing: 0, receivables: 0 });
+      setFinSummary(totals);
+    } else {
+      setFinByDeal({});
+      setFinSummary({ contraction: 0, delivery: 0, invoicing: 0, receivables: 0 });
+    }
     setLoadingMyDeals(false);
-  }, [user]);
+  }, [user, isAdmin]);
 
   const loadTodos = useCallback(async () => {
     if (!user) return;
