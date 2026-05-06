@@ -80,6 +80,8 @@ interface Props {
   issues: RGYIssue[];
   activeVsd: string;
   isBopm?: boolean;
+  isVsd?: boolean;
+  myVsdName?: string | null;
 }
 
 function getWorstRGY(deal: DealWithRGY): "R" | "Y" | "G" | null {
@@ -106,10 +108,10 @@ const VSD_SHORT: Record<string, string> = {
   "Aditya Shaw": "Aditya",
 };
 
-export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm = false }: Props) {
+export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm = false, isVsd = false, myVsdName = null }: Props) {
   const { isRegisteredName } = useAppUsers();
   const { isVsdName, canonVsd } = useVsdUsers();
-  const { vsdForDeal, vsdForPerson } = useVsdHierarchy();
+  const { vsdForDeal, vsdForPerson, bopmsForVsd } = useVsdHierarchy();
   const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
   // `vsd` here is the resolved VSD (we set it from hierarchy in RGYHealth).
   const matchesActiveVsd = (vsd: string | undefined) => {
@@ -162,16 +164,30 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
   ].filter((d) => d.value > 0), [kpis]);
 
   // ── Per-team Red / Yellow counts ──
+  // VSD persona: own active deals (regardless of activeVsd filter chip).
+  const ownActiveDeals = useMemo(() => {
+    if (!isVsd || !myVsdName) return null;
+    return deals.filter(
+      (d) => ACTIVE_STATUSES.has(d.deal_status) && vsdForDeal(d as any) === myVsdName,
+    );
+  }, [isVsd, myVsdName, deals, vsdForDeal]);
+
+  const teamHealthSource = useMemo(() => {
+    if (ownActiveDeals) return ownActiveDeals;
+    if (isBopm) return filteredDeals.filter((d) => ACTIVE_STATUSES.has(d.deal_status));
+    return filteredDeals;
+  }, [ownActiveDeals, isBopm, filteredDeals]);
+
   const teamHealth = useMemo(
     () =>
       DIMENSIONS.map((dim) => ({
         team: dim.label,
         key: dim.key,
-        Red: filteredDeals.filter((d) => (!isBopm || ACTIVE_STATUSES.has(d.deal_status)) && d[dim.key] === "R").length,
-        Yellow: filteredDeals.filter((d) => (!isBopm || ACTIVE_STATUSES.has(d.deal_status)) && d[dim.key] === "Y").length,
-        Green: filteredDeals.filter((d) => (!isBopm || ACTIVE_STATUSES.has(d.deal_status)) && d[dim.key] === "G").length,
+        Red: teamHealthSource.filter((d) => d[dim.key] === "R").length,
+        Yellow: teamHealthSource.filter((d) => d[dim.key] === "Y").length,
+        Green: teamHealthSource.filter((d) => d[dim.key] === "G").length,
       })),
-    [filteredDeals, isBopm],
+    [teamHealthSource],
   );
 
   // Drill data for team-count
@@ -215,6 +231,39 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
 
   // ── VSD Comparison: ALWAYS uses ALL deals (ignore POD filter) ──
   const vsdComparison = useMemo(() => {
+    // VSD persona: replace the VSD comparison with a per-BOPM comparison
+    // (Principal/Senior BOPMs that report under this VSD), across ACTIVE
+    // deals only.
+    if (isVsd && myVsdName) {
+      const bopms = bopmsForVsd(myVsdName);
+      const map = new Map<string, { vsd: string; vsdFull: string; Red: number; Yellow: number; Green: number; total: number }>();
+      bopms.forEach((b) => {
+        const short = (b || "").split(/\s+/)[0] || b;
+        map.set(b, { vsd: short, vsdFull: b, Red: 0, Yellow: 0, Green: 0, total: 0 });
+      });
+      const norm = (s: string | null | undefined) =>
+        (s || "").toLowerCase().normalize("NFKD").replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+      deals.forEach((deal) => {
+        if (!ACTIVE_STATUSES.has(deal.deal_status)) return;
+        if (vsdForDeal(deal as any) !== myVsdName) return;
+        const candidates = [
+          (deal as any).principal_bopm,
+          (deal as any).senior_bopm,
+        ].map(norm).filter(Boolean);
+        let assigned: string | null = null;
+        for (const b of bopms) {
+          if (candidates.includes(norm(b))) { assigned = b; break; }
+        }
+        if (!assigned) return;
+        const entry = map.get(assigned)!;
+        const w = getWorstRGY(deal);
+        if (w === "R") entry.Red++;
+        else if (w === "Y") entry.Yellow++;
+        else if (w === "G") entry.Green++;
+        entry.total = entry.Red + entry.Yellow + entry.Green;
+      });
+      return Array.from(map.values()).filter((e) => e.total > 0);
+    }
     const map = new Map<string, { vsd: string; vsdFull: string; Red: number; Yellow: number; Green: number; total: number }>();
     CORE_VSDS_LIST.forEach((v) =>
       map.set(v, { vsd: VSD_SHORT[v] || v, vsdFull: v, Red: 0, Yellow: 0, Green: 0, total: 0 }),
@@ -232,7 +281,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
       entry.total = entry.Red + entry.Yellow + entry.Green;
     });
     return Array.from(map.values());
-  }, [deals, vsdForDeal]);
+  }, [deals, vsdForDeal, isVsd, myVsdName, bopmsForVsd]);
 
   const vsdDrillDeals = useMemo(() => {
     if (!vsdDrill) return [];
@@ -249,9 +298,12 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
 
   // ── Active Issues — VSD-filtered, with timeline + flags ──
   const activeIssues = useMemo(() => {
-    const allowedIds = isBopm
-      ? new Set(filteredDeals.filter(d => ACTIVE_STATUSES.has(d.deal_status)).map(d => d.id))
-      : null;
+    let allowedIds: Set<string> | null = null;
+    if (isVsd && ownActiveDeals) {
+      allowedIds = new Set(ownActiveDeals.map((d) => d.id));
+    } else if (isBopm) {
+      allowedIds = new Set(filteredDeals.filter(d => ACTIVE_STATUSES.has(d.deal_status)).map(d => d.id));
+    }
     const filtered = issues
       .filter((i) => i.issue_status === "Open" || i.issue_status === "In Progress")
       .filter((i) => !allowedIds || allowedIds.has(i.deal_id))
@@ -277,7 +329,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
       if (ra !== rb) return ra - rb;
       return b.days - a.days;
     });
-  }, [issues, activeVsd, isBopm, filteredDeals]);
+  }, [issues, activeVsd, isBopm, isVsd, ownActiveDeals, filteredDeals]);
 
   // ── Aging issues (top 8 oldest open) ──
   const agingIssues = useMemo(() => activeIssues.slice(0, 8), [activeIssues]);
@@ -382,10 +434,18 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
       {!isBopm && (
       <div className="bg-card border border-border rounded-lg p-4">
         <div className="flex items-center justify-between mb-1">
-          <h3 className="text-sm font-semibold">VSD Portfolio Health Comparison</h3>
-          <span className="text-[10px] text-muted-foreground">All Pods · Click bar to drill in</span>
+          <h3 className="text-sm font-semibold">
+            {isVsd && myVsdName ? "BOPM Portfolio Health Comparison" : "VSD Portfolio Health Comparison"}
+          </h3>
+          <span className="text-[10px] text-muted-foreground">
+            {isVsd && myVsdName ? `${myVsdName}'s pod · P / Sr BOPMs` : "All Pods · Click bar to drill in"}
+          </span>
         </div>
-        <p className="text-xs text-muted-foreground mb-3">Stacked R / Y / G deal count per VSD across active deals</p>
+        <p className="text-xs text-muted-foreground mb-3">
+          {isVsd && myVsdName
+            ? "Stacked R / Y / G deal count per Principal / Senior BOPM across your active deals"
+            : "Stacked R / Y / G deal count per VSD across active deals"}
+        </p>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={vsdComparison} margin={{ left: 10, bottom: 5, top: 10 }} barSize={50}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -396,13 +456,13 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
               formatter={(value: number, name: string) => [`${value} deals`, name]}
             />
             <Legend iconSize={10} wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
-            <Bar dataKey="Red" stackId="vsd" fill={COLORS.R} cursor="pointer" onClick={(d: any) => setVsdDrill(d.vsdFull)}>
+            <Bar dataKey="Red" stackId="vsd" fill={COLORS.R} cursor={isVsd ? "default" : "pointer"} onClick={(d: any) => { if (!isVsd) setVsdDrill(d.vsdFull); }}>
               <LabelList dataKey="Red" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: number) => (v > 0 ? v : "")} />
             </Bar>
-            <Bar dataKey="Yellow" stackId="vsd" fill={COLORS.Y} cursor="pointer" onClick={(d: any) => setVsdDrill(d.vsdFull)}>
+            <Bar dataKey="Yellow" stackId="vsd" fill={COLORS.Y} cursor={isVsd ? "default" : "pointer"} onClick={(d: any) => { if (!isVsd) setVsdDrill(d.vsdFull); }}>
               <LabelList dataKey="Yellow" position="center" fill="#1f2937" fontSize={11} fontWeight={600} formatter={(v: number) => (v > 0 ? v : "")} />
             </Bar>
-            <Bar dataKey="Green" stackId="vsd" fill={COLORS.G} radius={[4, 4, 0, 0]} cursor="pointer" onClick={(d: any) => setVsdDrill(d.vsdFull)}>
+            <Bar dataKey="Green" stackId="vsd" fill={COLORS.G} radius={[4, 4, 0, 0]} cursor={isVsd ? "default" : "pointer"} onClick={(d: any) => { if (!isVsd) setVsdDrill(d.vsdFull); }}>
               <LabelList dataKey="Green" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: number) => (v > 0 ? v : "")} />
             </Bar>
           </BarChart>
