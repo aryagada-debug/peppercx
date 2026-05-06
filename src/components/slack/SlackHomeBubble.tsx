@@ -91,22 +91,22 @@ function ChannelChat() {
     return q ? channels.filter(c => c.name.toLowerCase().includes(q)) : channels;
   }, [channels, chSearch]);
 
-  // Load messages + realtime when channel selected
+  // Load live history from Slack + subscribe to realtime inserts for new messages
   useEffect(() => {
     if (!channelId) { setMessages([]); return; }
     let cancelled = false;
     setLoadingMsgs(true);
-    supabase
-      .from("slack_messages")
-      .select("id,user_name,text,source,created_at,slack_ts")
-      .eq("channel_id", channelId)
-      .is("dm_thread_id", null)
-      .order("created_at", { ascending: true })
-      .limit(200)
-      .then(({ data }) => {
+    supabase.functions
+      .invoke("slack-channel-history", { body: { channelId, limit: 100 } })
+      .then(({ data, error }) => {
         if (cancelled) return;
-        setMessages((data as ChannelMsg[]) || []);
         setLoadingMsgs(false);
+        if (error || (data as any)?.error) {
+          toast.error(`Failed to load history: ${(data as any)?.error || error?.message || "unknown"}`);
+          setMessages([]);
+          return;
+        }
+        setMessages(((data as any).messages as ChannelMsg[]) || []);
       });
     const ch = supabase
       .channel(`slack-home-ch-${channelId}`)
