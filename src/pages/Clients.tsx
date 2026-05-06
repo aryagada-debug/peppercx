@@ -432,6 +432,7 @@ export default function Clients() {
       total_deal_value: data.totalDealValue ? Number(data.totalDealValue) : null,
       retainer_deal_value: data.retainerDealValue ? Number(data.retainerDealValue) : null,
       non_retainer_deal_value: data.nonRetainerDealValue ? Number(data.nonRetainerDealValue) : null,
+      input_currency: data.inputCurrency || "INR",
       pod: data.pod,
       customer_type: data.customerType,
       payment_terms: data.paymentTerms,
