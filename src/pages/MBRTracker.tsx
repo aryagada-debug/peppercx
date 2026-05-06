@@ -462,12 +462,16 @@ export default function MBRTracker() {
 
   // VSD insights from filtered deals
   const vsdInsights = useMemo(() => {
-    const vsdMap = new Map<string, { vsd: string; total: number; done: number; notDone: number; pending: number; green: number; yellow: number; red: number; scheduled: number }>();
+    const vsdMap = new Map<string, { vsd: string; bopms: Set<string>; total: number; done: number; notDone: number; pending: number; green: number; yellow: number; red: number; scheduled: number }>();
     for (const deal of filteredDeals) {
       const v = vsdForDeal(deal as any);
       const bucket = v || "Unassigned";
-      if (!vsdMap.has(bucket)) vsdMap.set(bucket, { vsd: bucket, total: 0, done: 0, notDone: 0, pending: 0, green: 0, yellow: 0, red: 0, scheduled: 0 });
+      if (!vsdMap.has(bucket)) vsdMap.set(bucket, { vsd: bucket, bopms: new Set<string>(), total: 0, done: 0, notDone: 0, pending: 0, green: 0, yellow: 0, red: 0, scheduled: 0 });
       const s = vsdMap.get(bucket)!;
+      const principal = (deal.principalBopm || "").trim();
+      const senior = (deal.seniorBopm || "").trim();
+      if (principal) s.bopms.add(principal);
+      if (senior && senior !== principal) s.bopms.add(senior);
       s.total++;
       const entry = activeEntryMap.get(deal.id);
       if (entry) {
