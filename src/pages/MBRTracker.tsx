@@ -586,13 +586,11 @@ export default function MBRTracker() {
         </div>
 
         {/* Tabs: Insights / Table */}
-        <Tabs value={isBopmPersona ? "table" : undefined} defaultValue={isBopmPersona ? "table" : "insights"} className="mb-4">
-          {!isBopmPersona && (
-            <TabsList className="mb-3">
-              <TabsTrigger value="insights">Insights</TabsTrigger>
-              <TabsTrigger value="table">Table</TabsTrigger>
-            </TabsList>
-          )}
+        <Tabs defaultValue="insights" className="mb-4">
+          <TabsList className="mb-3">
+            <TabsTrigger value="insights">Insights</TabsTrigger>
+            <TabsTrigger value="table">Table</TabsTrigger>
+          </TabsList>
           {isBopmPersona && !accessLoading && filteredDeals.length === 0 && (
             <div className="mb-3"><BopmEmptyState section="The MBR Tracker" /></div>
           )}

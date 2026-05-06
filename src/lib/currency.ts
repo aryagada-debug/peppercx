@@ -3,14 +3,16 @@ export type Currency = "INR" | "USD";
 /** Display-only FX rate. Source data remains stored in INR. */
 export const INR_PER_USD = 83;
 
-export function convertFromInr(amountInInr: number, currency: Currency): number {
+export function convertFromInr(amountInInr: number, currency: Currency, fxRate: number = INR_PER_USD): number {
   if (!Number.isFinite(amountInInr)) return 0;
-  return currency === "USD" ? amountInInr / INR_PER_USD : amountInInr;
+  const rate = Number.isFinite(fxRate) && fxRate > 0 ? fxRate : INR_PER_USD;
+  return currency === "USD" ? amountInInr / rate : amountInInr;
 }
 
-export function convertToInr(amount: number, currency: Currency): number {
+export function convertToInr(amount: number, currency: Currency, fxRate: number = INR_PER_USD): number {
   if (!Number.isFinite(amount)) return 0;
-  return currency === "USD" ? amount * INR_PER_USD : amount;
+  const rate = Number.isFinite(fxRate) && fxRate > 0 ? fxRate : INR_PER_USD;
+  return currency === "USD" ? amount * rate : amount;
 }
 
 export interface FormatOpts {
@@ -51,8 +53,9 @@ export function formatMoney(
   amountInInr: number,
   currency: Currency,
   opts: FormatOpts = { compact: true },
+  fxRate: number = INR_PER_USD,
 ): string {
-  const v = convertFromInr(amountInInr ?? 0, currency);
+  const v = convertFromInr(amountInInr ?? 0, currency, fxRate);
   if (opts.compact) {
     return currency === "USD" ? formatUsdCompact(v) : formatInrCompact(v);
   }
