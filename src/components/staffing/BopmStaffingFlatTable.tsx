@@ -770,8 +770,10 @@ export function BopmStaffingFlatTable({
           e.isMarkedRemove ? "bg-rose-50/80 border-rose-200" :
           e.isAdded ? "bg-emerald-50/80 border-emerald-200" :
           e.isUpdated ? "bg-amber-50/80 border-amber-200" :
-          "bg-white/85 border-border/70 hover:border-border"
+          "bg-white/85 border-border/70 hover:border-border",
+          e.isExpired && !e.isMarkedRemove && "opacity-50 font-light"
         )}
+        title={e.isExpired ? `No longer staffed (ended ${e.endDate})` : undefined}
       >
         <div className="flex items-center gap-1.5">
           {/* Name as styled popover trigger (same row as %) */}
