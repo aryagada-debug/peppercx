@@ -1,6 +1,6 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { formatINR } from "@/lib/csvTargets";
-import { useCurrencyVersion } from "@/contexts/CurrencyContext";
+import { useCurrencyVersion, useCurrency } from "@/contexts/CurrencyContext";
 import { useParams, Link, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Loader2, Plus, Trash2, Pencil, Check, X, Calendar, Users, Eye, Edit2, ExternalLink, AlertTriangle, ChevronDown, ChevronUp, ChevronRight, Upload, CalendarCheck, Smile, TrendingUp, MessageSquare, Sparkles, RefreshCw, Wallet, Receipt, BadgeCheck, AlertCircle, Activity, IndianRupee } from "lucide-react";
 import { getLinkLabel, getFileIcon } from "@/lib/fileLink";
