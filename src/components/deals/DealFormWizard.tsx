@@ -35,6 +35,7 @@ interface DealFormData {
   totalDealValue: string;
   retainerDealValue: string;
   nonRetainerDealValue: string;
+  inputCurrency: string;
   vsd: string;
   principalBopm: string;
   seniorBopm: string;
@@ -85,6 +86,7 @@ export function DealFormWizard({ open, onOpenChange, clients, preSelectedClientI
   const [form, setForm] = useState<DealFormData>({
     dealName: "", dealType: "Retainer", startDate: "", endDate: "",
     mrr: "", totalDealValue: "", retainerDealValue: "", nonRetainerDealValue: "",
+    inputCurrency: "INR",
     vsd: "", principalBopm: "", seniorBopm: "", bopm: "",
     paymentTerms: "", pepperBusinessUnit: "", pod: "", dealStatus: "Won",
     pcCode: "", capabilityLine: "", customerType: "",
