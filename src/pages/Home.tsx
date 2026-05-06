@@ -354,12 +354,17 @@ export default function HomePage() {
 
   // Load all active deals for the "Add Task" deal picker.
   const loadActiveDeals = useCallback(async () => {
+    const aliasSet = aliasesRef.current;
+    const inAliases = (s: string | null) => !!s && aliasSet.has((s || "").trim().toLowerCase());
     const { data } = await supabase.from("staffing_deals")
-      .select("id, deal_name, account, deal_status")
+      .select("id, deal_name, account, deal_status, vsd, principal_bopm, senior_bopm, bopm")
       .in("deal_status", ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"])
       .order("deal_name");
-    setAllActiveDeals((data || []).map((d: any) => ({ id: d.id, deal_name: d.deal_name, account: d.account })));
-  }, []);
+    const visible = (data || []).filter((d: any) =>
+      isAdmin || inAliases(d.vsd) || inAliases(d.principal_bopm) || inAliases(d.senior_bopm) || inAliases(d.bopm)
+    );
+    setAllActiveDeals(visible.map((d: any) => ({ id: d.id, deal_name: d.deal_name, account: d.account })));
+  }, [isAdmin]);
 
   // Create a new deal task from Home (two-way synced with the deal's Kanban).
   const handleAddTaskSubmit = useCallback(async (data: any) => {
