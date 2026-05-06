@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Loader2, Eye } from "lucide-react";
 import { useStaffingData } from "@/hooks/useStaffingData";
+import { useCurrencyVersion } from "@/contexts/CurrencyContext";
 import { DealViewTab } from "@/components/staffing/DealViewTab";
 import { PeopleViewTab } from "@/components/staffing/PeopleViewTab";
 import { useUserRole } from "@/hooks/useUserRole";
