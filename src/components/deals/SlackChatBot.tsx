@@ -17,6 +17,7 @@ interface SlackChatBotProps {
 interface SlackMessage {
   id: string;
   channel_id?: string;
+  dm_thread_id?: string | null;
   user_name: string;
   text: string;
   source: string;
@@ -25,6 +26,9 @@ interface SlackMessage {
 }
 
 interface Channel { id: string; name: string; is_private: boolean }
+interface ChannelListResponse { channels?: Channel[]; error?: string }
+interface SlackHistoryResponse { messages?: SlackMessage[]; error?: string }
+interface SlackSendResponse { ok?: boolean; ts?: string; error?: string }
 
 export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
   const [open, setOpen] = useState(false);
@@ -52,7 +56,7 @@ export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
       .eq("id", dealId)
       .maybeSingle()
       .then(({ data }) => {
-        setChannelId((data as any)?.slack_channel_id || "");
+        setChannelId(data?.slack_channel_id || "");
       });
   }, [dealId]);
 
@@ -69,16 +73,16 @@ export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
     let cancelled = false;
     setLoading(true);
     supabase.functions
-      .invoke("slack-channel-history", { body: { channelId, limit: 100 } })
+      .invoke<SlackHistoryResponse>("slack-channel-history", { body: { channelId, limit: 100 } })
       .then(({ data, error }) => {
         if (cancelled) return;
         setLoading(false);
-        if (error || (data as any)?.error) {
-          toast.error(`Failed to load history: ${(data as any)?.error || error?.message || "unknown"}`);
+        if (error || data?.error) {
+          toast.error(`Failed to load history: ${data?.error || error?.message || "unknown"}`);
           setMessages([]);
           return;
         }
-        setMessages(((data as any).messages as SlackMessage[]) || []);
+        setMessages(data?.messages || []);
       });
     return () => { cancelled = true; };
   }, [open, channelId, dealId]);
@@ -90,7 +94,7 @@ export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
       .channel(`slack-bot-${channelId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "slack_messages", filter: `channel_id=eq.${channelId}` }, (payload) => {
         const m = payload.new as SlackMessage;
-        if ((payload.new as any).dm_thread_id) return;
+        if (m.dm_thread_id) return;
         setMessages(prev => {
           const next = prev.some(x => x.slack_ts === m.slack_ts)
             ? prev.map(x => x.slack_ts === m.slack_ts ? { ...x, ...m } : x)
@@ -109,13 +113,13 @@ export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
 
   const loadChannels = async () => {
     setLoadingChannels(true);
-    const { data, error } = await supabase.functions.invoke("slack-list-channels");
+    const { data, error } = await supabase.functions.invoke<ChannelListResponse>("slack-list-channels");
     setLoadingChannels(false);
-    if (error || (data as any)?.error) {
+    if (error || data?.error) {
       toast.error("Failed to load Slack channels. Check SLACK_BOT_TOKEN.");
       return;
     }
-    setChannels(((data as any).channels) || []);
+    setChannels(data?.channels || []);
   };
 
   // Auto-load channels when picker opens
@@ -131,7 +135,7 @@ export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
   }, [channels, chSearch]);
 
   const linkChannel = async (ch: Channel) => {
-    const { error } = await supabase.from("staffing_deals").update({ slack_channel_id: ch.id } as any).eq("id", dealId);
+    const { error } = await supabase.from("staffing_deals").update({ slack_channel_id: ch.id }).eq("id", dealId);
     if (error) { toast.error("Failed to link channel"); return; }
     toast.success(`Linked to #${ch.name}`);
     setChannelId(ch.id);
@@ -141,7 +145,7 @@ export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
   };
 
   const unlinkChannel = async () => {
-    const { error } = await supabase.from("staffing_deals").update({ slack_channel_id: "" } as any).eq("id", dealId);
+    const { error } = await supabase.from("staffing_deals").update({ slack_channel_id: "" }).eq("id", dealId);
     if (error) { toast.error("Failed to unlink channel"); return; }
     toast.success("Channel unlinked");
     setChannelId("");
@@ -153,12 +157,12 @@ export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
     const text = draft.trim();
     if (!text || !channelId) return;
     setSending(true);
-    const { data, error } = await supabase.functions.invoke("slack-send", {
+    const { data, error } = await supabase.functions.invoke<SlackSendResponse>("slack-send", {
       body: { dealId, channelId, text },
     });
     setSending(false);
-    if (error || (data as any)?.error) {
-      toast.error(`Send failed: ${(data as any)?.error || error?.message || "unknown"}`);
+    if (error || data?.error) {
+      toast.error(`Send failed: ${data?.error || error?.message || "unknown"}`);
       return;
     }
     setDraft("");
