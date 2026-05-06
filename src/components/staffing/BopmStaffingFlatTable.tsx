@@ -104,74 +104,22 @@ const ROLE_LABEL = (rk: string) => ROLE_SLOT_BY_KEY.get(rk)?.roleLabel || rk;
 const ROLE_CATEGORY_OF = (rk: string): string => ROLE_SLOT_BY_KEY.get(rk)?.category || "Other";
 const ROLE_RANK = (rk: string): number => ROLE_SLOT_BY_KEY.get(rk)?.rank ?? 999;
 
-// Per-slot designation keywords used for tier-2 (broader) candidate matching.
-// People whose `designation` or `roleTitle` contains any of these tokens
-// (case-insensitive) and who share the slot's roleCategory are surfaced as
-// "Same role family" candidates even when their HRIS roleTitle doesn't
-// exactly equal the canonical labels in ROLE_TO_PEOPLE_FILTER.
-const ROLE_DESIGNATION_KEYWORDS: Record<string, string[]> = {
-  vsd: ["vsd", "vertical", "head of"],
-  principal_bopm: ["principal"],
-  senior_bopm: ["senior bopm", "sr bopm", "sr. bopm"],
-  bopm: ["bopm"],
-  managing_editor: ["managing editor", "director - content", "director content", "associate director - content"],
-  content_lead: ["content lead", "quality success"],
-  senior_editor: ["senior editor", "sr editor", "sr. editor"],
-  seo_leader: ["director", "avp", "head", "leader"],
-  seo_group_head: ["group head", "growth lead"],
-  sr_seo_manager: ["senior seo manager", "sr seo manager", "sr. seo manager", "senior manager"],
-  seo_manager: ["seo manager", "business manager"],
-  sr_seo_analyst: ["senior seo analyst", "sr seo analyst", "sr. seo analyst"],
-  seo_analyst: ["analyst", "assistant manager"],
-  strategy_cd: ["creative director - strategy", "cd - strategy", "creative director"],
-  strategy_acd: ["associate creative director - strategy", "acd - strategy"],
-  strategy_sr: ["strategist", "group head - strategy", "associate group head"],
-  cd_copy: ["cd - copy", "creative director - copy", "group head copy"],
-  acd_copy: ["acd - copy", "associate creative director - copy"],
-  sr_copywriter: ["senior copywriter", "sr copywriter", "sr. copywriter"],
-  jr_copywriter: ["copywriter"],
-  sr_cd_art: ["senior creative director", "sr cd", "sr. cd", "creative director - design"],
-  acd_art: ["acd - art", "associate creative director - design", "acd design"],
-  art_director: ["art director", "director - design"],
-  sr_designer: ["senior designer", "sr designer", "sr. designer"],
-  jr_designer: ["designer"],
-  production_head: ["production head", "head of production", "executive producer"],
-  ad_video_pm: ["ad - video", "associate director - video", "creative producer"],
-  video_pm: ["video pm", "acp", "producer"],
-  video_editor_1: ["video editor", "editor"],
-  video_editor_2: ["video editor", "editor"],
-  influencer: ["influencer"],
-  perf_growth: ["performance", "growth"],
-};
-
 type PersonGroups = { exact: Person[]; family: Person[]; other: Person[] };
 
 /**
- * Tiered resolution of candidates for a role-slot column:
- *  - Tier 1 (exact): roleTitle matches the canonical filter.
- *  - Tier 2 (family): same roleCategory + designation/roleTitle hits a keyword.
- *  - Tier 3 (other): same roleCategory, rest.
- * Excludes leaving people. People appear in only one tier.
+ * Strict resolution of candidates for a role-slot column:
+ * roleTitle must match one of the canonical titles in ROLE_TO_PEOPLE_FILTER.
+ * Excludes leaving people. `family`/`other` retained for shape compatibility.
  */
 function resolvePeopleForRole(rk: string, allPeople: Person[]): PersonGroups {
-  const slotCat = ROLE_CATEGORY_OF(rk);
   const titles = new Set((ROLE_TO_PEOPLE_FILTER[rk] || []).map(t => t.toLowerCase()));
-  const keywords = (ROLE_DESIGNATION_KEYWORDS[rk] || []).map(k => k.toLowerCase());
   const exact: Person[] = [];
-  const family: Person[] = [];
-  const other: Person[] = [];
   for (const p of allPeople) {
     if (p.leaving) continue;
     const rt = (p.roleTitle || "").toLowerCase();
-    const dg = ((p as any).designation || "").toLowerCase();
-    if (titles.has(rt)) { exact.push(p); continue; }
-    const sameCat = (p.roleCategory || "") === slotCat;
-    if (!sameCat) continue;
-    const kw = keywords.length > 0 && keywords.some(k => rt.includes(k) || dg.includes(k));
-    if (kw) family.push(p);
-    else other.push(p);
+    if (titles.has(rt)) exact.push(p);
   }
-  return { exact, family, other };
+  return { exact, family: [], other: [] };
 }
 
 /** Backwards-compatible flat list (unused now, kept for safety). */
@@ -228,7 +176,6 @@ function PersonPickerPopover({
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [showOther, setShowOther] = useState(false);
 
   // Sort each tier so direct reports of `managerName` come first.
   const sortByManager = useCallback((arr: Person[]) => {
@@ -260,7 +207,11 @@ function PersonPickerPopover({
     };
   }, [q, groups, sortByManager]);
 
-  const totalCount = filteredGroups.exact.length + filteredGroups.family.length + filteredGroups.other.length;
+  const flatList = useMemo(
+    () => [...filteredGroups.exact, ...filteredGroups.family, ...filteredGroups.other],
+    [filteredGroups]
+  );
+  const totalCount = flatList.length;
 
   const renderRow = (pp: Person) => {
     const u = utilByPerson.get(pp.id) || { total: 0, items: [] };
@@ -329,13 +280,6 @@ function PersonPickerPopover({
     );
   };
 
-  const SectionHeader = ({ label, count }: { label: string; count: number }) =>
-    count === 0 ? null : (
-      <div className="px-2 pt-1.5 pb-0.5 text-[9px] uppercase tracking-wider text-muted-foreground font-medium">
-        {label} <span className="opacity-60">· {count}</span>
-      </div>
-    );
-
   return (
     <Popover open={open} onOpenChange={(v) => { setOpen(v); if (!v) setQ(""); }}>
       <PopoverTrigger asChild>
@@ -364,25 +308,7 @@ function PersonPickerPopover({
           {totalCount === 0 ? (
             <div className="px-2 py-3 text-center text-[11px] text-muted-foreground">{emptyLabel}</div>
           ) : (
-            <>
-              <SectionHeader label="Best match" count={filteredGroups.exact.length} />
-              {filteredGroups.exact.map(renderRow)}
-              <SectionHeader label="Same role family" count={filteredGroups.family.length} />
-              {filteredGroups.family.map(renderRow)}
-              {filteredGroups.other.length > 0 && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setShowOther(v => !v)}
-                    className="w-full text-left px-2 pt-1.5 pb-0.5 text-[9px] uppercase tracking-wider text-muted-foreground font-medium hover:text-foreground flex items-center gap-1"
-                  >
-                    <ChevronDown className={cn("h-3 w-3 transition-transform", showOther && "rotate-180")} />
-                    Other team members <span className="opacity-60">· {filteredGroups.other.length}</span>
-                  </button>
-                  {showOther && filteredGroups.other.map(renderRow)}
-                </>
-              )}
-            </>
+            <>{flatList.map(renderRow)}</>
           )}
         </div>
         {footer && (
