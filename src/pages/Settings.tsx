@@ -24,6 +24,7 @@ import {
   PointerSensor, useSensor, useSensors, useDraggable, useDroppable,
 } from "@dnd-kit/core";
 import { formatINR } from "@/lib/csvTargets";
+import { useCurrencyVersion } from "@/contexts/CurrencyContext";
 import { GripVertical } from "lucide-react";
 import { PeopleTreeView } from "@/components/settings/PeopleTreeView";
 import { OrgChartView } from "@/components/settings/OrgChartView";
@@ -124,6 +125,7 @@ function InlineEdit({
 }
 
 export default function SettingsPage() {
+  useCurrencyVersion();
   const [activeTab, setActiveTab] = useState<SettingsTab>("People & Reporting");
   const { people, revenueTargets, loading, addPerson, updatePerson, deletePerson, setRevenueTargets } = useStaffingData();
   const { isActuallyAdmin } = useUserRole();

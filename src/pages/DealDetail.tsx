@@ -1,5 +1,6 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { formatINR } from "@/lib/csvTargets";
+import { useCurrencyVersion } from "@/contexts/CurrencyContext";
 import { useParams, Link, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Loader2, Plus, Trash2, Pencil, Check, X, Calendar, Users, Eye, Edit2, ExternalLink, AlertTriangle, ChevronDown, ChevronUp, ChevronRight, Upload, CalendarCheck, Smile, TrendingUp, MessageSquare, Sparkles, RefreshCw, Wallet, Receipt, BadgeCheck, AlertCircle, Activity, IndianRupee } from "lucide-react";
 import { getLinkLabel, getFileIcon } from "@/lib/fileLink";
@@ -1454,6 +1455,7 @@ function GroupedRGYHistory({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
 }
 
 export default function DealDetail() {
+  useCurrencyVersion();
   const { dealId } = useParams();
   const [searchParams] = useSearchParams();
   const initialTab = (TABS as readonly string[]).includes(searchParams.get("tab") || "") ? (searchParams.get("tab") as TabKey) : "Overview";

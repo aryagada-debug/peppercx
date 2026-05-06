@@ -1,4 +1,5 @@
 import { useState, Fragment } from "react";
+import { useCurrencyVersion } from "@/contexts/CurrencyContext";
 import { format } from "date-fns";
 import { Upload, ChevronRight } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -15,6 +16,7 @@ import {
 } from "@/lib/csvTargets";
 
 export default function Targets() {
+  useCurrencyVersion();
   const { isAdmin } = useUserRole();
   const [month, setMonth] = useState(format(new Date(), "yyyy-MM"));
   const [uploadOpen, setUploadOpen] = useState(false);

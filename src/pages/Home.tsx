@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { formatINR } from "@/lib/csvTargets";
+import { useCurrencyVersion } from "@/contexts/CurrencyContext";
 import { Link, useNavigate } from "react-router-dom";
 import { format, isToday, isPast, parseISO, isWithinInterval, addDays, startOfDay, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, differenceInMinutes, differenceInDays } from "date-fns";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -63,6 +64,7 @@ function isDueWithin(s: string | null, days: number) {
 }
 
 export default function HomePage() {
+  useCurrencyVersion();
   const { user } = useAuth();
   const { isAdmin, isReadOnly } = useUserRole();
   const navigate = useNavigate();

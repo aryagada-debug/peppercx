@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, Fragment } from "react";
 import { formatINR } from "@/lib/csvTargets";
+import { useCurrencyVersion } from "@/contexts/CurrencyContext";
 import { Link } from "react-router-dom";
 import { AlertTriangle, Clock, MessageSquare, UserMinus, ChevronRight } from "lucide-react";
 import { format, startOfMonth, subMonths, addDays, subDays, differenceInCalendarDays } from "date-fns";
@@ -62,6 +63,7 @@ const addStatus = (c: RgyCounts, s: RGYStatus) => {
 };
 
 export default function Dashboard() {
+  useCurrencyVersion();
   const { role } = useUserRole();
   // Persona-specific dashboards short-circuit before loading legacy data.
   if (role === "capability_lead") return <CapabilityLeaderDashboard />;

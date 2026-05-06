@@ -1,5 +1,6 @@
 import React from "react";
 import { formatINR } from "@/lib/csvTargets";
+import { useCurrencyVersion } from "@/contexts/CurrencyContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Link } from "react-router-dom";
 import { Search, Plus, Loader2, Trash2, Pencil, Check, X, Building2, Briefcase, Activity, TrendingUp, DollarSign, Settings2, Paperclip } from "lucide-react";
@@ -90,6 +91,7 @@ function InlineEditCell({ value, onSave, type = "text", prefix = "", placeholder
 }
 
 export default function Clients() {
+  useCurrencyVersion();
   const { deals: allDeals, people, assignments, loading: staffLoading, refresh: refreshStaffing, updateDeal, addAssignment, updateAssignment, deleteAssignment } = useStaffingData();
   const { clients: allClients, loading: clientsLoading, addClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
   const access = useDealAccess();
