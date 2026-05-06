@@ -1,99 +1,60 @@
 ## Plan
 
-Three independent fixes.
+Three changes scoped to Home, Staffing, and Clients & Deals.
 
 ---
 
-### 1) Currency toggle — stop full app rerender
+### 1) Home — enable Add Task in Kanban + Financial Summary tile
 
-**Root cause:** `CurrencyProvider` wraps children in `<div key={currency}>`, which remounts the entire app on toggle. That's why the page goes blank/slow.
+**Add Task in Home Kanban**
+- Currently `TaskKanban` on Home is rendered with `disableAdd` and a no-op `onAdd`. Wire it up so clicking the per-column "+ Add" inside the kanban opens the existing `AddTaskDialog` (already used by the "Add Task" header button).
+- The dialog will reuse `addTaskDealId` flow so the user picks the deal + fills the form, and the new task is inserted into `deal_tasks` (already two-way synced with the deal's Kanban via existing `handleAddTaskSubmit`).
+- Keep "My Deals" filtering as-is — deals shown are already restricted to the logged-in user via alias matching against `vsd / principal_bopm / senior_bopm / bopm` on `staffing_deals` (same source used by Clients & Deals page). No change needed here other than confirming the scoping.
 
-**Fix:**
-
-1. In `src/contexts/CurrencyContext.tsx`:
-   - Remove the `<div key={currency}>` remount wrapper.
-   - Expose a `useFormatINR()` hook that returns a memoized formatter bound to current `currency` + `fxRate` (no module mirror needed for components — only kept as fallback for non-React utilities).
-   - Keep the module-level `globalCurrency` / `globalFx` mirrors so anything calling the legacy `formatINR()` from `csvTargets.ts` still works (initial paint, plus immediate update on next render).
-
-2. Make consumer components reactive without remounting the tree:
-   - Introduce `useFormatINR()` (returns `(n) => string`) and `useFormatMoney()` (with options).
-   - Update the ~27 files that import `formatINR` / `formatMoney` from `csvTargets`/`currency` (listed below) to use the new hook so each money-showing component re-renders on its own when toggle flips:
-     - `src/pages/MBRTracker.tsx`, `src/pages/Index.tsx`, `src/pages/Clients.tsx`, `src/pages/Home.tsx`, `src/pages/Targets.tsx`, `src/pages/DealDetail.tsx`, `src/pages/Settings.tsx`
-     - `src/components/staffing/{SummaryTab,RevenueCapacityTab,PeopleViewTab,PeopleLevelView,MatrixTab,DealViewTab,DealLevelView,BWRulesTab,AccountsTab,BopmStaffingFlatTable}.tsx`
-     - `src/components/targets/{TargetDrillDialog,FinanceTargetsCard,DealTargetsTable}.tsx`
-     - `src/components/clients/BopmClientsHeader.tsx`, `src/components/rgy/DealDetailDialog.tsx`, `src/components/deals/FinancialsTab.tsx`
-   - Where formatting happens inside a deeply nested helper (not a component), pass the formatter in as a prop or pull the hook in the parent and inline the call.
-
-3. Net effect: the toggle becomes a small context update that re-renders only the components actually displaying money, not the whole app. No page flash, no scroll reset.
+**New "Financial Summary" card on Home (all roles)**
+- Add a new card showing four totals across deals visible to the user (Admin: all deals; everyone else: their alias-matched deals — same scope as "My Deals"):
+  - Total Contraction (sum of `consumption` across `deal_financials`)
+  - Total Delivery (sum of `consumption` — currently used as delivered in `FinancialsTab`)
+  - Total Invoicing (sum of `invoiced`)
+  - Total Receivables Outstanding (sum of `invoiced - received`)
+- Each tile is clickable and opens a drill-down dialog with a table of contributing deals: Account, Deal Name (link → `/deals/:id`), VSD/BOPM, value for that metric. Sortable by value. Reuses existing dialog/table primitives.
+- Currency respects `useCurrencyVersion()` + `formatINR` already imported on Home.
 
 ---
 
-### 2) RGY Insights — VSD's "BOPM Portfolio Health Comparison" appearing hidden
+### 2) Staffing & Capacity — start/end dates with auto-expiry + ghosted historical staffing
 
-**Root cause:** `bopmsForVsd(myVsdName)` (in `useVsdHierarchy`) is built from `staffing_deals.principal_bopm` + `senior_bopm` mapped by canonical VSD. If the hierarchy cache hasn't loaded yet, or no recognised BOPMs roll up to the logged-in VSD, the result is `[]` → the chart's data array is empty → nothing renders.
+**Date inputs**
+- `AddStaffingMemberDialog` already collects `startDate` / `endDate` and writes them to `staffing_assignments.start_date / end_date`. Surface and confirm both inputs in the dialog UI (already present at step 3 — verify and improve labels / validation: `endDate >= startDate`).
+- Add inline editable Start / End date fields on the existing staffing tables (`BopmStaffingFlatTable`, `DealLevelView`, `PeopleLevelView`) so VSD/BOPM can adjust dates without re-creating the assignment.
 
-**Fix in `src/components/rgy/RGYInsightsTab.tsx`:**
-
-- Compute the BOPM list directly from the VSD's own active deals as a fallback:
-  ```text
-  bopms = bopmsForVsd(myVsdName)
-  if (bopms.length === 0):
-      bopms = unique(principal_bopm | senior_bopm)
-              over deals where vsdForDeal(d) == myVsdName AND ACTIVE_STATUSES.has(status)
-              filtered to non-placeholder names ("TBA", "TBD", "To Be Assigned", empty)
-  ```
-- Always seed the bar chart `map` with every name in `bopms` (even zero counts) so the X-axis shows the BOPMs even when all categories are 0.
-- Drop the existing "if everyone is empty, show empty rows" branch — replaced by the seed-then-tally pattern above which keeps the chart visible at all times.
-- Update the subtitle to read "P / Sr BOPMs reporting to {VSD}" so the user always knows what bars they'll see.
+**Auto-expiry + "no longer staffed" indicator**
+- Add a derived helper `isAssignmentExpired(a)` = `a.end_date && a.end_date < today`.
+- Treatment everywhere staffing is rendered (Deal staffing tab, People view, Capacity tab, Home Kanban assignee picker, `WeeklyStaffingGrid`):
+  - Expired rows remain visible but are styled with `opacity-60`, lighter font weight, and a subtle "Past" badge so VSD/BOPMs can see who used to be staffed if a deal is later extended.
+  - Capacity / utilization calculations exclude expired rows so a person isn't double-counted after their end_date passes.
+  - Filters/aggregations (e.g., "currently staffed people on deal X") use only non-expired rows.
+- No automatic DB delete — assignments stay in `staffing_assignments` so history is preserved. We hide them from "active" totals and ghost them in UI.
 
 ---
 
-### 3) RGY status-change rules — unified across all views
+### 3) Clients & Deals — Duration column
 
-Apply the same logic in **`src/pages/RGYHealth.tsx`** (table cells) and **`src/pages/DealDetail.tsx`** (Overview + RGY tab via `EditableRGY`/`handleRGYSave`):
-
-| Transition | Behaviour |
-|---|---|
-| `* → R`  or  `G → Y` | Open existing **Issue Form** to capture issue + tasks. (Today's behaviour — keep.) |
-| `R → Y` | Open new **Resolve Issues dialog** listing every open issue/task linked to this deal. Resolving is **optional**: user can tick any/all and click "Save", or "Skip". State change persists either way. |
-| `R → G`  or  `Y → G` | Open **Resolve Issues dialog** in **mandatory** mode. The dimension only commits to G after **every** open RGY issue/task on that deal is marked resolved. If user closes/cancels with anything still unresolved, **revert** the cell to its previous value (R or Y) optimistically and on the server. |
-| `G → R` / `G → Y` | (Same as today) Issue form opens. |
-
-**Implementation pieces:**
-
-1. **New component** `src/components/rgy/ResolveIssuesDialog.tsx`:
-   - Loads issues from `deal_rgy_weekly` rows where `issue_status in ('Open','In Progress')` for this `deal_id`, plus `[RGY Health] *` open tasks from `deal_tasks`.
-   - Renders each as a checkbox list with title + dimension chip + days-open.
-   - Two modes via prop: `mode: 'optional' | 'required'`.
-   - Buttons: in optional mode → "Save & continue" (always enabled) + "Cancel"; in required mode → "Confirm Green" (enabled only when all rows checked) + "Cancel".
-   - On save: sets `issue_status = 'Resolved'`, `resolved_at = now()` on the matching `deal_rgy_weekly` rows, and `deal_tasks.stage = 'Done'` for ticked tasks.
-
-2. **`src/pages/RGYHealth.tsx`** — extend `handleRGYUpdate` / `applyRGYUpdate`:
-   - Compute `oldValue` and `newValue`.
-   - If `oldValue === 'R' && newValue === 'Y'` → snapshot, optimistic update, persist, then open `ResolveIssuesDialog mode="optional"`.
-   - If `newValue === 'G' && oldValue in ('R','Y')` → **do NOT persist yet**; open `ResolveIssuesDialog mode="required"`. On confirm: persist green + log. On cancel/close: revert local cell back to `oldValue` (no DB write). This replaces today's `GreenGateDialog` which only checked tasks — keep its task-checking inside the new dialog (it already shows tasks too).
-   - All other transitions unchanged.
-
-3. **`src/pages/DealDetail.tsx`** — extend `handleRGYSave`:
-   - Same matrix applied per dimension that changed. The function already detects per-dim transitions for the green-gate path; reuse that loop and route into `ResolveIssuesDialog` instead of `GreenGateDialog`.
-   - For the R→Y case, save the new RGY week first, then open the optional resolve dialog.
-
-4. **Remove / replace** the old `GreenGateDialog` definitions in both pages (they're now subsumed). Keep `RGYIssueForm` (still used for going *into* R/Y).
-
-5. Persona-agnostic: the logic lives in the save handlers, so it applies to Admin, VSD, BOPM, Cap. Lead, Cap. IC alike.
+- Add a new optional column `duration` to the `ALL_COLS` list in `src/pages/Clients.tsx`.
+- Computed from `staffing_deals.start_date` and `staffing_deals.end_date`:
+  - If both present: human-readable months (e.g. "12 mo", or "13 mo · ends 30 Jun 2026").
+  - If only end_date: "ends DD MMM YYYY".
+  - If neither: `—`.
+- Column is included in default visible set, sortable by length in days, supports the existing per-column filter pattern (text match).
 
 ---
 
-### Files
+### Files to edit
 
-**Edit**
-- `src/contexts/CurrencyContext.tsx` — drop remount, add `useFormatINR` / `useFormatMoney`.
-- 27 files using `formatINR`/`formatMoney` — switch to hook (small mechanical change per file).
-- `src/components/rgy/RGYInsightsTab.tsx` — BOPM-list fallback for VSD chart.
-- `src/pages/RGYHealth.tsx` — new transition logic, swap green-gate.
-- `src/pages/DealDetail.tsx` — same transition logic in `handleRGYSave`.
+- `src/pages/Home.tsx` — wire kanban `onAdd` to existing AddTaskDialog flow; add Financial Summary card + drill-down dialog; query `deal_financials` filtered to user's deal IDs.
+- `src/components/staffing/AddStaffingMemberDialog.tsx` — explicit Start/End date inputs with validation.
+- `src/components/staffing/BopmStaffingFlatTable.tsx`, `DealLevelView.tsx`, `PeopleLevelView.tsx`, `WeeklyStaffingGrid.tsx`, `CapacityTab.tsx` — render expired assignments ghosted; exclude from active totals; allow inline editing of start/end dates.
+- `src/data/staffingData.ts` — add `isAssignmentExpired` helper; ensure utilization functions accept an "active only" flag.
+- `src/pages/Clients.tsx` — add Duration column to ALL_COLS, default visible, header + cell rendering.
 
-**Create**
-- `src/components/rgy/ResolveIssuesDialog.tsx`.
-
-No DB schema changes (uses existing `issue_status`, `resolved_at`, `deal_tasks.stage`).
+No DB schema changes — `start_date` / `end_date` already exist on `staffing_assignments` and `staffing_deals`.
