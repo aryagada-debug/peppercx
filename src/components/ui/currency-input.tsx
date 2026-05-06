@@ -35,6 +35,10 @@ export function CurrencyInput({
   id,
 }: CurrencyInputProps) {
   const [currency, setCurrency] = useState<Currency>(defaultCurrency);
+  // Keep in sync if parent updates the default (e.g. another CurrencyInput in the same form toggled).
+  useEffect(() => {
+    setCurrency((prev) => (prev === defaultCurrency ? prev : defaultCurrency));
+  }, [defaultCurrency]);
   const numericInr =
     valueInr === "" || valueInr === null || valueInr === undefined
       ? NaN
