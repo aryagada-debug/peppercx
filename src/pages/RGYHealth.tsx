@@ -1466,13 +1466,27 @@ export default function RGYHealth() {
           </TabsContent>
         </Tabs>
 
-        {/* Green-Gate Dialog */}
-        {greenGate && (
-          <GreenGateDialog
-            pendingTasks={greenGate.tasks}
-            onConfirm={handleGreenGateConfirm}
-            onCancel={() => setGreenGate(null)}
-            onMarkDone={handleMarkTaskDone}
+        {/* R/Y → G Resolve Issues Dialog (mandatory) */}
+        {pendingGreen && (
+          <ResolveIssuesDialog
+            open
+            mode="required"
+            dealId={pendingGreen.dealId}
+            dealName={deals.find(d => d.id === pendingGreen.dealId)?.deal_name}
+            onConfirm={handleGreenConfirm}
+            onCancel={handleGreenCancel}
+          />
+        )}
+
+        {/* R → Y Resolve Issues Dialog (optional) */}
+        {resolveAfterDowngrade && (
+          <ResolveIssuesDialog
+            open
+            mode="optional"
+            dealId={resolveAfterDowngrade.dealId}
+            dealName={deals.find(d => d.id === resolveAfterDowngrade.dealId)?.deal_name}
+            onConfirm={() => setResolveAfterDowngrade(null)}
+            onCancel={() => setResolveAfterDowngrade(null)}
           />
         )}
 
