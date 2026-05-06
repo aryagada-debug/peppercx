@@ -793,25 +793,40 @@ export function BopmStaffingFlatTable({
         <div className="flex items-center gap-1.5">
           {/* Name as styled popover trigger (same row as %) */}
           <div className="flex-1 min-w-0">
-            <button
-              type="button"
+            <PersonPickerPopover
+              currentId={e.personId}
+              candidates={colMatches}
               disabled={!!e.isMarkedRemove}
-              onClick={() => setEditEntry({
-                dealId: deal.id,
-                assignmentId: e.assignmentId,
-                roleKey,
-                category: cat,
-                allocationPct: e.allocationPct,
-              })}
-              className={cn(
-                "group/picker w-full inline-flex items-center justify-between gap-1 px-1 py-0.5 rounded-sm text-[11px] font-medium text-foreground hover:bg-foreground/5 hover:ring-1 hover:ring-border transition-colors",
+              triggerClassName={cn(
+                "w-full inline-flex items-center justify-between gap-1 px-1 py-0.5 rounded-sm text-[11px] font-medium text-foreground hover:bg-foreground/5 hover:ring-1 hover:ring-border transition-colors",
                 e.isMarkedRemove && "line-through opacity-60"
               )}
-              title="Click to change person, allocation or dates (with engagement view)"
-            >
-              <span className="truncate">{`${p?.name || "—"}${p?.tbh ? " (TBH)" : ""}`}</span>
-              <ChevronDown className="h-3 w-3 opacity-0 group-hover/picker:opacity-60 flex-shrink-0" />
-            </button>
+              triggerLabel={`${p?.name || "—"}${p?.tbh ? " (TBH)" : ""}`}
+              emptyLabel={`No ${ROLE_LABEL(roleKey)} available`}
+              onSelect={(personId) => {
+                if (personId !== e.personId) {
+                  stageUpdate(deal.id, e.assignmentId, { personId });
+                }
+              }}
+              footer={(close) => (
+                <button
+                  type="button"
+                  onClick={() => {
+                    close();
+                    setEditEntry({
+                      dealId: deal.id,
+                      assignmentId: e.assignmentId,
+                      roleKey,
+                      category: cat,
+                      allocationPct: e.allocationPct,
+                    });
+                  }}
+                  className="w-full px-2 py-1.5 text-left text-[11px] text-primary hover:bg-secondary rounded-md"
+                >
+                  Edit dates & engagement…
+                </button>
+              )}
+            />
           </div>
           {/* % allocation inline */}
           <input
