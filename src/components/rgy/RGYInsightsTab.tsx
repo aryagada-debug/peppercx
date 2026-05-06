@@ -318,8 +318,20 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
 
   const vsdDrillDeals = useMemo(() => {
     if (!vsdDrill) return [];
+    const norm = (s: string | null | undefined) =>
+      (s || "").toLowerCase().normalize("NFKD").replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+    const inVsdScope = isVsd && effectiveVsdName;
+    const target = norm(vsdDrill);
     return deals
-      .filter((d) => vsdForDeal(d as any) === vsdDrill && ACTIVE_STATUSES.has(d.deal_status))
+      .filter((d) => {
+        if (!ACTIVE_STATUSES.has(d.deal_status)) return false;
+        if (inVsdScope) {
+          if (vsdForDeal(d as any) !== effectiveVsdName) return false;
+          const candidates = [(d as any).principal_bopm, (d as any).senior_bopm].map(norm);
+          return candidates.includes(target);
+        }
+        return vsdForDeal(d as any) === vsdDrill;
+      })
       .map((d) => ({
         id: d.id,
         deal_id: d.deal_id,
@@ -327,7 +339,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
         account: d.account,
         worst: getWorstRGY(d),
       }));
-  }, [vsdDrill, deals, vsdForDeal]);
+  }, [vsdDrill, deals, vsdForDeal, isVsd, effectiveVsdName]);
 
   // ── Active Issues — VSD-filtered, with timeline + flags ──
   const activeIssues = useMemo(() => {
