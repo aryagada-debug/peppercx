@@ -272,9 +272,23 @@ export default function HomePage() {
         receivables: s.receivables + v.receivables,
       }), { contraction: 0, delivery: 0, invoicing: 0, receivables: 0 });
       setFinSummary(totals);
+      // Targets for the current month (cap to deal scope)
+      const monthStart = format(startOfMonth(new Date()), "yyyy-MM-dd");
+      const { data: tgts } = await supabase.from("deal_financial_targets")
+        .select("deal_id, contraction_target, delivery_target, invoicing_target, receivables_target")
+        .eq("month", monthStart)
+        .in("deal_id", ids);
+      const tTotals = (tgts || []).reduce((s, r: any) => ({
+        contraction: s.contraction + (Number(r.contraction_target) || 0),
+        delivery: s.delivery + (Number(r.delivery_target) || 0),
+        invoicing: s.invoicing + (Number(r.invoicing_target) || 0),
+        receivables: s.receivables + (Number(r.receivables_target) || 0),
+      }), { contraction: 0, delivery: 0, invoicing: 0, receivables: 0 });
+      setFinTargets(tTotals);
     } else {
       setFinByDeal({});
       setFinSummary({ contraction: 0, delivery: 0, invoicing: 0, receivables: 0 });
+      setFinTargets({ contraction: 0, delivery: 0, invoicing: 0, receivables: 0 });
     }
     setLoadingMyDeals(false);
   }, [user, isAdmin]);
