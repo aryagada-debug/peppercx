@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useWeeklyStaffing, getMonday, fmtISODate, generateWeeks } from "@/hooks/useWeeklyStaffing";
+import { useWeeklyStaffing, getMonday, fmtISODate, generateWeeks, getAssignmentAllocationForWeek } from "@/hooks/useWeeklyStaffing";
 import type { Person, StaffingAssignment } from "@/data/staffingData";
 
 interface Props {
@@ -59,15 +59,21 @@ export function WeeklyStaffingGrid({ dealId, dealPeople, dealAssignments }: Prop
   // Quick lookups for monthly totals per person
   const monthlyHoursByPerson = useMemo(() => {
     const map = new Map<string, Map<string, number>>(); // personId -> monthKey -> hours
-    for (const r of rows) {
-      const k = monthKey(r.week_start);
-      if (!map.has(r.person_id)) map.set(r.person_id, new Map());
-      const inner = map.get(r.person_id)!;
-      const hours = (r.allocation_pct / 100) * 40;
-      inner.set(k, (inner.get(k) || 0) + hours);
+    // Use effective values (saved override or assignment default) for each visible week.
+    for (const p of dealPeople) {
+      const inner = new Map<string, number>();
+      for (const w of weeks) {
+        const saved = rows.find(r => r.person_id === p.id && r.week_start === w);
+        const pct = saved ? saved.allocation_pct : getAssignmentAllocationForWeek(dealAssignments, p.id, w);
+        if (!pct) continue;
+        const hours = (pct / 100) * 40;
+        const k = monthKey(w);
+        inner.set(k, (inner.get(k) || 0) + hours);
+      }
+      map.set(p.id, inner);
     }
     return map;
-  }, [rows]);
+  }, [rows, dealPeople, dealAssignments, weeks]);
 
   if (!dealPeople.length) {
     return (
@@ -159,7 +165,9 @@ export function WeeklyStaffingGrid({ dealId, dealPeople, dealAssignments }: Prop
                   </td>
                   {weeks.map(w => {
                     const cell = getCell(p.id, w);
-                    const pct = cell?.allocation_pct ?? 0;
+                    const defaultPct = getAssignmentAllocationForWeek(dealAssignments, p.id, w);
+                    const pct = cell?.allocation_pct ?? defaultPct;
+                    const isDefault = !cell;
                     const hours = Math.round((pct / 100) * 40);
                     return (
                       <td
@@ -171,6 +179,7 @@ export function WeeklyStaffingGrid({ dealId, dealPeople, dealAssignments }: Prop
                       >
                         <HoursInput
                           value={hours}
+                          isDefault={isDefault}
                           onSave={(h) => {
                             const newPct = Math.max(0, Math.min(150, Math.round((h / 40) * 100)));
                             upsertCell(p.id, w, { allocation_pct: newPct });
@@ -194,7 +203,8 @@ export function WeeklyStaffingGrid({ dealId, dealPeople, dealAssignments }: Prop
               </td>
               {weeks.map(w => {
                 const sumHrs = dealPeople.reduce((acc, p) => {
-                  const pct = getCell(p.id, w)?.allocation_pct ?? 0;
+                  const cell = getCell(p.id, w);
+                  const pct = cell?.allocation_pct ?? getAssignmentAllocationForWeek(dealAssignments, p.id, w);
                   return acc + (pct / 100) * 40;
                 }, 0);
                 return (
@@ -213,7 +223,7 @@ export function WeeklyStaffingGrid({ dealId, dealPeople, dealAssignments }: Prop
 }
 
 // ─── Editable hours cell ───
-function HoursInput({ value, onSave }: { value: number; onSave: (v: number) => void }) {
+function HoursInput({ value, onSave, isDefault }: { value: number; onSave: (v: number) => void; isDefault?: boolean }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(value));
 
@@ -247,8 +257,10 @@ function HoursInput({ value, onSave }: { value: number; onSave: (v: number) => v
         value === 0 && "text-muted-foreground/50",
         value > 0 && value < 20 && "text-foreground",
         value >= 20 && value < 40 && "text-warning font-medium",
-        value >= 40 && "text-destructive font-semibold"
+        value >= 40 && "text-destructive font-semibold",
+        isDefault && value > 0 && "italic text-muted-foreground/70"
       )}
+      title={isDefault ? "Auto-populated from staffing allocation. Click to edit actual hours." : "Click to edit"}
     >
       {value > 0 ? `${value}h` : "—"}
     </button>

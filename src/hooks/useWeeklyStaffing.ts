@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { StaffingAssignment } from "@/data/staffingData";
 
 export interface WeeklyAllocation {
   id: string;
@@ -100,4 +101,27 @@ export function useWeeklyStaffing(dealId: string | undefined) {
   }, [rows]);
 
   return { rows, loading, upsertCell, removePerson, getCell, refresh: fetchRows };
+}
+
+/**
+ * Compute the default allocation % for a person on a given week from their
+ * staffing assignments. Picks the first assignment that overlaps the week.
+ */
+export function getAssignmentAllocationForWeek(
+  assignments: StaffingAssignment[],
+  personId: string,
+  weekStartIso: string
+): number {
+  const weekStart = new Date(weekStartIso + "T00:00:00Z").getTime();
+  const weekEnd = weekStart + 6 * 24 * 60 * 60 * 1000;
+  let total = 0;
+  for (const a of assignments) {
+    if (a.personId !== personId) continue;
+    const s = a.startDate ? new Date(a.startDate + "T00:00:00Z").getTime() : -Infinity;
+    const e = a.endDate ? new Date(a.endDate + "T00:00:00Z").getTime() : Infinity;
+    if (e >= weekStart && s <= weekEnd) {
+      total += Number(a.allocationPct) || 0;
+    }
+  }
+  return total;
 }
