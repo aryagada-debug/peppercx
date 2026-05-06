@@ -155,6 +155,10 @@ export function AddStaffingMemberDialog({
       } else {
         setStep(1);
       }
+      // Default dates to the deal's start/end whenever the dialog opens for a
+      // brand-new assignment (non-edit, non-pre-selected-person flow).
+      setStartDate(dealForDates?.startDate || "");
+      setEndDate(dealForDates?.endDate || "");
     }
   }, [open, initialCategory, initialPersonName, people, editingAssignmentId, assignments, initialRoleKey, initialAllocationPct, dealForDates?.startDate, dealForDates?.endDate]);
 
