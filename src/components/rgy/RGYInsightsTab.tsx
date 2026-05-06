@@ -122,7 +122,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
     if (activeVsd === "Unassigned") return !v;
     return v === activeVsd;
   };
-  const [teamDrill, setTeamDrill] = useState<{ team: string; severity: "R" | "Y" } | null>(null);
+  const [teamDrill, setTeamDrill] = useState<{ team: string; severity: "R" | "Y" | "G" } | null>(null);
   const [vsdDrill, setVsdDrill] = useState<string | null>(null);
   const [aiSummary, setAiSummary] = useState<string>("");
   const [aiLoading, setAiLoading] = useState(false);
@@ -318,8 +318,20 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
 
   const vsdDrillDeals = useMemo(() => {
     if (!vsdDrill) return [];
+    const norm = (s: string | null | undefined) =>
+      (s || "").toLowerCase().normalize("NFKD").replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+    const inVsdScope = isVsd && effectiveVsdName;
+    const target = norm(vsdDrill);
     return deals
-      .filter((d) => vsdForDeal(d as any) === vsdDrill && ACTIVE_STATUSES.has(d.deal_status))
+      .filter((d) => {
+        if (!ACTIVE_STATUSES.has(d.deal_status)) return false;
+        if (inVsdScope) {
+          if (vsdForDeal(d as any) !== effectiveVsdName) return false;
+          const candidates = [(d as any).principal_bopm, (d as any).senior_bopm].map(norm);
+          return candidates.includes(target);
+        }
+        return vsdForDeal(d as any) === vsdDrill;
+      })
       .map((d) => ({
         id: d.id,
         deal_id: d.deal_id,
@@ -327,7 +339,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
         account: d.account,
         worst: getWorstRGY(d),
       }));
-  }, [vsdDrill, deals, vsdForDeal]);
+  }, [vsdDrill, deals, vsdForDeal, isVsd, effectiveVsdName]);
 
   // ── Active Issues — VSD-filtered, with timeline + flags ──
   const activeIssues = useMemo(() => {
@@ -520,13 +532,13 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
               formatter={(value: number, name: string) => [`${value} deals`, name]}
             />
             <Legend iconSize={10} wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
-            <Bar dataKey="Red" stackId="vsd" fill={COLORS.R} cursor={isVsd ? "default" : "pointer"} onClick={(d: any) => { if (!isVsd) setVsdDrill(d.vsdFull); }}>
+            <Bar dataKey="Red" stackId="vsd" fill={COLORS.R} cursor="pointer" onClick={(d: any) => setVsdDrill(d.vsdFull)}>
               <LabelList dataKey="Red" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: number) => (v > 0 ? v : "")} />
             </Bar>
-            <Bar dataKey="Yellow" stackId="vsd" fill={COLORS.Y} cursor={isVsd ? "default" : "pointer"} onClick={(d: any) => { if (!isVsd) setVsdDrill(d.vsdFull); }}>
+            <Bar dataKey="Yellow" stackId="vsd" fill={COLORS.Y} cursor="pointer" onClick={(d: any) => setVsdDrill(d.vsdFull)}>
               <LabelList dataKey="Yellow" position="center" fill="#1f2937" fontSize={11} fontWeight={600} formatter={(v: number) => (v > 0 ? v : "")} />
             </Bar>
-            <Bar dataKey="Green" stackId="vsd" fill={COLORS.G} radius={[4, 4, 0, 0]} cursor={isVsd ? "default" : "pointer"} onClick={(d: any) => { if (!isVsd) setVsdDrill(d.vsdFull); }}>
+            <Bar dataKey="Green" stackId="vsd" fill={COLORS.G} radius={[4, 4, 0, 0]} cursor="pointer" onClick={(d: any) => setVsdDrill(d.vsdFull)}>
               <LabelList dataKey="Green" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: number) => (v > 0 ? v : "")} />
             </Bar>
           </BarChart>
@@ -723,6 +735,8 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
               stackId="health"
               fill={COLORS.G}
               radius={[4, 4, 0, 0]}
+              cursor="pointer"
+              onClick={(d: any) => d.Green > 0 && setTeamDrill({ team: d.team, severity: "G" as any })}
             >
               <LabelList dataKey="Green" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: number) => (v > 0 ? v : "")} />
             </Bar>

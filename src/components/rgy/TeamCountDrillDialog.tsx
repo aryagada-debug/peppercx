@@ -8,7 +8,7 @@ interface DrillDeal {
   deal_id: string;
   deal_name: string;
   account: string;
-  rgy_value: "R" | "Y";
+  rgy_value: "R" | "Y" | "G";
   issue_details?: string;
 }
 
@@ -16,21 +16,26 @@ interface Props {
   open: boolean;
   onClose: () => void;
   team: string;
-  severity: "R" | "Y";
+  severity: "R" | "Y" | "G";
   deals: DrillDeal[];
 }
 
 export function TeamCountDrillDialog({ open, onClose, team, severity, deals }: Props) {
-  const color = severity === "R" ? "text-red-600" : "text-amber-600";
-  const bg = severity === "R" ? "bg-red-500/10 border-red-500/30" : "bg-amber-500/10 border-amber-500/30";
-  const label = severity === "R" ? "Red" : "Yellow";
+  const color = severity === "R" ? "text-red-600" : severity === "Y" ? "text-amber-600" : "text-emerald-600";
+  const bg = severity === "R"
+    ? "bg-red-500/10 border-red-500/30"
+    : severity === "Y"
+    ? "bg-amber-500/10 border-amber-500/30"
+    : "bg-emerald-500/10 border-emerald-500/30";
+  const label = severity === "R" ? "Red" : severity === "Y" ? "Yellow" : "Green";
+  const dotBg = severity === "R" ? "bg-red-500" : severity === "Y" ? "bg-amber-500" : "bg-emerald-500";
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <span className={cn("inline-block w-3 h-3 rounded-full", severity === "R" ? "bg-red-500" : "bg-amber-500")} />
+            <span className={cn("inline-block w-3 h-3 rounded-full", dotBg)} />
             <span className={color}>{label}</span> accounts in {team} —{" "}
             <span className="text-muted-foreground font-normal">{deals.length} deal{deals.length === 1 ? "" : "s"}</span>
           </DialogTitle>
