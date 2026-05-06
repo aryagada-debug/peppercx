@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronRight, Search } from "lucide-react";
 import type { Deal, Person, StaffingAssignment, RevenueCapacityTarget } from "@/data/staffingData";
+import { isAssignmentExpired } from "@/data/staffingData";
 
 const ACTIVE_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
 
@@ -43,7 +44,7 @@ export function PeopleLevelView({ people, deals, assignments, revenueTargets = [
     assignments.forEach(a => {
       if (!m[a.personId]) m[a.personId] = { totalPct: 0, dealAssigns: [], activeMRR: 0, activeHours: 0 };
       m[a.personId].dealAssigns.push(a);
-      if (activeDealIds.has(a.dealId)) {
+      if (activeDealIds.has(a.dealId) && !isAssignmentExpired(a)) {
         m[a.personId].totalPct += a.allocationPct;
         const deal = dealMap[a.dealId];
         m[a.personId].activeMRR += (deal?.mrr || 0) * (a.allocationPct / 100);
@@ -168,11 +169,13 @@ export function PeopleLevelView({ people, deals, assignments, revenueTargets = [
             {util.dealAssigns.map(a => {
               const d = dealMap[a.dealId];
               const isActive = activeDealIds.has(a.dealId);
+              const expired = isAssignmentExpired(a);
               return (
-                <div key={a.id} className={cn("flex items-center gap-3 py-1.5 px-3 text-caption", !isActive && "opacity-50")}>
+                <div key={a.id} className={cn("flex items-center gap-3 py-1.5 px-3 text-caption", (!isActive || expired) && "opacity-50 font-light")}>
                   <span className="text-foreground">{d?.dealName || a.dealId}</span>
                   <span className="text-muted-foreground">{d?.account}</span>
                   {!isActive && <span className="px-1 py-0.5 rounded text-[9px] bg-secondary text-muted-foreground">Closed</span>}
+                  {expired && <span className="px-1 py-0.5 rounded text-[9px] bg-secondary text-muted-foreground">Past</span>}
                   <span className="ml-auto font-mono tabular-nums text-foreground">{a.allocationPct}%</span>
                   <span className="font-mono tabular-nums text-muted-foreground">{fmtCurrency(d?.mrr)}</span>
                 </div>
