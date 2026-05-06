@@ -613,6 +613,8 @@ export function BopmStaffingFlatTable({
           isAdded: true,
           isUpdated: false,
           isMarkedRemove: false,
+          startDate: a.startDate,
+          endDate: a.endDate,
         };
         const key = a.roleKey || "—";
         if (!byRole.has(key)) byRole.set(key, []);
