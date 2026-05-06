@@ -30,9 +30,10 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { dealId, channelId, text, threadTs } = body || {};
-    if (!dealId || !channelId || !text) {
-      return new Response(JSON.stringify({ error: "dealId, channelId, text required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const { dealId, channelId, text, threadTs, recipientType, dmThreadId } = body || {};
+    const isDm = recipientType === "user" || !!dmThreadId;
+    if (!text || (!isDm && (!dealId || !channelId)) || (isDm && !dmThreadId)) {
+      return new Response(JSON.stringify({ error: "missing required fields" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // Lookup VSD display name from profile
@@ -48,8 +49,25 @@ Deno.serve(async (req) => {
       || "VSD";
     const avatar = profile?.avatar_url || undefined;
 
+    // Resolve target channel: deal channel or DM channel from thread
+    let targetChannelId: string = channelId;
+    let dmThread: any = null;
+    if (isDm) {
+      const { data: t } = await admin
+        .from("slack_dm_threads")
+        .select("*")
+        .eq("id", dmThreadId)
+        .eq("app_user_id", u.user.id)
+        .maybeSingle();
+      if (!t) {
+        return new Response(JSON.stringify({ error: "dm_thread_not_found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      dmThread = t;
+      targetChannelId = t.im_channel_id;
+    }
+
     const slackBody: Record<string, unknown> = {
-      channel: channelId,
+      channel: targetChannelId,
       text,
       username: displayName,
       ...(avatar ? { icon_url: avatar } : { icon_emoji: ":bust_in_silhouette:" }),
@@ -71,8 +89,8 @@ Deno.serve(async (req) => {
 
     // Persist locally so realtime updates the chat immediately
     await admin.from("slack_messages").upsert({
-      deal_id: dealId,
-      channel_id: channelId,
+      deal_id: isDm ? null : dealId,
+      channel_id: targetChannelId,
       slack_ts: j.ts,
       thread_ts: threadTs || null,
       user_id: "",
@@ -82,7 +100,12 @@ Deno.serve(async (req) => {
       sent_by_app_user: u.user.id,
       sent_by_display_name: displayName,
       raw: j.message || {},
+      dm_thread_id: isDm ? dmThread.id : null,
     }, { onConflict: "channel_id,slack_ts" });
+
+    if (isDm && dmThread) {
+      await admin.from("slack_dm_threads").update({ last_message_at: new Date().toISOString() }).eq("id", dmThread.id);
+    }
 
     return new Response(JSON.stringify({ ok: true, ts: j.ts }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {

@@ -31,6 +31,7 @@ import { CalendarConnectButton } from "@/components/calendar/CalendarConnectButt
 import { useUserRole } from "@/hooks/useUserRole";
 import { TaskKanban, type DealTask } from "@/components/deals/TaskKanban";
 import { SlackChatBot } from "@/components/deals/SlackChatBot";
+import { SlackDmBubble } from "@/components/slack/SlackDmBubble";
 import { CxDatePickerPopover } from "@/components/cx/CxDatePickerPopover";
 import { useAccountActivity } from "@/hooks/useAccountActivity";
 import { Activity as ActivityIcon } from "lucide-react";
@@ -1182,6 +1183,8 @@ export default function HomePage() {
       {myDeals.length > 0 && (
         <SlackChatBot dealId={myDeals[0].id} dealName={myDeals[0].deal_name || myDeals[0].account || "Deal"} />
       )}
+      {/* Slack DMs — anyone in the workspace */}
+      <SlackDmBubble scope="anyone" label="Slack DMs" offsetRight={myDeals.length > 0 ? 240 : 24} />
     </AppLayout>
   );
 }

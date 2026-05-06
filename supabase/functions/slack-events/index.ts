@@ -61,46 +61,81 @@ Deno.serve(async (req) => {
   }
 
   const ev = payload.event;
-  // Only handle plain message creations (skip edits, deletes, bot loops, joins)
+  console.log("[slack-events]", ev.type, ev.subtype || "", "channel=", ev.channel, "channel_type=", ev.channel_type);
   if (ev.type !== "message") return new Response("ok", { status: 200, headers: corsHeaders });
-  if (ev.subtype && ev.subtype !== "thread_broadcast") return new Response("ok", { status: 200, headers: corsHeaders });
+  // Allow plain messages and edit syncs; ignore most other subtypes (joins/leaves/deletes/etc).
+  const allowedSubtypes = new Set(["thread_broadcast", "message_changed"]);
+  if (ev.subtype && !allowedSubtypes.has(ev.subtype)) return new Response("ok", { status: 200, headers: corsHeaders });
+  // Skip our own bot's echoes (we mirror via slack-send already).
   if (ev.bot_id) return new Response("ok", { status: 200, headers: corsHeaders });
 
   const supa = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-  // Find deal mapped to this channel
-  const { data: deal } = await supa
-    .from("staffing_deals")
-    .select("id")
-    .eq("slack_channel_id", ev.channel)
-    .maybeSingle();
+  const isDm = ev.channel_type === "im";
+  // For DMs, route to the matching slack_dm_threads row; for channels, to the deal.
+  let dealId: string | null = null;
+  let dmThreadId: string | null = null;
+  if (isDm) {
+    const { data: t } = await supa
+      .from("slack_dm_threads")
+      .select("id, app_user_id")
+      .eq("im_channel_id", ev.channel)
+      .maybeSingle();
+    if (!t) {
+      console.log("[slack-events] no DM thread mapped for channel", ev.channel);
+      return new Response("no dm thread", { status: 200, headers: corsHeaders });
+    }
+    dmThreadId = t.id;
+  } else {
+    const { data: deal } = await supa
+      .from("staffing_deals")
+      .select("id")
+      .eq("slack_channel_id", ev.channel)
+      .maybeSingle();
+    if (!deal) {
+      console.log("[slack-events] no deal mapped for channel", ev.channel);
+      return new Response("no deal mapped", { status: 200, headers: corsHeaders });
+    }
+    dealId = deal.id;
+  }
 
-  if (!deal) return new Response("no deal mapped", { status: 200, headers: corsHeaders });
+  // For message_changed, the actual content lives under ev.message.
+  const msg = ev.subtype === "message_changed" ? (ev.message || {}) : ev;
+  const userId = msg.user || ev.user || "";
+  const ts = msg.ts || ev.ts;
+  const text = msg.text || "";
+  const threadTs = msg.thread_ts || ev.thread_ts || null;
 
   // Resolve user display name (best-effort)
-  let userName = ev.user || "";
+  let userName = userId;
   try {
     const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN");
-    if (SLACK_BOT_TOKEN && ev.user) {
-      const r = await fetch(`https://slack.com/api/users.info?user=${ev.user}`, {
+    if (SLACK_BOT_TOKEN && userId) {
+      const r = await fetch(`https://slack.com/api/users.info?user=${userId}`, {
         headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
       });
       const j = await r.json();
-      if (j.ok) userName = j.user?.profile?.display_name || j.user?.real_name || j.user?.name || ev.user;
+      if (j.ok) userName = j.user?.profile?.display_name || j.user?.real_name || j.user?.name || userId;
     }
   } catch (_) { /* ignore */ }
 
-  await supa.from("slack_messages").upsert({
-    deal_id: deal.id,
+  const { error: upErr } = await supa.from("slack_messages").upsert({
+    deal_id: dealId,
+    dm_thread_id: dmThreadId,
     channel_id: ev.channel,
-    slack_ts: ev.ts,
-    thread_ts: ev.thread_ts || null,
-    user_id: ev.user || "",
+    slack_ts: ts,
+    thread_ts: threadTs,
+    user_id: userId,
     user_name: userName,
-    text: ev.text || "",
+    text,
     source: "slack",
     raw: ev,
   }, { onConflict: "channel_id,slack_ts" });
+  if (upErr) console.log("[slack-events] upsert error", upErr.message);
+
+  if (isDm && dmThreadId) {
+    await supa.from("slack_dm_threads").update({ last_message_at: new Date().toISOString() }).eq("id", dmThreadId);
+  }
 
   return new Response("ok", { status: 200, headers: corsHeaders });
 });
