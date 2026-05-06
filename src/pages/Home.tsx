@@ -761,6 +761,69 @@ export default function HomePage() {
           </CardContent>
         </Card>
 
+        {/* Financial Summary — clickable tiles open a drill-down */}
+        <Card className="rounded-xl">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-[15px] font-bold flex items-center gap-2">
+              <Target className="h-4 w-4 text-primary" /> Financial Summary
+              <span className="ml-2 text-[10px] font-normal text-muted-foreground">Across {myDeals.length} deal{myDeals.length === 1 ? "" : "s"}</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {([
+                { key: "contraction" as const, label: "Contraction", value: finSummary.contraction },
+                { key: "delivery" as const, label: "Delivery", value: finSummary.delivery },
+                { key: "invoicing" as const, label: "Invoicing", value: finSummary.invoicing },
+                { key: "receivables" as const, label: "Receivables Outstanding", value: finSummary.receivables },
+              ]).map(t => (
+                <button key={t.key} onClick={() => setFinDrill(t.key)}
+                  className="rounded-lg border border-border bg-card hover:bg-accent/10 p-3 text-left transition-colors">
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{t.label}</p>
+                  <p className="text-lg font-semibold font-mono mt-1 text-foreground">{formatINR(t.value)}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Click to view deals</p>
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {finDrill && (
+          <Dialog open={!!finDrill} onOpenChange={(o) => !o && setFinDrill(null)}>
+            <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
+              <DialogHeader>
+                <DialogTitle className="capitalize">{finDrill} by deal</DialogTitle>
+              </DialogHeader>
+              <div className="overflow-auto">
+                <table className="w-full text-xs">
+                  <thead className="bg-secondary/40 sticky top-0">
+                    <tr>
+                      <th className="text-left py-2 px-3">Account</th>
+                      <th className="text-left py-2 px-3">Deal</th>
+                      <th className="text-right py-2 px-3">{finDrill === "receivables" ? "Outstanding" : "Amount"}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {myDeals
+                      .map(d => ({ d, v: finByDeal[d.id]?.[finDrill] || 0 }))
+                      .filter(r => r.v > 0)
+                      .sort((a, b) => b.v - a.v)
+                      .map(({ d, v }) => (
+                        <tr key={d.id} className="border-b border-border/40 hover:bg-accent/10">
+                          <td className="py-2 px-3">{d.account}</td>
+                          <td className="py-2 px-3">
+                            <Link to={`/deals/${d.id}`} className="text-primary hover:underline">{d.deal_name}</Link>
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono tabular-nums">{formatINR(v)}</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
+
         {/* Row 2: Today's Calendar (6) + Smart Nudges (6) */}
         <div className="grid grid-cols-12 gap-4">
           <Card className="col-span-12 lg:col-span-6 rounded-xl">
