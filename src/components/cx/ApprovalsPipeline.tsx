@@ -8,6 +8,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
@@ -334,7 +335,27 @@ export function ApprovalsPipeline() {
                   </div>
                 )}
 
-                {!active.is_batch && (
+                {!active.is_batch && canEditAll && (active.status === "pending" || active.status === "under_review") && (
+                  <div className="flex justify-end">
+                    <Button variant="outline" size="sm" onClick={() => setEditMode(v => !v)} disabled={busy}>
+                      {editMode ? "Preview changes" : "Edit approval details"}
+                    </Button>
+                  </div>
+                )}
+
+                {!active.is_batch && editMode && canEditAll && (active.status === "pending" || active.status === "under_review") ? (
+                  <div className="space-y-3 rounded-md border border-border p-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div><div className="text-xs font-medium text-muted-foreground mb-1">Deal ID</div><Input value={dealIdDraft} onChange={e => setDealIdDraft(e.target.value)} className="h-8 text-xs" /></div>
+                      <div><div className="text-xs font-medium text-muted-foreground mb-1">Target kind</div><Input value={targetKindDraft} onChange={e => setTargetKindDraft(e.target.value)} className="h-8 text-xs" /></div>
+                      <div><div className="text-xs font-medium text-muted-foreground mb-1">Target ID</div><Input value={targetIdDraft} onChange={e => setTargetIdDraft(e.target.value)} className="h-8 text-xs" /></div>
+                    </div>
+                    <div><div className="text-xs font-medium text-muted-foreground mb-1">Requester note</div><Textarea value={requesterNoteDraft} onChange={e => setRequesterNoteDraft(e.target.value)} rows={2} /></div>
+                    <div><div className="text-xs font-medium text-muted-foreground mb-1">Payload JSON</div><Textarea value={payloadText} onChange={e => setPayloadText(e.target.value)} rows={8} className="font-mono text-xs" /></div>
+                    <div><div className="text-xs font-medium text-muted-foreground mb-1">Previous JSON</div><Textarea value={previousText} onChange={e => setPreviousText(e.target.value)} rows={5} className="font-mono text-xs" /></div>
+                    <div className="flex justify-end"><Button variant="outline" size="sm" onClick={() => saveApprovalDraft(true)} disabled={busy}>Save edited details</Button></div>
+                  </div>
+                ) : !active.is_batch && (
                 <div>
                   <div className="text-xs font-medium text-muted-foreground mb-1">
                     {active.request_type === "staffing.update" || active.request_type === "staffing.remove"
