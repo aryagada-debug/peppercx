@@ -2628,6 +2628,84 @@ export default function DealDetail() {
         )}
 
       </div>
+      {activeTab !== "RGY Health" && greenGateDialog && (
+        <AlertDialog open={!!greenGateDialog} onOpenChange={(open) => { if (!open) setGreenGateDialog(null); }}>
+          <AlertDialogContent className="max-w-lg">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-warning" />
+                Open Tasks Must Be Completed
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                The following RGY Health tasks are still open. You must complete or force-close them before moving the status to Green.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="space-y-3 max-h-60 overflow-y-auto">
+              {greenGateDialog.pendingDims.map(dim => (
+                <div key={dim.key} className="space-y-1.5">
+                  <p className="text-xs font-semibold text-foreground">{dim.label}</p>
+                  {dim.tasks.map(task => (
+                    <div key={task.id} className="flex items-center gap-2 pl-2">
+                      <Checkbox
+                        checked={task.stage === "Done"}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            updateTask(task.id, { stage: "Done" });
+                            setGreenGateDialog(prev => {
+                              if (!prev) return prev;
+                              return {
+                                ...prev,
+                                pendingDims: prev.pendingDims.map(d => ({
+                                  ...d,
+                                  tasks: d.tasks.map(t => t.id === task.id ? { ...t, stage: "Done" } : t)
+                                }))
+                              };
+                            });
+                          }
+                        }}
+                      />
+                      <span className="text-sm text-foreground">{task.title}</span>
+                      <Badge variant="outline" className="text-[10px] ml-auto">{task.stage}</Badge>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <Button
+                variant="outline"
+                onClick={handleForceCloseGreenGate}
+                className="text-warning border-warning/40"
+              >
+                Force Close All & Save
+              </Button>
+              <AlertDialogAction
+                disabled={greenGateDialog.pendingDims.some(d => d.tasks.some(t => t.stage !== "Done" && t.stage !== "Dropped"))}
+                onClick={() => {
+                  const pendingSave = greenGateDialog.pendingSave;
+                  setGreenGateDialog(null);
+                  if (pendingSave) handleRGYSave(pendingSave);
+                }}
+              >
+                Save as Green
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
+      {activeTab !== "RGY Health" && showResolveOptional && dealId && (
+        <ResolveIssuesDialog
+          open
+          mode="optional"
+          dealId={dealId}
+          dealName={deal?.dealName}
+          onConfirm={() => setShowResolveOptional(false)}
+          onCancel={() => setShowResolveOptional(false)}
+        />
+      )}
+
       {dealId && deal && <SlackChatBot dealId={dealId} dealName={deal.dealName} />}
     </AppLayout>
   );
