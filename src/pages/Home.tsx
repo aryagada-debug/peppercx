@@ -717,10 +717,9 @@ export default function HomePage() {
                 tasks={myKanbanTasks}
                 dealId=""
                 assignees={allPeople.filter(p => !p.tbh).map(p => ({ id: p.id, name: p.name }))}
-                onAdd={() => { /* adding without a deal context is disabled on Home */ }}
+                onAdd={() => { setAddTaskDealId(""); setAddingTask(true); }}
                 onUpdate={handleKanbanUpdate}
                 onDelete={handleKanbanDelete}
-                disableAdd
                 compact
               />
             )}
