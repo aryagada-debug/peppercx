@@ -1472,6 +1472,7 @@ export default function RGYHealth() {
               isBopm={isBopmPersona}
               isVsd={isVsdPersona}
               myVsdName={myVsdName}
+              summaryDeals={aiSummaryDeals}
             />
           </TabsContent>
         </Tabs>
