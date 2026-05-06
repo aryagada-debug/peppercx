@@ -3,7 +3,7 @@ import { Search, Plus, RotateCcw, X, Send, Info, Columns3, Check, GripVertical }
 import { cn } from "@/lib/utils";
 import { formatINR } from "@/lib/csvTargets";
 import type { Deal, Person, StaffingAssignment, RoleCategory } from "@/data/staffingData";
-import { uid, ROLE_SLOTS, ROLE_TO_PEOPLE_FILTER, isAssignmentExpired } from "@/data/staffingData";
+import { uid, ROLE_SLOTS, ROLE_TO_PEOPLE_FILTER, ROLE_SENIORITY_PARENTS, getDescendantPersonIds, isAssignmentExpired } from "@/data/staffingData";
 import { submitStaffingBatch, type BatchItem } from "@/lib/approvals";
 import { AddStaffingMemberDialog } from "./AddStaffingMemberDialog";
 import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
@@ -107,19 +107,61 @@ const ROLE_RANK = (rk: string): number => ROLE_SLOT_BY_KEY.get(rk)?.rank ?? 999;
 type PersonGroups = { exact: Person[]; family: Person[]; other: Person[] };
 
 /**
- * Strict resolution of candidates for a role-slot column:
- * roleTitle must match one of the canonical titles in ROLE_TO_PEOPLE_FILTER.
- * Excludes leaving people. `family`/`other` retained for shape compatibility.
+ * Two-stage candidate resolution for a role-slot column on a specific deal:
+ *
+ *   Stage 1 — strict roleTitle match against ROLE_TO_PEOPLE_FILTER.
+ *   Stage 2 — hierarchy / pod scope:
+ *     • If anyone in a "parent" role (per ROLE_SENIORITY_PARENTS) is already
+ *       staffed on this deal, restrict to people who report (transitively)
+ *       to one of those staffed seniors.
+ *     • Otherwise, fall back to people whose pod matches the deal's pod
+ *       (case-insensitive). If the deal has no pod, no fallback is applied.
+ *
+ * Excludes `leaving` people. `family`/`other` retained for shape compatibility.
  */
-function resolvePeopleForRole(rk: string, allPeople: Person[]): PersonGroups {
+function resolvePeopleForRole(
+  rk: string,
+  allPeople: Person[],
+  ctx?: { deal?: Deal | null; dealAssignments?: StaffingAssignment[] }
+): PersonGroups {
   const titles = new Set((ROLE_TO_PEOPLE_FILTER[rk] || []).map(t => t.toLowerCase()));
-  const exact: Person[] = [];
+  // Stage 1: strict roleTitle match.
+  const stage1: Person[] = [];
   for (const p of allPeople) {
     if (p.leaving) continue;
     const rt = (p.roleTitle || "").toLowerCase();
-    if (titles.has(rt)) exact.push(p);
+    if (titles.has(rt)) stage1.push(p);
   }
-  return { exact, family: [], other: [] };
+
+  // No deal context → return Stage 1 (used outside the deal grid).
+  if (!ctx || !ctx.deal) return { exact: stage1, family: [], other: [] };
+
+  // Stage 2a: senior-driven scope.
+  const parentRoles = new Set(ROLE_SENIORITY_PARENTS[rk] || []);
+  const seniorIds: string[] = [];
+  if (parentRoles.size && ctx.dealAssignments) {
+    for (const a of ctx.dealAssignments) {
+      if (parentRoles.has(a.roleKey)) seniorIds.push(a.personId);
+    }
+  }
+  if (seniorIds.length) {
+    const seniorById = new Map(allPeople.map(p => [p.id, p]));
+    const seniorNames = seniorIds
+      .map(id => seniorById.get(id)?.name || "")
+      .filter(Boolean);
+    const descendants = getDescendantPersonIds(seniorNames, allPeople);
+    const scoped = stage1.filter(p => descendants.has(p.id));
+    return { exact: scoped, family: [], other: [] };
+  }
+
+  // Stage 2b: pod fallback.
+  const dealPod = (ctx.deal.pod || "").trim().toLowerCase();
+  if (dealPod && dealPod !== "unassigned") {
+    const scoped = stage1.filter(p => (p.pod || "").trim().toLowerCase() === dealPod);
+    if (scoped.length) return { exact: scoped, family: [], other: [] };
+  }
+
+  return { exact: stage1, family: [], other: [] };
 }
 
 /** Backwards-compatible flat list (unused now, kept for safety). */
@@ -947,10 +989,25 @@ export function BopmStaffingFlatTable({
       });
       return best?.person;
     })();
-    // Tiered candidate resolution. Manager constraint is a soft sort, applied
-    // by the picker, so users always see the full team and never hit a
-    // "0 candidates" dead-end caused by a strict reportingManager filter.
-    const colGroups = resolvePeopleForRole(roleKey, allPeople);
+    // Hierarchy/pod-scoped candidate resolution. Manager soft-sort still applied
+    // inside the picker.
+    const dealAssignmentsEffective: StaffingAssignment[] = [];
+    byRoleForDeal.forEach((arr, otherRk) => {
+      arr.forEach(en => {
+        if (en.isMarkedRemove) return;
+        dealAssignmentsEffective.push({
+          id: en.assignmentId,
+          dealId: deal.id,
+          roleKey: otherRk,
+          personId: en.personId,
+          allocationPct: en.allocationPct,
+        });
+      });
+    });
+    const colGroups = resolvePeopleForRole(roleKey, allPeople, {
+      deal,
+      dealAssignments: dealAssignmentsEffective,
+    });
 
     const draftKey = e.assignmentId;
     const draftVal = allocDraft[draftKey];
@@ -1277,7 +1334,23 @@ export function BopmStaffingFlatTable({
                       // applied inside the picker. Exclude people already
                       // staffed on this deal in this role.
                       const usedIds = new Set(entries.filter(x => !x.isMarkedRemove).map(x => x.personId));
-                      const groupsAll = resolvePeopleForRole(rk, allPeople);
+                      const dealAssignmentsEffective: StaffingAssignment[] = [];
+                      byRole.forEach((arr, otherRk) => {
+                        arr.forEach(en => {
+                          if (en.isMarkedRemove) return;
+                          dealAssignmentsEffective.push({
+                            id: en.assignmentId,
+                            dealId: d.id,
+                            roleKey: otherRk,
+                            personId: en.personId,
+                            allocationPct: en.allocationPct,
+                          });
+                        });
+                      });
+                      const groupsAll = resolvePeopleForRole(rk, allPeople, {
+                        deal: d,
+                        dealAssignments: dealAssignmentsEffective,
+                      });
                       const pickerGroups: PersonGroups = {
                         exact: groupsAll.exact.filter(pp => !usedIds.has(pp.id)),
                         family: groupsAll.family.filter(pp => !usedIds.has(pp.id)),
