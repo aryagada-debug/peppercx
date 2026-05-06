@@ -266,6 +266,78 @@ export const ROLE_TO_PEOPLE_FILTER: Record<string, string[]> = {
   influencer: ["Influencer Team"], perf_growth: ["Performance & Growth"],
 };
 
+/**
+ * For each role slot, lists the role keys whose currently-staffed people on a
+ * deal define the "in-scope subtree" for the dropdown. If anyone of these
+ * parent roles is already staffed on the deal, the picker for this role-slot
+ * is restricted to descendants (transitive direct reports) of those people.
+ * Top-of-tree roles (vsd, principal_bopm, seo_leader, etc.) have no parents.
+ */
+export const ROLE_SENIORITY_PARENTS: Record<string, string[]> = {
+  // Operations
+  bopm: ["senior_bopm", "principal_bopm", "vsd"],
+  senior_bopm: ["principal_bopm", "vsd"],
+  principal_bopm: ["vsd"],
+  // Content
+  content_lead: ["managing_editor"],
+  senior_editor: ["content_lead", "managing_editor"],
+  // SEO
+  seo_group_head: ["seo_leader"],
+  sr_seo_manager: ["seo_group_head", "seo_leader"],
+  seo_manager: ["sr_seo_manager", "seo_group_head", "seo_leader"],
+  sr_seo_analyst: ["seo_manager", "sr_seo_manager", "seo_group_head", "seo_leader"],
+  seo_analyst: ["seo_manager", "sr_seo_manager", "seo_group_head", "seo_leader"],
+  // Creative Strategy
+  strategy_acd: ["strategy_cd"],
+  strategy_sr: ["strategy_acd", "strategy_cd"],
+  // Creative Copy
+  acd_copy: ["cd_copy"],
+  sr_copywriter: ["acd_copy", "cd_copy"],
+  jr_copywriter: ["sr_copywriter", "acd_copy", "cd_copy"],
+  // Creative Art
+  acd_art: ["sr_cd_art"],
+  art_director: ["acd_art", "sr_cd_art"],
+  sr_designer: ["art_director", "acd_art", "sr_cd_art"],
+  jr_designer: ["sr_designer", "art_director", "acd_art", "sr_cd_art"],
+  // Video
+  ad_video_pm: ["production_head"],
+  video_pm: ["ad_video_pm", "production_head"],
+  video_editor_1: ["video_pm", "ad_video_pm", "production_head"],
+  video_editor_2: ["video_pm", "ad_video_pm", "production_head"],
+};
+
+/**
+ * BFS down the reportingManager graph (free-text name match, case-insensitive).
+ * Returns the set of person ids that report (transitively) to any of the
+ * provided root names. Roots themselves are NOT included.
+ */
+export function getDescendantPersonIds(rootNames: string[], allPeople: Person[]): Set<string> {
+  const out = new Set<string>();
+  if (!rootNames.length) return out;
+  const norm = (s: string) => (s || "").trim().toLowerCase();
+  // Group people by their (lowercased) reportingManager name for O(1) lookup.
+  const byManager = new Map<string, Person[]>();
+  for (const p of allPeople) {
+    const k = norm(p.reportingManager || "");
+    if (!k) continue;
+    const arr = byManager.get(k);
+    if (arr) arr.push(p); else byManager.set(k, [p]);
+  }
+  const queue: string[] = rootNames.map(norm).filter(Boolean);
+  const visited = new Set<string>(queue);
+  while (queue.length) {
+    const mgr = queue.shift()!;
+    const reports = byManager.get(mgr) || [];
+    for (const r of reports) {
+      if (out.has(r.id)) continue;
+      out.add(r.id);
+      const rn = norm(r.name);
+      if (rn && !visited.has(rn)) { visited.add(rn); queue.push(rn); }
+    }
+  }
+  return out;
+}
+
 let _uid = 0;
 export const uid = () => `id_${++_uid}_${Math.random().toString(36).slice(2, 7)}`;
 
