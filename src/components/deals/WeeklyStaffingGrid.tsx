@@ -5,6 +5,9 @@ import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useWeeklyStaffing, getMonday, fmtISODate, generateWeeks, getAssignmentAllocationForWeek } from "@/hooks/useWeeklyStaffing";
 import type { Person, StaffingAssignment } from "@/data/staffingData";
+import { useStaffingData } from "@/hooks/useStaffingData";
+import { useUserRole } from "@/hooks/useUserRole";
+import { toast } from "sonner";
 
 interface Props {
   dealId: string;
@@ -29,7 +32,9 @@ function monthLabel(key: string): string {
 }
 
 export function WeeklyStaffingGrid({ dealId, dealPeople, dealAssignments }: Props) {
-  const { rows, loading, upsertCell, getCell } = useWeeklyStaffing(dealId);
+  const { rows, loading, getCell } = useWeeklyStaffing(dealId);
+  const { updateAssignment } = useStaffingData();
+  const { canEditAll } = useUserRole();
 
   // Page anchor — Monday of "today" minus offset weeks
   const [anchorOffset, setAnchorOffset] = useState(0); // 0 = current page starts ~6 weeks ago
@@ -182,7 +187,18 @@ export function WeeklyStaffingGrid({ dealId, dealPeople, dealAssignments }: Prop
                           isDefault={isDefault}
                           onSave={(h) => {
                             const newPct = Math.max(0, Math.min(150, Math.round((h / 40) * 100)));
-                            upsertCell(p.id, w, { allocation_pct: newPct });
+                            // Find the relevant assignment for this person on this deal.
+                            // We update the underlying staffing_assignments row so the
+                            // person's capacity is reflected across ALL weeks moving forward.
+                            const assignment = dealAssignments.find(a => a.personId === p.id);
+                            if (!assignment) {
+                              toast.error("No staffing assignment found for this person.");
+                              return;
+                            }
+                            updateAssignment(assignment.id, { allocationPct: newPct });
+                            if (canEditAll) {
+                              toast.success(`${p.name}'s weekly capacity updated to ${h}h`);
+                            }
                           }}
                         />
                       </td>

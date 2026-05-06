@@ -121,6 +121,10 @@ export function AddStaffingMemberDialog({
   // Re-initialize when dialog opens with new props
   React.useEffect(() => {
     if (open) {
+      // Default start/end dates to the deal's dates whenever the dialog opens.
+      // The edit-mode branch below overrides with the assignment's own dates.
+      setStartDate(dealForDates?.startDate || "");
+      setEndDate(dealForDates?.endDate || "");
       if (editingAssignmentId) {
         const cur = assignments.find(a => a.id === editingAssignmentId);
         const curPerson = cur ? people.find(pp => pp.id === cur.personId) : null;
