@@ -587,10 +587,10 @@ export default function MBRTracker() {
           <KpiTile label="Compliance" value={`${kpis.compliance}%`} tone="primary" icon={Gauge} />
         </div>
 
-        {/* Tabs: Insights / Table */}
-        <Tabs defaultValue="insights" className="mb-4">
+        {/* Tabs: Insights / Table — default to Table; BOPMs don't see Insights */}
+        <Tabs defaultValue="table" className="mb-4">
           <TabsList className="mb-3">
-            <TabsTrigger value="insights">Insights</TabsTrigger>
+            {!isBopmPersona && <TabsTrigger value="insights">Insights</TabsTrigger>}
             <TabsTrigger value="table">Table</TabsTrigger>
           </TabsList>
           {isBopmPersona && !accessLoading && filteredDeals.length === 0 && (
