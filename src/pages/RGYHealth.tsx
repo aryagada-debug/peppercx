@@ -30,6 +30,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { ReadOnlyBanner } from "@/components/access/ReadOnlyBanner";
 import { useDealAccess } from "@/hooks/useDealAccess";
 import { BopmEmptyState } from "@/components/access/BopmEmptyState";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
@@ -538,6 +539,29 @@ export default function RGYHealth() {
   const { role } = useUserRole();
   const { visibleDealIds, loading: accessLoading } = useDealAccess();
   const isBopmPersona = role === "user";
+  const isVsdPersona = role === "member";
+  // Resolve the logged-in person's VSD name (only when they ARE a VSD).
+  const { user: authUser } = useAuth();
+  const [myVsdName, setMyVsdName] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!authUser || !isVsdPersona) { setMyVsdName(null); return; }
+      const { data: profile } = await supabase
+        .from("profiles").select("staffing_person_id").eq("user_id", authUser.id).maybeSingle();
+      const personId = (profile as any)?.staffing_person_id;
+      if (!personId) { if (!cancelled) setMyVsdName(null); return; }
+      const { data: person } = await supabase
+        .from("staffing_people").select("name, role_title, designation").eq("id", personId).maybeSingle();
+      const p: any = person;
+      if (!p) { if (!cancelled) setMyVsdName(null); return; }
+      const looksLikeVsd = /\bvsd\b|vertical service delivery|service delivery (leader|director)/i
+        .test(`${p.role_title || ""} ${p.designation || ""}`);
+      const canon = canonVsd(p.name);
+      if (!cancelled) setMyVsdName(looksLikeVsd && canon ? canon : canon);
+    })();
+    return () => { cancelled = true; };
+  }, [authUser, isVsdPersona, canonVsd]);
   // Built dynamically from registered users + which VSDs actually appear on deals.
   const VSD_FILTERS = useMemo(() => {
     const items: { key: string; label: string }[] = [{ key: "All", label: "All" }];
