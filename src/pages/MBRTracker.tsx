@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { formatINR } from "@/lib/csvTargets";
+import { useCurrencyVersion } from "@/contexts/CurrencyContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { KpiTile } from "@/components/dashboard/KpiTile";
 import { Badge } from "@/components/ui/badge";
@@ -80,6 +81,7 @@ interface MBRDealWithPod extends MBRDeal {
 }
 
 export default function MBRTracker() {
+  useCurrencyVersion();
   const { deals, entries, loading, upsertEntry, vsdSummary, totals, entriesByMonth, availableMonths, refresh } = useMBRData();
   const { users: appUsers, isRegisteredName } = useAppUsers();
   const { vsdUsers, isVsdName, canonVsd } = useVsdUsers();

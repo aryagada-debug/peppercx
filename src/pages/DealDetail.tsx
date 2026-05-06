@@ -1,5 +1,6 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { formatINR } from "@/lib/csvTargets";
+import { useCurrencyVersion } from "@/contexts/CurrencyContext";
 import { useParams, Link, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Loader2, Plus, Trash2, Pencil, Check, X, Calendar, Users, Eye, Edit2, ExternalLink, AlertTriangle, ChevronDown, ChevronUp, ChevronRight, Upload, CalendarCheck, Smile, TrendingUp, MessageSquare, Sparkles, RefreshCw, Wallet, Receipt, BadgeCheck, AlertCircle, Activity, IndianRupee } from "lucide-react";
 import { getLinkLabel, getFileIcon } from "@/lib/fileLink";
@@ -15,6 +16,7 @@ import { uid } from "@/data/staffingData";
 import type { StaffingAssignment, Person, Deal, RoleCategory } from "@/data/staffingData";
 import { useDealDetail } from "@/hooks/useDealDetail";
 import { EditableRGY } from "@/components/deals/EditableRGY";
+import { ResolveIssuesDialog } from "@/components/rgy/ResolveIssuesDialog";
 import { FinancialsTab } from "@/components/deals/FinancialsTab";
 import { TaskKanban } from "@/components/deals/TaskKanban";
 import { PhaseTasksView } from "@/components/deals/PhaseTasksView";
@@ -1454,6 +1456,7 @@ function GroupedRGYHistory({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
 }
 
 export default function DealDetail() {
+  useCurrencyVersion();
   const { dealId } = useParams();
   const [searchParams] = useSearchParams();
   const initialTab = (TABS as readonly string[]).includes(searchParams.get("tab") || "") ? (searchParams.get("tab") as TabKey) : "Overview";
@@ -1534,6 +1537,9 @@ export default function DealDetail() {
     pendingDims: { key: string; label: string; tasks: any[] }[];
     pendingSave: any[] | null;
   } | null>(null);
+
+  // R → Y optional resolve dialog
+  const [showResolveOptional, setShowResolveOptional] = useState(false);
 
   const dimensionLabels: Record<string, string> = {
     customer: "Overall Customer",
@@ -1634,8 +1640,21 @@ export default function DealDetail() {
 
     // Check if any dimension is Y or R to show issue form
     const hasYorR = Object.values(rgyData).some(v => v === "Y" || v === "R");
-    setShowIssueForm(hasYorR);
-    if (!hasYorR) setPrevRGYSnapshot(null);
+    // Detect any R → Y downgrade so we can offer optional resolution.
+    let hadRtoY = false;
+    if (currentRGY) {
+      for (const [k, nv] of Object.entries(rgyData)) {
+        const ov = (currentRGY as any)[k];
+        if (ov === "R" && nv === "Y") { hadRtoY = true; break; }
+      }
+    }
+    // Open issue form for newly-introduced R/Y (not for pure R→Y downgrades).
+    const newlyRorY = currentRGY
+      ? Object.entries(rgyData).some(([k, nv]) => (nv === "R" || nv === "Y") && (currentRGY as any)[k] !== nv && (currentRGY as any)[k] !== "R" && (currentRGY as any)[k] !== "Y")
+      : hasYorR;
+    setShowIssueForm(newlyRorY);
+    if (hadRtoY && !newlyRorY) setShowResolveOptional(true);
+    if (!newlyRorY) setPrevRGYSnapshot(null);
     toast.success("RGY health saved");
   }, [dealId, currentRGY, addRGYWeek, tasks]);
 
@@ -2575,6 +2594,18 @@ export default function DealDetail() {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
+            )}
+
+            {/* R → Y optional resolve dialog */}
+            {showResolveOptional && dealId && (
+              <ResolveIssuesDialog
+                open
+                mode="optional"
+                dealId={dealId}
+                dealName={deal?.dealName}
+                onConfirm={() => setShowResolveOptional(false)}
+                onCancel={() => setShowResolveOptional(false)}
+              />
             )}
 
             {/* Historic Timeline — Grouped by Week */}
