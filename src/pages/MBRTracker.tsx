@@ -624,15 +624,20 @@ export default function MBRTracker() {
             <table className="w-full text-ui">
               <thead>
                 <tr className="bg-secondary/40 border-b border-border">
-                  {[showBopmInsights ? "Sr / Principal BOPM" : "VSD", "Accounts", "Done", "Not Done", "Pending", "🟢", "🟡", "🔴", "Scheduled"].map(h => (
+                  {[showBopmInsights ? "Sr / Principal BOPM" : "Sr / Principal BOPMs", "Accounts", "Done", "Not Done", "Pending", "🟢", "🟡", "🔴", "Scheduled"].map(h => (
                     <th key={h} className="text-left py-2.5 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {(showBopmInsights ? bopmInsights.map(b => ({ vsd: b.name, ...b })) : vsdInsights).map(v => {
+                {(showBopmInsights ? bopmInsights.map(b => ({ vsd: b.name, ...b, bopms: undefined as any })) : vsdInsights).map((v: any) => {
                   const schedCompliance = v.total > 0 ? `${v.scheduled}/${v.total}` : "—";
                   const isOverall = v.vsd === "Pod Overall";
+                  // For VSD-rollup rows, show the current BOPM/Sr BOPMs instead of the VSD name.
+                  const bopmList = !showBopmInsights && v.bopms && v.bopms.size > 0
+                    ? Array.from(v.bopms as Set<string>).sort().join(", ")
+                    : "";
+                  const displayLabel = !showBopmInsights ? (bopmList || "Unassigned") : v.vsd;
                   const rowLabel = v.vsd;
                   const openDrill = (metric: DrillMetric) => setDrill({ rowKey: rowLabel, rowLabel, metric });
                   const NumBtn = ({ value, metric, className }: { value: number; metric: DrillMetric; className?: string }) => (
@@ -653,7 +658,7 @@ export default function MBRTracker() {
                       "border-b border-border/50 hover:bg-secondary/30 transition-colors",
                       isOverall && "bg-primary/5 font-semibold"
                     )}>
-                      <td className="py-2.5 px-3 font-semibold text-foreground text-xs">{v.vsd}</td>
+                      <td className="py-2.5 px-3 font-semibold text-foreground text-xs">{displayLabel}</td>
                       <td className="py-2.5 px-3"><NumBtn value={v.total} metric="total" className="text-foreground" /></td>
                       <td className="py-2.5 px-3"><NumBtn value={v.done} metric="done" className="text-positive font-semibold" /></td>
                       <td className="py-2.5 px-3"><NumBtn value={v.notDone} metric="notDone" className="text-destructive font-semibold" /></td>
