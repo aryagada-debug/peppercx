@@ -16,6 +16,7 @@ interface SlackChatBotProps {
 
 interface SlackMessage {
   id: string;
+  channel_id?: string;
   user_name: string;
   text: string;
   source: string;
@@ -62,22 +63,22 @@ export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
     if (found) setChannelName(found.name);
   }, [channelId, channels]);
 
-  // Load history when chat opens with linked channel
+  // Load live Slack history when chat opens with linked channel.
   useEffect(() => {
     if (!open || !channelId || !dealId) return;
     let cancelled = false;
     setLoading(true);
-    supabase
-      .from("slack_messages")
-      .select("id,user_name,text,source,created_at,slack_ts")
-      .eq("deal_id", dealId)
-      .order("created_at", { ascending: true })
-      .limit(200)
+    supabase.functions
+      .invoke("slack-channel-history", { body: { channelId, limit: 100 } })
       .then(({ data, error }) => {
         if (cancelled) return;
-        if (error) toast.error("Failed to load messages");
-        setMessages((data as SlackMessage[]) || []);
         setLoading(false);
+        if (error || (data as any)?.error) {
+          toast.error(`Failed to load history: ${(data as any)?.error || error?.message || "unknown"}`);
+          setMessages([]);
+          return;
+        }
+        setMessages(((data as any).messages as SlackMessage[]) || []);
       });
     return () => { cancelled = true; };
   }, [open, channelId, dealId]);
@@ -86,10 +87,16 @@ export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
   useEffect(() => {
     if (!open || !dealId || !channelId) return;
     const ch = supabase
-      .channel(`slack-bot-${dealId}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "slack_messages", filter: `deal_id=eq.${dealId}` }, (payload) => {
+      .channel(`slack-bot-${channelId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "slack_messages", filter: `channel_id=eq.${channelId}` }, (payload) => {
         const m = payload.new as SlackMessage;
-        setMessages(prev => prev.some(x => x.slack_ts === m.slack_ts) ? prev : [...prev, m]);
+        if ((payload.new as any).dm_thread_id) return;
+        setMessages(prev => {
+          const next = prev.some(x => x.slack_ts === m.slack_ts)
+            ? prev.map(x => x.slack_ts === m.slack_ts ? { ...x, ...m } : x)
+            : [...prev, m];
+          return next.sort((a, b) => Number(a.slack_ts) - Number(b.slack_ts));
+        });
       })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
