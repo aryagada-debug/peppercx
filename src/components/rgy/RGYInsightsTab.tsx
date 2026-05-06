@@ -372,12 +372,38 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
     setAiLoading(true);
     setAiError("");
     try {
+      const summarySource = (summaryDeals || filteredDeals).filter((d) => ACTIVE_STATUSES.has(d.deal_status));
+      const summaryIds = new Set(summarySource.map((d) => d.id));
+      const summaryKpis = summarySource.reduce(
+        (acc, d) => {
+          const w = getWorstRGY(d);
+          if (w === "R") acc.red++;
+          else if (w === "Y") acc.yellow++;
+          else if (w === "G") acc.green++;
+          else acc.pending++;
+          return acc;
+        },
+        { total: summarySource.length, red: 0, yellow: 0, green: 0, pending: 0 },
+      );
+      const summaryTeamHealth = DIMENSIONS.map((dim) => ({
+        team: dim.label,
+        Red: summarySource.filter((d) => d[dim.key] === "R").length,
+        Yellow: summarySource.filter((d) => d[dim.key] === "Y").length,
+        Green: summarySource.filter((d) => d[dim.key] === "G").length,
+      }));
+      const summaryAgedIssues = issues
+        .filter((i) => summaryIds.has(i.deal_id))
+        .filter((i) => i.issue_status === "Open" || i.issue_status === "In Progress")
+        .map((i) => ({ ...i, days: daysSince(i.issue_date || i.created_at) }))
+        .sort((a, b) => b.days - a.days);
       const snapshot = {
         window: aiWindow,
-        kpis,
-        teamHealth,
+        scope: isVsd && effectiveVsdName ? `VSD: ${effectiveVsdName}` : isBopm ? "Current user's assigned deals" : "Current view/user scope",
+        kpis: summaryKpis,
+        teamHealth: summaryTeamHealth,
+        deals: summarySource.slice(0, 60).map((d) => ({ deal: d.deal_name, account: d.account, status: d.deal_status, worst: getWorstRGY(d) })),
         vsdComparison: vsdComparison.map(v => ({ vsd: v.vsdFull, R: v.Red, Y: v.Yellow, G: v.Green })),
-        topAgedRedIssues: activeIssues
+        topAgedRedIssues: summaryAgedIssues
           .filter(i => i.worst === "R")
           .slice(0, 10)
           .map(i => ({ deal: i.deal_name, days: i.days, dims: i.red_dimensions, details: i.issue_details?.slice(0, 200) })),
