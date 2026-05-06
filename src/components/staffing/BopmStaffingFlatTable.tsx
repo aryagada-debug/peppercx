@@ -985,6 +985,25 @@ export function BopmStaffingFlatTable({
             ><RotateCcw className="h-2.5 w-2.5" /></button>
           )}
         </div>
+        {!e.isVirtual && (
+          <div className="flex items-center gap-1 mt-1 pl-1">
+            <InlineDatePicker
+              value={e.startDate}
+              disabled={!!e.isMarkedRemove}
+              placeholder="Start"
+              dealHint={deal.startDate}
+              onChange={(v) => stageUpdate(deal.id, e.assignmentId, { startDate: v })}
+            />
+            <span className="text-[9px] text-muted-foreground">→</span>
+            <InlineDatePicker
+              value={e.endDate}
+              disabled={!!e.isMarkedRemove}
+              placeholder="End"
+              dealHint={deal.endDate}
+              onChange={(v) => stageUpdate(deal.id, e.assignmentId, { endDate: v })}
+            />
+          </div>
+        )}
       </div>
     );
   };
