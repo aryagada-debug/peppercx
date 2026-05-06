@@ -155,6 +155,33 @@ Deno.serve(async (req) => {
       decided_at: new Date().toISOString(),
     }).eq("id", requestId);
 
+    if (editSummary) {
+      const dealId = reqRow.target_id || reqRow.deal_id || p.dealId || p.id || "";
+      const { data: deal } = dealId
+        ? await admin.from("staffing_deals").select("id, deal_name, account, vsd, principal_bopm, senior_bopm, bopm").eq("id", dealId).maybeSingle()
+        : { data: null } as any;
+      const dealLike: any = deal || p || {};
+      const names = Array.from(new Set([
+        dealLike.vsd,
+        dealLike.principal_bopm,
+        dealLike.senior_bopm,
+        dealLike.bopm,
+      ].map((v) => String(v || "").trim()).filter(Boolean)));
+      const peopleByName = names.length
+        ? await admin.from("staffing_people").select("id, name, email, slack_user_id").in("name", names)
+        : { data: [] } as any;
+      const concernedId = p.personId || reqRow.target_kind === "staffing_assignment" ? p.personId : "";
+      const concerned = concernedId
+        ? await admin.from("staffing_people").select("id, name, email, slack_user_id").eq("id", concernedId).maybeSingle()
+        : { data: null } as any;
+      const recipients = new Map<string, any>();
+      ((peopleByName.data || []) as any[]).forEach((person) => recipients.set(person.id, person));
+      if (concerned.data) recipients.set((concerned.data as any).id, concerned.data);
+      const dealLabel = `${dealLike.account ? `${dealLike.account} — ` : ""}${dealLike.deal_name || reqRow.deal_id || reqRow.target_id || "approval request"}`;
+      const text = `Approval updated and approved for ${dealLabel}. ${editSummary}`;
+      await Promise.all(Array.from(recipients.values()).map((person) => notifyPerson(person, text)));
+    }
+
     return new Response(JSON.stringify({ ok: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
