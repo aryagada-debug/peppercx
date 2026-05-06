@@ -786,19 +786,25 @@ export function BopmStaffingFlatTable({
         <div className="flex items-center gap-1.5">
           {/* Name as styled popover trigger (same row as %) */}
           <div className="flex-1 min-w-0">
-            <PersonPickerPopover
-              currentId={e.personId}
-              candidates={colMatches}
+            <button
+              type="button"
               disabled={!!e.isMarkedRemove}
-              triggerLabel={`${p?.name || "—"}${p?.tbh ? " (TBH)" : ""}`}
-              triggerClassName={cn(
-                "w-full inline-flex items-center justify-between gap-1 px-1 py-0.5 rounded-sm text-[11px] font-medium text-foreground hover:bg-foreground/5 hover:ring-1 hover:ring-border transition-colors",
+              onClick={() => setEditEntry({
+                dealId: deal.id,
+                assignmentId: e.assignmentId,
+                roleKey,
+                category: cat,
+                allocationPct: e.allocationPct,
+              })}
+              className={cn(
+                "group/picker w-full inline-flex items-center justify-between gap-1 px-1 py-0.5 rounded-sm text-[11px] font-medium text-foreground hover:bg-foreground/5 hover:ring-1 hover:ring-border transition-colors",
                 e.isMarkedRemove && "line-through opacity-60"
               )}
-              onSelect={(id) => {
-                if (id && id !== e.personId) stageUpdate(deal.id, e.assignmentId, { personId: id });
-              }}
-            />
+              title="Click to change person, allocation or dates (with engagement view)"
+            >
+              <span className="truncate">{`${p?.name || "—"}${p?.tbh ? " (TBH)" : ""}`}</span>
+              <ChevronDown className="h-3 w-3 opacity-0 group-hover/picker:opacity-60 flex-shrink-0" />
+            </button>
           </div>
           {/* % allocation inline */}
           <input
