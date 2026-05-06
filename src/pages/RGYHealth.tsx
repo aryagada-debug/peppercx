@@ -1496,6 +1496,7 @@ export default function RGYHealth() {
             mode="required"
             dealId={pendingGreen.dealId}
             dealName={deals.find(d => d.id === pendingGreen.dealId)?.deal_name}
+            dimensionLabel={pendingGreen.dimLabel}
             onConfirm={handleGreenConfirm}
             onCancel={handleGreenCancel}
           />
