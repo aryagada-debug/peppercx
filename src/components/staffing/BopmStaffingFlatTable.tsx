@@ -1021,12 +1021,10 @@ export function BopmStaffingFlatTable({
       });
       return best?.person;
     })();
-    const colMatchesAll = peopleForRole(roleKey, allPeople);
-    const colMatches = seniorMgr
-      ? colMatchesAll.filter(pp =>
-          (pp.reportingManager || "").toLowerCase() === seniorMgr.name.toLowerCase()
-          || pp.id === seniorMgr.id)
-      : colMatchesAll;
+    // Tiered candidate resolution. Manager constraint is a soft sort, applied
+    // by the picker, so users always see the full team and never hit a
+    // "0 candidates" dead-end caused by a strict reportingManager filter.
+    const colGroups = resolvePeopleForRole(roleKey, allPeople);
 
     const draftKey = e.assignmentId;
     const draftVal = allocDraft[draftKey];
@@ -1052,7 +1050,8 @@ export function BopmStaffingFlatTable({
           <div className="flex-1 min-w-0">
             <PersonPickerPopover
               currentId={e.personId}
-              candidates={colMatches}
+              candidateGroups={colGroups}
+              managerName={seniorMgr?.name}
               assignments={assignments}
               deals={deals}
               disabled={!!e.isMarkedRemove}
