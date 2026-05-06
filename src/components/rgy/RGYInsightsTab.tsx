@@ -241,8 +241,14 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
     // VSD persona: replace the VSD comparison with a per-BOPM comparison
     // (Principal/Senior BOPMs that report under this VSD), across ACTIVE
     // deals only.
-    if (isVsd && myVsdName) {
-      let bopms = bopmsForVsd(myVsdName);
+    if (isVsd && effectiveVsdName) {
+      let bopms = bopmsForVsd(effectiveVsdName);
+      const directoryBopms = bopmUsersForVsd(effectiveVsdName).map((b) => b.name).filter(Boolean);
+      if (directoryBopms.length > 0) {
+        const byKey = new Map<string, string>();
+        [...bopms, ...directoryBopms].forEach((b) => byKey.set(norm(b), b));
+        bopms = Array.from(byKey.values()).sort((a, b) => a.localeCompare(b));
+      }
       const norm = (s: string | null | undefined) =>
         (s || "").toLowerCase().normalize("NFKD").replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
       // Fallback: derive BOPMs from this VSD's active deals if the
@@ -252,13 +258,13 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
         const set = new Map<string, string>(); // norm -> display
         deals.forEach((d) => {
           if (!ACTIVE_STATUSES.has(d.deal_status)) return;
-          if (vsdForDeal(d as any) !== myVsdName) return;
+          if (vsdForDeal(d as any) !== effectiveVsdName) return;
           [(d as any).principal_bopm, (d as any).senior_bopm].forEach((raw: string | null | undefined) => {
             const display = (raw || "").trim();
             const key = norm(display);
             if (!key || placeholders.has(key)) return;
             // Skip the VSD themselves
-            if (key === norm(myVsdName)) return;
+            if (key === norm(effectiveVsdName)) return;
             if (!set.has(key)) set.set(key, display);
           });
         });
@@ -271,7 +277,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
       });
       deals.forEach((deal) => {
         if (!ACTIVE_STATUSES.has(deal.deal_status)) return;
-        if (vsdForDeal(deal as any) !== myVsdName) return;
+        if (vsdForDeal(deal as any) !== effectiveVsdName) return;
         const candidates = [
           (deal as any).principal_bopm,
           (deal as any).senior_bopm,
@@ -309,7 +315,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
       entry.total = entry.Red + entry.Yellow + entry.Green;
     });
     return Array.from(map.values());
-  }, [deals, vsdForDeal, isVsd, myVsdName, bopmsForVsd]);
+  }, [deals, vsdForDeal, isVsd, effectiveVsdName, bopmsForVsd, bopmUsersForVsd]);
 
   const vsdDrillDeals = useMemo(() => {
     if (!vsdDrill) return [];
