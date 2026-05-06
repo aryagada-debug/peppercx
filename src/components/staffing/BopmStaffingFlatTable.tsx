@@ -9,7 +9,9 @@ import { AddStaffingMemberDialog } from "./AddStaffingMemberDialog";
 import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
 import { useAllPersonNames, dealCellMatchesPerson } from "@/hooks/useAppUsers";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, CalendarIcon } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { format, parseISO } from "date-fns";
 import {
   DndContext, DragEndEvent, PointerSensor, useSensor, useSensors,
   closestCenter,
@@ -36,6 +38,65 @@ const CATEGORY_STYLES: Record<string, { head: string; cell: string; dot: string;
   "Other":               { head: "bg-slate-100/80 text-slate-900 border-slate-200",      cell: "bg-slate-50/40",   dot: "bg-slate-500",   label: "Other" },
 };
 const styleFor = (cat?: string) => CATEGORY_STYLES[cat || "Other"] || CATEGORY_STYLES["Other"];
+
+// ── Compact inline date picker (used for per-assignment start/end dates) ───
+function InlineDatePicker({
+  value, onChange, placeholder, disabled, dealHint,
+}: {
+  value?: string;
+  onChange: (v: string | undefined) => void;
+  placeholder: string;
+  disabled?: boolean;
+  dealHint?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  let selected: Date | undefined;
+  try { selected = value ? parseISO(value) : undefined; } catch { selected = undefined; }
+  const label = value ? format(selected as Date, "dd MMM yy") : placeholder;
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          disabled={disabled}
+          className={cn(
+            "h-5 inline-flex items-center gap-1 px-1 rounded border border-border/60 bg-background/70 text-[10px] font-mono whitespace-nowrap",
+            "hover:border-border hover:bg-background disabled:opacity-50",
+            !value && "text-muted-foreground italic"
+          )}
+          title={dealHint ? `Deal: ${dealHint}` : placeholder}
+        >
+          <CalendarIcon className="h-2.5 w-2.5 opacity-60" />
+          <span>{label}</span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-auto p-0">
+        <Calendar
+          mode="single"
+          selected={selected}
+          onSelect={(d) => {
+            onChange(d ? format(d, "yyyy-MM-dd") : undefined);
+            setOpen(false);
+          }}
+          initialFocus
+          className={cn("p-2 pointer-events-auto")}
+        />
+        <div className="border-t border-border px-2 py-1.5 flex items-center justify-between gap-2 text-[10px]">
+          <span className="text-muted-foreground truncate">
+            {dealHint ? `Deal: ${dealHint}` : ""}
+          </span>
+          {value && (
+            <button
+              type="button"
+              onClick={() => { onChange(undefined); setOpen(false); }}
+              className="text-destructive hover:underline"
+            >Clear</button>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 // ── Hierarchy helpers (driven by ROLE_SLOTS order, which is top-down) ────
 const ROLE_SLOT_BY_KEY = new Map(ROLE_SLOTS.map((s, i) => [s.roleKey, { ...s, rank: i }]));
@@ -552,6 +613,8 @@ export function BopmStaffingFlatTable({
           isAdded: true,
           isUpdated: false,
           isMarkedRemove: false,
+          startDate: a.startDate,
+          endDate: a.endDate,
         };
         const key = a.roleKey || "—";
         if (!byRole.has(key)) byRole.set(key, []);
@@ -924,6 +987,25 @@ export function BopmStaffingFlatTable({
             ><RotateCcw className="h-2.5 w-2.5" /></button>
           )}
         </div>
+        {!e.isVirtual && (
+          <div className="flex items-center gap-1 mt-1 pl-1">
+            <InlineDatePicker
+              value={e.startDate}
+              disabled={!!e.isMarkedRemove}
+              placeholder="Start"
+              dealHint={deal.startDate}
+              onChange={(v) => stageUpdate(deal.id, e.assignmentId, { startDate: v })}
+            />
+            <span className="text-[9px] text-muted-foreground">→</span>
+            <InlineDatePicker
+              value={e.endDate}
+              disabled={!!e.isMarkedRemove}
+              placeholder="End"
+              dealHint={deal.endDate}
+              onChange={(v) => stageUpdate(deal.id, e.assignmentId, { endDate: v })}
+            />
+          </div>
+        )}
       </div>
     );
   };
