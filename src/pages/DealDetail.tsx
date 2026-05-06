@@ -1538,6 +1538,9 @@ export default function DealDetail() {
     pendingSave: any[] | null;
   } | null>(null);
 
+  // R → Y optional resolve dialog
+  const [showResolveOptional, setShowResolveOptional] = useState(false);
+
   const dimensionLabels: Record<string, string> = {
     customer: "Overall Customer",
     internal: "Internal",
