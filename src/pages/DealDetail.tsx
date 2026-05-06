@@ -1640,8 +1640,21 @@ export default function DealDetail() {
 
     // Check if any dimension is Y or R to show issue form
     const hasYorR = Object.values(rgyData).some(v => v === "Y" || v === "R");
-    setShowIssueForm(hasYorR);
-    if (!hasYorR) setPrevRGYSnapshot(null);
+    // Detect any R → Y downgrade so we can offer optional resolution.
+    let hadRtoY = false;
+    if (currentRGY) {
+      for (const [k, nv] of Object.entries(rgyData)) {
+        const ov = (currentRGY as any)[k];
+        if (ov === "R" && nv === "Y") { hadRtoY = true; break; }
+      }
+    }
+    // Open issue form for newly-introduced R/Y (not for pure R→Y downgrades).
+    const newlyRorY = currentRGY
+      ? Object.entries(rgyData).some(([k, nv]) => (nv === "R" || nv === "Y") && (currentRGY as any)[k] !== nv && (currentRGY as any)[k] !== "R" && (currentRGY as any)[k] !== "Y")
+      : hasYorR;
+    setShowIssueForm(newlyRorY);
+    if (hadRtoY && !newlyRorY) setShowResolveOptional(true);
+    if (!newlyRorY) setPrevRGYSnapshot(null);
     toast.success("RGY health saved");
   }, [dealId, currentRGY, addRGYWeek, tasks]);
 
