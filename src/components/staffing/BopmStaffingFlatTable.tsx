@@ -1347,16 +1347,17 @@ export function BopmStaffingFlatTable({
                       const manager = sameTeamEntries
                         .filter(x => x.rank < colRank)
                         .sort((a, b) => a.rank - b.rank)[0]?.person;
-                      const candidates = peopleForRole(rk, allPeople);
-                      const filtered = manager
-                        ? candidates.filter(pp =>
-                            (pp.reportingManager || "").toLowerCase() === manager.name.toLowerCase()
-                              || pp.id === manager.id
-                          )
-                        : candidates;
-                      // Exclude people already staffed on this deal in this role.
+                      // Tiered candidate resolution; manager is a soft sort
+                      // applied inside the picker. Exclude people already
+                      // staffed on this deal in this role.
                       const usedIds = new Set(entries.filter(x => !x.isMarkedRemove).map(x => x.personId));
-                      const pickerOptions = filtered.filter(pp => !usedIds.has(pp.id));
+                      const groupsAll = resolvePeopleForRole(rk, allPeople);
+                      const pickerGroups: PersonGroups = {
+                        exact: groupsAll.exact.filter(pp => !usedIds.has(pp.id)),
+                        family: groupsAll.family.filter(pp => !usedIds.has(pp.id)),
+                        other: groupsAll.other.filter(pp => !usedIds.has(pp.id)),
+                      };
+                      const pickerTotal = pickerGroups.exact.length + pickerGroups.family.length + pickerGroups.other.length;
                       const pickerKey = `picker:${d.id}:${rk}`;
                       return (
                         <td
@@ -1368,19 +1369,20 @@ export function BopmStaffingFlatTable({
                             {entries.map(e => renderEntry(d, rk, e))}
                             <PersonPickerPopover
                               key={pickerKey}
-                              candidates={pickerOptions}
+                              candidateGroups={pickerGroups}
+                              managerName={manager?.name}
                               assignments={assignments}
                               deals={deals}
-                              disabled={pickerOptions.length === 0}
+                              disabled={pickerTotal === 0}
                               triggerClassName={cn(
                                 "w-full flex items-center justify-between gap-1 px-1.5 py-1 text-[10.5px] italic rounded-md border border-dashed transition-colors",
-                                pickerOptions.length === 0
+                                pickerTotal === 0
                                   ? "text-muted-foreground/50 border-border/30 cursor-not-allowed"
                                   : "text-muted-foreground border-border/50 hover:text-foreground hover:border-border hover:bg-secondary/40"
                               )}
                               triggerLabel={
-                                pickerOptions.length === 0
-                                  ? (manager ? `No reports under ${manager.name.split(" ")[0]}` : `No ${ROLE_LABEL(rk)} available`)
+                                pickerTotal === 0
+                                  ? `No ${ROLE_LABEL(rk)} available`
                                   : (manager ? `+ Add (under ${manager.name.split(" ")[0]})` : `+ Add ${ROLE_LABEL(rk)}`)
                               }
                               emptyLabel={`No ${ROLE_LABEL(rk)} available`}
