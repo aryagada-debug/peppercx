@@ -3,7 +3,7 @@ import { Search, Plus, RotateCcw, X, Send, Info, Columns3, Check, GripVertical }
 import { cn } from "@/lib/utils";
 import { formatINR } from "@/lib/csvTargets";
 import type { Deal, Person, StaffingAssignment, RoleCategory } from "@/data/staffingData";
-import { uid, ROLE_SLOTS, ROLE_TO_PEOPLE_FILTER } from "@/data/staffingData";
+import { uid, ROLE_SLOTS, ROLE_TO_PEOPLE_FILTER, isAssignmentExpired } from "@/data/staffingData";
 import { submitStaffingBatch, type BatchItem } from "@/lib/approvals";
 import { AddStaffingMemberDialog } from "./AddStaffingMemberDialog";
 import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
@@ -426,6 +426,9 @@ export function BopmStaffingFlatTable({
     isAdded: boolean;
     isUpdated: boolean;
     isMarkedRemove: boolean;
+    isExpired?: boolean;
+    startDate?: string;
+    endDate?: string;
     /** Read-only entry derived from the deal sheet (principal_bopm /
      *  senior_bopm / bopm text fields) — not an actual staffing_assignment row. */
     isVirtual?: boolean;
@@ -444,6 +447,7 @@ export function BopmStaffingFlatTable({
       const aList = assignments.filter(a => a.dealId === d.id);
       for (const a of aList) {
         const patch = dDraft.updates[a.id];
+        const effectiveEnd = (patch as any)?.endDate ?? a.endDate;
         const entry: CellEntry = {
           assignmentId: a.id,
           personId: patch?.personId ?? a.personId,
@@ -451,6 +455,9 @@ export function BopmStaffingFlatTable({
           isAdded: false,
           isUpdated: !!patch,
           isMarkedRemove: !!dDraft.removes[a.id],
+          startDate: (patch as any)?.startDate ?? a.startDate,
+          endDate: effectiveEnd,
+          isExpired: isAssignmentExpired({ endDate: effectiveEnd }),
         };
         const key = patch?.roleKey ?? a.roleKey ?? "—";
         if (!byRole.has(key)) byRole.set(key, []);
