@@ -121,6 +121,10 @@ export function AddStaffingMemberDialog({
   // Re-initialize when dialog opens with new props
   React.useEffect(() => {
     if (open) {
+      // Default start/end dates to the deal's dates whenever the dialog opens.
+      // The edit-mode branch below overrides with the assignment's own dates.
+      setStartDate(dealForDates?.startDate || "");
+      setEndDate(dealForDates?.endDate || "");
       if (editingAssignmentId) {
         const cur = assignments.find(a => a.id === editingAssignmentId);
         const curPerson = cur ? people.find(pp => pp.id === cur.personId) : null;
@@ -155,10 +159,6 @@ export function AddStaffingMemberDialog({
       } else {
         setStep(1);
       }
-      // Default dates to the deal's start/end whenever the dialog opens for a
-      // brand-new assignment (non-edit, non-pre-selected-person flow).
-      setStartDate(dealForDates?.startDate || "");
-      setEndDate(dealForDates?.endDate || "");
     }
   }, [open, initialCategory, initialPersonName, people, editingAssignmentId, assignments, initialRoleKey, initialAllocationPct, dealForDates?.startDate, dealForDates?.endDate]);
 
