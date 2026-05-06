@@ -1,6 +1,7 @@
 import { AppSidebar } from "./AppSidebar";
 import { GlobalSearch } from "@/components/dashboard/GlobalSearch";
 import { ThemeToggle } from "@/components/dashboard/ThemeToggle";
+import { CurrencyToggle } from "./CurrencyToggle";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { ApprovalsBadge } from "@/components/approvals/ApprovalsBadge";
 import { RoleSwitcher } from "./RoleSwitcher";
@@ -33,6 +34,7 @@ export function AppLayout({ children, onSearchSelectDeal }: AppLayoutProps) {
             <RoleSwitcher />
             <GlobalSearch onSelectDeal={onSearchSelectDeal} />
             <ApprovalsBadge />
+            <CurrencyToggle />
             <ThemeToggle />
             <UserMenu />
           </div>
