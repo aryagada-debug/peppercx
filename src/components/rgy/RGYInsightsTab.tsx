@@ -231,6 +231,39 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
 
   // ── VSD Comparison: ALWAYS uses ALL deals (ignore POD filter) ──
   const vsdComparison = useMemo(() => {
+    // VSD persona: replace the VSD comparison with a per-BOPM comparison
+    // (Principal/Senior BOPMs that report under this VSD), across ACTIVE
+    // deals only.
+    if (isVsd && myVsdName) {
+      const bopms = bopmsForVsd(myVsdName);
+      const map = new Map<string, { vsd: string; vsdFull: string; Red: number; Yellow: number; Green: number; total: number }>();
+      bopms.forEach((b) => {
+        const short = (b || "").split(/\s+/)[0] || b;
+        map.set(b, { vsd: short, vsdFull: b, Red: 0, Yellow: 0, Green: 0, total: 0 });
+      });
+      const norm = (s: string | null | undefined) =>
+        (s || "").toLowerCase().normalize("NFKD").replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+      deals.forEach((deal) => {
+        if (!ACTIVE_STATUSES.has(deal.deal_status)) return;
+        if (vsdForDeal(deal as any) !== myVsdName) return;
+        const candidates = [
+          (deal as any).principal_bopm,
+          (deal as any).senior_bopm,
+        ].map(norm).filter(Boolean);
+        let assigned: string | null = null;
+        for (const b of bopms) {
+          if (candidates.includes(norm(b))) { assigned = b; break; }
+        }
+        if (!assigned) return;
+        const entry = map.get(assigned)!;
+        const w = getWorstRGY(deal);
+        if (w === "R") entry.Red++;
+        else if (w === "Y") entry.Yellow++;
+        else if (w === "G") entry.Green++;
+        entry.total = entry.Red + entry.Yellow + entry.Green;
+      });
+      return Array.from(map.values()).filter((e) => e.total > 0);
+    }
     const map = new Map<string, { vsd: string; vsdFull: string; Red: number; Yellow: number; Green: number; total: number }>();
     CORE_VSDS_LIST.forEach((v) =>
       map.set(v, { vsd: VSD_SHORT[v] || v, vsdFull: v, Red: 0, Yellow: 0, Green: 0, total: 0 }),
@@ -248,7 +281,7 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
       entry.total = entry.Red + entry.Yellow + entry.Green;
     });
     return Array.from(map.values());
-  }, [deals, vsdForDeal]);
+  }, [deals, vsdForDeal, isVsd, myVsdName, bopmsForVsd]);
 
   const vsdDrillDeals = useMemo(() => {
     if (!vsdDrill) return [];
