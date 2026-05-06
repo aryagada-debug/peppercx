@@ -71,6 +71,21 @@ export interface StaffingAssignment {
   endDate?: string;
 }
 
+/**
+ * Returns true when a staffing assignment has an end_date in the past
+ * (i.e. the person is no longer actively staffed on this deal).
+ * Active totals/capacity should exclude these; UI keeps them visible
+ * but ghosted so VSDs/BOPMs can see historical staffing if a deal is later extended.
+ */
+export function isAssignmentExpired(a: { endDate?: string | null } | null | undefined): boolean {
+  if (!a || !a.endDate) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const end = new Date(a.endDate);
+  if (isNaN(end.getTime())) return false;
+  return end < today;
+}
+
 export interface Deal {
   id: string;
   pcCode: string;
