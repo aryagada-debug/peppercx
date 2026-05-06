@@ -13,6 +13,25 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-slack-signature, x-slack-request-timestamp",
 };
 
+interface SlackEvent {
+  type?: string;
+  subtype?: string;
+  channel?: string;
+  channel_type?: string;
+  bot_id?: string;
+  user?: string;
+  ts?: string;
+  text?: string;
+  thread_ts?: string;
+  message?: SlackEvent;
+}
+
+interface SlackPayload {
+  type?: string;
+  challenge?: string;
+  event?: SlackEvent;
+}
+
 async function verifySlackSignature(req: Request, rawBody: string): Promise<boolean> {
   if (!SIGNING_SECRET) return false;
   const ts = req.headers.get("x-slack-request-timestamp");
@@ -42,7 +61,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   const rawBody = await req.text();
-  let payload: any;
+  let payload: SlackPayload;
   try { payload = JSON.parse(rawBody); } catch { return new Response("bad json", { status: 400 }); }
 
   // Slack URL verification
@@ -87,16 +106,17 @@ Deno.serve(async (req) => {
     }
     dmThreadId = t.id;
   } else {
-    const { data: deal } = await supa
+    const { data: deals } = await supa
       .from("staffing_deals")
       .select("id")
       .eq("slack_channel_id", ev.channel)
-      .maybeSingle();
+      .order("updated_at", { ascending: false })
+      .limit(1);
+    const deal = Array.isArray(deals) && deals.length > 0 ? deals[0] : null;
     if (!deal) {
-      console.log("[slack-events] no deal mapped for channel", ev.channel);
-      return new Response("no deal mapped", { status: 200, headers: corsHeaders });
+      console.log("[slack-events] no deal mapped for channel", ev.channel, "storing channel-only");
     }
-    dealId = deal.id;
+    dealId = deal?.id || null;
   }
 
   // For message_changed, the actual content lives under ev.message.

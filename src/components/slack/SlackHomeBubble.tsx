@@ -9,7 +9,10 @@ import { cn } from "@/lib/utils";
 import { SlackDmPanel } from "./SlackDmPanel";
 
 interface Channel { id: string; name: string; is_private: boolean }
-interface ChannelMsg { id: string; user_name: string; text: string; source: string; created_at: string; slack_ts: string }
+interface ChannelMsg { id: string; user_name: string; text: string; source: string; created_at: string; slack_ts: string; dm_thread_id?: string | null }
+interface ChannelListResponse { channels?: Channel[]; error?: string }
+interface SlackHistoryResponse { messages?: ChannelMsg[]; error?: string }
+interface SlackSendResponse { ok?: boolean; ts?: string; error?: string }
 
 /**
  * Unified Slack bubble for the Home page: lets the user choose between
@@ -75,16 +78,18 @@ function ChannelChat() {
 
   const loadChannels = async () => {
     setLoadingChannels(true);
-    const { data, error } = await supabase.functions.invoke("slack-list-channels");
+    const { data, error } = await supabase.functions.invoke<ChannelListResponse>("slack-list-channels");
     setLoadingChannels(false);
-    if (error || (data as any)?.error) {
+    if (error || data?.error) {
       toast.error("Failed to load Slack channels");
       return;
     }
-    setChannels(((data as any).channels) || []);
+    setChannels(data?.channels || []);
   };
 
-  useEffect(() => { if (pickerOpen && channels.length === 0) loadChannels(); /* eslint-disable-next-line */ }, [pickerOpen]);
+  useEffect(() => {
+    if (pickerOpen && channels.length === 0) loadChannels();
+  }, [pickerOpen, channels.length]);
 
   const filtered = useMemo(() => {
     const q = chSearch.trim().toLowerCase();
@@ -97,23 +102,28 @@ function ChannelChat() {
     let cancelled = false;
     setLoadingMsgs(true);
     supabase.functions
-      .invoke("slack-channel-history", { body: { channelId, limit: 100 } })
+      .invoke<SlackHistoryResponse>("slack-channel-history", { body: { channelId, limit: 100 } })
       .then(({ data, error }) => {
         if (cancelled) return;
         setLoadingMsgs(false);
-        if (error || (data as any)?.error) {
-          toast.error(`Failed to load history: ${(data as any)?.error || error?.message || "unknown"}`);
+        if (error || data?.error) {
+          toast.error(`Failed to load history: ${data?.error || error?.message || "unknown"}`);
           setMessages([]);
           return;
         }
-        setMessages(((data as any).messages as ChannelMsg[]) || []);
+        setMessages(data?.messages || []);
       });
     const ch = supabase
       .channel(`slack-home-ch-${channelId}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "slack_messages", filter: `channel_id=eq.${channelId}` }, (payload) => {
+      .on("postgres_changes", { event: "*", schema: "public", table: "slack_messages", filter: `channel_id=eq.${channelId}` }, (payload) => {
         const m = payload.new as ChannelMsg;
-        if ((payload.new as any).dm_thread_id) return;
-        setMessages(prev => prev.some(x => x.slack_ts === m.slack_ts) ? prev : [...prev, m]);
+        if (m.dm_thread_id) return;
+        setMessages(prev => {
+          const next = prev.some(x => x.slack_ts === m.slack_ts)
+            ? prev.map(x => x.slack_ts === m.slack_ts ? { ...x, ...m } : x)
+            : [...prev, m];
+          return next.sort((a, b) => Number(a.slack_ts) - Number(b.slack_ts));
+        });
       })
       .subscribe();
     return () => { cancelled = true; supabase.removeChannel(ch); };
@@ -133,10 +143,10 @@ function ChannelChat() {
     const text = draft.trim();
     if (!text || !channelId || sending) return;
     setSending(true);
-    const { data, error } = await supabase.functions.invoke("slack-send", { body: { channelId, text } });
+    const { data, error } = await supabase.functions.invoke<SlackSendResponse>("slack-send", { body: { channelId, text } });
     setSending(false);
-    if (error || (data as any)?.error) {
-      toast.error(`Send failed: ${(data as any)?.error || error?.message || "unknown"}`);
+    if (error || data?.error) {
+      toast.error(`Send failed: ${data?.error || error?.message || "unknown"}`);
       return;
     }
     setDraft("");
