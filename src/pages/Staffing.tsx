@@ -18,6 +18,7 @@ import { MyStaffingRequests } from "@/components/staffing/MyStaffingRequests";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useVsdUsers } from "@/hooks/useAppUsers";
 import { supabase } from "@/integrations/supabase/client";
+import { SlackDmBubble } from "@/components/slack/SlackDmBubble";
 
 type Tab = "deals" | "people" | "table" | "requests";
 
@@ -260,6 +261,7 @@ export default function Staffing() {
           </>
         )}
       </div>
+      <SlackDmBubble scope="staffing" label="DM teammates" offsetRight={24} />
     </AppLayout>
   );
 }
