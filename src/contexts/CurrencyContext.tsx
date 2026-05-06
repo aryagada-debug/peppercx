@@ -100,14 +100,13 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     [currency, fxRate, setCurrency, setFxRate, format],
   );
 
-  // Remount children when the *currency* changes so non-hook formatters
-  // (e.g. formatINR) re-evaluate. FX rate changes don't remount — they
-  // re-render via context consumers and the next state-driven update.
+  // No remount on currency change — components subscribe via useCurrency()
+  // (or the lightweight useCurrencyVersion() hook below) and re-render only
+  // themselves. Non-hook callers of formatINR pick up the new value on
+  // their next natural render via the module-level mirrors above.
   return (
     <CurrencyContext.Provider value={value}>
-      <div key={currency} className="contents">
-        {children}
-      </div>
+      {children}
     </CurrencyContext.Provider>
   );
 }
@@ -129,4 +128,15 @@ export function useCurrency(): CurrencyState {
 
 export function useMoney() {
   return useCurrency();
+}
+
+/**
+ * Subscribe a component (and its subtree) to currency/fx changes without
+ * destructuring anything. Useful in pages that call the legacy `formatINR`
+ * module function — calling this hook ensures the page re-renders when the
+ * user toggles ₹/$ so the formatted strings update.
+ */
+export function useCurrencyVersion(): string {
+  const { currency, fxRate } = useCurrency();
+  return `${currency}-${fxRate}`;
 }
