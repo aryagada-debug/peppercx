@@ -676,6 +676,9 @@ export type Database = {
           resolution_due_date: string | null
           seo: string
           supply: string
+          updated_at: string
+          updated_by: string | null
+          updated_by_name: string
           video: string
           week_start: string
         }
@@ -707,6 +710,9 @@ export type Database = {
           resolution_due_date?: string | null
           seo?: string
           supply?: string
+          updated_at?: string
+          updated_by?: string | null
+          updated_by_name?: string
           video?: string
           week_start: string
         }
@@ -738,6 +744,9 @@ export type Database = {
           resolution_due_date?: string | null
           seo?: string
           supply?: string
+          updated_at?: string
+          updated_by?: string | null
+          updated_by_name?: string
           video?: string
           week_start?: string
         }

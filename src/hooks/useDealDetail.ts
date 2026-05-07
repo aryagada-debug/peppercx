@@ -62,6 +62,9 @@ export interface RGYWeekly {
   resolutionDueDate?: string;
   issueStatus?: string;
   createdAt?: string;
+  updatedBy?: string;
+  updatedByName?: string;
+  updatedAt?: string;
 }
 
 export interface OnboardingStep {
@@ -140,6 +143,9 @@ export function useDealDetail(dealId: string | undefined) {
       discussedActionPlan: r.discussed_action_plan || "", actionPlan: r.action_plan || "",
       resolutionDueDate: r.resolution_due_date || undefined, issueStatus: r.issue_status || "Open",
       createdAt: r.created_at,
+      updatedBy: r.updated_by || undefined,
+      updatedByName: r.updated_by_name || "",
+      updatedAt: r.updated_at || r.created_at,
     })));
     if (onb.data) setOnboarding(onb.data.map((r: any) => ({ id: r.id, dealId: r.deal_id, stepName: r.step_name, category: r.category, owner: r.owner, dueDate: r.due_date, completed: r.completed, completedAt: r.completed_at, sortOrder: r.sort_order })));
     {
@@ -370,6 +376,13 @@ export function useDealDetail(dealId: string | undefined) {
 
   // ── RGY ──
   const addRGYWeek = useCallback(async (entry: Omit<RGYWeekly, "id">) => {
+    const { data: au } = await supabase.auth.getUser();
+    const uid = au?.user?.id;
+    let uname = "";
+    if (uid) {
+      const { data: prof } = await supabase.from("profiles").select("display_name").eq("user_id", uid).maybeSingle();
+      uname = prof?.display_name || au?.user?.email || "";
+    }
     const { data } = await (supabase.from("deal_rgy_weekly") as any).insert({
       deal_id: entry.dealId, week_start: entry.weekStart, internal: entry.internal,
       customer: entry.customer, delivery: entry.delivery, consumption: entry.consumption,
@@ -381,12 +394,21 @@ export function useDealDetail(dealId: string | undefined) {
       issue_date: entry.issueDate || null, issue_details: entry.issueDetails || "",
       discussed_action_plan: entry.discussedActionPlan || "", action_plan: entry.actionPlan || "",
       resolution_due_date: entry.resolutionDueDate || null, issue_status: entry.issueStatus || "Open",
+      updated_by: uid, updated_by_name: uname, updated_at: new Date().toISOString(),
     }).select().single();
-    if (data) setRgyWeekly(prev => [{ id: data.id, ...entry }, ...prev]);
+    if (data) setRgyWeekly(prev => [{ id: data.id, ...entry, updatedBy: uid, updatedByName: uname, updatedAt: data.updated_at }, ...prev]);
   }, []);
 
   const updateRGYWeek = useCallback(async (id: string, updates: Partial<RGYWeekly>) => {
-    setRgyWeekly(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
+    const { data: au } = await supabase.auth.getUser();
+    const uid = au?.user?.id;
+    let uname = "";
+    if (uid) {
+      const { data: prof } = await supabase.from("profiles").select("display_name").eq("user_id", uid).maybeSingle();
+      uname = prof?.display_name || au?.user?.email || "";
+    }
+    const nowIso = new Date().toISOString();
+    setRgyWeekly(prev => prev.map(r => r.id === id ? { ...r, ...updates, updatedBy: uid, updatedByName: uname, updatedAt: nowIso } : r));
     const db: any = {};
     if (updates.accountHealth !== undefined) db.account_health = updates.accountHealth;
     if (updates.financeBilling !== undefined) db.finance_billing = updates.financeBilling;
@@ -410,6 +432,9 @@ export function useDealDetail(dealId: string | undefined) {
     if (updates.actionPlan !== undefined) db.action_plan = updates.actionPlan;
     if (updates.resolutionDueDate !== undefined) db.resolution_due_date = updates.resolutionDueDate;
     if (updates.issueStatus !== undefined) db.issue_status = updates.issueStatus;
+    db.updated_by = uid;
+    db.updated_by_name = uname;
+    db.updated_at = nowIso;
     await (supabase.from("deal_rgy_weekly") as any).update(db).eq("id", id);
   }, []);
 
