@@ -534,6 +534,112 @@ export default function MBRTracker() {
 
   const showBopmInsights = activeVsd !== "All" && activeVsd !== "Unassigned";
 
+  // ===== Flags from done MBRs / Fathom-AI summaries =====
+  type Flag = {
+    deal: MBRDeal;
+    severity: "red" | "yellow" | "info";
+    type: string;
+    detail: string;
+    weekStart?: string;
+  };
+  const flagInsights = useMemo(() => {
+    const filteredIds = new Set(filteredDeals.map(d => d.id));
+    const dealsById = new Map(filteredDeals.map(d => [d.id, d]));
+    const flags: Flag[] = [];
+
+    const RED_KEYWORDS: { re: RegExp; label: string }[] = [
+      { re: /\b(churn|cancel|cancell|terminat|exit|wind\s*down|offboard)\w*/i, label: "Churn risk" },
+      { re: /\b(escalat|legal|lawyer|complaint|frustrat|angry|upset|disappoint)\w*/i, label: "Escalation / complaint" },
+      { re: /\b(payment|invoice|overdue|outstanding|unpaid|receivable)\w*/i, label: "Payment / receivables" },
+      { re: /\b(missed\s*(deadline|deliverable)|deliver(y|ables)?\s*(miss|late|slip|delay))/i, label: "Delivery slipping" },
+      { re: /\b(reduc|down\s*scope|de[-\s]?scope|scale\s*back|consolidat)\w*/i, label: "Possible contraction" },
+    ];
+    const YELLOW_KEYWORDS: { re: RegExp; label: string }[] = [
+      { re: /\b(competitor|rfp|reviewing\s*options|alternat|other agency)\b/i, label: "Competitor mentioned" },
+      { re: /\b(quality|rework|revis|not\s*happy|below\s*expect|concern)\w*/i, label: "Quality concern" },
+      { re: /\b(no\s*poc|poc\s*chang|new\s*poc|stakeholder\s*chang|leadership\s*chang)\w*/i, label: "Stakeholder change" },
+      { re: /\b(scope\s*creep|out\s*of\s*scope|extra\s*ask)\w*/i, label: "Scope creep" },
+      { re: /\b(slow|response\s*time|turn\s*around|TAT)\b/i, label: "Slow turnaround" },
+    ];
+    const INFO_KEYWORDS: { re: RegExp; label: string }[] = [
+      { re: /\b(upsell|cross[-\s]?sell|expand|grow|additional\s*scope|new\s*scope)\w*/i, label: "Upsell / expansion signal" },
+      { re: /\b(renewal|renew|extend\s*contract)\w*/i, label: "Renewal coming up" },
+      { re: /\b(case\s*study|testimonial|reference|advocate)\b/i, label: "Advocacy opportunity" },
+    ];
+
+    const scan = (text: string, deal: MBRDeal, weekStart?: string) => {
+      if (!text) return;
+      const seen = new Set<string>();
+      const tag = (rules: typeof RED_KEYWORDS, severity: Flag["severity"]) => {
+        for (const { re, label } of rules) {
+          const m = text.match(re);
+          if (m && !seen.has(label)) {
+            seen.add(label);
+            const idx = m.index ?? 0;
+            const snippet = text.slice(Math.max(0, idx - 60), Math.min(text.length, idx + 120)).replace(/\s+/g, " ").trim();
+            flags.push({ deal, severity, type: label, detail: snippet, weekStart });
+          }
+        }
+      };
+      tag(RED_KEYWORDS, "red");
+      tag(YELLOW_KEYWORDS, "yellow");
+      tag(INFO_KEYWORDS, "info");
+    };
+
+    entriesByMonth.forEach(monthMap => {
+      monthMap.forEach((e, dealId) => {
+        if (!filteredIds.has(dealId)) return;
+        const deal = dealsById.get(dealId);
+        if (!deal) return;
+        if (e.status !== "Done") return;
+        const text = [e.aiSummary, e.notes, e.transcript].filter(Boolean).join(" \n ");
+        scan(text, deal, e.weekStart);
+        if (e.sentiment === "Red") {
+          flags.push({
+            deal, severity: "red", type: "Red sentiment recorded",
+            detail: (e.aiSummary || e.notes || "").slice(0, 220),
+            weekStart: e.weekStart,
+          });
+        }
+      });
+    });
+
+    const sortedMonths = [...availableMonths].sort();
+    const last3 = sortedMonths.slice(-3);
+    for (const id of filteredIds) {
+      const deal = dealsById.get(id);
+      if (!deal) continue;
+      const statuses = last3.map(m => entriesByMonth.get(m)?.get(id)?.status || "Pending");
+      const missed = statuses.filter(s => s === "Not Done" || s === "Pending").length;
+      if (last3.length >= 2 && missed === last3.length) {
+        flags.push({
+          deal, severity: "red", type: "MBR not held",
+          detail: `No MBR recorded in last ${last3.length} months. Re-engage immediately.`,
+        });
+      }
+    }
+
+    const sevRank = (s: Flag["severity"]) => s === "red" ? 2 : s === "yellow" ? 1 : 0;
+    const byDeal = new Map<string, { deal: MBRDeal; flags: Flag[]; worst: Flag["severity"] }>();
+    for (const f of flags) {
+      const key = f.deal.id;
+      if (!byDeal.has(key)) byDeal.set(key, { deal: f.deal, flags: [], worst: "info" });
+      const g = byDeal.get(key)!;
+      g.flags.push(f);
+      if (sevRank(f.severity) > sevRank(g.worst)) g.worst = f.severity;
+    }
+    const grouped = Array.from(byDeal.values()).sort((a, b) => sevRank(b.worst) - sevRank(a.worst) || b.flags.length - a.flags.length);
+    const counts = {
+      red: flags.filter(f => f.severity === "red").length,
+      yellow: flags.filter(f => f.severity === "yellow").length,
+      info: flags.filter(f => f.severity === "info").length,
+      dealsRed: grouped.filter(g => g.worst === "red").length,
+      dealsYellow: grouped.filter(g => g.worst === "yellow").length,
+      dealsInfo: grouped.filter(g => g.worst === "info").length,
+    };
+    return { grouped, counts };
+  }, [filteredDeals, entriesByMonth, availableMonths]);
+
   if (loading) {
     return (
       <AppLayout>
