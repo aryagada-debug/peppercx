@@ -9,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-import { Search, Loader2, Eye, CalendarDays, List, X, Bell, Users, CheckCircle2, XCircle, Clock, Gauge, TrendingUp } from "lucide-react";
+import { Search, Loader2, Eye, CalendarDays, List, X, Bell, Users, CheckCircle2, XCircle, Clock, Gauge, TrendingUp, Flag, AlertTriangle, Sparkles, TrendingDown, DollarSign } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from "recharts";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
