@@ -481,6 +481,21 @@ export default function HomePage() {
     }));
   }, [dealTasks, deals]);
 
+  // Search across deal/client for My Tasks kanban
+  const [taskSearch, setTaskSearch] = useState("");
+  const filteredKanbanTasks = useMemo(() => {
+    const q = taskSearch.trim().toLowerCase();
+    if (!q) return myKanbanTasks;
+    return myKanbanTasks.filter(t => {
+      const d = deals[t.dealId];
+      return (
+        (d?.deal_name || "").toLowerCase().includes(q) ||
+        (d?.account || "").toLowerCase().includes(q) ||
+        (t.title || "").toLowerCase().includes(q)
+      );
+    });
+  }, [myKanbanTasks, taskSearch, deals]);
+
   const handleKanbanUpdate = useCallback(async (id: string, updates: Partial<DealTask>) => {
     const dbUpdates: any = {};
     if (updates.title !== undefined) dbUpdates.title = updates.title;
