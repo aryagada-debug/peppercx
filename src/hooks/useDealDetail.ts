@@ -114,7 +114,7 @@ export function useDealDetail(dealId: string | undefined) {
   async function loadAll() {
     if (!dealId) return;
     setLoading(true);
-    const [sow, rev, tgt, rgy, onb, fin, tsk, mbr] = await Promise.all([
+    const [sow, rev, tgt, rgy, onb, fin, tsk, mbr, finTgt] = await Promise.all([
       supabase.from("deal_sow_items").select("*").eq("deal_id", dealId),
       supabase.from("deal_revenue_monthly").select("*").eq("deal_id", dealId).order("month"),
       supabase.from("deal_targets_monthly").select("*").eq("deal_id", dealId).order("month"),
@@ -123,6 +123,7 @@ export function useDealDetail(dealId: string | undefined) {
       supabase.from("deal_financials").select("*").eq("deal_id", dealId).order("month"),
       supabase.from("deal_tasks").select("*").eq("deal_id", dealId).order("sort_order"),
       supabase.from("mbr_entries").select("*").eq("deal_id", dealId).order("week_start", { ascending: false }),
+      supabase.from("deal_financial_targets").select("*").eq("deal_id", dealId).order("month"),
     ]);
     if (sow.data) setSowItems(sow.data.map((r: any) => ({ id: r.id, dealId: r.deal_id, scope: r.scope, revenueShare: Number(r.revenue_share), teamCapability: r.team_capability, teams: Array.isArray(r.teams) ? r.teams : [], lineItemValue: Number(r.line_item_value || 0) })));
     if (rev.data) setRevenue(rev.data.map((r: any) => ({ id: r.id, dealId: r.deal_id, month: r.month, mrr: Number(r.mrr), contraction: Number(r.contraction), delivered: Number(r.delivered), invoiced: Number(r.invoiced), actuals: Number(r.actuals) })));
@@ -141,13 +142,48 @@ export function useDealDetail(dealId: string | undefined) {
       createdAt: r.created_at,
     })));
     if (onb.data) setOnboarding(onb.data.map((r: any) => ({ id: r.id, dealId: r.deal_id, stepName: r.step_name, category: r.category, owner: r.owner, dueDate: r.due_date, completed: r.completed, completedAt: r.completed_at, sortOrder: r.sort_order })));
-    if (fin.data) setFinancials(fin.data.map((r: any) => ({
-      id: r.id, dealId: r.deal_id, month: r.month,
-      contracted: Number(r.contracted), consumption: Number(r.consumption),
-      plannedGmPct: Number(r.planned_gm_pct), actualGmPct: Number(r.actual_gm_pct),
-      invoiced: Number(r.invoiced), received: Number(r.received), outstanding: Number(r.outstanding),
-      invoiceDate: r.invoice_date, receivedDate: r.received_date, outstandingDate: r.outstanding_date,
-    })));
+    {
+      const tgtMap = new Map<string, any>();
+      (finTgt.data || []).forEach((t: any) => tgtMap.set(String(t.month), t));
+      const finRows: FinancialRow[] = (fin.data || []).map((r: any) => {
+        const t = tgtMap.get(String(r.month));
+        tgtMap.delete(String(r.month));
+        return {
+          id: r.id, dealId: r.deal_id, month: r.month,
+          contracted: t ? Number(t.contraction_target) : Number(r.contracted),
+          consumption: t ? Number(t.contraction_actual) : Number(r.consumption),
+          plannedGmPct: Number(r.planned_gm_pct), actualGmPct: Number(r.actual_gm_pct),
+          invoiced: t ? Number(t.invoicing_actual) : Number(r.invoiced),
+          received: t ? Number(t.receivables_actual) : Number(r.received),
+          outstanding: Number(r.outstanding),
+          invoiceDate: r.invoice_date, receivedDate: r.received_date, outstandingDate: r.outstanding_date,
+          contractionTarget: t ? Number(t.contraction_target) : Number(r.contracted),
+          deliveryTarget: t ? Number(t.delivery_target) : 0,
+          deliveryActual: t ? Number(t.delivery_actual) : 0,
+          invoicingTarget: t ? Number(t.invoicing_target) : 0,
+          receivablesTarget: t ? Number(t.receivables_target) : 0,
+        };
+      });
+      // Append target-only months not present in financials
+      tgtMap.forEach((t: any) => {
+        finRows.push({
+          id: `tgt-${t.id}`, dealId: t.deal_id, month: t.month,
+          contracted: Number(t.contraction_target),
+          consumption: Number(t.contraction_actual),
+          plannedGmPct: 0, actualGmPct: 0,
+          invoiced: Number(t.invoicing_actual),
+          received: Number(t.receivables_actual),
+          outstanding: Math.max(0, Number(t.invoicing_actual) - Number(t.receivables_actual)),
+          contractionTarget: Number(t.contraction_target),
+          deliveryTarget: Number(t.delivery_target),
+          deliveryActual: Number(t.delivery_actual),
+          invoicingTarget: Number(t.invoicing_target),
+          receivablesTarget: Number(t.receivables_target),
+        });
+      });
+      finRows.sort((a, b) => String(a.month).localeCompare(String(b.month)));
+      setFinancials(finRows);
+    }
     if (tsk.data) setTasks(tsk.data.map((r: any) => ({
       id: r.id, dealId: r.deal_id, title: r.title, description: r.description || "",
       stage: r.stage, assignee: r.assignee || "", startDate: r.start_date || undefined,
