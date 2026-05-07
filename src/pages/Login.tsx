@@ -6,28 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-
-const DEMO_PASSWORD = "Demo@1234";
-
-const DEMO_ACCOUNTS: { email: string; person: string; role: "VSD" | "BOPM"; pod?: string }[] = [
-  { email: "aditya.shaw+demo@peppercontent.io", person: "Aditya Shaw", role: "VSD", pod: "BFSI" },
-  { email: "neema.jayadas+demo@peppercontent.io", person: "Neema Jayadas", role: "VSD", pod: "US B2B" },
-  { email: "aamir.khan+demo@peppercontent.io", person: "Aamir Khan", role: "VSD", pod: "Integrated" },
-  { email: "sumit.shekhawat+demo@peppercontent.io", person: "Sumit Shekhawat", role: "VSD", pod: "India B2B" },
-  { email: "sneha.iyer+demo@peppercontent.io", person: "Sneha Iyer", role: "VSD", pod: "FMCG" },
-  { email: "ritu.priya+demo@peppercontent.io", person: "Ritu Priya", role: "BOPM", pod: "Sr BOPM (Aditya Shaw)" },
-  { email: "tiffany.fernandes+demo@peppercontent.io", person: "Tiffany Fernandes", role: "BOPM", pod: "Sr BOPM" },
-  { email: "shreshtha.pathak+demo@peppercontent.io", person: "Shreshtha Pathak", role: "BOPM", pod: "Principal BOPM" },
-];
 
 export default function Login() {
   const navigate = useNavigate();
@@ -35,8 +13,6 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [demoEmail, setDemoEmail] = useState("");
-  const [demoLoading, setDemoLoading] = useState(false);
 
   useEffect(() => {
     const e = searchParams.get("email");
@@ -48,41 +24,6 @@ export default function Login() {
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
-    if (error) {
-      toast.error(error.message);
-    } else {
-      navigate("/");
-    }
-  };
-
-  const handleDemoLogin = async () => {
-    if (!demoEmail) {
-      toast.error("Pick a persona first");
-      return;
-    }
-    setDemoLoading(true);
-    let { error } = await supabase.auth.signInWithPassword({
-      email: demoEmail,
-      password: DEMO_PASSWORD,
-    });
-    if (error) {
-      // Auto-provision demo accounts then retry
-      toast.message("Provisioning demo accounts…");
-      const { error: provErr } = await supabase.functions.invoke("admin-user-mgmt", {
-        body: { action: "provision_demo_logins" },
-      });
-      if (provErr) {
-        setDemoLoading(false);
-        toast.error(provErr.message || "Could not provision demo logins");
-        return;
-      }
-      const retry = await supabase.auth.signInWithPassword({
-        email: demoEmail,
-        password: DEMO_PASSWORD,
-      });
-      error = retry.error;
-    }
-    setDemoLoading(false);
     if (error) {
       toast.error(error.message);
     } else {
@@ -108,46 +49,8 @@ export default function Login() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center space-y-1">
-          <h1 className="text-2xl font-medium tracking-tight text-foreground">VSD-OS</h1>
+          <h1 className="text-2xl font-medium tracking-tight text-foreground">CX OS</h1>
           <p className="text-sm text-muted-foreground">Sign in to your account</p>
-        </div>
-
-        <div className="rounded-lg border border-border bg-secondary/30 p-3 space-y-2">
-          <div className="text-xs font-medium text-foreground">Demo login (admins only)</div>
-          <Select value={demoEmail} onValueChange={setDemoEmail}>
-            <SelectTrigger className="h-9 text-sm">
-              <SelectValue placeholder="Select a persona…" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectLabel>VSDs</SelectLabel>
-                {DEMO_ACCOUNTS.filter((a) => a.role === "VSD").map((a) => (
-                  <SelectItem key={a.email} value={a.email}>
-                    {a.person} — {a.pod}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-              <SelectGroup>
-                <SelectLabel>BOPMs</SelectLabel>
-                {DEMO_ACCOUNTS.filter((a) => a.role === "BOPM").map((a) => (
-                  <SelectItem key={a.email} value={a.email}>
-                    {a.person} — {a.pod}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-          <Button
-            type="button"
-            className="w-full h-9"
-            onClick={handleDemoLogin}
-            disabled={demoLoading || !demoEmail}
-          >
-            {demoLoading ? "Signing in…" : "Sign in as persona"}
-          </Button>
-          <p className="text-[11px] text-muted-foreground">
-            First use auto-provisions accounts. Password: <span className="font-mono">{DEMO_PASSWORD}</span>
-          </p>
         </div>
 
         <Button
