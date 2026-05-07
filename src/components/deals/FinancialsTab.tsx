@@ -197,13 +197,9 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete }:
       {/* ── Section 1: Deal Snapshot ── */}
       <div>
         <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground mb-3">Deal Snapshot</p>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 gap-3">
           {[
             { label: "Net deal value", value: fmtCurrency(netDealValue), sub: deal?.mrr ? `MRR ${fmtCurrency(deal.mrr)}` : "" },
-            { label: "Contraction", value: fmtCurrency(totals.consumption), sub: `Target ${fmtCurrency(totals.contractionTarget)}`, att: totals.contractionTarget > 0 ? (totals.consumption / totals.contractionTarget) * 100 : null },
-            { label: "Delivery", value: fmtCurrency(totals.deliveryActual), sub: `Target ${fmtCurrency(totals.deliveryTarget)}`, att: totals.deliveryTarget > 0 ? (totals.deliveryActual / totals.deliveryTarget) * 100 : null },
-            { label: "Invoicing", value: fmtCurrency(totals.invoiced), sub: `Target ${fmtCurrency(totals.invoicingTarget)}`, att: totals.invoicingTarget > 0 ? (totals.invoiced / totals.invoicingTarget) * 100 : null },
-            { label: "Receivables", value: fmtCurrency(totals.received), sub: `Target ${fmtCurrency(totals.receivablesTarget)}`, att: totals.receivablesTarget > 0 ? (totals.received / totals.receivablesTarget) * 100 : null, alert: totals.outstanding > 0 ? `${fmtCurrency(totals.outstanding)} outstanding` : "" },
           ].map((k: any) => {
             const ac = k.att != null ? attColor(k.att) : null;
             const cs = ac ? colorStyles[ac] : null;
