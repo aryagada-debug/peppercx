@@ -701,6 +701,7 @@ export default function MBRTracker() {
         <Tabs defaultValue="table" className="mb-4">
           <TabsList className="mb-3">
             {!isBopmPersona && <TabsTrigger value="insights">Insights</TabsTrigger>}
+            {!isBopmPersona && <TabsTrigger value="flags">Flags</TabsTrigger>}
             <TabsTrigger value="table">Table</TabsTrigger>
           </TabsList>
           {isBopmPersona && !accessLoading && filteredDeals.length === 0 && (
