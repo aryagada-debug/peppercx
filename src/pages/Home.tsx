@@ -481,6 +481,21 @@ export default function HomePage() {
     }));
   }, [dealTasks, deals]);
 
+  // Search across deal/client for My Tasks kanban
+  const [taskSearch, setTaskSearch] = useState("");
+  const filteredKanbanTasks = useMemo(() => {
+    const q = taskSearch.trim().toLowerCase();
+    if (!q) return myKanbanTasks;
+    return myKanbanTasks.filter(t => {
+      const d = deals[t.dealId];
+      return (
+        (d?.deal_name || "").toLowerCase().includes(q) ||
+        (d?.account || "").toLowerCase().includes(q) ||
+        (t.title || "").toLowerCase().includes(q)
+      );
+    });
+  }, [myKanbanTasks, taskSearch, deals]);
+
   const handleKanbanUpdate = useCallback(async (id: string, updates: Partial<DealTask>) => {
     const dbUpdates: any = {};
     if (updates.title !== undefined) dbUpdates.title = updates.title;
@@ -751,14 +766,22 @@ export default function HomePage() {
                   Synced with deal tasks · changes here update everywhere
                 </span>
               </CardTitle>
-              <Button
+              <div className="flex items-center gap-2">
+                <Input
+                  value={taskSearch}
+                  onChange={(e) => setTaskSearch(e.target.value)}
+                  placeholder="Search by client or deal…"
+                  className="h-7 w-56 text-[12px]"
+                />
+                <Button
                 size="sm"
                 onClick={() => { setAddTaskDealId(""); setAddingTask(true); }}
                 className="h-7 px-2 text-[12px]"
                 disabled={isReadOnly}
               >
                 <Plus className="h-3.5 w-3.5 mr-1" /> Add Task
-              </Button>
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -767,9 +790,13 @@ export default function HomePage() {
                 <CheckCircle2 className="h-8 w-8 text-positive/40 mx-auto mb-2" />
                 <p className="text-xs text-muted-foreground">No tasks assigned to you. Tasks created on a deal where you're tagged will appear here.</p>
               </div>
+            ) : filteredKanbanTasks.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-xs text-muted-foreground">No tasks match "{taskSearch}".</p>
+              </div>
             ) : (
               <TaskKanban
-                tasks={myKanbanTasks}
+                tasks={filteredKanbanTasks}
                 dealId=""
                 assignees={allPeople.filter(p => !p.tbh).map(p => ({ id: p.id, name: p.name }))}
                 onAdd={() => { setAddTaskDealId(""); setAddingTask(true); }}
