@@ -469,7 +469,7 @@ interface Props {
 export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBulk, onUpdate, onDelete }: Props) {
   const [selectedPhase, setSelectedPhase] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
-  const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
+  const [viewMode, setViewMode] = useState<"list" | "kanban">("kanban");
   const [editTask, setEditTask] = useState<DealTask | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
