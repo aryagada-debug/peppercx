@@ -272,12 +272,30 @@ export default function HomePage() {
         receivables: s.receivables + v.receivables,
       }), { contraction: 0, delivery: 0, invoicing: 0, receivables: 0 });
       setFinSummary(totals);
-      // Targets for the current month (cap to deal scope)
-      const monthStart = format(startOfMonth(new Date()), "yyyy-MM-dd");
-      const { data: tgts } = await supabase.from("deal_financial_targets")
-        .select("deal_id, contraction_target, delivery_target, invoicing_target, receivables_target")
+      // Targets for the current month (cap to deal scope). If the current month has no
+      // imported targets yet, fall back to the most recent month that does.
+      let monthStart = format(startOfMonth(new Date()), "yyyy-MM-dd");
+      let { data: tgts } = await supabase.from("deal_financial_targets")
+        .select("deal_id, month, contraction_target, delivery_target, invoicing_target, receivables_target")
         .eq("month", monthStart)
         .in("deal_id", ids);
+      if (!tgts || tgts.length === 0) {
+        const { data: latest } = await supabase.from("deal_financial_targets")
+          .select("month")
+          .in("deal_id", ids)
+          .lte("month", monthStart)
+          .order("month", { ascending: false })
+          .limit(1);
+        const fallbackMonth = latest?.[0]?.month;
+        if (fallbackMonth) {
+          monthStart = fallbackMonth;
+          const res = await supabase.from("deal_financial_targets")
+            .select("deal_id, month, contraction_target, delivery_target, invoicing_target, receivables_target")
+            .eq("month", fallbackMonth)
+            .in("deal_id", ids);
+          tgts = res.data || [];
+        }
+      }
       const tTotals = (tgts || []).reduce((s, r: any) => ({
         contraction: s.contraction + (Number(r.contraction_target) || 0),
         delivery: s.delivery + (Number(r.delivery_target) || 0),
