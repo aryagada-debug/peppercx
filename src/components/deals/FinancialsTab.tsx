@@ -145,33 +145,41 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete }:
     const invoiced = rows.reduce((s, r) => s + r.invoiced, 0);
     const received = rows.reduce((s, r) => s + r.received, 0);
     const outstanding = invoiced - received;
-    return { contracted, consumption, invoiced, received, outstanding };
+    const contractionTarget = rows.reduce((s, r) => s + (r.contractionTarget ?? r.contracted), 0);
+    const deliveryTarget = rows.reduce((s, r) => s + (r.deliveryTarget ?? 0), 0);
+    const deliveryActual = rows.reduce((s, r) => s + (r.deliveryActual ?? 0), 0);
+    const invoicingTarget = rows.reduce((s, r) => s + (r.invoicingTarget ?? 0), 0);
+    const receivablesTarget = rows.reduce((s, r) => s + (r.receivablesTarget ?? 0), 0);
+    return { contracted, consumption, invoiced, received, outstanding,
+      contractionTarget, deliveryTarget, deliveryActual, invoicingTarget, receivablesTarget };
   }, [rows]);
 
   const netDealValue = deal?.totalDealValue || 0;
 
   // Pipeline health calculations
   const pipeline = useMemo(() => {
-    const consumptionAtt = totals.contracted > 0 ? (totals.consumption / totals.contracted) * 100 : 0;
-    const deliveryAtt = totals.consumption > 0 ? (totals.consumption / totals.consumption) * 100 : 0; // delivered = consumption for now
-    const invoicingAtt = netDealValue > 0 ? (totals.invoiced / netDealValue) * 100 : 0;
-    const receivablesAtt = totals.invoiced > 0 ? (totals.received / totals.invoiced) * 100 : 0;
+    const consumptionAtt = totals.contractionTarget > 0 ? (totals.consumption / totals.contractionTarget) * 100 : 0;
+    const deliveryAtt = totals.deliveryTarget > 0 ? (totals.deliveryActual / totals.deliveryTarget) * 100 : 0;
+    const invoicingAtt = totals.invoicingTarget > 0 ? (totals.invoiced / totals.invoicingTarget) * 100 : (netDealValue > 0 ? (totals.invoiced / netDealValue) * 100 : 0);
+    const receivablesAtt = totals.receivablesTarget > 0 ? (totals.received / totals.receivablesTarget) * 100 : (totals.invoiced > 0 ? (totals.received / totals.invoiced) * 100 : 0);
     return {
-      consumption: { att: consumptionAtt, value: totals.consumption, target: totals.contracted },
-      delivery: { att: deliveryAtt, value: totals.consumption, target: totals.consumption },
-      invoicing: { att: invoicingAtt, value: totals.invoiced, target: netDealValue },
-      receivables: { att: receivablesAtt, value: totals.received, target: totals.invoiced },
+      consumption: { att: consumptionAtt, value: totals.consumption, target: totals.contractionTarget },
+      delivery: { att: deliveryAtt, value: totals.deliveryActual, target: totals.deliveryTarget },
+      invoicing: { att: invoicingAtt, value: totals.invoiced, target: totals.invoicingTarget || netDealValue },
+      receivables: { att: receivablesAtt, value: totals.received, target: totals.receivablesTarget || totals.invoiced },
     };
   }, [totals, netDealValue]);
 
   // Chart data
   const chartData = useMemo(() => rows.map(r => ({
     month: fmtMonth(r.month),
-    target: r.contracted,
+    target: r.contractionTarget ?? r.contracted,
     attainment: r.consumption,
+    deliveryTarget: r.deliveryTarget ?? 0,
+    deliveryActual: r.deliveryActual ?? 0,
     plannedGm: r.plannedGmPct,
     actualGm: r.actualGmPct,
-    attColor: attColor(r.contracted > 0 ? (r.consumption / r.contracted) * 100 : 0),
+    attColor: attColor((r.contractionTarget ?? r.contracted) > 0 ? (r.consumption / (r.contractionTarget ?? r.contracted)) * 100 : 0),
   })), [rows]);
 
   // Consumption bucket
@@ -191,17 +199,26 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete }:
         <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground mb-3">Deal Snapshot</p>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {[
-            { label: "Net deal value", value: fmtCurrency(netDealValue) },
-            { label: "Total contraction", value: fmtCurrency(totals.consumption) },
-            { label: "Total invoiced", value: fmtCurrency(totals.invoiced) },
-            { label: "Total received", value: fmtCurrency(totals.received) },
-            { label: "Outstanding", value: fmtCurrency(totals.outstanding), alert: totals.outstanding > 0 },
-          ].map(k => (
-            <div key={k.label} className="rounded-lg bg-[#F1EFE8] p-3">
-              <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">{k.label}</p>
-              <p className={cn("text-xl font-medium mt-1", k.alert && "text-[#791F1F]")}>{k.value}</p>
-            </div>
-          ))}
+            { label: "Net deal value", value: fmtCurrency(netDealValue), sub: deal?.mrr ? `MRR ${fmtCurrency(deal.mrr)}` : "" },
+            { label: "Contraction", value: fmtCurrency(totals.consumption), sub: `Target ${fmtCurrency(totals.contractionTarget)}`, att: totals.contractionTarget > 0 ? (totals.consumption / totals.contractionTarget) * 100 : null },
+            { label: "Delivery", value: fmtCurrency(totals.deliveryActual), sub: `Target ${fmtCurrency(totals.deliveryTarget)}`, att: totals.deliveryTarget > 0 ? (totals.deliveryActual / totals.deliveryTarget) * 100 : null },
+            { label: "Invoicing", value: fmtCurrency(totals.invoiced), sub: `Target ${fmtCurrency(totals.invoicingTarget)}`, att: totals.invoicingTarget > 0 ? (totals.invoiced / totals.invoicingTarget) * 100 : null },
+            { label: "Receivables", value: fmtCurrency(totals.received), sub: `Target ${fmtCurrency(totals.receivablesTarget)}`, att: totals.receivablesTarget > 0 ? (totals.received / totals.receivablesTarget) * 100 : null, alert: totals.outstanding > 0 ? `${fmtCurrency(totals.outstanding)} outstanding` : "" },
+          ].map((k: any) => {
+            const ac = k.att != null ? attColor(k.att) : null;
+            const cs = ac ? colorStyles[ac] : null;
+            return (
+              <div key={k.label} className="rounded-lg bg-[#F1EFE8] p-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">{k.label}</p>
+                  {cs && <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded", cs.bg, cs.text)}>{k.att.toFixed(0)}%</span>}
+                </div>
+                <p className="text-xl font-medium mt-1">{k.value}</p>
+                {k.sub && <p className="text-[11px] text-muted-foreground mt-0.5 tabular-nums">{k.sub}</p>}
+                {k.alert && <p className="text-[11px] text-[#791F1F] mt-0.5">{k.alert}</p>}
+              </div>
+            );
+          })}
         </div>
       </div>
 
