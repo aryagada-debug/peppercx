@@ -1375,6 +1375,7 @@ function GroupedRGYHistory({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
         <td className="py-2 px-3 text-xs text-muted-foreground max-w-[120px] truncate">{r.issueDetails || "—"}</td>
         <td className="py-2 px-3 text-xs text-muted-foreground max-w-[120px] truncate">{r.actionPlan || r.planOfAction || "—"}</td>
         <td className="py-2 px-2 text-xs text-muted-foreground whitespace-nowrap">{r.resolutionDueDate || "—"}</td>
+        <td className="py-2 px-2 text-xs text-muted-foreground whitespace-nowrap max-w-[120px] truncate" title={r.updatedByName || ""}>{r.updatedByName || "—"}</td>
         <td className="py-2 px-2 text-center">
           {r.issueStatus && r.issueStatus !== "Open" ? (
             <Badge variant="outline" className={cn("text-[10px]",
@@ -1401,6 +1402,7 @@ function GroupedRGYHistory({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
             <th className="text-left py-2 px-3 text-xs uppercase tracking-wider text-muted-foreground font-medium">Issue</th>
             <th className="text-left py-2 px-3 text-xs uppercase tracking-wider text-muted-foreground font-medium">Action Plan</th>
             <th className="text-left py-2 px-2 text-xs uppercase tracking-wider text-muted-foreground font-medium">Due</th>
+            <th className="text-left py-2 px-2 text-xs uppercase tracking-wider text-muted-foreground font-medium">Updated By</th>
             <th className="text-center py-2 px-2 text-xs uppercase tracking-wider text-muted-foreground font-medium">Status</th>
           </tr>
         </thead>
@@ -1434,6 +1436,7 @@ function GroupedRGYHistory({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
                   <td className="py-2 px-3 text-xs text-muted-foreground max-w-[120px] truncate">{latest.issueDetails || "—"}</td>
                   <td className="py-2 px-3 text-xs text-muted-foreground max-w-[120px] truncate">{latest.actionPlan || latest.planOfAction || "—"}</td>
                   <td className="py-2 px-2 text-xs text-muted-foreground whitespace-nowrap">{latest.resolutionDueDate || "—"}</td>
+                  <td className="py-2 px-2 text-xs text-muted-foreground whitespace-nowrap max-w-[120px] truncate" title={latest.updatedByName || ""}>{latest.updatedByName || "—"}</td>
                   <td className="py-2 px-2 text-center">
                     {latest.issueStatus && latest.issueStatus !== "Open" ? (
                       <Badge variant="outline" className={cn("text-[10px]",
