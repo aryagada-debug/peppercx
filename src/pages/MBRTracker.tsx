@@ -722,76 +722,248 @@ export default function MBRTracker() {
           </div>
         </div>
 
-        {/* VSD Insights — moved to top */}
-        <div className="mb-4">
-          <h2 className="text-sm font-semibold text-foreground mb-2">
-            {showBopmInsights ? `BOPM Insights — ${activeVsd}` : "VSD Insights"}
-          </h2>
-          <div className="bg-card border border-border rounded-xl overflow-hidden">
-            <table className="w-full text-ui">
-              <thead>
-                <tr className="bg-secondary/40 border-b border-border">
-                  {[showBopmInsights ? "Sr / Principal BOPM" : "Sr / Principal BOPMs", "Accounts", "Done", "Not Done", "Pending", "🟢", "🟡", "🔴", "Scheduled"].map(h => (
-                    <th key={h} className="text-left py-2.5 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {(showBopmInsights ? bopmInsights.map(b => ({ vsd: b.name, ...b, bopms: undefined as any })) : vsdInsights).map((v: any) => {
-                  const schedCompliance = v.total > 0 ? `${v.scheduled}/${v.total}` : "—";
-                  const isOverall = v.vsd === "Pod Overall";
-                  // For VSD-rollup rows, show the current BOPM/Sr BOPMs instead of the VSD name.
-                  const bopmList = !showBopmInsights && v.bopms && v.bopms.size > 0
-                    ? Array.from(v.bopms as Set<string>).sort().join(", ")
-                    : "";
-                  const displayLabel = !showBopmInsights ? (bopmList || "Unassigned") : v.vsd;
-                  const rowLabel = v.vsd;
-                  const openDrill = (metric: DrillMetric) => setDrill({ rowKey: rowLabel, rowLabel, metric });
-                  const NumBtn = ({ value, metric, className }: { value: number; metric: DrillMetric; className?: string }) => (
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); if (value > 0) openDrill(metric); }}
-                      className={cn(
-                        "font-mono tabular-nums text-xs",
-                        value > 0 ? "hover:underline cursor-pointer" : "cursor-default opacity-70",
-                        className,
-                      )}
-                    >
-                      {value}
-                    </button>
-                  );
-                  return (
-                    <tr key={v.vsd} className={cn(
-                      "border-b border-border/50 hover:bg-secondary/30 transition-colors",
-                      isOverall && "bg-primary/5 font-semibold"
-                    )}>
-                      <td className="py-2.5 px-3 font-semibold text-foreground text-xs">{displayLabel}</td>
-                      <td className="py-2.5 px-3"><NumBtn value={v.total} metric="total" className="text-foreground" /></td>
-                      <td className="py-2.5 px-3"><NumBtn value={v.done} metric="done" className="text-positive font-semibold" /></td>
-                      <td className="py-2.5 px-3"><NumBtn value={v.notDone} metric="notDone" className="text-destructive font-semibold" /></td>
-                      <td className="py-2.5 px-3"><NumBtn value={v.pending} metric="pending" className="text-warning font-semibold" /></td>
-                      <td className="py-2.5 px-3"><NumBtn value={v.green} metric="green" className="text-positive" /></td>
-                      <td className="py-2.5 px-3"><NumBtn value={v.yellow} metric="yellow" className="text-warning" /></td>
-                      <td className="py-2.5 px-3"><NumBtn value={v.red} metric="red" className="text-destructive" /></td>
-                      <td className="py-2.5 px-3">
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); if (v.scheduled > 0) openDrill("scheduled"); }}
-                          className={cn("font-mono tabular-nums text-foreground text-xs", v.scheduled > 0 ? "hover:underline cursor-pointer" : "cursor-default opacity-70")}
-                        >
-                          {schedCompliance}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {((showBopmInsights ? bopmInsights : vsdInsights).length === 0) && (
-                  <tr><td colSpan={9} className="text-center py-8 text-muted-foreground">No data</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        {/* Insights — split into Scheduling + Status, with VSD and BOPM-wise rows */}
+        {(() => {
+          const dataset: any[] = showBopmInsights
+            ? bopmInsights.map(b => ({ ...b, vsd: b.name }))
+            : vsdInsights;
+
+          const NumBtn = ({ value, metric, rowLabel, className }: { value: number; metric: DrillMetric; rowLabel: string; className?: string }) => (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); if (value > 0) setDrill({ rowKey: rowLabel, rowLabel, metric }); }}
+              className={cn(
+                "font-mono tabular-nums text-xs",
+                value > 0 ? "hover:underline cursor-pointer" : "cursor-default opacity-70",
+                className,
+              )}
+            >
+              {value}
+            </button>
+          );
+
+          const labelHeader = showBopmInsights ? "Sr / Principal BOPM" : "VSD";
+          const titleSuffix = showBopmInsights ? `BOPM-wise — ${activeVsd}` : "VSD-wise";
+
+          const renderLabel = (v: any) => {
+            const isOverall = v.vsd === "Pod Overall";
+            if (showBopmInsights) return v.vsd;
+            // VSD rollup: show VSD name (cleaner than concatenated BOPMs)
+            return isOverall ? v.vsd : v.vsd;
+          };
+
+          return (
+            <>
+              {/* Part 1: Scheduling */}
+              <div className="mb-4">
+                <h2 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
+                  <CalendarDays className="h-4 w-4 text-primary" />
+                  Scheduling — {titleSuffix}
+                </h2>
+                <div className="bg-card border border-border rounded-xl overflow-hidden">
+                  <table className="w-full text-ui">
+                    <thead>
+                      <tr className="bg-secondary/40 border-b border-border">
+                        {[labelHeader, "Accounts", "Scheduled", "Not Scheduled", "Schedule rate"].map(h => (
+                          <th key={h} className="text-left py-2.5 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dataset.map((v: any) => {
+                        const isOverall = v.vsd === "Pod Overall";
+                        const notScheduled = Math.max(0, v.total - v.scheduled);
+                        const rate = v.total > 0 ? Math.round((v.scheduled / v.total) * 100) : 0;
+                        return (
+                          <tr key={`sch-${v.vsd}`} className={cn(
+                            "border-b border-border/50 hover:bg-secondary/30 transition-colors",
+                            isOverall && "bg-primary/5 font-semibold"
+                          )}>
+                            <td className="py-2.5 px-3 font-semibold text-foreground text-xs">{renderLabel(v)}</td>
+                            <td className="py-2.5 px-3"><NumBtn value={v.total} metric="total" rowLabel={v.vsd} className="text-foreground" /></td>
+                            <td className="py-2.5 px-3"><NumBtn value={v.scheduled} metric="scheduled" rowLabel={v.vsd} className="text-primary font-semibold" /></td>
+                            <td className="py-2.5 px-3"><span className={cn("font-mono tabular-nums text-xs", notScheduled > 0 ? "text-warning font-semibold" : "text-muted-foreground")}>{notScheduled}</span></td>
+                            <td className="py-2.5 px-3">
+                              <div className="flex items-center gap-2">
+                                <span className={cn(
+                                  "font-mono tabular-nums text-xs font-semibold",
+                                  rate >= 80 ? "text-positive" : rate >= 50 ? "text-warning" : "text-destructive"
+                                )}>{rate}%</span>
+                                <div className="flex-1 h-1.5 max-w-[120px] bg-secondary rounded-full overflow-hidden">
+                                  <div className={cn("h-full rounded-full", rate >= 80 ? "bg-positive" : rate >= 50 ? "bg-warning" : "bg-destructive")} style={{ width: `${rate}%` }} />
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {dataset.length === 0 && <tr><td colSpan={5} className="text-center py-8 text-muted-foreground">No data</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Part 2: Status — Scheduled vs Done */}
+              <div className="mb-4">
+                <h2 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-positive" />
+                  Status — Scheduled vs Done — {titleSuffix}
+                </h2>
+                <div className="bg-card border border-border rounded-xl overflow-hidden">
+                  <table className="w-full text-ui">
+                    <thead>
+                      <tr className="bg-secondary/40 border-b border-border">
+                        {[labelHeader, "Scheduled", "Done", "Not Done", "Pending", "Done vs Scheduled", "🟢", "🟡", "🔴"].map(h => (
+                          <th key={h} className="text-left py-2.5 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dataset.map((v: any) => {
+                        const isOverall = v.vsd === "Pod Overall";
+                        const denom = v.scheduled || 0;
+                        const doneVsSched = denom > 0 ? Math.round((v.done / denom) * 100) : 0;
+                        return (
+                          <tr key={`st-${v.vsd}`} className={cn(
+                            "border-b border-border/50 hover:bg-secondary/30 transition-colors",
+                            isOverall && "bg-primary/5 font-semibold"
+                          )}>
+                            <td className="py-2.5 px-3 font-semibold text-foreground text-xs">{renderLabel(v)}</td>
+                            <td className="py-2.5 px-3"><NumBtn value={v.scheduled} metric="scheduled" rowLabel={v.vsd} className="text-primary" /></td>
+                            <td className="py-2.5 px-3"><NumBtn value={v.done} metric="done" rowLabel={v.vsd} className="text-positive font-semibold" /></td>
+                            <td className="py-2.5 px-3"><NumBtn value={v.notDone} metric="notDone" rowLabel={v.vsd} className="text-destructive font-semibold" /></td>
+                            <td className="py-2.5 px-3"><NumBtn value={v.pending} metric="pending" rowLabel={v.vsd} className="text-warning font-semibold" /></td>
+                            <td className="py-2.5 px-3">
+                              {denom > 0 ? (
+                                <span className={cn(
+                                  "font-mono tabular-nums text-xs font-semibold",
+                                  doneVsSched >= 80 ? "text-positive" : doneVsSched >= 50 ? "text-warning" : "text-destructive"
+                                )}>{v.done}/{denom} ({doneVsSched}%)</span>
+                              ) : <span className="text-muted-foreground text-xs">—</span>}
+                            </td>
+                            <td className="py-2.5 px-3"><NumBtn value={v.green} metric="green" rowLabel={v.vsd} className="text-positive" /></td>
+                            <td className="py-2.5 px-3"><NumBtn value={v.yellow} metric="yellow" rowLabel={v.vsd} className="text-warning" /></td>
+                            <td className="py-2.5 px-3"><NumBtn value={v.red} metric="red" rowLabel={v.vsd} className="text-destructive" /></td>
+                          </tr>
+                        );
+                      })}
+                      {dataset.length === 0 && <tr><td colSpan={9} className="text-center py-8 text-muted-foreground">No data</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          );
+        })()}
+          </TabsContent>
+
+          <TabsContent value="flags" className="mt-0">
+            {/* VSD Filter (mirror of Insights tab) */}
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">VSD:</span>
+              <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
+                {VSD_FILTERS.map(v => (
+                  <button key={v.key} onClick={() => setActiveVsd(v.key)} className={cn(
+                    "px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
+                    activeVsd === v.key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  )}>{v.label}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Flag KPI strip */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+              <div className="bg-card border border-border rounded-xl p-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1"><AlertTriangle className="h-3 w-3 text-destructive" /> Critical flags</div>
+                <div className="text-2xl font-medium text-destructive mt-1">{flagInsights.counts.red}</div>
+                <div className="text-[10px] text-muted-foreground">{flagInsights.counts.dealsRed} deals affected</div>
+              </div>
+              <div className="bg-card border border-border rounded-xl p-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1"><Flag className="h-3 w-3 text-warning" /> Watch flags</div>
+                <div className="text-2xl font-medium text-warning mt-1">{flagInsights.counts.yellow}</div>
+                <div className="text-[10px] text-muted-foreground">{flagInsights.counts.dealsYellow} deals affected</div>
+              </div>
+              <div className="bg-card border border-border rounded-xl p-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1"><Sparkles className="h-3 w-3 text-primary" /> Opportunities</div>
+                <div className="text-2xl font-medium text-primary mt-1">{flagInsights.counts.info}</div>
+                <div className="text-[10px] text-muted-foreground">{flagInsights.counts.dealsInfo} deals affected</div>
+              </div>
+              <div className="bg-card border border-border rounded-xl p-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Deals scanned</div>
+                <div className="text-2xl font-medium text-foreground mt-1">{filteredDeals.length}</div>
+                <div className="text-[10px] text-muted-foreground">Across all done MBRs &amp; Fathom notes</div>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-muted-foreground mb-3">
+              Flags are auto-generated from completed MBR notes, AI summaries, and Fathom transcripts. Use them as starting prompts —
+              always confirm with the deal team before acting.
+            </p>
+
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
+              <table className="w-full text-ui">
+                <thead>
+                  <tr className="bg-secondary/40 border-b border-border">
+                    <th className="text-left py-2.5 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Severity</th>
+                    <th className="text-left py-2.5 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Account</th>
+                    <th className="text-left py-2.5 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Deal</th>
+                    <th className="text-left py-2.5 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">VSD</th>
+                    <th className="text-left py-2.5 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Sr. BOPM</th>
+                    <th className="text-left py-2.5 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Flags</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {flagInsights.grouped.length === 0 && (
+                    <tr><td colSpan={6} className="text-center py-8 text-muted-foreground text-xs">
+                      No flags detected. Either no MBRs have been recorded yet or all signals look clean.
+                    </td></tr>
+                  )}
+                  {flagInsights.grouped.map(({ deal, flags, worst }) => {
+                    const sevBadge =
+                      worst === "red" ? "bg-destructive/15 text-destructive border-destructive/30" :
+                      worst === "yellow" ? "bg-warning/15 text-warning border-warning/30" :
+                      "bg-primary/15 text-primary border-primary/30";
+                    const sevLabel = worst === "red" ? "Critical" : worst === "yellow" ? "Watch" : "Opportunity";
+                    return (
+                      <tr key={deal.id} className="border-b border-border/50 hover:bg-secondary/30">
+                        <td className="py-2.5 px-3 align-top">
+                          <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold border", sevBadge)}>
+                            {sevLabel}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-xs text-foreground align-top">{deal.account}</td>
+                        <td className="py-2.5 px-3 align-top">
+                          <Link to={`/deals/${deal.id}?tab=MBR`} className="text-primary hover:underline text-xs font-medium">
+                            {deal.dealName}
+                          </Link>
+                        </td>
+                        <td className="py-2.5 px-3 text-xs text-muted-foreground align-top">{deal.vsd || "—"}</td>
+                        <td className="py-2.5 px-3 text-xs text-muted-foreground align-top">{deal.seniorBopm || deal.principalBopm || "—"}</td>
+                        <td className="py-2.5 px-3 align-top">
+                          <div className="flex flex-col gap-1.5">
+                            {flags.map((f, i) => (
+                              <div key={i} className="flex items-start gap-2">
+                                <span className={cn(
+                                  "mt-0.5 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium border whitespace-nowrap",
+                                  f.severity === "red" ? "bg-destructive/10 text-destructive border-destructive/30" :
+                                  f.severity === "yellow" ? "bg-warning/10 text-warning border-warning/30" :
+                                  "bg-primary/10 text-primary border-primary/30"
+                                )}>{f.type}</span>
+                                {f.detail && (
+                                  <span className="text-[11px] text-muted-foreground italic line-clamp-2" title={f.detail}>
+                                    "{f.detail}"
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </TabsContent>
 
           <TabsContent value="table" className="mt-0">
