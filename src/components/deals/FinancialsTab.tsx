@@ -38,6 +38,11 @@ export interface FinancialRow {
   invoiceDate?: string;
   receivedDate?: string;
   outstandingDate?: string;
+  contractionTarget?: number;
+  deliveryTarget?: number;
+  deliveryActual?: number;
+  invoicingTarget?: number;
+  receivablesTarget?: number;
 }
 
 interface DealInfo {
