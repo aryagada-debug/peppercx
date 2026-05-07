@@ -62,6 +62,9 @@ export interface RGYWeekly {
   resolutionDueDate?: string;
   issueStatus?: string;
   createdAt?: string;
+  updatedBy?: string;
+  updatedByName?: string;
+  updatedAt?: string;
 }
 
 export interface OnboardingStep {
