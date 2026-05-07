@@ -143,6 +143,9 @@ export function useDealDetail(dealId: string | undefined) {
       discussedActionPlan: r.discussed_action_plan || "", actionPlan: r.action_plan || "",
       resolutionDueDate: r.resolution_due_date || undefined, issueStatus: r.issue_status || "Open",
       createdAt: r.created_at,
+      updatedBy: r.updated_by || undefined,
+      updatedByName: r.updated_by_name || "",
+      updatedAt: r.updated_at || r.created_at,
     })));
     if (onb.data) setOnboarding(onb.data.map((r: any) => ({ id: r.id, dealId: r.deal_id, stepName: r.step_name, category: r.category, owner: r.owner, dueDate: r.due_date, completed: r.completed, completedAt: r.completed_at, sortOrder: r.sort_order })));
     {
