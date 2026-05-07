@@ -228,12 +228,12 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete }:
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <PipelineCard title="Contraction" att={pipeline.consumption.att} value={pipeline.consumption.value} target={pipeline.consumption.target}
             status={pipeline.consumption.att >= 100
-              ? `Over-contracted by ${fmtCurrency(totals.consumption - totals.contracted)}`
-              : `${fmtCurrency(totals.contracted - totals.consumption)} pending contraction`} />
+              ? `Over-contracted by ${fmtCurrency(totals.consumption - totals.contractionTarget)}`
+              : `${fmtCurrency(Math.max(0, totals.contractionTarget - totals.consumption))} pending contraction`} />
           <PipelineCard title="Delivery" att={pipeline.delivery.att} value={pipeline.delivery.value} target={pipeline.delivery.target}
-            status={`${fmtCurrency(Math.max(0, totals.consumption - totals.consumption))} pending delivery`} />
+            status={`${fmtCurrency(Math.max(0, totals.deliveryTarget - totals.deliveryActual))} pending delivery`} />
           <PipelineCard title="Invoicing" att={pipeline.invoicing.att} value={pipeline.invoicing.value} target={pipeline.invoicing.target}
-            status={`${(100 - pipeline.invoicing.att).toFixed(0)}% of deal pending invoicing`} />
+            status={`${fmtCurrency(Math.max(0, (totals.invoicingTarget || netDealValue) - totals.invoiced))} pending invoicing`} />
           <PipelineCard title="Receivables" att={pipeline.receivables.att} value={pipeline.receivables.value} target={pipeline.receivables.target}
             status={`${fmtCurrency(totals.outstanding)} outstanding`} />
         </div>
