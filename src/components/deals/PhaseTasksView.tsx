@@ -475,17 +475,24 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [templateEditorOpen, setTemplateEditorOpen] = useState(false);
 
-  // Check if tasks have been seeded
-  const phaseTasks = useMemo(() => tasks.filter(t => t.phase && t.phase !== ""), [tasks]);
+  // Tasks with no phase land in a synthetic "General" bucket so ad-hoc tasks
+  // (created from Home, RGY Health, etc.) remain visible in the deal Tasks tab.
+  const GENERAL_PHASE = "General";
+  const phaseTasks = useMemo(
+    () => tasks.map(t => (t.phase && t.phase !== "" ? t : { ...t, phase: GENERAL_PHASE })),
+    [tasks]
+  );
   const hasPhaseData = phaseTasks.length > 0;
 
   // Group tasks by phase
   const tasksByPhase = useMemo(() => {
     const map: Record<string, DealTask[]> = {};
     ONBOARDING_PHASES.forEach(p => { map[p.phase] = []; });
+    map[GENERAL_PHASE] = [];
     phaseTasks.forEach(t => {
-      if (map[t.phase!]) map[t.phase!].push(t);
-      else map[t.phase!] = [t];
+      const key = t.phase || GENERAL_PHASE;
+      if (map[key]) map[key].push(t);
+      else map[key] = [t];
     });
     return map;
   }, [phaseTasks]);
@@ -635,8 +642,11 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
     phaseTasks.forEach(t => {
       if (t.phase && !phaseNames.includes(t.phase)) phaseNames.push(t.phase);
     });
+    if ((tasksByPhase[GENERAL_PHASE]?.length || 0) > 0 && !phaseNames.includes(GENERAL_PHASE)) {
+      phaseNames.push(GENERAL_PHASE);
+    }
     return phaseNames;
-  }, [phaseTasks]);
+  }, [phaseTasks, tasksByPhase]);
 
   if (!hasPhaseData) {
     return (
