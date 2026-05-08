@@ -474,6 +474,7 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [templateEditorOpen, setTemplateEditorOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Tasks with no phase land in a synthetic "General" bucket so ad-hoc tasks
   // (created from Home, RGY Health, etc.) remain visible in the deal Tasks tab.
@@ -536,33 +537,10 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
 
   // Handle marking task done with per-task auto-regen
   const handleStageChange = useCallback((taskId: string, newStage: string) => {
-    // Find the task BEFORE updating, so we have the current autoRegen value
-    const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
-
-    const shouldRegen = task.autoRegen && newStage === "Done" && task.stage !== "Done";
-
+    // Auto-regen is handled centrally by the parent updateTask hook so a
+    // recurring task doesn't get inserted twice.
     onUpdate(taskId, { stage: newStage });
-
-    if (shouldRegen) {
-      onAdd({
-        dealId: task.dealId,
-        title: task.title,
-        description: task.description,
-        stage: "To Do",
-        assignee: task.assignee,
-        urgency: task.urgency,
-        loggedHours: 0,
-        sortOrder: (tasksByPhase[task.phase || ""]?.length || 0) + 1,
-        estimatedHours: task.estimatedHours || 0,
-        subtasks: [],
-        phase: task.phase,
-        tags: task.tags,
-        autoRegen: true,
-      });
-      toast.success(`"${task.title}" auto-regenerated as a new To Do task`);
-    }
-  }, [tasks, onUpdate, onAdd, tasksByPhase]);
+  }, [onUpdate]);
 
   const handleDeleteConfirm = () => {
     if (deleteConfirmId) {
@@ -574,11 +552,6 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
 
   const handleEditSubmit = (data: TaskData) => {
     if (!editTask) return;
-
-    const wasNotDone = editTask.stage !== "Done";
-    const nowDone = data.stage === "Done";
-    const shouldRegen = wasNotDone && nowDone && data.autoRegen;
-
     onUpdate(editTask.id, {
       title: data.title,
       description: data.description,
@@ -591,25 +564,6 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
       subtasks: data.subtasks || [],
       autoRegen: data.autoRegen || false,
     });
-
-    if (shouldRegen) {
-      onAdd({
-        dealId: editTask.dealId,
-        title: data.title,
-        description: data.description,
-        stage: "To Do",
-        assignee: data.assignee,
-        urgency: data.urgency,
-        loggedHours: 0,
-        sortOrder: (tasksByPhase[editTask.phase || ""]?.length || 0) + 1,
-        estimatedHours: data.estimatedHours || 0,
-        subtasks: [],
-        phase: editTask.phase,
-        tags: editTask.tags,
-        autoRegen: true,
-      });
-      toast.success(`"${data.title}" auto-regenerated as a new To Do task`);
-    }
     setEditTask(null);
   };
 
@@ -633,8 +587,19 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
     });
   };
 
-  // Tasks to display
-  const visibleTasks = showAll ? phaseTasks : (tasksByPhase[activePhase] || []);
+  // Tasks to display (with search filter applied)
+  const baseTasks = showAll ? phaseTasks : (tasksByPhase[activePhase] || []);
+  const visibleTasks = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return baseTasks;
+    return baseTasks.filter(t =>
+      (t.title || "").toLowerCase().includes(q) ||
+      (t.description || "").toLowerCase().includes(q) ||
+      (t.assignee || "").toLowerCase().includes(q) ||
+      (t.phase || "").toLowerCase().includes(q) ||
+      (t.tags || []).some(tag => tag.toLowerCase().includes(q))
+    );
+  }, [baseTasks, searchQuery]);
 
   // Get all unique phases from tasks (for dynamic phase list)
   const allPhases = useMemo(() => {
@@ -746,6 +711,12 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
             <p className="text-xs text-muted-foreground">{visibleTasks.length} task{visibleTasks.length !== 1 ? "s" : ""}</p>
           </div>
           <div className="flex items-center gap-3">
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search tasks…"
+              className="h-8 w-56 text-[12px]"
+            />
             {/* View toggle */}
             <div className="flex items-center border border-border rounded-lg overflow-hidden">
               <button
@@ -777,25 +748,7 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
             dealId={dealId}
             assignees={assignees}
             onAdd={(task) => onAdd({ ...task, phase: showAll ? "" : activePhase })}
-            onUpdate={(id, updates) => {
-              // Handle auto-regen on drag to Done in Kanban
-              if (updates.stage === "Done") {
-                const task = tasks.find(t => t.id === id);
-                if (task && task.stage !== "Done" && task.autoRegen) {
-                  onUpdate(id, updates);
-                  onAdd({
-                    dealId: task.dealId, title: task.title, description: task.description,
-                    stage: "To Do", assignee: task.assignee, urgency: task.urgency,
-                    loggedHours: 0, sortOrder: (tasksByPhase[task.phase || ""]?.length || 0) + 1,
-                    estimatedHours: task.estimatedHours || 0, subtasks: [],
-                    phase: task.phase, tags: task.tags, autoRegen: true,
-                  });
-                  toast.success(`"${task.title}" auto-regenerated as a new To Do task`);
-                  return;
-                }
-              }
-              onUpdate(id, updates);
-            }}
+            onUpdate={onUpdate}
             onDelete={onDelete}
           />
         ) : visibleTasks.length > 0 ? (
