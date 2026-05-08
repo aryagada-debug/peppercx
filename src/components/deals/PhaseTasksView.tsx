@@ -674,13 +674,13 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
   }
 
   return (
-    <div className="animate-fade-in flex gap-4 min-h-[500px]">
+    <div className="animate-fade-in flex gap-4 h-[calc(100vh-280px)] min-h-[500px] overflow-hidden">
       {/* ── Left Pane: Phase Navigation ── */}
-      <div className="w-64 shrink-0 border border-border rounded-xl bg-card overflow-hidden">
+      <div className="w-64 shrink-0 border border-border rounded-xl bg-card overflow-hidden flex flex-col">
         <div className="p-3 border-b border-border bg-secondary/30">
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Phases</p>
         </div>
-        <div className="overflow-y-auto max-h-[600px]">
+        <div className="overflow-y-auto flex-1">
           {/* Show All option */}
           <button
             onClick={() => { setShowAll(true); setSelectedPhase(null); }}
