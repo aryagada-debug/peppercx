@@ -880,6 +880,7 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
             <button onClick={() => setCreateOpen(true)} className="text-primary hover:underline mt-2 inline-block">+ Add a task</button>
           </div>
         )}
+        </div>
       </div>
 
       {/* Edit Task Dialog */}
