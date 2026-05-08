@@ -515,6 +515,7 @@ export default function HomePage() {
   }, [myKanbanTasks, taskSearch, deals]);
 
   const handleKanbanUpdate = useCallback(async (id: string, updates: Partial<DealTask>) => {
+    const prevTask = dealTasks.find(t => t.id === id);
     const dbUpdates: any = {};
     if (updates.title !== undefined) dbUpdates.title = updates.title;
     if (updates.description !== undefined) dbUpdates.description = updates.description;
@@ -531,7 +532,32 @@ export default function HomePage() {
     setDealTasks(prev => prev.map(t => t.id === id ? { ...t, ...dbUpdates } : t));
     const { error } = await supabase.from("deal_tasks").update(dbUpdates).eq("id", id);
     if (error) { toast.error(error.message); loadTasks(); }
-  }, [loadTasks]);
+    // Auto-regen: clone task back into "To Do" when it lands in Done.
+    if (
+      !error &&
+      prevTask &&
+      updates.stage === "Done" &&
+      prevTask.stage !== "Done" &&
+      (updates.autoRegen ?? prevTask.auto_regen)
+    ) {
+      const { data: inserted } = await supabase.from("deal_tasks").insert({
+        deal_id: prevTask.deal_id,
+        title: prevTask.title,
+        description: prevTask.description || "",
+        assignee: prevTask.assignee || "",
+        stage: "To Do",
+        end_date: prevTask.end_date || null,
+        urgency: prevTask.urgency,
+        estimated_hours: prevTask.estimated_hours || 0,
+        logged_hours: 0,
+        subtasks: (Array.isArray(prevTask.subtasks) ? prevTask.subtasks : []).map((s: any) => ({ ...s, completed: false })),
+        auto_regen: true,
+        phase: prevTask.phase || "",
+        sort_order: 0,
+      } as any).select().maybeSingle();
+      if (inserted) setDealTasks(prev => [...prev, inserted as any]);
+    }
+  }, [loadTasks, dealTasks]);
 
   const handleKanbanDelete = useCallback(async (id: string) => {
     setDealTasks(prev => prev.filter(t => t.id !== id));

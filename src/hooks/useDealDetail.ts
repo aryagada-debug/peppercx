@@ -546,10 +546,14 @@ export function useDealDetail(dealId: string | undefined) {
 
   const updateTask = useCallback(async (id: string, updates: Partial<DealTask>) => {
     let prevAssignee: string | undefined;
+    let prevStage: string | undefined;
+    let prevTask: DealTask | undefined;
     let nextTask: DealTask | undefined;
     setTasks(prev => prev.map(t => {
       if (t.id !== id) return t;
       prevAssignee = t.assignee;
+      prevStage = t.stage;
+      prevTask = t;
       nextTask = { ...t, ...updates };
       return nextTask;
     }));
@@ -569,6 +573,45 @@ export function useDealDetail(dealId: string | undefined) {
     if ((updates as any).tags !== undefined) db.tags = (updates as any).tags;
     if (updates.autoRegen !== undefined) db.auto_regen = updates.autoRegen;
     await (supabase.from("deal_tasks") as any).update(db).eq("id", id);
+    // Auto-regenerate: when an auto_regen task is moved to Done, spawn
+    // a fresh copy in "To Do" so the recurring task continues.
+    if (
+      prevTask &&
+      nextTask &&
+      updates.stage === "Done" &&
+      prevStage !== "Done" &&
+      nextTask.autoRegen
+    ) {
+      const { data: inserted } = await (supabase.from("deal_tasks") as any).insert({
+        deal_id: prevTask.dealId,
+        title: prevTask.title,
+        description: prevTask.description || "",
+        assignee: prevTask.assignee || "",
+        stage: "To Do",
+        start_date: null,
+        end_date: prevTask.endDate || null,
+        urgency: prevTask.urgency,
+        estimated_hours: prevTask.estimatedHours || 0,
+        logged_hours: 0,
+        subtasks: (prevTask.subtasks || []).map((s: any) => ({ ...s, completed: false })),
+        auto_regen: true,
+        phase: (prevTask as any).phase || "",
+        tags: (prevTask as any).tags || [],
+        sort_order: 0,
+      }).select().maybeSingle();
+      if (inserted) {
+        const r: any = inserted;
+        setTasks(prev => [...prev, {
+          id: r.id, dealId: r.deal_id, title: r.title, description: r.description || "",
+          stage: r.stage, assignee: r.assignee || "", startDate: r.start_date || undefined,
+          endDate: r.end_date || undefined, urgency: r.urgency,
+          loggedHours: Number(r.logged_hours) || 0, sortOrder: r.sort_order || 0,
+          estimatedHours: Number(r.estimated_hours) || 0,
+          subtasks: Array.isArray(r.subtasks) ? r.subtasks : [],
+          autoRegen: !!r.auto_regen, phase: r.phase || "", tags: Array.isArray(r.tags) ? r.tags : [],
+        } as any]);
+      }
+    }
     // Notify only when assignee actually changed to a non-empty value.
     if (
       nextTask &&

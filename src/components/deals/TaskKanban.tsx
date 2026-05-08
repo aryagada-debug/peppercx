@@ -242,14 +242,21 @@ export function TaskKanban({ tasks, dealId, assignees, onAdd, onUpdate, onDelete
     if (!over) return;
 
     const taskId = active.id as string;
-    const newStage = over.id as string;
+    const overId = over.id as string;
 
-    // Check if dropped on a column
-    if (STAGES.includes(newStage as any)) {
-      const task = tasks.find(t => t.id === taskId);
-      if (task && task.stage !== newStage) {
-        onUpdate(taskId, { stage: newStage });
-      }
+    // Resolve the destination stage: either dropped on a column,
+    // or dropped on another card (use that card's stage).
+    let newStage: string | undefined;
+    if (STAGES.includes(overId as any)) {
+      newStage = overId;
+    } else {
+      const overTask = tasks.find(t => t.id === overId);
+      if (overTask) newStage = overTask.stage;
+    }
+    if (!newStage) return;
+    const task = tasks.find(t => t.id === taskId);
+    if (task && task.stage !== newStage) {
+      onUpdate(taskId, { stage: newStage });
     }
   };
 
