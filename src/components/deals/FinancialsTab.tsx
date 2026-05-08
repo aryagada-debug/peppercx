@@ -81,11 +81,12 @@ const colorStyles = {
 };
 
 // ── Editable Table Cell ──
-function EditableTableCell({ value, field, rowId, onUpdate, format = "currency", suffix = "" }: {
+function EditableTableCell({ value, field, rowId, onUpdate, format = "currency", suffix = "", disabled = false }: {
   value: number; field: string; rowId: string;
   onUpdate: (id: string, updates: Partial<FinancialRow>) => void;
   format?: "currency" | "percent";
   suffix?: string;
+  disabled?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [localVal, setLocalVal] = useState(String(value));
@@ -109,7 +110,7 @@ function EditableTableCell({ value, field, rowId, onUpdate, format = "currency",
     }
   }, [localVal, value, field, rowId, onUpdate]);
 
-  if (editing) {
+  if (editing && !disabled) {
     return (
       <td className="py-1 px-1.5 text-right">
         <input
@@ -127,8 +128,11 @@ function EditableTableCell({ value, field, rowId, onUpdate, format = "currency",
 
   return (
     <td
-      className="py-2.5 px-3 text-right tabular-nums cursor-pointer hover:bg-[#F1EFE8]/60 transition-colors relative"
-      onClick={() => setEditing(true)}
+      className={cn(
+        "py-2.5 px-3 text-right tabular-nums relative",
+        disabled ? "cursor-default" : "cursor-pointer hover:bg-[#F1EFE8]/60 transition-colors"
+      )}
+      onClick={() => { if (!disabled) setEditing(true); }}
     >
       {showCheck && <Check className="absolute left-0.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#639922]" />}
       {format === "currency" ? fmtCurrency(value) : `${value}${suffix}`}
@@ -136,7 +140,12 @@ function EditableTableCell({ value, field, rowId, onUpdate, format = "currency",
   );
 }
 
-export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete }: Props) {
+interface PropsExtended extends Props {
+  canEdit?: boolean;
+  canAddMonth?: boolean;
+}
+
+export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, canEdit = true, canAddMonth = true }: PropsExtended) {
   const [addOpen, setAddOpen] = useState(false);
 
   const totals = useMemo(() => {
@@ -286,12 +295,14 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete }:
       <div className="rounded-xl border border-[#D3D1C7] bg-white overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-[#D3D1C7]">
           <p className="text-[13px] font-medium">Monthly financials</p>
-          <button
-            onClick={() => setAddOpen(true)}
-            className="flex items-center gap-1 text-[13px] font-medium text-[#534AB7] bg-[#EEEDFE] border border-[#534AB7]/20 rounded-lg px-3 py-1.5 hover:bg-[#E3E1FC] transition-colors"
-          >
-            <Plus className="h-3.5 w-3.5" /> Add month
-          </button>
+          {canAddMonth && (
+            <button
+              onClick={() => setAddOpen(true)}
+              className="flex items-center gap-1 text-[13px] font-medium text-[#534AB7] bg-[#EEEDFE] border border-[#534AB7]/20 rounded-lg px-3 py-1.5 hover:bg-[#E3E1FC] transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5" /> Add month
+            </button>
+          )}
         </div>
 
         <div className="overflow-x-auto">
@@ -319,17 +330,17 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete }:
                     return (
                       <tr key={row.id} className={cn("group", idx < rows.length - 1 && "border-b border-[#D3D1C7]/50")}>
                         <td className="py-2.5 px-3 font-medium text-muted-foreground">{fmtMonth(row.month)}</td>
-                        <EditableTableCell value={row.contracted} field="contracted" rowId={row.id} onUpdate={onUpdate} />
-                        <EditableTableCell value={row.consumption} field="consumption" rowId={row.id} onUpdate={onUpdate} />
+                        <EditableTableCell value={row.contracted} field="contracted" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
+                        <EditableTableCell value={row.consumption} field="consumption" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
                         <td className="py-2.5 px-3 text-right">
                           <span className={cn("inline-block px-1.5 py-0.5 rounded text-[11px] font-medium", cs.bg, cs.text)}>
                             {att.toFixed(0)}%
                           </span>
                         </td>
-                        <EditableTableCell value={row.plannedGmPct} field="plannedGmPct" rowId={row.id} onUpdate={onUpdate} format="percent" suffix="%" />
-                        <EditableTableCell value={row.actualGmPct} field="actualGmPct" rowId={row.id} onUpdate={onUpdate} format="percent" suffix="%" />
-                        <EditableTableCell value={row.invoiced} field="invoiced" rowId={row.id} onUpdate={onUpdate} />
-                        <EditableTableCell value={row.received} field="received" rowId={row.id} onUpdate={onUpdate} />
+                        <EditableTableCell value={row.plannedGmPct} field="plannedGmPct" rowId={row.id} onUpdate={onUpdate} format="percent" suffix="%" disabled={!canEdit} />
+                        <EditableTableCell value={row.actualGmPct} field="actualGmPct" rowId={row.id} onUpdate={onUpdate} format="percent" suffix="%" disabled={!canEdit} />
+                        <EditableTableCell value={row.invoiced} field="invoiced" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
+                        <EditableTableCell value={row.received} field="received" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
                         <td className={cn("py-2.5 px-3 text-right tabular-nums", row.outstanding > 0 && "text-[#791F1F]")}>{fmtCurrency(row.outstanding)}</td>
                       </tr>
                     );
