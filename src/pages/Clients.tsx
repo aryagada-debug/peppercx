@@ -149,11 +149,11 @@ export default function Clients() {
     [allClients, visibleClientIdSet, access.isAdmin]
   );
   const isDealEditable = useCallback(
-    (dealId: string) => access.isAdmin || access.canEditDeal(dealId),
+    (_dealId: string) => access.isAdmin,
     [access]
   );
   const isClientEditable = useCallback(
-    (clientId: string) => access.isAdmin || access.canEditClient(clientId),
+    (_clientId: string) => access.isAdmin,
     [access]
   );
 
