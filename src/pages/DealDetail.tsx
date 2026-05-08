@@ -1465,7 +1465,8 @@ export default function DealDetail() {
   const initialTab = (TABS as readonly string[]).includes(searchParams.get("tab") || "") ? (searchParams.get("tab") as TabKey) : "Overview";
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
   const { deals, people, assignments, loading: staffLoading, updateDeal, updatePerson, addAssignment, updateAssignment, deleteAssignment } = useStaffingData();
-  const { isAdmin } = useUserRole();
+  const { isAdmin, role } = useUserRole();
+  const isVsd = role === "member";
   const access = useDealAccess();
   const navigate = useNavigate();
   const canViewThisDeal = !dealId ? false : access.isAdmin || access.canViewDeal(dealId);
@@ -2400,7 +2401,7 @@ export default function DealDetail() {
 
         {/* ══════════ Financials ══════════ */}
         {activeTab === "Financials" && (
-          <FinancialsTab rows={financials} dealId={dealId!} deal={deal ? { totalDealValue: deal.totalDealValue, mrr: deal.mrr } : undefined} onAdd={addFinancial} onUpdate={updateFinancial} onDelete={deleteFinancial} />
+          <FinancialsTab rows={financials} dealId={dealId!} deal={deal ? { totalDealValue: deal.totalDealValue, mrr: deal.mrr } : undefined} onAdd={addFinancial} onUpdate={updateFinancial} onDelete={deleteFinancial} canEdit={isAdmin} canAddMonth={isAdmin || isVsd} />
         )}
 
         {/* ══════════ Tasks ══════════ */}
