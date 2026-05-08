@@ -94,7 +94,7 @@ export function useDealDetail(dealId: string | undefined) {
     if (!dealId) return;
     loadAll();
 
-    // Realtime sync for MBR entries
+    // Realtime sync for MBR entries and deal tasks
     const channel = supabase
       .channel(`mbr-deal-${dealId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "mbr_entries", filter: `deal_id=eq.${dealId}` }, async () => {
@@ -107,6 +107,18 @@ export function useDealDetail(dealId: string | undefined) {
           scheduledDate: e.scheduled_date || null, anirudhAdded: !!e.anirudh_added,
           anirudhJoining: !!e.anirudh_joining, inputRecordedAt: e.input_recorded_at || null,
           mbrPptLink: e.mbr_ppt_link || null,
+        })));
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "deal_tasks", filter: `deal_id=eq.${dealId}` }, async () => {
+        const { data } = await supabase.from("deal_tasks").select("*").eq("deal_id", dealId).order("sort_order");
+        if (data) setTasks(data.map((r: any) => ({
+          id: r.id, dealId: r.deal_id, title: r.title, description: r.description || "",
+          stage: r.stage, assignee: r.assignee || "", startDate: r.start_date || undefined,
+          endDate: r.end_date || undefined, urgency: r.urgency, loggedHours: Number(r.logged_hours),
+          sortOrder: r.sort_order, estimatedHours: Number(r.estimated_hours || 0),
+          subtasks: Array.isArray(r.subtasks) ? r.subtasks : [],
+          phase: r.phase || "", tags: Array.isArray(r.tags) ? r.tags : [],
+          autoRegen: !!r.auto_regen,
         })));
       })
       .subscribe();
