@@ -461,9 +461,11 @@ export default function HomePage() {
         () => loadNotifications())
       .on("postgres_changes", { event: "*", schema: "public", table: "smart_nudges", filter: `user_id=eq.${user.id}` },
         () => loadNudges())
+      .on("postgres_changes", { event: "*", schema: "public", table: "deal_tasks" },
+        () => loadTasks())
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [user, loadNotifications, loadNudges]);
+  }, [user, loadNotifications, loadNudges, loadTasks]);
 
   // Combined task list
   const allMyTasks = useMemo(() => {
