@@ -738,9 +738,9 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
       </div>
 
       {/* ── Right Pane: Tasks ── */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 shrink-0">
           <div>
             <h3 className="text-base font-semibold">{showAll ? "All Tasks" : activePhase}</h3>
             <p className="text-xs text-muted-foreground">{visibleTasks.length} task{visibleTasks.length !== 1 ? "s" : ""}</p>
@@ -768,6 +768,7 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
             </Button>
           </div>
         </div>
+        <div className="flex-1 min-h-0 overflow-y-auto pr-1">
 
         {/* Task Views */}
         {viewMode === "kanban" ? (
