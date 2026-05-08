@@ -475,17 +475,24 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [templateEditorOpen, setTemplateEditorOpen] = useState(false);
 
-  // Check if tasks have been seeded
-  const phaseTasks = useMemo(() => tasks.filter(t => t.phase && t.phase !== ""), [tasks]);
+  // Tasks with no phase land in a synthetic "General" bucket so ad-hoc tasks
+  // (created from Home, RGY Health, etc.) remain visible in the deal Tasks tab.
+  const GENERAL_PHASE = "General";
+  const phaseTasks = useMemo(
+    () => tasks.map(t => (t.phase && t.phase !== "" ? t : { ...t, phase: GENERAL_PHASE })),
+    [tasks]
+  );
   const hasPhaseData = phaseTasks.length > 0;
 
   // Group tasks by phase
   const tasksByPhase = useMemo(() => {
     const map: Record<string, DealTask[]> = {};
     ONBOARDING_PHASES.forEach(p => { map[p.phase] = []; });
+    map[GENERAL_PHASE] = [];
     phaseTasks.forEach(t => {
-      if (map[t.phase!]) map[t.phase!].push(t);
-      else map[t.phase!] = [t];
+      const key = t.phase || GENERAL_PHASE;
+      if (map[key]) map[key].push(t);
+      else map[key] = [t];
     });
     return map;
   }, [phaseTasks]);
@@ -635,8 +642,11 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
     phaseTasks.forEach(t => {
       if (t.phase && !phaseNames.includes(t.phase)) phaseNames.push(t.phase);
     });
+    if ((tasksByPhase[GENERAL_PHASE]?.length || 0) > 0 && !phaseNames.includes(GENERAL_PHASE)) {
+      phaseNames.push(GENERAL_PHASE);
+    }
     return phaseNames;
-  }, [phaseTasks]);
+  }, [phaseTasks, tasksByPhase]);
 
   if (!hasPhaseData) {
     return (
@@ -664,13 +674,13 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
   }
 
   return (
-    <div className="animate-fade-in flex gap-4 min-h-[500px]">
+    <div className="animate-fade-in flex gap-4 h-[calc(100vh-280px)] min-h-[500px] overflow-hidden">
       {/* ── Left Pane: Phase Navigation ── */}
-      <div className="w-64 shrink-0 border border-border rounded-xl bg-card overflow-hidden">
+      <div className="w-64 shrink-0 border border-border rounded-xl bg-card overflow-hidden flex flex-col">
         <div className="p-3 border-b border-border bg-secondary/30">
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Phases</p>
         </div>
-        <div className="overflow-y-auto max-h-[600px]">
+        <div className="overflow-y-auto flex-1">
           {/* Show All option */}
           <button
             onClick={() => { setShowAll(true); setSelectedPhase(null); }}
@@ -728,9 +738,9 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
       </div>
 
       {/* ── Right Pane: Tasks ── */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 shrink-0">
           <div>
             <h3 className="text-base font-semibold">{showAll ? "All Tasks" : activePhase}</h3>
             <p className="text-xs text-muted-foreground">{visibleTasks.length} task{visibleTasks.length !== 1 ? "s" : ""}</p>
@@ -758,6 +768,7 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
             </Button>
           </div>
         </div>
+        <div className="flex-1 min-h-0 overflow-y-auto pr-1">
 
         {/* Task Views */}
         {viewMode === "kanban" ? (
@@ -869,6 +880,7 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
             <button onClick={() => setCreateOpen(true)} className="text-primary hover:underline mt-2 inline-block">+ Add a task</button>
           </div>
         )}
+        </div>
       </div>
 
       {/* Edit Task Dialog */}
