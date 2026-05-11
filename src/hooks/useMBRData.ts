@@ -19,6 +19,21 @@ export interface MBRDeal {
   mrr: number | null;
   totalDealValue: number | null;
   netDealValue: number | null;
+  dealType: string;
+}
+
+// A deal is considered a Retainer if its deal_type is "Retainer" (or contains
+// "retainer" without "non"). Fallback to customer_type when deal_type is empty.
+export function isRetainerDeal(d: { dealType?: string; customerType?: string }): boolean {
+  const dt = (d.dealType || "").toLowerCase().trim();
+  if (dt) {
+    if (dt.includes("non")) return false;
+    return dt.includes("retainer");
+  }
+  const ct = (d.customerType || "").toLowerCase().trim();
+  if (!ct) return true; // unknown -> treat as retainer by default to preserve prior behavior
+  if (ct.includes("non retainer") || ct.includes("non-retainer")) return false;
+  return true;
 }
 
 export interface ActionItem {
@@ -116,8 +131,7 @@ async function fetchMBRDeals(): Promise<MBRDeal[]> {
   return data
     .filter((d: any) => {
       const ct = (d.customer_type || "").toLowerCase().trim();
-      if (!ct) return true;
-      if (ct.includes("non retainer") || ct.includes("non-retainer")) return false;
+      // Keep retainers and non-retainers; only drop churned / irrelevant.
       if (ct === "churned" || ct.includes("churned")) return false;
       if (ct === "irrelevant") return false;
       return true;
@@ -139,6 +153,7 @@ async function fetchMBRDeals(): Promise<MBRDeal[]> {
       mrr: d.mrr ? Number(d.mrr) : null,
       totalDealValue: d.total_deal_value ? Number(d.total_deal_value) : null,
       netDealValue: d.net_deal_value ? Number(d.net_deal_value) : null,
+      dealType: d.deal_type || "",
     }));
 }
 
