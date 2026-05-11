@@ -757,6 +757,20 @@ export default function HomePage() {
   }, [myKanbanTasks, taskSearch, deals]);
 
   const handleKanbanUpdate = useCallback(async (id: string, updates: Partial<DealTask>) => {
+    const todoId = fromTodoTaskId(id);
+    if (todoId) {
+      const dbUpdates: any = {};
+      if (updates.title !== undefined) dbUpdates.title = updates.title;
+      if (updates.description !== undefined) dbUpdates.notes = updates.description;
+      if (updates.endDate !== undefined) dbUpdates.due_date = updates.endDate || null;
+      if (updates.urgency !== undefined) dbUpdates.priority = updates.urgency;
+      if (updates.stage === "Done" || updates.stage === "Dropped") dbUpdates.done = true;
+      if (Object.keys(dbUpdates).length === 0) return;
+      setTodos(prev => prev.map(t => t.id === todoId ? { ...t, ...dbUpdates } : t));
+      const { error } = await supabase.from("personal_todos").update(dbUpdates).eq("id", todoId);
+      if (error) { toast.error(error.message); loadTodos(); }
+      return;
+    }
     const prevTask = dealTasks.find(t => t.id === id);
     const dbUpdates: any = {};
     if (updates.title !== undefined) dbUpdates.title = updates.title;
@@ -807,14 +821,22 @@ export default function HomePage() {
       } as any).select().maybeSingle();
       if (inserted) setDealTasks(prev => [...prev, inserted as any]);
     }
-  }, [loadTasks, dealTasks]);
+  }, [loadTasks, loadTodos, dealTasks]);
 
   const handleKanbanDelete = useCallback(async (id: string) => {
+    const todoId = fromTodoTaskId(id);
+    if (todoId) {
+      setTodos(prev => prev.filter(t => t.id !== todoId));
+      const { error } = await supabase.from("personal_todos").delete().eq("id", todoId);
+      if (error) { toast.error(error.message); loadTodos(); }
+      else toast.success("Task deleted");
+      return;
+    }
     setDealTasks(prev => prev.filter(t => t.id !== id));
     const { error } = await supabase.from("deal_tasks").delete().eq("id", id);
     if (error) toast.error(error.message);
     else toast.success("Task deleted");
-  }, []);
+  }, [loadTodos]);
 
   // Account activity (replaces Recently Viewed) — recomputes when alias set changes
   const { items: activityItems, loading: loadingActivity } = useAccountActivity(aliasesRef.current, !!displayName, 25);
