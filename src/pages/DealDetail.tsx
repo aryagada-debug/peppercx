@@ -1340,18 +1340,30 @@ function RGYIssueForm({ dealId, currentRGY, assignees, teamMembers, onSaveIssue,
   );
 }
 // ── Grouped RGY History ──
-function GroupedRGYHistory({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
+function GroupedRGYHistory({ rgyWeekly, groupBy = "week" }: { rgyWeekly: RGYWeekly[]; groupBy?: "week" | "month" }) {
   const [expandedWeeks, setExpandedWeeks] = useState<Set<string>>(new Set());
 
   const grouped = useMemo(() => {
     const map: Record<string, RGYWeekly[]> = {};
+    const keyOf = (r: RGYWeekly) => groupBy === "month" ? (r.weekStart || "").slice(0, 7) : r.weekStart;
     rgyWeekly.forEach(r => {
-      if (!map[r.weekStart]) map[r.weekStart] = [];
-      map[r.weekStart].push(r);
+      const k = keyOf(r);
+      if (!k) return;
+      if (!map[k]) map[k] = [];
+      map[k].push(r);
     });
-    // Sort weeks descending
+    // Sort each group by createdAt desc so [0] is latest
+    Object.values(map).forEach(arr => arr.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || "")));
     return Object.entries(map).sort(([a], [b]) => b.localeCompare(a));
-  }, [rgyWeekly]);
+  }, [rgyWeekly, groupBy]);
+
+  const formatGroupLabel = (k: string) => {
+    if (groupBy !== "month") return k;
+    const [y, m] = k.split("-");
+    if (!y || !m) return k;
+    const d = new Date(Number(y), Number(m) - 1, 1);
+    return d.toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+  };
 
   const toggleWeek = (week: string) => {
     setExpandedWeeks(prev => {
@@ -1414,8 +1426,9 @@ function GroupedRGYHistory({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
         </thead>
         <tbody>
           {grouped.map(([weekStart, entries]) => {
+            const groupLabel = formatGroupLabel(weekStart);
             if (entries.length === 1) {
-              return renderRow(entries[0], weekStart);
+              return renderRow(entries[0], groupLabel);
             }
             const isExpanded = expandedWeeks.has(weekStart);
             const latest = entries[0]; // already sorted by created_at desc
@@ -1430,8 +1443,8 @@ function GroupedRGYHistory({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
                   <td className="py-2 px-3 font-mono text-xs text-foreground">
                     <span className="inline-flex items-center gap-1">
                       {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                      {weekStart}
-                      <Badge variant="outline" className="text-[9px] ml-1">{entries.length} changes</Badge>
+                      {groupLabel}
+                      <Badge variant="outline" className="text-[9px] ml-1">{entries.length} {groupBy === "month" ? "entries" : "changes"}</Badge>
                     </span>
                   </td>
                   {[latest.customer || "G", latest.internal || "G", latest.content || "G", latest.seo || "G", latest.supply || "G", latest.copy || "G", latest.design || "G", latest.video || "G"].map((val, i) => (
@@ -1454,7 +1467,7 @@ function GroupedRGYHistory({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
                     ) : <span className="text-muted-foreground text-[10px]">—</span>}
                   </td>
                 </tr>
-                {isExpanded && entries.slice(1).map(r => renderRow(r, "", true))}
+                {isExpanded && entries.slice(1).map(r => renderRow(r, groupBy === "month" ? (r.weekStart || "") : "", true))}
               </React.Fragment>
             );
           })}
