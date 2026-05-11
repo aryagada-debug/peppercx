@@ -1133,7 +1133,8 @@ export default function MBRTracker() {
                   </thead>
                   <tbody>
                     {tableRows.map(({ deal, entry }) => {
-                      const status = entry?.status || "Pending";
+                      const retainer = isRetainerDeal(deal);
+                      const status = entry?.status || (retainer ? "Pending" : "Not Required");
                       return (
                         <tr
                                 key={deal.id}
@@ -1156,7 +1157,7 @@ export default function MBRTracker() {
                                     status === "Not Done" && "bg-destructive/15 text-destructive",
                                     status === "Not Required" && "bg-muted text-muted-foreground",
                                     status === "Pending" && "bg-warning/15 text-warning",
-                                  )}>{status}</span>
+                                  )} title={!retainer ? "Non-retainer — MBR not mandatory" : undefined}>{!retainer && status === "Not Required" ? "N/R" : status}</span>
                                 </td>
                                 <td className="py-2 px-3 text-center">{sentimentDot(entry?.sentiment ?? null)}</td>
                                 <td className="py-2 px-3 text-xs text-muted-foreground whitespace-nowrap">{entry?.scheduledDate || "—"}</td>
