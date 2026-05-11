@@ -34,7 +34,7 @@ import { SlackHomeBubble } from "@/components/slack/SlackHomeBubble";
 import { CxDatePickerPopover } from "@/components/cx/CxDatePickerPopover";
 import { useAccountActivity } from "@/hooks/useAccountActivity";
 import { Activity as ActivityIcon } from "lucide-react";
-import { useVsdUsers, useBopmDirectory } from "@/hooks/useAppUsers";
+import { useVsdUsers, useBopmDirectory, nameKey } from "@/hooks/useAppUsers";
 
 const DEAL_STAGES = ["To Do", "In Progress", "In Review", "Done", "Dropped"] as const;
 
@@ -51,7 +51,7 @@ interface CxTaskRow { id: string; space_id: string; title: string; assignee: str
 interface PersonalTodo { id: string; user_id: string; title: string; notes: string; done: boolean; due_date: string | null; priority: string; sort_order: number; }
 interface RGYFlagRow { id: string; deal_id: string; week_start: string; issue_status: string | null; resolution_due_date: string | null; issue_details: string | null; }
 interface InactivityRow { id: string; deal_id: string; channel_id: string; week_start: string; message_count: number; }
-interface DealLite { id: string; deal_name: string; account: string; end_date?: string | null; }
+interface DealLite { id: string; deal_name: string; account: string; end_date?: string | null; vsd?: string | null; principal_bopm?: string | null; senior_bopm?: string | null; bopm?: string | null; }
 interface PersonLite { id: string; name: string; designation: string | null; tbh: boolean; }
 interface SmartNudge { id: string; type: string; text: string; target_entity_type: string; target_entity_id: string; target_entity_name: string; primary_action_label: string; primary_action_href: string; confidence: number; generated_at: string; snoozed_until: string | null; }
 interface UserNotification { id: string; type: string; actor_name: string; body: string; source_entity_type: string; source_entity_id: string; source_entity_name: string; cta_href: string; read: boolean; created_at: string; }
@@ -160,6 +160,7 @@ export default function HomePage() {
   }, [calConnected, calListEvents]);
 
   const aliasesRef = useRef<Set<string>>(new Set());
+  const peopleNameByIdRef = useRef<Map<string, string>>(new Map());
 
   const computeAliases = (dn: string, sn: string, email: string | null | undefined): Set<string> => {
     const s = new Set<string>();
