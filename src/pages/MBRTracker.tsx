@@ -1244,7 +1244,8 @@ export default function MBRTracker() {
                       {availableMonths.map(m => {
                         const monthData = entriesByMonth.get(m);
                         const entry = monthData?.get(deal.id);
-                        const status = entry?.status || "Pending";
+                        const retainer = isRetainerDeal(deal);
+                        const status = entry?.status || (retainer ? "Pending" : "Not Required");
                         return (
                           <td
                             key={m}
