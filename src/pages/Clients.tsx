@@ -637,7 +637,7 @@ export default function Clients() {
         {/* Row 1: Title + KPIs + Actions */}
         <div className="flex items-start gap-4 mb-3 flex-wrap">
           <h1 className="text-subhead font-bold tracking-tight text-foreground whitespace-nowrap mt-2">Clients & Deals</h1>
-          <div className="flex flex-1 gap-2.5 flex-wrap min-w-0">
+          <div className="flex flex-1 gap-2.5 flex-nowrap min-w-0 overflow-hidden">
           {[
             {
               label: "Clients", value: String(kpis.clients), Icon: Building2, tint: "sky",
@@ -665,12 +665,12 @@ export default function Clients() {
               tone: "muted" as const,
             },
           ].map(({ label, value, Icon, tint, insight, tone }) => {
-            const tintMap: Record<string, { bg: string; ring: string; chip: string; icon: string }> = {
-              sky: { bg: "from-sky-500/10", ring: "border-sky-500/20", chip: "bg-sky-500/15", icon: "text-sky-500" },
-              violet: { bg: "from-violet-500/10", ring: "border-violet-500/20", chip: "bg-violet-500/15", icon: "text-violet-500" },
-              emerald: { bg: "from-emerald-500/10", ring: "border-emerald-500/20", chip: "bg-emerald-500/15", icon: "text-emerald-500" },
-              amber: { bg: "from-amber-500/10", ring: "border-amber-500/20", chip: "bg-amber-500/15", icon: "text-amber-500" },
-              rose: { bg: "from-rose-500/10", ring: "border-rose-500/20", chip: "bg-rose-500/15", icon: "text-rose-500" },
+            const tintMap: Record<string, { bg: string; ring: string; icon: string }> = {
+              sky: { bg: "from-sky-500/10", ring: "border-sky-500/20", icon: "text-sky-500" },
+              violet: { bg: "from-violet-500/10", ring: "border-violet-500/20", icon: "text-violet-500" },
+              emerald: { bg: "from-emerald-500/10", ring: "border-emerald-500/20", icon: "text-emerald-500" },
+              amber: { bg: "from-amber-500/10", ring: "border-amber-500/20", icon: "text-amber-500" },
+              rose: { bg: "from-rose-500/10", ring: "border-rose-500/20", icon: "text-rose-500" },
             };
             const t = tintMap[tint];
             const toneClass =
@@ -681,18 +681,16 @@ export default function Clients() {
               <div
                 key={label}
                 className={cn(
-                  "flex flex-1 min-w-[140px] items-center gap-3 px-4 py-3 rounded-xl border bg-gradient-to-br to-transparent backdrop-blur-sm transition-all hover:shadow-sm",
+                  "flex flex-1 min-w-0 flex-col px-3 py-2 rounded-xl border bg-gradient-to-br to-transparent",
                   t.bg, t.ring,
                 )}
               >
-                <div className={cn("rounded-lg p-2", t.chip)}>
-                  <Icon className={cn("h-5 w-5", t.icon)} />
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Icon className={cn("h-3.5 w-3.5 shrink-0", t.icon)} />
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground leading-tight truncate">{label}</p>
                 </div>
-                <div className="min-w-0">
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground leading-tight">{label}</p>
-                  <p className="text-2xl font-semibold tracking-tight text-foreground font-mono leading-tight truncate mt-0.5">{value}</p>
-                  <p className={cn("text-[10px] mt-0.5 truncate", toneClass)} title={insight}>{insight}</p>
-                </div>
+                <p className="text-xl font-semibold tracking-tight text-foreground font-mono leading-tight truncate mt-1" title={value}>{value}</p>
+                <p className={cn("text-[10px] mt-0.5 truncate", toneClass)} title={insight}>{insight}</p>
               </div>
             );
           })}
