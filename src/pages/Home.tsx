@@ -1392,6 +1392,8 @@ export default function HomePage() {
               ? `Client: ${deals[editingDealTask.deal_id].account || "—"} · Deal: ${deals[editingDealTask.deal_id].deal_name}`
               : undefined
           }
+          createdAt={editingDealTask.created_at || null}
+          createdByName={editingDealTask.created_by_name || null}
           initial={{
             title: editingDealTask.title, description: editingDealTask.description || "",
             stage: editingDealTask.stage, assignee: editingDealTask.assignee,
