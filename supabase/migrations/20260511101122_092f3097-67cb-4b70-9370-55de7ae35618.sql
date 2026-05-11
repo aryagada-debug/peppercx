@@ -1,0 +1,1 @@
+ALTER TABLE public.task_templates ADD COLUMN IF NOT EXISTS created_by uuid;
