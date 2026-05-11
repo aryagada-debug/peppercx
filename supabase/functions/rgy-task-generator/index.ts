@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
         .select("id")
         .eq("deal_id", d.id)
         .eq("assignee", assignee)
-        .eq("phase", "RGY")
+        .eq("phase", "RGY Issues")
         .eq("auto_regen", true)
         .neq("stage", "Done")
         .limit(1);
@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
         assignee,
         stage: "To Do",
         urgency: "High",
-        phase: "RGY",
+        phase: "RGY Issues",
         auto_regen: true,
         end_date: due,
       } as any);
