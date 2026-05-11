@@ -42,6 +42,7 @@ export function AddStaffingMemberDialog({
 }: AddStaffingMemberDialogProps) {
   const { canEditAll } = useUserRole();
   const requiresApproval = !canEditAll;
+  const canViewCurrentEngagements = canEditAll;
   const isEditMode = !!editingAssignmentId;
   const getInitialStep = (): 1 | 2 | 3 => {
     if (initialPersonName) return 3;
@@ -423,7 +424,7 @@ export function AddStaffingMemberDialog({
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-border overflow-hidden">
+                {canViewCurrentEngagements && <div className="rounded-lg border border-border overflow-hidden">
                   <div className="flex items-center justify-between p-3 bg-secondary/30">
                     <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Current Engagements</span>
                     <div className="flex items-center gap-2 text-xs">
@@ -460,9 +461,9 @@ export function AddStaffingMemberDialog({
                       <p className="text-xs text-muted-foreground text-center py-2">No current assignments — fully available</p>
                     )}
                   </div>
-                </div>
+                </div>}
 
-                {util.total >= 100 && (
+                {canViewCurrentEngagements && util.total >= 100 && (
                   <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 flex items-start gap-2">
                     <AlertTriangle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
                     <p className="text-xs text-warning">This person is already at {util.total}% capacity across other deals. Adding them may exceed 100%.</p>
