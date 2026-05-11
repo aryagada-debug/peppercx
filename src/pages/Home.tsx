@@ -160,7 +160,6 @@ export default function HomePage() {
   }, [calConnected, calListEvents]);
 
   const aliasesRef = useRef<Set<string>>(new Set());
-  const peopleNameByIdRef = useRef<Map<string, string>>(new Map());
 
   const computeAliases = (dn: string, sn: string, email: string | null | undefined): Set<string> => {
     const s = new Set<string>();
@@ -240,9 +239,7 @@ export default function HomePage() {
       setDealAssignmentsMap(m);
     }
     const { data: peopleRows } = await supabase.from("staffing_people").select("id, name, designation, tbh");
-    const people = (peopleRows as PersonLite[]) || [];
-    peopleNameByIdRef.current = new Map(people.map(p => [p.id, p.name]));
-    setAllPeople(people);
+    setAllPeople((peopleRows as PersonLite[]) || []);
     setLoadingTasks(false);
   }, [user, isAdmin]);
 
