@@ -119,6 +119,7 @@ export function useDealDetail(dealId: string | undefined) {
           subtasks: Array.isArray(r.subtasks) ? r.subtasks : [],
           phase: r.phase || "", tags: Array.isArray(r.tags) ? r.tags : [],
           autoRegen: !!r.auto_regen,
+          assignees: Array.isArray(r.assignees) ? r.assignees : (r.assignee ? [r.assignee] : []),
         })));
       })
       .subscribe();
@@ -210,6 +211,7 @@ export function useDealDetail(dealId: string | undefined) {
       subtasks: Array.isArray(r.subtasks) ? r.subtasks : [],
       phase: r.phase || "", tags: Array.isArray(r.tags) ? r.tags : [],
       autoRegen: !!r.auto_regen,
+      assignees: Array.isArray(r.assignees) ? r.assignees : (r.assignee ? [r.assignee] : []),
     })));
     if (mbr.data) setMbrEntries(mbr.data.map((e: any) => ({
       id: e.id,
@@ -505,27 +507,35 @@ export function useDealDetail(dealId: string | undefined) {
   };
 
   const addTask = useCallback(async (task: Omit<DealTask, "id">) => {
+    const list = (task.assignees && task.assignees.length > 0)
+      ? task.assignees
+      : (task.assignee ? [task.assignee] : []);
     const { data } = await (supabase.from("deal_tasks") as any).insert({
       deal_id: task.dealId, title: task.title, description: task.description,
-      stage: task.stage, assignee: task.assignee, start_date: task.startDate || null,
+      stage: task.stage, assignee: list[0] || "", assignees: list, start_date: task.startDate || null,
       end_date: task.endDate || null, urgency: task.urgency, logged_hours: task.loggedHours,
       sort_order: task.sortOrder, estimated_hours: task.estimatedHours || 0,
       subtasks: task.subtasks || [], phase: task.phase || "", tags: task.tags || [],
       auto_regen: task.autoRegen || false,
     }).select().single();
-    if (data) setTasks(prev => [...prev, { id: data.id, ...task }]);
-    notifyTask(task.assignee, task.dealId, { title: task.title, urgency: task.urgency, endDate: task.endDate });
+    if (data) setTasks(prev => [...prev, { id: data.id, ...task, assignees: list, assignee: list[0] || "" }]);
+    list.forEach(n => notifyTask(n, task.dealId, { title: task.title, urgency: task.urgency, endDate: task.endDate }));
   }, []);
 
   const addTasksBulk = useCallback(async (taskRows: Omit<DealTask, "id">[]) => {
-    const rows = taskRows.map(task => ({
-      deal_id: task.dealId, title: task.title, description: task.description,
-      stage: task.stage, assignee: task.assignee, start_date: task.startDate || null,
-      end_date: task.endDate || null, urgency: task.urgency, logged_hours: task.loggedHours || 0,
-      sort_order: task.sortOrder, estimated_hours: task.estimatedHours || 0,
-      subtasks: task.subtasks || [], phase: task.phase || "", tags: task.tags || [],
-      auto_regen: task.autoRegen || false,
-    }));
+    const rows = taskRows.map(task => {
+      const list = (task.assignees && task.assignees.length > 0)
+        ? task.assignees
+        : (task.assignee ? [task.assignee] : []);
+      return {
+        deal_id: task.dealId, title: task.title, description: task.description,
+        stage: task.stage, assignee: list[0] || "", assignees: list, start_date: task.startDate || null,
+        end_date: task.endDate || null, urgency: task.urgency, logged_hours: task.loggedHours || 0,
+        sort_order: task.sortOrder, estimated_hours: task.estimatedHours || 0,
+        subtasks: task.subtasks || [], phase: task.phase || "", tags: task.tags || [],
+        auto_regen: task.autoRegen || false,
+      };
+    });
     const { data } = await (supabase.from("deal_tasks") as any).insert(rows).select();
     if (data) {
       const mapped = data.map((r: any) => ({
@@ -536,6 +546,7 @@ export function useDealDetail(dealId: string | undefined) {
         subtasks: Array.isArray(r.subtasks) ? r.subtasks : [],
         phase: r.phase || "", tags: Array.isArray(r.tags) ? r.tags : [],
         autoRegen: !!r.auto_regen,
+        assignees: Array.isArray(r.assignees) ? r.assignees : (r.assignee ? [r.assignee] : []),
       }));
       setTasks(prev => [...prev, ...mapped]);
       mapped.forEach((t: DealTask) =>
@@ -562,6 +573,12 @@ export function useDealDetail(dealId: string | undefined) {
     if (updates.description !== undefined) db.description = updates.description;
     if (updates.stage !== undefined) db.stage = updates.stage;
     if (updates.assignee !== undefined) db.assignee = updates.assignee;
+    if ((updates as any).assignees !== undefined) {
+      const list = (updates as any).assignees as string[];
+      db.assignees = list;
+      // Keep `assignee` mirrored as the primary (first) name for back-compat.
+      db.assignee = list[0] || "";
+    }
     if (updates.startDate !== undefined) db.start_date = updates.startDate;
     if (updates.endDate !== undefined) db.end_date = updates.endDate;
     if (updates.urgency !== undefined) db.urgency = updates.urgency;
@@ -587,6 +604,7 @@ export function useDealDetail(dealId: string | undefined) {
         title: prevTask.title,
         description: prevTask.description || "",
         assignee: prevTask.assignee || "",
+        assignees: Array.isArray((prevTask as any).assignees) ? (prevTask as any).assignees : (prevTask.assignee ? [prevTask.assignee] : []),
         stage: "To Do",
         start_date: null,
         end_date: prevTask.endDate || null,
@@ -609,6 +627,7 @@ export function useDealDetail(dealId: string | undefined) {
           estimatedHours: Number(r.estimated_hours) || 0,
           subtasks: Array.isArray(r.subtasks) ? r.subtasks : [],
           autoRegen: !!r.auto_regen, phase: r.phase || "", tags: Array.isArray(r.tags) ? r.tags : [],
+          assignees: Array.isArray(r.assignees) ? r.assignees : (r.assignee ? [r.assignee] : []),
         } as any]);
       }
     }
