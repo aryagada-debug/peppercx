@@ -652,7 +652,7 @@ export default function RGYHealth() {
     { key: "video", label: "Video" },
     { key: "ai_summary", label: "AI Summary" },
   ]), []);
-  const DEFAULT_VISIBLE = ["account","deal_name","deal_status","overall_rgy","customer","internal"];
+  const DEFAULT_VISIBLE = ["account","deal_name","deal_id","deal_status","overall_rgy","customer","internal","content","seo","supply","copy","design","video","ai_summary"];
   const [visibleCols, setVisibleCols] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem("rgy-visible-cols");
