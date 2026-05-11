@@ -1,60 +1,58 @@
-## 1. KPI cards (Clients & Deals header)
+## Goal
 
-File: `src/pages/Clients.tsx` (the inline 5-card row around L612-672).
+Improve Home → Tasks so tasks show their deal/client context, support multiple assignees, allow VSDs to view everyone's tasks (like Clients & Deals), and stay visible on Home + Deal Tasks even when assigned to someone else.
 
-Restyle each card to match the screenshot:
-- Header row: small icon (h-3.5 w-3.5) inline with the uppercase label (no separate chip/box wrapping the icon).
-- Big tabular number below the header.
-- Small subtitle line below the number (existing `insight`).
-- Pastel gradient background + thin tinted border per tile (sky / violet / emerald / amber / rose) — already wired via `tintMap`, just remove the chip block.
-- Tiles flex-1, never wrap to a second row at any width: keep `flex-nowrap` on the row container and let value/subtitle truncate. Drop `min-w-[140px]`.
+## Scope (4 changes)
 
-Keep all 5 tiles as today: Clients, Renewals < 60d, Active Deals, Total MRR, Total Value. No data changes.
+### 1. Show deal + client name on task cards and in edit dialog (Home)
+- In `src/components/deals/TaskKanban.tsx` (compact card render path used by Home), accept an optional `dealMeta?: Record<string, { dealName: string; account: string }>` prop. When present, render a small two-line context above the title: `<account> · <deal name>` in muted text. Clicking the chip navigates to `/deals/<dealId>?tab=tasks`.
+- In `src/pages/Home.tsx`, build that map from the existing `deals` state and pass it to `TaskKanban`. Also append the context to the Edit dialog title (`Edit Task — <account> · <deal name>`).
+- Deal-detail Tasks tab is unaffected (no `dealMeta` passed → no chip).
 
-Tile structure (rough):
+### 2. Show client + deal name in the Create-Task form (Home)
+- `src/pages/Home.tsx` `AddTaskDialog`: once `dealId` is picked, the inner `TaskFormDialog` title already shows the deal name; extend it to `New Task — <account> · <deal name>` and add a small read-only context strip ("Client: X · Deal: Y") at the top of the dialog body so it's visible while scrolling.
+- Implemented by passing an optional `headerSubtitle?: string` prop to `TaskFormDialog` rendered above the Title field. Default unchanged for existing callers.
+
+### 3. Multiple assignees
+- DB migration: add `assignees text[] not null default '{}'` to `deal_tasks` and `cx_tasks`. Keep existing `assignee text` as a denormalized "primary assignee" (first of `assignees`) for backward compatibility with existing filters/triggers/edge functions; backfill `assignees = ARRAY[assignee]` when assignee is non-empty.
+- `TaskFormDialog.tsx`: replace the single `AssigneeCombobox` for the top-level Assignee field with a multi-select variant (chips + searchable popover, same staffed/other grouping). Subtask assignee stays single-select. `TaskData` gains `assignees: string[]`; `assignee` derived as `assignees[0] || ""` on submit.
+- All write paths (`handleDealTaskSave`, `handleAddTaskSubmit`, `handleKanbanUpdate`, Deal-detail PhaseTasksView/TaskKanban) write both `assignees` and `assignee`.
+- All read paths that filter by "mine" check membership against `assignees` (fallback to `assignee` if empty). This is the key fix for issue #4 below — a task assigned to multiple people will appear in every assignee's Home.
+
+### 4. VSD "View everyone's tasks" filter + always-visible after assigning to others
+- In `src/pages/Home.tsx`, add a filter control above the Tasks card matching the Clients page pattern: a `Select` "View tasks for" with three modes — `Me` (default), `Everyone` (admin or VSD only), or a specific person (searchable). Allowed when `isAdmin` or the user appears as a VSD on any `staffing_deals` row.
+- The "mine" predicate becomes: `Me` → current aliases, `Everyone` → all, `<person>` → that person's aliases. Tasks list and KPI counts use this predicate.
+- Fix the "task assigned to others disappears" bug independently of the filter: after creating a task, optimistically add it to local `dealTasks` if the creator is also a watcher (creator selected themselves in `assignees`) OR if the new task's deal is one of the creator's deals — show under a "Created by me" tab so they aren't lost. Concretely: add a `taskScope` tab `Mine | Created by me | Watching` next to the existing `taskFilter` (today/overdue/upcoming/all). "Created by me" reads from a new lightweight `deal_tasks.created_by_name text` column (added in the same migration, backfilled `''`) populated on insert.
+- Deal-detail Tasks tab already shows all tasks for that deal, so once the task is written the assignee on another deal sees it there (issue #4 part b) — verified by the existing PhaseTasksView fetch which does not filter by assignee.
+
+## Technical details
 
 ```text
-[icon] LABEL
-123
-subtitle line
+deal_tasks
+  + assignees     text[]   not null default '{}'
+  + created_by    uuid     null               -- auth.uid() at insert
+  + created_by_name text   not null default ''
+cx_tasks
+  + assignees     text[]   not null default '{}'
+  + created_by    uuid     null
+  + created_by_name text   not null default ''
 ```
 
-## 2. RGY column → bigger block with R / G / Y letter
+Backfill:
+```sql
+update public.deal_tasks set assignees = array[assignee] where assignee <> '' and (assignees is null or array_length(assignees,1) is null);
+update public.cx_tasks   set assignees = array[assignee] where assignee <> '' and (assignees is null or array_length(assignees,1) is null);
+```
 
-File: `src/pages/Clients.tsx` (column at L805 header, L968 cell; `ragDot` helper at L60).
-
-- Replace the 2px dot with a ~22×22 rounded-md block, centered, with the letter "R", "G", or "Y" inside, white text on `bg-rgy-red / bg-rgy-green / bg-rgy-yellow` (tokens already in `index.css`). "N/A" → muted block with "—". Pending → outlined empty block.
-- Slightly widen the column (e.g. 56 → 72) so the block is comfortable.
-
-## 3. Computed deal RGY from 8 dimensions
-
-The current `deal.rag` comes from a single field. Replace it with a weighted roll-up of the 8 RGY dimensions from `deal_rgy_weekly` (latest row per deal): `customer`, `internal`, `content`, `seo`, `supply`, `copy`, `design`, `video`.
-
-Weights (per request):
-- Overall Customer: 50
-- Internal: 10
-- Content / SEO / Supply / Copy / Design / Video: 5 each (30 total)
-- Total = 90 — treated as relative weights and normalized; "NA"/"PENDING" cells are excluded from both numerator and denominator so the score reflects only rated dimensions.
-
-Scoring per dimension value: G = 1.0, Y = 0.5, R = 0.0.
-Final color:
-- score ≥ 0.75 → G
-- 0.40 ≤ score < 0.75 → Y
-- score < 0.40 → R
-- If every dimension is NA/Pending → "pending" (empty block).
-
-Where to compute:
-- Load the latest `deal_rgy_weekly` row per deal id (we already do this elsewhere; reuse the pattern in `src/hooks/useStaleRgy.ts` / `src/hooks/useAccountActivity.ts`). Add a lightweight hook `useDealRgyRollup(dealIds)` returning `Map<dealId, { letter: 'R'|'Y'|'G'|'NA'|'PENDING' }>`.
-- In `Clients.tsx`, prefer the rolled-up letter over `deal.rag` when rendering the column, in the filter at L346-350, and in the at-risk count at L391.
-
-## Technical notes
-
-- All colors use existing semantic tokens (`bg-rgy-red`, `bg-rgy-green`, `bg-rgy-yellow`, `text-white`/`text-foreground`), no hex.
-- Icons stay from `lucide-react` (Building2, Briefcase, Activity, TrendingUp, DollarSign).
-- No DB migrations, no schema changes — read-only roll-up on client.
-- `BopmClientsHeader.tsx` (the BOPM-filtered alt header) is out of scope unless you want the same treatment there too.
+Files touched:
+- `supabase/migrations/<ts>_task_multi_assignee.sql` (new)
+- `src/components/deals/TaskFormDialog.tsx` — multi-select assignee, header subtitle prop
+- `src/components/deals/TaskKanban.tsx` — render deal/client chip + multi-assignee avatars on cards
+- `src/pages/Home.tsx` — VSD/everyone filter, taskScope tabs, dealMeta wiring, write `assignees`/`created_by_name`
+- `src/components/deals/PhaseTasksView.tsx` — write/read `assignees`, render multi-assignee chips
+- `src/hooks/useDealDetail.ts` — include `assignees` in select and updates
 
 ## Out of scope
-
-- Edits to the RGY Health page logic itself.
-- Persisting the rolled-up letter back to a column.
+- No changes to RLS (tables already have permissive policies).
+- No change to RGY-task-generator edge function payload (it can keep writing `assignee`; trigger-free backfill handles `assignees`).
+- No redesign of the Tasks card layout beyond the new chip + filter row.

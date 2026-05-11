@@ -357,8 +357,11 @@ export type Database = {
       cx_tasks: {
         Row: {
           assignee: string
+          assignees: string[]
           auto_regen: boolean
           created_at: string
+          created_by: string | null
+          created_by_name: string
           description: string
           end_date: string | null
           estimated_hours: number
@@ -377,8 +380,11 @@ export type Database = {
         }
         Insert: {
           assignee?: string
+          assignees?: string[]
           auto_regen?: boolean
           created_at?: string
+          created_by?: string | null
+          created_by_name?: string
           description?: string
           end_date?: string | null
           estimated_hours?: number
@@ -397,8 +403,11 @@ export type Database = {
         }
         Update: {
           assignee?: string
+          assignees?: string[]
           auto_regen?: boolean
           created_at?: string
+          created_by?: string | null
+          created_by_name?: string
           description?: string
           end_date?: string | null
           estimated_hours?: number
@@ -824,8 +833,11 @@ export type Database = {
       deal_tasks: {
         Row: {
           assignee: string
+          assignees: string[]
           auto_regen: boolean
           created_at: string
+          created_by: string | null
+          created_by_name: string
           deal_id: string
           description: string
           end_date: string | null
@@ -844,8 +856,11 @@ export type Database = {
         }
         Insert: {
           assignee?: string
+          assignees?: string[]
           auto_regen?: boolean
           created_at?: string
+          created_by?: string | null
+          created_by_name?: string
           deal_id: string
           description?: string
           end_date?: string | null
@@ -864,8 +879,11 @@ export type Database = {
         }
         Update: {
           assignee?: string
+          assignees?: string[]
           auto_regen?: boolean
           created_at?: string
+          created_by?: string | null
+          created_by_name?: string
           deal_id?: string
           description?: string
           end_date?: string | null
