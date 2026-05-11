@@ -52,13 +52,15 @@ interface DealTaskRow {
 interface CxTaskRow { id: string; space_id: string; title: string; assignee: string; assignees?: string[]; status: string; start_date: string | null; end_date: string | null; urgency: string; }
 interface PersonalTodo {
   id: string;
-  user_id: string;
+  user_id: string | null;
   title: string;
   notes: string;
   done: boolean;
   due_date: string | null;
   priority: string;
   sort_order: number;
+  created_at?: string;
+  assignee_staffing_person_id?: string | null;
   assigned_by_user_id?: string | null;
   assigned_by_name?: string | null;
   assignee_name?: string | null;
@@ -73,6 +75,10 @@ interface RecentView { id: string; entity_type: string; entity_id: string; entit
 interface UserPin { id: string; entity_type: string; entity_id: string; entity_name: string; pinned_at: string; }
 interface QuotaRow { id: string; period_type: string; period_start: string; period_end: string; target_amount: number; }
 interface MyDeal { id: string; deal_name: string; account: string; deal_status: string; mrr: number | null; total_deal_value: number | null; end_date: string | null; my_role: string; }
+
+const TODO_TASK_PREFIX = "todo:";
+const toTodoTaskId = (id: string) => `${TODO_TASK_PREFIX}${id}`;
+const fromTodoTaskId = (id: string) => id.startsWith(TODO_TASK_PREFIX) ? id.slice(TODO_TASK_PREFIX.length) : null;
 
 function isOverdue(s: string | null) { if (!s) return false; const d = parseISO(s); return isPast(d) && !isToday(d); }
 function isDueToday(s: string | null) { if (!s) return false; return isToday(parseISO(s)); }
@@ -609,11 +615,13 @@ export default function HomePage() {
         () => loadNotifications())
       .on("postgres_changes", { event: "*", schema: "public", table: "smart_nudges", filter: `user_id=eq.${user.id}` },
         () => loadNudges())
+      .on("postgres_changes", { event: "*", schema: "public", table: "personal_todos" },
+        () => loadTodos())
       .on("postgres_changes", { event: "*", schema: "public", table: "deal_tasks" },
         () => loadTasks())
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [user, loadNotifications, loadNudges, loadTasks]);
+  }, [user, loadNotifications, loadNudges, loadTodos, loadTasks]);
 
   // Visible deal/cx tasks, scoped by the "view-as" filter.
   const aliasMatches = useCallback((names: string[], aliases: Set<string>) => {
@@ -681,7 +689,7 @@ export default function HomePage() {
 
   // Kanban view of my deal tasks (2-way synced via deal_tasks table — same source DealDetail/Staffing uses)
   const myKanbanTasks: DealTask[] = useMemo(() => {
-    return visibleDealTasks.map(t => ({
+    const dealItems = visibleDealTasks.map(t => ({
       id: t.id,
       dealId: t.deal_id,
       title: t.title,
@@ -701,7 +709,30 @@ export default function HomePage() {
       createdAt: t.created_at,
       createdByName: t.created_by_name,
     }));
-  }, [visibleDealTasks]);
+    const todoItems = taskViewAs === "me"
+      ? todos.filter(t => !t.done).map(t => ({
+        id: toTodoTaskId(t.id),
+        dealId: "",
+        title: t.title,
+        description: t.notes || "",
+        stage: "To Do",
+        assignee: t.assignee_name || staffingName || displayName || "",
+        assignees: [t.assignee_name || staffingName || displayName || ""].filter(Boolean),
+        startDate: undefined,
+        endDate: t.due_date || undefined,
+        urgency: t.priority || "Medium",
+        loggedHours: 0,
+        sortOrder: t.sort_order || 0,
+        estimatedHours: 0,
+        subtasks: [],
+        autoRegen: false,
+        phase: "Internal",
+        createdAt: t.created_at,
+        createdByName: t.assigned_by_name || undefined,
+      }))
+      : [];
+    return [...todoItems, ...dealItems];
+  }, [visibleDealTasks, todos, taskViewAs, staffingName, displayName]);
 
   // Map dealId -> { dealName, account } for the Kanban cards.
   const dealMeta = useMemo(() => {
@@ -728,6 +759,20 @@ export default function HomePage() {
   }, [myKanbanTasks, taskSearch, deals]);
 
   const handleKanbanUpdate = useCallback(async (id: string, updates: Partial<DealTask>) => {
+    const todoId = fromTodoTaskId(id);
+    if (todoId) {
+      const dbUpdates: any = {};
+      if (updates.title !== undefined) dbUpdates.title = updates.title;
+      if (updates.description !== undefined) dbUpdates.notes = updates.description;
+      if (updates.endDate !== undefined) dbUpdates.due_date = updates.endDate || null;
+      if (updates.urgency !== undefined) dbUpdates.priority = updates.urgency;
+      if (updates.stage === "Done" || updates.stage === "Dropped") dbUpdates.done = true;
+      if (Object.keys(dbUpdates).length === 0) return;
+      setTodos(prev => prev.map(t => t.id === todoId ? { ...t, ...dbUpdates } : t));
+      const { error } = await supabase.from("personal_todos").update(dbUpdates).eq("id", todoId);
+      if (error) { toast.error(error.message); loadTodos(); }
+      return;
+    }
     const prevTask = dealTasks.find(t => t.id === id);
     const dbUpdates: any = {};
     if (updates.title !== undefined) dbUpdates.title = updates.title;
@@ -778,14 +823,22 @@ export default function HomePage() {
       } as any).select().maybeSingle();
       if (inserted) setDealTasks(prev => [...prev, inserted as any]);
     }
-  }, [loadTasks, dealTasks]);
+  }, [loadTasks, loadTodos, dealTasks]);
 
   const handleKanbanDelete = useCallback(async (id: string) => {
+    const todoId = fromTodoTaskId(id);
+    if (todoId) {
+      setTodos(prev => prev.filter(t => t.id !== todoId));
+      const { error } = await supabase.from("personal_todos").delete().eq("id", todoId);
+      if (error) { toast.error(error.message); loadTodos(); }
+      else toast.success("Task deleted");
+      return;
+    }
     setDealTasks(prev => prev.filter(t => t.id !== id));
     const { error } = await supabase.from("deal_tasks").delete().eq("id", id);
     if (error) toast.error(error.message);
     else toast.success("Task deleted");
-  }, []);
+  }, [loadTodos]);
 
   // Account activity (replaces Recently Viewed) — recomputes when alias set changes
   const { items: activityItems, loading: loadingActivity } = useAccountActivity(aliasesRef.current, !!displayName, 25);
@@ -1096,7 +1149,7 @@ export default function HomePage() {
             {loadingTasks ? <SkeletonRows /> : myKanbanTasks.length === 0 ? (
               <div className="text-center py-8">
                 <CheckCircle2 className="h-8 w-8 text-positive/40 mx-auto mb-2" />
-                <p className="text-xs text-muted-foreground">No tasks assigned to you. Tasks created on a deal where you're tagged will appear here.</p>
+                <p className="text-xs text-muted-foreground">No tasks assigned to you.</p>
               </div>
             ) : filteredKanbanTasks.length === 0 ? (
               <div className="text-center py-8">
