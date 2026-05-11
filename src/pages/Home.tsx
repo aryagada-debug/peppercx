@@ -527,14 +527,15 @@ export default function HomePage() {
     let assigneeName = "";
     let pendingStaffingPersonId: string | null = null;
     if (data.assigneePersonId) {
-      const { data: prof } = await supabase
-        .from("profiles")
-        .select("user_id, display_name")
-        .eq("staffing_person_id", data.assigneePersonId)
-        .maybeSingle();
+      // Use a security-definer RPC because RLS on profiles only exposes
+      // the caller's own row — a direct select would always return null
+      // for other teammates.
+      const { data: resolved } = await supabase
+        .rpc("resolve_assignee_user_id", { _staffing_person_id: data.assigneePersonId });
+      const prof = Array.isArray(resolved) ? resolved[0] : resolved;
       if (prof?.user_id) {
-        ownerUserId = prof.user_id;
-        assigneeName = prof.display_name || data.assigneePersonName || "";
+        ownerUserId = prof.user_id as string;
+        assigneeName = (prof.display_name as string) || data.assigneePersonName || "";
       } else {
         // Assignee hasn't signed in yet — create a pending task linked to
         // their staffing identity. It will appear on their list once they
