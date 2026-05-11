@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { Check, ChevronRight, Plus, Trash2, Pencil, RefreshCw, Tag, List, LayoutGrid, GripVertical, Save, Copy, Settings2, Search, User, Clock, Flag, Calendar, ArrowUp, ArrowDown, X } from "lucide-react";
+import { Check, ChevronRight, Plus, Trash2, Pencil, RefreshCw, Tag, List, LayoutGrid, GripVertical, Save, Copy, Settings2, Search, User, Clock, Flag, Calendar, ArrowUp, ArrowDown, X, Briefcase } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { CxDatePickerPopover } from "@/components/cx/CxDatePickerPopover";
 import { TaskFormDialog, type TaskData } from "./TaskFormDialog";
 import { TaskKanban, type DealTask } from "./TaskKanban";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,8 +26,17 @@ export interface PhaseTemplate {
     description: string;
     assigneeRole: string;
     tags: string[];
+    /** @deprecated kept for legacy saved templates; new templates use dueDate/endDate */
     dayStart?: number;
+    /** @deprecated kept for legacy saved templates; new templates use dueDate/endDate */
     dayEnd?: number;
+    /** Specific person assignee (staffing_people.id). Takes precedence over assigneeRole. */
+    assigneeUserId?: string | null;
+    assigneeUserName?: string | null;
+    /** ISO YYYY-MM-DD */
+    dueDate?: string | null;
+    /** ISO YYYY-MM-DD */
+    endDate?: string | null;
     estimatedHours?: number;
     urgency?: "Low" | "Medium" | "High" | "Critical";
   }[];
@@ -184,16 +196,211 @@ interface SavedTemplate {
   createdBy?: string | null;
 }
 
+// ── Assignee Picker (Role tab + People grouped by designation) ──
+const COMMON_ROLES = [
+  "VSD",
+  "Principal BOPM",
+  "Senior BOPM",
+  "BOPM",
+  "SEO Lead",
+  "Content Lead",
+  "Creative Lead",
+  "Supply Lead",
+];
+
+interface AssigneeOption { id: string; name: string; staffed?: boolean; designation?: string }
+
+function TemplateAssigneePicker({
+  role,
+  userId,
+  userName,
+  assignees,
+  onPickRole,
+  onPickUser,
+}: {
+  role: string;
+  userId: string | null | undefined;
+  userName: string | null | undefined;
+  assignees: AssigneeOption[];
+  onPickRole: (role: string) => void;
+  onPickUser: (id: string, name: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<"role" | "people">(userId ? "people" : "role");
+  const [search, setSearch] = useState("");
+  const [customRole, setCustomRole] = useState("");
+
+  const label = userName || role || "Unassigned";
+  const isUser = !!userId;
+
+  const { onDeal, byDesignation } = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const filt = (p: AssigneeOption) =>
+      !q || p.name.toLowerCase().includes(q) || (p.designation || "").toLowerCase().includes(q);
+    const onDeal = assignees.filter(p => p.staffed && filt(p));
+    const others = assignees.filter(p => !p.staffed && filt(p));
+    const grouped = new Map<string, AssigneeOption[]>();
+    others.forEach(p => {
+      const k = (p.designation || "Other").trim() || "Other";
+      const arr = grouped.get(k) || [];
+      arr.push(p);
+      grouped.set(k, arr);
+    });
+    const byDesignation = Array.from(grouped.entries())
+      .map(([k, list]) => ({ designation: k, people: list.sort((a, b) => a.name.localeCompare(b.name)) }))
+      .sort((a, b) => a.designation.localeCompare(b.designation));
+    return { onDeal, byDesignation };
+  }, [assignees, search]);
+
+  const pickRole = (r: string) => {
+    onPickRole(r);
+    setOpen(false);
+  };
+  const pickUser = (p: AssigneeOption) => {
+    onPickUser(p.id, p.name);
+    setOpen(false);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "flex items-center gap-1 rounded-md pl-2 pr-2 py-0.5 text-[11px] max-w-[180px]",
+            isUser
+              ? "bg-primary/10 text-primary"
+              : "bg-secondary/60 text-foreground hover:bg-secondary"
+          )}
+          title={isUser ? `Assigned to ${userName}` : role ? `Role: ${role}` : "Click to assign"}
+        >
+          {isUser ? <User className="h-3 w-3" /> : <Briefcase className="h-3 w-3 text-muted-foreground" />}
+          <span className="truncate">{label}</span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-72 p-0">
+        <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="w-full">
+          <TabsList className="grid grid-cols-2 m-2">
+            <TabsTrigger value="role" className="text-xs">Role</TabsTrigger>
+            <TabsTrigger value="people" className="text-xs">People</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="role" className="m-0 p-2 pt-0 space-y-0.5 max-h-72 overflow-y-auto">
+            {COMMON_ROLES.map(r => (
+              <button
+                key={r}
+                onClick={() => pickRole(r)}
+                className={cn(
+                  "w-full text-left text-xs px-2 py-1.5 rounded hover:bg-accent",
+                  !isUser && role === r && "bg-primary/10 text-primary font-medium"
+                )}
+              >
+                {r}
+              </button>
+            ))}
+            <div className="border-t border-border mt-1 pt-2">
+              <Label className="text-[10px] text-muted-foreground px-2">Custom role</Label>
+              <div className="flex gap-1 px-2 pt-1">
+                <Input
+                  value={customRole}
+                  onChange={(e) => setCustomRole(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && customRole.trim()) pickRole(customRole.trim()); }}
+                  placeholder="e.g. Analytics Lead"
+                  className="h-7 text-xs"
+                />
+                <Button size="sm" className="h-7 text-xs" disabled={!customRole.trim()} onClick={() => pickRole(customRole.trim())}>Set</Button>
+              </div>
+            </div>
+            {(isUser || role) && (
+              <button
+                onClick={() => { onPickRole(""); setOpen(false); }}
+                className="w-full text-left text-xs px-2 py-1.5 rounded text-destructive hover:bg-destructive/10 mt-1"
+              >
+                Clear assignment
+              </button>
+            )}
+          </TabsContent>
+
+          <TabsContent value="people" className="m-0 p-0">
+            <div className="p-2 border-b border-border">
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by name or designation"
+                className="h-7 text-xs"
+                autoFocus
+              />
+            </div>
+            <div className="max-h-72 overflow-y-auto p-1">
+              {onDeal.length > 0 && (
+                <>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground px-2 pt-1 pb-0.5">On this deal</div>
+                  {onDeal.map(p => (
+                    <button
+                      key={`d-${p.id}`}
+                      onClick={() => pickUser(p)}
+                      className={cn(
+                        "w-full text-left px-2 py-1.5 rounded hover:bg-accent flex items-center justify-between gap-2",
+                        userId === p.id && "bg-primary/10"
+                      )}
+                    >
+                      <span className="text-xs truncate">{p.name}</span>
+                      <span className="text-[10px] text-muted-foreground truncate">{p.designation || ""}</span>
+                    </button>
+                  ))}
+                  <div className="border-t border-border my-1" />
+                </>
+              )}
+              {byDesignation.map(group => (
+                <div key={group.designation}>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground px-2 pt-1 pb-0.5">{group.designation}</div>
+                  {group.people.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => pickUser(p)}
+                      className={cn(
+                        "w-full text-left px-2 py-1.5 rounded hover:bg-accent",
+                        userId === p.id && "bg-primary/10"
+                      )}
+                    >
+                      <span className="text-xs">{p.name}</span>
+                    </button>
+                  ))}
+                </div>
+              ))}
+              {onDeal.length === 0 && byDesignation.length === 0 && (
+                <div className="text-xs text-muted-foreground text-center py-6">No people match.</div>
+              )}
+            </div>
+            {isUser && (
+              <div className="border-t border-border p-1">
+                <button
+                  onClick={() => { onPickRole(""); setOpen(false); }}
+                  className="w-full text-left text-xs px-2 py-1.5 rounded text-destructive hover:bg-destructive/10"
+                >
+                  Clear assignment
+                </button>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 // ── Template Editor Dialog ──
 function TemplateEditorDialog({
   open,
   onOpenChange,
   initialPhases,
+  assignees,
   onSeed,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialPhases: PhaseTemplate[];
+  assignees: AssigneeOption[];
   onSeed: (phases: PhaseTemplate[], opts?: { onlyPhaseIdx?: number; onlyPhaseIdxs?: number[] }) => void;
 }) {
   const [phases, setPhases] = useState<PhaseTemplate[]>(() => JSON.parse(JSON.stringify(initialPhases)));
@@ -485,16 +692,23 @@ function TemplateEditorDialog({
                             rows={2}
                           />
                           <div className="flex items-center gap-2 flex-wrap">
-                            {/* Assignee role chip */}
-                            <div className="flex items-center gap-1 bg-secondary/60 rounded-md pl-2 pr-1 py-0.5">
-                              <User className="h-3 w-3 text-muted-foreground" />
-                              <Input
-                                value={task.assigneeRole}
-                                onChange={(e) => updateTask(tIdx, "assigneeRole", e.target.value)}
-                                className="h-6 w-28 text-[11px] border-0 bg-transparent px-1 focus-visible:ring-0"
-                                placeholder="Assignee"
-                              />
-                            </div>
+                            {/* Assignee (Role or Person) */}
+                            <TemplateAssigneePicker
+                              role={task.assigneeRole}
+                              userId={task.assigneeUserId}
+                              userName={task.assigneeUserName}
+                              assignees={assignees}
+                              onPickRole={(r) => {
+                                updateTask(tIdx, "assigneeRole", r);
+                                updateTask(tIdx, "assigneeUserId", null);
+                                updateTask(tIdx, "assigneeUserName", null);
+                              }}
+                              onPickUser={(id, name) => {
+                                updateTask(tIdx, "assigneeUserId", id);
+                                updateTask(tIdx, "assigneeUserName", name);
+                                updateTask(tIdx, "assigneeRole", "");
+                              }}
+                            />
                             {/* Tag chips */}
                             {(task.tags || []).map((tag, tagIdx) => (
                               <span key={tagIdx} className={cn("inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md font-medium", TAG_COLORS[tag] || "bg-secondary text-muted-foreground")}>
@@ -523,26 +737,40 @@ function TemplateEditorDialog({
                               className="h-6 w-20 text-[11px] bg-secondary/40"
                               placeholder="+ tag"
                             />
-                            {/* Day range chip */}
-                            <div className="flex items-center gap-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-md px-2 py-0.5">
-                              <Calendar className="h-3 w-3" />
-                              <span className="text-[10px]">Day</span>
-                              <input
-                                type="number"
-                                value={task.dayStart ?? ""}
-                                onChange={(e) => updateTask(tIdx, "dayStart", e.target.value === "" ? undefined : Number(e.target.value))}
-                                className="w-8 h-5 text-[10px] bg-transparent border-0 focus:outline-none text-center"
-                                placeholder="—"
-                              />
-                              <span className="text-[10px]">→</span>
-                              <input
-                                type="number"
-                                value={task.dayEnd ?? ""}
-                                onChange={(e) => updateTask(tIdx, "dayEnd", e.target.value === "" ? undefined : Number(e.target.value))}
-                                className="w-8 h-5 text-[10px] bg-transparent border-0 focus:outline-none text-center"
-                                placeholder="—"
-                              />
-                            </div>
+                            {/* Due date */}
+                            <CxDatePickerPopover
+                              value={task.dueDate ?? null}
+                              onChange={(v) => updateTask(tIdx, "dueDate", v)}
+                            >
+                              <button
+                                type="button"
+                                className="flex items-center gap-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-md px-2 py-0.5 text-[10px]"
+                                title="Due date"
+                              >
+                                <Calendar className="h-3 w-3" />
+                                <span>{task.dueDate ? task.dueDate : "Set due"}</span>
+                              </button>
+                            </CxDatePickerPopover>
+                            {/* End date */}
+                            <CxDatePickerPopover
+                              value={task.endDate ?? null}
+                              onChange={(v) => {
+                                if (v && task.dueDate && v < task.dueDate) {
+                                  toast.error("End date must be on or after the due date");
+                                  return;
+                                }
+                                updateTask(tIdx, "endDate", v);
+                              }}
+                            >
+                              <button
+                                type="button"
+                                className="flex items-center gap-1 bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 rounded-md px-2 py-0.5 text-[10px]"
+                                title="End date"
+                              >
+                                <Calendar className="h-3 w-3" />
+                                <span>{task.endDate ? task.endDate : "Set end"}</span>
+                              </button>
+                            </CxDatePickerPopover>
                             {/* Hours chip */}
                             <div className="flex items-center gap-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-md px-2 py-0.5">
                               <Clock className="h-3 w-3" />
@@ -738,22 +966,25 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
     const fmt = (d: Date) => d.toISOString().slice(0, 10);
     targetPhases.forEach(phase => {
       phase.tasks.forEach(t => {
-        let startDate: string | undefined;
-        let endDate: string | undefined;
-        if (typeof t.dayStart === "number") {
+        // Prefer explicit dueDate/endDate set in the editor; fall back to
+        // legacy dayStart/dayEnd offsets for templates saved before this UI change.
+        let startDate: string | undefined = t.dueDate || undefined;
+        let endDate: string | undefined = t.endDate || undefined;
+        if (!startDate && typeof t.dayStart === "number") {
           const s = new Date(today); s.setDate(s.getDate() + t.dayStart);
           startDate = fmt(s);
         }
-        if (typeof t.dayEnd === "number") {
+        if (!endDate && typeof t.dayEnd === "number") {
           const e = new Date(today); e.setDate(e.getDate() + t.dayEnd);
           endDate = fmt(e);
         }
+        const assigneeName = t.assigneeUserName || resolveAssignee(t.assigneeRole, deal);
         rows.push({
           dealId,
           title: t.title,
           description: t.description,
           stage: "To Do",
-          assignee: resolveAssignee(t.assigneeRole, deal),
+          assignee: assigneeName,
           urgency: t.urgency || "Medium",
           loggedHours: 0,
           sortOrder: sortIdx++,
@@ -878,6 +1109,7 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
           open={templateEditorOpen}
           onOpenChange={setTemplateEditorOpen}
           initialPhases={ONBOARDING_PHASES}
+          assignees={assignees}
           onSeed={handleSeedFromEditor}
         />
       </div>
@@ -1127,6 +1359,7 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
         open={templateEditorOpen}
         onOpenChange={setTemplateEditorOpen}
         initialPhases={ONBOARDING_PHASES}
+        assignees={assignees}
         onSeed={handleSeedFromEditor}
       />
 
