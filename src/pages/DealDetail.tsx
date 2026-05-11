@@ -578,6 +578,12 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry, deleteMBREntry, 
   const [editingEntry, setEditingEntry] = useState<MBREntry | null>(null);
   const [viewEntry, setViewEntry] = useState<MBREntry | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleEntry, setScheduleEntry] = useState<MBREntry | null>(null);
+
+  // Overall RGY rollup for this deal (band: R / Y / G / PENDING)
+  const { rgyRollup } = useDealRgyRollup([dealId]);
+  const overallBand = rgyRollup.get(dealId);
 
   const weekOptions = getWeekOptions();
   const currentWeek = weekOptions.find(w => {
