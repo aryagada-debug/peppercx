@@ -52,13 +52,14 @@ interface DealTaskRow {
 interface CxTaskRow { id: string; space_id: string; title: string; assignee: string; assignees?: string[]; status: string; start_date: string | null; end_date: string | null; urgency: string; }
 interface PersonalTodo {
   id: string;
-  user_id: string;
+  user_id: string | null;
   title: string;
   notes: string;
   done: boolean;
   due_date: string | null;
   priority: string;
   sort_order: number;
+  assignee_staffing_person_id?: string | null;
   assigned_by_user_id?: string | null;
   assigned_by_name?: string | null;
   assignee_name?: string | null;
@@ -73,6 +74,10 @@ interface RecentView { id: string; entity_type: string; entity_id: string; entit
 interface UserPin { id: string; entity_type: string; entity_id: string; entity_name: string; pinned_at: string; }
 interface QuotaRow { id: string; period_type: string; period_start: string; period_end: string; target_amount: number; }
 interface MyDeal { id: string; deal_name: string; account: string; deal_status: string; mrr: number | null; total_deal_value: number | null; end_date: string | null; my_role: string; }
+
+const TODO_TASK_PREFIX = "todo:";
+const toTodoTaskId = (id: string) => `${TODO_TASK_PREFIX}${id}`;
+const fromTodoTaskId = (id: string) => id.startsWith(TODO_TASK_PREFIX) ? id.slice(TODO_TASK_PREFIX.length) : null;
 
 function isOverdue(s: string | null) { if (!s) return false; const d = parseISO(s); return isPast(d) && !isToday(d); }
 function isDueToday(s: string | null) { if (!s) return false; return isToday(parseISO(s)); }
