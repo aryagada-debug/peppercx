@@ -1,67 +1,68 @@
-## Goal
+## 1. Phase rail — show only seeded phases
 
-In the Template Editor, upgrade each task row so users can assign either a **role** or a **specific person** (grouped by designation), and replace the relative "Day N → Day N" integers with real **Due date** and **End date** pickers.
+**File:** `src/components/deals/PhaseTasksView.tsx`
 
-## Changes
+- Rewrite the `allPhases` memo (~L1079) so it only includes phase names that actually have tasks in `tasksByPhase`, plus the mandatory generators (`RGY Issues`, `MBR`) **only if they have tasks too** (currently they are force-added). The `General` bucket stays only when it has tasks (already the case).
+- Order: preserve the order tasks were seeded in. We'll track this by using the order phases first appear in `phaseTasks` (sorted by `created_at` / `sort_order`), falling back to `ONBOARDING_PHASES` order for ties.
+- If `allPhases.length === 0`, fall through to the existing `!hasPhaseData` empty state ("Customize & Seed Template"). Update `hasPhaseData` to mean "has at least one phase task" so deleting the last phase brings the empty state back.
 
-### 1. Assignee picker (replaces the free-text "Assignee" input)
+## 2. Delete a seeded phase (and return to seed empty state)
 
-Replace the small text input on each task with a single combobox-style popover trigger that shows the current assignment as a chip ("Senior BOPM" role, or "Priya S. — BOPM" person).
+**File:** `src/components/deals/PhaseTasksView.tsx`
 
-The popover content has two tabs:
+- In the left phase rail row, add a small `Trash2` button that appears on hover (next to the count). Mandatory phases (`RGY Issues`, `MBR`) remain non-deletable — they regenerate.
+- Clicking it opens an `AlertDialog`: "Delete phase X? This will remove N tasks." On confirm:
+  - `supabase.from("deal_tasks").delete().eq("deal_id", dealId).eq("phase", phaseName)`
+  - If the deleted phase was the active one, switch to `All Tasks`.
+- Because `allPhases` is now derived from existing tasks, the row disappears automatically. When the last phase is removed, the empty state renders, exposing **Customize & Seed Template** again.
 
-- **Role** — list of canonical roles already used in templates (VSD, Senior BOPM, BOPM, SEO Lead, Content Lead, etc.) plus a "Custom role…" free-text option. Picking a role stores it on `assigneeRole` (existing field) and clears `assigneeUserId`.
-- **People** — searchable list of users from `staffing_people` (active, non-TBH), **grouped by `designation`** with collapsible group headers. Picking a person stores their id + name on new fields and clears `assigneeRole`.
+## 3. Home → Add Task: support "Internal" task type
 
-Ordering inside the People tab:
-1. **Already assigned on this deal** (matched against the deal's staffing roster) — pinned section at the top labeled "On this deal".
-2. **Everyone else** — grouped by designation, alphabetical inside each group.
+**Files:** `src/pages/Home.tsx`, new migration on `personal_todos`.
 
-A search box at the top filters across both sections by name/email/designation.
+### UI change (Add Task picker, ~L1572)
+Add a segmented toggle at the top of the deal-picker dialog:
+- **Client deal** (default — current behavior, then opens `TaskFormDialog` for `deal_tasks`)
+- **Internal**
 
-### 2. Due date + End date pickers (replace Day N → Day N)
+When **Internal** is selected, the picker shows:
+- Title input
+- Optional notes
+- Assignee picker (reuse the existing `assignees` list from staffing people — same component pattern as `TemplateAssigneePicker`)
+- Priority (Low/Medium/High) + Due date
 
-Remove the "Day [start] → [end]" integer chip. Add two date-picker chips side by side:
+Submit inserts into `personal_todos` with the assignee as `user_id` (so it lands in their personal todos) and `assigned_by_user_id` / `assigned_by_name` set to the current user.
 
-- **Due date** (start) — calendar icon + formatted date, click to open `CxDatePickerPopover` (already in the codebase, supports quick options + calendar + clear).
-- **End date** — same pattern, validated to be ≥ due date (toast warning otherwise).
+### Display change
+- **My Personal Todos panel** on Home: when `assigned_by_user_id` is set and isn't the current user, show a small "from {assigned_by_name}" line under the title.
+- **My Tasks list** (the combined kanban/list on Home): include `personal_todos` rows where `assigned_by_user_id = me OR user_id = me`. Internal items assigned by me to others show up here with parent label "Internal · to {assignee_name}".
 
-Both are optional. Empty state shows "Set due / Set end".
+### Schema change (migration)
+On `personal_todos` add:
+- `assigned_by_user_id uuid` (nullable)
+- `assigned_by_name text default ''`
+- `assignee_name text default ''` (cached display for the owner — so the assigner can read it via index without joining auth)
 
-### 3. Data model
+Update RLS `Own todos select` to also allow `auth.uid() = assigned_by_user_id`. Insert policy widened: a row can be inserted when either `auth.uid() = user_id` (self-todo) **or** `auth.uid() = assigned_by_user_id` (assigning to someone else). Update/delete stay owner-only, except the assigner can delete a row they created (add `auth.uid() = assigned_by_user_id` to the delete policy as well).
 
-`PhaseTemplate.tasks[]` gains:
+How users are picked: we resolve the staffing person → app user by joining `profiles.staffing_person_id`. If no profile exists yet, the row is inserted with a placeholder `user_id` only when the picked person has a linked profile; otherwise we surface a toast "User has not signed in yet — can't assign internal task."
 
-```ts
-assigneeUserId?: string | null;   // staffing_people.id when a person is picked
-assigneeUserName?: string | null; // denormalized for display + offline reuse
-dueDate?: string | null;          // ISO YYYY-MM-DD
-endDate?: string | null;          // ISO YYYY-MM-DD
-```
+## 4. Staffing — replace "Add member" with "Request staffing"
 
-`dayStart` / `dayEnd` are removed from the editor UI but kept in the type as deprecated optionals so existing saved templates (`task_templates.phases` JSON) don't break — they're ignored when rendering. New templates only write the date fields.
+**File:** `src/components/staffing/BopmStaffingFlatTable.tsx` (and any other surface that mounts `AddStaffingMemberDialog`).
 
-### 4. Seeding into real tasks
-
-`onSeed(...)` already turns template tasks into `DealTask` rows. The seeding helper is updated so:
-
-- `assigneeUserId` → `deal_tasks.assignee_user_id` (or whichever existing column is used today; we'll match what TaskKanban already writes for the Task Form's assignee).
-- `assigneeRole` continues to seed as today when no user is set.
-- `dueDate` → `deal_tasks.due_date`, `endDate` → `deal_tasks.end_date` (replacing the day-offset calculation that currently derives dates from `dayStart`/`dayEnd`).
-
-If only `assigneeRole` is set (no user), seeded tasks remain role-stub assignments — same as today.
-
-## Technical Notes
-
-- Add a small hook `useStaffingPeopleByDesignation()` (or extend `useAppUsers`) that returns `{ designation: string; people: { id, name, email, designation }[] }[]` sorted by designation, plus a `Set<string>` of staffing_people ids already on this deal (looked up via existing `useWeeklyStaffing` / staffing roster for the current deal id).
-- Pass the current `dealId` into `TemplateEditorDialog` and `<PhaseTasksView>` so the "On this deal" section can be computed. When the editor is opened outside a deal context, the section is hidden.
-- Use existing `Popover` + `Command` (`@/components/ui/command`) for the assignee picker — same pattern as `CxAssigneePopover`.
-- Reuse `CxDatePickerPopover` for both date chips.
-- No DB migration needed: `task_templates.phases` is JSON, so the new task fields just slot in.
-- Saved-template backward compatibility: when loading a legacy template that has `dayStart`/`dayEnd`, leave those values untouched but don't render them; user can set dates if desired.
+- Remove the three `AddStaffingMemberDialog` mount points used for adding new staffing rows (the `addForDeal` and `addCell` cases; edit-mode mount stays).
+- Replace every "Add Staffing Member" / "+" affordance (the deal-row plus button and the empty-cell plus) with a **Request Staffing** button.
+- Clicking opens a small dialog with:
+  - Deal name (prefilled, readonly)
+  - Role / category (prefilled from the cell context when applicable)
+  - **Request notes** — a `Textarea` for the user to describe the request (e.g. "Need 1 mid-level SEO analyst for 40% from Jan").
+  - Submit → inserts into the existing `staffing_review_requests` table (already used by `RequestStaffingReviewButton`) with `request_type = 'new_staffing'`, `payload = { roleKey, category, allocationPct?, notes }`, `requester_note = notes`.
+- The existing `StaffingReviewRequests` reviewer panel already lists and approves these, so nothing else needs to change downstream. Approved requests are the only path that creates an actual `staffing_assignments` row going forward.
+- The dialog stays available in **edit mode** (capacity admins) so existing assignments can still be modified — only the "create new from scratch" entrypoint is removed for everyone.
 
 ## Out of scope
 
-- Changing the public `ONBOARDING_PHASES` seed data (still has `assigneeRole` only — that's fine, picker shows it as role).
-- The Kanban task form (`TaskFormDialog`) — already has assignee + dates.
-- Notifications for newly assigned users on seed.
+- Bulk import of internal tasks.
+- Notifications/email when an internal task is assigned (we can wire `notify-assignment` later — flagged but not in this change).
+- Reordering of seeded phases.

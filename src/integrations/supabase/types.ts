@@ -1030,6 +1030,9 @@ export type Database = {
       }
       personal_todos: {
         Row: {
+          assigned_by_name: string
+          assigned_by_user_id: string | null
+          assignee_name: string
           created_at: string
           done: boolean
           due_date: string | null
@@ -1042,6 +1045,9 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          assigned_by_name?: string
+          assigned_by_user_id?: string | null
+          assignee_name?: string
           created_at?: string
           done?: boolean
           due_date?: string | null
@@ -1054,6 +1060,9 @@ export type Database = {
           user_id: string
         }
         Update: {
+          assigned_by_name?: string
+          assigned_by_user_id?: string | null
+          assignee_name?: string
           created_at?: string
           done?: boolean
           due_date?: string | null

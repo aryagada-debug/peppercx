@@ -6,6 +6,7 @@ import type { Deal, Person, StaffingAssignment, RoleCategory } from "@/data/staf
 import { uid, ROLE_SLOTS, ROLE_TO_PEOPLE_FILTER, ROLE_SENIORITY_PARENTS, getDescendantPersonIds, isAssignmentExpired } from "@/data/staffingData";
 import { submitStaffingBatch, type BatchItem } from "@/lib/approvals";
 import { AddStaffingMemberDialog } from "./AddStaffingMemberDialog";
+import { RequestStaffingDialog } from "./RequestStaffingDialog";
 import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
 import { useAllPersonNames, dealCellMatchesPerson } from "@/hooks/useAppUsers";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -529,9 +530,9 @@ export function BopmStaffingFlatTable({
   const [search, setSearch] = useState("");
   const [bopmFilter, setBopmFilter] = useState<string>("All");
   const allPersonNames = useAllPersonNames();
-  const [addForDeal, setAddForDeal] = useState<string | null>(null);
-  // Engagement-aware add: opens the full dialog scoped to a specific role/category.
-  const [addCell, setAddCell] = useState<{ dealId: string; roleKey: string; category: string } | null>(null);
+  // "Request staffing" replaces the old direct-add flow. We capture the deal
+  // (and optional role/category context) and route through staffing_review_requests.
+  const [requestForDeal, setRequestForDeal] = useState<{ dealId: string; roleKey?: string; category?: string } | null>(null);
   // Engagement-aware change: opens the dialog in edit mode for an existing assignment.
   const [editEntry, setEditEntry] = useState<{
     dealId: string; assignmentId: string; roleKey: string;
@@ -1231,11 +1232,11 @@ export function BopmStaffingFlatTable({
               )}
             </div>
             <select
-              onChange={e => { if (e.target.value) { setAddForDeal(e.target.value); e.target.value = ""; } }}
+              onChange={e => { if (e.target.value) { setRequestForDeal({ dealId: e.target.value }); e.target.value = ""; } }}
               className="h-8 px-2 rounded-md border border-border bg-background text-xs text-muted-foreground"
               defaultValue=""
             >
-              <option value="" disabled>+ Add person to a deal…</option>
+              <option value="" disabled>+ Request staffing for a deal…</option>
               {dealsForAdd.map(d => (
                 <option key={d.id} value={d.id}>{d.account} — {d.dealName}</option>
               ))}
@@ -1297,9 +1298,9 @@ export function BopmStaffingFlatTable({
                       <td className="px-2 py-2">
                         <button
                           type="button"
-                          onClick={() => setAddForDeal(d.id)}
+                          onClick={() => setRequestForDeal({ dealId: d.id })}
                           className="h-6 px-2 inline-flex items-center gap-1 rounded border border-dashed border-border text-[11px] text-muted-foreground hover:bg-secondary/50"
-                        ><Plus className="h-3 w-3" /> Add person</button>
+                        ><Plus className="h-3 w-3" /> Request staffing</button>
                       </td>
                     )}
                     {visibleRoleKeys.map(rk => {
@@ -1460,34 +1461,20 @@ export function BopmStaffingFlatTable({
         </div>
       )}
 
-      {addForDeal && (
-        <AddStaffingMemberDialog
-          open={!!addForDeal}
-          onOpenChange={v => { if (!v) setAddForDeal(null); }}
-          people={allPeople}
-          assignments={assignments}
-          deals={deals}
-          dealId={addForDeal}
-          onAdd={(assignment) => { stageAdd(addForDeal!, assignment); setAddForDeal(null); }}
-        />
-      )}
-
-      {addCell && (
-        <AddStaffingMemberDialog
-          open={!!addCell}
-          onOpenChange={v => { if (!v) setAddCell(null); }}
-          people={allPeople}
-          assignments={assignments}
-          deals={deals}
-          dealId={addCell.dealId}
-          initialCategory={addCell.category as RoleCategory}
-          initialRoleKey={addCell.roleKey}
-          onAdd={(assignment) => {
-            stageAdd(addCell.dealId, { ...assignment, roleKey: addCell.roleKey });
-            setAddCell(null);
-          }}
-        />
-      )}
+      {requestForDeal && (() => {
+        const d = deals.find(x => x.id === requestForDeal.dealId);
+        const label = d ? `${d.account} — ${d.dealName}` : requestForDeal.dealId;
+        return (
+          <RequestStaffingDialog
+            open={!!requestForDeal}
+            onOpenChange={v => { if (!v) setRequestForDeal(null); }}
+            dealId={requestForDeal.dealId}
+            dealLabel={label}
+            initialRoleKey={requestForDeal.roleKey}
+            initialCategory={requestForDeal.category}
+          />
+        );
+      })()}
 
       {editEntry && (
         <AddStaffingMemberDialog

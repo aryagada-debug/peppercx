@@ -14,7 +14,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -48,7 +50,19 @@ interface DealTaskRow {
   created_at?: string;
 }
 interface CxTaskRow { id: string; space_id: string; title: string; assignee: string; assignees?: string[]; status: string; start_date: string | null; end_date: string | null; urgency: string; }
-interface PersonalTodo { id: string; user_id: string; title: string; notes: string; done: boolean; due_date: string | null; priority: string; sort_order: number; }
+interface PersonalTodo {
+  id: string;
+  user_id: string;
+  title: string;
+  notes: string;
+  done: boolean;
+  due_date: string | null;
+  priority: string;
+  sort_order: number;
+  assigned_by_user_id?: string | null;
+  assigned_by_name?: string | null;
+  assignee_name?: string | null;
+}
 interface RGYFlagRow { id: string; deal_id: string; week_start: string; issue_status: string | null; resolution_due_date: string | null; issue_details: string | null; }
 interface InactivityRow { id: string; deal_id: string; channel_id: string; week_start: string; message_count: number; }
 interface DealLite { id: string; deal_name: string; account: string; end_date?: string | null; vsd?: string | null; principal_bopm?: string | null; senior_bopm?: string | null; bopm?: string | null; }
@@ -369,7 +383,12 @@ export default function HomePage() {
   const loadTodos = useCallback(async () => {
     if (!user) return;
     setLoadingTodos(true);
-    const { data } = await supabase.from("personal_todos").select("*").eq("user_id", user.id).order("sort_order");
+    // Show todos I own OR todos I assigned to someone else
+    const { data } = await supabase
+      .from("personal_todos")
+      .select("*")
+      .or(`user_id.eq.${user.id},assigned_by_user_id.eq.${user.id}`)
+      .order("sort_order");
     setTodos((data as PersonalTodo[]) || []);
     setLoadingTodos(false);
   }, [user]);
@@ -484,6 +503,53 @@ export default function HomePage() {
     setAddTaskDealId("");
     loadTasks();
   }, [addTaskDealId, staffingName, displayName, loadTasks, user]);
+
+  // Create an internal personal todo, optionally assigned to another teammate.
+  const handleInternalTaskSubmit = useCallback(async (data: {
+    title: string;
+    notes?: string;
+    dueDate?: string | null;
+    priority?: string;
+    assigneePersonId?: string | null;
+    assigneePersonName?: string | null;
+  }) => {
+    if (!user) { toast.error("Not signed in"); return; }
+    if (!data.title?.trim()) { toast.error("Title is required"); return; }
+
+    let ownerUserId = user.id;
+    let assigneeName = "";
+    if (data.assigneePersonId) {
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("user_id, display_name")
+        .eq("staffing_person_id", data.assigneePersonId)
+        .maybeSingle();
+      if (!prof?.user_id) {
+        toast.error(`${data.assigneePersonName || "That person"} hasn't signed in yet — can't assign internal task.`);
+        return;
+      }
+      ownerUserId = prof.user_id;
+      assigneeName = prof.display_name || data.assigneePersonName || "";
+    }
+
+    const isSelf = ownerUserId === user.id;
+    const { error } = await supabase.from("personal_todos").insert({
+      user_id: ownerUserId,
+      title: data.title.trim(),
+      notes: data.notes || "",
+      priority: data.priority || "Medium",
+      due_date: data.dueDate || null,
+      sort_order: todos.length,
+      assigned_by_user_id: isSelf ? null : user.id,
+      assigned_by_name: isSelf ? "" : (displayName || ""),
+      assignee_name: isSelf ? "" : assigneeName,
+    } as any);
+    if (error) { toast.error(error.message); return; }
+    toast.success(isSelf ? "Internal task added" : `Internal task assigned to ${assigneeName}`);
+    setAddingTask(false);
+    setAddTaskDealId("");
+    loadTodos();
+  }, [user, displayName, todos.length, loadTodos]);
 
   // Initial load - staggered
   useEffect(() => {
@@ -1318,7 +1384,15 @@ export default function HomePage() {
                 ) : todos.map(t => (
                   <div key={t.id} className={cn("group flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-secondary/40 transition-colors", t.done && "opacity-60")}>
                     <Checkbox checked={t.done} onCheckedChange={() => toggleTodo(t)} />
-                    <span className={cn("flex-1 text-sm leading-snug", t.done && "line-through text-muted-foreground")}>{t.title}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className={cn("text-sm leading-snug truncate", t.done && "line-through text-muted-foreground")}>{t.title}</div>
+                      {t.assigned_by_user_id && t.assigned_by_user_id !== user?.id && (
+                        <div className="text-[10px] text-muted-foreground">from {t.assigned_by_name || "teammate"}</div>
+                      )}
+                      {t.assigned_by_user_id === user?.id && t.user_id !== user?.id && (
+                        <div className="text-[10px] text-muted-foreground">to {t.assignee_name || "teammate"}</div>
+                      )}
+                    </div>
                     <CxDatePickerPopover
                       value={t.due_date}
                       onChange={async (v) => {
@@ -1489,6 +1563,7 @@ export default function HomePage() {
             })()
           }
           onSubmit={handleAddTaskSubmit}
+          onSubmitInternal={handleInternalTaskSubmit}
           defaultAssignee={staffingName || displayName || ""}
         />
       )}
@@ -1519,7 +1594,7 @@ function KpiPill({ label, value, tone, icon: Icon, onClick }: { label: string; v
 
 /* ── Add Task Dialog (Home) ─────────────────────────────────────────────── */
 function AddTaskDialog({
-  open, onOpenChange, deals, dealId, onDealChange, assignees, onSubmit, defaultAssignee,
+  open, onOpenChange, deals, dealId, onDealChange, assignees, onSubmit, onSubmitInternal, defaultAssignee,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -1528,8 +1603,32 @@ function AddTaskDialog({
   onDealChange: (id: string) => void;
   assignees: { id: string; name: string; staffed?: boolean; designation?: string }[];
   onSubmit: (data: any) => void;
+  onSubmitInternal: (data: {
+    title: string;
+    notes?: string;
+    dueDate?: string | null;
+    priority?: string;
+    assigneePersonId?: string | null;
+    assigneePersonName?: string | null;
+  }) => void | Promise<void>;
   defaultAssignee: string;
 }) {
+  const [mode, setMode] = useState<"deal" | "internal">("deal");
+  // Internal-task local state
+  const [iTitle, setITitle] = useState("");
+  const [iNotes, setINotes] = useState("");
+  const [iDue, setIDue] = useState<string | null>(null);
+  const [iPriority, setIPriority] = useState("Medium");
+  const [iAssigneeId, setIAssigneeId] = useState<string>(""); // empty = self
+  const [iSearch, setISearch] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      setMode("deal"); setITitle(""); setINotes(""); setIDue(null);
+      setIPriority("Medium"); setIAssigneeId(""); setISearch("");
+    }
+  }, [open]);
+
   // Search filter for the deal dropdown.
   const [dealQuery, setDealQuery] = useState("");
   const filtered = useMemo(() => {
@@ -1542,7 +1641,7 @@ function AddTaskDialog({
 
   // If a deal is picked, defer to the existing TaskFormDialog so the form
   // matches the rest of the app exactly.
-  if (dealId) {
+  if (mode === "deal" && dealId) {
     const picked = deals.find(d => d.id === dealId);
     return (
       <TaskFormDialog
@@ -1569,12 +1668,34 @@ function AddTaskDialog({
     );
   }
 
+  const filteredAssignees = useMemo(() => {
+    const q = iSearch.trim().toLowerCase();
+    if (!q) return assignees.slice(0, 100);
+    return assignees.filter(p =>
+      p.name.toLowerCase().includes(q) || (p.designation || "").toLowerCase().includes(q)
+    ).slice(0, 100);
+  }, [assignees, iSearch]);
+  const pickedAssignee = assignees.find(p => p.id === iAssigneeId);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle className="text-base">Add Task — pick a deal</DialogTitle>
+          <DialogTitle className="text-base">Add Task</DialogTitle>
         </DialogHeader>
+        <div className="flex gap-1 p-1 bg-secondary/40 rounded-md w-fit">
+          <button
+            type="button"
+            onClick={() => setMode("deal")}
+            className={cn("px-3 py-1 text-xs rounded transition-colors", mode === "deal" ? "bg-background shadow-sm font-medium" : "text-muted-foreground hover:text-foreground")}
+          >Client deal</button>
+          <button
+            type="button"
+            onClick={() => setMode("internal")}
+            className={cn("px-3 py-1 text-xs rounded transition-colors", mode === "internal" ? "bg-background shadow-sm font-medium" : "text-muted-foreground hover:text-foreground")}
+          >Internal</button>
+        </div>
+        {mode === "deal" ? (
         <div className="space-y-3">
           <Input
             autoFocus
@@ -1598,6 +1719,89 @@ function AddTaskDialog({
             ))}
           </div>
         </div>
+        ) : (
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Title</Label>
+            <Input autoFocus value={iTitle} onChange={e => setITitle(e.target.value)} placeholder="What needs to be done?" className="h-8 text-sm" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Notes (optional)</Label>
+            <Textarea value={iNotes} onChange={e => setINotes(e.target.value)} rows={3} placeholder="Add context…" />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Priority</Label>
+              <Select value={iPriority} onValueChange={setIPriority}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Low">Low</SelectItem>
+                  <SelectItem value="Medium">Medium</SelectItem>
+                  <SelectItem value="High">High</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Due date</Label>
+              <CxDatePickerPopover value={iDue} onChange={setIDue}>
+                <button type="button" className="h-8 w-full px-2 inline-flex items-center justify-start text-xs rounded-md border border-input bg-background">
+                  {iDue ? format(parseISO(iDue), "dd MMM yyyy") : <span className="text-muted-foreground">Pick date</span>}
+                </button>
+              </CxDatePickerPopover>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Assign to</Label>
+            <div className="flex items-center gap-2 text-xs">
+              <button
+                type="button"
+                onClick={() => setIAssigneeId("")}
+                className={cn("px-2 py-1 rounded border", !iAssigneeId ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-secondary/40")}
+              >Myself</button>
+              {pickedAssignee && (
+                <span className="px-2 py-1 rounded bg-primary/10 text-primary text-[11px]">{pickedAssignee.name}</span>
+              )}
+            </div>
+            <Input
+              placeholder="Search teammate by name or designation…"
+              value={iSearch}
+              onChange={e => setISearch(e.target.value)}
+              className="h-8 text-xs"
+            />
+            <div className="max-h-[160px] overflow-y-auto border rounded-md divide-y divide-border">
+              {filteredAssignees.length === 0 ? (
+                <div className="p-2 text-[11px] text-muted-foreground text-center">No matches</div>
+              ) : filteredAssignees.map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setIAssigneeId(p.id)}
+                  className={cn("w-full text-left px-2.5 py-1.5 hover:bg-accent/50 transition-colors text-xs", p.id === iAssigneeId && "bg-primary/10")}
+                >
+                  <div className="font-medium truncate">{p.name}</div>
+                  {p.designation && <div className="text-[10px] text-muted-foreground truncate">{p.designation}</div>}
+                </button>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button
+              onClick={() => onSubmitInternal({
+                title: iTitle,
+                notes: iNotes,
+                dueDate: iDue,
+                priority: iPriority,
+                assigneePersonId: iAssigneeId || null,
+                assigneePersonName: pickedAssignee?.name || null,
+              })}
+              disabled={!iTitle.trim()}
+            >
+              {iAssigneeId ? "Assign task" : "Add to my to-dos"}
+            </Button>
+          </DialogFooter>
+        </div>
+        )}
       </DialogContent>
     </Dialog>
   );

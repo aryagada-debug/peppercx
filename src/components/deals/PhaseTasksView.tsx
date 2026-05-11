@@ -924,6 +924,7 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
     [tasks]
   );
   const hasPhaseData = phaseTasks.length > 0;
+  // Re-evaluate empty state when no seeded phase remains (e.g. user deleted all)
 
   // Group tasks by phase
   const tasksByPhase = useMemo(() => {
@@ -1075,20 +1076,49 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
     );
   }, [baseTasks, searchQuery]);
 
-  // Get all unique phases from tasks (for dynamic phase list)
+  // Get unique phases that actually have seeded tasks. Order: by the order
+  // they appear in ONBOARDING_PHASES, then mandatory generators, then any
+  // ad-hoc phases (including General), preserving discovery order.
   const allPhases = useMemo(() => {
-    const phaseNames = ONBOARDING_PHASES.map(p => p.phase);
+    const present = new Set<string>();
+    phaseTasks.forEach(t => { if (t.phase) present.add(t.phase); });
+    const ordered: string[] = [];
+    ONBOARDING_PHASES.forEach(p => { if (present.has(p.phase)) { ordered.push(p.phase); present.delete(p.phase); } });
+    MANDATORY_PHASES.forEach(p => { if (present.has(p)) { ordered.push(p); present.delete(p); } });
+    // Anything left (custom phases, General) — keep insertion order
     phaseTasks.forEach(t => {
-      if (t.phase && !phaseNames.includes(t.phase)) phaseNames.push(t.phase);
+      if (t.phase && present.has(t.phase)) { ordered.push(t.phase); present.delete(t.phase); }
     });
-    MANDATORY_PHASES.forEach(p => {
-      if (!phaseNames.includes(p)) phaseNames.push(p);
-    });
-    if ((tasksByPhase[GENERAL_PHASE]?.length || 0) > 0 && !phaseNames.includes(GENERAL_PHASE)) {
-      phaseNames.push(GENERAL_PHASE);
+    return ordered;
+  }, [phaseTasks]);
+
+  // Phase deletion confirmation state
+  const [deletePhaseName, setDeletePhaseName] = useState<string | null>(null);
+  const isPhaseDeletable = (name: string) => !(MANDATORY_PHASES as readonly string[]).includes(name);
+  const handleDeletePhase = useCallback(async () => {
+    const name = deletePhaseName;
+    if (!name) return;
+    const targetIds = (tasksByPhase[name] || []).map(t => t.id);
+    try {
+      const { error } = await supabase
+        .from("deal_tasks")
+        .delete()
+        .eq("deal_id", dealId)
+        .eq("phase", name);
+      if (error) throw error;
+      // Optimistically remove from local list via onDelete (parent state)
+      targetIds.forEach(id => onDelete(id));
+      toast.success(`Deleted phase "${name}" and ${targetIds.length} task${targetIds.length === 1 ? "" : "s"}`);
+      if (selectedPhase === name) {
+        setSelectedPhase(null);
+        setShowAll(true);
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to delete phase");
+    } finally {
+      setDeletePhaseName(null);
     }
-    return phaseNames;
-  }, [phaseTasks, tasksByPhase]);
+  }, [deletePhaseName, tasksByPhase, dealId, onDelete, selectedPhase]);
 
   if (!hasPhaseData) {
     return (
@@ -1143,38 +1173,56 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
             const doneCount = pts.filter(t => t.stage === "Done").length;
             const isActive = !showAll && activePhase === phaseName;
             const isComplete = pts.length > 0 && doneCount === pts.length;
+            const canDelete = isPhaseDeletable(phaseName);
 
             return (
-              <button
+              <div
                 key={phaseName}
-                onClick={() => {
-                  if (isActive && !showAll) {
-                    setShowAll(true);
-                    setSelectedPhase(null);
-                  } else {
-                    setShowAll(false);
-                    setSelectedPhase(phaseName);
-                  }
-                }}
                 className={cn(
-                  "w-full text-left px-3 py-2.5 text-sm border-b border-border/50 transition-colors hover:bg-secondary/40",
-                  isActive && "bg-primary/10 border-l-2 border-l-primary font-medium"
+                  "group relative border-b border-border/50 transition-colors hover:bg-secondary/40",
+                  isActive && "bg-primary/10 border-l-2 border-l-primary"
                 )}
               >
-                <span className="flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-2 min-w-0">
-                    {isComplete ? (
-                      <Check className="h-3.5 w-3.5 text-positive shrink-0" />
-                    ) : (
-                      <ChevronRight className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform", isActive && "rotate-90")} />
-                    )}
-                    <span className="truncate">{phaseName}</span>
+                <button
+                  onClick={() => {
+                    if (isActive && !showAll) {
+                      setShowAll(true);
+                      setSelectedPhase(null);
+                    } else {
+                      setShowAll(false);
+                      setSelectedPhase(phaseName);
+                    }
+                  }}
+                  className={cn(
+                    "w-full text-left px-3 py-2.5 text-sm",
+                    isActive && "font-medium"
+                  )}
+                >
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-2 min-w-0">
+                      {isComplete ? (
+                        <Check className="h-3.5 w-3.5 text-positive shrink-0" />
+                      ) : (
+                        <ChevronRight className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform", isActive && "rotate-90")} />
+                      )}
+                      <span className="truncate">{phaseName}</span>
+                    </span>
+                    <span className="text-[10px] text-muted-foreground font-mono shrink-0 pr-5">
+                      {doneCount}/{pts.length}
+                    </span>
                   </span>
-                  <span className="text-[10px] text-muted-foreground font-mono shrink-0">
-                    {doneCount}/{pts.length}
-                  </span>
-                </span>
-              </button>
+                </button>
+                {canDelete && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setDeletePhaseName(phaseName); }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                    title={`Delete phase "${phaseName}"`}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
             );
           })}
         </div>
@@ -1373,6 +1421,27 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Phase Confirmation */}
+      <AlertDialog open={!!deletePhaseName} onOpenChange={(open) => !open && setDeletePhaseName(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Phase</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deletePhaseName && (
+                <>Remove phase <span className="font-medium">"{deletePhaseName}"</span> and all{" "}
+                {(tasksByPhase[deletePhaseName] || []).length} task
+                {(tasksByPhase[deletePhaseName] || []).length === 1 ? "" : "s"} in it?
+                You can re-seed it from a template afterwards.</>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeletePhase} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete Phase</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
