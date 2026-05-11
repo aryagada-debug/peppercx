@@ -1141,7 +1141,7 @@ export default function HomePage() {
             </div>
           </CardHeader>
           <CardContent>
-            {loadingTasks ? <SkeletonRows /> : myKanbanTasks.length === 0 ? (
+            {(loadingTasks || loadingTodos) ? <SkeletonRows /> : myKanbanTasks.length === 0 ? (
               <div className="text-center py-8">
                 <CheckCircle2 className="h-8 w-8 text-positive/40 mx-auto mb-2" />
                 <p className="text-xs text-muted-foreground">No tasks assigned to you.</p>
