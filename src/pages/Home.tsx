@@ -389,7 +389,19 @@ export default function HomePage() {
   const loadTodos = useCallback(async () => {
     if (!user) return;
     setLoadingTodos(true);
-    const { data, error } = await (supabase as any).rpc("get_home_personal_todos");
+    const orParts = [
+      `user_id.eq.${user.id}`,
+      `assigned_by_user_id.eq.${user.id}`,
+    ];
+    if (staffingPersonId) {
+      orParts.push(`assignee_staffing_person_id.eq.${staffingPersonId}`);
+    }
+    const { data, error } = await supabase
+      .from("personal_todos")
+      .select("*")
+      .or(orParts.join(","))
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true });
     if (error) {
       toast.error(error.message);
       setTodos([]);
@@ -398,7 +410,7 @@ export default function HomePage() {
     }
     setTodos((data as PersonalTodo[]) || []);
     setLoadingTodos(false);
-  }, [user]);
+  }, [user, staffingPersonId]);
 
   const loadNudges = useCallback(async () => {
     if (!user) return;
