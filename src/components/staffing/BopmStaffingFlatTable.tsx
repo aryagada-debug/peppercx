@@ -6,6 +6,7 @@ import type { Deal, Person, StaffingAssignment, RoleCategory } from "@/data/staf
 import { uid, ROLE_SLOTS, ROLE_TO_PEOPLE_FILTER, ROLE_SENIORITY_PARENTS, getDescendantPersonIds, isAssignmentExpired } from "@/data/staffingData";
 import { submitStaffingBatch, type BatchItem } from "@/lib/approvals";
 import { AddStaffingMemberDialog } from "./AddStaffingMemberDialog";
+import { RequestStaffingDialog } from "./RequestStaffingDialog";
 import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
 import { useAllPersonNames, dealCellMatchesPerson } from "@/hooks/useAppUsers";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
