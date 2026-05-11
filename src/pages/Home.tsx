@@ -45,6 +45,7 @@ interface DealTaskRow {
   subtasks: any; auto_regen: boolean; sort_order: number; phase: string;
   assignees?: string[];
   created_by_name?: string;
+  created_at?: string;
 }
 interface CxTaskRow { id: string; space_id: string; title: string; assignee: string; assignees?: string[]; status: string; start_date: string | null; end_date: string | null; urgency: string; }
 interface PersonalTodo { id: string; user_id: string; title: string; notes: string; done: boolean; due_date: string | null; priority: string; sort_order: number; }
@@ -194,7 +195,7 @@ export default function HomePage() {
     // memo (`visibleDealTasks`) so changing the view-as filter is instant.
     const [{ data: dtAll }, { data: ctAll }] = await Promise.all([
       supabase.from("deal_tasks")
-        .select("id, deal_id, title, description, assignee, assignees, created_by_name, stage, start_date, end_date, urgency, estimated_hours, logged_hours, subtasks, auto_regen, sort_order, phase"),
+        .select("id, deal_id, title, description, assignee, assignees, created_by_name, created_at, stage, start_date, end_date, urgency, estimated_hours, logged_hours, subtasks, auto_regen, sort_order, phase"),
       supabase.from("cx_tasks").select("id, space_id, title, assignee, assignees, status, start_date, end_date, urgency"),
     ]);
     const dt = (dtAll || []) as any[];
@@ -578,6 +579,8 @@ export default function HomePage() {
       subtasks: (Array.isArray(t.subtasks) ? t.subtasks : []) as any,
       autoRegen: !!t.auto_regen,
       phase: t.phase || "",
+      createdAt: t.created_at,
+      createdByName: t.created_by_name,
     }));
   }, [visibleDealTasks]);
 
@@ -1391,6 +1394,8 @@ export default function HomePage() {
               ? `Client: ${deals[editingDealTask.deal_id].account || "—"} · Deal: ${deals[editingDealTask.deal_id].deal_name}`
               : undefined
           }
+          createdAt={editingDealTask.created_at || null}
+          createdByName={editingDealTask.created_by_name || null}
           initial={{
             title: editingDealTask.title, description: editingDealTask.description || "",
             stage: editingDealTask.stage, assignee: editingDealTask.assignee,

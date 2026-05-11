@@ -44,6 +44,8 @@ export interface DealTask {
   phase?: string;
   tags?: string[];
   autoRegen?: boolean;
+  createdAt?: string;
+  createdByName?: string;
 }
 
 const STAGES = ["To Do", "In Progress", "In Review", "Done", "Dropped"] as const;
@@ -412,6 +414,8 @@ export function TaskKanban({ tasks, dealId, assignees, onAdd, onUpdate, onDelete
               ? `Client: ${dealMeta[editTask.dealId].account || "—"} · Deal: ${dealMeta[editTask.dealId].dealName}`
               : undefined
           }
+          createdAt={editTask.createdAt}
+          createdByName={editTask.createdByName}
           onDelete={() => { onDelete(editTask.id); setEditTask(null); }}
         />
       )}

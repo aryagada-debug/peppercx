@@ -1,58 +1,54 @@
 ## Goal
 
-Improve Home → Tasks so tasks show their deal/client context, support multiple assignees, allow VSDs to view everyone's tasks (like Clients & Deals), and stay visible on Home + Deal Tasks even when assigned to someone else.
+Two UI-only tweaks for the task dialog and a small audit footer for tasks in both Home and Clients & Deals.
 
-## Scope (4 changes)
+## Change 1 — Task dialog header (Home → Tasks, Deal Detail → Tasks)
 
-### 1. Show deal + client name on task cards and in edit dialog (Home)
-- In `src/components/deals/TaskKanban.tsx` (compact card render path used by Home), accept an optional `dealMeta?: Record<string, { dealName: string; account: string }>` prop. When present, render a small two-line context above the title: `<account> · <deal name>` in muted text. Clicking the chip navigates to `/deals/<dealId>?tab=tasks`.
-- In `src/pages/Home.tsx`, build that map from the existing `deals` state and pass it to `TaskKanban`. Also append the context to the Edit dialog title (`Edit Task — <account> · <deal name>`).
-- Deal-detail Tasks tab is unaffected (no `dealMeta` passed → no chip).
+In `src/components/deals/TaskFormDialog.tsx`, replace the static "Edit Task" / "Create Task" `DialogTitle` text with an inline editable title field, and show the client + deal name as a read-only line below it.
 
-### 2. Show client + deal name in the Create-Task form (Home)
-- `src/pages/Home.tsx` `AddTaskDialog`: once `dealId` is picked, the inner `TaskFormDialog` title already shows the deal name; extend it to `New Task — <account> · <deal name>` and add a small read-only context strip ("Client: X · Deal: Y") at the top of the dialog body so it's visible while scrolling.
-- Implemented by passing an optional `headerSubtitle?: string` prop to `TaskFormDialog` rendered above the Title field. Default unchanged for existing callers.
+- The current "Title *" input inside the body (around line 435) is removed; its value/onChange are wired into a new large-text input rendered inside `DialogHeader` instead.
+- Directly under the title input, render the existing `headerSubtitle` (already passed as `Client: X · Deal: Y`) as small muted text. No edit affordance.
+- Keep the same `title` prop API (used for screen-reader / aria), but visually hide the static label so the dialog still has an accessible name. Defaults still work for the Create flow (title input is empty with placeholder).
+- No other field reordering.
 
-### 3. Multiple assignees
-- DB migration: add `assignees text[] not null default '{}'` to `deal_tasks` and `cx_tasks`. Keep existing `assignee text` as a denormalized "primary assignee" (first of `assignees`) for backward compatibility with existing filters/triggers/edge functions; backfill `assignees = ARRAY[assignee]` when assignee is non-empty.
-- `TaskFormDialog.tsx`: replace the single `AssigneeCombobox` for the top-level Assignee field with a multi-select variant (chips + searchable popover, same staffed/other grouping). Subtask assignee stays single-select. `TaskData` gains `assignees: string[]`; `assignee` derived as `assignees[0] || ""` on submit.
-- All write paths (`handleDealTaskSave`, `handleAddTaskSubmit`, `handleKanbanUpdate`, Deal-detail PhaseTasksView/TaskKanban) write both `assignees` and `assignee`.
-- All read paths that filter by "mine" check membership against `assignees` (fallback to `assignee` if empty). This is the key fix for issue #4 below — a task assigned to multiple people will appear in every assignee's Home.
+This affects every caller of `TaskFormDialog` automatically:
+- `src/pages/Home.tsx` (Home → My Tasks edit/create) — already passes `headerSubtitle`.
+- `src/components/deals/TaskKanban.tsx` — already passes `headerSubtitle` via `dealMeta`.
+- `src/components/deals/PhaseTasksView.tsx` — does not currently pass `headerSubtitle`. Pass it from the deal context (`account` + `dealName`) so the read-only line also shows on the Deal Detail → Tasks dialog.
 
-### 4. VSD "View everyone's tasks" filter + always-visible after assigning to others
-- In `src/pages/Home.tsx`, add a filter control above the Tasks card matching the Clients page pattern: a `Select` "View tasks for" with three modes — `Me` (default), `Everyone` (admin or VSD only), or a specific person (searchable). Allowed when `isAdmin` or the user appears as a VSD on any `staffing_deals` row.
-- The "mine" predicate becomes: `Me` → current aliases, `Everyone` → all, `<person>` → that person's aliases. Tasks list and KPI counts use this predicate.
-- Fix the "task assigned to others disappears" bug independently of the filter: after creating a task, optimistically add it to local `dealTasks` if the creator is also a watcher (creator selected themselves in `assignees`) OR if the new task's deal is one of the creator's deals — show under a "Created by me" tab so they aren't lost. Concretely: add a `taskScope` tab `Mine | Created by me | Watching` next to the existing `taskFilter` (today/overdue/upcoming/all). "Created by me" reads from a new lightweight `deal_tasks.created_by_name text` column (added in the same migration, backfilled `''`) populated on insert.
-- Deal-detail Tasks tab already shows all tasks for that deal, so once the task is written the assignee on another deal sees it there (issue #4 part b) — verified by the existing PhaseTasksView fetch which does not filter by assignee.
+## Change 2 — Created-at / Created-by audit footer
 
-## Technical details
+Add a small one-line muted footer to the bottom of `TaskFormDialog` (visible only when editing, i.e. when `initial` is provided):
 
-```text
-deal_tasks
-  + assignees     text[]   not null default '{}'
-  + created_by    uuid     null               -- auth.uid() at insert
-  + created_by_name text   not null default ''
-cx_tasks
-  + assignees     text[]   not null default '{}'
-  + created_by    uuid     null
-  + created_by_name text   not null default ''
+```
+Created by <name> · <DD MMM YYYY, HH:mm>
 ```
 
-Backfill:
-```sql
-update public.deal_tasks set assignees = array[assignee] where assignee <> '' and (assignees is null or array_length(assignees,1) is null);
-update public.cx_tasks   set assignees = array[assignee] where assignee <> '' and (assignees is null or array_length(assignees,1) is null);
-```
+- New optional props on `TaskFormDialog`: `createdAt?: string | null`, `createdByName?: string | null`.
+- Rendered just above the action row (Cancel / Save Changes).
+- Formatted with `date-fns` (`format(parseISO(createdAt), "d MMM yyyy, HH:mm")`).
+- If both values are missing, the footer is not rendered.
 
-Files touched:
-- `supabase/migrations/<ts>_task_multi_assignee.sql` (new)
-- `src/components/deals/TaskFormDialog.tsx` — multi-select assignee, header subtitle prop
-- `src/components/deals/TaskKanban.tsx` — render deal/client chip + multi-assignee avatars on cards
-- `src/pages/Home.tsx` — VSD/everyone filter, taskScope tabs, dealMeta wiring, write `assignees`/`created_by_name`
-- `src/components/deals/PhaseTasksView.tsx` — write/read `assignees`, render multi-assignee chips
-- `src/hooks/useDealDetail.ts` — include `assignees` in select and updates
+Wire data through callers:
+
+- `src/pages/Home.tsx` — `loadTasks()` already selects `created_by_name`; extend the `deal_tasks` select to also include `created_at`, add both to the `DealTaskRow` interface, and pass them to `TaskFormDialog` when opening the edit dialog.
+- `src/components/deals/TaskKanban.tsx` — extend `DealTask` interface with `createdAt?: string` and `createdByName?: string`, forward them into `TaskFormDialog` when editing.
+- `src/components/deals/PhaseTasksView.tsx` — already gets tasks from `useDealDetail`; extend that hook's select + mapping for `deal_tasks` to include `created_at` and `created_by_name`, then forward them into `TaskFormDialog`.
+- `src/hooks/useDealDetail.ts` — add `created_at` and `created_by_name` to the `deal_tasks` select, map onto the local task object as `createdAt` / `createdByName`.
+
+No changes to `cx_tasks` paths (the user's request is scoped to Home + Clients & Deals deal-tasks dialogs; CX board uses a different dialog).
 
 ## Out of scope
-- No changes to RLS (tables already have permissive policies).
-- No change to RGY-task-generator edge function payload (it can keep writing `assignee`; trigger-free backfill handles `assignees`).
-- No redesign of the Tasks card layout beyond the new chip + filter row.
+
+- No DB migration — `created_at`, `created_by`, and `created_by_name` already exist on `deal_tasks` and `cx_tasks`.
+- No changes to task cards / kanban tiles themselves — the audit log lives only inside the dialog.
+- No changes to `CxTaskFormDialog`.
+- No business-logic changes (filters, assignment rules, RLS).
+
+## Files touched
+
+- `src/components/deals/TaskFormDialog.tsx` — header restructure + audit footer + new props.
+- `src/components/deals/TaskKanban.tsx` — extend `DealTask`, pass new props.
+- `src/components/deals/PhaseTasksView.tsx` — pass `headerSubtitle`, `createdAt`, `createdByName`.
+- `src/hooks/useDealDetail.ts` — include `created_at`, `created_by_name` in select + mapping.
+- `src/pages/Home.tsx` — include `created_at` in select, pass `createdAt` / `createdByName` to the dialog.
