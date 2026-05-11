@@ -1499,11 +1499,14 @@ export default function RGYHealth() {
                                     <TooltipTrigger asChild>
                                       <span
                                         className={cn(
-                                          "inline-flex items-center justify-center rounded-md text-caption font-semibold w-7 h-7 cursor-help",
+                                          "inline-flex items-center justify-center gap-1 rounded-md text-caption font-medium px-2 h-7 cursor-help",
                                           cellColors[cellVal]
                                         )}
                                       >
-                                        {band ? band : "—"}
+                                        <span className="font-semibold">{band ? band : "—"}</span>
+                                        {score !== null && (
+                                          <span className="font-mono tabular-nums text-[10px] opacity-90">· {Math.round(score)}</span>
+                                        )}
                                       </span>
                                     </TooltipTrigger>
                                     <TooltipContent className="w-[280px] p-3" sideOffset={6}>
