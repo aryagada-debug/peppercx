@@ -749,8 +749,8 @@ export default function RGYHealth() {
         discussed_action_plan: d.rgy_discussed_action_plan || "",
         red_dimensions: redDims,
         worst,
-        issue_date: null,
-        created_at: null,
+        issue_date: (d as any).rgy_issue_date || null,
+        created_at: (d as any).rgy_created_at || null,
       });
     }
     return out;
