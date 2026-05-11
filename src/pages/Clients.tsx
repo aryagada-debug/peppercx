@@ -224,6 +224,7 @@ export default function Clients() {
   // Per-column filters (text values; numeric filters use min input)
   const [colFilters, setColFilters] = useState<Record<string, string>>({});
   const [openFilter, setOpenFilter] = useState<string | null>(null);
+  const [renewalFilter, setRenewalFilter] = useState(false);
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
