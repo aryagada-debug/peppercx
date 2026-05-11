@@ -381,7 +381,12 @@ export default function HomePage() {
   const loadTodos = useCallback(async () => {
     if (!user) return;
     setLoadingTodos(true);
-    const { data } = await supabase.from("personal_todos").select("*").eq("user_id", user.id).order("sort_order");
+    // Show todos I own OR todos I assigned to someone else
+    const { data } = await supabase
+      .from("personal_todos")
+      .select("*")
+      .or(`user_id.eq.${user.id},assigned_by_user_id.eq.${user.id}`)
+      .order("sort_order");
     setTodos((data as PersonalTodo[]) || []);
     setLoadingTodos(false);
   }, [user]);
