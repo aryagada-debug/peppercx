@@ -42,8 +42,10 @@ interface DealTaskRow {
   assignee: string; stage: string; start_date: string | null; end_date: string | null;
   urgency: string; estimated_hours: number; logged_hours: number;
   subtasks: any; auto_regen: boolean; sort_order: number; phase: string;
+  assignees?: string[];
+  created_by_name?: string;
 }
-interface CxTaskRow { id: string; space_id: string; title: string; assignee: string; status: string; start_date: string | null; end_date: string | null; urgency: string; }
+interface CxTaskRow { id: string; space_id: string; title: string; assignee: string; assignees?: string[]; status: string; start_date: string | null; end_date: string | null; urgency: string; }
 interface PersonalTodo { id: string; user_id: string; title: string; notes: string; done: boolean; due_date: string | null; priority: string; sort_order: number; }
 interface RGYFlagRow { id: string; deal_id: string; week_start: string; issue_status: string | null; resolution_due_date: string | null; issue_details: string | null; }
 interface InactivityRow { id: string; deal_id: string; channel_id: string; week_start: string; message_count: number; }
@@ -102,6 +104,10 @@ export default function HomePage() {
   const [closedAmount, setClosedAmount] = useState(0);
   const [periodType, setPeriodType] = useState<"year">("year");
   const [taskFilter, setTaskFilter] = useState<"all" | "overdue" | "today" | "upcoming">("today");
+  // View-as filter (mirrors Clients & Deals): "me" by default; admins / VSDs
+  // can pick "all" or a specific person to see other people's tasks.
+  const [taskViewAs, setTaskViewAs] = useState<string>("me"); // "me" | "all" | "created" | personId
+  const [isVsdViewer, setIsVsdViewer] = useState(false);
   const [notifTab, setNotifTab] = useState<"activity" | "mentions">("activity");
   const [mentions, setMentions] = useState<any[]>([]);
   const [recents, setRecents] = useState<RecentView[]>([]);
@@ -162,16 +168,15 @@ export default function HomePage() {
   const loadTasks = useCallback(async () => {
     if (!user) return;
     setLoadingTasks(true);
-    const aliasSet = aliasesRef.current;
-    const isMine = (a: string | null) => !!a && aliasSet.has((a || "").trim().toLowerCase());
+    // Load ALL deal/cx tasks; filtering by "me/all/person" happens in the
+    // memo (`visibleDealTasks`) so changing the view-as filter is instant.
     const [{ data: dtAll }, { data: ctAll }] = await Promise.all([
       supabase.from("deal_tasks")
-        .select("id, deal_id, title, description, assignee, stage, start_date, end_date, urgency, estimated_hours, logged_hours, subtasks, auto_regen, sort_order, phase")
-        .neq("assignee", ""),
-      supabase.from("cx_tasks").select("id, space_id, title, assignee, status, start_date, end_date, urgency").neq("assignee", ""),
+        .select("id, deal_id, title, description, assignee, assignees, created_by_name, stage, start_date, end_date, urgency, estimated_hours, logged_hours, subtasks, auto_regen, sort_order, phase"),
+      supabase.from("cx_tasks").select("id, space_id, title, assignee, assignees, status, start_date, end_date, urgency"),
     ]);
-    const dt = (dtAll || []).filter((t: any) => isMine(t.assignee));
-    const ct = (ctAll || []).filter((t: any) => isMine(t.assignee));
+    const dt = (dtAll || []) as any[];
+    const ct = (ctAll || []) as any[];
     setDealTasks(dt as DealTaskRow[]);
     setCxTasks(ct as CxTaskRow[]);
     const dealIds = Array.from(new Set(dt.map((t: any) => t.deal_id)));
@@ -187,6 +192,14 @@ export default function HomePage() {
     }
     const { data: peopleRows } = await supabase.from("staffing_people").select("id, name, designation, tbh");
     setAllPeople((peopleRows as PersonLite[]) || []);
+    // Detect VSD-like viewer (any active deal where the user is listed as VSD)
+    const aliasSet = aliasesRef.current;
+    const inAliases = (s: string | null) => !!s && aliasSet.has((s || "").trim().toLowerCase());
+    const { data: vsdDeals } = await supabase.from("staffing_deals")
+      .select("vsd, deal_status")
+      .in("deal_status", ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
+    const isVsd = (vsdDeals || []).some((d: any) => inAliases(d.vsd));
+    setIsVsdViewer(isVsd);
     setLoadingTasks(false);
   }, [user]);
 
@@ -402,12 +415,16 @@ export default function HomePage() {
   // Create a new deal task from Home (two-way synced with the deal's Kanban).
   const handleAddTaskSubmit = useCallback(async (data: any) => {
     if (!addTaskDealId) { toast.error("Pick a deal first"); return; }
+    const list: string[] = (data.assignees && data.assignees.length)
+      ? data.assignees
+      : (data.assignee ? [data.assignee] : []);
     const { error } = await supabase.from("deal_tasks").insert({
       deal_id: addTaskDealId,
       title: data.title || "Untitled task",
       description: data.description || "",
       stage: data.stage || "To Do",
-      assignee: data.assignee || staffingName || displayName || "",
+      assignee: list[0] || staffingName || displayName || "",
+      assignees: list.length ? list : [staffingName || displayName || ""].filter(Boolean),
       start_date: data.startDate || null,
       end_date: data.endDate || null,
       urgency: data.urgency || "Medium",
@@ -416,13 +433,15 @@ export default function HomePage() {
       subtasks: data.subtasks || [],
       auto_regen: !!data.autoRegen,
       phase: "",
+      created_by: user?.id || null,
+      created_by_name: staffingName || displayName || "",
     });
     if (error) { toast.error(error.message); return; }
     toast.success("Task added");
     setAddingTask(false);
     setAddTaskDealId("");
     loadTasks();
-  }, [addTaskDealId, staffingName, displayName, loadTasks]);
+  }, [addTaskDealId, staffingName, displayName, loadTasks, user]);
 
   // Initial load - staggered
   useEffect(() => {
@@ -467,28 +486,63 @@ export default function HomePage() {
     return () => { supabase.removeChannel(ch); };
   }, [user, loadNotifications, loadNudges, loadTasks]);
 
-  // Combined task list
+  // Visible deal/cx tasks, scoped by the "view-as" filter.
+  const aliasMatches = useCallback((names: string[], aliases: Set<string>) => {
+    return names.some(n => !!n && aliases.has(n.trim().toLowerCase()));
+  }, []);
+
+  const taskScopePredicate = useMemo(() => {
+    const aliasSet = aliasesRef.current;
+    if (taskViewAs === "all") return (_t: DealTaskRow | CxTaskRow) => true;
+    if (taskViewAs === "created") {
+      const me = (staffingName || displayName || "").trim().toLowerCase();
+      return (t: any) => (t.created_by_name || "").trim().toLowerCase() === me;
+    }
+    if (taskViewAs === "me") {
+      return (t: any) => {
+        const list: string[] = Array.isArray(t.assignees) && t.assignees.length
+          ? t.assignees : (t.assignee ? [t.assignee] : []);
+        return aliasMatches(list, aliasSet);
+      };
+    }
+    // Specific person id
+    const person = allPeople.find(p => p.id === taskViewAs);
+    const target = (person?.name || "").trim().toLowerCase();
+    if (!target) return () => false;
+    const personAliases = new Set([target]);
+    return (t: any) => {
+      const list: string[] = Array.isArray(t.assignees) && t.assignees.length
+        ? t.assignees : (t.assignee ? [t.assignee] : []);
+      return aliasMatches(list, personAliases);
+    };
+  }, [taskViewAs, allPeople, staffingName, displayName, aliasMatches]);
+
+  const visibleDealTasks = useMemo(() => dealTasks.filter(taskScopePredicate as any), [dealTasks, taskScopePredicate]);
+  const visibleCxTasks = useMemo(() => cxTasks.filter(taskScopePredicate as any), [cxTasks, taskScopePredicate]);
+
+  // Combined task list (drives KPI counts)
   const allMyTasks = useMemo(() => {
-    const dt = dealTasks.filter(t => t.stage !== "Done" && t.stage !== "Dropped").map(t => ({
+    const dt = visibleDealTasks.filter(t => t.stage !== "Done" && t.stage !== "Dropped").map(t => ({
       kind: "deal" as const, id: t.id, title: t.title, due: t.end_date, urgency: t.urgency, stage: t.stage,
       parentLabel: deals[t.deal_id]?.deal_name || t.deal_id, href: `/deals/${t.deal_id}`, raw: t,
     }));
-    const ct = cxTasks.filter(t => t.status !== "Done" && t.status !== "Closed").map(t => ({
+    const ct = visibleCxTasks.filter(t => t.status !== "Done" && t.status !== "Closed").map(t => ({
       kind: "cx" as const, id: t.id, title: t.title, due: t.end_date, urgency: t.urgency, stage: t.status,
       parentLabel: "CX Task", href: `/central-cx`, raw: t,
     }));
     return [...dt, ...ct];
-  }, [dealTasks, cxTasks, deals]);
+  }, [visibleDealTasks, visibleCxTasks, deals]);
 
   // Kanban view of my deal tasks (2-way synced via deal_tasks table — same source DealDetail/Staffing uses)
   const myKanbanTasks: DealTask[] = useMemo(() => {
-    return dealTasks.map(t => ({
+    return visibleDealTasks.map(t => ({
       id: t.id,
       dealId: t.deal_id,
-      title: deals[t.deal_id]?.deal_name ? `${t.title} · ${deals[t.deal_id].deal_name}` : t.title,
+      title: t.title,
       description: t.description || "",
       stage: t.stage,
       assignee: t.assignee,
+      assignees: Array.isArray(t.assignees) && t.assignees.length ? t.assignees : (t.assignee ? [t.assignee] : []),
       startDate: t.start_date || undefined,
       endDate: t.end_date || undefined,
       urgency: t.urgency,
@@ -499,7 +553,16 @@ export default function HomePage() {
       autoRegen: !!t.auto_regen,
       phase: t.phase || "",
     }));
-  }, [dealTasks, deals]);
+  }, [visibleDealTasks]);
+
+  // Map dealId -> { dealName, account } for the Kanban cards.
+  const dealMeta = useMemo(() => {
+    const m: Record<string, { dealName: string; account: string }> = {};
+    Object.values(deals).forEach((d: any) => {
+      if (d?.id) m[d.id] = { dealName: d.deal_name || "", account: d.account || "" };
+    });
+    return m;
+  }, [deals]);
 
   // Search across deal/client for My Tasks kanban
   const [taskSearch, setTaskSearch] = useState("");
@@ -523,6 +586,11 @@ export default function HomePage() {
     if (updates.description !== undefined) dbUpdates.description = updates.description;
     if (updates.stage !== undefined) dbUpdates.stage = updates.stage;
     if (updates.assignee !== undefined) dbUpdates.assignee = updates.assignee;
+    if ((updates as any).assignees !== undefined) {
+      const list = (updates as any).assignees as string[];
+      dbUpdates.assignees = list;
+      dbUpdates.assignee = list[0] || "";
+    }
     if (updates.startDate !== undefined) dbUpdates.start_date = updates.startDate || null;
     if (updates.endDate !== undefined) dbUpdates.end_date = updates.endDate || null;
     if (updates.urgency !== undefined) dbUpdates.urgency = updates.urgency;
@@ -547,6 +615,9 @@ export default function HomePage() {
         title: prevTask.title,
         description: prevTask.description || "",
         assignee: prevTask.assignee || "",
+        assignees: Array.isArray(prevTask.assignees) && prevTask.assignees.length
+          ? prevTask.assignees
+          : (prevTask.assignee ? [prevTask.assignee] : []),
         stage: "To Do",
         end_date: prevTask.end_date || null,
         urgency: prevTask.urgency,
@@ -718,8 +789,12 @@ export default function HomePage() {
 
   const handleDealTaskSave = async (data: any) => {
     if (!editingDealTask) return;
+    const list: string[] = (data.assignees && data.assignees.length)
+      ? data.assignees
+      : (data.assignee ? [data.assignee] : []);
     const { error } = await supabase.from("deal_tasks").update({
-      title: data.title, description: data.description, stage: data.stage, assignee: data.assignee,
+      title: data.title, description: data.description, stage: data.stage,
+      assignee: list[0] || "", assignees: list,
       start_date: data.startDate || null, end_date: data.endDate || null, urgency: data.urgency,
       estimated_hours: data.estimatedHours, logged_hours: data.loggedHours,
       subtasks: data.subtasks, auto_regen: data.autoRegen,
