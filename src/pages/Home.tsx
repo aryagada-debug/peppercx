@@ -389,22 +389,16 @@ export default function HomePage() {
   const loadTodos = useCallback(async () => {
     if (!user) return;
     setLoadingTodos(true);
-    // Show todos I own, todos I assigned, or todos targeted at my staffing identity
-    const orParts = [
-      `user_id.eq.${user.id}`,
-      `assigned_by_user_id.eq.${user.id}`,
-    ];
-    if (staffingPersonId) {
-      orParts.push(`assignee_staffing_person_id.eq.${staffingPersonId}`);
+    const { data, error } = await (supabase as any).rpc("get_home_personal_todos");
+    if (error) {
+      toast.error(error.message);
+      setTodos([]);
+      setLoadingTodos(false);
+      return;
     }
-    const { data } = await supabase
-      .from("personal_todos")
-      .select("*")
-      .or(orParts.join(","))
-      .order("sort_order");
     setTodos((data as PersonalTodo[]) || []);
     setLoadingTodos(false);
-  }, [user, staffingPersonId]);
+  }, [user]);
 
   const loadNudges = useCallback(async () => {
     if (!user) return;
