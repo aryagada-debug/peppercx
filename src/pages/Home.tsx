@@ -115,6 +115,22 @@ export default function HomePage() {
   const [taskViewAs, setTaskViewAs] = useState<string>("me"); // "me" | "all" | "created" | personId
   const [isVsdViewer, setIsVsdViewer] = useState(false);
   const [notifTab, setNotifTab] = useState<"activity" | "mentions">("activity");
+  // For VSD viewers, restrict the "View tasks for…" dropdown to their team
+  // BOPMs (same logic as the BOPM filter on Clients & Deals). Admins see all.
+  const myVsdName = useMemo(
+    () => (isVsdViewer ? canonVsd(staffingName) : null),
+    [isVsdViewer, staffingName, canonVsd]
+  );
+  const viewAsPeople = useMemo(() => {
+    if (isAdmin) return allPeople.filter(p => !p.tbh).slice(0, 200);
+    if (isVsdViewer && myVsdName) {
+      const teamNames = new Set(
+        bopmUsersForVsd(myVsdName).map(b => (b.name || "").trim().toLowerCase())
+      );
+      return allPeople.filter(p => !p.tbh && teamNames.has((p.name || "").trim().toLowerCase()));
+    }
+    return [];
+  }, [isAdmin, isVsdViewer, myVsdName, bopmUsersForVsd, allPeople]);
   const [mentions, setMentions] = useState<any[]>([]);
   const [recents, setRecents] = useState<RecentView[]>([]);
   const [pins, setPins] = useState<UserPin[]>([]);
