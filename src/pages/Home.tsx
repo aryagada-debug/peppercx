@@ -34,7 +34,7 @@ import { SlackHomeBubble } from "@/components/slack/SlackHomeBubble";
 import { CxDatePickerPopover } from "@/components/cx/CxDatePickerPopover";
 import { useAccountActivity } from "@/hooks/useAccountActivity";
 import { Activity as ActivityIcon } from "lucide-react";
-import { useVsdUsers, useBopmDirectory } from "@/hooks/useAppUsers";
+import { useVsdUsers, useBopmDirectory, nameKey } from "@/hooks/useAppUsers";
 
 const DEAL_STAGES = ["To Do", "In Progress", "In Review", "Done", "Dropped"] as const;
 
@@ -51,7 +51,7 @@ interface CxTaskRow { id: string; space_id: string; title: string; assignee: str
 interface PersonalTodo { id: string; user_id: string; title: string; notes: string; done: boolean; due_date: string | null; priority: string; sort_order: number; }
 interface RGYFlagRow { id: string; deal_id: string; week_start: string; issue_status: string | null; resolution_due_date: string | null; issue_details: string | null; }
 interface InactivityRow { id: string; deal_id: string; channel_id: string; week_start: string; message_count: number; }
-interface DealLite { id: string; deal_name: string; account: string; end_date?: string | null; }
+interface DealLite { id: string; deal_name: string; account: string; end_date?: string | null; vsd?: string | null; principal_bopm?: string | null; senior_bopm?: string | null; bopm?: string | null; }
 interface PersonLite { id: string; name: string; designation: string | null; tbh: boolean; }
 interface SmartNudge { id: string; type: string; text: string; target_entity_type: string; target_entity_id: string; target_entity_name: string; primary_action_label: string; primary_action_href: string; confidence: number; generated_at: string; snoozed_until: string | null; }
 interface UserNotification { id: string; type: string; actor_name: string; body: string; source_entity_type: string; source_entity_id: string; source_entity_name: string; cta_href: string; read: boolean; created_at: string; }
@@ -216,7 +216,7 @@ export default function HomePage() {
     let dtQuery = supabase.from("deal_tasks")
       .select("id, deal_id, title, description, assignee, assignees, created_by_name, created_at, stage, start_date, end_date, urgency, estimated_hours, logged_hours, subtasks, auto_regen, sort_order, phase")
       .range(0, 49999);
-    if (!isAdmin && myDealIdsForScope.length) {
+    if (!isAdmin && !isVsd) {
       dtQuery = dtQuery.in("deal_id", myDealIdsForScope);
     }
     const [{ data: dtAll }, { data: ctAll }] = await Promise.all([
@@ -229,7 +229,7 @@ export default function HomePage() {
     setCxTasks(ct as CxTaskRow[]);
     const dealIds = Array.from(new Set(dt.map((t: any) => t.deal_id)));
     if (dealIds.length) {
-      const { data: dealRows } = await supabase.from("staffing_deals").select("id, deal_name, account, end_date").in("id", dealIds);
+      const { data: dealRows } = await supabase.from("staffing_deals").select("id, deal_name, account, end_date, vsd, principal_bopm, senior_bopm, bopm").in("id", dealIds);
       const map: Record<string, DealLite> = {};
       (dealRows || []).forEach((d: any) => { map[d.id] = d; });
       setDeals(prev => ({ ...prev, ...map }));
@@ -535,7 +535,18 @@ export default function HomePage() {
 
   const taskScopePredicate = useMemo(() => {
     const aliasSet = aliasesRef.current;
-    if (taskViewAs === "all") return (_t: DealTaskRow | CxTaskRow) => true;
+    if (taskViewAs === "all") {
+      if (isAdmin) return (_t: DealTaskRow | CxTaskRow) => true;
+      const teamNames = new Set(viewAsPeople.map(p => nameKey(p.name)));
+      return (t: any) => {
+        if (t.deal_id && myVsdDealIds.has(t.deal_id)) return true;
+        const list: string[] = Array.isArray(t.assignees) && t.assignees.length
+          ? t.assignees : (t.assignee ? [t.assignee] : []);
+        if (list.some(n => teamNames.has(nameKey(n || "")))) return true;
+        const deal = t.deal_id ? deals[t.deal_id] : null;
+        return !!deal && [deal.principal_bopm, deal.senior_bopm, deal.bopm].some(v => teamNames.has(nameKey(v || "")));
+      };
+    }
     if (taskViewAs === "created") {
       const me = (staffingName || displayName || "").trim().toLowerCase();
       return (t: any) => (t.created_by_name || "").trim().toLowerCase() === me;
@@ -549,7 +560,8 @@ export default function HomePage() {
         return aliasMatches(list, aliasSet);
       };
     }
-    // Specific person id
+    // Specific BOPM/person id: match direct task assignees first. If legacy
+    // imported tasks have blank assignees, fall back to the deal's BOPM fields.
     const person = allPeople.find(p => p.id === taskViewAs);
     const target = (person?.name || "").trim().toLowerCase();
     if (!target) return () => false;
@@ -557,9 +569,12 @@ export default function HomePage() {
     return (t: any) => {
       const list: string[] = Array.isArray(t.assignees) && t.assignees.length
         ? t.assignees : (t.assignee ? [t.assignee] : []);
-      return aliasMatches(list, personAliases);
+      if (aliasMatches(list, personAliases)) return true;
+      const deal = t.deal_id ? deals[t.deal_id] : null;
+      if (!deal) return false;
+      return [deal.principal_bopm, deal.senior_bopm, deal.bopm].some(v => nameKey(v || "") === nameKey(target));
     };
-  }, [taskViewAs, allPeople, staffingName, displayName, aliasMatches, myVsdDealIds]);
+  }, [taskViewAs, allPeople, staffingName, displayName, aliasMatches, myVsdDealIds, deals, isAdmin, viewAsPeople]);
 
   const visibleDealTasks = useMemo(() => dealTasks.filter(taskScopePredicate as any), [dealTasks, taskScopePredicate]);
   const visibleCxTasks = useMemo(() => cxTasks.filter(taskScopePredicate as any), [cxTasks, taskScopePredicate]);
