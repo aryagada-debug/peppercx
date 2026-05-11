@@ -383,15 +383,22 @@ export default function HomePage() {
   const loadTodos = useCallback(async () => {
     if (!user) return;
     setLoadingTodos(true);
-    // Show todos I own OR todos I assigned to someone else
+    // Show todos I own, todos I assigned, or todos targeted at my staffing identity
+    const orParts = [
+      `user_id.eq.${user.id}`,
+      `assigned_by_user_id.eq.${user.id}`,
+    ];
+    if (staffingPersonId) {
+      orParts.push(`assignee_staffing_person_id.eq.${staffingPersonId}`);
+    }
     const { data } = await supabase
       .from("personal_todos")
       .select("*")
-      .or(`user_id.eq.${user.id},assigned_by_user_id.eq.${user.id}`)
+      .or(orParts.join(","))
       .order("sort_order");
     setTodos((data as PersonalTodo[]) || []);
     setLoadingTodos(false);
-  }, [user]);
+  }, [user, staffingPersonId]);
 
   const loadNudges = useCallback(async () => {
     if (!user) return;
@@ -516,25 +523,32 @@ export default function HomePage() {
     if (!user) { toast.error("Not signed in"); return; }
     if (!data.title?.trim()) { toast.error("Title is required"); return; }
 
-    let ownerUserId = user.id;
+    let ownerUserId: string | null = user.id;
     let assigneeName = "";
+    let pendingStaffingPersonId: string | null = null;
     if (data.assigneePersonId) {
       const { data: prof } = await supabase
         .from("profiles")
         .select("user_id, display_name")
         .eq("staffing_person_id", data.assigneePersonId)
         .maybeSingle();
-      if (!prof?.user_id) {
-        toast.error(`${data.assigneePersonName || "That person"} hasn't signed in yet — can't assign internal task.`);
-        return;
+      if (prof?.user_id) {
+        ownerUserId = prof.user_id;
+        assigneeName = prof.display_name || data.assigneePersonName || "";
+      } else {
+        // Assignee hasn't signed in yet — create a pending task linked to
+        // their staffing identity. It will appear on their list once they
+        // sign in (profile gets linked by email).
+        ownerUserId = null;
+        pendingStaffingPersonId = data.assigneePersonId;
+        assigneeName = data.assigneePersonName || "";
       }
-      ownerUserId = prof.user_id;
-      assigneeName = prof.display_name || data.assigneePersonName || "";
     }
 
     const isSelf = ownerUserId === user.id;
     const { error } = await supabase.from("personal_todos").insert({
       user_id: ownerUserId,
+      assignee_staffing_person_id: pendingStaffingPersonId,
       title: data.title.trim(),
       notes: data.notes || "",
       priority: data.priority || "Medium",
@@ -545,7 +559,13 @@ export default function HomePage() {
       assignee_name: isSelf ? "" : assigneeName,
     } as any);
     if (error) { toast.error(error.message); return; }
-    toast.success(isSelf ? "Internal task added" : `Internal task assigned to ${assigneeName}`);
+    toast.success(
+      isSelf
+        ? "Internal task added"
+        : pendingStaffingPersonId
+          ? `Assigned to ${assigneeName} — they'll see it when they sign in`
+          : `Internal task assigned to ${assigneeName}`,
+    );
     setAddingTask(false);
     setAddTaskDealId("");
     loadTodos();
