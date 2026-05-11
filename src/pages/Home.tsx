@@ -579,6 +579,8 @@ export default function HomePage() {
       subtasks: (Array.isArray(t.subtasks) ? t.subtasks : []) as any,
       autoRegen: !!t.auto_regen,
       phase: t.phase || "",
+      createdAt: t.created_at,
+      createdByName: t.created_by_name,
     }));
   }, [visibleDealTasks]);
 
