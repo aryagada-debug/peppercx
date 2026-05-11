@@ -99,6 +99,9 @@ export default function HomePage() {
   const [addTaskDealId, setAddTaskDealId] = useState<string>("");
   const [allActiveDeals, setAllActiveDeals] = useState<{ id: string; deal_name: string; account: string }[]>([]);
   const [nudges, setNudges] = useState<SmartNudge[]>([]);
+  // Deal IDs where the viewer is the VSD (active deals only). Tasks on these
+  // deals are visible to the VSD even when assigned to a team member.
+  const [myVsdDealIds, setMyVsdDealIds] = useState<Set<string>>(new Set());
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [quota, setQuota] = useState<QuotaRow | null>(null);
   const [closedAmount, setClosedAmount] = useState(0);
