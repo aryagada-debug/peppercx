@@ -230,7 +230,7 @@ export default function HomePage() {
     setCxTasks(ct as CxTaskRow[]);
     const dealIds = Array.from(new Set(dt.map((t: any) => t.deal_id)));
     if (dealIds.length) {
-      const { data: dealRows } = await supabase.from("staffing_deals").select("id, deal_name, account, end_date").in("id", dealIds);
+      const { data: dealRows } = await supabase.from("staffing_deals").select("id, deal_name, account, end_date, vsd, principal_bopm, senior_bopm, bopm").in("id", dealIds);
       const map: Record<string, DealLite> = {};
       (dealRows || []).forEach((d: any) => { map[d.id] = d; });
       setDeals(prev => ({ ...prev, ...map }));
@@ -240,7 +240,9 @@ export default function HomePage() {
       setDealAssignmentsMap(m);
     }
     const { data: peopleRows } = await supabase.from("staffing_people").select("id, name, designation, tbh");
-    setAllPeople((peopleRows as PersonLite[]) || []);
+    const people = (peopleRows as PersonLite[]) || [];
+    peopleNameByIdRef.current = new Map(people.map(p => [p.id, p.name]));
+    setAllPeople(people);
     setLoadingTasks(false);
   }, [user, isAdmin]);
 
