@@ -120,6 +120,8 @@ export function useDealDetail(dealId: string | undefined) {
           phase: r.phase || "", tags: Array.isArray(r.tags) ? r.tags : [],
           autoRegen: !!r.auto_regen,
           assignees: Array.isArray(r.assignees) ? r.assignees : (r.assignee ? [r.assignee] : []),
+          createdAt: r.created_at,
+          createdByName: r.created_by_name,
         })));
       })
       .subscribe();
@@ -212,6 +214,8 @@ export function useDealDetail(dealId: string | undefined) {
       phase: r.phase || "", tags: Array.isArray(r.tags) ? r.tags : [],
       autoRegen: !!r.auto_regen,
       assignees: Array.isArray(r.assignees) ? r.assignees : (r.assignee ? [r.assignee] : []),
+      createdAt: r.created_at,
+      createdByName: r.created_by_name,
     })));
     if (mbr.data) setMbrEntries(mbr.data.map((e: any) => ({
       id: e.id,
