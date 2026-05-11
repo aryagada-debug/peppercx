@@ -1101,7 +1101,7 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry, deleteMBREntry, 
         <ScheduleOnlyDialog
           open={scheduleOpen}
           onClose={() => { setScheduleOpen(false); setScheduleEntry(null); }}
-          deal={{ ...dealForDrawer } as any}
+          deal={dealForDialog as any}
           entry={scheduleEntry}
           onSave={async (params) => {
             const weekToUse = scheduleEntry?.weekStart || selectedWeek;
