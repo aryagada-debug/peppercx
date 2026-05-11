@@ -1,56 +1,60 @@
-## Goal
+## 1. KPI cards (Clients & Deals header)
 
-Replace the Clients & Deals roster with the 253 deals in `All_deals_Financials_-_Sheet1.csv`, preserve RGY/MBR for existing deals, and load the monthly Consumption / Delivery / Invoicing / Receivables target & attainment values into the Financials tab.
+File: `src/pages/Clients.tsx` (the inline 5-card row around L612-672).
 
-## What I found
+Restyle each card to match the screenshot:
+- Header row: small icon (h-3.5 w-3.5) inline with the uppercase label (no separate chip/box wrapping the icon).
+- Big tabular number below the header.
+- Small subtitle line below the number (existing `insight`).
+- Pastel gradient background + thin tinted border per tile (sky / violet / emerald / amber / rose) — already wired via `tintMap`, just remove the chip block.
+- Tiles flex-1, never wrap to a second row at any width: keep `flex-nowrap` on the row container and let value/subtitle truncate. Drop `min-w-[140px]`.
 
-- CSV: 253 deal rows, 129 unique PC codes, deal IDs in column "New Deal ID".
-- DB: 251 of the 253 deal IDs already exist in `staffing_deals` (matched by `deal_id`). Only 2 are new.
-- RGY (`deal_rgy_weekly`, `deal_rgy_notes`) and MBR (`mbr_entries`) are keyed by `deal_id` text — preserved automatically when we update existing rows in place.
-- Financials tab reads `deal_financials` (per-month) and `deal_revenue_monthly`. Monthly targets live in `deal_financial_targets` (used by Home/Targets pages).
+Keep all 5 tiles as today: Clients, Renewals < 60d, Active Deals, Total MRR, Total Value. No data changes.
 
-## Approach
+Tile structure (rough):
 
-### 1. Match & upsert deals (no destructive replace)
+```text
+[icon] LABEL
+123
+subtitle line
+```
 
-For each of the 253 CSV rows:
+## 2. RGY column → bigger block with R / G / Y letter
 
-- Match on `staffing_deals.deal_id` = "New Deal ID" (if blank, fall back to PC code).
-- **Existing (251)**: UPDATE in place — name, VSD, BOPMs, status, deal type, start/end date, MRR, total deal value, net deal value, customer status. RGY and MBR rows untouched.
-- **New (2)**: INSERT new `staffing_deals` row; auto-create `clients` row if Client Name doesn't exist.
-- Deals in DB but not in CSV: leave alone (no deletion, since RGY/MBR for them must be retained and the user said "keep existing"). I'll surface a count in the summary.
+File: `src/pages/Clients.tsx` (column at L805 header, L968 cell; `ragDot` helper at L60).
 
-### 2. Map monthly financials
+- Replace the 2px dot with a ~22×22 rounded-md block, centered, with the letter "R", "G", or "Y" inside, white text on `bg-rgy-red / bg-rgy-green / bg-rgy-yellow` (tokens already in `index.css`). "N/A" → muted block with "—". Pending → outlined empty block.
+- Slightly widen the column (e.g. 56 → 72) so the block is comfortable.
 
-Two annual blocks in CSV (cols 28–57 = Consumption, similar for Delivery/Invoicing/Receivables) cover **Jan 2025 – Mar 2026**. I will map column-by-column to month dates:
+## 3. Computed deal RGY from 8 dimensions
 
-- Cols 28–51 → Jan–Dec **2025**
-- Cols 52–57 → Jan–Mar **2026**
+The current `deal.rag` comes from a single field. Replace it with a weighted roll-up of the 8 RGY dimensions from `deal_rgy_weekly` (latest row per deal): `customer`, `internal`, `content`, `seo`, `supply`, `copy`, `design`, `video`.
 
-For each (deal, month) write/upsert `deal_financial_targets`:
+Weights (per request):
+- Overall Customer: 50
+- Internal: 10
+- Content / SEO / Supply / Copy / Design / Video: 5 each (30 total)
+- Total = 90 — treated as relative weights and normalized; "NA"/"PENDING" cells are excluded from both numerator and denominator so the score reflects only rated dimensions.
 
-- `contraction_target` / `contraction_actual` ← Consumption Target / Attainment
-- `delivery_target` / `delivery_actual` ← Delivery
-- `invoicing_target` / `invoicing_actual` ← Invoicing
-- `receivables_target` / `receivables_actual` ← Receivable
+Scoring per dimension value: G = 1.0, Y = 0.5, R = 0.0.
+Final color:
+- score ≥ 0.75 → G
+- 0.40 ≤ score < 0.75 → Y
+- score < 0.40 → R
+- If every dimension is NA/Pending → "pending" (empty block).
 
-Also upsert `deal_financials` (per-month) with `consumption`, `invoiced`, `received` so the Financials tab inside each deal reflects the same numbers.
+Where to compute:
+- Load the latest `deal_rgy_weekly` row per deal id (we already do this elsewhere; reuse the pattern in `src/hooks/useStaleRgy.ts` / `src/hooks/useAccountActivity.ts`). Add a lightweight hook `useDealRgyRollup(dealIds)` returning `Map<dealId, { letter: 'R'|'Y'|'G'|'NA'|'PENDING' }>`.
+- In `Clients.tsx`, prefer the rolled-up letter over `deal.rag` when rendering the column, in the filter at L346-350, and in the at-risk count at L391.
 
-Currency values like `"₹27,547,872"` will be parsed by stripping `₹`, `$`, commas, spaces, and treating empty as 0.
+## Technical notes
 
-### 3. Execution
-
-- Write a Python script that parses the CSV, queries existing deals, builds bulk SQL, and emits a migration + insert statements.
-- Run it through the Supabase insert/migration tools (data ops use the insert tool).
-- Print a final report: # updated, # inserted, # new clients, # financial rows written, # deals skipped.
+- All colors use existing semantic tokens (`bg-rgy-red`, `bg-rgy-green`, `bg-rgy-yellow`, `text-white`/`text-foreground`), no hex.
+- Icons stay from `lucide-react` (Building2, Briefcase, Activity, TrendingUp, DollarSign).
+- No DB migrations, no schema changes — read-only roll-up on client.
+- `BopmClientsHeader.tsx` (the BOPM-filtered alt header) is out of scope unless you want the same treatment there too.
 
 ## Out of scope
 
-- Auto-deletion of deals not in the CSV (kept to preserve their RGY/MBR — flag if you want them archived).
-- The Pre-Apr Invoicing, Carry Forward, Spillover, Risk/Issue, Notes columns — I'll capture Notes into `staffing_deals` if non-empty but skip the rest unless you want them mapped.
-
-## Files / data touched
-
-- DB tables: `staffing_deals` (update + 2 inserts), `clients` (0–2 inserts), `deal_financial_targets` (upserts ~253 × 15 months), `deal_financials` (upserts).
-- No code file changes expected — Financials tab already reads these tables.  
-  
+- Edits to the RGY Health page logic itself.
+- Persisting the rolled-up letter back to a column.
