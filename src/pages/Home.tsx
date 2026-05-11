@@ -1592,7 +1592,7 @@ function KpiPill({ label, value, tone, icon: Icon, onClick }: { label: string; v
 
 /* ── Add Task Dialog (Home) ─────────────────────────────────────────────── */
 function AddTaskDialog({
-  open, onOpenChange, deals, dealId, onDealChange, assignees, onSubmit, defaultAssignee,
+  open, onOpenChange, deals, dealId, onDealChange, assignees, onSubmit, onSubmitInternal, defaultAssignee,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -1601,8 +1601,32 @@ function AddTaskDialog({
   onDealChange: (id: string) => void;
   assignees: { id: string; name: string; staffed?: boolean; designation?: string }[];
   onSubmit: (data: any) => void;
+  onSubmitInternal: (data: {
+    title: string;
+    notes?: string;
+    dueDate?: string | null;
+    priority?: string;
+    assigneePersonId?: string | null;
+    assigneePersonName?: string | null;
+  }) => void | Promise<void>;
   defaultAssignee: string;
 }) {
+  const [mode, setMode] = useState<"deal" | "internal">("deal");
+  // Internal-task local state
+  const [iTitle, setITitle] = useState("");
+  const [iNotes, setINotes] = useState("");
+  const [iDue, setIDue] = useState<string | null>(null);
+  const [iPriority, setIPriority] = useState("Medium");
+  const [iAssigneeId, setIAssigneeId] = useState<string>(""); // empty = self
+  const [iSearch, setISearch] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      setMode("deal"); setITitle(""); setINotes(""); setIDue(null);
+      setIPriority("Medium"); setIAssigneeId(""); setISearch("");
+    }
+  }, [open]);
+
   // Search filter for the deal dropdown.
   const [dealQuery, setDealQuery] = useState("");
   const filtered = useMemo(() => {
@@ -1615,7 +1639,7 @@ function AddTaskDialog({
 
   // If a deal is picked, defer to the existing TaskFormDialog so the form
   // matches the rest of the app exactly.
-  if (dealId) {
+  if (mode === "deal" && dealId) {
     const picked = deals.find(d => d.id === dealId);
     return (
       <TaskFormDialog
@@ -1642,12 +1666,34 @@ function AddTaskDialog({
     );
   }
 
+  const filteredAssignees = useMemo(() => {
+    const q = iSearch.trim().toLowerCase();
+    if (!q) return assignees.slice(0, 100);
+    return assignees.filter(p =>
+      p.name.toLowerCase().includes(q) || (p.designation || "").toLowerCase().includes(q)
+    ).slice(0, 100);
+  }, [assignees, iSearch]);
+  const pickedAssignee = assignees.find(p => p.id === iAssigneeId);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle className="text-base">Add Task — pick a deal</DialogTitle>
+          <DialogTitle className="text-base">Add Task</DialogTitle>
         </DialogHeader>
+        <div className="flex gap-1 p-1 bg-secondary/40 rounded-md w-fit">
+          <button
+            type="button"
+            onClick={() => setMode("deal")}
+            className={cn("px-3 py-1 text-xs rounded transition-colors", mode === "deal" ? "bg-background shadow-sm font-medium" : "text-muted-foreground hover:text-foreground")}
+          >Client deal</button>
+          <button
+            type="button"
+            onClick={() => setMode("internal")}
+            className={cn("px-3 py-1 text-xs rounded transition-colors", mode === "internal" ? "bg-background shadow-sm font-medium" : "text-muted-foreground hover:text-foreground")}
+          >Internal</button>
+        </div>
+        {mode === "deal" ? (
         <div className="space-y-3">
           <Input
             autoFocus
@@ -1671,6 +1717,89 @@ function AddTaskDialog({
             ))}
           </div>
         </div>
+        ) : (
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Title</Label>
+            <Input autoFocus value={iTitle} onChange={e => setITitle(e.target.value)} placeholder="What needs to be done?" className="h-8 text-sm" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Notes (optional)</Label>
+            <Textarea value={iNotes} onChange={e => setINotes(e.target.value)} rows={3} placeholder="Add context…" />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Priority</Label>
+              <Select value={iPriority} onValueChange={setIPriority}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Low">Low</SelectItem>
+                  <SelectItem value="Medium">Medium</SelectItem>
+                  <SelectItem value="High">High</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Due date</Label>
+              <CxDatePickerPopover value={iDue} onChange={setIDue}>
+                <button type="button" className="h-8 w-full px-2 inline-flex items-center justify-start text-xs rounded-md border border-input bg-background">
+                  {iDue ? format(parseISO(iDue), "dd MMM yyyy") : <span className="text-muted-foreground">Pick date</span>}
+                </button>
+              </CxDatePickerPopover>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Assign to</Label>
+            <div className="flex items-center gap-2 text-xs">
+              <button
+                type="button"
+                onClick={() => setIAssigneeId("")}
+                className={cn("px-2 py-1 rounded border", !iAssigneeId ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-secondary/40")}
+              >Myself</button>
+              {pickedAssignee && (
+                <span className="px-2 py-1 rounded bg-primary/10 text-primary text-[11px]">{pickedAssignee.name}</span>
+              )}
+            </div>
+            <Input
+              placeholder="Search teammate by name or designation…"
+              value={iSearch}
+              onChange={e => setISearch(e.target.value)}
+              className="h-8 text-xs"
+            />
+            <div className="max-h-[160px] overflow-y-auto border rounded-md divide-y divide-border">
+              {filteredAssignees.length === 0 ? (
+                <div className="p-2 text-[11px] text-muted-foreground text-center">No matches</div>
+              ) : filteredAssignees.map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setIAssigneeId(p.id)}
+                  className={cn("w-full text-left px-2.5 py-1.5 hover:bg-accent/50 transition-colors text-xs", p.id === iAssigneeId && "bg-primary/10")}
+                >
+                  <div className="font-medium truncate">{p.name}</div>
+                  {p.designation && <div className="text-[10px] text-muted-foreground truncate">{p.designation}</div>}
+                </button>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button
+              onClick={() => onSubmitInternal({
+                title: iTitle,
+                notes: iNotes,
+                dueDate: iDue,
+                priority: iPriority,
+                assigneePersonId: iAssigneeId || null,
+                assigneePersonName: pickedAssignee?.name || null,
+              })}
+              disabled={!iTitle.trim()}
+            >
+              {iAssigneeId ? "Assign task" : "Add to my to-dos"}
+            </Button>
+          </DialogFooter>
+        </div>
+        )}
       </DialogContent>
     </Dialog>
   );
