@@ -75,11 +75,11 @@ export function BopmClientsHeader({ deals }: Props) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
-        <BigStat icon={<Building2 className="h-4 w-4 text-sky-600" />} label="Clients" value={String(stats.clients)} />
-        <BigStat icon={<Briefcase className="h-4 w-4 text-emerald-600" />} label="Active deals" value={`${stats.active} / ${stats.deals}`} />
-        <BigStat icon={<TrendingUp className="h-4 w-4 text-amber-600" />} label="Total MRR" value={formatINR(stats.mrr)} mono />
-        <BigStat icon={<DollarSign className="h-4 w-4 text-rose-600" />} label="Total TCV" value={formatINR(stats.tcv)} mono />
+      <div className="grid grid-cols-4 gap-2 mt-4">
+        <BigStat icon={<Building2 className="h-3 w-3 text-sky-600" />} label="Clients" value={String(stats.clients)} />
+        <BigStat icon={<Briefcase className="h-3 w-3 text-emerald-600" />} label="Active deals" value={`${stats.active} / ${stats.deals}`} />
+        <BigStat icon={<TrendingUp className="h-3 w-3 text-amber-600" />} label="Total MRR" value={formatINR(stats.mrr)} mono />
+        <BigStat icon={<DollarSign className="h-3 w-3 text-rose-600" />} label="Total TCV" value={formatINR(stats.tcv)} mono />
       </div>
 
       <div className="mt-3">
@@ -114,11 +114,12 @@ export function BopmClientsHeader({ deals }: Props) {
 
 function BigStat({ icon, label, value, mono }: { icon: React.ReactNode; label: string; value: string; mono?: boolean }) {
   return (
-    <div className="rounded-lg border border-border bg-background px-3 py-2.5">
-      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-        {icon}{label}
+    <div className="rounded-lg border border-border bg-background px-2.5 py-2 min-w-0">
+      <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground whitespace-nowrap">
+        <span className="shrink-0 inline-flex">{icon}</span>
+        <span className="truncate">{label}</span>
       </div>
-      <div className={cn("mt-1 text-lg font-semibold text-foreground", mono && "font-mono tabular-nums")}>{value}</div>
+      <div className={cn("mt-0.5 text-base font-semibold text-foreground truncate", mono && "font-mono tabular-nums")} title={value}>{value}</div>
     </div>
   );
 }
