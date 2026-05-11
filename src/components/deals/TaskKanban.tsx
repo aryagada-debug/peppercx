@@ -33,6 +33,7 @@ export interface DealTask {
   description: string;
   stage: string;
   assignee: string;
+  assignees?: string[];
   startDate?: string;
   endDate?: string;
   urgency: string;
@@ -72,6 +73,10 @@ interface Props {
   disableAdd?: boolean;
   /** When true, each column shows only ~3 tasks at a time and scrolls vertically. */
   compact?: boolean;
+  /** Optional dealId → { dealName, account } map. When provided, each card
+   *  shows a small "Account · Deal" context chip above the title. Used in the
+   *  Home tab where multiple deals' tasks are pooled together. */
+  dealMeta?: Record<string, { dealName: string; account: string }>;
 }
 
 /* ── Droppable Column ── */
@@ -94,7 +99,11 @@ function DroppableColumn({ stage, children, compact }: { stage: string; children
 }
 
 /* ── Draggable Task Card ── */
-function DraggableTaskCard({ task, onClick }: { task: DealTask; onClick: () => void }) {
+function DraggableTaskCard({ task, onClick, meta }: {
+  task: DealTask;
+  onClick: () => void;
+  meta?: { dealName: string; account: string };
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     data: { stage: task.stage },
@@ -116,6 +125,10 @@ function DraggableTaskCard({ task, onClick }: { task: DealTask; onClick: () => v
     ? task.description.replace(/<[^>]*>/g, '').slice(0, 80)
     : '';
 
+  const allAssignees = (task.assignees && task.assignees.length > 0)
+    ? task.assignees
+    : (task.assignee ? [task.assignee] : []);
+
   return (
     <div
       ref={setNodeRef}
@@ -128,6 +141,13 @@ function DraggableTaskCard({ task, onClick }: { task: DealTask; onClick: () => v
         if (!isDragging) onClick();
       }}
     >
+      {/* Deal/Client context (only when meta is provided, e.g. Home) */}
+      {meta && (
+        <div className="text-[10px] text-muted-foreground mb-1 truncate">
+          <span className="font-medium text-foreground/80">{meta.account || "—"}</span>
+          {meta.dealName && <span> · {meta.dealName}</span>}
+        </div>
+      )}
       {/* Urgency + Title */}
       <div className="flex items-start gap-2 mb-1.5">
         <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider flex-shrink-0 mt-0.5", URGENCY_COLORS[task.urgency])}>
@@ -163,10 +183,15 @@ function DraggableTaskCard({ task, onClick }: { task: DealTask; onClick: () => v
       {/* Footer */}
       <div className="flex items-center justify-between text-caption ml-6">
         <div className="flex items-center gap-2">
-          {task.assignee && (
+          {allAssignees.length > 0 && (
             <span className="flex items-center gap-1 text-muted-foreground">
               <User className="h-3 w-3" />
-              <span className="truncate max-w-[80px]">{task.assignee}</span>
+              <span className="truncate max-w-[120px]">
+                {allAssignees[0]}
+                {allAssignees.length > 1 && (
+                  <span className="text-[10px] text-muted-foreground"> +{allAssignees.length - 1}</span>
+                )}
+              </span>
             </span>
           )}
         </div>
@@ -189,7 +214,7 @@ function DraggableTaskCard({ task, onClick }: { task: DealTask; onClick: () => v
   );
 }
 
-export function TaskKanban({ tasks, dealId, assignees, onAdd, onUpdate, onDelete, disableAdd, compact }: Props) {
+export function TaskKanban({ tasks, dealId, assignees, onAdd, onUpdate, onDelete, disableAdd, compact, dealMeta }: Props) {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [createForStage, setCreateForStage] = useState<string>("To Do");
   const [editTask, setEditTask] = useState<DealTask | null>(null);
@@ -206,6 +231,7 @@ export function TaskKanban({ tasks, dealId, assignees, onAdd, onUpdate, onDelete
       description: data.description,
       stage: data.stage,
       assignee: data.assignee,
+      assignees: data.assignees && data.assignees.length ? data.assignees : (data.assignee ? [data.assignee] : []),
       startDate: data.startDate,
       endDate: data.endDate,
       urgency: data.urgency,
@@ -213,6 +239,7 @@ export function TaskKanban({ tasks, dealId, assignees, onAdd, onUpdate, onDelete
       sortOrder: tasks.filter(t => t.stage === data.stage).length,
       estimatedHours: data.estimatedHours || 0,
       subtasks: data.subtasks || [],
+      autoRegen: !!data.autoRegen,
     });
   }, [dealId, onAdd, tasks]);
 
@@ -223,11 +250,13 @@ export function TaskKanban({ tasks, dealId, assignees, onAdd, onUpdate, onDelete
       description: data.description,
       stage: data.stage,
       assignee: data.assignee,
+      assignees: data.assignees && data.assignees.length ? data.assignees : (data.assignee ? [data.assignee] : []),
       startDate: data.startDate,
       endDate: data.endDate,
       urgency: data.urgency,
       estimatedHours: data.estimatedHours || 0,
       subtasks: data.subtasks || [],
+      autoRegen: !!data.autoRegen,
     });
     setEditTask(null);
   }, [editTask, onUpdate]);
@@ -314,6 +343,7 @@ export function TaskKanban({ tasks, dealId, assignees, onAdd, onUpdate, onDelete
                       key={task.id}
                       task={task}
                       onClick={() => setEditTask(task)}
+                      meta={dealMeta?.[task.dealId]}
                     />
                   ))}
 
@@ -374,8 +404,14 @@ export function TaskKanban({ tasks, dealId, assignees, onAdd, onUpdate, onDelete
             endDate: editTask.endDate || "",
             estimatedHours: editTask.estimatedHours || 0,
             subtasks: editTask.subtasks || [],
+            assignees: editTask.assignees,
           }}
           title="Edit Task"
+          headerSubtitle={
+            dealMeta?.[editTask.dealId]
+              ? `Client: ${dealMeta[editTask.dealId].account || "—"} · Deal: ${dealMeta[editTask.dealId].dealName}`
+              : undefined
+          }
           onDelete={() => { onDelete(editTask.id); setEditTask(null); }}
         />
       )}
