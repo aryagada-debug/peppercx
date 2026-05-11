@@ -59,6 +59,7 @@ interface PersonalTodo {
   due_date: string | null;
   priority: string;
   sort_order: number;
+  created_at?: string;
   assignee_staffing_person_id?: string | null;
   assigned_by_user_id?: string | null;
   assigned_by_name?: string | null;
