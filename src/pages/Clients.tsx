@@ -45,6 +45,7 @@ import { ReadOnlyBanner } from "@/components/access/ReadOnlyBanner";
 import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
 import { useAuth } from "@/components/auth/AuthProvider";
 // BopmClientsHeader removed per request — KPIs below now serve that role.
+import { useDealRgyRollup, type RgyLetter } from "@/hooks/useDealRgyRollup";
 
 type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
@@ -57,11 +58,31 @@ const fmtCurrency = (n: number | undefined) => {
   return formatINR(Number(n) || 0);
 };
 
-const ragDot = (rag: string) => {
-  const colors: Record<string, string> = {
-    green: "bg-positive", amber: "bg-warning", red: "bg-destructive",
-  };
-  return <span className={cn("inline-block w-2 h-2 rounded-full", colors[rag] || "bg-muted-foreground")} />;
+const RgyBlock = ({ letter }: { letter: RgyLetter | undefined }) => {
+  const l = letter || "PENDING";
+  if (l === "PENDING") {
+    return (
+      <span className="inline-flex items-center justify-center w-6 h-6 rounded-md border border-dashed border-border text-[10px] text-muted-foreground">
+        —
+      </span>
+    );
+  }
+  if (l === "NA") {
+    return (
+      <span className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-muted text-muted-foreground text-[11px] font-medium">
+        —
+      </span>
+    );
+  }
+  const cls =
+    l === "R" ? "bg-destructive text-destructive-foreground"
+    : l === "Y" ? "bg-warning text-warning-foreground"
+    : "bg-positive text-positive-foreground";
+  return (
+    <span className={cn("inline-flex items-center justify-center w-6 h-6 rounded-md text-[11px] font-medium", cls)}>
+      {l}
+    </span>
+  );
 };
 
 // ── Inline Editable Cell ──
