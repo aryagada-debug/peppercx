@@ -423,7 +423,7 @@ export default function Clients() {
       activeDeals: filteredDeals.filter(d => ACTIVE_STATUSES.has(d.dealStatus)).length,
       totalMRR: filteredDeals.reduce((s, d) => s + (d.mrr || 0), 0),
       totalValue: filteredDeals.reduce((s, d) => s + (d.totalDealValue || 0), 0),
-      renewals60: renewing.length,
+      renewals90: renewing.length,
       nextRenewalLabel: nextRenewal
         ? `${nextRenewal.d.account} in ${nextRenewalDays}d`
         : "None upcoming",
