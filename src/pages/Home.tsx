@@ -552,7 +552,8 @@ export default function HomePage() {
         return aliasMatches(list, aliasSet);
       };
     }
-    // Specific person id
+    // Specific BOPM/person id: match direct task assignees first. If legacy
+    // imported tasks have blank assignees, fall back to the deal's BOPM fields.
     const person = allPeople.find(p => p.id === taskViewAs);
     const target = (person?.name || "").trim().toLowerCase();
     if (!target) return () => false;
@@ -560,9 +561,12 @@ export default function HomePage() {
     return (t: any) => {
       const list: string[] = Array.isArray(t.assignees) && t.assignees.length
         ? t.assignees : (t.assignee ? [t.assignee] : []);
-      return aliasMatches(list, personAliases);
+      if (aliasMatches(list, personAliases)) return true;
+      const deal = t.deal_id ? deals[t.deal_id] : null;
+      if (!deal) return false;
+      return [deal.principal_bopm, deal.senior_bopm, deal.bopm].some(v => nameKey(v || "") === nameKey(target));
     };
-  }, [taskViewAs, allPeople, staffingName, displayName, aliasMatches, myVsdDealIds]);
+  }, [taskViewAs, allPeople, staffingName, displayName, aliasMatches, myVsdDealIds, deals]);
 
   const visibleDealTasks = useMemo(() => dealTasks.filter(taskScopePredicate as any), [dealTasks, taskScopePredicate]);
   const visibleCxTasks = useMemo(() => cxTasks.filter(taskScopePredicate as any), [cxTasks, taskScopePredicate]);
