@@ -99,6 +99,9 @@ export default function HomePage() {
   const [addTaskDealId, setAddTaskDealId] = useState<string>("");
   const [allActiveDeals, setAllActiveDeals] = useState<{ id: string; deal_name: string; account: string }[]>([]);
   const [nudges, setNudges] = useState<SmartNudge[]>([]);
+  // Deal IDs where the viewer is the VSD (active deals only). Tasks on these
+  // deals are visible to the VSD even when assigned to a team member.
+  const [myVsdDealIds, setMyVsdDealIds] = useState<Set<string>>(new Set());
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [quota, setQuota] = useState<QuotaRow | null>(null);
   const [closedAmount, setClosedAmount] = useState(0);
@@ -214,6 +217,8 @@ export default function HomePage() {
     const myDeals = (allDeals || []).filter((d: any) =>
       inAliases(d.vsd) || inAliases(d.principal_bopm) || inAliases(d.senior_bopm) || inAliases(d.bopm));
     const myDealIds = myDeals.map((d: any) => d.id);
+    // Track VSD-only scope separately so we can show team tasks on those deals.
+    setMyVsdDealIds(new Set((allDeals || []).filter((d: any) => inAliases(d.vsd)).map((d: any) => d.id)));
     const dealMap: Record<string, DealLite> = {};
     myDeals.forEach((d: any) => { dealMap[d.id] = d; });
     setDeals(prev => ({ ...prev, ...dealMap }));
@@ -500,6 +505,8 @@ export default function HomePage() {
     }
     if (taskViewAs === "me") {
       return (t: any) => {
+        // VSDs see all tasks on the deals where they are VSD (their team).
+        if (t.deal_id && myVsdDealIds.has(t.deal_id)) return true;
         const list: string[] = Array.isArray(t.assignees) && t.assignees.length
           ? t.assignees : (t.assignee ? [t.assignee] : []);
         return aliasMatches(list, aliasSet);
@@ -515,7 +522,7 @@ export default function HomePage() {
         ? t.assignees : (t.assignee ? [t.assignee] : []);
       return aliasMatches(list, personAliases);
     };
-  }, [taskViewAs, allPeople, staffingName, displayName, aliasMatches]);
+  }, [taskViewAs, allPeople, staffingName, displayName, aliasMatches, myVsdDealIds]);
 
   const visibleDealTasks = useMemo(() => dealTasks.filter(taskScopePredicate as any), [dealTasks, taskScopePredicate]);
   const visibleCxTasks = useMemo(() => cxTasks.filter(taskScopePredicate as any), [cxTasks, taskScopePredicate]);
