@@ -1847,6 +1847,7 @@ export type Database = {
       task_templates: {
         Row: {
           created_at: string
+          created_by: string | null
           id: string
           name: string
           phases: Json
@@ -1854,6 +1855,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          created_by?: string | null
           id?: string
           name?: string
           phases?: Json
@@ -1861,6 +1863,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          created_by?: string | null
           id?: string
           name?: string
           phases?: Json
