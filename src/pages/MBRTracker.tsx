@@ -14,7 +14,7 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
-import { useMBRData, type MBREntry, type MBRDeal, type VSDSummary } from "@/hooks/useMBRData";
+import { useMBRData, isRetainerDeal, type MBREntry, type MBRDeal, type VSDSummary } from "@/hooks/useMBRData";
 import { MBRDetailDialog } from "@/components/mbr/MBRDetailDialog";
 import { ScheduleOnlyDialog } from "@/components/mbr/ScheduleOnlyDialog";
 import { supabase } from "@/integrations/supabase/client";
@@ -100,6 +100,7 @@ export default function MBRTracker() {
   const [activeBopm, setActiveBopm] = useState<string>("All");
   const [search, setSearch] = useState("");
   const [showClosed, setShowClosed] = useState(false);
+  const [accountTypeFilter, setAccountTypeFilter] = useState<"retainer" | "non-retainer" | "all">("retainer");
   // Reset BOPM whenever VSD changes
   useEffect(() => { setActiveBopm("All"); }, [activeVsd]);
 
@@ -231,6 +232,11 @@ export default function MBRTracker() {
     if (isBopmPersona && !accessLoading) {
       d = d.filter(deal => visibleDealIds.has(deal.id));
     }
+    if (accountTypeFilter === "retainer") {
+      d = d.filter(deal => isRetainerDeal(deal));
+    } else if (accountTypeFilter === "non-retainer") {
+      d = d.filter(deal => !isRetainerDeal(deal));
+    }
     if (!showClosed) {
       d = d.filter(deal => {
         const meta = dealMeta.get(deal.id);
@@ -253,7 +259,7 @@ export default function MBRTracker() {
       d = d.filter(deal => deal.account.toLowerCase().includes(s) || deal.dealName.toLowerCase().includes(s));
     }
     return d;
-  }, [deals, dealMeta, activeVsd, activeBopm, search, showClosed, vsdForDeal, isBopmPersona, accessLoading, visibleDealIds]);
+  }, [deals, dealMeta, activeVsd, activeBopm, search, showClosed, vsdForDeal, isBopmPersona, accessLoading, visibleDealIds, accountTypeFilter]);
 
   // BOPM persona is locked to the table-view, current month only.
   useEffect(() => {
@@ -305,13 +311,25 @@ export default function MBRTracker() {
   // KPIs from filtered deals (use activeEntryMap for current view)
   const kpis = useMemo(() => {
     const filteredIds = new Set(filteredDeals.map(d => d.id));
+    // Mandatory MBRs apply to retainer deals only.
+    const retainerDeals = filteredDeals.filter(d => isRetainerDeal(d));
+    const retainerIds = new Set(retainerDeals.map(d => d.id));
     const relevantEntries = Array.from(activeEntryMap.values()).filter(e => filteredIds.has(e.dealId));
     const done = relevantEntries.filter(e => e.status === "Done").length;
     const notDone = relevantEntries.filter(e => e.status === "Not Done").length;
     const notRequired = relevantEntries.filter(e => e.status === "Not Required").length;
-    const pending = filteredDeals.length - done - notDone - notRequired;
-    const compliance = filteredDeals.length > 0 ? Math.round((done / filteredDeals.length) * 100) : 0;
-    return { retainerAccounts: filteredDeals.length, done, notDone, pending, compliance };
+    // Pending only for retainers (non-retainers don't have a mandatory MBR).
+    const retainerEntries = Array.from(activeEntryMap.values()).filter(e => retainerIds.has(e.dealId));
+    const retainerDone = retainerEntries.filter(e => e.status === "Done").length;
+    const retainerNotDone = retainerEntries.filter(e => e.status === "Not Done").length;
+    const retainerNotRequired = retainerEntries.filter(e => e.status === "Not Required").length;
+    const pending = retainerDeals.length - retainerDone - retainerNotDone - retainerNotRequired;
+    const compliance = retainerDeals.length > 0 ? Math.round((retainerDone / retainerDeals.length) * 100) : 0;
+    return {
+      retainerAccounts: filteredDeals.length,
+      retainerCount: retainerDeals.length,
+      done, notDone, pending, compliance,
+    };
   }, [filteredDeals, activeEntryMap]);
 
   const handleSave = async (params: any) => {
@@ -591,6 +609,7 @@ export default function MBRTracker() {
         if (!filteredIds.has(dealId)) return;
         const deal = dealsById.get(dealId);
         if (!deal) return;
+        if (!isRetainerDeal(deal)) return; // non-retainers are never flagged
         if (e.status !== "Done") return;
         const text = [e.aiSummary, e.notes, e.transcript].filter(Boolean).join(" \n ");
         scan(text, deal, e.weekStart);
@@ -609,6 +628,7 @@ export default function MBRTracker() {
     for (const id of filteredIds) {
       const deal = dealsById.get(id);
       if (!deal) continue;
+      if (!isRetainerDeal(deal)) continue; // mandatory MBR only for retainers
       const statuses = last3.map(m => entriesByMonth.get(m)?.get(id)?.status || "Pending");
       const missed = statuses.filter(s => s === "Not Done" || s === "Pending").length;
       if (last3.length >= 2 && missed === last3.length) {
@@ -659,7 +679,7 @@ export default function MBRTracker() {
           <div>
             <h1 className="text-subhead font-bold tracking-tight text-foreground">MBR Tracker</h1>
             <p className="text-ui text-muted-foreground mt-0.5">
-              {kpis.retainerAccounts} retainer accounts • {viewMode === "current" ? (selectedMonth ? formatMonthLabel(selectedMonth) : "Latest") : "Month-on-Month"}
+              {kpis.retainerAccounts} {accountTypeFilter === "retainer" ? "retainer accounts" : accountTypeFilter === "non-retainer" ? "non-retainer accounts" : "accounts"} • {viewMode === "current" ? (selectedMonth ? formatMonthLabel(selectedMonth) : "Latest") : "Month-on-Month"}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -690,11 +710,42 @@ export default function MBRTracker() {
 
         {/* KPI Strip */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3">
-          <KpiTile label="Retainers" value={String(kpis.retainerAccounts)} tone="primary" icon={Users} />
+          <KpiTile
+            label={accountTypeFilter === "non-retainer" ? "Non-Retainers" : accountTypeFilter === "all" ? "Accounts" : "Retainers"}
+            value={accountTypeFilter === "all" ? `${kpis.retainerCount}/${kpis.retainerAccounts}` : String(kpis.retainerAccounts)}
+            tone="primary"
+            icon={Users}
+          />
           <KpiTile label="Done" value={String(kpis.done)} tone="positive" icon={CheckCircle2} />
           <KpiTile label="Not Done" value={String(kpis.notDone)} tone="destructive" icon={XCircle} />
           <KpiTile label="Pending" value={String(kpis.pending)} tone="warning" icon={Clock} />
           <KpiTile label="Compliance" value={`${kpis.compliance}%`} tone="primary" icon={Gauge} />
+        </div>
+
+        {/* Account Type filter (Retainer / Non-Retainer / All) */}
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Account Type:</span>
+          <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
+            {([
+              { key: "retainer", label: "Retainer" },
+              { key: "non-retainer", label: "Non-Retainer" },
+              { key: "all", label: "All" },
+            ] as const).map(v => (
+              <button
+                key={v.key}
+                onClick={() => setAccountTypeFilter(v.key)}
+                className={cn(
+                  "px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
+                  accountTypeFilter === v.key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                )}
+              >{v.label}</button>
+            ))}
+          </div>
+          {accountTypeFilter === "all" && (
+            <span className="text-[10px] text-muted-foreground">
+              Compliance/flags count retainers only ({kpis.retainerCount} of {kpis.retainerAccounts}).
+            </span>
+          )}
         </div>
 
         {/* Tabs: Insights / Table — default to Table; BOPMs don't see Insights */}
@@ -1082,7 +1133,8 @@ export default function MBRTracker() {
                   </thead>
                   <tbody>
                     {tableRows.map(({ deal, entry }) => {
-                      const status = entry?.status || "Pending";
+                      const retainer = isRetainerDeal(deal);
+                      const status = entry?.status || (retainer ? "Pending" : "Not Required");
                       return (
                         <tr
                                 key={deal.id}
@@ -1105,7 +1157,7 @@ export default function MBRTracker() {
                                     status === "Not Done" && "bg-destructive/15 text-destructive",
                                     status === "Not Required" && "bg-muted text-muted-foreground",
                                     status === "Pending" && "bg-warning/15 text-warning",
-                                  )}>{status}</span>
+                                  )} title={!retainer ? "Non-retainer — MBR not mandatory" : undefined}>{!retainer && status === "Not Required" ? "N/R" : status}</span>
                                 </td>
                                 <td className="py-2 px-3 text-center">{sentimentDot(entry?.sentiment ?? null)}</td>
                                 <td className="py-2 px-3 text-xs text-muted-foreground whitespace-nowrap">{entry?.scheduledDate || "—"}</td>
@@ -1192,7 +1244,8 @@ export default function MBRTracker() {
                       {availableMonths.map(m => {
                         const monthData = entriesByMonth.get(m);
                         const entry = monthData?.get(deal.id);
-                        const status = entry?.status || "Pending";
+                        const retainer = isRetainerDeal(deal);
+                        const status = entry?.status || (retainer ? "Pending" : "Not Required");
                         return (
                           <td
                             key={m}
