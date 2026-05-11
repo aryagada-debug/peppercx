@@ -502,6 +502,53 @@ export default function HomePage() {
     loadTasks();
   }, [addTaskDealId, staffingName, displayName, loadTasks, user]);
 
+  // Create an internal personal todo, optionally assigned to another teammate.
+  const handleInternalTaskSubmit = useCallback(async (data: {
+    title: string;
+    notes?: string;
+    dueDate?: string | null;
+    priority?: string;
+    assigneePersonId?: string | null;
+    assigneePersonName?: string | null;
+  }) => {
+    if (!user) { toast.error("Not signed in"); return; }
+    if (!data.title?.trim()) { toast.error("Title is required"); return; }
+
+    let ownerUserId = user.id;
+    let assigneeName = "";
+    if (data.assigneePersonId) {
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("user_id, display_name")
+        .eq("staffing_person_id", data.assigneePersonId)
+        .maybeSingle();
+      if (!prof?.user_id) {
+        toast.error(`${data.assigneePersonName || "That person"} hasn't signed in yet — can't assign internal task.`);
+        return;
+      }
+      ownerUserId = prof.user_id;
+      assigneeName = prof.display_name || data.assigneePersonName || "";
+    }
+
+    const isSelf = ownerUserId === user.id;
+    const { error } = await supabase.from("personal_todos").insert({
+      user_id: ownerUserId,
+      title: data.title.trim(),
+      notes: data.notes || "",
+      priority: data.priority || "Medium",
+      due_date: data.dueDate || null,
+      sort_order: todos.length,
+      assigned_by_user_id: isSelf ? null : user.id,
+      assigned_by_name: isSelf ? "" : (displayName || ""),
+      assignee_name: isSelf ? "" : assigneeName,
+    } as any);
+    if (error) { toast.error(error.message); return; }
+    toast.success(isSelf ? "Internal task added" : `Internal task assigned to ${assigneeName}`);
+    setAddingTask(false);
+    setAddTaskDealId("");
+    loadTodos();
+  }, [user, displayName, todos.length, loadTodos]);
+
   // Initial load - staggered
   useEffect(() => {
     if (!user) return;
