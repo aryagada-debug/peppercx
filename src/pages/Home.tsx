@@ -217,6 +217,8 @@ export default function HomePage() {
     const myDeals = (allDeals || []).filter((d: any) =>
       inAliases(d.vsd) || inAliases(d.principal_bopm) || inAliases(d.senior_bopm) || inAliases(d.bopm));
     const myDealIds = myDeals.map((d: any) => d.id);
+    // Track VSD-only scope separately so we can show team tasks on those deals.
+    setMyVsdDealIds(new Set((allDeals || []).filter((d: any) => inAliases(d.vsd)).map((d: any) => d.id)));
     const dealMap: Record<string, DealLite> = {};
     myDeals.forEach((d: any) => { dealMap[d.id] = d; });
     setDeals(prev => ({ ...prev, ...dealMap }));
