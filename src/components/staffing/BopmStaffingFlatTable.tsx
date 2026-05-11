@@ -1234,11 +1234,11 @@ export function BopmStaffingFlatTable({
               )}
             </div>
             <select
-              onChange={e => { if (e.target.value) { setAddForDeal(e.target.value); e.target.value = ""; } }}
+              onChange={e => { if (e.target.value) { setRequestForDeal({ dealId: e.target.value }); e.target.value = ""; } }}
               className="h-8 px-2 rounded-md border border-border bg-background text-xs text-muted-foreground"
               defaultValue=""
             >
-              <option value="" disabled>+ Add person to a deal…</option>
+              <option value="" disabled>+ Request staffing for a deal…</option>
               {dealsForAdd.map(d => (
                 <option key={d.id} value={d.id}>{d.account} — {d.dealName}</option>
               ))}
