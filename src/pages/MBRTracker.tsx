@@ -679,7 +679,7 @@ export default function MBRTracker() {
           <div>
             <h1 className="text-subhead font-bold tracking-tight text-foreground">MBR Tracker</h1>
             <p className="text-ui text-muted-foreground mt-0.5">
-              {kpis.retainerAccounts} retainer accounts • {viewMode === "current" ? (selectedMonth ? formatMonthLabel(selectedMonth) : "Latest") : "Month-on-Month"}
+              {kpis.retainerAccounts} {accountTypeFilter === "retainer" ? "retainer accounts" : accountTypeFilter === "non-retainer" ? "non-retainer accounts" : "accounts"} • {viewMode === "current" ? (selectedMonth ? formatMonthLabel(selectedMonth) : "Latest") : "Month-on-Month"}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -710,7 +710,12 @@ export default function MBRTracker() {
 
         {/* KPI Strip */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3">
-          <KpiTile label="Retainers" value={String(kpis.retainerAccounts)} tone="primary" icon={Users} />
+          <KpiTile
+            label={accountTypeFilter === "non-retainer" ? "Non-Retainers" : accountTypeFilter === "all" ? "Accounts" : "Retainers"}
+            value={accountTypeFilter === "all" ? `${kpis.retainerCount}/${kpis.retainerAccounts}` : String(kpis.retainerAccounts)}
+            tone="primary"
+            icon={Users}
+          />
           <KpiTile label="Done" value={String(kpis.done)} tone="positive" icon={CheckCircle2} />
           <KpiTile label="Not Done" value={String(kpis.notDone)} tone="destructive" icon={XCircle} />
           <KpiTile label="Pending" value={String(kpis.pending)} tone="warning" icon={Clock} />
