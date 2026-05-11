@@ -14,7 +14,7 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
-import { useMBRData, type MBREntry, type MBRDeal, type VSDSummary } from "@/hooks/useMBRData";
+import { useMBRData, isRetainerDeal, type MBREntry, type MBRDeal, type VSDSummary } from "@/hooks/useMBRData";
 import { MBRDetailDialog } from "@/components/mbr/MBRDetailDialog";
 import { ScheduleOnlyDialog } from "@/components/mbr/ScheduleOnlyDialog";
 import { supabase } from "@/integrations/supabase/client";
@@ -100,6 +100,7 @@ export default function MBRTracker() {
   const [activeBopm, setActiveBopm] = useState<string>("All");
   const [search, setSearch] = useState("");
   const [showClosed, setShowClosed] = useState(false);
+  const [accountTypeFilter, setAccountTypeFilter] = useState<"retainer" | "non-retainer" | "all">("retainer");
   // Reset BOPM whenever VSD changes
   useEffect(() => { setActiveBopm("All"); }, [activeVsd]);
 
@@ -231,6 +232,11 @@ export default function MBRTracker() {
     if (isBopmPersona && !accessLoading) {
       d = d.filter(deal => visibleDealIds.has(deal.id));
     }
+    if (accountTypeFilter === "retainer") {
+      d = d.filter(deal => isRetainerDeal(deal));
+    } else if (accountTypeFilter === "non-retainer") {
+      d = d.filter(deal => !isRetainerDeal(deal));
+    }
     if (!showClosed) {
       d = d.filter(deal => {
         const meta = dealMeta.get(deal.id);
@@ -253,7 +259,7 @@ export default function MBRTracker() {
       d = d.filter(deal => deal.account.toLowerCase().includes(s) || deal.dealName.toLowerCase().includes(s));
     }
     return d;
-  }, [deals, dealMeta, activeVsd, activeBopm, search, showClosed, vsdForDeal, isBopmPersona, accessLoading, visibleDealIds]);
+  }, [deals, dealMeta, activeVsd, activeBopm, search, showClosed, vsdForDeal, isBopmPersona, accessLoading, visibleDealIds, accountTypeFilter]);
 
   // BOPM persona is locked to the table-view, current month only.
   useEffect(() => {
@@ -305,13 +311,25 @@ export default function MBRTracker() {
   // KPIs from filtered deals (use activeEntryMap for current view)
   const kpis = useMemo(() => {
     const filteredIds = new Set(filteredDeals.map(d => d.id));
+    // Mandatory MBRs apply to retainer deals only.
+    const retainerDeals = filteredDeals.filter(d => isRetainerDeal(d));
+    const retainerIds = new Set(retainerDeals.map(d => d.id));
     const relevantEntries = Array.from(activeEntryMap.values()).filter(e => filteredIds.has(e.dealId));
     const done = relevantEntries.filter(e => e.status === "Done").length;
     const notDone = relevantEntries.filter(e => e.status === "Not Done").length;
     const notRequired = relevantEntries.filter(e => e.status === "Not Required").length;
-    const pending = filteredDeals.length - done - notDone - notRequired;
-    const compliance = filteredDeals.length > 0 ? Math.round((done / filteredDeals.length) * 100) : 0;
-    return { retainerAccounts: filteredDeals.length, done, notDone, pending, compliance };
+    // Pending only for retainers (non-retainers don't have a mandatory MBR).
+    const retainerEntries = Array.from(activeEntryMap.values()).filter(e => retainerIds.has(e.dealId));
+    const retainerDone = retainerEntries.filter(e => e.status === "Done").length;
+    const retainerNotDone = retainerEntries.filter(e => e.status === "Not Done").length;
+    const retainerNotRequired = retainerEntries.filter(e => e.status === "Not Required").length;
+    const pending = retainerDeals.length - retainerDone - retainerNotDone - retainerNotRequired;
+    const compliance = retainerDeals.length > 0 ? Math.round((retainerDone / retainerDeals.length) * 100) : 0;
+    return {
+      retainerAccounts: filteredDeals.length,
+      retainerCount: retainerDeals.length,
+      done, notDone, pending, compliance,
+    };
   }, [filteredDeals, activeEntryMap]);
 
   const handleSave = async (params: any) => {
