@@ -604,6 +604,7 @@ export function useDealDetail(dealId: string | undefined) {
         title: prevTask.title,
         description: prevTask.description || "",
         assignee: prevTask.assignee || "",
+        assignees: Array.isArray((prevTask as any).assignees) ? (prevTask as any).assignees : (prevTask.assignee ? [prevTask.assignee] : []),
         stage: "To Do",
         start_date: null,
         end_date: prevTask.endDate || null,
@@ -626,6 +627,7 @@ export function useDealDetail(dealId: string | undefined) {
           estimatedHours: Number(r.estimated_hours) || 0,
           subtasks: Array.isArray(r.subtasks) ? r.subtasks : [],
           autoRegen: !!r.auto_regen, phase: r.phase || "", tags: Array.isArray(r.tags) ? r.tags : [],
+          assignees: Array.isArray(r.assignees) ? r.assignees : (r.assignee ? [r.assignee] : []),
         } as any]);
       }
     }
