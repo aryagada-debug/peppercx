@@ -120,12 +120,40 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
   };
 
   const handleSubmit = async () => {
+    if (!mbrDate) {
+      toast({ title: "MBR Date required", description: "Please pick the MBR date.", variant: "destructive" });
+      return;
+    }
     if (!sentiment) {
       toast({ title: "Sentiment required", description: "Please select a sentiment color.", variant: "destructive" });
       return;
     }
+    if (!transcript.trim()) {
+      toast({ title: "Transcript required", description: "Paste the MBR call transcript.", variant: "destructive" });
+      return;
+    }
+    if (!aiSummary.trim()) {
+      toast({ title: "AI Summary required", description: "Generate or enter an AI summary.", variant: "destructive" });
+      return;
+    }
     if (!scheduledDate) {
-      toast({ title: "Scheduled date required", description: "Please set the next MBR date.", variant: "destructive" });
+      toast({ title: "Next MBR date required", description: "Please set the next MBR date.", variant: "destructive" });
+      return;
+    }
+    if (!anirudhAdded) {
+      toast({ title: "Anirudh attendance required", description: "Confirm Anirudh was added as an optional attendee.", variant: "destructive" });
+      return;
+    }
+    if (!mode) {
+      toast({ title: "Meeting Mode required", description: "Pick In-Person or Virtual.", variant: "destructive" });
+      return;
+    }
+    if (!notes.trim()) {
+      toast({ title: "Notes required", description: "Add additional MBR notes.", variant: "destructive" });
+      return;
+    }
+    if (!mbrPptLink.trim()) {
+      toast({ title: "MBR PPT Link required", description: "Paste the MBR deck link.", variant: "destructive" });
       return;
     }
     setSubmitting(true);
@@ -201,7 +229,7 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
         <div className="p-6 space-y-6">
           {/* MBR Date */}
           <div>
-            <Label className="text-sm font-medium mb-1.5 block">MBR Date</Label>
+            <Label className="text-sm font-medium mb-1.5 block">MBR Date <span className="text-destructive">*</span></Label>
             <p className="text-xs text-muted-foreground mb-1.5">Select the date this MBR was conducted (defaults to current week, can be backdated)</p>
             <Popover>
               <PopoverTrigger asChild>
@@ -250,7 +278,7 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
 
           {/* Transcript */}
           <div>
-            <Label className="text-sm font-medium mb-1.5 block">Call Transcript</Label>
+            <Label className="text-sm font-medium mb-1.5 block">Call Transcript <span className="text-destructive">*</span></Label>
             <Textarea
               value={transcript}
               onChange={(e) => setTranscript(e.target.value)}
@@ -270,17 +298,15 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
           </div>
 
           {/* AI Summary */}
-          {(aiSummary || summarizing) && (
-            <div>
-              <Label className="text-sm font-medium mb-1.5 block">AI Summary</Label>
+          <div>
+            <Label className="text-sm font-medium mb-1.5 block">AI Summary <span className="text-destructive">*</span></Label>
               <Textarea
                 value={aiSummary}
                 onChange={(e) => setAiSummary(e.target.value)}
                 placeholder="AI-generated summary will appear here..."
                 className="min-h-[100px]"
               />
-            </div>
-          )}
+          </div>
 
           {/* Action Items */}
           {(actionItems.length > 0 || aiSummary) && (
@@ -371,7 +397,7 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
 
           {/* Mode */}
           <div>
-            <Label className="text-sm font-medium mb-2 block">Meeting Mode</Label>
+            <Label className="text-sm font-medium mb-2 block">Meeting Mode <span className="text-destructive">*</span></Label>
             <RadioGroup value={mode} onValueChange={setMode} className="flex gap-4">
               <div className="flex items-center gap-2">
                 <RadioGroupItem value="In-Person" id="in-person" />
@@ -386,13 +412,13 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
 
           {/* Notes */}
           <div>
-            <Label className="text-sm font-medium mb-1.5 block">Additional Notes</Label>
+            <Label className="text-sm font-medium mb-1.5 block">Additional Notes <span className="text-destructive">*</span></Label>
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any additional notes..." className="min-h-[80px]" />
           </div>
 
           {/* MBR PPT Link */}
           <div>
-            <Label className="text-sm font-medium mb-1.5 block">MBR PPT Link</Label>
+            <Label className="text-sm font-medium mb-1.5 block">MBR PPT Link <span className="text-destructive">*</span></Label>
             <Input
               value={mbrPptLink}
               onChange={(e) => setMbrPptLink(e.target.value)}

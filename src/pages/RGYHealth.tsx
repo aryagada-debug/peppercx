@@ -652,7 +652,7 @@ export default function RGYHealth() {
     { key: "video", label: "Video" },
     { key: "ai_summary", label: "AI Summary" },
   ]), []);
-  const DEFAULT_VISIBLE = ["account","deal_name","deal_status","overall_rgy","customer","internal"];
+  const DEFAULT_VISIBLE = ["account","deal_name","deal_id","deal_status","overall_rgy","customer","internal","content","seo","supply","copy","design","video","ai_summary"];
   const [visibleCols, setVisibleCols] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem("rgy-visible-cols");
@@ -1356,17 +1356,39 @@ export default function RGYHealth() {
 
               {!isBopmPersona && <div className="flex items-center gap-2">
                 <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">BOPM:</span>
-                <Select value={activeBopm} onValueChange={setActiveBopm}>
-                  <SelectTrigger className="h-7 w-[180px] text-[11px]">
-                    <SelectValue placeholder="All BOPMs" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="All" className="text-xs">All BOPMs</SelectItem>
-                    {bopmOptions.map(b => (
-                      <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>
+                {isVsdPersona ? (
+                  <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5 overflow-x-auto max-w-full">
+                    <button
+                      onClick={() => setActiveBopm("All")}
+                      className={cn(
+                        "px-2.5 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
+                        activeBopm === "All" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >All BOPMs</button>
+                    {bopmOptions.map((b) => (
+                      <button
+                        key={b}
+                        onClick={() => setActiveBopm(b)}
+                        className={cn(
+                          "px-2.5 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
+                          activeBopm === b ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >{b}</button>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </div>
+                ) : (
+                  <Select value={activeBopm} onValueChange={setActiveBopm}>
+                    <SelectTrigger className="h-7 w-[180px] text-[11px]">
+                      <SelectValue placeholder="All BOPMs" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="All" className="text-xs">All BOPMs</SelectItem>
+                      {bopmOptions.map(b => (
+                        <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>}
 
               <div className="flex gap-1 bg-secondary rounded-lg p-1">
@@ -1499,11 +1521,14 @@ export default function RGYHealth() {
                                     <TooltipTrigger asChild>
                                       <span
                                         className={cn(
-                                          "inline-flex items-center justify-center rounded-md text-caption font-semibold w-7 h-7 cursor-help",
+                                          "inline-flex items-center justify-center gap-1 rounded-md text-caption font-medium px-2 h-7 cursor-help",
                                           cellColors[cellVal]
                                         )}
                                       >
-                                        {band ? band : "—"}
+                                        <span className="font-semibold">{band ? band : "—"}</span>
+                                        {score !== null && (
+                                          <span className="font-mono tabular-nums text-[10px] opacity-90">· {Math.round(score)}</span>
+                                        )}
                                       </span>
                                     </TooltipTrigger>
                                     <TooltipContent className="w-[280px] p-3" sideOffset={6}>

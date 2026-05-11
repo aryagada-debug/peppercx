@@ -22,6 +22,8 @@ import { TaskKanban } from "@/components/deals/TaskKanban";
 import { PhaseTasksView } from "@/components/deals/PhaseTasksView";
 import { MBRInputDrawer } from "@/components/mbr/MBRInputDrawer";
 import { MBRDetailDialog } from "@/components/mbr/MBRDetailDialog";
+import { ScheduleOnlyDialog } from "@/components/mbr/ScheduleOnlyDialog";
+import { useDealRgyRollup } from "@/hooks/useDealRgyRollup";
 import { AddStaffingMemberDialog } from "@/components/staffing/AddStaffingMemberDialog";
 import { RequestStaffingDialog } from "@/components/staffing/RequestStaffingDialog";
 import { WeeklyStaffingGrid } from "@/components/deals/WeeklyStaffingGrid";
@@ -576,6 +578,12 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry, deleteMBREntry, 
   const [editingEntry, setEditingEntry] = useState<MBREntry | null>(null);
   const [viewEntry, setViewEntry] = useState<MBREntry | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleEntry, setScheduleEntry] = useState<MBREntry | null>(null);
+
+  // Overall RGY rollup for this deal (band: R / Y / G / PENDING)
+  const { rgyRollup } = useDealRgyRollup([dealId]);
+  const overallBand = rgyRollup.get(dealId);
 
   const weekOptions = getWeekOptions();
   const currentWeek = weekOptions.find(w => {
@@ -751,6 +759,17 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry, deleteMBREntry, 
       icon: mbrHealth.tone === "positive" ? TrendingUp : AlertTriangle,
       tone: mbrHealth.tone,
     },
+    {
+      label: "Overall RGY",
+      value: !overallBand || overallBand === "PENDING" || overallBand === "NA"
+        ? "—"
+        : overallBand === "R" ? "Red" : overallBand === "Y" ? "Yellow" : "Green",
+      caption: "weighted rollup",
+      icon: Activity,
+      tone: overallBand === "R" ? ("warning" as const)
+        : overallBand === "G" ? ("positive" as const)
+        : undefined,
+    },
     slackKpi,
   ];
 
@@ -858,19 +877,33 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry, deleteMBREntry, 
         </div>
       )}
 
-      {/* Next MBR scheduled banner */}
-      {sorted[0]?.scheduledDate && (
-        <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5 text-sm text-foreground">
-          <Calendar className="h-4 w-4 shrink-0 text-primary" />
-          <span>📅 Next MBR scheduled: <span className="font-semibold">{format(new Date(sorted[0].scheduledDate), "dd MMM yyyy")}</span></span>
-        </div>
-      )}
+      {/* Next MBR scheduled banner — pick the soonest future scheduled date */}
+      {(() => {
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const upcoming = sorted
+          .map(e => e.scheduledDate)
+          .filter((d): d is string => !!d && new Date(d) >= today)
+          .sort();
+        const next = upcoming[0] || sorted.find(e => e.scheduledDate)?.scheduledDate;
+        if (!next) return null;
+        return (
+          <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5 text-sm text-foreground">
+            <Calendar className="h-4 w-4 shrink-0 text-primary" />
+            <span>Next MBR scheduled: <span className="font-semibold">{format(new Date(next), "dd MMM yyyy")}</span></span>
+          </div>
+        );
+      })()}
 
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">MBR History</p>
-        <Button variant="outline" size="sm" className="gap-1.5" onClick={handleNewMBR}>
-          <Plus className="h-3.5 w-3.5" /> Record MBR
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => { setScheduleEntry(null); setScheduleOpen(true); }}>
+            <Calendar className="h-3.5 w-3.5" /> Schedule MBR
+          </Button>
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={handleNewMBR}>
+            <Plus className="h-3.5 w-3.5" /> Record MBR
+          </Button>
+        </div>
       </div>
 
       {sorted.length > 0 ? (
@@ -1060,6 +1093,20 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry, deleteMBREntry, 
             const weekToUse = viewEntry?.weekStart || selectedWeek;
             await upsertMBREntry(params, weekToUse);
             toast.success("MBR entry updated");
+          }}
+        />
+      )}
+
+      {scheduleOpen && (
+        <ScheduleOnlyDialog
+          open={scheduleOpen}
+          onClose={() => { setScheduleOpen(false); setScheduleEntry(null); }}
+          deal={dealForDialog as any}
+          entry={scheduleEntry}
+          onSave={async (params) => {
+            const weekToUse = scheduleEntry?.weekStart || selectedWeek;
+            await upsertMBREntry(params, weekToUse);
+            toast.success("MBR scheduled");
           }}
         />
       )}
