@@ -120,12 +120,40 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
   };
 
   const handleSubmit = async () => {
+    if (!mbrDate) {
+      toast({ title: "MBR Date required", description: "Please pick the MBR date.", variant: "destructive" });
+      return;
+    }
     if (!sentiment) {
       toast({ title: "Sentiment required", description: "Please select a sentiment color.", variant: "destructive" });
       return;
     }
+    if (!transcript.trim()) {
+      toast({ title: "Transcript required", description: "Paste the MBR call transcript.", variant: "destructive" });
+      return;
+    }
+    if (!aiSummary.trim()) {
+      toast({ title: "AI Summary required", description: "Generate or enter an AI summary.", variant: "destructive" });
+      return;
+    }
     if (!scheduledDate) {
-      toast({ title: "Scheduled date required", description: "Please set the next MBR date.", variant: "destructive" });
+      toast({ title: "Next MBR date required", description: "Please set the next MBR date.", variant: "destructive" });
+      return;
+    }
+    if (!anirudhAdded) {
+      toast({ title: "Anirudh attendance required", description: "Confirm Anirudh was added as an optional attendee.", variant: "destructive" });
+      return;
+    }
+    if (!mode) {
+      toast({ title: "Meeting Mode required", description: "Pick In-Person or Virtual.", variant: "destructive" });
+      return;
+    }
+    if (!notes.trim()) {
+      toast({ title: "Notes required", description: "Add additional MBR notes.", variant: "destructive" });
+      return;
+    }
+    if (!mbrPptLink.trim()) {
+      toast({ title: "MBR PPT Link required", description: "Paste the MBR deck link.", variant: "destructive" });
       return;
     }
     setSubmitting(true);
