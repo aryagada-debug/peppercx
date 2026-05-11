@@ -1,9 +1,10 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { Check, ChevronRight, Plus, Trash2, Pencil, RefreshCw, Tag, List, LayoutGrid, GripVertical, Save, Copy, Settings2 } from "lucide-react";
+import { Check, ChevronRight, Plus, Trash2, Pencil, RefreshCw, Tag, List, LayoutGrid, GripVertical, Save, Copy, Settings2, Search, User, Clock, Flag, Calendar, ArrowUp, ArrowDown, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -17,8 +18,36 @@ import { toast } from "sonner";
 // ── Phase Template (from PDF onboarding plan) ──
 export interface PhaseTemplate {
   phase: string;
-  tasks: { title: string; description: string; assigneeRole: string; tags: string[] }[];
+  tasks: {
+    title: string;
+    description: string;
+    assigneeRole: string;
+    tags: string[];
+    dayStart?: number;
+    dayEnd?: number;
+    estimatedHours?: number;
+    urgency?: "Low" | "Medium" | "High" | "Critical";
+  }[];
 }
+
+// Mandatory phases auto-populated by generators (RGY, MBR). Always shown in rail.
+export const MANDATORY_PHASES = ["RGY Issues", "MBR"] as const;
+
+// Palette of dot colors for phase rows in the editor (cycled by index).
+const PHASE_DOT_COLORS = [
+  "bg-emerald-500",
+  "bg-violet-500",
+  "bg-sky-500",
+  "bg-amber-500",
+  "bg-rose-500",
+  "bg-cyan-500",
+  "bg-fuchsia-500",
+  "bg-orange-500",
+  "bg-lime-500",
+  "bg-indigo-500",
+  "bg-pink-500",
+  "bg-teal-500",
+];
 
 export const ONBOARDING_PHASES: PhaseTemplate[] = [
   { phase: "Sales Handover", tasks: [
