@@ -45,6 +45,7 @@ import { ReadOnlyBanner } from "@/components/access/ReadOnlyBanner";
 import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
 import { useAuth } from "@/components/auth/AuthProvider";
 // BopmClientsHeader removed per request — KPIs below now serve that role.
+import { useDealRgyRollup, type RgyLetter } from "@/hooks/useDealRgyRollup";
 
 type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
@@ -57,11 +58,31 @@ const fmtCurrency = (n: number | undefined) => {
   return formatINR(Number(n) || 0);
 };
 
-const ragDot = (rag: string) => {
-  const colors: Record<string, string> = {
-    green: "bg-positive", amber: "bg-warning", red: "bg-destructive",
-  };
-  return <span className={cn("inline-block w-2 h-2 rounded-full", colors[rag] || "bg-muted-foreground")} />;
+const RgyBlock = ({ letter }: { letter: RgyLetter | undefined }) => {
+  const l = letter || "PENDING";
+  if (l === "PENDING") {
+    return (
+      <span className="inline-flex items-center justify-center w-6 h-6 rounded-md border border-dashed border-border text-[10px] text-muted-foreground">
+        —
+      </span>
+    );
+  }
+  if (l === "NA") {
+    return (
+      <span className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-muted text-muted-foreground text-[11px] font-medium">
+        —
+      </span>
+    );
+  }
+  const cls =
+    l === "R" ? "bg-destructive text-destructive-foreground"
+    : l === "Y" ? "bg-warning text-warning-foreground"
+    : "bg-positive text-positive-foreground";
+  return (
+    <span className={cn("inline-flex items-center justify-center w-6 h-6 rounded-md text-[11px] font-medium", cls)}>
+      {l}
+    </span>
+  );
 };
 
 // ── Inline Editable Cell ──
@@ -139,6 +160,15 @@ export default function Clients() {
     () => (access.isAdmin ? allDeals : allDeals.filter(d => access.canViewDeal(d.id))),
     [allDeals, access]
   );
+  const dealIdList = useMemo(() => deals.map(d => d.id), [deals]);
+  const { rgyRollup } = useDealRgyRollup(dealIdList);
+  const rgyLetterToFilter = (l: RgyLetter | undefined): string => {
+    if (!l || l === "PENDING") return "pending";
+    if (l === "NA") return "na";
+    if (l === "R") return "red";
+    if (l === "Y") return "amber";
+    return "green";
+  };
   const visibleClientIdSet = useMemo(() => {
     const ids = new Set<string>();
     deals.forEach(d => { if (d.clientId) ids.add(d.clientId); });
@@ -344,12 +374,8 @@ export default function Clients() {
       if (colFilters.mrr && (Number(d.mrr) || 0) < Number(colFilters.mrr)) return false;
       if (colFilters.totalDealValue && (Number(d.totalDealValue) || 0) < Number(colFilters.totalDealValue)) return false;
       if (colFilters.rag) {
-        const rag = (d.rag || "").toLowerCase();
-        if (colFilters.rag === "pending") {
-          if (rag) return false;
-        } else if (rag !== colFilters.rag) {
-          return false;
-        }
+        const rag = rgyLetterToFilter(rgyRollup.get(d.id));
+        if (rag !== colFilters.rag) return false;
       }
       return true;
     });
@@ -364,7 +390,7 @@ export default function Clients() {
       rows = [...rows].sort((a, b) => a.account.localeCompare(b.account) || a.dealName.localeCompare(b.dealName));
     }
     return rows;
-  }, [filteredDeals, colFilters, sortKey, sortDir]);
+  }, [filteredDeals, colFilters, sortKey, sortDir, rgyRollup]);
 
   const kpis = useMemo(() => {
     const clientSet = new Set(filteredDeals.map(d => d.account));
@@ -387,8 +413,8 @@ export default function Clients() {
         .filter(d => d.startDate && new Date(d.startDate) >= qStart)
         .map(d => d.account)
     ).size;
-    // At-risk active deals (rag === red)
-    const atRisk = filteredDeals.filter(d => ACTIVE_STATUSES.has(d.dealStatus) && (d.rag || "").toLowerCase() === "red").length;
+    // At-risk active deals (computed rollup === R)
+    const atRisk = filteredDeals.filter(d => ACTIVE_STATUSES.has(d.dealStatus) && rgyRollup.get(d.id) === "R").length;
     // Top deal by total value
     const topDeal = [...filteredDeals].sort((a, b) => (Number(b.totalDealValue) || 0) - (Number(a.totalDealValue) || 0))[0];
     return {
@@ -405,7 +431,7 @@ export default function Clients() {
       atRisk,
       topDealLabel: topDeal ? `Top: ${topDeal.account} ${fmtCurrency(topDeal.totalDealValue || 0)}` : "—",
     };
-  }, [filteredDeals]);
+  }, [filteredDeals, rgyRollup]);
 
   const handleCreateDeal = async (clientId: string, data: any) => {
     const client = clients.find(c => c.id === clientId);
@@ -611,7 +637,7 @@ export default function Clients() {
         {/* Row 1: Title + KPIs + Actions */}
         <div className="flex items-start gap-4 mb-3 flex-wrap">
           <h1 className="text-subhead font-bold tracking-tight text-foreground whitespace-nowrap mt-2">Clients & Deals</h1>
-          <div className="flex flex-1 gap-2.5 flex-wrap min-w-0">
+          <div className="flex flex-1 gap-2.5 flex-nowrap min-w-0 overflow-hidden">
           {[
             {
               label: "Clients", value: String(kpis.clients), Icon: Building2, tint: "sky",
@@ -639,12 +665,12 @@ export default function Clients() {
               tone: "muted" as const,
             },
           ].map(({ label, value, Icon, tint, insight, tone }) => {
-            const tintMap: Record<string, { bg: string; ring: string; chip: string; icon: string }> = {
-              sky: { bg: "from-sky-500/10", ring: "border-sky-500/20", chip: "bg-sky-500/15", icon: "text-sky-500" },
-              violet: { bg: "from-violet-500/10", ring: "border-violet-500/20", chip: "bg-violet-500/15", icon: "text-violet-500" },
-              emerald: { bg: "from-emerald-500/10", ring: "border-emerald-500/20", chip: "bg-emerald-500/15", icon: "text-emerald-500" },
-              amber: { bg: "from-amber-500/10", ring: "border-amber-500/20", chip: "bg-amber-500/15", icon: "text-amber-500" },
-              rose: { bg: "from-rose-500/10", ring: "border-rose-500/20", chip: "bg-rose-500/15", icon: "text-rose-500" },
+            const tintMap: Record<string, { bg: string; ring: string; icon: string }> = {
+              sky: { bg: "from-sky-500/10", ring: "border-sky-500/20", icon: "text-sky-500" },
+              violet: { bg: "from-violet-500/10", ring: "border-violet-500/20", icon: "text-violet-500" },
+              emerald: { bg: "from-emerald-500/10", ring: "border-emerald-500/20", icon: "text-emerald-500" },
+              amber: { bg: "from-amber-500/10", ring: "border-amber-500/20", icon: "text-amber-500" },
+              rose: { bg: "from-rose-500/10", ring: "border-rose-500/20", icon: "text-rose-500" },
             };
             const t = tintMap[tint];
             const toneClass =
@@ -655,18 +681,16 @@ export default function Clients() {
               <div
                 key={label}
                 className={cn(
-                  "flex flex-1 min-w-[140px] items-center gap-3 px-4 py-3 rounded-xl border bg-gradient-to-br to-transparent backdrop-blur-sm transition-all hover:shadow-sm",
+                  "flex flex-1 min-w-0 flex-col px-3 py-2 rounded-xl border bg-gradient-to-br to-transparent",
                   t.bg, t.ring,
                 )}
               >
-                <div className={cn("rounded-lg p-2", t.chip)}>
-                  <Icon className={cn("h-5 w-5", t.icon)} />
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Icon className={cn("h-3.5 w-3.5 shrink-0", t.icon)} />
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground leading-tight truncate">{label}</p>
                 </div>
-                <div className="min-w-0">
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground leading-tight">{label}</p>
-                  <p className="text-2xl font-semibold tracking-tight text-foreground font-mono leading-tight truncate mt-0.5">{value}</p>
-                  <p className={cn("text-[10px] mt-0.5 truncate", toneClass)} title={insight}>{insight}</p>
-                </div>
+                <p className="text-xl font-semibold tracking-tight text-foreground font-mono leading-tight truncate mt-1" title={value}>{value}</p>
+                <p className={cn("text-[10px] mt-0.5 truncate", toneClass)} title={insight}>{insight}</p>
               </div>
             );
           })}
@@ -965,7 +989,7 @@ export default function Clients() {
                           })()}
                         </td>
                       )}
-                      {isVisible("rag") && <td className="py-2 px-3 text-center">{ragDot(deal.rag || "green")}</td>}
+                      {isVisible("rag") && <td className="py-2 px-3 text-center"><RgyBlock letter={rgyRollup.get(deal.id)} /></td>}
                       <td className="py-2 px-1">
                         <div className="flex items-center gap-1.5 justify-end">
                           <Popover>
