@@ -534,10 +534,13 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
   const activePhase = selectedPhase || currentPhase;
 
   // Seed from template editor
-  const handleSeedFromEditor = useCallback((phases: PhaseTemplate[]) => {
+  const handleSeedFromEditor = useCallback((phases: PhaseTemplate[], opts?: { onlyPhaseIdx?: number }) => {
+    const targetPhases = (opts && typeof opts.onlyPhaseIdx === "number")
+      ? [phases[opts.onlyPhaseIdx]].filter(Boolean)
+      : phases;
     const rows: Omit<DealTask, "id">[] = [];
     let sortIdx = 0;
-    phases.forEach(phase => {
+    targetPhases.forEach(phase => {
       phase.tasks.forEach(t => {
         rows.push({
           dealId,
@@ -556,7 +559,7 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
       });
     });
     onAddBulk(rows);
-    toast.success(`Seeded ${rows.length} tasks across ${phases.length} phases`);
+    toast.success(`Seeded ${rows.length} task${rows.length !== 1 ? "s" : ""} across ${targetPhases.length} phase${targetPhases.length !== 1 ? "s" : ""}`);
   }, [dealId, deal, onAddBulk]);
 
   // Handle marking task done with per-task auto-regen
@@ -769,6 +772,9 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
             <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
               <Plus className="h-3.5 w-3.5" /> Add Task
             </Button>
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setTemplateEditorOpen(true)}>
+              <Settings2 className="h-3.5 w-3.5" /> Seed from Template
+            </Button>
           </div>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto pr-1">
@@ -903,6 +909,14 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
         assignees={assignees}
         defaultStage="To Do"
         title="Add Task"
+      />
+
+      {/* Template Editor (also accessible when tasks already exist) */}
+      <TemplateEditorDialog
+        open={templateEditorOpen}
+        onOpenChange={setTemplateEditorOpen}
+        initialPhases={ONBOARDING_PHASES}
+        onSeed={handleSeedFromEditor}
       />
 
       {/* Delete Confirmation */}
