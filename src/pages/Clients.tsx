@@ -224,6 +224,7 @@ export default function Clients() {
   // Per-column filters (text values; numeric filters use min input)
   const [colFilters, setColFilters] = useState<Record<string, string>>({});
   const [openFilter, setOpenFilter] = useState<string | null>(null);
+  const [renewalFilter, setRenewalFilter] = useState(false);
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
@@ -360,10 +361,24 @@ export default function Clients() {
     return d;
   }, [deals, activeVsd, activeBopm, search, showClosed, allPersonNames]);
 
+  // Deals up for renewal within 90 days (used by both KPI and renewals filter)
+  const renewingIds = useMemo(() => {
+    const now = new Date();
+    const in90 = new Date(); in90.setDate(in90.getDate() + 90);
+    const ids = new Set<string>();
+    filteredDeals.forEach(d => {
+      if (!ACTIVE_STATUSES.has(d.dealStatus) || !d.endDate) return;
+      const end = new Date(d.endDate as string);
+      if (!isNaN(end.getTime()) && end >= now && end <= in90) ids.add(d.id);
+    });
+    return ids;
+  }, [filteredDeals]);
+
   // Apply per-column filters + sort to produce flat row list
   const tableRows = useMemo(() => {
     const matches = (val: any, q: string) => String(val ?? "").toLowerCase().includes(q.toLowerCase());
     let rows = filteredDeals.filter(d => {
+      if (renewalFilter && !renewingIds.has(d.id)) return false;
       if (colFilters.account && !matches(d.account, colFilters.account)) return false;
       if (colFilters.dealName && !matches(d.dealName, colFilters.dealName)) return false;
       if (colFilters.dealId && !matches(d.dealId, colFilters.dealId)) return false;
@@ -390,17 +405,15 @@ export default function Clients() {
       rows = [...rows].sort((a, b) => a.account.localeCompare(b.account) || a.dealName.localeCompare(b.dealName));
     }
     return rows;
-  }, [filteredDeals, colFilters, sortKey, sortDir, rgyRollup]);
+  }, [filteredDeals, colFilters, sortKey, sortDir, rgyRollup, renewalFilter, renewingIds]);
 
   const kpis = useMemo(() => {
     const clientSet = new Set(filteredDeals.map(d => d.account));
     // Renewals < 90 days — active deals whose endDate is within next 90d
     const now = new Date();
-    const in60 = new Date(); in60.setDate(in60.getDate() + 90);
     const renewing = filteredDeals
-      .filter(d => ACTIVE_STATUSES.has(d.dealStatus) && d.endDate)
+      .filter(d => renewingIds.has(d.id) && d.endDate)
       .map(d => ({ d, end: new Date(d.endDate as string) }))
-      .filter(x => !isNaN(x.end.getTime()) && x.end >= now && x.end <= in60)
       .sort((a, b) => a.end.getTime() - b.end.getTime());
     const nextRenewal = renewing[0];
     const nextRenewalDays = nextRenewal
@@ -431,7 +444,7 @@ export default function Clients() {
       atRisk,
       topDealLabel: topDeal ? `Top: ${topDeal.account} ${fmtCurrency(topDeal.totalDealValue || 0)}` : "—",
     };
-  }, [filteredDeals, rgyRollup]);
+  }, [filteredDeals, rgyRollup, renewingIds]);
 
   const handleCreateDeal = async (clientId: string, data: any) => {
     const client = clients.find(c => c.id === clientId);
@@ -642,31 +655,38 @@ export default function Clients() {
           <div className="flex flex-1 gap-2.5 flex-nowrap min-w-0 overflow-hidden">
           {[
             {
+              key: "clients",
               label: "Clients", value: String(kpis.clients), Icon: Building2, tint: "sky",
               insight: kpis.newClientsThisQ > 0 ? `${kpis.newClientsThisQ} new this quarter` : "No new this quarter",
               tone: "muted" as const,
             },
             {
+              key: "renewals",
               label: "Renewals < 90d", value: String(kpis.renewals90), Icon: Briefcase, tint: "violet",
               insight: kpis.nextRenewalLabel,
               tone: kpis.renewals90 > 0 ? "warning" as const : "muted" as const,
+              onClick: () => setRenewalFilter(v => !v),
+              active: renewalFilter,
             },
             {
+              key: "active",
               label: "Active Deals", value: String(kpis.activeDeals), Icon: Activity, tint: "emerald",
               insight: kpis.atRisk > 0 ? `${kpis.atRisk} at risk` : "All on track",
               tone: kpis.atRisk > 0 ? "destructive" as const : "muted" as const,
             },
             {
+              key: "mrr",
               label: "Total MRR", value: fmtCurrency(kpis.totalMRR), Icon: TrendingUp, tint: "amber",
               insight: `${kpis.activeDeals} active contributing`,
               tone: "muted" as const,
             },
             {
+              key: "value",
               label: "Total Value", value: fmtCurrency(kpis.totalValue), Icon: DollarSign, tint: "rose",
               insight: kpis.topDealLabel,
               tone: "muted" as const,
             },
-          ].map(({ label, value, Icon, tint, insight, tone }) => {
+          ].map(({ key, label, value, Icon, tint, insight, tone, onClick, active }: any) => {
             const tintMap: Record<string, { bg: string; ring: string; icon: string }> = {
               sky: { bg: "from-sky-500/10", ring: "border-sky-500/20", icon: "text-sky-500" },
               violet: { bg: "from-violet-500/10", ring: "border-violet-500/20", icon: "text-violet-500" },
@@ -680,20 +700,28 @@ export default function Clients() {
               : tone === "warning" ? "text-warning"
               : "text-muted-foreground";
             return (
-              <div
-                key={label}
+              <button
+                type="button"
+                key={key || label}
+                onClick={onClick}
+                disabled={!onClick}
+                aria-pressed={!!active}
+                title={onClick ? (active ? "Click to clear renewals filter" : "Click to show only deals up for renewal") : undefined}
                 className={cn(
-                  "flex flex-1 min-w-0 flex-col px-3 py-2 rounded-xl border bg-gradient-to-br to-transparent",
+                  "flex flex-1 min-w-0 flex-col px-3 py-2 rounded-xl border bg-gradient-to-br to-transparent text-left transition-colors",
                   t.bg, t.ring,
+                  onClick && "cursor-pointer hover:border-foreground/30",
+                  active && "ring-2 ring-violet-500/40 border-violet-500/40",
                 )}
               >
                 <div className="flex items-center gap-1.5 min-w-0">
                   <Icon className={cn("h-3.5 w-3.5 shrink-0", t.icon)} />
                   <p className="text-[10px] uppercase tracking-wide text-muted-foreground leading-tight truncate">{label}</p>
+                  {active && <span className="ml-auto text-[9px] text-violet-500 font-medium">FILTERED</span>}
                 </div>
                 <p className="text-xl font-semibold tracking-tight text-foreground font-mono leading-tight truncate mt-1" title={value}>{value}</p>
                 <p className={cn("text-[10px] mt-0.5 truncate", toneClass)} title={insight}>{insight}</p>
-              </div>
+              </button>
             );
           })}
           </div>
