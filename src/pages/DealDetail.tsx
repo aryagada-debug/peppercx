@@ -23,6 +23,7 @@ import { PhaseTasksView } from "@/components/deals/PhaseTasksView";
 import { MBRInputDrawer } from "@/components/mbr/MBRInputDrawer";
 import { MBRDetailDialog } from "@/components/mbr/MBRDetailDialog";
 import { AddStaffingMemberDialog } from "@/components/staffing/AddStaffingMemberDialog";
+import { RequestStaffingDialog } from "@/components/staffing/RequestStaffingDialog";
 import { WeeklyStaffingGrid } from "@/components/deals/WeeklyStaffingGrid";
 import { SoWImportDialog } from "@/components/deals/SoWImportDialog";
 import { DealDocsUpload } from "@/components/deals/DealDocsUpload";
