@@ -530,7 +530,9 @@ export function BopmStaffingFlatTable({
   const [search, setSearch] = useState("");
   const [bopmFilter, setBopmFilter] = useState<string>("All");
   const allPersonNames = useAllPersonNames();
-  const [addForDeal, setAddForDeal] = useState<string | null>(null);
+  // "Request staffing" replaces the old direct-add flow. We capture the deal
+  // (and optional role/category context) and route through staffing_review_requests.
+  const [requestForDeal, setRequestForDeal] = useState<{ dealId: string; roleKey?: string; category?: string } | null>(null);
   // Engagement-aware add: opens the full dialog scoped to a specific role/category.
   const [addCell, setAddCell] = useState<{ dealId: string; roleKey: string; category: string } | null>(null);
   // Engagement-aware change: opens the dialog in edit mode for an existing assignment.
