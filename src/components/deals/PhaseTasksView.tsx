@@ -1,9 +1,10 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { Check, ChevronRight, Plus, Trash2, Pencil, RefreshCw, Tag, List, LayoutGrid, GripVertical, Save, Copy, Settings2 } from "lucide-react";
+import { Check, ChevronRight, Plus, Trash2, Pencil, RefreshCw, Tag, List, LayoutGrid, GripVertical, Save, Copy, Settings2, Search, User, Clock, Flag, Calendar, ArrowUp, ArrowDown, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -17,8 +18,36 @@ import { toast } from "sonner";
 // ── Phase Template (from PDF onboarding plan) ──
 export interface PhaseTemplate {
   phase: string;
-  tasks: { title: string; description: string; assigneeRole: string; tags: string[] }[];
+  tasks: {
+    title: string;
+    description: string;
+    assigneeRole: string;
+    tags: string[];
+    dayStart?: number;
+    dayEnd?: number;
+    estimatedHours?: number;
+    urgency?: "Low" | "Medium" | "High" | "Critical";
+  }[];
 }
+
+// Mandatory phases auto-populated by generators (RGY, MBR). Always shown in rail.
+export const MANDATORY_PHASES = ["RGY Issues", "MBR"] as const;
+
+// Palette of dot colors for phase rows in the editor (cycled by index).
+const PHASE_DOT_COLORS = [
+  "bg-emerald-500",
+  "bg-violet-500",
+  "bg-sky-500",
+  "bg-amber-500",
+  "bg-rose-500",
+  "bg-cyan-500",
+  "bg-fuchsia-500",
+  "bg-orange-500",
+  "bg-lime-500",
+  "bg-indigo-500",
+  "bg-pink-500",
+  "bg-teal-500",
+];
 
 export const ONBOARDING_PHASES: PhaseTemplate[] = [
   { phase: "Sales Handover", tasks: [
@@ -165,7 +194,7 @@ function TemplateEditorDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialPhases: PhaseTemplate[];
-  onSeed: (phases: PhaseTemplate[], opts?: { onlyPhaseIdx?: number }) => void;
+  onSeed: (phases: PhaseTemplate[], opts?: { onlyPhaseIdx?: number; onlyPhaseIdxs?: number[] }) => void;
 }) {
   const [phases, setPhases] = useState<PhaseTemplate[]>(() => JSON.parse(JSON.stringify(initialPhases)));
   const [selectedPhaseIdx, setSelectedPhaseIdx] = useState(0);
@@ -174,6 +203,8 @@ function TemplateEditorDialog({
   const [saveName, setSaveName] = useState("");
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [phaseSearch, setPhaseSearch] = useState("");
+  const [checkedPhaseIdxs, setCheckedPhaseIdxs] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
@@ -296,108 +327,264 @@ function TemplateEditorDialog({
     toast.success("Template deleted");
   };
 
+  const filteredPhaseIdxs = useMemo(() => {
+    const q = phaseSearch.trim().toLowerCase();
+    return phases
+      .map((_, i) => i)
+      .filter(i => !q || phases[i].phase.toLowerCase().includes(q));
+  }, [phases, phaseSearch]);
+
+  const toggleChecked = (idx: number) => {
+    setCheckedPhaseIdxs(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  };
+
+  const totalTasks = phases.reduce((acc, p) => acc + p.tasks.length, 0);
+  const estDays = Math.max(1, Math.round(totalTasks / 1.5));
+  const checkedCount = checkedPhaseIdxs.size;
+
+  const seedLabel = checkedCount > 0 ? `Seed ${checkedCount} Phase${checkedCount === 1 ? "" : "s"}` : "Seed Tasks";
+  const handleSeedAll = () => {
+    if (checkedCount > 0) {
+      onSeed(phases, { onlyPhaseIdxs: Array.from(checkedPhaseIdxs).sort((a, b) => a - b) });
+    } else {
+      onSeed(phases);
+    }
+    onOpenChange(false);
+  };
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle>Template Editor</DialogTitle>
-            <DialogDescription>Customize phases and tasks before seeding. You can also save this as a reusable template.</DialogDescription>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col p-0 gap-0">
+          <DialogHeader className="px-5 pt-5 pb-3 border-b border-border">
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                <Settings2 className="h-4 w-4" />
+              </div>
+              <div>
+                <DialogTitle className="text-base">Template Editor</DialogTitle>
+                <DialogDescription className="text-xs">Customize phases and tasks before seeding. You can also save this as a reusable template.</DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
 
-          <div className="flex gap-4 flex-1 min-h-0 overflow-hidden">
+          <div className="flex flex-1 min-h-0 overflow-hidden">
             {/* Left: phases list */}
-            <div className="w-56 shrink-0 border border-border rounded-lg overflow-hidden flex flex-col">
-              <div className="p-2 border-b border-border bg-secondary/30 flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Phases</span>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={addPhase}><Plus className="h-3 w-3" /></Button>
+            <div className="w-64 shrink-0 border-r border-border bg-secondary/20 flex flex-col">
+              <div className="px-3 pt-3 pb-2 flex items-center justify-between">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Phases</span>
+                <button
+                  onClick={addPhase}
+                  className="h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90"
+                  title="Add phase"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
               </div>
-              <div className="overflow-y-auto flex-1">
-                {phases.map((p, idx) => (
-                  <div
-                    key={idx}
-                    onClick={() => setSelectedPhaseIdx(idx)}
-                    className={cn(
-                      "px-2 py-2 text-xs border-b border-border/50 cursor-pointer hover:bg-secondary/40 flex items-center gap-1",
-                      selectedPhaseIdx === idx && "bg-primary/10 border-l-2 border-l-primary font-medium"
-                    )}
-                  >
-                    <span className="flex-1 truncate">{p.phase || "Untitled"}</span>
-                    <span className="text-[10px] text-muted-foreground font-mono">{p.tasks.length}</span>
-                  </div>
-                ))}
+              <div className="px-3 pb-2">
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                  <Input
+                    value={phaseSearch}
+                    onChange={(e) => setPhaseSearch(e.target.value)}
+                    placeholder="Search phases"
+                    className="h-7 pl-7 text-xs bg-background"
+                  />
+                </div>
+              </div>
+              <div className="overflow-y-auto flex-1 px-2 pb-2 space-y-0.5">
+                {filteredPhaseIdxs.map((idx) => {
+                  const p = phases[idx];
+                  const isActive = selectedPhaseIdx === idx;
+                  const isChecked = checkedPhaseIdxs.has(idx);
+                  return (
+                    <div
+                      key={idx}
+                      onClick={() => setSelectedPhaseIdx(idx)}
+                      className={cn(
+                        "group flex items-center gap-2 px-2 py-2 rounded-md text-xs cursor-pointer transition-colors",
+                        isActive ? "bg-primary/10 border border-primary/30" : "hover:bg-background border border-transparent"
+                      )}
+                    >
+                      <Checkbox
+                        checked={isChecked}
+                        onCheckedChange={() => toggleChecked(idx)}
+                        onClick={(e) => e.stopPropagation()}
+                        className={cn("h-3.5 w-3.5", !isChecked && "opacity-0 group-hover:opacity-100 transition-opacity", checkedPhaseIdxs.size > 0 && "opacity-100")}
+                      />
+                      <GripVertical className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+                      <span className={cn("h-2 w-2 rounded-full shrink-0", PHASE_DOT_COLORS[idx % PHASE_DOT_COLORS.length])} />
+                      <span className={cn("flex-1 truncate", isActive && "font-medium text-primary")}>{p.phase || "Untitled"}</span>
+                      <Badge variant={isActive ? "default" : "secondary"} className="h-5 min-w-[20px] px-1.5 text-[10px] font-mono">
+                        {p.tasks.length}
+                      </Badge>
+                    </div>
+                  );
+                })}
+                {filteredPhaseIdxs.length === 0 && (
+                  <p className="text-[11px] text-muted-foreground text-center py-4">No phases match.</p>
+                )}
+              </div>
+              <div className="border-t border-border px-3 py-2 flex items-center justify-between text-[11px] text-muted-foreground">
+                <span className="flex items-center gap-1"><Check className="h-3 w-3" /> {totalTasks} tasks</span>
+                <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> ~{estDays} days</span>
               </div>
             </div>
 
             {/* Right: phase details + tasks */}
-            <div className="flex-1 overflow-y-auto space-y-4">
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
               {currentPhase && (
                 <>
                   {/* Phase name + actions */}
                   <div className="flex items-center gap-2">
+                    <span className={cn("h-2.5 w-2.5 rounded-full shrink-0", PHASE_DOT_COLORS[selectedPhaseIdx % PHASE_DOT_COLORS.length])} />
                     <Input
                       value={currentPhase.phase}
                       onChange={(e) => updatePhaseName(selectedPhaseIdx, e.target.value)}
-                      className="h-8 text-sm font-medium flex-1"
+                      className="h-9 text-sm font-medium flex-1 text-primary"
                       placeholder="Phase name"
                     />
-                    <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => movePhase(selectedPhaseIdx, -1)} disabled={selectedPhaseIdx === 0}>↑</Button>
-                    <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => movePhase(selectedPhaseIdx, 1)} disabled={selectedPhaseIdx === phases.length - 1}>↓</Button>
-                    <Button variant="ghost" size="sm" className="h-8 px-2 text-xs text-destructive" onClick={() => removePhase(selectedPhaseIdx)} disabled={phases.length <= 1}>
-                      <Trash2 className="h-3 w-3" />
+                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => movePhase(selectedPhaseIdx, -1)} disabled={selectedPhaseIdx === 0}><ArrowUp className="h-3.5 w-3.5" /></Button>
+                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => movePhase(selectedPhaseIdx, 1)} disabled={selectedPhaseIdx === phases.length - 1}><ArrowDown className="h-3.5 w-3.5" /></Button>
+                    <Button variant="outline" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => removePhase(selectedPhaseIdx)} disabled={phases.length <= 1}>
+                      <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
 
                   {/* Tasks */}
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tasks ({currentPhase.tasks.length})</Label>
+                    <div className="flex items-center justify-between pb-1">
+                      <div className="flex items-center gap-2">
+                        <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Tasks</Label>
+                        <Badge variant="secondary" className="h-5 text-[10px] font-mono">{currentPhase.tasks.length}</Badge>
+                      </div>
                       <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={addTask}>
-                        <Plus className="h-3 w-3" /> Add Task
+                        <Plus className="h-3 w-3" /> Add task
                       </Button>
                     </div>
 
                     {currentPhase.tasks.map((task, tIdx) => (
-                      <div key={tIdx} className="border border-border rounded-lg p-3 space-y-2 bg-card">
-                        <div className="flex items-center gap-2">
+                      <div key={tIdx} className="flex items-start gap-2 border border-border rounded-lg p-3 bg-card">
+                        <GripVertical className="h-4 w-4 text-muted-foreground/50 mt-1.5 shrink-0" />
+                        <div className="flex-1 space-y-2 min-w-0">
                           <Input
                             value={task.title}
                             onChange={(e) => updateTask(tIdx, "title", e.target.value)}
-                            className="h-7 text-sm flex-1"
+                            className="h-8 text-sm"
                             placeholder="Task title"
                           />
-                          <Button variant="ghost" size="sm" className="h-7 px-1.5" onClick={() => moveTask(tIdx, -1)} disabled={tIdx === 0}>↑</Button>
-                          <Button variant="ghost" size="sm" className="h-7 px-1.5" onClick={() => moveTask(tIdx, 1)} disabled={tIdx === currentPhase.tasks.length - 1}>↓</Button>
-                          <Button variant="ghost" size="sm" className="h-7 px-1.5 text-destructive" onClick={() => removeTask(tIdx)}>
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
+                          <Textarea
+                            value={task.description}
+                            onChange={(e) => updateTask(tIdx, "description", e.target.value)}
+                            className="text-xs min-h-[44px] resize-y"
+                            placeholder="Description"
+                            rows={2}
+                          />
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {/* Assignee role chip */}
+                            <div className="flex items-center gap-1 bg-secondary/60 rounded-md pl-2 pr-1 py-0.5">
+                              <User className="h-3 w-3 text-muted-foreground" />
+                              <Input
+                                value={task.assigneeRole}
+                                onChange={(e) => updateTask(tIdx, "assigneeRole", e.target.value)}
+                                className="h-6 w-28 text-[11px] border-0 bg-transparent px-1 focus-visible:ring-0"
+                                placeholder="Assignee"
+                              />
+                            </div>
+                            {/* Tag chips */}
+                            {(task.tags || []).map((tag, tagIdx) => (
+                              <span key={tagIdx} className={cn("inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md font-medium", TAG_COLORS[tag] || "bg-secondary text-muted-foreground")}>
+                                {tag}
+                                <button onClick={() => updateTask(tIdx, "tags", task.tags.filter((_, i) => i !== tagIdx))} className="hover:opacity-70">
+                                  <X className="h-2.5 w-2.5" />
+                                </button>
+                              </span>
+                            ))}
+                            <Input
+                              value=""
+                              onChange={(e) => {
+                                const v = e.target.value.replace(/,$/, "").trim();
+                                if (v) updateTask(tIdx, "tags", [...(task.tags || []), v]);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === ",") {
+                                  e.preventDefault();
+                                  const v = (e.target as HTMLInputElement).value.trim();
+                                  if (v) {
+                                    updateTask(tIdx, "tags", [...(task.tags || []), v]);
+                                    (e.target as HTMLInputElement).value = "";
+                                  }
+                                }
+                              }}
+                              className="h-6 w-20 text-[11px] bg-secondary/40"
+                              placeholder="+ tag"
+                            />
+                            {/* Day range chip */}
+                            <div className="flex items-center gap-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-md px-2 py-0.5">
+                              <Calendar className="h-3 w-3" />
+                              <span className="text-[10px]">Day</span>
+                              <input
+                                type="number"
+                                value={task.dayStart ?? ""}
+                                onChange={(e) => updateTask(tIdx, "dayStart", e.target.value === "" ? undefined : Number(e.target.value))}
+                                className="w-8 h-5 text-[10px] bg-transparent border-0 focus:outline-none text-center"
+                                placeholder="—"
+                              />
+                              <span className="text-[10px]">→</span>
+                              <input
+                                type="number"
+                                value={task.dayEnd ?? ""}
+                                onChange={(e) => updateTask(tIdx, "dayEnd", e.target.value === "" ? undefined : Number(e.target.value))}
+                                className="w-8 h-5 text-[10px] bg-transparent border-0 focus:outline-none text-center"
+                                placeholder="—"
+                              />
+                            </div>
+                            {/* Hours chip */}
+                            <div className="flex items-center gap-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-md px-2 py-0.5">
+                              <Clock className="h-3 w-3" />
+                              <input
+                                type="number"
+                                value={task.estimatedHours ?? ""}
+                                onChange={(e) => updateTask(tIdx, "estimatedHours", e.target.value === "" ? undefined : Number(e.target.value))}
+                                className="w-10 h-5 text-[10px] bg-transparent border-0 focus:outline-none text-center"
+                                placeholder="0"
+                              />
+                              <span className="text-[10px]">hrs</span>
+                            </div>
+                            {/* Urgency chip */}
+                            <div className="flex items-center gap-1 bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 rounded-md px-2 py-0.5">
+                              <Flag className="h-3 w-3" />
+                              <select
+                                value={task.urgency ?? "Medium"}
+                                onChange={(e) => updateTask(tIdx, "urgency", e.target.value)}
+                                className="text-[10px] bg-transparent border-0 focus:outline-none"
+                              >
+                                <option value="Low">Low</option>
+                                <option value="Medium">Medium</option>
+                                <option value="High">High</option>
+                                <option value="Critical">Critical</option>
+                              </select>
+                            </div>
+                          </div>
                         </div>
-                        <Input
-                          value={task.description}
-                          onChange={(e) => updateTask(tIdx, "description", e.target.value)}
-                          className="h-7 text-xs"
-                          placeholder="Description"
-                        />
-                        <div className="flex items-center gap-2">
-                          <Input
-                            value={task.assigneeRole}
-                            onChange={(e) => updateTask(tIdx, "assigneeRole", e.target.value)}
-                            className="h-7 text-xs w-36"
-                            placeholder="Assignee role (e.g. VSD)"
-                          />
-                          <Input
-                            value={(task.tags || []).join(", ")}
-                            onChange={(e) => updateTask(tIdx, "tags", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
-                            className="h-7 text-xs flex-1"
-                            placeholder="Tags (comma-separated)"
-                          />
+                        <div className="flex flex-col gap-1 shrink-0">
+                          <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => moveTask(tIdx, -1)} disabled={tIdx === 0}><ArrowUp className="h-3 w-3" /></Button>
+                          <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => moveTask(tIdx, 1)} disabled={tIdx === currentPhase.tasks.length - 1}><ArrowDown className="h-3 w-3" /></Button>
+                          <Button variant="outline" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => removeTask(tIdx)}><Trash2 className="h-3 w-3" /></Button>
                         </div>
                       </div>
                     ))}
 
-                    {currentPhase.tasks.length === 0 && (
-                      <p className="text-xs text-muted-foreground text-center py-4">No tasks in this phase. Click "Add Task" to add one.</p>
-                    )}
+                    <button
+                      onClick={addTask}
+                      className="w-full border-2 border-dashed border-border rounded-lg py-2.5 text-xs text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors flex items-center justify-center gap-1"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Add another task
+                    </button>
                   </div>
                 </>
               )}
@@ -405,7 +592,7 @@ function TemplateEditorDialog({
           </div>
 
           {/* Saved templates + actions */}
-          <div className="border-t border-border pt-3 space-y-3">
+          <div className="border-t border-border px-5 py-3 space-y-3 bg-secondary/10">
             {savedTemplates.length > 0 && (
               <div>
                 <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">Saved Templates</Label>
@@ -430,6 +617,7 @@ function TemplateEditorDialog({
                 <Button variant="outline" size="sm" className="gap-1.5" onClick={() => {
                   setPhases(JSON.parse(JSON.stringify(ONBOARDING_PHASES)));
                   setSelectedPhaseIdx(0);
+                  setCheckedPhaseIdxs(new Set());
                   toast.success("Reset to default Template v1");
                 }}>
                   Reset to Default
@@ -446,8 +634,8 @@ function TemplateEditorDialog({
                 >
                   <Plus className="h-3.5 w-3.5" /> Seed This Phase
                 </Button>
-                <Button onClick={() => { onSeed(phases); onOpenChange(false); }} className="gap-1.5">
-                  <Plus className="h-3.5 w-3.5" /> Seed Tasks
+                <Button onClick={handleSeedAll} className="gap-1.5">
+                  <Plus className="h-3.5 w-3.5" /> {seedLabel}
                 </Button>
               </div>
             </div>
@@ -513,6 +701,7 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
   const tasksByPhase = useMemo(() => {
     const map: Record<string, DealTask[]> = {};
     ONBOARDING_PHASES.forEach(p => { map[p.phase] = []; });
+    MANDATORY_PHASES.forEach(p => { map[p] = []; });
     map[GENERAL_PHASE] = [];
     phaseTasks.forEach(t => {
       const key = t.phase || GENERAL_PHASE;
@@ -534,27 +723,46 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
   const activePhase = selectedPhase || currentPhase;
 
   // Seed from template editor
-  const handleSeedFromEditor = useCallback((phases: PhaseTemplate[], opts?: { onlyPhaseIdx?: number }) => {
-    const targetPhases = (opts && typeof opts.onlyPhaseIdx === "number")
-      ? [phases[opts.onlyPhaseIdx]].filter(Boolean)
-      : phases;
+  const handleSeedFromEditor = useCallback((phases: PhaseTemplate[], opts?: { onlyPhaseIdx?: number; onlyPhaseIdxs?: number[] }) => {
+    let targetPhases: PhaseTemplate[];
+    if (opts?.onlyPhaseIdxs && opts.onlyPhaseIdxs.length > 0) {
+      targetPhases = opts.onlyPhaseIdxs.map(i => phases[i]).filter(Boolean) as PhaseTemplate[];
+    } else if (typeof opts?.onlyPhaseIdx === "number") {
+      targetPhases = [phases[opts.onlyPhaseIdx]].filter(Boolean) as PhaseTemplate[];
+    } else {
+      targetPhases = phases;
+    }
     const rows: Omit<DealTask, "id">[] = [];
     let sortIdx = 0;
+    const today = new Date();
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
     targetPhases.forEach(phase => {
       phase.tasks.forEach(t => {
+        let startDate: string | undefined;
+        let endDate: string | undefined;
+        if (typeof t.dayStart === "number") {
+          const s = new Date(today); s.setDate(s.getDate() + t.dayStart);
+          startDate = fmt(s);
+        }
+        if (typeof t.dayEnd === "number") {
+          const e = new Date(today); e.setDate(e.getDate() + t.dayEnd);
+          endDate = fmt(e);
+        }
         rows.push({
           dealId,
           title: t.title,
           description: t.description,
           stage: "To Do",
           assignee: resolveAssignee(t.assigneeRole, deal),
-          urgency: "Medium",
+          urgency: t.urgency || "Medium",
           loggedHours: 0,
           sortOrder: sortIdx++,
-          estimatedHours: 0,
+          estimatedHours: t.estimatedHours || 0,
           subtasks: [],
           phase: phase.phase,
           tags: t.tags,
+          startDate,
+          endDate,
         });
       });
     });
@@ -641,6 +849,9 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
     const phaseNames = ONBOARDING_PHASES.map(p => p.phase);
     phaseTasks.forEach(t => {
       if (t.phase && !phaseNames.includes(t.phase)) phaseNames.push(t.phase);
+    });
+    MANDATORY_PHASES.forEach(p => {
+      if (!phaseNames.includes(p)) phaseNames.push(p);
     });
     if ((tasksByPhase[GENERAL_PHASE]?.length || 0) > 0 && !phaseNames.includes(GENERAL_PHASE)) {
       phaseNames.push(GENERAL_PHASE);
