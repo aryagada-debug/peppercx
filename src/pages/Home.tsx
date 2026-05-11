@@ -505,6 +505,8 @@ export default function HomePage() {
     }
     if (taskViewAs === "me") {
       return (t: any) => {
+        // VSDs see all tasks on the deals where they are VSD (their team).
+        if (t.deal_id && myVsdDealIds.has(t.deal_id)) return true;
         const list: string[] = Array.isArray(t.assignees) && t.assignees.length
           ? t.assignees : (t.assignee ? [t.assignee] : []);
         return aliasMatches(list, aliasSet);
@@ -520,7 +522,7 @@ export default function HomePage() {
         ? t.assignees : (t.assignee ? [t.assignee] : []);
       return aliasMatches(list, personAliases);
     };
-  }, [taskViewAs, allPeople, staffingName, displayName, aliasMatches]);
+  }, [taskViewAs, allPeople, staffingName, displayName, aliasMatches, myVsdDealIds]);
 
   const visibleDealTasks = useMemo(() => dealTasks.filter(taskScopePredicate as any), [dealTasks, taskScopePredicate]);
   const visibleCxTasks = useMemo(() => cxTasks.filter(taskScopePredicate as any), [cxTasks, taskScopePredicate]);
