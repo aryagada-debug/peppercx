@@ -124,6 +124,8 @@ interface DealWithRGY {
   rgy_action_plan?: string;
   rgy_discussed_action_plan?: string;
   rgy_issue_details?: string;
+  rgy_issue_date?: string | null;
+  rgy_created_at?: string | null;
   customer: string;
   internal: string;
   content: string;
