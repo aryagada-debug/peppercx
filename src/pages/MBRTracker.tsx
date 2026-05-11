@@ -18,6 +18,7 @@ import { useMBRData, isRetainerDeal, type MBREntry, type MBRDeal, type VSDSummar
 import { MBRDetailDialog } from "@/components/mbr/MBRDetailDialog";
 import { ScheduleOnlyDialog } from "@/components/mbr/ScheduleOnlyDialog";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { ColHeader } from "@/components/table/ColHeader";
 import { CalendarConnectButton } from "@/components/calendar/CalendarConnectButton";
 import { useAppUsers, useVsdUsers, useVsdHierarchy } from "@/hooks/useAppUsers";
