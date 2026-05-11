@@ -827,6 +827,19 @@ export default function RGYHealth() {
 
     const oldValue = (deal[dimKey as keyof DealWithRGY] as string) || "NA";
 
+    // Validation: Overall Customer R/Y requires Internal = R.
+    // Hard-block the save when changing customer or internal would violate this.
+    if (dimKey === "customer" || dimKey === "internal") {
+      const customerVal = dimKey === "customer" ? newValue : (deal.customer || "");
+      const internalVal = dimKey === "internal" ? newValue : (deal.internal || "");
+      const customerBad = customerVal === "R" || customerVal === "Y";
+      const internalBad = internalVal === "G" || internalVal === "Y";
+      if (customerBad && internalBad) {
+        toast.error("Internal must be R when Overall Customer is R or Y. Update Internal first.");
+        return;
+      }
+    }
+
     // R/Y → G: always prompt the user to resolve open work tied to this
     // dimension before persisting Green. We look at:
     //   • [RGY Health] tasks whose title contains this dimension label
