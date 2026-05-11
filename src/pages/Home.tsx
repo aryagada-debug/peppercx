@@ -686,7 +686,7 @@ export default function HomePage() {
 
   // Kanban view of my deal tasks (2-way synced via deal_tasks table — same source DealDetail/Staffing uses)
   const myKanbanTasks: DealTask[] = useMemo(() => {
-    return visibleDealTasks.map(t => ({
+    const dealItems = visibleDealTasks.map(t => ({
       id: t.id,
       dealId: t.deal_id,
       title: t.title,
@@ -706,7 +706,30 @@ export default function HomePage() {
       createdAt: t.created_at,
       createdByName: t.created_by_name,
     }));
-  }, [visibleDealTasks]);
+    const todoItems = taskViewAs === "me"
+      ? todos.filter(t => !t.done).map(t => ({
+        id: toTodoTaskId(t.id),
+        dealId: "",
+        title: t.title,
+        description: t.notes || "",
+        stage: "To Do",
+        assignee: t.assignee_name || staffingName || displayName || "",
+        assignees: [t.assignee_name || staffingName || displayName || ""].filter(Boolean),
+        startDate: undefined,
+        endDate: t.due_date || undefined,
+        urgency: t.priority || "Medium",
+        loggedHours: 0,
+        sortOrder: t.sort_order || 0,
+        estimatedHours: 0,
+        subtasks: [],
+        autoRegen: false,
+        phase: "Internal",
+        createdAt: t.created_at,
+        createdByName: t.assigned_by_name || undefined,
+      }))
+      : [];
+    return [...todoItems, ...dealItems];
+  }, [visibleDealTasks, todos, taskViewAs, staffingName, displayName]);
 
   // Map dealId -> { dealName, account } for the Kanban cards.
   const dealMeta = useMemo(() => {
