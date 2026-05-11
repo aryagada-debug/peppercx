@@ -860,6 +860,13 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
             autoRegen: editTask.autoRegen || false,
           }}
           title="Edit Task"
+          headerSubtitle={
+            deal
+              ? `Client: ${deal.account || "—"} · Deal: ${deal.dealName || deal.deal_name || "—"}`
+              : undefined
+          }
+          createdAt={(editTask as any).createdAt}
+          createdByName={(editTask as any).createdByName}
           onDelete={() => { onDelete(editTask.id); setEditTask(null); }}
         />
       )}
