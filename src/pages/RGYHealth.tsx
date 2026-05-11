@@ -1506,14 +1506,63 @@ export default function RGYHealth() {
                                         {band ? band : "—"}
                                       </span>
                                     </TooltipTrigger>
-                                    <TooltipContent className="max-w-xs text-xs">
-                                      <p className="font-semibold mb-1">
-                                        {score === null ? "No data" : `Score: ${score.toFixed(1)} → ${band === "R" ? "Red" : band === "Y" ? "Yellow" : "Green"}`}
-                                      </p>
-                                      <p>Weighted rollup of all RGY dimensions.</p>
-                                      <p className="mt-1">R=0 · Y=50 · G=100; NA/blank excluded.</p>
-                                      <p>Weights: Overall Customer 50, Internal 10, others 5.</p>
-                                      <p>Bands: &lt;40 Red · 40–75 Yellow · &gt;75 Green.</p>
+                                    <TooltipContent className="w-[280px] p-3" sideOffset={6}>
+                                      {score === null ? (
+                                        <p className="text-xs text-muted-foreground">No RGY data</p>
+                                      ) : (
+                                        <div className="space-y-2">
+                                          <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                              <span className={cn(
+                                                "text-2xl font-medium leading-none",
+                                                band === "R" && "text-destructive",
+                                                band === "Y" && "text-warning",
+                                                band === "G" && "text-positive",
+                                              )}>{score.toFixed(1)}</span>
+                                              <span className={cn(
+                                                "inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium",
+                                                band === "R" && "bg-destructive/15 text-destructive",
+                                                band === "Y" && "bg-warning/15 text-warning",
+                                                band === "G" && "bg-positive/15 text-positive",
+                                              )}>{band === "R" ? "Red" : band === "Y" ? "Yellow" : "Green"}</span>
+                                            </div>
+                                            <span className="text-[10px] text-muted-foreground">Weighted RGY rollup</span>
+                                          </div>
+                                          <div className="relative">
+                                            <div className="h-1.5 rounded-full bg-gradient-to-r from-destructive via-warning to-positive opacity-70" />
+                                            <div
+                                              className={cn(
+                                                "absolute -top-0.5 w-2.5 h-2.5 rounded-full border border-background -translate-x-1/2",
+                                                band === "R" && "bg-destructive",
+                                                band === "Y" && "bg-warning",
+                                                band === "G" && "bg-positive",
+                                              )}
+                                              style={{ left: `${Math.max(0, Math.min(100, score))}%` }}
+                                            />
+                                            <div className="relative h-3 mt-0.5 text-[9px] text-muted-foreground">
+                                              <span className="absolute left-0">0</span>
+                                              <span className="absolute" style={{ left: "40%", transform: "translateX(-50%)" }}>40</span>
+                                              <span className="absolute" style={{ left: "75%", transform: "translateX(-50%)" }}>75</span>
+                                              <span className="absolute right-0">100</span>
+                                            </div>
+                                          </div>
+                                          <div className="flex items-start justify-between gap-2 pt-0.5 text-[10px]">
+                                            <div>
+                                              <div className="text-muted-foreground">Scale</div>
+                                              <div className="flex items-center gap-1.5">
+                                                <span className="inline-flex items-center gap-0.5"><span className="w-1.5 h-1.5 rounded-full bg-destructive" />0</span>
+                                                <span className="inline-flex items-center gap-0.5"><span className="w-1.5 h-1.5 rounded-full bg-warning" />50</span>
+                                                <span className="inline-flex items-center gap-0.5"><span className="w-1.5 h-1.5 rounded-full bg-positive" />100</span>
+                                              </div>
+                                            </div>
+                                            <div className="text-right">
+                                              <div className="text-muted-foreground">Weights</div>
+                                              <div>Customer 50 · Internal 10 · Others 5</div>
+                                            </div>
+                                          </div>
+                                          <p className="text-[10px] text-muted-foreground">N/A and blank values excluded</p>
+                                        </div>
+                                      )}
                                     </TooltipContent>
                                   </Tooltip>
                                 </td>
