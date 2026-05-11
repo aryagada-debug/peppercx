@@ -1033,6 +1033,7 @@ export type Database = {
           assigned_by_name: string
           assigned_by_user_id: string | null
           assignee_name: string
+          assignee_staffing_person_id: string | null
           created_at: string
           done: boolean
           due_date: string | null
@@ -1042,12 +1043,13 @@ export type Database = {
           sort_order: number
           title: string
           updated_at: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           assigned_by_name?: string
           assigned_by_user_id?: string | null
           assignee_name?: string
+          assignee_staffing_person_id?: string | null
           created_at?: string
           done?: boolean
           due_date?: string | null
@@ -1057,12 +1059,13 @@ export type Database = {
           sort_order?: number
           title?: string
           updated_at?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           assigned_by_name?: string
           assigned_by_user_id?: string | null
           assignee_name?: string
+          assignee_staffing_person_id?: string | null
           created_at?: string
           done?: boolean
           due_date?: string | null
@@ -1072,7 +1075,7 @@ export type Database = {
           sort_order?: number
           title?: string
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: []
       }
