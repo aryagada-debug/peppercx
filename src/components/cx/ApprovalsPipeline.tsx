@@ -255,11 +255,16 @@ export function ApprovalsPipeline() {
                             {formatDistanceToNow(new Date(r.created_at), { addSuffix: true })}
                           </span>
                         </div>
-                        {r.deal_id && (
-                          <div className="text-[11px] text-muted-foreground mt-1 truncate">
-                            Deal: {r.deal_id}
-                          </div>
-                        )}
+                        {r.deal_id && (() => {
+                          const info = dealLookup[r.deal_id];
+                          return (
+                            <div className="text-[11px] text-muted-foreground mt-1 truncate">
+                              {info?.account ? <span className="text-foreground font-medium">{info.account}</span> : null}
+                              {info?.account && info?.deal_name ? " · " : ""}
+                              {info?.deal_name || (!info?.account ? `Deal: ${r.deal_id}` : "")}
+                            </div>
+                          );
+                        })()}
                         <div className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1">
                           <User2 className="h-3 w-3" /> {r.requested_by_name || "Unknown"}
                         </div>
@@ -331,7 +336,13 @@ export function ApprovalsPipeline() {
               <div className="mt-4 space-y-4 text-sm">
                 <div className="flex items-center gap-2">
                   <Badge variant="outline">{active.status.replace("_", " ")}</Badge>
-                  {active.deal_id && <Badge variant="secondary">Deal {active.deal_id}</Badge>}
+                  {active.deal_id && (() => {
+                    const info = dealLookup[active.deal_id];
+                    const label = info?.account || info?.deal_name
+                      ? [info.account, info.deal_name].filter(Boolean).join(" · ")
+                      : `Deal ${active.deal_id}`;
+                    return <Badge variant="secondary">{label}</Badge>;
+                  })()}
                 </div>
 
                 {active.requester_note && (
