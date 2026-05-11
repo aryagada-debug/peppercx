@@ -917,15 +917,39 @@ export default function HomePage() {
                 </span>
               </CardTitle>
               <div className="flex items-center gap-2">
-                {(isAdmin || isVsdViewer) && (
+                {isVsdViewer && !isAdmin && (
+                  /* Pill segmented filter — matches Clients & Deals BOPM filter.
+                     Selecting a BOPM name shows tasks assigned to that BOPM
+                     across all deals (independent of VSD-deal scoping). */
+                  <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5 overflow-x-auto max-w-full">
+                    {[
+                      { key: "me", label: "Me" },
+                      { key: "all", label: "All" },
+                      ...viewAsPeople.map(p => ({ key: p.id, label: p.name })),
+                    ].map(opt => (
+                      <button
+                        key={opt.key}
+                        onClick={() => setTaskViewAs(opt.key)}
+                        className={cn(
+                          "px-2.5 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
+                          taskViewAs === opt.key
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {isAdmin && (
                   <Select value={taskViewAs} onValueChange={setTaskViewAs}>
                     <SelectTrigger className="h-7 w-[180px] text-[12px]">
                       <SelectValue placeholder="View tasks for…" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="me">My tasks</SelectItem>
-                      <SelectItem value="created">Created by me</SelectItem>
-                      <SelectItem value="all">Everyone's tasks</SelectItem>
+                      <SelectItem value="me">Me</SelectItem>
+                      <SelectItem value="all">All</SelectItem>
                       {viewAsPeople.map(p => (
                         <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                       ))}
