@@ -198,12 +198,40 @@ function DraggableTaskCard({ task, onClick, meta }: {
           )}
         </div>
         <div className="flex items-center gap-2">
-          {task.endDate && (
-            <span className="flex items-center gap-0.5 text-muted-foreground">
-              <Calendar className="h-3 w-3" />
-              {task.endDate.slice(5)}
-            </span>
-          )}
+          {(() => {
+            if (!task.endDate) {
+              return (
+                <span className="flex items-center gap-0.5 text-muted-foreground/60 italic">
+                  <Calendar className="h-3 w-3" />
+                  No due date
+                </span>
+              );
+            }
+            const due = new Date(task.endDate + "T00:00:00");
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            const diffDays = Math.round((due.getTime() - today.getTime()) / 86400000);
+            const isDone = task.stage === "Done" || task.stage === "Dropped";
+            let cls = "text-muted-foreground";
+            let label = task.endDate.slice(5);
+            if (!isDone) {
+              if (diffDays < 0) {
+                cls = "text-destructive font-medium";
+                label = `${label} · ${Math.abs(diffDays)}d late`;
+              } else if (diffDays === 0) {
+                cls = "text-destructive font-medium";
+                label = "Today";
+              } else if (diffDays <= 2) {
+                cls = "text-[hsl(var(--warning))] font-medium";
+                label = `${label} · ${diffDays}d`;
+              }
+            }
+            return (
+              <span className={cn("flex items-center gap-0.5", cls)}>
+                <Calendar className="h-3 w-3" />
+                {label}
+              </span>
+            );
+          })()}
           {task.loggedHours > 0 && (!task.estimatedHours || task.estimatedHours === 0) && (
             <span className="flex items-center gap-0.5 text-primary font-mono font-medium">
               <Clock className="h-3 w-3" />
