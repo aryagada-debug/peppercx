@@ -924,6 +924,7 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
     [tasks]
   );
   const hasPhaseData = phaseTasks.length > 0;
+  // Re-evaluate empty state when no seeded phase remains (e.g. user deleted all)
 
   // Group tasks by phase
   const tasksByPhase = useMemo(() => {
