@@ -152,6 +152,7 @@ interface SavedTemplate {
   id: string;
   name: string;
   phases: PhaseTemplate[];
+  createdBy?: string | null;
 }
 
 // ── Template Editor Dialog ──
@@ -164,7 +165,7 @@ function TemplateEditorDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialPhases: PhaseTemplate[];
-  onSeed: (phases: PhaseTemplate[]) => void;
+  onSeed: (phases: PhaseTemplate[], opts?: { onlyPhaseIdx?: number }) => void;
 }) {
   const [phases, setPhases] = useState<PhaseTemplate[]>(() => JSON.parse(JSON.stringify(initialPhases)));
   const [selectedPhaseIdx, setSelectedPhaseIdx] = useState(0);
@@ -172,6 +173,11 @@ function TemplateEditorDialog({
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [saveName, setSaveName] = useState("");
   const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
+  }, []);
 
   // Load saved templates
   useEffect(() => {
@@ -184,6 +190,7 @@ function TemplateEditorDialog({
             id: t.id,
             name: t.name,
             phases: Array.isArray(t.phases) ? t.phases : [],
+            createdBy: t.created_by ?? null,
           })));
         }
         setLoadingTemplates(false);
@@ -257,12 +264,14 @@ function TemplateEditorDialog({
 
   const handleSaveTemplate = async () => {
     if (!saveName.trim()) return;
+    const { data: userData } = await supabase.auth.getUser();
+    const uid = userData.user?.id ?? null;
     const { data, error } = await (supabase.from("task_templates") as any)
-      .insert({ name: saveName.trim(), phases })
+      .insert({ name: saveName.trim(), phases, created_by: uid })
       .select()
       .single();
     if (data) {
-      setSavedTemplates(prev => [{ id: data.id, name: data.name, phases: data.phases }, ...prev]);
+      setSavedTemplates(prev => [{ id: data.id, name: data.name, phases: data.phases, createdBy: data.created_by ?? null }, ...prev]);
       toast.success(`Template "${saveName}" saved`);
       setSaveDialogOpen(false);
       setSaveName("");
@@ -277,9 +286,13 @@ function TemplateEditorDialog({
     toast.success(`Loaded template "${template.name}"`);
   };
 
-  const handleDeleteTemplate = async (id: string) => {
-    await supabase.from("task_templates").delete().eq("id", id);
-    setSavedTemplates(prev => prev.filter(t => t.id !== id));
+  const handleDeleteTemplate = async (tpl: SavedTemplate) => {
+    if (!currentUserId || tpl.createdBy !== currentUserId) {
+      toast.error("You can only delete templates you created");
+      return;
+    }
+    await supabase.from("task_templates").delete().eq("id", tpl.id);
+    setSavedTemplates(prev => prev.filter(t => t.id !== tpl.id));
     toast.success("Template deleted");
   };
 
@@ -400,7 +413,9 @@ function TemplateEditorDialog({
                   {savedTemplates.map(t => (
                     <div key={t.id} className="flex items-center gap-1 border border-border rounded-lg px-2 py-1 text-xs bg-secondary/30">
                       <button onClick={() => handleLoadTemplate(t)} className="hover:text-primary font-medium">{t.name}</button>
-                      <button onClick={() => handleDeleteTemplate(t.id)} className="text-destructive/50 hover:text-destructive ml-1"><Trash2 className="h-3 w-3" /></button>
+                      {currentUserId && t.createdBy === currentUserId && (
+                        <button onClick={() => handleDeleteTemplate(t)} title="Delete template" className="text-destructive/50 hover:text-destructive ml-1"><Trash2 className="h-3 w-3" /></button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -422,6 +437,15 @@ function TemplateEditorDialog({
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+                <Button
+                  variant="outline"
+                  onClick={() => { onSeed(phases, { onlyPhaseIdx: selectedPhaseIdx }); onOpenChange(false); }}
+                  className="gap-1.5"
+                  disabled={!currentPhase || currentPhase.tasks.length === 0}
+                  title="Seed only the currently selected phase"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Seed This Phase
+                </Button>
                 <Button onClick={() => { onSeed(phases); onOpenChange(false); }} className="gap-1.5">
                   <Plus className="h-3.5 w-3.5" /> Seed Tasks
                 </Button>
