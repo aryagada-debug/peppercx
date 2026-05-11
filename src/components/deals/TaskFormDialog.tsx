@@ -18,6 +18,112 @@ const URGENCIES = ["Low", "Medium", "High", "Critical"];
 
 type Assignee = { id: string; name: string; staffed?: boolean; designation?: string };
 
+/* ── Multi-select Assignee Combobox ── */
+function MultiAssigneeCombobox({
+  values,
+  onChange,
+  assignees,
+  placeholder = "Select assignees",
+}: {
+  values: string[];
+  onChange: (v: string[]) => void;
+  assignees: Assignee[];
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const staffed = assignees.filter(a => a.staffed !== false);
+  const others = assignees.filter(a => a.staffed === false);
+  const toggle = (name: string) => {
+    if (values.includes(name)) onChange(values.filter(v => v !== name));
+    else onChange([...values, name]);
+  };
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="flex min-h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-1.5 text-sm text-left ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+        >
+          <div className="flex flex-wrap items-center gap-1">
+            {values.length === 0 ? (
+              <span className="text-muted-foreground">{placeholder}</span>
+            ) : (
+              values.map(v => (
+                <span
+                  key={v}
+                  className="inline-flex items-center gap-1 rounded-md bg-secondary px-1.5 py-0.5 text-[11px]"
+                >
+                  {v}
+                  <span
+                    role="button"
+                    onClick={e => { e.stopPropagation(); toggle(v); }}
+                    className="text-muted-foreground hover:text-foreground cursor-pointer"
+                  >
+                    <X className="h-3 w-3" />
+                  </span>
+                </span>
+              ))
+            )}
+          </div>
+          <ChevronDown className="h-4 w-4 opacity-50 shrink-0 ml-2" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="p-0 w-[320px]" align="start">
+        <Command>
+          <CommandInput placeholder="Search by name or designation…" />
+          <CommandList>
+            <CommandEmpty>No people found.</CommandEmpty>
+            {staffed.length > 0 && (
+              <CommandGroup heading="Staffed on this deal">
+                {staffed.map(a => {
+                  const checked = values.includes(a.name);
+                  return (
+                    <CommandItem
+                      key={a.id}
+                      value={`${a.name} ${a.designation || ""}`}
+                      onSelect={() => toggle(a.name)}
+                    >
+                      <Check className={cn("mr-2 h-4 w-4", checked ? "opacity-100" : "opacity-0")} />
+                      <div className="flex flex-col min-w-0">
+                        <span className="truncate">{a.name}</span>
+                        {a.designation && (
+                          <span className="text-[11px] text-muted-foreground truncate">{a.designation}</span>
+                        )}
+                      </div>
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            )}
+            {others.length > 0 && (
+              <CommandGroup heading="Other people">
+                {others.map(a => {
+                  const checked = values.includes(a.name);
+                  return (
+                    <CommandItem
+                      key={a.id}
+                      value={`${a.name} ${a.designation || ""}`}
+                      onSelect={() => toggle(a.name)}
+                    >
+                      <Check className={cn("mr-2 h-4 w-4", checked ? "opacity-100" : "opacity-0")} />
+                      <div className="flex flex-col min-w-0">
+                        <span className="truncate">{a.name}</span>
+                        {a.designation && (
+                          <span className="text-[11px] text-muted-foreground truncate">{a.designation}</span>
+                        )}
+                      </div>
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 /* ── Searchable Assignee Combobox ── */
 function AssigneeCombobox({
   value,
@@ -123,6 +229,7 @@ export interface TaskData {
   description: string;
   stage: string;
   assignee: string;
+  assignees?: string[];
   startDate: string;
   endDate: string;
   urgency: string;
@@ -140,6 +247,8 @@ interface Props {
   initial?: TaskData & { loggedHours?: number };
   title?: string;
   onDelete?: () => void;
+  /** Small read-only context strip shown above the form (e.g. "Client: X · Deal: Y"). */
+  headerSubtitle?: string;
 }
 
 /* ── Rich Text Editor ── */
@@ -265,12 +374,15 @@ function SubtaskRow({
   );
 }
 
-export function TaskFormDialog({ open, onOpenChange, onSubmit, assignees, defaultStage, initial, title = "Create Task", onDelete }: Props) {
+export function TaskFormDialog({ open, onOpenChange, onSubmit, assignees, defaultStage, initial, title = "Create Task", onDelete, headerSubtitle }: Props) {
   const [form, setForm] = useState<TaskData>({
     title: initial?.title || "",
     description: initial?.description || "",
     stage: initial?.stage || defaultStage || "To Do",
     assignee: initial?.assignee || "",
+    assignees: initial?.assignees && initial.assignees.length
+      ? initial.assignees
+      : (initial?.assignee ? [initial.assignee] : []),
     startDate: initial?.startDate || "",
     endDate: initial?.endDate || "",
     urgency: initial?.urgency || "Medium",
@@ -285,7 +397,8 @@ export function TaskFormDialog({ open, onOpenChange, onSubmit, assignees, defaul
 
   const handleSubmit = () => {
     if (!form.title.trim()) return;
-    onSubmit(form);
+    const list = form.assignees || [];
+    onSubmit({ ...form, assignees: list, assignee: list[0] || "" });
     onOpenChange(false);
   };
 
@@ -313,6 +426,9 @@ export function TaskFormDialog({ open, onOpenChange, onSubmit, assignees, defaul
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
+          {headerSubtitle && (
+            <div className="text-[11px] text-muted-foreground -mt-1">{headerSubtitle}</div>
+          )}
         </DialogHeader>
         <div className="space-y-4 pt-2">
           {/* Title */}
@@ -347,10 +463,10 @@ export function TaskFormDialog({ open, onOpenChange, onSubmit, assignees, defaul
 
           {/* Assignee */}
           <div className="space-y-1">
-            <Label className="text-caption text-muted-foreground">Assignee</Label>
-            <AssigneeCombobox
-              value={form.assignee}
-              onChange={(v) => set("assignee", v)}
+            <Label className="text-caption text-muted-foreground">Assignees</Label>
+            <MultiAssigneeCombobox
+              values={form.assignees || []}
+              onChange={(v) => set("assignees", v)}
               assignees={assignees}
             />
           </div>
