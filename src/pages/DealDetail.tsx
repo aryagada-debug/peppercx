@@ -1097,6 +1097,20 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry, deleteMBREntry, 
         />
       )}
 
+      {scheduleOpen && (
+        <ScheduleOnlyDialog
+          open={scheduleOpen}
+          onClose={() => { setScheduleOpen(false); setScheduleEntry(null); }}
+          deal={{ ...dealForDrawer } as any}
+          entry={scheduleEntry}
+          onSave={async (params) => {
+            const weekToUse = scheduleEntry?.weekStart || selectedWeek;
+            await upsertMBREntry(params, weekToUse);
+            toast.success("MBR scheduled");
+          }}
+        />
+      )}
+
       <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
