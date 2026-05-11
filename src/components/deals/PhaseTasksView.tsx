@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { Check, ChevronRight, Plus, Trash2, Pencil, RefreshCw, Tag, List, LayoutGrid, GripVertical, Save, Copy, Settings2, Search, User, Clock, Flag, Calendar, ArrowUp, ArrowDown, X } from "lucide-react";
+import { Check, ChevronRight, Plus, Trash2, Pencil, RefreshCw, Tag, List, LayoutGrid, GripVertical, Save, Copy, Settings2, Search, User, Clock, Flag, Calendar, ArrowUp, ArrowDown, X, Briefcase } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { CxDatePickerPopover } from "@/components/cx/CxDatePickerPopover";
 import { TaskFormDialog, type TaskData } from "./TaskFormDialog";
 import { TaskKanban, type DealTask } from "./TaskKanban";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,8 +26,17 @@ export interface PhaseTemplate {
     description: string;
     assigneeRole: string;
     tags: string[];
+    /** @deprecated kept for legacy saved templates; new templates use dueDate/endDate */
     dayStart?: number;
+    /** @deprecated kept for legacy saved templates; new templates use dueDate/endDate */
     dayEnd?: number;
+    /** Specific person assignee (staffing_people.id). Takes precedence over assigneeRole. */
+    assigneeUserId?: string | null;
+    assigneeUserName?: string | null;
+    /** ISO YYYY-MM-DD */
+    dueDate?: string | null;
+    /** ISO YYYY-MM-DD */
+    endDate?: string | null;
     estimatedHours?: number;
     urgency?: "Low" | "Medium" | "High" | "Critical";
   }[];
