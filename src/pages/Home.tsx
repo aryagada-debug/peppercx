@@ -1561,6 +1561,7 @@ export default function HomePage() {
             })()
           }
           onSubmit={handleAddTaskSubmit}
+          onSubmitInternal={handleInternalTaskSubmit}
           defaultAssignee={staffingName || displayName || ""}
         />
       )}
