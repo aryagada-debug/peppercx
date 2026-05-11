@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useApprovals } from "@/hooks/useApprovals";
 import { useUserRole } from "@/hooks/useUserRole";
+import { supabase } from "@/integrations/supabase/client";
 import {
   applyApprovedRequest, cancelApprovalRequest, setRequestStatus, updateApprovalRequestDetails,
   type ApprovalRequestRow,
@@ -53,6 +54,32 @@ function fmt(v: any) {
 export function ApprovalsPipeline() {
   const { items, loading } = useApprovals();
   const { canEditAll } = useUserRole();
+  // Resolve deal_id -> { deal_name, account } so admins see Client + Deal names
+  // on every request card and in the detail sheet, not just the raw deal_id.
+  const [dealLookup, setDealLookup] = useState<Record<string, { deal_name: string; account: string }>>({});
+  useEffect(() => {
+    const ids = Array.from(new Set(items.map(i => i.deal_id).filter(Boolean))) as string[];
+    const missing = ids.filter(id => !(id in dealLookup));
+    if (missing.length === 0) return;
+    (async () => {
+      const { data } = await supabase
+        .from("staffing_deals")
+        .select("id, deal_id, deal_name, account")
+        .or(missing.map(id => `id.eq.${id},deal_id.eq.${id}`).join(","));
+      if (!data) return;
+      setDealLookup(prev => {
+        const next = { ...prev };
+        for (const row of data as any[]) {
+          const entry = { deal_name: row.deal_name || "", account: row.account || "" };
+          if (row.id) next[row.id] = entry;
+          if (row.deal_id) next[row.deal_id] = entry;
+        }
+        // Mark unresolved ids so we don't keep re-querying them.
+        for (const id of missing) if (!(id in next)) next[id] = { deal_name: "", account: "" };
+        return next;
+      });
+    })();
+  }, [items, dealLookup]);
   const [active, setActive] = useState<ApprovalRequestRow | null>(null);
   const [reviewerNote, setReviewerNote] = useState("");
   const [editMode, setEditMode] = useState(false);
