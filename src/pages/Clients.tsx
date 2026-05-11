@@ -431,7 +431,7 @@ export default function Clients() {
       atRisk,
       topDealLabel: topDeal ? `Top: ${topDeal.account} ${fmtCurrency(topDeal.totalDealValue || 0)}` : "—",
     };
-  }, [filteredDeals]);
+  }, [filteredDeals, rgyRollup]);
 
   const handleCreateDeal = async (clientId: string, data: any) => {
     const client = clients.find(c => c.id === clientId);
