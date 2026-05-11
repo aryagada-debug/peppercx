@@ -966,22 +966,25 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
     const fmt = (d: Date) => d.toISOString().slice(0, 10);
     targetPhases.forEach(phase => {
       phase.tasks.forEach(t => {
-        let startDate: string | undefined;
-        let endDate: string | undefined;
-        if (typeof t.dayStart === "number") {
+        // Prefer explicit dueDate/endDate set in the editor; fall back to
+        // legacy dayStart/dayEnd offsets for templates saved before this UI change.
+        let startDate: string | undefined = t.dueDate || undefined;
+        let endDate: string | undefined = t.endDate || undefined;
+        if (!startDate && typeof t.dayStart === "number") {
           const s = new Date(today); s.setDate(s.getDate() + t.dayStart);
           startDate = fmt(s);
         }
-        if (typeof t.dayEnd === "number") {
+        if (!endDate && typeof t.dayEnd === "number") {
           const e = new Date(today); e.setDate(e.getDate() + t.dayEnd);
           endDate = fmt(e);
         }
+        const assigneeName = t.assigneeUserName || resolveAssignee(t.assigneeRole, deal);
         rows.push({
           dealId,
           title: t.title,
           description: t.description,
           stage: "To Do",
-          assignee: resolveAssignee(t.assigneeRole, deal),
+          assignee: assigneeName,
           urgency: t.urgency || "Medium",
           loggedHours: 0,
           sortOrder: sortIdx++,
@@ -1106,6 +1109,7 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
           open={templateEditorOpen}
           onOpenChange={setTemplateEditorOpen}
           initialPhases={ONBOARDING_PHASES}
+          assignees={assignees}
           onSeed={handleSeedFromEditor}
         />
       </div>
@@ -1355,6 +1359,7 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
         open={templateEditorOpen}
         onOpenChange={setTemplateEditorOpen}
         initialPhases={ONBOARDING_PHASES}
+        assignees={assignees}
         onSeed={handleSeedFromEditor}
       />
 
