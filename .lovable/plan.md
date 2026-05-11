@@ -1,54 +1,45 @@
 ## Goal
 
-Two UI-only tweaks for the task dialog and a small audit footer for tasks in both Home and Clients & Deals.
+In Home → My Tasks, change the VSD's "View tasks for…" control from a Select dropdown to a segmented pill group matching the Clients & Deals BOPM filter, with options `Me`, `All`, and one pill per team BOPM. Confirm that selecting a BOPM also shows tasks assigned to that BOPM even when the VSD is not directly on the task. only for the BOPMs under the particular VSD
 
-## Change 1 — Task dialog header (Home → Tasks, Deal Detail → Tasks)
+## Change 1 — Pill UI for the view-as filter (VSD viewer)
 
-In `src/components/deals/TaskFormDialog.tsx`, replace the static "Edit Task" / "Create Task" `DialogTitle` text with an inline editable title field, and show the client + deal name as a read-only line below it.
-
-- The current "Title *" input inside the body (around line 435) is removed; its value/onChange are wired into a new large-text input rendered inside `DialogHeader` instead.
-- Directly under the title input, render the existing `headerSubtitle` (already passed as `Client: X · Deal: Y`) as small muted text. No edit affordance.
-- Keep the same `title` prop API (used for screen-reader / aria), but visually hide the static label so the dialog still has an accessible name. Defaults still work for the Create flow (title input is empty with placeholder).
-- No other field reordering.
-
-This affects every caller of `TaskFormDialog` automatically:
-- `src/pages/Home.tsx` (Home → My Tasks edit/create) — already passes `headerSubtitle`.
-- `src/components/deals/TaskKanban.tsx` — already passes `headerSubtitle` via `dealMeta`.
-- `src/components/deals/PhaseTasksView.tsx` — does not currently pass `headerSubtitle`. Pass it from the deal context (`account` + `dealName`) so the read-only line also shows on the Deal Detail → Tasks dialog.
-
-## Change 2 — Created-at / Created-by audit footer
-
-Add a small one-line muted footer to the bottom of `TaskFormDialog` (visible only when editing, i.e. when `initial` is provided):
+In `src/pages/Home.tsx`, replace the current `<Select>` (around line 898) with a pill group styled identically to the BOPM pills on `src/pages/Clients.tsx` (lines 730–752):
 
 ```
-Created by <name> · <DD MMM YYYY, HH:mm>
+<div className="flex gap-0.5 bg-secondary rounded-lg p-0.5 overflow-x-auto max-w-full">
+  <button … active={taskViewAs === "me"}>Me</button>
+  <button … active={taskViewAs === "all"}>All</button>
+  {viewAsPeople.map(p => (
+    <button key={p.id} active={taskViewAs === p.id}>{p.name}</button>
+  ))}
+</div>
 ```
 
-- New optional props on `TaskFormDialog`: `createdAt?: string | null`, `createdByName?: string | null`.
-- Rendered just above the action row (Cancel / Save Changes).
-- Formatted with `date-fns` (`format(parseISO(createdAt), "d MMM yyyy, HH:mm")`).
-- If both values are missing, the footer is not rendered.
+- Active pill: `bg-primary text-primary-foreground shadow-sm`.
+- Inactive pill: `text-muted-foreground hover:text-foreground`.
+- Pill text size `text-[11px]`, padding `px-2.5 py-1`, rounded-md (matches Clients).
+- Remove the "Created by me" option entirely (per the user's spec).
+- The existing `viewAsPeople` memo already returns just the VSD's team BOPMs, so no logic change.
 
-Wire data through callers:
+For admin users (not VSD viewer), keep the existing Select dropdown but also drop the "Created by me" option so the option set stays consistent (Me / All / specific person). The admin list can be too long for pills.
 
-- `src/pages/Home.tsx` — `loadTasks()` already selects `created_by_name`; extend the `deal_tasks` select to also include `created_at`, add both to the `DealTaskRow` interface, and pass them to `TaskFormDialog` when opening the edit dialog.
-- `src/components/deals/TaskKanban.tsx` — extend `DealTask` interface with `createdAt?: string` and `createdByName?: string`, forward them into `TaskFormDialog` when editing.
-- `src/components/deals/PhaseTasksView.tsx` — already gets tasks from `useDealDetail`; extend that hook's select + mapping for `deal_tasks` to include `created_at` and `created_by_name`, then forward them into `TaskFormDialog`.
-- `src/hooks/useDealDetail.ts` — add `created_at` and `created_by_name` to the `deal_tasks` select, map onto the local task object as `createdAt` / `createdByName`.
+## Change 2 — Confirm BOPM-selected task visibility
 
-No changes to `cx_tasks` paths (the user's request is scoped to Home + Clients & Deals deal-tasks dialogs; CX board uses a different dialog).
+The current `taskScopePredicate` in `Home.tsx` (lines 519–545) already filters tasks where the task's `assignees[]` contains the selected person's name, regardless of whether the VSD is on the deal or the task. `loadTasks` selects all `deal_tasks` / `cx_tasks`, so the data is present.
 
-## Out of scope
+No logic change needed — the pill simply sets `taskViewAs = <personId>` and the existing predicate matches by assignee name.
 
-- No DB migration — `created_at`, `created_by`, and `created_by_name` already exist on `deal_tasks` and `cx_tasks`.
-- No changes to task cards / kanban tiles themselves — the audit log lives only inside the dialog.
-- No changes to `CxTaskFormDialog`.
-- No business-logic changes (filters, assignment rules, RLS).
+A small comment will be added above the predicate clarifying that "specific person" view is intentionally unscoped to VSD-team deals so the VSD can see that BOPM's tasks across every deal.
 
 ## Files touched
 
-- `src/components/deals/TaskFormDialog.tsx` — header restructure + audit footer + new props.
-- `src/components/deals/TaskKanban.tsx` — extend `DealTask`, pass new props.
-- `src/components/deals/PhaseTasksView.tsx` — pass `headerSubtitle`, `createdAt`, `createdByName`.
-- `src/hooks/useDealDetail.ts` — include `created_at`, `created_by_name` in select + mapping.
-- `src/pages/Home.tsx` — include `created_at` in select, pass `createdAt` / `createdByName` to the dialog.
+- `src/pages/Home.tsx` — swap the Select for pill buttons (VSD-viewer branch), remove the "Created by me" SelectItem in the admin branch, and add a clarifying code comment.
+
+## Out of scope
+
+- No data-loading changes (the dropdown already drives the in-memory filter).
+- No changes to the Clients & Deals BOPM filter or its data source.
+- No changes to `taskFilter` (overdue/today/upcoming chips).  
+  
+In the task - also show the Due date while in kanban. If no due date is mentioned - subtly highlight that. if it is approaching, show it accordingly
