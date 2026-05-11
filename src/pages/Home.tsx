@@ -389,7 +389,6 @@ export default function HomePage() {
   const loadTodos = useCallback(async () => {
     if (!user) return;
     setLoadingTodos(true);
-    // Show todos I own, todos I assigned, or todos targeted at my staffing identity
     const orParts = [
       `user_id.eq.${user.id}`,
       `assigned_by_user_id.eq.${user.id}`,
@@ -397,11 +396,18 @@ export default function HomePage() {
     if (staffingPersonId) {
       orParts.push(`assignee_staffing_person_id.eq.${staffingPersonId}`);
     }
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("personal_todos")
       .select("*")
       .or(orParts.join(","))
-      .order("sort_order");
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true });
+    if (error) {
+      toast.error(error.message);
+      setTodos([]);
+      setLoadingTodos(false);
+      return;
+    }
     setTodos((data as PersonalTodo[]) || []);
     setLoadingTodos(false);
   }, [user, staffingPersonId]);
@@ -709,7 +715,8 @@ export default function HomePage() {
       createdAt: t.created_at,
       createdByName: t.created_by_name,
     }));
-    const todoItems = taskViewAs === "me"
+    const shouldShowPersonalTodos = taskViewAs === "me" || taskViewAs === "all" || taskViewAs === "created";
+    const todoItems = shouldShowPersonalTodos
       ? todos.filter(t => !t.done).map(t => ({
         id: toTodoTaskId(t.id),
         dealId: "",
@@ -1146,7 +1153,7 @@ export default function HomePage() {
             </div>
           </CardHeader>
           <CardContent>
-            {loadingTasks ? <SkeletonRows /> : myKanbanTasks.length === 0 ? (
+            {(loadingTasks || loadingTodos) ? <SkeletonRows /> : myKanbanTasks.length === 0 ? (
               <div className="text-center py-8">
                 <CheckCircle2 className="h-8 w-8 text-positive/40 mx-auto mb-2" />
                 <p className="text-xs text-muted-foreground">No tasks assigned to you.</p>

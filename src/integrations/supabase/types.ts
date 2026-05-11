@@ -2231,6 +2231,31 @@ export type Database = {
       }
     }
     Functions: {
+      get_home_personal_todos: {
+        Args: never
+        Returns: {
+          assigned_by_name: string
+          assigned_by_user_id: string | null
+          assignee_name: string
+          assignee_staffing_person_id: string | null
+          created_at: string
+          done: boolean
+          due_date: string | null
+          id: string
+          notes: string
+          priority: string
+          sort_order: number
+          title: string
+          updated_at: string
+          user_id: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "personal_todos"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
