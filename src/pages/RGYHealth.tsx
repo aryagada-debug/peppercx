@@ -9,7 +9,7 @@ import { logRGYChange } from "@/lib/rgyHistory";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
-import { Search, AlertTriangle, AlertCircle, CheckCircle2, Activity, Plus, Trash2, Check, X, Calendar, Loader2, Settings2 } from "lucide-react";
+import { Search, AlertTriangle, AlertCircle, CheckCircle2, Activity, Plus, Trash2, Check, X, Calendar, Loader2, Settings2, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,7 +32,7 @@ import { ReadOnlyBanner } from "@/components/access/ReadOnlyBanner";
 import { useDealAccess } from "@/hooks/useDealAccess";
 import { BopmEmptyState } from "@/components/access/BopmEmptyState";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { getOverallCustomerRGY as computeOverallCustomerRGY } from "@/lib/overallCustomerRGY";
+import { getOverallCustomerRGY as computeOverallCustomerRGY, computeOverallCustomerScore } from "@/lib/overallCustomerRGY";
 
 type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
@@ -621,7 +621,7 @@ export default function RGYHealth() {
 
   // Column widths (resizable)
   const DEFAULT_WIDTHS: Record<string, number> = {
-    account: 160, deal_name: 200, deal_id: 110, deal_status: 110,
+    account: 160, deal_name: 200, deal_id: 110, deal_status: 110, overall_rgy: 120,
     customer: 100, internal: 100, content: 100, seo: 90, supply: 100, copy: 90, design: 100, video: 100,
   };
   const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
@@ -641,6 +641,7 @@ export default function RGYHealth() {
     { key: "deal_name", label: "Deal Name", required: true },
     { key: "deal_id", label: "Deal ID" },
     { key: "deal_status", label: "Status", required: true },
+    { key: "overall_rgy", label: "Overall RGY", required: true },
     { key: "customer", label: "Overall Customer", required: true },
     { key: "internal", label: "Internal", required: true },
     { key: "content", label: "Content" },
@@ -651,7 +652,7 @@ export default function RGYHealth() {
     { key: "video", label: "Video" },
     { key: "ai_summary", label: "AI Summary" },
   ]), []);
-  const DEFAULT_VISIBLE = ["account","deal_name","deal_status","customer","internal"];
+  const DEFAULT_VISIBLE = ["account","deal_name","deal_status","overall_rgy","customer","internal"];
   const [visibleCols, setVisibleCols] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem("rgy-visible-cols");
