@@ -1147,7 +1147,7 @@ export default function HomePage() {
             {loadingTasks ? <SkeletonRows /> : myKanbanTasks.length === 0 ? (
               <div className="text-center py-8">
                 <CheckCircle2 className="h-8 w-8 text-positive/40 mx-auto mb-2" />
-                <p className="text-xs text-muted-foreground">No tasks assigned to you. Tasks created on a deal where you're tagged will appear here.</p>
+                <p className="text-xs text-muted-foreground">No tasks assigned to you.</p>
               </div>
             ) : filteredKanbanTasks.length === 0 ? (
               <div className="text-center py-8">
