@@ -1463,34 +1463,20 @@ export function BopmStaffingFlatTable({
         </div>
       )}
 
-      {addForDeal && (
-        <AddStaffingMemberDialog
-          open={!!addForDeal}
-          onOpenChange={v => { if (!v) setAddForDeal(null); }}
-          people={allPeople}
-          assignments={assignments}
-          deals={deals}
-          dealId={addForDeal}
-          onAdd={(assignment) => { stageAdd(addForDeal!, assignment); setAddForDeal(null); }}
-        />
-      )}
-
-      {addCell && (
-        <AddStaffingMemberDialog
-          open={!!addCell}
-          onOpenChange={v => { if (!v) setAddCell(null); }}
-          people={allPeople}
-          assignments={assignments}
-          deals={deals}
-          dealId={addCell.dealId}
-          initialCategory={addCell.category as RoleCategory}
-          initialRoleKey={addCell.roleKey}
-          onAdd={(assignment) => {
-            stageAdd(addCell.dealId, { ...assignment, roleKey: addCell.roleKey });
-            setAddCell(null);
-          }}
-        />
-      )}
+      {requestForDeal && (() => {
+        const d = deals.find(x => x.id === requestForDeal.dealId);
+        const label = d ? `${d.account} — ${d.dealName}` : requestForDeal.dealId;
+        return (
+          <RequestStaffingDialog
+            open={!!requestForDeal}
+            onOpenChange={v => { if (!v) setRequestForDeal(null); }}
+            dealId={requestForDeal.dealId}
+            dealLabel={label}
+            initialRoleKey={requestForDeal.roleKey}
+            initialCategory={requestForDeal.category}
+          />
+        );
+      })()}
 
       {editEntry && (
         <AddStaffingMemberDialog
