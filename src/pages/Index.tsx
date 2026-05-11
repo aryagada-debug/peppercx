@@ -23,6 +23,7 @@ import { PortfolioHealthCard } from "@/components/dashboard/PortfolioHealthCard"
 import { DealScorecardTable, type ScorecardRow } from "@/components/dashboard/DealScorecardTable";
 import { CapabilityLeaderDashboard } from "@/components/dashboard/CapabilityLeaderDashboard";
 import { CapabilityMemberDashboard } from "@/components/dashboard/CapabilityMemberDashboard";
+import { getOverallCustomerRGY } from "@/lib/overallCustomerRGY";
 
 const ACTIVE_STATUSES = ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"];
 const RGY_DIMS = ["Internal", "Customer", "Delivery", "Consumption"] as const;
@@ -40,13 +41,15 @@ function currentMonday(): Date {
   return d;
 }
 
-/** Roll up the 4 RGY dimensions for one deal into a single status (worst wins). */
-function worstStatus(dims: Record<string, RGYStatus>): RGYStatus {
-  const vals = Object.values(dims);
-  if (vals.includes("R")) return "R";
-  if (vals.includes("Y")) return "Y";
-  if (vals.includes("G")) return "G";
-  return "NA";
+/**
+ * Weighted Overall Customer RGY for one deal — replaces the old worst-wins rollup.
+ * Accepts a dim map keyed by any case (Customer / customer / etc.). See
+ * src/lib/overallCustomerRGY.ts for the weighting table.
+ */
+function worstStatus(dims: Record<string, RGYStatus | string | null | undefined>): RGYStatus {
+  const normalized: Record<string, string> = {};
+  for (const [k, v] of Object.entries(dims)) normalized[k.toLowerCase()] = (v as string) || "";
+  return (getOverallCustomerRGY(normalized) || "NA") as RGYStatus;
 }
 
 interface RgyCounts { total: number; r: number; y: number; g: number; na: number }
