@@ -1335,7 +1335,15 @@ export default function HomePage() {
                 ) : todos.map(t => (
                   <div key={t.id} className={cn("group flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-secondary/40 transition-colors", t.done && "opacity-60")}>
                     <Checkbox checked={t.done} onCheckedChange={() => toggleTodo(t)} />
-                    <span className={cn("flex-1 text-sm leading-snug", t.done && "line-through text-muted-foreground")}>{t.title}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className={cn("text-sm leading-snug truncate", t.done && "line-through text-muted-foreground")}>{t.title}</div>
+                      {t.assigned_by_user_id && t.assigned_by_user_id !== user?.id && (
+                        <div className="text-[10px] text-muted-foreground">from {t.assigned_by_name || "teammate"}</div>
+                      )}
+                      {t.assigned_by_user_id === user?.id && t.user_id !== user?.id && (
+                        <div className="text-[10px] text-muted-foreground">to {t.assignee_name || "teammate"}</div>
+                      )}
+                    </div>
                     <CxDatePickerPopover
                       value={t.due_date}
                       onChange={async (v) => {
