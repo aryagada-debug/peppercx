@@ -2432,10 +2432,10 @@ export default function DealDetail() {
             deal={deal}
             assignees={(() => {
               const staffedIds = new Set(dealPeople.map(p => p.id));
-              const staffed = dealPeople.map(p => ({ id: p.id, name: p.name, staffed: true }));
+              const staffed = dealPeople.map(p => ({ id: p.id, name: p.name, staffed: true, designation: (p as any).designation || (p as any).roleTitle || "" }));
               const others = people
                 .filter(p => !staffedIds.has(p.id) && !p.tbh)
-                .map(p => ({ id: p.id, name: p.name, staffed: false }));
+                .map(p => ({ id: p.id, name: p.name, staffed: false, designation: (p as any).designation || (p as any).roleTitle || "" }));
               return [...staffed, ...others];
             })()}
             onAdd={addTask}
