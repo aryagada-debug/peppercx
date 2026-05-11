@@ -34,6 +34,7 @@ import { SlackHomeBubble } from "@/components/slack/SlackHomeBubble";
 import { CxDatePickerPopover } from "@/components/cx/CxDatePickerPopover";
 import { useAccountActivity } from "@/hooks/useAccountActivity";
 import { Activity as ActivityIcon } from "lucide-react";
+import { useVsdUsers, useBopmDirectory } from "@/hooks/useAppUsers";
 
 const DEAL_STAGES = ["To Do", "In Progress", "In Review", "Done", "Dropped"] as const;
 
@@ -70,6 +71,8 @@ export default function HomePage() {
   const { user } = useAuth();
   const { isAdmin, isReadOnly } = useUserRole();
   const navigate = useNavigate();
+  const { canonVsd } = useVsdUsers();
+  const { bopmUsersForVsd } = useBopmDirectory();
 
   const [displayName, setDisplayName] = useState("");
   const [staffingName, setStaffingName] = useState("");
