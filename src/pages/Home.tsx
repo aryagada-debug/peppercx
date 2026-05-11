@@ -216,7 +216,7 @@ export default function HomePage() {
     let dtQuery = supabase.from("deal_tasks")
       .select("id, deal_id, title, description, assignee, assignees, created_by_name, created_at, stage, start_date, end_date, urgency, estimated_hours, logged_hours, subtasks, auto_regen, sort_order, phase")
       .range(0, 49999);
-    if (!isAdmin && myDealIdsForScope.length) {
+    if (!isAdmin && !isVsd) {
       dtQuery = dtQuery.in("deal_id", myDealIdsForScope);
     }
     const [{ data: dtAll }, { data: ctAll }] = await Promise.all([
@@ -535,7 +535,18 @@ export default function HomePage() {
 
   const taskScopePredicate = useMemo(() => {
     const aliasSet = aliasesRef.current;
-    if (taskViewAs === "all") return (_t: DealTaskRow | CxTaskRow) => true;
+    if (taskViewAs === "all") {
+      if (isAdmin) return (_t: DealTaskRow | CxTaskRow) => true;
+      const teamNames = new Set(viewAsPeople.map(p => nameKey(p.name)));
+      return (t: any) => {
+        if (t.deal_id && myVsdDealIds.has(t.deal_id)) return true;
+        const list: string[] = Array.isArray(t.assignees) && t.assignees.length
+          ? t.assignees : (t.assignee ? [t.assignee] : []);
+        if (list.some(n => teamNames.has(nameKey(n || "")))) return true;
+        const deal = t.deal_id ? deals[t.deal_id] : null;
+        return !!deal && [deal.principal_bopm, deal.senior_bopm, deal.bopm].some(v => teamNames.has(nameKey(v || "")));
+      };
+    }
     if (taskViewAs === "created") {
       const me = (staffingName || displayName || "").trim().toLowerCase();
       return (t: any) => (t.created_by_name || "").trim().toLowerCase() === me;
@@ -563,7 +574,7 @@ export default function HomePage() {
       if (!deal) return false;
       return [deal.principal_bopm, deal.senior_bopm, deal.bopm].some(v => nameKey(v || "") === nameKey(target));
     };
-  }, [taskViewAs, allPeople, staffingName, displayName, aliasMatches, myVsdDealIds, deals]);
+  }, [taskViewAs, allPeople, staffingName, displayName, aliasMatches, myVsdDealIds, deals, isAdmin, viewAsPeople]);
 
   const visibleDealTasks = useMemo(() => dealTasks.filter(taskScopePredicate as any), [dealTasks, taskScopePredicate]);
   const visibleCxTasks = useMemo(() => cxTasks.filter(taskScopePredicate as any), [cxTasks, taskScopePredicate]);
