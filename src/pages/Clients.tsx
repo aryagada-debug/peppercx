@@ -394,9 +394,9 @@ export default function Clients() {
 
   const kpis = useMemo(() => {
     const clientSet = new Set(filteredDeals.map(d => d.account));
-    // Renewals < 60 days — active deals whose endDate is within next 60d
+    // Renewals < 90 days — active deals whose endDate is within next 90d
     const now = new Date();
-    const in60 = new Date(); in60.setDate(in60.getDate() + 60);
+    const in60 = new Date(); in60.setDate(in60.getDate() + 90);
     const renewing = filteredDeals
       .filter(d => ACTIVE_STATUSES.has(d.dealStatus) && d.endDate)
       .map(d => ({ d, end: new Date(d.endDate as string) }))
@@ -423,7 +423,7 @@ export default function Clients() {
       activeDeals: filteredDeals.filter(d => ACTIVE_STATUSES.has(d.dealStatus)).length,
       totalMRR: filteredDeals.reduce((s, d) => s + (d.mrr || 0), 0),
       totalValue: filteredDeals.reduce((s, d) => s + (d.totalDealValue || 0), 0),
-      renewals60: renewing.length,
+      renewals90: renewing.length,
       nextRenewalLabel: nextRenewal
         ? `${nextRenewal.d.account} in ${nextRenewalDays}d`
         : "None upcoming",
@@ -647,9 +647,9 @@ export default function Clients() {
               tone: "muted" as const,
             },
             {
-              label: "Renewals < 60d", value: String(kpis.renewals60), Icon: Briefcase, tint: "violet",
+              label: "Renewals < 90d", value: String(kpis.renewals90), Icon: Briefcase, tint: "violet",
               insight: kpis.nextRenewalLabel,
-              tone: kpis.renewals60 > 0 ? "warning" as const : "muted" as const,
+              tone: kpis.renewals90 > 0 ? "warning" as const : "muted" as const,
             },
             {
               label: "Active Deals", value: String(kpis.activeDeals), Icon: Activity, tint: "emerald",
