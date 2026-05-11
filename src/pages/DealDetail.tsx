@@ -1561,6 +1561,7 @@ export default function DealDetail() {
 
   // Staffing dialog states
   const [addMemberOpen, setAddMemberOpen] = useState(false);
+  const [requestStaffingOpen, setRequestStaffingOpen] = useState(false);
   const [editingAllocation, setEditingAllocation] = useState<string | null>(null);
   const [editAllocationValue, setEditAllocationValue] = useState(0);
   const [confirmDeleteAssignment, setConfirmDeleteAssignment] = useState<string | null>(null);
@@ -2243,8 +2244,8 @@ export default function DealDetail() {
           <div className="animate-fade-in space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-foreground">Team Members</h3>
-              <Button size="sm" onClick={() => setAddMemberOpen(true)}>
-                <Plus className="h-3.5 w-3.5 mr-1" /> Add Member
+              <Button size="sm" onClick={() => setRequestStaffingOpen(true)}>
+                <Plus className="h-3.5 w-3.5 mr-1" /> Request Staffing
               </Button>
             </div>
 
@@ -2378,8 +2379,8 @@ export default function DealDetail() {
             ) : (
               <div className="bg-card border border-border rounded-xl text-center py-8 px-5">
                 <p className="text-muted-foreground mb-3">No team members assigned to this deal.</p>
-                <Button size="sm" onClick={() => setAddMemberOpen(true)}>
-                  <Plus className="h-3.5 w-3.5 mr-1" /> Add First Member
+                <Button size="sm" onClick={() => setRequestStaffingOpen(true)}>
+                  <Plus className="h-3.5 w-3.5 mr-1" /> Request Staffing
                 </Button>
               </div>
             )}
@@ -2402,6 +2403,14 @@ export default function DealDetail() {
               deals={deals}
               dealId={dealId!}
               onAdd={addAssignment}
+            />
+
+            {/* Request Staffing Dialog */}
+            <RequestStaffingDialog
+              open={requestStaffingOpen}
+              onOpenChange={setRequestStaffingOpen}
+              dealId={dealId!}
+              dealLabel={deal.account || deal.dealName || dealId!}
             />
 
             {/* Confirm Delete Assignment */}
