@@ -759,6 +759,17 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry, deleteMBREntry, 
       icon: mbrHealth.tone === "positive" ? TrendingUp : AlertTriangle,
       tone: mbrHealth.tone,
     },
+    {
+      label: "Overall RGY",
+      value: !overallBand || overallBand === "PENDING" || overallBand === "NA"
+        ? "—"
+        : overallBand === "R" ? "Red" : overallBand === "Y" ? "Yellow" : "Green",
+      caption: "weighted rollup",
+      icon: Activity,
+      tone: overallBand === "R" ? ("warning" as const)
+        : overallBand === "G" ? ("positive" as const)
+        : undefined,
+    },
     slackKpi,
   ];
 
