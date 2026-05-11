@@ -655,31 +655,38 @@ export default function Clients() {
           <div className="flex flex-1 gap-2.5 flex-nowrap min-w-0 overflow-hidden">
           {[
             {
+              key: "clients",
               label: "Clients", value: String(kpis.clients), Icon: Building2, tint: "sky",
               insight: kpis.newClientsThisQ > 0 ? `${kpis.newClientsThisQ} new this quarter` : "No new this quarter",
               tone: "muted" as const,
             },
             {
+              key: "renewals",
               label: "Renewals < 90d", value: String(kpis.renewals90), Icon: Briefcase, tint: "violet",
               insight: kpis.nextRenewalLabel,
               tone: kpis.renewals90 > 0 ? "warning" as const : "muted" as const,
+              onClick: () => setRenewalFilter(v => !v),
+              active: renewalFilter,
             },
             {
+              key: "active",
               label: "Active Deals", value: String(kpis.activeDeals), Icon: Activity, tint: "emerald",
               insight: kpis.atRisk > 0 ? `${kpis.atRisk} at risk` : "All on track",
               tone: kpis.atRisk > 0 ? "destructive" as const : "muted" as const,
             },
             {
+              key: "mrr",
               label: "Total MRR", value: fmtCurrency(kpis.totalMRR), Icon: TrendingUp, tint: "amber",
               insight: `${kpis.activeDeals} active contributing`,
               tone: "muted" as const,
             },
             {
+              key: "value",
               label: "Total Value", value: fmtCurrency(kpis.totalValue), Icon: DollarSign, tint: "rose",
               insight: kpis.topDealLabel,
               tone: "muted" as const,
             },
-          ].map(({ label, value, Icon, tint, insight, tone }) => {
+          ].map(({ key, label, value, Icon, tint, insight, tone, onClick, active }: any) => {
             const tintMap: Record<string, { bg: string; ring: string; icon: string }> = {
               sky: { bg: "from-sky-500/10", ring: "border-sky-500/20", icon: "text-sky-500" },
               violet: { bg: "from-violet-500/10", ring: "border-violet-500/20", icon: "text-violet-500" },
@@ -693,20 +700,28 @@ export default function Clients() {
               : tone === "warning" ? "text-warning"
               : "text-muted-foreground";
             return (
-              <div
-                key={label}
+              <button
+                type="button"
+                key={key || label}
+                onClick={onClick}
+                disabled={!onClick}
+                aria-pressed={!!active}
+                title={onClick ? (active ? "Click to clear renewals filter" : "Click to show only deals up for renewal") : undefined}
                 className={cn(
-                  "flex flex-1 min-w-0 flex-col px-3 py-2 rounded-xl border bg-gradient-to-br to-transparent",
+                  "flex flex-1 min-w-0 flex-col px-3 py-2 rounded-xl border bg-gradient-to-br to-transparent text-left transition-colors",
                   t.bg, t.ring,
+                  onClick && "cursor-pointer hover:border-foreground/30",
+                  active && "ring-2 ring-violet-500/40 border-violet-500/40",
                 )}
               >
                 <div className="flex items-center gap-1.5 min-w-0">
                   <Icon className={cn("h-3.5 w-3.5 shrink-0", t.icon)} />
                   <p className="text-[10px] uppercase tracking-wide text-muted-foreground leading-tight truncate">{label}</p>
+                  {active && <span className="ml-auto text-[9px] text-violet-500 font-medium">FILTERED</span>}
                 </div>
                 <p className="text-xl font-semibold tracking-tight text-foreground font-mono leading-tight truncate mt-1" title={value}>{value}</p>
                 <p className={cn("text-[10px] mt-0.5 truncate", toneClass)} title={insight}>{insight}</p>
-              </div>
+              </button>
             );
           })}
           </div>
