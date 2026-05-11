@@ -663,7 +663,8 @@ export default function RGYHealth() {
   useEffect(() => {
     try { localStorage.setItem("rgy-visible-cols", JSON.stringify(visibleCols)); } catch {}
   }, [visibleCols]);
-  const isColVisible = (k: string) => visibleCols.includes(k);
+  const REQUIRED_COL_KEYS = useMemo(() => ALL_COLS.filter(c => c.required).map(c => c.key), [ALL_COLS]);
+  const isColVisible = (k: string) => visibleCols.includes(k) || REQUIRED_COL_KEYS.includes(k);
   const toggleCol = (k: string, required?: boolean) => {
     if (required) return;
     setVisibleCols(prev => prev.includes(k) ? prev.filter(c => c !== k) : [...prev, k]);
