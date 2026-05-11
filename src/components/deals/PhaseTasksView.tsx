@@ -1424,6 +1424,27 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Delete Phase Confirmation */}
+      <AlertDialog open={!!deletePhaseName} onOpenChange={(open) => !open && setDeletePhaseName(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Phase</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deletePhaseName && (
+                <>Remove phase <span className="font-medium">"{deletePhaseName}"</span> and all{" "}
+                {(tasksByPhase[deletePhaseName] || []).length} task
+                {(tasksByPhase[deletePhaseName] || []).length === 1 ? "" : "s"} in it?
+                You can re-seed it from a template afterwards.</>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeletePhase} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete Phase</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
