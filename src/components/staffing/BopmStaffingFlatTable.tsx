@@ -1300,9 +1300,9 @@ export function BopmStaffingFlatTable({
                       <td className="px-2 py-2">
                         <button
                           type="button"
-                          onClick={() => setAddForDeal(d.id)}
+                          onClick={() => setRequestForDeal({ dealId: d.id })}
                           className="h-6 px-2 inline-flex items-center gap-1 rounded border border-dashed border-border text-[11px] text-muted-foreground hover:bg-secondary/50"
-                        ><Plus className="h-3 w-3" /> Add person</button>
+                        ><Plus className="h-3 w-3" /> Request staffing</button>
                       </td>
                     )}
                     {visibleRoleKeys.map(rk => {
