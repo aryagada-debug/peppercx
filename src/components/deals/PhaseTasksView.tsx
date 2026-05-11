@@ -194,7 +194,7 @@ function TemplateEditorDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialPhases: PhaseTemplate[];
-  onSeed: (phases: PhaseTemplate[], opts?: { onlyPhaseIdx?: number }) => void;
+  onSeed: (phases: PhaseTemplate[], opts?: { onlyPhaseIdx?: number; onlyPhaseIdxs?: number[] }) => void;
 }) {
   const [phases, setPhases] = useState<PhaseTemplate[]>(() => JSON.parse(JSON.stringify(initialPhases)));
   const [selectedPhaseIdx, setSelectedPhaseIdx] = useState(0);
@@ -203,6 +203,8 @@ function TemplateEditorDialog({
   const [saveName, setSaveName] = useState("");
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [phaseSearch, setPhaseSearch] = useState("");
+  const [checkedPhaseIdxs, setCheckedPhaseIdxs] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
@@ -323,6 +325,35 @@ function TemplateEditorDialog({
     await supabase.from("task_templates").delete().eq("id", tpl.id);
     setSavedTemplates(prev => prev.filter(t => t.id !== tpl.id));
     toast.success("Template deleted");
+  };
+
+  const filteredPhaseIdxs = useMemo(() => {
+    const q = phaseSearch.trim().toLowerCase();
+    return phases
+      .map((_, i) => i)
+      .filter(i => !q || phases[i].phase.toLowerCase().includes(q));
+  }, [phases, phaseSearch]);
+
+  const toggleChecked = (idx: number) => {
+    setCheckedPhaseIdxs(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  };
+
+  const totalTasks = phases.reduce((acc, p) => acc + p.tasks.length, 0);
+  const estDays = Math.max(1, Math.round(totalTasks / 1.5));
+  const checkedCount = checkedPhaseIdxs.size;
+
+  const seedLabel = checkedCount > 0 ? `Seed ${checkedCount} Phase${checkedCount === 1 ? "" : "s"}` : "Seed Tasks";
+  const handleSeedAll = () => {
+    if (checkedCount > 0) {
+      onSeed(phases, { onlyPhaseIdxs: Array.from(checkedPhaseIdxs).sort((a, b) => a - b) });
+    } else {
+      onSeed(phases);
+    }
+    onOpenChange(false);
   };
 
   return (
