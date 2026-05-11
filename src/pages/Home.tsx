@@ -888,6 +888,21 @@ export default function HomePage() {
                 </span>
               </CardTitle>
               <div className="flex items-center gap-2">
+                {(isAdmin || isVsdViewer) && (
+                  <Select value={taskViewAs} onValueChange={setTaskViewAs}>
+                    <SelectTrigger className="h-7 w-[180px] text-[12px]">
+                      <SelectValue placeholder="View tasks for…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="me">My tasks</SelectItem>
+                      <SelectItem value="created">Created by me</SelectItem>
+                      <SelectItem value="all">Everyone's tasks</SelectItem>
+                      {allPeople.filter(p => !p.tbh).slice(0, 200).map(p => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 <Input
                   value={taskSearch}
                   onChange={(e) => setTaskSearch(e.target.value)}
@@ -924,6 +939,7 @@ export default function HomePage() {
                 onUpdate={handleKanbanUpdate}
                 onDelete={handleKanbanDelete}
                 compact
+                dealMeta={dealMeta}
               />
             )}
           </CardContent>
@@ -1344,9 +1360,17 @@ export default function HomePage() {
       {editingDealTask && (
         <TaskFormDialog open={!!editingDealTask} onOpenChange={(o) => { if (!o) setEditingDealTask(null); }}
           title="Edit Task" assignees={dialogAssignees}
+          headerSubtitle={
+            deals[editingDealTask.deal_id]
+              ? `Client: ${deals[editingDealTask.deal_id].account || "—"} · Deal: ${deals[editingDealTask.deal_id].deal_name}`
+              : undefined
+          }
           initial={{
             title: editingDealTask.title, description: editingDealTask.description || "",
             stage: editingDealTask.stage, assignee: editingDealTask.assignee,
+            assignees: Array.isArray(editingDealTask.assignees) && editingDealTask.assignees.length
+              ? editingDealTask.assignees
+              : (editingDealTask.assignee ? [editingDealTask.assignee] : []),
             startDate: editingDealTask.start_date || "", endDate: editingDealTask.end_date || "",
             urgency: editingDealTask.urgency,
             estimatedHours: Number(editingDealTask.estimated_hours) || 0,
