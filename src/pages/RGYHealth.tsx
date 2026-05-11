@@ -32,6 +32,7 @@ import { ReadOnlyBanner } from "@/components/access/ReadOnlyBanner";
 import { useDealAccess } from "@/hooks/useDealAccess";
 import { BopmEmptyState } from "@/components/access/BopmEmptyState";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { getOverallCustomerRGY as computeOverallCustomerRGY } from "@/lib/overallCustomerRGY";
 
 type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
@@ -123,6 +124,8 @@ interface DealWithRGY {
   rgy_action_plan?: string;
   rgy_discussed_action_plan?: string;
   rgy_issue_details?: string;
+  rgy_issue_date?: string | null;
+  rgy_created_at?: string | null;
   customer: string;
   internal: string;
   content: string;
@@ -154,11 +157,11 @@ function getCurrentWeekStart(): string {
 }
 
 function getWorstRGY(deal: DealWithRGY): "R" | "Y" | "G" | null {
-  const vals = DIMENSIONS.map(d => deal[d.key as keyof DealWithRGY] as string);
-  if (vals.includes("R")) return "R";
-  if (vals.includes("Y")) return "Y";
-  if (vals.every(v => v === "NA" || !v)) return null;
-  return "G";
+  // Weighted Overall Customer RGY — see src/lib/overallCustomerRGY.ts.
+  // Name kept as `getWorstRGY` to minimize churn at call sites.
+  const dims: Record<string, string> = {};
+  for (const d of DIMENSIONS) dims[d.key] = (deal[d.key as keyof DealWithRGY] as string) || "";
+  return computeOverallCustomerRGY(dims);
 }
 
 // ── Inline RGY Selector with blank-on-reclick ──
@@ -748,8 +751,8 @@ export default function RGYHealth() {
         discussed_action_plan: d.rgy_discussed_action_plan || "",
         red_dimensions: redDims,
         worst,
-        issue_date: null,
-        created_at: null,
+        issue_date: (d as any).rgy_issue_date || null,
+        created_at: (d as any).rgy_created_at || null,
       });
     }
     return out;
@@ -804,6 +807,8 @@ export default function RGYHealth() {
         rgy_action_plan: rgy.action_plan || "",
         rgy_discussed_action_plan: rgy.discussed_action_plan || "",
         rgy_issue_details: rgy.issue_details || "",
+        rgy_issue_date: rgy.issue_date || null,
+        rgy_created_at: rgy.created_at || null,
         customer: rgy.customer ?? "",
         internal: rgy.internal ?? "",
         content: rgy.content ?? "",
@@ -823,6 +828,19 @@ export default function RGYHealth() {
     if (!deal) return;
 
     const oldValue = (deal[dimKey as keyof DealWithRGY] as string) || "NA";
+
+    // Validation: Overall Customer R/Y requires Internal = R.
+    // Hard-block the save when changing customer or internal would violate this.
+    if (dimKey === "customer" || dimKey === "internal") {
+      const customerVal = dimKey === "customer" ? newValue : (deal.customer || "");
+      const internalVal = dimKey === "internal" ? newValue : (deal.internal || "");
+      const customerBad = customerVal === "R" || customerVal === "Y";
+      const internalBad = internalVal === "G" || internalVal === "Y";
+      if (customerBad && internalBad) {
+        toast.error("Internal must be R when Overall Customer is R or Y. Update Internal first.");
+        return;
+      }
+    }
 
     // R/Y → G: always prompt the user to resolve open work tied to this
     // dimension before persisting Green. We look at:

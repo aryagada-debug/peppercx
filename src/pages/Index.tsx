@@ -23,6 +23,7 @@ import { PortfolioHealthCard } from "@/components/dashboard/PortfolioHealthCard"
 import { DealScorecardTable, type ScorecardRow } from "@/components/dashboard/DealScorecardTable";
 import { CapabilityLeaderDashboard } from "@/components/dashboard/CapabilityLeaderDashboard";
 import { CapabilityMemberDashboard } from "@/components/dashboard/CapabilityMemberDashboard";
+import { getOverallCustomerRGY } from "@/lib/overallCustomerRGY";
 
 const ACTIVE_STATUSES = ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"];
 const RGY_DIMS = ["Internal", "Customer", "Delivery", "Consumption"] as const;
@@ -40,13 +41,15 @@ function currentMonday(): Date {
   return d;
 }
 
-/** Roll up the 4 RGY dimensions for one deal into a single status (worst wins). */
-function worstStatus(dims: Record<string, RGYStatus>): RGYStatus {
-  const vals = Object.values(dims);
-  if (vals.includes("R")) return "R";
-  if (vals.includes("Y")) return "Y";
-  if (vals.includes("G")) return "G";
-  return "NA";
+/**
+ * Weighted Overall Customer RGY for one deal — replaces the old worst-wins rollup.
+ * Accepts a dim map keyed by any case (Customer / customer / etc.). See
+ * src/lib/overallCustomerRGY.ts for the weighting table.
+ */
+function worstStatus(dims: Record<string, RGYStatus | string | null | undefined>): RGYStatus {
+  const normalized: Record<string, string> = {};
+  for (const [k, v] of Object.entries(dims)) normalized[k.toLowerCase()] = (v as string) || "";
+  return (getOverallCustomerRGY(normalized) || "NA") as RGYStatus;
 }
 
 interface RgyCounts { total: number; r: number; y: number; g: number; na: number }
@@ -124,7 +127,7 @@ function LegacyDashboard() {
           .select("deal_id, mrr, actuals")
           .eq("month", monthIso),
         supabase.from("deal_rgy_weekly")
-          .select("deal_id, week_start, internal, customer, delivery, consumption")
+          .select("deal_id, week_start, internal, customer, delivery, consumption, content, seo, supply, copy, design, video")
           .order("week_start", { ascending: false })
           .limit(2000),
         supabase.from("mbr_entries")
@@ -196,13 +199,21 @@ function LegacyDashboard() {
           Delivery: toRGY(r.delivery),
           Consumption: toRGY(r.consumption),
         };
-        if (Object.values(dims).some(v => v === "R")) redCount++;
+        const extraDims: Record<string, RGYStatus> = {
+          Content: toRGY((r as any).content),
+          SEO: toRGY((r as any).seo),
+          Supply: toRGY((r as any).supply),
+          Copy: toRGY((r as any).copy),
+          Design: toRGY((r as any).design),
+          Video: toRGY((r as any).video),
+        };
+        if (Object.values({ ...dims, ...extraDims }).some(v => v === "R")) redCount++;
         rgyRowsBuilt.push({
           id: deal_id,
           deal: d.deal_name || deal_id,
           client: d.account || "—",
           bopm: d.principal_bopm || d.senior_bopm || d.bopm || "—",
-          dimensions: dims,
+          dimensions: { ...dims, ...extraDims },
         });
       }
       // Sort by # of red/yellow desc
@@ -314,6 +325,12 @@ function LegacyDashboard() {
           Customer: toRGY(r.customer),
           Delivery: toRGY(r.delivery),
           Consumption: toRGY(r.consumption),
+          Content: toRGY((r as any).content),
+          SEO: toRGY((r as any).seo),
+          Supply: toRGY((r as any).supply),
+          Copy: toRGY((r as any).copy),
+          Design: toRGY((r as any).design),
+          Video: toRGY((r as any).video),
         };
         prevStatuses.push(worstStatus(dims));
       }

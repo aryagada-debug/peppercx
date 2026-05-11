@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { TeamCountDrillDialog } from "./TeamCountDrillDialog";
 import { VSDDrillDialog } from "./VSDDrillDialog";
 import { useAppUsers, useVsdUsers, useVsdHierarchy, useBopmDirectory } from "@/hooks/useAppUsers";
+import { getOverallCustomerRGY as computeOverallCustomerRGY } from "@/lib/overallCustomerRGY";
 
 const DIMENSIONS = [
   { key: "customer", label: "Customer" },
@@ -86,11 +87,9 @@ interface Props {
 }
 
 function getWorstRGY(deal: DealWithRGY): "R" | "Y" | "G" | null {
-  const vals = DIMENSIONS.map((d) => deal[d.key] as string);
-  if (vals.includes("R")) return "R";
-  if (vals.includes("Y")) return "Y";
-  if (vals.every((v) => v === "NA" || !v)) return null;
-  return "G";
+  const dims: Record<string, string> = {};
+  for (const d of DIMENSIONS) dims[d.key] = (deal[d.key] as string) || "";
+  return computeOverallCustomerRGY(dims);
 }
 
 function daysSince(dateStr: string | null): number {
