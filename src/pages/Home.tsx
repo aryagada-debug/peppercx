@@ -48,7 +48,19 @@ interface DealTaskRow {
   created_at?: string;
 }
 interface CxTaskRow { id: string; space_id: string; title: string; assignee: string; assignees?: string[]; status: string; start_date: string | null; end_date: string | null; urgency: string; }
-interface PersonalTodo { id: string; user_id: string; title: string; notes: string; done: boolean; due_date: string | null; priority: string; sort_order: number; }
+interface PersonalTodo {
+  id: string;
+  user_id: string;
+  title: string;
+  notes: string;
+  done: boolean;
+  due_date: string | null;
+  priority: string;
+  sort_order: number;
+  assigned_by_user_id?: string | null;
+  assigned_by_name?: string | null;
+  assignee_name?: string | null;
+}
 interface RGYFlagRow { id: string; deal_id: string; week_start: string; issue_status: string | null; resolution_due_date: string | null; issue_details: string | null; }
 interface InactivityRow { id: string; deal_id: string; channel_id: string; week_start: string; message_count: number; }
 interface DealLite { id: string; deal_name: string; account: string; end_date?: string | null; vsd?: string | null; principal_bopm?: string | null; senior_bopm?: string | null; bopm?: string | null; }
