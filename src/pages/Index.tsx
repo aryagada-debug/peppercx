@@ -124,7 +124,7 @@ function LegacyDashboard() {
           .select("deal_id, mrr, actuals")
           .eq("month", monthIso),
         supabase.from("deal_rgy_weekly")
-          .select("deal_id, week_start, internal, customer, delivery, consumption")
+          .select("deal_id, week_start, internal, customer, delivery, consumption, content, seo, supply, copy, design, video")
           .order("week_start", { ascending: false })
           .limit(2000),
         supabase.from("mbr_entries")
