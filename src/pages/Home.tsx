@@ -907,7 +907,7 @@ export default function HomePage() {
                       <SelectItem value="me">My tasks</SelectItem>
                       <SelectItem value="created">Created by me</SelectItem>
                       <SelectItem value="all">Everyone's tasks</SelectItem>
-                      {allPeople.filter(p => !p.tbh).slice(0, 200).map(p => (
+                      {viewAsPeople.map(p => (
                         <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                       ))}
                     </SelectContent>
