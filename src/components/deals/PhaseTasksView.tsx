@@ -552,28 +552,36 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
 
   const handleEditSubmit = (data: TaskData) => {
     if (!editTask) return;
+    const list = (data.assignees && data.assignees.length)
+      ? data.assignees
+      : (data.assignee ? [data.assignee] : []);
     onUpdate(editTask.id, {
       title: data.title,
       description: data.description,
       stage: data.stage,
-      assignee: data.assignee,
+      assignee: list[0] || "",
+      assignees: list,
       startDate: data.startDate,
       endDate: data.endDate,
       urgency: data.urgency,
       estimatedHours: data.estimatedHours || 0,
       subtasks: data.subtasks || [],
       autoRegen: data.autoRegen || false,
-    });
+    } as any);
     setEditTask(null);
   };
 
   const handleCreateSubmit = (data: TaskData) => {
+    const list = (data.assignees && data.assignees.length)
+      ? data.assignees
+      : (data.assignee ? [data.assignee] : []);
     onAdd({
       dealId,
       title: data.title,
       description: data.description,
       stage: data.stage,
-      assignee: data.assignee,
+      assignee: list[0] || "",
+      assignees: list,
       startDate: data.startDate,
       endDate: data.endDate,
       urgency: data.urgency,
@@ -584,7 +592,7 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
       phase: activePhase,
       tags: [],
       autoRegen: data.autoRegen || false,
-    });
+    } as any);
   };
 
   // Tasks to display (with search filter applied)
