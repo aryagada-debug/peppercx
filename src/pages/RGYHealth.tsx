@@ -32,6 +32,7 @@ import { ReadOnlyBanner } from "@/components/access/ReadOnlyBanner";
 import { useDealAccess } from "@/hooks/useDealAccess";
 import { BopmEmptyState } from "@/components/access/BopmEmptyState";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { getOverallCustomerRGY as computeOverallCustomerRGY } from "@/lib/overallCustomerRGY";
 
 type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
@@ -154,11 +155,11 @@ function getCurrentWeekStart(): string {
 }
 
 function getWorstRGY(deal: DealWithRGY): "R" | "Y" | "G" | null {
-  const vals = DIMENSIONS.map(d => deal[d.key as keyof DealWithRGY] as string);
-  if (vals.includes("R")) return "R";
-  if (vals.includes("Y")) return "Y";
-  if (vals.every(v => v === "NA" || !v)) return null;
-  return "G";
+  // Weighted Overall Customer RGY — see src/lib/overallCustomerRGY.ts.
+  // Name kept as `getWorstRGY` to minimize churn at call sites.
+  const dims: Record<string, string> = {};
+  for (const d of DIMENSIONS) dims[d.key] = (deal[d.key as keyof DealWithRGY] as string) || "";
+  return computeOverallCustomerRGY(dims);
 }
 
 // ── Inline RGY Selector with blank-on-reclick ──
