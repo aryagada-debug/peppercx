@@ -2238,6 +2238,13 @@ export type Database = {
         }
         Returns: boolean
       }
+      resolve_assignee_user_id: {
+        Args: { _staffing_person_id: string }
+        Returns: {
+          display_name: string
+          user_id: string
+        }[]
+      }
     }
     Enums: {
       app_role:
