@@ -722,6 +722,32 @@ export default function MBRTracker() {
           <KpiTile label="Compliance" value={`${kpis.compliance}%`} tone="primary" icon={Gauge} />
         </div>
 
+        {/* Account Type filter (Retainer / Non-Retainer / All) */}
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Account Type:</span>
+          <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
+            {([
+              { key: "retainer", label: "Retainer" },
+              { key: "non-retainer", label: "Non-Retainer" },
+              { key: "all", label: "All" },
+            ] as const).map(v => (
+              <button
+                key={v.key}
+                onClick={() => setAccountTypeFilter(v.key)}
+                className={cn(
+                  "px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
+                  accountTypeFilter === v.key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                )}
+              >{v.label}</button>
+            ))}
+          </div>
+          {accountTypeFilter === "all" && (
+            <span className="text-[10px] text-muted-foreground">
+              Compliance/flags count retainers only ({kpis.retainerCount} of {kpis.retainerAccounts}).
+            </span>
+          )}
+        </div>
+
         {/* Tabs: Insights / Table — default to Table; BOPMs don't see Insights */}
         <Tabs defaultValue="table" className="mb-4">
           <TabsList className="mb-3">
