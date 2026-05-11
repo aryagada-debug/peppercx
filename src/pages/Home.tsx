@@ -703,7 +703,8 @@ export default function HomePage() {
       createdAt: t.created_at,
       createdByName: t.created_by_name,
     }));
-    const todoItems = taskViewAs === "me"
+    const shouldShowPersonalTodos = taskViewAs === "me" || taskViewAs === "all" || taskViewAs === "created";
+    const todoItems = shouldShowPersonalTodos
       ? todos.filter(t => !t.done).map(t => ({
         id: toTodoTaskId(t.id),
         dealId: "",
