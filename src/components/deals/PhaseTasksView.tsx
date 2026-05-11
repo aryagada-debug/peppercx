@@ -1173,38 +1173,56 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
             const doneCount = pts.filter(t => t.stage === "Done").length;
             const isActive = !showAll && activePhase === phaseName;
             const isComplete = pts.length > 0 && doneCount === pts.length;
+            const canDelete = isPhaseDeletable(phaseName);
 
             return (
-              <button
+              <div
                 key={phaseName}
-                onClick={() => {
-                  if (isActive && !showAll) {
-                    setShowAll(true);
-                    setSelectedPhase(null);
-                  } else {
-                    setShowAll(false);
-                    setSelectedPhase(phaseName);
-                  }
-                }}
                 className={cn(
-                  "w-full text-left px-3 py-2.5 text-sm border-b border-border/50 transition-colors hover:bg-secondary/40",
-                  isActive && "bg-primary/10 border-l-2 border-l-primary font-medium"
+                  "group relative border-b border-border/50 transition-colors hover:bg-secondary/40",
+                  isActive && "bg-primary/10 border-l-2 border-l-primary"
                 )}
               >
-                <span className="flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-2 min-w-0">
-                    {isComplete ? (
-                      <Check className="h-3.5 w-3.5 text-positive shrink-0" />
-                    ) : (
-                      <ChevronRight className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform", isActive && "rotate-90")} />
-                    )}
-                    <span className="truncate">{phaseName}</span>
+                <button
+                  onClick={() => {
+                    if (isActive && !showAll) {
+                      setShowAll(true);
+                      setSelectedPhase(null);
+                    } else {
+                      setShowAll(false);
+                      setSelectedPhase(phaseName);
+                    }
+                  }}
+                  className={cn(
+                    "w-full text-left px-3 py-2.5 text-sm",
+                    isActive && "font-medium"
+                  )}
+                >
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-2 min-w-0">
+                      {isComplete ? (
+                        <Check className="h-3.5 w-3.5 text-positive shrink-0" />
+                      ) : (
+                        <ChevronRight className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform", isActive && "rotate-90")} />
+                      )}
+                      <span className="truncate">{phaseName}</span>
+                    </span>
+                    <span className="text-[10px] text-muted-foreground font-mono shrink-0 pr-5">
+                      {doneCount}/{pts.length}
+                    </span>
                   </span>
-                  <span className="text-[10px] text-muted-foreground font-mono shrink-0">
-                    {doneCount}/{pts.length}
-                  </span>
-                </span>
-              </button>
+                </button>
+                {canDelete && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setDeletePhaseName(phaseName); }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                    title={`Delete phase "${phaseName}"`}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
             );
           })}
         </div>
