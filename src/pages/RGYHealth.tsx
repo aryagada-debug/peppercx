@@ -9,7 +9,7 @@ import { logRGYChange } from "@/lib/rgyHistory";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
-import { Search, AlertTriangle, AlertCircle, CheckCircle2, Activity, Plus, Trash2, Check, X, Calendar, Loader2, Settings2 } from "lucide-react";
+import { Search, AlertTriangle, AlertCircle, CheckCircle2, Activity, Plus, Trash2, Check, X, Calendar, Loader2, Settings2, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,7 +32,7 @@ import { ReadOnlyBanner } from "@/components/access/ReadOnlyBanner";
 import { useDealAccess } from "@/hooks/useDealAccess";
 import { BopmEmptyState } from "@/components/access/BopmEmptyState";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { getOverallCustomerRGY as computeOverallCustomerRGY } from "@/lib/overallCustomerRGY";
+import { getOverallCustomerRGY as computeOverallCustomerRGY, computeOverallCustomerScore } from "@/lib/overallCustomerRGY";
 
 type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
@@ -621,7 +621,7 @@ export default function RGYHealth() {
 
   // Column widths (resizable)
   const DEFAULT_WIDTHS: Record<string, number> = {
-    account: 160, deal_name: 200, deal_id: 110, deal_status: 110,
+    account: 160, deal_name: 200, deal_id: 110, deal_status: 110, overall_rgy: 120,
     customer: 100, internal: 100, content: 100, seo: 90, supply: 100, copy: 90, design: 100, video: 100,
   };
   const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
@@ -641,6 +641,7 @@ export default function RGYHealth() {
     { key: "deal_name", label: "Deal Name", required: true },
     { key: "deal_id", label: "Deal ID" },
     { key: "deal_status", label: "Status", required: true },
+    { key: "overall_rgy", label: "Overall RGY", required: true },
     { key: "customer", label: "Overall Customer", required: true },
     { key: "internal", label: "Internal", required: true },
     { key: "content", label: "Content" },
@@ -651,7 +652,7 @@ export default function RGYHealth() {
     { key: "video", label: "Video" },
     { key: "ai_summary", label: "AI Summary" },
   ]), []);
-  const DEFAULT_VISIBLE = ["account","deal_name","deal_status","customer","internal"];
+  const DEFAULT_VISIBLE = ["account","deal_name","deal_status","overall_rgy","customer","internal"];
   const [visibleCols, setVisibleCols] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem("rgy-visible-cols");
@@ -1418,6 +1419,29 @@ export default function RGYHealth() {
                         {isColVisible("deal_status") && (
                           <ColHeader label="Status" colKey="deal_status" sortKey="deal_status" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={Object.keys(statusBadgeStyles)} width={colWidths.deal_status} onResizeStart={startResize("deal_status")} />
                         )}
+                        {isColVisible("overall_rgy") && (
+                          <th
+                            style={{ width: colWidths.overall_rgy }}
+                            className="text-center py-2 px-3 font-medium text-muted-foreground text-caption whitespace-nowrap"
+                          >
+                            <div className="inline-flex items-center gap-1">
+                              <span>Overall RGY</span>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button type="button" className="text-muted-foreground/70 hover:text-foreground">
+                                    <Info className="h-3 w-3" />
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs text-xs">
+                                  <p className="font-semibold mb-1">Weighted Overall RGY</p>
+                                  <p>Each dim scores R=0, Y=50, G=100; NA/blank excluded.</p>
+                                  <p className="mt-1">Weights: Overall Customer 50, Internal 10, Content/SEO/Supply/Copy/Design/Video 5 each.</p>
+                                  <p className="mt-1">Bands: &lt;40 Red · 40–75 Yellow · &gt;75 Green.</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
+                          </th>
+                        )}
                         {DIMENSIONS.filter(d => isColVisible(d.key)).map(d => (
                           <ColHeader key={d.key} label={d.label} colKey={d.key} align="center" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["Green","Yellow","Red","NA","Pending"]} width={colWidths[d.key]} onResizeStart={startResize(d.key)} />
                         ))}
@@ -1462,6 +1486,38 @@ export default function RGYHealth() {
                                 </Badge>
                               </td>
                             )}
+                            {isColVisible("overall_rgy") && (() => {
+                              const dims: Record<string, string> = {};
+                              for (const d of DIMENSIONS) dims[d.key] = (deal[d.key as keyof DealWithRGY] as string) || "";
+                              const score = computeOverallCustomerScore(dims);
+                              const band = worst;
+                              const cellVal: RGYCellValue = band ?? "PENDING";
+                              return (
+                                <td className="py-2 px-2 text-center">
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span
+                                        className={cn(
+                                          "inline-flex items-center justify-center rounded-md text-caption font-semibold w-7 h-7 cursor-help",
+                                          cellColors[cellVal]
+                                        )}
+                                      >
+                                        {band ? band : "—"}
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent className="max-w-xs text-xs">
+                                      <p className="font-semibold mb-1">
+                                        {score === null ? "No data" : `Score: ${score.toFixed(1)} → ${band === "R" ? "Red" : band === "Y" ? "Yellow" : "Green"}`}
+                                      </p>
+                                      <p>Weighted rollup of all RGY dimensions.</p>
+                                      <p className="mt-1">R=0 · Y=50 · G=100; NA/blank excluded.</p>
+                                      <p>Weights: Overall Customer 50, Internal 10, others 5.</p>
+                                      <p>Bands: &lt;40 Red · 40–75 Yellow · &gt;75 Green.</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </td>
+                              );
+                            })()}
                             {DIMENSIONS.filter(dim => isColVisible(dim.key)).map(dim => {
                               const raw = (deal[dim.key as keyof DealWithRGY] as string) || "";
                               const val: RGYCellValue = raw === "" ? "PENDING" : (raw as RGYStatus);
