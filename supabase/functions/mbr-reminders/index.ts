@@ -76,11 +76,22 @@ Deno.serve(async (req) => {
       // Lookup deal -> channel + name
       const { data: deal } = await admin
         .from("staffing_deals")
-        .select("id, deal_name, slack_channel_id")
+        .select("id, deal_name, slack_channel_id, deal_type, customer_type")
         .eq("id", e.deal_id)
         .maybeSingle();
       if (!deal || !deal.slack_channel_id) {
         skipped.push({ entry: e.id, reason: "no_channel" });
+        continue;
+      }
+
+      // Only retainer deals get mandatory MBR reminders.
+      const dt = String(deal.deal_type || "").toLowerCase().trim();
+      const ct = String(deal.customer_type || "").toLowerCase().trim();
+      const isRetainer = dt
+        ? (!dt.includes("non") && dt.includes("retainer"))
+        : !(ct.includes("non retainer") || ct.includes("non-retainer"));
+      if (!isRetainer) {
+        skipped.push({ entry: e.id, reason: "non_retainer" });
         continue;
       }
 
