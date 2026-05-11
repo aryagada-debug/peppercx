@@ -877,19 +877,33 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry, deleteMBREntry, 
         </div>
       )}
 
-      {/* Next MBR scheduled banner */}
-      {sorted[0]?.scheduledDate && (
-        <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5 text-sm text-foreground">
-          <Calendar className="h-4 w-4 shrink-0 text-primary" />
-          <span>📅 Next MBR scheduled: <span className="font-semibold">{format(new Date(sorted[0].scheduledDate), "dd MMM yyyy")}</span></span>
-        </div>
-      )}
+      {/* Next MBR scheduled banner — pick the soonest future scheduled date */}
+      {(() => {
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const upcoming = sorted
+          .map(e => e.scheduledDate)
+          .filter((d): d is string => !!d && new Date(d) >= today)
+          .sort();
+        const next = upcoming[0] || sorted.find(e => e.scheduledDate)?.scheduledDate;
+        if (!next) return null;
+        return (
+          <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5 text-sm text-foreground">
+            <Calendar className="h-4 w-4 shrink-0 text-primary" />
+            <span>Next MBR scheduled: <span className="font-semibold">{format(new Date(next), "dd MMM yyyy")}</span></span>
+          </div>
+        );
+      })()}
 
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">MBR History</p>
-        <Button variant="outline" size="sm" className="gap-1.5" onClick={handleNewMBR}>
-          <Plus className="h-3.5 w-3.5" /> Record MBR
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => { setScheduleEntry(null); setScheduleOpen(true); }}>
+            <Calendar className="h-3.5 w-3.5" /> Schedule MBR
+          </Button>
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={handleNewMBR}>
+            <Plus className="h-3.5 w-3.5" /> Record MBR
+          </Button>
+        </div>
       </div>
 
       {sorted.length > 0 ? (
