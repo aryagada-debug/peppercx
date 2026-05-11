@@ -160,6 +160,15 @@ export default function Clients() {
     () => (access.isAdmin ? allDeals : allDeals.filter(d => access.canViewDeal(d.id))),
     [allDeals, access]
   );
+  const dealIdList = useMemo(() => deals.map(d => d.id), [deals]);
+  const { rgyRollup } = useDealRgyRollup(dealIdList);
+  const rgyLetterToFilter = (l: RgyLetter | undefined): string => {
+    if (!l || l === "PENDING") return "pending";
+    if (l === "NA") return "na";
+    if (l === "R") return "red";
+    if (l === "Y") return "amber";
+    return "green";
+  };
   const visibleClientIdSet = useMemo(() => {
     const ids = new Set<string>();
     deals.forEach(d => { if (d.clientId) ids.add(d.clientId); });
@@ -365,12 +374,8 @@ export default function Clients() {
       if (colFilters.mrr && (Number(d.mrr) || 0) < Number(colFilters.mrr)) return false;
       if (colFilters.totalDealValue && (Number(d.totalDealValue) || 0) < Number(colFilters.totalDealValue)) return false;
       if (colFilters.rag) {
-        const rag = (d.rag || "").toLowerCase();
-        if (colFilters.rag === "pending") {
-          if (rag) return false;
-        } else if (rag !== colFilters.rag) {
-          return false;
-        }
+        const rag = rgyLetterToFilter(rgyRollup.get(d.id));
+        if (rag !== colFilters.rag) return false;
       }
       return true;
     });
@@ -385,7 +390,7 @@ export default function Clients() {
       rows = [...rows].sort((a, b) => a.account.localeCompare(b.account) || a.dealName.localeCompare(b.dealName));
     }
     return rows;
-  }, [filteredDeals, colFilters, sortKey, sortDir]);
+  }, [filteredDeals, colFilters, sortKey, sortDir, rgyRollup]);
 
   const kpis = useMemo(() => {
     const clientSet = new Set(filteredDeals.map(d => d.account));
@@ -408,8 +413,8 @@ export default function Clients() {
         .filter(d => d.startDate && new Date(d.startDate) >= qStart)
         .map(d => d.account)
     ).size;
-    // At-risk active deals (rag === red)
-    const atRisk = filteredDeals.filter(d => ACTIVE_STATUSES.has(d.dealStatus) && (d.rag || "").toLowerCase() === "red").length;
+    // At-risk active deals (computed rollup === R)
+    const atRisk = filteredDeals.filter(d => ACTIVE_STATUSES.has(d.dealStatus) && rgyRollup.get(d.id) === "R").length;
     // Top deal by total value
     const topDeal = [...filteredDeals].sort((a, b) => (Number(b.totalDealValue) || 0) - (Number(a.totalDealValue) || 0))[0];
     return {
@@ -986,7 +991,7 @@ export default function Clients() {
                           })()}
                         </td>
                       )}
-                      {isVisible("rag") && <td className="py-2 px-3 text-center">{ragDot(deal.rag || "green")}</td>}
+                      {isVisible("rag") && <td className="py-2 px-3 text-center"><RgyBlock letter={rgyRollup.get(deal.id)} /></td>}
                       <td className="py-2 px-1">
                         <div className="flex items-center gap-1.5 justify-end">
                           <Popover>
