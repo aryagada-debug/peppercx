@@ -701,6 +701,7 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
   const tasksByPhase = useMemo(() => {
     const map: Record<string, DealTask[]> = {};
     ONBOARDING_PHASES.forEach(p => { map[p.phase] = []; });
+    MANDATORY_PHASES.forEach(p => { map[p] = []; });
     map[GENERAL_PHASE] = [];
     phaseTasks.forEach(t => {
       const key = t.phase || GENERAL_PHASE;
@@ -722,27 +723,46 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
   const activePhase = selectedPhase || currentPhase;
 
   // Seed from template editor
-  const handleSeedFromEditor = useCallback((phases: PhaseTemplate[], opts?: { onlyPhaseIdx?: number }) => {
-    const targetPhases = (opts && typeof opts.onlyPhaseIdx === "number")
-      ? [phases[opts.onlyPhaseIdx]].filter(Boolean)
-      : phases;
+  const handleSeedFromEditor = useCallback((phases: PhaseTemplate[], opts?: { onlyPhaseIdx?: number; onlyPhaseIdxs?: number[] }) => {
+    let targetPhases: PhaseTemplate[];
+    if (opts?.onlyPhaseIdxs && opts.onlyPhaseIdxs.length > 0) {
+      targetPhases = opts.onlyPhaseIdxs.map(i => phases[i]).filter(Boolean) as PhaseTemplate[];
+    } else if (typeof opts?.onlyPhaseIdx === "number") {
+      targetPhases = [phases[opts.onlyPhaseIdx]].filter(Boolean) as PhaseTemplate[];
+    } else {
+      targetPhases = phases;
+    }
     const rows: Omit<DealTask, "id">[] = [];
     let sortIdx = 0;
+    const today = new Date();
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
     targetPhases.forEach(phase => {
       phase.tasks.forEach(t => {
+        let startDate: string | undefined;
+        let endDate: string | undefined;
+        if (typeof t.dayStart === "number") {
+          const s = new Date(today); s.setDate(s.getDate() + t.dayStart);
+          startDate = fmt(s);
+        }
+        if (typeof t.dayEnd === "number") {
+          const e = new Date(today); e.setDate(e.getDate() + t.dayEnd);
+          endDate = fmt(e);
+        }
         rows.push({
           dealId,
           title: t.title,
           description: t.description,
           stage: "To Do",
           assignee: resolveAssignee(t.assigneeRole, deal),
-          urgency: "Medium",
+          urgency: t.urgency || "Medium",
           loggedHours: 0,
           sortOrder: sortIdx++,
-          estimatedHours: 0,
+          estimatedHours: t.estimatedHours || 0,
           subtasks: [],
           phase: phase.phase,
           tags: t.tags,
+          startDate,
+          endDate,
         });
       });
     });
@@ -829,6 +849,9 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
     const phaseNames = ONBOARDING_PHASES.map(p => p.phase);
     phaseTasks.forEach(t => {
       if (t.phase && !phaseNames.includes(t.phase)) phaseNames.push(t.phase);
+    });
+    MANDATORY_PHASES.forEach(p => {
+      if (!phaseNames.includes(p)) phaseNames.push(p);
     });
     if ((tasksByPhase[GENERAL_PHASE]?.length || 0) > 0 && !phaseNames.includes(GENERAL_PHASE)) {
       phaseNames.push(GENERAL_PHASE);
