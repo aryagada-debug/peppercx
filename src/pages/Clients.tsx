@@ -365,6 +365,7 @@ export default function Clients() {
   const tableRows = useMemo(() => {
     const matches = (val: any, q: string) => String(val ?? "").toLowerCase().includes(q.toLowerCase());
     let rows = filteredDeals.filter(d => {
+      if (renewalFilter && !kpis.renewingIds.has(d.id)) return false;
       if (colFilters.account && !matches(d.account, colFilters.account)) return false;
       if (colFilters.dealName && !matches(d.dealName, colFilters.dealName)) return false;
       if (colFilters.dealId && !matches(d.dealId, colFilters.dealId)) return false;
