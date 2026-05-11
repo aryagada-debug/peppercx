@@ -199,13 +199,21 @@ function LegacyDashboard() {
           Delivery: toRGY(r.delivery),
           Consumption: toRGY(r.consumption),
         };
-        if (Object.values(dims).some(v => v === "R")) redCount++;
+        const extraDims: Record<string, RGYStatus> = {
+          Content: toRGY((r as any).content),
+          SEO: toRGY((r as any).seo),
+          Supply: toRGY((r as any).supply),
+          Copy: toRGY((r as any).copy),
+          Design: toRGY((r as any).design),
+          Video: toRGY((r as any).video),
+        };
+        if (Object.values({ ...dims, ...extraDims }).some(v => v === "R")) redCount++;
         rgyRowsBuilt.push({
           id: deal_id,
           deal: d.deal_name || deal_id,
           client: d.account || "—",
           bopm: d.principal_bopm || d.senior_bopm || d.bopm || "—",
-          dimensions: dims,
+          dimensions: { ...dims, ...extraDims },
         });
       }
       // Sort by # of red/yellow desc
@@ -317,6 +325,12 @@ function LegacyDashboard() {
           Customer: toRGY(r.customer),
           Delivery: toRGY(r.delivery),
           Consumption: toRGY(r.consumption),
+          Content: toRGY((r as any).content),
+          SEO: toRGY((r as any).seo),
+          Supply: toRGY((r as any).supply),
+          Copy: toRGY((r as any).copy),
+          Design: toRGY((r as any).design),
+          Video: toRGY((r as any).video),
         };
         prevStatuses.push(worstStatus(dims));
       }
