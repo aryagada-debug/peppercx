@@ -531,7 +531,9 @@ export default function Clients() {
   };
 
   const handleStatusChange = async (dealId: string, newStatus: string) => {
-    if (isBopm) {
+    // VSDs can change deal status directly without CX approval — only
+    // route through the approval flow for true BOPM users.
+    if (isBopm && !isVsdViewer) {
       const deal = deals.find(d => d.id === dealId);
       await submitApprovalRequest({
         type: "deal.update",
