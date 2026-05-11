@@ -91,7 +91,7 @@ const RGY_DIMENSIONS: { key: keyof RGYWeekly; label: string }[] = [
 const rgyScore: Record<string, number> = { G: 3, Y: 2, R: 1, NA: 0 };
 
 function RGYHistorySection({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
-  const [view, setView] = useState<"trend" | "log">("trend");
+  const [view, setView] = useState<"trend" | "log" | "month">("trend");
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
@@ -105,6 +105,10 @@ function RGYHistorySection({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
             onClick={() => setView("log")}
             className={cn("px-2 py-0.5 rounded text-[11px] font-medium transition-colors", view === "log" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
           >Weekly log</button>
+          <button
+            onClick={() => setView("month")}
+            className={cn("px-2 py-0.5 rounded text-[11px] font-medium transition-colors", view === "month" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
+          >Monthly log</button>
         </div>
       </div>
       {rgyWeekly.length === 0 ? (
@@ -113,8 +117,10 @@ function RGYHistorySection({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
         </div>
       ) : view === "trend" ? (
         <RGYTrendView rgyWeekly={rgyWeekly} />
+      ) : view === "month" ? (
+        <GroupedRGYHistory rgyWeekly={rgyWeekly} groupBy="month" />
       ) : (
-        <GroupedRGYHistory rgyWeekly={rgyWeekly} />
+        <GroupedRGYHistory rgyWeekly={rgyWeekly} groupBy="week" />
       )}
     </div>
   );
