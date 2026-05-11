@@ -361,11 +361,24 @@ export default function Clients() {
     return d;
   }, [deals, activeVsd, activeBopm, search, showClosed, allPersonNames]);
 
+  // Deals up for renewal within 90 days (used by both KPI and renewals filter)
+  const renewingIds = useMemo(() => {
+    const now = new Date();
+    const in90 = new Date(); in90.setDate(in90.getDate() + 90);
+    const ids = new Set<string>();
+    filteredDeals.forEach(d => {
+      if (!ACTIVE_STATUSES.has(d.dealStatus) || !d.endDate) return;
+      const end = new Date(d.endDate as string);
+      if (!isNaN(end.getTime()) && end >= now && end <= in90) ids.add(d.id);
+    });
+    return ids;
+  }, [filteredDeals]);
+
   // Apply per-column filters + sort to produce flat row list
   const tableRows = useMemo(() => {
     const matches = (val: any, q: string) => String(val ?? "").toLowerCase().includes(q.toLowerCase());
     let rows = filteredDeals.filter(d => {
-      if (renewalFilter && !kpis.renewingIds.has(d.id)) return false;
+      if (renewalFilter && !renewingIds.has(d.id)) return false;
       if (colFilters.account && !matches(d.account, colFilters.account)) return false;
       if (colFilters.dealName && !matches(d.dealName, colFilters.dealName)) return false;
       if (colFilters.dealId && !matches(d.dealId, colFilters.dealId)) return false;
@@ -392,17 +405,15 @@ export default function Clients() {
       rows = [...rows].sort((a, b) => a.account.localeCompare(b.account) || a.dealName.localeCompare(b.dealName));
     }
     return rows;
-  }, [filteredDeals, colFilters, sortKey, sortDir, rgyRollup]);
+  }, [filteredDeals, colFilters, sortKey, sortDir, rgyRollup, renewalFilter, renewingIds]);
 
   const kpis = useMemo(() => {
     const clientSet = new Set(filteredDeals.map(d => d.account));
     // Renewals < 90 days — active deals whose endDate is within next 90d
     const now = new Date();
-    const in60 = new Date(); in60.setDate(in60.getDate() + 90);
     const renewing = filteredDeals
-      .filter(d => ACTIVE_STATUSES.has(d.dealStatus) && d.endDate)
+      .filter(d => renewingIds.has(d.id) && d.endDate)
       .map(d => ({ d, end: new Date(d.endDate as string) }))
-      .filter(x => !isNaN(x.end.getTime()) && x.end >= now && x.end <= in60)
       .sort((a, b) => a.end.getTime() - b.end.getTime());
     const nextRenewal = renewing[0];
     const nextRenewalDays = nextRenewal
@@ -426,7 +437,6 @@ export default function Clients() {
       totalMRR: filteredDeals.reduce((s, d) => s + (d.mrr || 0), 0),
       totalValue: filteredDeals.reduce((s, d) => s + (d.totalDealValue || 0), 0),
       renewals90: renewing.length,
-      renewingIds: new Set(renewing.map(r => r.d.id)),
       nextRenewalLabel: nextRenewal
         ? `${nextRenewal.d.account} in ${nextRenewalDays}d`
         : "None upcoming",
@@ -434,7 +444,7 @@ export default function Clients() {
       atRisk,
       topDealLabel: topDeal ? `Top: ${topDeal.account} ${fmtCurrency(topDeal.totalDealValue || 0)}` : "—",
     };
-  }, [filteredDeals, rgyRollup]);
+  }, [filteredDeals, rgyRollup, renewingIds]);
 
   const handleCreateDeal = async (clientId: string, data: any) => {
     const client = clients.find(c => c.id === clientId);
