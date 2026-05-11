@@ -1462,12 +1462,14 @@ function AddTaskDialog({
         open={open}
         onOpenChange={onOpenChange}
         title={`New Task — ${picked?.deal_name || dealId}`}
+        headerSubtitle={picked ? `Client: ${picked.account || "—"} · Deal: ${picked.deal_name}` : undefined}
         assignees={assignees}
         initial={{
           title: "",
           description: "",
           stage: "To Do",
           assignee: defaultAssignee,
+          assignees: defaultAssignee ? [defaultAssignee] : [],
           startDate: "",
           endDate: "",
           urgency: "Medium",
