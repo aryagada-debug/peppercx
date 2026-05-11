@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { format, parseISO } from "date-fns";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -249,6 +250,10 @@ interface Props {
   onDelete?: () => void;
   /** Small read-only context strip shown above the form (e.g. "Client: X · Deal: Y"). */
   headerSubtitle?: string;
+  /** ISO timestamp of task creation. Shown in a small audit footer when editing. */
+  createdAt?: string | null;
+  /** Display name of task creator. Shown in a small audit footer when editing. */
+  createdByName?: string | null;
 }
 
 /* ── Rich Text Editor ── */
@@ -374,7 +379,7 @@ function SubtaskRow({
   );
 }
 
-export function TaskFormDialog({ open, onOpenChange, onSubmit, assignees, defaultStage, initial, title = "Create Task", onDelete, headerSubtitle }: Props) {
+export function TaskFormDialog({ open, onOpenChange, onSubmit, assignees, defaultStage, initial, title = "Create Task", onDelete, headerSubtitle, createdAt, createdByName }: Props) {
   const [form, setForm] = useState<TaskData>({
     title: initial?.title || "",
     description: initial?.description || "",
@@ -425,18 +430,21 @@ export function TaskFormDialog({ open, onOpenChange, onSubmit, assignees, defaul
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
+          {/* Accessible title kept for screen readers; visually hidden so the
+              editable task-name input below acts as the visible header. */}
+          <DialogTitle className="sr-only">{title}</DialogTitle>
+          <Input
+            value={form.title}
+            onChange={e => set("title", e.target.value)}
+            placeholder="Task title"
+            autoFocus
+            className="border-0 px-0 h-auto !text-lg font-medium shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+          />
           {headerSubtitle && (
-            <div className="text-[11px] text-muted-foreground -mt-1">{headerSubtitle}</div>
+            <div className="text-[11px] text-muted-foreground">{headerSubtitle}</div>
           )}
         </DialogHeader>
         <div className="space-y-4 pt-2">
-          {/* Title */}
-          <div className="space-y-1">
-            <Label className="text-caption text-muted-foreground">Title *</Label>
-            <Input value={form.title} onChange={e => set("title", e.target.value)} placeholder="Task title" autoFocus />
-          </div>
-
           {/* Rich Text Description */}
           <div className="space-y-1">
             <Label className="text-caption text-muted-foreground">Description</Label>
@@ -584,6 +592,20 @@ export function TaskFormDialog({ open, onOpenChange, onSubmit, assignees, defaul
               </Button>
             </div>
           </div>
+
+          {/* Created-by / created-at audit log (edit mode only) */}
+          {initial && (createdAt || createdByName) && (
+            <div className="text-[11px] text-muted-foreground pt-1 border-t border-border">
+              <span className="pt-2 inline-block">
+                {createdByName && <>Created by <span className="text-foreground">{createdByName}</span></>}
+                {createdByName && createdAt && " · "}
+                {createdAt && (() => {
+                  try { return format(parseISO(createdAt), "d MMM yyyy, HH:mm"); }
+                  catch { return createdAt; }
+                })()}
+              </span>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
