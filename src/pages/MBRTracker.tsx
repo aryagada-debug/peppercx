@@ -609,6 +609,7 @@ export default function MBRTracker() {
         if (!filteredIds.has(dealId)) return;
         const deal = dealsById.get(dealId);
         if (!deal) return;
+        if (!isRetainerDeal(deal)) return; // non-retainers are never flagged
         if (e.status !== "Done") return;
         const text = [e.aiSummary, e.notes, e.transcript].filter(Boolean).join(" \n ");
         scan(text, deal, e.weekStart);
@@ -627,6 +628,7 @@ export default function MBRTracker() {
     for (const id of filteredIds) {
       const deal = dealsById.get(id);
       if (!deal) continue;
+      if (!isRetainerDeal(deal)) continue; // mandatory MBR only for retainers
       const statuses = last3.map(m => entriesByMonth.get(m)?.get(id)?.status || "Pending");
       const missed = statuses.filter(s => s === "Not Done" || s === "Pending").length;
       if (last3.length >= 2 && missed === last3.length) {
