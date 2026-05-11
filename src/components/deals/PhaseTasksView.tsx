@@ -1075,20 +1075,49 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
     );
   }, [baseTasks, searchQuery]);
 
-  // Get all unique phases from tasks (for dynamic phase list)
+  // Get unique phases that actually have seeded tasks. Order: by the order
+  // they appear in ONBOARDING_PHASES, then mandatory generators, then any
+  // ad-hoc phases (including General), preserving discovery order.
   const allPhases = useMemo(() => {
-    const phaseNames = ONBOARDING_PHASES.map(p => p.phase);
+    const present = new Set<string>();
+    phaseTasks.forEach(t => { if (t.phase) present.add(t.phase); });
+    const ordered: string[] = [];
+    ONBOARDING_PHASES.forEach(p => { if (present.has(p.phase)) { ordered.push(p.phase); present.delete(p.phase); } });
+    MANDATORY_PHASES.forEach(p => { if (present.has(p)) { ordered.push(p); present.delete(p); } });
+    // Anything left (custom phases, General) — keep insertion order
     phaseTasks.forEach(t => {
-      if (t.phase && !phaseNames.includes(t.phase)) phaseNames.push(t.phase);
+      if (t.phase && present.has(t.phase)) { ordered.push(t.phase); present.delete(t.phase); }
     });
-    MANDATORY_PHASES.forEach(p => {
-      if (!phaseNames.includes(p)) phaseNames.push(p);
-    });
-    if ((tasksByPhase[GENERAL_PHASE]?.length || 0) > 0 && !phaseNames.includes(GENERAL_PHASE)) {
-      phaseNames.push(GENERAL_PHASE);
+    return ordered;
+  }, [phaseTasks]);
+
+  // Phase deletion confirmation state
+  const [deletePhaseName, setDeletePhaseName] = useState<string | null>(null);
+  const isPhaseDeletable = (name: string) => !(MANDATORY_PHASES as readonly string[]).includes(name);
+  const handleDeletePhase = useCallback(async () => {
+    const name = deletePhaseName;
+    if (!name) return;
+    const targetIds = (tasksByPhase[name] || []).map(t => t.id);
+    try {
+      const { error } = await supabase
+        .from("deal_tasks")
+        .delete()
+        .eq("deal_id", dealId)
+        .eq("phase", name);
+      if (error) throw error;
+      // Optimistically remove from local list via onDelete (parent state)
+      targetIds.forEach(id => onDelete(id));
+      toast.success(`Deleted phase "${name}" and ${targetIds.length} task${targetIds.length === 1 ? "" : "s"}`);
+      if (selectedPhase === name) {
+        setSelectedPhase(null);
+        setShowAll(true);
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to delete phase");
+    } finally {
+      setDeletePhaseName(null);
     }
-    return phaseNames;
-  }, [phaseTasks, tasksByPhase]);
+  }, [deletePhaseName, tasksByPhase, dealId, onDelete, selectedPhase]);
 
   if (!hasPhaseData) {
     return (
