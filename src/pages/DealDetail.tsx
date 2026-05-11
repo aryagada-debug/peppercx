@@ -613,6 +613,7 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry, deleteMBREntry, 
     mrr: deal.mrr || null,
     totalDealValue: deal.totalDealValue || null,
     netDealValue: deal.netDealValue || null,
+    dealType: (deal as any).dealType || "",
   };
 
   const handleRowClick = (entry: MBREntry) => {
