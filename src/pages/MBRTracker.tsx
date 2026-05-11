@@ -89,6 +89,7 @@ export default function MBRTracker() {
   const { role } = useUserRole();
   const { visibleDealIds, loading: accessLoading } = useDealAccess();
   const isBopmPersona = role === "user";
+  const isVsdPersona = role === "member";
   const VSD_FILTERS = useMemo(() => {
     const items: { key: string; label: string }[] = [{ key: "All", label: "All" }];
     vsdUsers.forEach((u) => items.push({ key: u.displayName, label: u.displayName }));
@@ -98,6 +99,32 @@ export default function MBRTracker() {
 
   const [activeVsd, setActiveVsd] = useState<VsdFilterKey>("All");
   const [activeBopm, setActiveBopm] = useState<string>("All");
+  // Resolve the logged-in person's VSD name (only when they ARE a VSD) and
+  // auto-scope filters to their pod so Insights/Flags show their own data.
+  const { user: authUser } = useAuth();
+  const [myVsdName, setMyVsdName] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!authUser || !isVsdPersona) { setMyVsdName(null); return; }
+      const { data: profile } = await supabase
+        .from("profiles").select("staffing_person_id").eq("user_id", authUser.id).maybeSingle();
+      const personId = (profile as any)?.staffing_person_id;
+      if (!personId) { if (!cancelled) setMyVsdName(null); return; }
+      const { data: person } = await supabase
+        .from("staffing_people").select("name, role_title, designation").eq("id", personId).maybeSingle();
+      const p: any = person;
+      if (!p) { if (!cancelled) setMyVsdName(null); return; }
+      const looksLikeVsd = /\bvsd\b|vertical service delivery|service delivery (leader|director)/i
+        .test(`${p.role_title || ""} ${p.designation || ""}`);
+      const canon = canonVsd(p.name);
+      if (!cancelled) setMyVsdName(looksLikeVsd && canon ? canon : canon);
+    })();
+    return () => { cancelled = true; };
+  }, [authUser, isVsdPersona, canonVsd]);
+  useEffect(() => {
+    if (isVsdPersona && myVsdName && activeVsd === "All") setActiveVsd(myVsdName);
+  }, [isVsdPersona, myVsdName, activeVsd]);
   const [search, setSearch] = useState("");
   const [showClosed, setShowClosed] = useState(false);
   const [accountTypeFilter, setAccountTypeFilter] = useState<"retainer" | "non-retainer" | "all">("retainer");
