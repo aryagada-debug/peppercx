@@ -191,12 +191,37 @@ export default function HomePage() {
   const loadTasks = useCallback(async () => {
     if (!user) return;
     setLoadingTasks(true);
-    // Load ALL deal/cx tasks; filtering by "me/all/person" happens in the
-    // memo (`visibleDealTasks`) so changing the view-as filter is instant.
+    // First scope by deals the viewer is on (any role column matches their
+    // aliases). For non-admin viewers this dramatically shrinks the
+    // deal_tasks payload and avoids the 1000-row default cap missing the
+    // viewer's / their BOPMs' tasks when total tasks are large.
+    const aliasSet = aliasesRef.current;
+    const inAliases = (s: string | null) => !!s && aliasSet.has((s || "").trim().toLowerCase());
+    const { data: allDealsForScope } = await supabase
+      .from("staffing_deals")
+      .select("id, vsd, principal_bopm, senior_bopm, bopm")
+      .range(0, 9999);
+    const myDealsForScope = (allDealsForScope || []).filter((d: any) =>
+      inAliases(d.vsd) || inAliases(d.principal_bopm) || inAliases(d.senior_bopm) || inAliases(d.bopm));
+    const myDealIdsForScope = myDealsForScope.map((d: any) => d.id);
+    const myVsdDealSet = new Set(
+      (allDealsForScope || []).filter((d: any) => inAliases(d.vsd)).map((d: any) => d.id)
+    );
+    const isVsd = myVsdDealSet.size > 0;
+    setIsVsdViewer(isVsd);
+    setMyVsdDealIds(myVsdDealSet);
+
+    // Build the deal_tasks query: scope to viewer's deals unless admin.
+    // Bypass PostgREST's default 1000-row cap with an explicit range.
+    let dtQuery = supabase.from("deal_tasks")
+      .select("id, deal_id, title, description, assignee, assignees, created_by_name, created_at, stage, start_date, end_date, urgency, estimated_hours, logged_hours, subtasks, auto_regen, sort_order, phase")
+      .range(0, 49999);
+    if (!isAdmin && myDealIdsForScope.length) {
+      dtQuery = dtQuery.in("deal_id", myDealIdsForScope);
+    }
     const [{ data: dtAll }, { data: ctAll }] = await Promise.all([
-      supabase.from("deal_tasks")
-        .select("id, deal_id, title, description, assignee, assignees, created_by_name, created_at, stage, start_date, end_date, urgency, estimated_hours, logged_hours, subtasks, auto_regen, sort_order, phase"),
-      supabase.from("cx_tasks").select("id, space_id, title, assignee, assignees, status, start_date, end_date, urgency"),
+      dtQuery,
+      supabase.from("cx_tasks").select("id, space_id, title, assignee, assignees, status, start_date, end_date, urgency").range(0, 9999),
     ]);
     const dt = (dtAll || []) as any[];
     const ct = (ctAll || []) as any[];
@@ -215,16 +240,8 @@ export default function HomePage() {
     }
     const { data: peopleRows } = await supabase.from("staffing_people").select("id, name, designation, tbh");
     setAllPeople((peopleRows as PersonLite[]) || []);
-    // Detect VSD-like viewer (any active deal where the user is listed as VSD)
-    const aliasSet = aliasesRef.current;
-    const inAliases = (s: string | null) => !!s && aliasSet.has((s || "").trim().toLowerCase());
-    const { data: vsdDeals } = await supabase.from("staffing_deals")
-      .select("vsd, deal_status")
-      .in("deal_status", ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
-    const isVsd = (vsdDeals || []).some((d: any) => inAliases(d.vsd));
-    setIsVsdViewer(isVsd);
     setLoadingTasks(false);
-  }, [user]);
+  }, [user, isAdmin]);
 
   const loadFlags = useCallback(async () => {
     if (!user) return;
