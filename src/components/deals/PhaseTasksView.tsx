@@ -692,16 +692,23 @@ function TemplateEditorDialog({
                             rows={2}
                           />
                           <div className="flex items-center gap-2 flex-wrap">
-                            {/* Assignee role chip */}
-                            <div className="flex items-center gap-1 bg-secondary/60 rounded-md pl-2 pr-1 py-0.5">
-                              <User className="h-3 w-3 text-muted-foreground" />
-                              <Input
-                                value={task.assigneeRole}
-                                onChange={(e) => updateTask(tIdx, "assigneeRole", e.target.value)}
-                                className="h-6 w-28 text-[11px] border-0 bg-transparent px-1 focus-visible:ring-0"
-                                placeholder="Assignee"
-                              />
-                            </div>
+                            {/* Assignee (Role or Person) */}
+                            <TemplateAssigneePicker
+                              role={task.assigneeRole}
+                              userId={task.assigneeUserId}
+                              userName={task.assigneeUserName}
+                              assignees={assignees}
+                              onPickRole={(r) => {
+                                updateTask(tIdx, "assigneeRole", r);
+                                updateTask(tIdx, "assigneeUserId", null);
+                                updateTask(tIdx, "assigneeUserName", null);
+                              }}
+                              onPickUser={(id, name) => {
+                                updateTask(tIdx, "assigneeUserId", id);
+                                updateTask(tIdx, "assigneeUserName", name);
+                                updateTask(tIdx, "assigneeRole", "");
+                              }}
+                            />
                             {/* Tag chips */}
                             {(task.tags || []).map((tag, tagIdx) => (
                               <span key={tagIdx} className={cn("inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md font-medium", TAG_COLORS[tag] || "bg-secondary text-muted-foreground")}>
@@ -730,26 +737,40 @@ function TemplateEditorDialog({
                               className="h-6 w-20 text-[11px] bg-secondary/40"
                               placeholder="+ tag"
                             />
-                            {/* Day range chip */}
-                            <div className="flex items-center gap-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-md px-2 py-0.5">
-                              <Calendar className="h-3 w-3" />
-                              <span className="text-[10px]">Day</span>
-                              <input
-                                type="number"
-                                value={task.dayStart ?? ""}
-                                onChange={(e) => updateTask(tIdx, "dayStart", e.target.value === "" ? undefined : Number(e.target.value))}
-                                className="w-8 h-5 text-[10px] bg-transparent border-0 focus:outline-none text-center"
-                                placeholder="—"
-                              />
-                              <span className="text-[10px]">→</span>
-                              <input
-                                type="number"
-                                value={task.dayEnd ?? ""}
-                                onChange={(e) => updateTask(tIdx, "dayEnd", e.target.value === "" ? undefined : Number(e.target.value))}
-                                className="w-8 h-5 text-[10px] bg-transparent border-0 focus:outline-none text-center"
-                                placeholder="—"
-                              />
-                            </div>
+                            {/* Due date */}
+                            <CxDatePickerPopover
+                              value={task.dueDate ?? null}
+                              onChange={(v) => updateTask(tIdx, "dueDate", v)}
+                            >
+                              <button
+                                type="button"
+                                className="flex items-center gap-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-md px-2 py-0.5 text-[10px]"
+                                title="Due date"
+                              >
+                                <Calendar className="h-3 w-3" />
+                                <span>{task.dueDate ? task.dueDate : "Set due"}</span>
+                              </button>
+                            </CxDatePickerPopover>
+                            {/* End date */}
+                            <CxDatePickerPopover
+                              value={task.endDate ?? null}
+                              onChange={(v) => {
+                                if (v && task.dueDate && v < task.dueDate) {
+                                  toast.error("End date must be on or after the due date");
+                                  return;
+                                }
+                                updateTask(tIdx, "endDate", v);
+                              }}
+                            >
+                              <button
+                                type="button"
+                                className="flex items-center gap-1 bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 rounded-md px-2 py-0.5 text-[10px]"
+                                title="End date"
+                              >
+                                <Calendar className="h-3 w-3" />
+                                <span>{task.endDate ? task.endDate : "Set end"}</span>
+                              </button>
+                            </CxDatePickerPopover>
                             {/* Hours chip */}
                             <div className="flex items-center gap-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-md px-2 py-0.5">
                               <Clock className="h-3 w-3" />
