@@ -1512,10 +1512,10 @@ export default function RGYHealth() {
                           <th className="text-left py-2 px-3 font-medium text-muted-foreground text-caption whitespace-nowrap">AI Summary</th>
                         )}
                         {isAdminPersona && isColVisible("updated_at") && (
-                          <th style={{ width: colWidths.updated_at }} className="text-left py-2 px-3 font-medium text-muted-foreground text-caption whitespace-nowrap">Last Updated At</th>
+                          <ColHeader label="Last Updated At" colKey="updated_at" sortKey="rgy_updated_at" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.updated_at} onResizeStart={startResize("updated_at")} placeholder="Filter by date..." />
                         )}
                         {isAdminPersona && isColVisible("updated_by") && (
-                          <th style={{ width: colWidths.updated_by }} className="text-left py-2 px-3 font-medium text-muted-foreground text-caption whitespace-nowrap">Last Updated By</th>
+                          <ColHeader label="Last Updated By" colKey="updated_by" sortKey="rgy_updated_by_name" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.updated_by} onResizeStart={startResize("updated_by")} placeholder="Filter by user..." />
                         )}
                       </tr>
                     </thead>
