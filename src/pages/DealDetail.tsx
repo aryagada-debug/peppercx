@@ -2589,83 +2589,63 @@ export default function DealDetail() {
         {/* ══════════ RGY Health ══════════ */}
         {activeTab === "RGY Health" && (
           <div className="animate-fade-in space-y-5">
-            {/* Overall RGY — comprehensive weighted score breakdown */}
+            {/* Overall Health — compact rollup card */}
             {(() => {
-              const dims = currentRGY ? {
-                customer: currentRGY.customer,
-                internal: currentRGY.internal,
-                content: currentRGY.content,
-                seo: currentRGY.seo,
-                supply: currentRGY.supply,
-                copy: currentRGY.copy,
-                design: currentRGY.design,
-                video: currentRGY.video,
-              } : {};
+              const dimKeys = ["customer","internal","content","seo","supply","copy","design","video"] as const;
+              const dims = currentRGY ? Object.fromEntries(dimKeys.map(k => [k, (currentRGY as any)[k]])) : {};
               const score = computeOverallCustomerScore(dims);
               const band = getOverallCustomerRGY(dims);
               const bandLabel = band === "R" ? "Red" : band === "Y" ? "Yellow" : band === "G" ? "Green" : "Pending";
               const bandClass =
-                band === "R" ? "bg-destructive/15 text-destructive border-destructive/30"
-                : band === "Y" ? "bg-warning/15 text-warning border-warning/30"
-                : band === "G" ? "bg-positive/15 text-positive border-positive/30"
+                band === "R" ? "bg-destructive/10 text-destructive border-destructive/30"
+                : band === "Y" ? "bg-warning/10 text-warning border-warning/30"
+                : band === "G" ? "bg-positive/10 text-positive border-positive/30"
                 : "bg-muted text-muted-foreground border-border";
-              const breakdown: { key: string; label: string }[] = [
-                { key: "customer", label: "Overall Customer" },
-                { key: "internal", label: "Internal" },
-                { key: "content", label: "Content" },
-                { key: "seo", label: "SEO" },
-                { key: "supply", label: "Supply" },
-                { key: "copy", label: "Copy" },
-                { key: "design", label: "Design" },
-                { key: "video", label: "Video" },
-              ];
-              const dimColor = (v: string | null | undefined) =>
-                v === "R" ? "bg-destructive text-destructive-foreground"
-                : v === "Y" ? "bg-warning text-warning-foreground"
-                : v === "G" ? "bg-positive text-positive-foreground"
-                : "bg-muted text-muted-foreground";
-              const totalWeight = breakdown.reduce((s, b) => s + (RGY_WEIGHTS[b.key] || 0), 0);
+              const scoreColor =
+                band === "R" ? "text-destructive"
+                : band === "Y" ? "text-warning"
+                : band === "G" ? "text-positive"
+                : "text-foreground";
+              let g = 0, y = 0, r = 0;
+              dimKeys.forEach(k => {
+                const v = (dims as any)[k];
+                if (v === "G") g++;
+                else if (v === "Y") y++;
+                else if (v === "R") r++;
+              });
               return (
-                <div className="rounded-xl border border-border bg-card p-4">
-                  <div className="flex items-center justify-between gap-3 mb-3">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Overall RGY</p>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">
-                        Weighted health rollup across 8 dimensions. Customer 50% · Internal 10% · Capability 5% each.
+                <div className="rounded-xl border border-border bg-card px-5 py-4">
+                  <div className="flex items-center justify-between gap-6 flex-wrap">
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Overall Health</p>
+                      <div className="flex items-baseline gap-3 mt-1.5">
+                        <span className={cn("text-4xl font-medium tabular-nums leading-none", scoreColor)}>
+                          {score === null ? "—" : Math.round(score)}
+                        </span>
+                        <span className="text-sm text-muted-foreground">/100</span>
+                        <Badge variant="outline" className={cn("text-xs px-2.5 py-0.5 ml-1", bandClass)}>{bandLabel}</Badge>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-2">
+                        Weighted across 8 dimensions · Customer 50% · Internal 10% · Capability 5% each
                       </p>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <div className="text-right">
-                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Score</p>
-                        <p className="text-2xl font-medium font-mono tabular-nums leading-none">
-                          {score === null ? "—" : Math.round(score)}
-                          <span className="text-xs text-muted-foreground font-normal">/100</span>
-                        </p>
+                    <div className="flex items-center gap-6 pl-6 border-l border-border">
+                      <div className="text-center">
+                        <p className="text-2xl font-medium tabular-nums text-positive leading-none">{g}</p>
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1.5">Green</p>
                       </div>
-                      <Badge variant="outline" className={cn("text-sm px-3 py-1.5", bandClass)}>
-                        {bandLabel}
-                      </Badge>
+                      <div className="text-center">
+                        <p className="text-2xl font-medium tabular-nums text-warning leading-none">{y}</p>
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1.5">Yellow</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-2xl font-medium tabular-nums text-destructive leading-none">{r}</p>
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1.5">Red</p>
+                      </div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {breakdown.map(b => {
-                      const v = (dims as any)[b.key];
-                      const w = RGY_WEIGHTS[b.key] || 0;
-                      return (
-                        <div key={b.key} className="flex items-center gap-2 rounded-md border border-border/60 bg-secondary/30 px-2 py-1.5">
-                          <span className={cn("inline-flex items-center justify-center w-6 h-6 rounded-md text-[11px] font-medium", dimColor(v))}>
-                            {v && v !== "NA" ? v : "—"}
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-xs font-medium text-foreground truncate">{b.label}</p>
-                            <p className="text-[10px] text-muted-foreground">Weight {Math.round((w / totalWeight) * 100)}%</p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
                   {!currentRGY && (
-                    <p className="text-[11px] text-muted-foreground mt-2">No RGY recorded yet — set status below.</p>
+                    <p className="text-[11px] text-muted-foreground mt-3">No RGY recorded yet — set status below.</p>
                   )}
                 </div>
               );
@@ -2684,6 +2664,55 @@ export default function DealDetail() {
                 { key: "video", label: "Video", owner: "Video", value: currentRGY?.video || "G" },
               ]}
               onSave={handleRGYSave}
+              issuesByDim={(() => {
+                const labelToKey: Record<string, string> = {
+                  "Overall Customer": "customer",
+                  "Internal": "internal",
+                  "Content": "content",
+                  "SEO": "seo",
+                  "Supply": "supply",
+                  "Copy": "copy",
+                  "Design": "design",
+                  "Video": "video",
+                };
+                const map: Record<string, any[]> = {};
+                tasks.filter(t => t.title?.startsWith("[RGY Health]")).forEach(t => {
+                  // Title format: [RGY Health] {dim} — {summary}
+                  const stripped = t.title.replace("[RGY Health]", "").trim();
+                  const sepIdx = stripped.indexOf("—");
+                  const dimLabel = sepIdx > -1 ? stripped.slice(0, sepIdx).trim() : stripped;
+                  const summary = sepIdx > -1 ? stripped.slice(sepIdx + 1).trim() : "";
+                  const key = labelToKey[dimLabel];
+                  if (!key) return;
+                  // Extract action plan from description if present
+                  const desc = t.description || "";
+                  const apMatch = desc.match(/Action Plan:\s*([^\n]+)/i);
+                  const dtMatch = desc.match(/Issue Details:\s*([^\n]+)/i);
+                  (map[key] ||= []).push({
+                    id: t.id,
+                    summary: summary || t.title,
+                    details: dtMatch?.[1],
+                    actionPlan: apMatch?.[1],
+                    dueDate: t.endDate,
+                    stage: t.stage,
+                    assignee: t.assignee,
+                  });
+                });
+                // Sort: open first, then by due date
+                Object.keys(map).forEach(k => {
+                  map[k].sort((a, b) => {
+                    const ao = a.stage !== "Done" && a.stage !== "Dropped" ? 0 : 1;
+                    const bo = b.stage !== "Done" && b.stage !== "Dropped" ? 0 : 1;
+                    if (ao !== bo) return ao - bo;
+                    return (a.dueDate || "").localeCompare(b.dueDate || "");
+                  });
+                });
+                return map;
+              })()}
+              onIssueClick={(issue) => {
+                setActiveTab("Tasks");
+                // Optionally could scroll/open the task
+              }}
             />
 
             {/* RGY Task Summary */}
