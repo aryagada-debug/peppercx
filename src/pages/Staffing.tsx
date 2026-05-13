@@ -1,5 +1,6 @@
 import { AppLayout } from "@/components/layout/AppLayout";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { StaffingErrorBoundary } from "@/components/staffing/StaffingErrorBoundary";
 import { useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Loader2, Eye } from "lucide-react";
@@ -35,7 +36,7 @@ export default function Staffing() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab") as Tab | null;
   const dealParam = searchParams.get("deal");
-  const { role } = useUserRole();
+  const { role, isActuallyAdmin } = useUserRole();
   const { visibleDealIds, loading: accessLoading } = useDealAccess();
   const { user: authUser } = useAuth();
   const { canonVsd } = useVsdUsers();
@@ -46,22 +47,27 @@ export default function Staffing() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      if (!authUser) { setMyVsdName(null); return; }
-      const { data: profile } = await supabase
-        .from("profiles").select("staffing_person_id").eq("user_id", authUser.id).maybeSingle();
-      const personId = (profile as any)?.staffing_person_id;
-      if (!personId) { if (!cancelled) setMyVsdName(null); return; }
-      const { data: person } = await supabase
-        .from("staffing_people").select("name, role_title, designation").eq("id", personId).maybeSingle();
-      const p: any = person;
-      if (!p) { if (!cancelled) setMyVsdName(null); return; }
-      const looksLikeVsd = /\bvsd\b|vertical service delivery|service delivery (leader|director)/i
-        .test(`${p.role_title || ""} ${p.designation || ""}`);
-      const canon = canonVsd(p.name);
-      if (!cancelled) setMyVsdName(looksLikeVsd && canon ? canon : null);
+      try {
+        if (!authUser || isActuallyAdmin) { if (!cancelled) setMyVsdName(null); return; }
+        const { data: profile } = await supabase
+          .from("profiles").select("staffing_person_id").eq("user_id", authUser.id).maybeSingle();
+        const personId = (profile as any)?.staffing_person_id;
+        if (!personId) { if (!cancelled) setMyVsdName(null); return; }
+        const { data: person } = await supabase
+          .from("staffing_people").select("name, role_title, designation").eq("id", personId).maybeSingle();
+        const p: any = person;
+        if (!p) { if (!cancelled) setMyVsdName(null); return; }
+        const looksLikeVsd = /\bvsd\b|vertical service delivery|service delivery (leader|director)/i
+          .test(`${p.role_title || ""} ${p.designation || ""}`);
+        const canon = canonVsd(p.name);
+        if (!cancelled) setMyVsdName(looksLikeVsd && canon ? canon : null);
+      } catch (err) {
+        console.warn("[Staffing] myVsdName lookup failed", err);
+        if (!cancelled) setMyVsdName(null);
+      }
     })();
     return () => { cancelled = true; };
-  }, [authUser, canonVsd]);
+  }, [authUser, canonVsd, isActuallyAdmin]);
   const isBopmPersona = role === "user";
   const isVsdPersona = role === "member";
   // VSDs and BOPMs both have their own deal-set scope. Admin/capability roles see everything.
@@ -101,35 +107,50 @@ export default function Staffing() {
   // deals (per useDealAccess). VSDs see deals where they are the VSD or
   // where one of their P-BOPM / Sr BOPM is on the deal. BOPMs see only
   // their own tagged deals.
-  const scopedDeals = shouldScopeToOwnDeals && !accessLoading
-    ? deals.filter(d => visibleDealIds.has(d.id))
-    : deals;
-  // De-duplicate by id (defensive — visibleDealIds is already a Set)
-  const uniqueScopedDeals = shouldScopeToOwnDeals
-    ? Array.from(new Map(scopedDeals.map(d => [d.id, d])).values())
-    : scopedDeals;
-  // Active-only deals for the BOPM staffing surface (closed deals are hidden).
-  const activeBopmDeals = isBopmPersona
-    ? uniqueScopedDeals.filter(d => ACTIVE_DEAL_STATUSES.has(d.dealStatus))
-    : uniqueScopedDeals;
-  const scopedAssignments = shouldScopeToOwnDeals && !accessLoading
-    ? (() => {
-        const ids = new Set(uniqueScopedDeals.map(d => d.id));
-        return assignments.filter(a => ids.has(a.dealId));
-      })()
-    : assignments;
-  const activeBopmDealIds = isBopmPersona
-    ? new Set(activeBopmDeals.map(d => d.id))
-    : null;
-  const bopmActiveAssignments = isBopmPersona && activeBopmDealIds
-    ? assignments.filter(a => activeBopmDealIds.has(a.dealId))
-    : scopedAssignments;
-  const scopedPeople = isBopmPersona && !accessLoading
-    ? (() => {
-        const ids = new Set(bopmActiveAssignments.map(a => a.personId));
-        return people.filter(p => ids.has(p.id));
-      })()
-    : people;
+  // Memoised so identity is stable across unrelated re-renders — the heavy
+  // tables below were re-mounting on every render, which made transient
+  // exceptions (e.g. an assignment pointing at a stale person/deal id)
+  // bubble out as a blank-screen crash for admins.
+  const uniqueScopedDeals = useMemo(() => {
+    const scoped = shouldScopeToOwnDeals && !accessLoading
+      ? deals.filter(d => visibleDealIds.has(d.id))
+      : deals;
+    return shouldScopeToOwnDeals
+      ? Array.from(new Map(scoped.map(d => [d.id, d])).values())
+      : scoped;
+  }, [deals, shouldScopeToOwnDeals, accessLoading, visibleDealIds]);
+
+  const scopedDeals = uniqueScopedDeals;
+
+  const activeBopmDeals = useMemo(() => (
+    isBopmPersona
+      ? uniqueScopedDeals.filter(d => ACTIVE_DEAL_STATUSES.has(d.dealStatus))
+      : uniqueScopedDeals
+  ), [isBopmPersona, uniqueScopedDeals]);
+
+  const scopedAssignments = useMemo(() => {
+    if (!(shouldScopeToOwnDeals && !accessLoading)) {
+      // For admin: drop orphan assignments that point at deals we don't have.
+      const dealIds = new Set(deals.map(d => d.id));
+      const personIds = new Set(people.map(p => p.id));
+      return assignments.filter(a => dealIds.has(a.dealId) && personIds.has(a.personId));
+    }
+    const ids = new Set(uniqueScopedDeals.map(d => d.id));
+    const personIds = new Set(people.map(p => p.id));
+    return assignments.filter(a => ids.has(a.dealId) && personIds.has(a.personId));
+  }, [assignments, deals, people, uniqueScopedDeals, shouldScopeToOwnDeals, accessLoading]);
+
+  const bopmActiveAssignments = useMemo(() => {
+    if (!isBopmPersona) return scopedAssignments;
+    const ids = new Set(activeBopmDeals.map(d => d.id));
+    return scopedAssignments.filter(a => ids.has(a.dealId));
+  }, [isBopmPersona, scopedAssignments, activeBopmDeals]);
+
+  const scopedPeople = useMemo(() => {
+    if (!(isBopmPersona && !accessLoading)) return people;
+    const ids = new Set(bopmActiveAssignments.map(a => a.personId));
+    return people.filter(p => ids.has(p.id));
+  }, [isBopmPersona, accessLoading, bopmActiveAssignments, people]);
 
   if (loading || (shouldScopeToOwnDeals && accessLoading)) {
     return (
@@ -202,6 +223,7 @@ export default function Staffing() {
           feels like a page reload. Only panels permitted for the current
           persona are mounted.
         */}
+        <StaffingErrorBoundary>
         {isBopmPersona ? (
           <>
             <div className={cn(tab !== "table" && "hidden")}>
@@ -259,6 +281,7 @@ export default function Staffing() {
             </div>
           </>
         )}
+        </StaffingErrorBoundary>
       </div>
     </AppLayout>
   );
