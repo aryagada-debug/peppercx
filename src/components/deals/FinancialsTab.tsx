@@ -81,12 +81,13 @@ const colorStyles = {
 };
 
 // ── Editable Table Cell ──
-function EditableTableCell({ value, field, rowId, onUpdate, format = "currency", suffix = "", disabled = false }: {
+function EditableTableCell({ value, field, rowId, onUpdate, format = "currency", suffix = "", disabled = false, groupStart = false }: {
   value: number; field: string; rowId: string;
   onUpdate: (id: string, updates: Partial<FinancialRow>) => void;
   format?: "currency" | "percent";
   suffix?: string;
   disabled?: boolean;
+  groupStart?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [localVal, setLocalVal] = useState(String(value));
@@ -112,7 +113,7 @@ function EditableTableCell({ value, field, rowId, onUpdate, format = "currency",
 
   if (editing && !disabled) {
     return (
-      <td className="py-1 px-1.5 text-right">
+      <td className={cn("py-1 px-1.5 text-right", groupStart && "border-l border-[#D3D1C7]")}>
         <input
           ref={inputRef}
           type="number"
@@ -130,7 +131,8 @@ function EditableTableCell({ value, field, rowId, onUpdate, format = "currency",
     <td
       className={cn(
         "py-2.5 px-3 text-right tabular-nums relative",
-        disabled ? "cursor-default" : "cursor-pointer hover:bg-[#F1EFE8]/60 transition-colors"
+        disabled ? "cursor-default" : "cursor-pointer hover:bg-[#F1EFE8]/60 transition-colors",
+        groupStart && "border-l border-[#D3D1C7]"
       )}
       onClick={() => { if (!disabled) setEditing(true); }}
     >
@@ -308,15 +310,21 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
+              <tr className="border-b border-[#D3D1C7] bg-[#FAF9F4]">
+                <th rowSpan={2} className="py-2.5 px-3 font-medium text-muted-foreground text-left align-bottom">Month</th>
+                <th colSpan={2} className="py-2 px-3 text-center text-[11px] font-medium uppercase tracking-[0.08em] text-[#534AB7] border-l border-[#D3D1C7]">Contraction</th>
+                <th colSpan={2} className="py-2 px-3 text-center text-[11px] font-medium uppercase tracking-[0.08em] text-[#1D9E75] border-l border-[#D3D1C7]">Delivery</th>
+                <th colSpan={2} className="py-2 px-3 text-center text-[11px] font-medium uppercase tracking-[0.08em] text-[#3267C7] border-l border-[#D3D1C7]">Invoiced</th>
+                <th colSpan={2} className="py-2 px-3 text-center text-[11px] font-medium uppercase tracking-[0.08em] text-[#C7414C] border-l border-[#D3D1C7]">Received</th>
+              </tr>
               <tr className="border-b border-[#D3D1C7]">
                 {[
-                  "Month",
-                  "Target Contraction", "Actual Contraction",
-                  "Target Delivery", "Actual Delivery",
-                  "Target Invoiced", "Actual Invoiced",
-                  "Target Received", "Actual Received",
-                ].map((h, i) => (
-                  <th key={h} className={cn("py-2.5 px-3 font-medium text-muted-foreground whitespace-nowrap", i === 0 ? "text-left" : "text-right")}>{h}</th>
+                  { l: "Target", group: true }, { l: "Actual" },
+                  { l: "Target", group: true }, { l: "Actual" },
+                  { l: "Target", group: true }, { l: "Actual" },
+                  { l: "Target", group: true }, { l: "Actual" },
+                ].map((c, i) => (
+                  <th key={i} className={cn("py-2 px-3 text-right text-[11px] font-medium text-muted-foreground whitespace-nowrap", c.group && "border-l border-[#D3D1C7]")}>{c.l}</th>
                 ))}
               </tr>
             </thead>
@@ -338,13 +346,13 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
                     return (
                       <tr key={row.id} className={cn("group", idx < rows.length - 1 && "border-b border-[#D3D1C7]/50")}>
                         <td className="py-2.5 px-3 font-medium text-muted-foreground">{fmtMonth(row.month)}</td>
-                        <EditableTableCell value={cTarget} field="contractionTarget" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
+                        <EditableTableCell value={cTarget} field="contractionTarget" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} groupStart />
                         <ActualCell value={row.consumption} target={cTarget} field="consumption" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
-                        <EditableTableCell value={dTarget} field="deliveryTarget" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
+                        <EditableTableCell value={dTarget} field="deliveryTarget" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} groupStart />
                         <ActualCell value={dActual} target={dTarget} field="deliveryActual" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
-                        <EditableTableCell value={iTarget} field="invoicingTarget" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
+                        <EditableTableCell value={iTarget} field="invoicingTarget" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} groupStart />
                         <ActualCell value={row.invoiced} target={iTarget} field="invoiced" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
-                        <EditableTableCell value={rTarget} field="receivablesTarget" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
+                        <EditableTableCell value={rTarget} field="receivablesTarget" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} groupStart />
                         <ActualCell value={row.received} target={rTarget} field="received" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
                       </tr>
                     );
@@ -352,13 +360,13 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
                   {/* Totals row */}
                   <tr className="bg-[#F1EFE8] font-medium border-t border-[#D3D1C7]">
                     <td className="py-2.5 px-3">Total</td>
-                    <td className="py-2.5 px-3 text-right tabular-nums">{fmtCurrency(totals.contractionTarget)}</td>
+                    <td className="py-2.5 px-3 text-right tabular-nums border-l border-[#D3D1C7]">{fmtCurrency(totals.contractionTarget)}</td>
                     <TotalActualCell value={totals.consumption} target={totals.contractionTarget} />
-                    <td className="py-2.5 px-3 text-right tabular-nums">{fmtCurrency(totals.deliveryTarget)}</td>
+                    <td className="py-2.5 px-3 text-right tabular-nums border-l border-[#D3D1C7]">{fmtCurrency(totals.deliveryTarget)}</td>
                     <TotalActualCell value={totals.deliveryActual} target={totals.deliveryTarget} />
-                    <td className="py-2.5 px-3 text-right tabular-nums">{fmtCurrency(totals.invoicingTarget)}</td>
+                    <td className="py-2.5 px-3 text-right tabular-nums border-l border-[#D3D1C7]">{fmtCurrency(totals.invoicingTarget)}</td>
                     <TotalActualCell value={totals.invoiced} target={totals.invoicingTarget} />
-                    <td className="py-2.5 px-3 text-right tabular-nums">{fmtCurrency(totals.receivablesTarget)}</td>
+                    <td className="py-2.5 px-3 text-right tabular-nums border-l border-[#D3D1C7]">{fmtCurrency(totals.receivablesTarget)}</td>
                     <TotalActualCell value={totals.received} target={totals.receivablesTarget} />
                   </tr>
                 </>
@@ -440,7 +448,7 @@ function ActualCell({ value, target, field, rowId, onUpdate, disabled }: {
     >
       <span>{fmtCurrency(value)}</span>
       {target > 0 && (
-        <span className={cn("ml-1.5 inline-block px-1 py-0.5 rounded text-[10px] font-medium align-middle", cs.bg, cs.text)}>
+        <span className={cn("ml-1.5 inline-block px-1.5 py-0.5 rounded-full text-[10px] font-medium align-middle", cs.bg, cs.text)}>
           {att.toFixed(0)}%
         </span>
       )}
@@ -455,7 +463,7 @@ function TotalActualCell({ value, target }: { value: number; target: number }) {
     <td className="py-2.5 px-3 text-right tabular-nums whitespace-nowrap">
       <span>{fmtCurrency(value)}</span>
       {target > 0 && (
-        <span className={cn("ml-1.5 inline-block px-1 py-0.5 rounded text-[10px] font-medium align-middle", cs.bg, cs.text)}>
+        <span className={cn("ml-1.5 inline-block px-1.5 py-0.5 rounded-full text-[10px] font-medium align-middle", cs.bg, cs.text)}>
           {att.toFixed(0)}%
         </span>
       )}
