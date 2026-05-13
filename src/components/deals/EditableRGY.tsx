@@ -151,9 +151,19 @@ export function EditableRGY({ dimensions, onSave, issuesByDim, onIssueClick }: P
             </div>
 
             {/* Inline issue context for R/Y dimensions */}
-            {(dim.value === "R" || dim.value === "Y") && issuesByDim && issuesByDim[dim.key]?.length > 0 && (
+            {(dim.value === "R" || dim.value === "Y") && (
               <div className="mt-2 ml-5 space-y-1.5">
-                {issuesByDim[dim.key].map(issue => {
+                {(issuesByDim?.[dim.key]?.length ?? 0) === 0 ? (
+                  <div className={cn(
+                    "rounded-md border border-dashed px-3 py-2 text-[11px] text-muted-foreground",
+                    dim.value === "R"
+                      ? "border-[hsl(0_65%_76%)]/60 bg-[hsl(0_80%_98%)]/60"
+                      : "border-[hsl(35_87%_55%)]/50 bg-[hsl(35_90%_97%)]/60"
+                  )}>
+                    No issue logged yet — re-toggle this dimension to capture details, or add a task tagged
+                    <span className="font-mono mx-1">[RGY Health] {dim.label} —</span> in the Tasks tab.
+                  </div>
+                ) : issuesByDim![dim.key].map(issue => {
                   const isOpen = issue.stage && issue.stage !== "Done" && issue.stage !== "Dropped";
                   return (
                     <button
