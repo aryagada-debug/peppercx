@@ -1305,7 +1305,14 @@ export default function HomePage() {
                 <CalendarDays className="h-4 w-4 text-primary" /> Today's calendar
                 <Badge variant="secondary" className="ml-1 text-[10px]">{todaysMeetings.length}</Badge>
               </CardTitle>
-              <CalendarConnectButton />
+              <div className="flex items-center gap-2">
+                {calConnected && (
+                  <Button size="sm" variant="outline" className="h-7 gap-1" onClick={() => setCalCreating(true)}>
+                    <Plus className="h-3.5 w-3.5" /> New
+                  </Button>
+                )}
+                <CalendarConnectButton />
+              </div>
             </CardHeader>
             <CardContent className="space-y-2">
               {!calConnected ? (
@@ -1325,9 +1332,10 @@ export default function HomePage() {
                   const isCustomer = (ev.attendees || []).some(a => a.email && !a.email.includes("@pepper"));
                   const barCls = isCustomer ? "bg-primary" : "bg-positive";
                   return (
-                    <a key={ev.id} href={ev.htmlLink || "#"} target="_blank" rel="noopener noreferrer"
+                    <div key={ev.id}
                       className={cn("flex gap-3 rounded-md border border-border bg-card hover:bg-secondary/40 transition-colors p-2.5 group",
                         isPastMeeting && "opacity-60")}>
+                      <button type="button" onClick={() => setCalEditing(ev)} className="flex gap-3 flex-1 min-w-0 text-left">
                       <div className="w-[68px] shrink-0">
                         {isSoon && <div className="text-[9px] font-bold text-primary mb-0.5">IN {minsTo}M</div>}
                         <div className="text-[11px] font-mono text-muted-foreground">
@@ -1344,7 +1352,13 @@ export default function HomePage() {
                           </div>
                         )}
                       </div>
-                    </a>
+                      </button>
+                      {ev.htmlLink && (
+                        <a href={ev.htmlLink} target="_blank" rel="noopener noreferrer"
+                          className="opacity-0 group-hover:opacity-100 text-[10px] text-muted-foreground hover:text-foreground self-center px-2 transition-opacity"
+                          title="Open in Google Calendar">↗</a>
+                      )}
+                    </div>
                   );
                 })
               )}
