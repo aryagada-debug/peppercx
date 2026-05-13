@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, X, ExternalLink, LogOut, Loader2, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
+import { useGoogleCalendar } from "@/hooks/useGoogleCalendar";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isSameMonth, addMonths, subMonths, isToday, parseISO } from "date-fns";
 
 interface CalendarEvent {
@@ -20,95 +19,23 @@ interface Props {
   onToggle: () => void;
 }
 
-const GCAL_TOKEN_KEY = "cx_gcal_provider_token";
-
 export function CxCalendarPanel({ open, onToggle }: Props) {
-  const [connected, setConnected] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const { connected, checking, connecting, connect, disconnect, listEvents } = useGoogleCalendar();
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [calMonth, setCalMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  const fetchEvents = useCallback(async () => {
+    const monthStart = startOfMonth(calMonth).toISOString();
+    const monthEnd = endOfMonth(calMonth).toISOString();
+    const rows = await listEvents({ timeMin: monthStart, timeMax: monthEnd, maxResults: 250 });
+    setEvents(rows.map((e) => ({ ...e, attendees: e.attendees?.length || 0 })));
+  }, [calMonth, listEvents]);
 
   useEffect(() => {
-    // Listen for auth state changes to capture provider_token
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session?.provider_token) {
-        localStorage.setItem(GCAL_TOKEN_KEY, session.provider_token);
-        setConnected(true);
-        fetchEvents(session.provider_token);
-      }
-    });
-
-    // Check for existing token
-    const savedToken = localStorage.getItem(GCAL_TOKEN_KEY);
-    if (savedToken) {
-      setConnected(true);
-      fetchEvents(savedToken);
-      setCheckingAuth(false);
-    } else {
-      // Check if there's a session with provider_token
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session?.provider_token) {
-          localStorage.setItem(GCAL_TOKEN_KEY, session.provider_token);
-          setConnected(true);
-          fetchEvents(session.provider_token);
-        }
-        setCheckingAuth(false);
-      });
-    }
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const handleConnect = async () => {
-    setLoading(true);
-    try {
-      const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin + "/central-cx",
-        extraParams: {
-          prompt: "consent",
-          access_type: "offline",
-        },
-      });
-      if (result.error) {
-        console.error("OAuth error:", result.error);
-        setLoading(false);
-        return;
-      }
-      if (result.redirected) return;
-    } catch (err) {
-      console.error("Connect error:", err);
-    }
-    setLoading(false);
-  };
-
-  const handleDisconnect = async () => {
-    localStorage.removeItem(GCAL_TOKEN_KEY);
-    await supabase.auth.signOut();
-    setConnected(false);
-    setEvents([]);
-  };
-
-  const fetchEvents = async (token: string) => {
-    try {
-      const { data, error } = await supabase.functions.invoke("google-calendar-proxy", {
-        body: { access_token: token },
-      });
-      if (!error && data?.events) {
-        setEvents(data.events.map((e: any) => ({
-          id: e.id,
-          summary: e.summary || "(No title)",
-          start: e.start?.dateTime || e.start?.date || "",
-          end: e.end?.dateTime || e.end?.date || "",
-          htmlLink: e.htmlLink,
-          attendees: e.attendees?.length || 0,
-        })));
-      }
-    } catch (err) {
-      console.error("Fetch events error:", err);
-    }
-  };
+    if (!connected) { setEvents([]); return; }
+    void fetchEvents();
+  }, [connected, fetchEvents]);
 
   if (!open) {
     return (
@@ -145,7 +72,7 @@ export function CxCalendarPanel({ open, onToggle }: Props) {
         </div>
         <div className="flex items-center gap-1">
           {connected && (
-            <button onClick={handleDisconnect} className="p-1 rounded hover:bg-accent" title="Disconnect">
+            <button onClick={disconnect} className="p-1 rounded hover:bg-accent" title="Disconnect">
               <LogOut className="h-3.5 w-3.5 text-muted-foreground" />
             </button>
           )}
@@ -155,7 +82,7 @@ export function CxCalendarPanel({ open, onToggle }: Props) {
         </div>
       </div>
 
-      {checkingAuth ? (
+      {checking ? (
         <div className="flex-1 flex items-center justify-center">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
@@ -167,8 +94,8 @@ export function CxCalendarPanel({ open, onToggle }: Props) {
           <p className="text-xs text-muted-foreground mb-4">
             Connect your Google account to sync tasks with calendar events and see meetings.
           </p>
-          <Button size="sm" className="text-xs" onClick={handleConnect} disabled={loading}>
-            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+          <Button size="sm" className="text-xs" onClick={connect} disabled={connecting}>
+            {connecting ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
             Connect Google Calendar
           </Button>
           <p className="text-[10px] text-muted-foreground mt-3">

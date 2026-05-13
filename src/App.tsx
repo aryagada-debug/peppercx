@@ -17,6 +17,7 @@ import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
+import CalendarCallback from "./pages/CalendarCallback";
 
 // Authenticated pages are code-split — each becomes its own chunk so the
 // initial bundle drops from ~2.7 MB to roughly the shell + the landing route.
@@ -70,6 +71,7 @@ const App = () => (
             <Route path="/signup" element={<Signup />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/calendar/callback" element={<CalendarCallback />} />
 
             {/* Protected routes */}
             <Route path="/home" element={<ProtectedRoute routeKey="home"><Home /></ProtectedRoute>} />
