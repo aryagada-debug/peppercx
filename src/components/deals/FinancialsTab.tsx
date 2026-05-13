@@ -167,19 +167,60 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
 
   const netDealValue = deal?.totalDealValue || 0;
 
-  // Pipeline health calculations
-  const pipeline = useMemo(() => {
-    const consumptionAtt = totals.contractionTarget > 0 ? (totals.consumption / totals.contractionTarget) * 100 : 0;
-    const deliveryAtt = totals.deliveryTarget > 0 ? (totals.deliveryActual / totals.deliveryTarget) * 100 : 0;
-    const invoicingAtt = totals.invoicingTarget > 0 ? (totals.invoiced / totals.invoicingTarget) * 100 : (netDealValue > 0 ? (totals.invoiced / netDealValue) * 100 : 0);
-    const receivablesAtt = totals.receivablesTarget > 0 ? (totals.received / totals.receivablesTarget) * 100 : (totals.invoiced > 0 ? (totals.received / totals.invoiced) * 100 : 0);
+  // Pipeline health for an arbitrary subset of rows
+  const computePipeline = useCallback((subset: FinancialRow[]) => {
+    const consumption = subset.reduce((s, r) => s + r.consumption, 0);
+    const invoiced = subset.reduce((s, r) => s + r.invoiced, 0);
+    const received = subset.reduce((s, r) => s + r.received, 0);
+    const contractionTarget = subset.reduce((s, r) => s + (r.contractionTarget ?? r.contracted), 0);
+    const deliveryTarget = subset.reduce((s, r) => s + (r.deliveryTarget ?? 0), 0);
+    const deliveryActual = subset.reduce((s, r) => s + (r.deliveryActual ?? 0), 0);
+    const invoicingTarget = subset.reduce((s, r) => s + (r.invoicingTarget ?? 0), 0);
+    const receivablesTarget = subset.reduce((s, r) => s + (r.receivablesTarget ?? 0), 0);
+    const outstanding = invoiced - received;
+    const invTgt = invoicingTarget || netDealValue;
+    const recTgt = receivablesTarget || invoiced;
     return {
-      consumption: { att: consumptionAtt, value: totals.consumption, target: totals.contractionTarget },
-      delivery: { att: deliveryAtt, value: totals.deliveryActual, target: totals.deliveryTarget },
-      invoicing: { att: invoicingAtt, value: totals.invoiced, target: totals.invoicingTarget || netDealValue },
-      receivables: { att: receivablesAtt, value: totals.received, target: totals.receivablesTarget || totals.invoiced },
+      contraction: {
+        att: contractionTarget > 0 ? (consumption / contractionTarget) * 100 : 0,
+        value: consumption, target: contractionTarget,
+        status: consumption >= contractionTarget && contractionTarget > 0
+          ? `Over-contracted by ${fmtCurrency(consumption - contractionTarget)}`
+          : `${fmtCurrency(Math.max(0, contractionTarget - consumption))} pending contraction`,
+      },
+      delivery: {
+        att: deliveryTarget > 0 ? (deliveryActual / deliveryTarget) * 100 : 0,
+        value: deliveryActual, target: deliveryTarget,
+        status: `${fmtCurrency(Math.max(0, deliveryTarget - deliveryActual))} pending delivery`,
+      },
+      invoicing: {
+        att: invTgt > 0 ? (invoiced / invTgt) * 100 : 0,
+        value: invoiced, target: invTgt,
+        status: `${fmtCurrency(Math.max(0, invTgt - invoiced))} pending invoicing`,
+      },
+      receivables: {
+        att: recTgt > 0 ? (received / recTgt) * 100 : 0,
+        value: received, target: recTgt,
+        status: `${fmtCurrency(outstanding)} outstanding`,
+      },
     };
-  }, [totals, netDealValue]);
+  }, [netDealValue]);
+
+  const periods = useMemo(() => {
+    const now = new Date();
+    const curY = now.getFullYear();
+    const curM = now.getMonth();
+    const currentMonthRows = rows.filter(r => {
+      const d = new Date(r.month);
+      return d.getFullYear() === curY && d.getMonth() === curM;
+    });
+    const ytdRows = rows.filter(r => new Date(r.month).getFullYear() === curY);
+    return {
+      current: computePipeline(currentMonthRows),
+      ytd: computePipeline(ytdRows),
+      lifetime: computePipeline(rows),
+    };
+  }, [rows, computePipeline]);
 
   // Chart data
   const chartData = useMemo(() => rows.map(r => ({
@@ -229,22 +270,22 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
         </div>
       </div>
 
-      {/* ── Section 2: Pipeline Health ── */}
-      <div>
-        <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground mb-3">Pipeline Health</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <PipelineCard title="Contraction" att={pipeline.consumption.att} value={pipeline.consumption.value} target={pipeline.consumption.target}
-            status={pipeline.consumption.att >= 100
-              ? `Over-contracted by ${fmtCurrency(totals.consumption - totals.contractionTarget)}`
-              : `${fmtCurrency(Math.max(0, totals.contractionTarget - totals.consumption))} pending contraction`} />
-          <PipelineCard title="Delivery" att={pipeline.delivery.att} value={pipeline.delivery.value} target={pipeline.delivery.target}
-            status={`${fmtCurrency(Math.max(0, totals.deliveryTarget - totals.deliveryActual))} pending delivery`} />
-          <PipelineCard title="Invoicing" att={pipeline.invoicing.att} value={pipeline.invoicing.value} target={pipeline.invoicing.target}
-            status={`${fmtCurrency(Math.max(0, (totals.invoicingTarget || netDealValue) - totals.invoiced))} pending invoicing`} />
-          <PipelineCard title="Receivables" att={pipeline.receivables.att} value={pipeline.receivables.value} target={pipeline.receivables.target}
-            status={`${fmtCurrency(totals.outstanding)} outstanding`} />
+      {/* ── Section 2: Pipeline Health (Current Month / YTD / Lifetime) ── */}
+      {([
+        { label: "Current Month", data: periods.current },
+        { label: "YTD", data: periods.ytd },
+        { label: "Lifetime", data: periods.lifetime },
+      ] as const).map(group => (
+        <div key={group.label}>
+          <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground mb-3">{group.label}</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <PipelineCard title="Contraction" att={group.data.contraction.att} value={group.data.contraction.value} target={group.data.contraction.target} status={group.data.contraction.status} />
+            <PipelineCard title="Delivery" att={group.data.delivery.att} value={group.data.delivery.value} target={group.data.delivery.target} status={group.data.delivery.status} />
+            <PipelineCard title="Invoicing" att={group.data.invoicing.att} value={group.data.invoicing.value} target={group.data.invoicing.target} status={group.data.invoicing.status} />
+            <PipelineCard title="Receivables" att={group.data.receivables.att} value={group.data.receivables.value} target={group.data.receivables.target} status={group.data.receivables.status} />
+          </div>
         </div>
-      </div>
+      ))}
 
       {/* ── Section 3: Charts ── */}
       {rows.length > 0 && (
