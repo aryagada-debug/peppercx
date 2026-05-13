@@ -628,6 +628,8 @@ function AddMonthDialog({ open, onOpenChange, dealId, defaultMrr, onAdd }: {
   open: boolean; onOpenChange: (o: boolean) => void; dealId: string; defaultMrr: number;
   onAdd: (row: Omit<FinancialRow, "id">) => void;
 }) {
+  const { currency } = useCurrency();
+  const sym = CURRENCY_SYMBOL[currency];
   const [form, setForm] = useState({
     month: "", contracted: defaultMrr, consumption: 0,
     plannedGmPct: 0, actualGmPct: 0, invoiced: 0, received: 0,
@@ -655,12 +657,12 @@ function AddMonthDialog({ open, onOpenChange, dealId, defaultMrr, onAdd }: {
 
   const fields = [
     { label: "Month", key: "month", type: "month" },
-    { label: "Contracted (₹)", key: "contracted", type: "number" },
-    { label: "Contraction (₹)", key: "consumption", type: "number" },
+    { label: `Contracted (${sym})`, key: "contracted", type: "number" },
+    { label: `Contraction (${sym})`, key: "consumption", type: "number" },
     { label: "Planned GM%", key: "plannedGmPct", type: "number" },
     { label: "Actual GM%", key: "actualGmPct", type: "number" },
-    { label: "Invoiced (₹)", key: "invoiced", type: "number" },
-    { label: "Received (₹)", key: "received", type: "number" },
+    { label: `Invoiced (${sym})`, key: "invoiced", type: "number" },
+    { label: `Received (${sym})`, key: "received", type: "number" },
   ] as const;
 
   return (
