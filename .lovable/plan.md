@@ -1,45 +1,42 @@
-## Goal
-When an admin adds a person in Settings → People (or the user already exists in `staffing_people` with an email), automatically create a login account with the email and shared password `Pepper@2026`, and harden the flow against common breakage.
+# Fix: Staffing & Capacity blank screen for Admin
 
-## Changes
+## What's happening
 
-### 1. Edge function: new single-user provisioning action
-File: `supabase/functions/admin-user-mgmt/index.ts`
+Admin users land on `/staffing` and see a blank screen (crash). The page mounts three heavy tabs at once for non-BOPM personas (`DealViewTab`, `PeopleViewTab`, `BopmStaffingFlatTable` with `directEdit`), all fed the full unscoped `deals` / `people` / `assignments` arrays. Any unhandled exception in any of those subtrees takes the whole route down to a blank screen because there is no error boundary between `<AppLayout>` and the tab panels.
 
-- Add action `provision_person` (admin-only, same JWT/role gate as today):
-  - Input: `{ person_id: string, email?: string, name?: string }`.
-  - Loads `staffing_people` by id; resolves email + name from the row if not passed.
-  - Trims + lower-cases email; rejects with 400 if missing/invalid.
-  - Lists auth users; if email already exists → skip create, reset password to `Pepper@2026`, set `email_confirm: true`. Otherwise `auth.admin.createUser({ email, password: "Pepper@2026", email_confirm: true, user_metadata: { full_name } })`.
-  - Upserts `profiles` with `{ user_id, display_name, staffing_person_id }` on conflict `user_id` (so the link is explicit and overrides the email-only auto-link from `handle_new_user`).
-  - Inserts default `'user'` role into `user_roles` (ignore conflict).
-  - Returns `{ status: "created" | "linked" | "reset", user_id, email, password: "Pepper@2026" }`.
-- Constant `DEFAULT_PASSWORD = "Pepper@2026"` reused by `bulk_provision` so the “Provision from People” button no longer generates throwaway random passwords (consistent admin promise).
+There are also two latent issues likely contributing:
 
-### 2. Frontend: trigger provisioning when a person is added
-Files: `src/hooks/useStaffingData.ts`, `src/components/settings/AddPersonDialog.tsx`
+1. `useStaffingData` swallows load errors in `catch` (only `console.error`) and leaves the page rendering with empty arrays — fine — but if a *partial* response returns malformed rows (e.g. an assignment referencing a missing person/deal), downstream components that key on `people.find(...)!` crash inside React's render and propagate.
+2. `Staffing.tsx` recently grew the `myVsdName` resolution effect that runs even for true admins. Admins don't need it, and a transient profile/staffing_people lookup failure can throw inside the async IIFE (no try/catch).
 
-- In `addPerson`, after the `staffing_people` insert succeeds:
-  - If `person.email` is non-empty, `await supabase.functions.invoke("admin-user-mgmt", { body: { action: "provision_person", person_id, email, name } })`.
-  - On success toast: `"<name> added · login: <email> / Pepper@2026"`.
-  - On non-admin caller (403) or other error, surface a soft toast “Person added; login account not created (admin only).” — don’t roll back the row.
-- In `AddPersonDialog`:
-  - Promote Email to required when the admin wants login access; show inline helper text: “A login will be created with password **Pepper@2026** if an email is provided.”
-  - Block submit if email looks invalid (already partly there).
+## Plan
 
-### 3. Backfill for Simran and any other person already added without an auth account
-- Call the new `provision_person` action for `Simran.pohani@peppercontent.io` (resolve her `person_id` from `staffing_people` first). Done via the deployed edge function once the migration above ships — handled automatically the first time admin opens Users tab if we wire a one-time backfill, OR done explicitly via the existing **Provision from People** button (which already iterates everyone and now uses `Pepper@2026`).
+### 1. Add an error boundary around the staffing tabs
+Create `src/components/staffing/StaffingErrorBoundary.tsx` (small class component) and wrap the tab panel area in `Staffing.tsx` so a render crash surfaces a "Something went wrong" card with the error message + a Retry button instead of a blank route. This both fixes the symptom and gives us the real stack on screen.
 
-### 4. Hardening / issues fixed along the way
-- **Profile not linked to person**: today `handle_new_user` only links by email if the staffing row exists with `leaving=false` and `tbh=false`. The new action upserts the link explicitly with the known `person_id`, so case-mismatched or freshly-added rows still link.
-- **Duplicate auth user crash**: handled by detecting existing email and resetting password instead of failing.
-- **Person added with no email**: surfaced as a warning chip in Users tab’s “missing emails” list (already exists) — `addPerson` no-ops the auth call so no spurious error.
-- **Non-admin tries to add a person**: edge function returns 403; UI now degrades gracefully instead of throwing.
-- **Race with `handle_new_user` trigger**: explicit `profiles` upsert with `staffing_person_id` overrides any email-only link the trigger created.
+### 2. Harden `Staffing.tsx`
+- Wrap the `myVsdName` async IIFE in `try/catch` so a Supabase hiccup can't leak an unhandled rejection.
+- Skip the whole VSD-name lookup when the user is an actual admin (use `isAdmin`/`isActuallyAdmin` from `useUserRole`) — admins don't need pod scoping for the BOPM filter.
+- Memoize `scopedDeals`, `scopedAssignments`, `activeBopmDeals`, `bopmActiveAssignments`, `scopedPeople` so identity is stable across renders (avoids repeated re-mount of the heavy table on unrelated state changes).
 
-## Files touched
-- `supabase/functions/admin-user-mgmt/index.ts` (add `provision_person`, share `Pepper@2026` constant)
-- `src/hooks/useStaffingData.ts` (`addPerson` invokes provisioning)
-- `src/components/settings/AddPersonDialog.tsx` (helper text + email validation copy)
+### 3. Defensive guards in the heavy tables
+- In `BopmStaffingFlatTable` (admin's `directEdit` mount): when looking up a person/deal by id from an assignment, fall back to a "missing" placeholder instead of dereferencing `undefined`. Same in `DealViewTab` / `PeopleViewTab` for any `.find(...)!` style access.
+- Filter out assignments whose `personId`/`dealId` no longer exist in the current data set before rendering (the data is async — these can briefly point at deleted rows).
 
-No DB migrations required.
+### 4. Verify
+- Navigate the preview to `/staffing` as the admin user, screenshot, and read browser console logs to confirm there are no React errors and the three tabs render.
+- Switch tabs (Deal view → People view → Staffing) and confirm no crash and no warnings.
+- Toggle back to a BOPM persona via the Role Switcher and confirm the BOPM path still works.
+
+## Files to touch
+
+- `src/components/staffing/StaffingErrorBoundary.tsx` (new)
+- `src/pages/Staffing.tsx` (wrap tabs, harden VSD effect, memoize derived arrays, skip lookup for admin)
+- `src/components/staffing/BopmStaffingFlatTable.tsx` (defensive lookups, filter orphan assignments) — minimal touch
+- `src/components/staffing/DealViewTab.tsx` and `PeopleViewTab.tsx` — only if step 4 surfaces a crash there
+
+## Out of scope
+
+- Any data-model or RLS changes.
+- Visual/UX changes to the tabs themselves.
+- Changes to the BOPM-only flow beyond making sure it still works.
