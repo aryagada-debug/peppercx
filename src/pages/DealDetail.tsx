@@ -20,6 +20,7 @@ import { ResolveIssuesDialog } from "@/components/rgy/ResolveIssuesDialog";
 import { FinancialsTab } from "@/components/deals/FinancialsTab";
 import { TaskKanban } from "@/components/deals/TaskKanban";
 import { PhaseTasksView } from "@/components/deals/PhaseTasksView";
+import { DealRequestsTab } from "@/components/deals/DealRequestsTab";
 import { MBRInputDrawer } from "@/components/mbr/MBRInputDrawer";
 import { MBRDetailDialog } from "@/components/mbr/MBRDetailDialog";
 import { ScheduleOnlyDialog } from "@/components/mbr/ScheduleOnlyDialog";
@@ -57,7 +58,7 @@ const fmtDate = (d: string | undefined) => {
   return date.toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" });
 };
 
-const TABS = ["Overview", "Staffing", "Financials", "Tasks", "RGY Health", "MBR"] as const;
+const TABS = ["Overview", "Staffing", "Financials", "Tasks", "RGY Health", "MBR", "Requests"] as const;
 type TabKey = typeof TABS[number];
 
 const rgyColors: Record<string, string> = { G: "rgy-green", R: "rgy-red", Y: "rgy-yellow", NA: "rgy-na", TBU: "rgy-tbu" };
