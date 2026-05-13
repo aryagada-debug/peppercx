@@ -779,7 +779,7 @@ export default function MBRTracker() {
         {/* Tabs: Insights / Table — default to Table; BOPMs don't see Insights */}
         <Tabs defaultValue="table" className="mb-4">
           <TabsList className="mb-3">
-            {!isBopmPersona && <TabsTrigger value="insights">Insights</TabsTrigger>}
+            <TabsTrigger value="insights">Insights</TabsTrigger>
             {!isBopmPersona && <TabsTrigger value="flags">Flags</TabsTrigger>}
             <TabsTrigger value="table">Table</TabsTrigger>
           </TabsList>
