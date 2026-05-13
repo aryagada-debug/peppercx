@@ -270,22 +270,8 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
         </div>
       </div>
 
-      {/* ── Section 2: Pipeline Health (Current Month / YTD / Lifetime) ── */}
-      {([
-        { label: "Current Month", data: periods.current },
-        { label: "YTD", data: periods.ytd },
-        { label: "Lifetime", data: periods.lifetime },
-      ] as const).map(group => (
-        <div key={group.label}>
-          <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground mb-3">{group.label}</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <PipelineCard title="Contraction" att={group.data.contraction.att} value={group.data.contraction.value} target={group.data.contraction.target} status={group.data.contraction.status} />
-            <PipelineCard title="Delivery" att={group.data.delivery.att} value={group.data.delivery.value} target={group.data.delivery.target} status={group.data.delivery.status} />
-            <PipelineCard title="Invoicing" att={group.data.invoicing.att} value={group.data.invoicing.value} target={group.data.invoicing.target} status={group.data.invoicing.status} />
-            <PipelineCard title="Receivables" att={group.data.receivables.att} value={group.data.receivables.value} target={group.data.receivables.target} status={group.data.receivables.status} />
-          </div>
-        </div>
-      ))}
+      {/* ── Section 2: Pipeline Health Matrix (Current Month / YTD / Lifetime) ── */}
+      <PipelineMatrix periods={periods} />
 
       {/* ── Section 3: Charts ── */}
       {rows.length > 0 && (
