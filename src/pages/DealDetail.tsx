@@ -1,6 +1,7 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { formatINR } from "@/lib/csvTargets";
 import { useCurrencyVersion, useCurrency } from "@/contexts/CurrencyContext";
+import { CURRENCY_SYMBOL } from "@/lib/currency";
 import { useParams, Link, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Loader2, Plus, Trash2, Pencil, Check, X, Calendar, Users, Eye, Edit2, ExternalLink, AlertTriangle, ChevronDown, ChevronUp, ChevronRight, Upload, CalendarCheck, Smile, TrendingUp, MessageSquare, Sparkles, RefreshCw, Wallet, Receipt, BadgeCheck, AlertCircle, Activity, IndianRupee } from "lucide-react";
 import { getLinkLabel, getFileIcon } from "@/lib/fileLink";
@@ -279,10 +280,11 @@ function EditableCell({ value, onSave, type = "text", prefix = "", placeholder =
 
 // ── Financial Metric Card ──
 function FinancialMetricCard({ label, value, subLabel, onSave }: { label: string; value: string; subLabel: string; onSave: (v: string) => void }) {
+  const { currency } = useCurrency();
   return (
     <div className="rounded-lg bg-secondary/50 p-4">
       <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">{label}</p>
-      <EditableCell value={value} onSave={onSave} type="number" prefix="₹" placeholder="—" />
+      <EditableCell value={value} onSave={onSave} type="number" prefix={CURRENCY_SYMBOL[currency]} placeholder="—" />
       <p className="text-xs text-muted-foreground mt-0.5">{subLabel}</p>
     </div>
   );
