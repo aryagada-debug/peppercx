@@ -24,6 +24,7 @@ import { MBRInputDrawer } from "@/components/mbr/MBRInputDrawer";
 import { MBRDetailDialog } from "@/components/mbr/MBRDetailDialog";
 import { ScheduleOnlyDialog } from "@/components/mbr/ScheduleOnlyDialog";
 import { useDealRgyRollup } from "@/hooks/useDealRgyRollup";
+import { computeOverallCustomerScore, getOverallCustomerRGY, RGY_WEIGHTS } from "@/lib/overallCustomerRGY";
 import { AddStaffingMemberDialog } from "@/components/staffing/AddStaffingMemberDialog";
 import { RequestStaffingDialog } from "@/components/staffing/RequestStaffingDialog";
 import { WeeklyStaffingGrid } from "@/components/deals/WeeklyStaffingGrid";
@@ -566,10 +567,11 @@ function KpiTile({
 }
 
 
-function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry, deleteMBREntry, quickUpdateMBRField }: {
+function DealMBRTab({ deal, dealId, mbrEntries, currentRGY, upsertMBREntry, deleteMBREntry, quickUpdateMBRField }: {
   deal: any;
   dealId: string;
   mbrEntries: MBREntry[];
+  currentRGY: RGYWeekly | undefined;
   upsertMBREntry: (params: any, weekStart: string) => Promise<void>;
   deleteMBREntry: (id: string) => Promise<void>;
   quickUpdateMBRField: (entryId: string, field: string, value: any) => Promise<void>;
@@ -2714,6 +2716,7 @@ export default function DealDetail() {
             deal={deal}
             dealId={dealId!}
             mbrEntries={mbrEntries}
+            currentRGY={currentRGY}
             upsertMBREntry={upsertMBREntry}
             deleteMBREntry={deleteMBREntry}
             quickUpdateMBRField={quickUpdateMBRField}
