@@ -1,5 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { formatINR } from "@/lib/csvTargets";
+import { useCurrency } from "@/contexts/CurrencyContext";
+import { CURRENCY_SYMBOL } from "@/lib/currency";
 import { toast } from "sonner";
 import { Plus, X, Check, FileCheck2, Truck, Receipt, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -424,7 +426,7 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
           </div>
           <div className="rounded-lg bg-[#F1EFE8] p-3">
             <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Over-contraction</p>
-            <p className="text-xl font-medium mt-1 text-[#791F1F]">{bucket.over > 0 ? `-${fmtCurrency(bucket.over)}` : "₹0"}</p>
+            <p className="text-xl font-medium mt-1 text-[#791F1F]">{bucket.over > 0 ? `-${fmtCurrency(bucket.over)}` : fmtCurrency(0)}</p>
           </div>
         </div>
       </div>
@@ -591,7 +593,7 @@ function PipelineMatrixCell({ cell, metricKey, accent }: { cell: PipelineCell; m
   let gapLabel = "";
   if (hasTarget) {
     if (metricKey === "receivables") {
-      if (att >= 100) gapLabel = gap === 0 ? "₹0 outstanding" : `+${fmtCurrency(-gap)}`;
+      if (att >= 100) gapLabel = gap === 0 ? `${fmtCurrency(0)} outstanding` : `+${fmtCurrency(-gap)}`;
       else gapLabel = `${fmtCurrency(gap)} outstanding`;
     } else {
       if (att >= 100) gapLabel = gap === 0 ? "On plan" : `+${fmtCurrency(-gap)}`;
