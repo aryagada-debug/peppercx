@@ -20,11 +20,12 @@ import { ResolveIssuesDialog } from "@/components/rgy/ResolveIssuesDialog";
 import { FinancialsTab } from "@/components/deals/FinancialsTab";
 import { TaskKanban } from "@/components/deals/TaskKanban";
 import { PhaseTasksView } from "@/components/deals/PhaseTasksView";
+import { DealRequestsTab } from "@/components/deals/DealRequestsTab";
 import { MBRInputDrawer } from "@/components/mbr/MBRInputDrawer";
 import { MBRDetailDialog } from "@/components/mbr/MBRDetailDialog";
 import { ScheduleOnlyDialog } from "@/components/mbr/ScheduleOnlyDialog";
 import { useDealRgyRollup } from "@/hooks/useDealRgyRollup";
-import { computeOverallCustomerScore, getOverallCustomerRGY, RGY_WEIGHTS } from "@/lib/overallCustomerRGY";
+import { computeOverallCustomerScore, getOverallCustomerRGY } from "@/lib/overallCustomerRGY";
 import { AddStaffingMemberDialog } from "@/components/staffing/AddStaffingMemberDialog";
 import { RequestStaffingDialog } from "@/components/staffing/RequestStaffingDialog";
 import { WeeklyStaffingGrid } from "@/components/deals/WeeklyStaffingGrid";
@@ -57,7 +58,7 @@ const fmtDate = (d: string | undefined) => {
   return date.toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" });
 };
 
-const TABS = ["Overview", "Staffing", "Financials", "Tasks", "RGY Health", "MBR"] as const;
+const TABS = ["Overview", "Staffing", "Financials", "Tasks", "RGY Health", "MBR", "Requests"] as const;
 type TabKey = typeof TABS[number];
 
 const rgyColors: Record<string, string> = { G: "rgy-green", R: "rgy-red", Y: "rgy-yellow", NA: "rgy-na", TBU: "rgy-tbu" };
@@ -907,88 +908,6 @@ function DealMBRTab({ deal, dealId, mbrEntries, currentRGY, upsertMBREntry, dele
           </Button>
         </div>
       </div>
-
-      {/* Overall RGY — comprehensive weighted score breakdown */}
-      {(() => {
-        const dims = currentRGY ? {
-          customer: currentRGY.customer,
-          internal: currentRGY.internal,
-          content: currentRGY.content,
-          seo: currentRGY.seo,
-          supply: currentRGY.supply,
-          copy: currentRGY.copy,
-          design: currentRGY.design,
-          video: currentRGY.video,
-        } : {};
-        const score = computeOverallCustomerScore(dims);
-        const band = getOverallCustomerRGY(dims);
-        const bandLabel = band === "R" ? "Red" : band === "Y" ? "Yellow" : band === "G" ? "Green" : "Pending";
-        const bandClass =
-          band === "R" ? "bg-destructive/15 text-destructive border-destructive/30"
-          : band === "Y" ? "bg-warning/15 text-warning border-warning/30"
-          : band === "G" ? "bg-positive/15 text-positive border-positive/30"
-          : "bg-muted text-muted-foreground border-border";
-        const breakdown: { key: string; label: string }[] = [
-          { key: "customer", label: "Overall Customer" },
-          { key: "internal", label: "Internal" },
-          { key: "content", label: "Content" },
-          { key: "seo", label: "SEO" },
-          { key: "supply", label: "Supply" },
-          { key: "copy", label: "Copy" },
-          { key: "design", label: "Design" },
-          { key: "video", label: "Video" },
-        ];
-        const dimColor = (v: string | null | undefined) =>
-          v === "R" ? "bg-destructive text-destructive-foreground"
-          : v === "Y" ? "bg-warning text-warning-foreground"
-          : v === "G" ? "bg-positive text-positive-foreground"
-          : "bg-muted text-muted-foreground";
-        const totalWeight = breakdown.reduce((s, b) => s + (RGY_WEIGHTS[b.key] || 0), 0);
-        return (
-          <div className="rounded-xl border border-border bg-card p-4">
-            <div className="flex items-center justify-between gap-3 mb-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Overall RGY</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Weighted health rollup across 8 dimensions. Customer 50% · Internal 10% · Capability 5% each.
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="text-right">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Score</p>
-                  <p className="text-2xl font-bold font-mono tabular-nums leading-none">
-                    {score === null ? "—" : Math.round(score)}
-                    <span className="text-xs text-muted-foreground font-normal">/100</span>
-                  </p>
-                </div>
-                <Badge variant="outline" className={cn("text-sm px-3 py-1.5", bandClass)}>
-                  {bandLabel}
-                </Badge>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {breakdown.map(b => {
-                const v = (dims as any)[b.key];
-                const w = RGY_WEIGHTS[b.key] || 0;
-                return (
-                  <div key={b.key} className="flex items-center gap-2 rounded-md border border-border/60 bg-secondary/30 px-2 py-1.5">
-                    <span className={cn("inline-flex items-center justify-center w-6 h-6 rounded-md text-[11px] font-semibold", dimColor(v))}>
-                      {v && v !== "NA" ? v : "—"}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-medium text-foreground truncate">{b.label}</p>
-                      <p className="text-[10px] text-muted-foreground">Weight {Math.round((w / totalWeight) * 100)}%</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            {!currentRGY && (
-              <p className="text-[11px] text-muted-foreground mt-2">No RGY recorded yet — set status in the RGY Health tab.</p>
-            )}
-          </div>
-        );
-      })()}
 
       {sorted.length > 0 ? (
         <div className="bg-card border border-border rounded-xl overflow-hidden">
@@ -1897,7 +1816,11 @@ export default function DealDetail() {
         {/* ── Tabs ── */}
         <div className="border-b border-border mb-6">
           <div className="flex gap-0 -mb-px overflow-x-auto">
-            {TABS.map(tab => (
+            {TABS.filter(tab => {
+              if (tab !== "Requests") return true;
+              // Requests tab visible to VSDs (member), BOPMs (user) and Admins.
+              return role === "admin" || role === "member" || role === "user";
+            }).map(tab => (
               <button key={tab} onClick={() => setActiveTab(tab)} className={cn(
                 "px-4 py-2.5 text-sm font-medium transition-colors border-b-2 whitespace-nowrap",
                 activeTab === tab ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
@@ -2914,6 +2837,11 @@ export default function DealDetail() {
             deleteMBREntry={deleteMBREntry}
             quickUpdateMBRField={quickUpdateMBRField}
           />
+        )}
+
+        {/* ══════════ Requests ══════════ */}
+        {activeTab === "Requests" && (role === "admin" || role === "member" || role === "user") && (
+          <DealRequestsTab dealId={dealId!} />
         )}
 
       </div>

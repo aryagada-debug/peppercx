@@ -916,6 +916,12 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
   const [templateEditorOpen, setTemplateEditorOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Custom phases the user adds inline. Persist to a task only once a task is
+  // created in that phase; until then the phase lives in component state.
+  const [customPhases, setCustomPhases] = useState<string[]>([]);
+  const [renamingPhase, setRenamingPhase] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+
   // Tasks with no phase land in a synthetic "General" bucket so ad-hoc tasks
   // (created from Home, RGY Health, etc.) remain visible in the deal Tasks tab.
   const GENERAL_PHASE = "General";
@@ -1089,8 +1095,10 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
     phaseTasks.forEach(t => {
       if (t.phase && present.has(t.phase)) { ordered.push(t.phase); present.delete(t.phase); }
     });
+    // Append user-added custom phases that don't yet have any tasks.
+    customPhases.forEach(p => { if (!ordered.includes(p)) ordered.push(p); });
     return ordered;
-  }, [phaseTasks]);
+  }, [phaseTasks, customPhases]);
 
   // Phase deletion confirmation state
   const [deletePhaseName, setDeletePhaseName] = useState<string | null>(null);
@@ -1113,12 +1121,60 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
         setSelectedPhase(null);
         setShowAll(true);
       }
+      setCustomPhases(prev => prev.filter(p => p !== name));
     } catch (e: any) {
       toast.error(e?.message || "Failed to delete phase");
     } finally {
       setDeletePhaseName(null);
     }
   }, [deletePhaseName, tasksByPhase, dealId, onDelete, selectedPhase]);
+
+  // Add a brand-new empty custom phase and immediately put it in rename mode.
+  const handleAddPhase = useCallback(() => {
+    const base = "New Phase";
+    let n = 1;
+    const taken = new Set([
+      ...allPhases,
+      ...ONBOARDING_PHASES.map(p => p.phase),
+      ...MANDATORY_PHASES,
+    ]);
+    let candidate = `${base} ${n}`;
+    while (taken.has(candidate)) { n += 1; candidate = `${base} ${n}`; }
+    setCustomPhases(prev => [...prev, candidate]);
+    setShowAll(false);
+    setSelectedPhase(candidate);
+    setRenamingPhase(candidate);
+    setRenameValue(candidate);
+  }, [allPhases]);
+
+  // Commit rename: update db rows for that phase (if any tasks exist) and
+  // local custom-phase state. New name must be unique and non-empty.
+  const commitRename = useCallback(async (oldName: string) => {
+    const next = renameValue.trim();
+    setRenamingPhase(null);
+    if (!next || next === oldName) return;
+    if (allPhases.includes(next)) {
+      toast.error("A phase with that name already exists.");
+      return;
+    }
+    const hasTasks = (tasksByPhase[oldName] || []).length > 0;
+    if (hasTasks) {
+      const { error } = await supabase
+        .from("deal_tasks")
+        .update({ phase: next })
+        .eq("deal_id", dealId)
+        .eq("phase", oldName);
+      if (error) {
+        toast.error(error.message || "Failed to rename phase");
+        return;
+      }
+      // Optimistically rename in parent state
+      (tasksByPhase[oldName] || []).forEach(t => onUpdate(t.id, { phase: next } as any));
+    }
+    setCustomPhases(prev => prev.map(p => (p === oldName ? next : p)));
+    if (selectedPhase === oldName) setSelectedPhase(next);
+    toast.success(`Phase renamed to "${next}"`);
+  }, [renameValue, allPhases, tasksByPhase, dealId, onUpdate, selectedPhase]);
 
   if (!hasPhaseData) {
     return (
@@ -1205,26 +1261,57 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
                       ) : (
                         <ChevronRight className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform", isActive && "rotate-90")} />
                       )}
-                      <span className="truncate">{phaseName}</span>
+                      {renamingPhase === phaseName ? (
+                        <Input
+                          autoFocus
+                          value={renameValue}
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") { e.preventDefault(); commitRename(phaseName); }
+                            if (e.key === "Escape") { e.preventDefault(); setRenamingPhase(null); }
+                          }}
+                          onBlur={() => commitRename(phaseName)}
+                          className="h-6 text-xs px-1.5 py-0"
+                        />
+                      ) : (
+                        <span className="truncate">{phaseName}</span>
+                      )}
                     </span>
                     <span className="text-[10px] text-muted-foreground font-mono shrink-0 pr-5">
                       {doneCount}/{pts.length}
                     </span>
                   </span>
                 </button>
-                {canDelete && (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); setDeletePhaseName(phaseName); }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
-                    title={`Delete phase "${phaseName}"`}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                {canDelete && renamingPhase !== phaseName && (
+                  <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setRenameValue(phaseName); setRenamingPhase(phaseName); }}
+                      className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground"
+                      title={`Rename phase "${phaseName}"`}
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setDeletePhaseName(phaseName); }}
+                      className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                      title={`Delete phase "${phaseName}"`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 )}
               </div>
             );
           })}
+          <button
+            onClick={handleAddPhase}
+            className="w-full text-left px-3 py-2.5 text-xs font-medium text-primary hover:bg-primary/5 flex items-center gap-2 border-t border-border/50"
+          >
+            <Plus className="h-3.5 w-3.5" /> Add Phase
+          </button>
         </div>
       </div>
 

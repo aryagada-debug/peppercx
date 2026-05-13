@@ -1,59 +1,41 @@
 ## Scope
 
-Six related changes spanning the **Clients & Deals → MBR tab**, the **RGY Health page**, and the **MBR Tracker page**. All changes are presentation/UX — no schema changes.
+Three changes inside the Deal Detail page (`/deals/:id`).
 
----
+### 1. Add Phase in Tasks tab
 
-### 1. Overall RGY in MBR tab (Clients & Deals)
+In `src/components/deals/PhaseTasksView.tsx`, the left "Phases" rail currently lists only phases derived from existing tasks. Add an **+ Add Phase** button at the bottom of the rail.
 
-In `src/pages/DealDetail.tsx` → `DealMBRTab`, add an "Overall RGY" indicator computed from the latest `deal_rgy_weekly` row for this deal using the existing weighted formula in `src/lib/overallCustomerRGY.ts` (`getOverallCustomerRGY`). Render it as a colored badge (R/Y/G) in the snapshot KPI strip, next to MBR Coverage / Last Sentiment / MBR Health. Reuse `useDealRgyRollup` (already exists for single/list of deals) so the value stays in sync via realtime.
+- Clicking it appends a new entry with an editable name (auto-focused inline input, default `New Phase N`).
+- The phase is held in local component state (`customPhases: string[]`) and merged into `allPhases` so it shows up immediately.
+- Selecting it sets it as the active phase; any task added via the existing "Add Task" UI inherits this phase name (existing `onAdd({ ...task, phase: activePhase })` path), which persists it via `deal_tasks.phase`.
+- The new phase is deletable via the existing trash button (it's not in `MANDATORY_PHASES`); deleting also removes it from local custom list.
+- Renaming an existing custom phase (pencil icon next to name) updates all `deal_tasks` rows where `phase = oldName` for the deal via a single Supabase update, then refreshes locally.
 
-### 2. RGY Health — show Overall RGY score + all columns visible by default
+No DB schema change — phases live on `deal_tasks.phase`. Empty custom phases live only in session until a task is added.
 
-In `src/pages/RGYHealth.tsx`:
-- `DEFAULT_VISIBLE` currently only includes 6 keys. Replace with all keys from `ALL_COLS` so Deal ID, Content, SEO, Supply, Copy, Design, Video, AI Summary are visible on first load. Existing localStorage persistence is preserved (users who already customized keep their selection — only the default for new users changes).
-- The Overall RGY column already renders the band letter; add the **numeric score** (0–100, rounded) below or next to the band using `computeOverallCustomerScore` from `overallCustomerRGY.ts`. Format: e.g. `G · 84`.
+### 2. Remove Overall RGY block from MBR tab
 
-### 3. RGY Health — BOPM filter for VSDs
+In `src/pages/DealDetail.tsx`, delete lines ~911–991 inside `DealMBRTab` (the entire `{/* Overall RGY — comprehensive weighted score breakdown */}` IIFE). The "Overall RGY" KPI tile in `mbrKpis` (line ~765) stays since the user only asked to remove the comprehensive block; if they meant the KPI too they can confirm. Imports of `computeOverallCustomerScore` / `getOverallCustomerRGY` / `RGY_WEIGHTS` remain because they are still used in the RGY Health tab.
 
-In `src/pages/RGYHealth.tsx`, a `bopmOptions` + `activeBopm` state already exist but the filter chips are not rendered. Add a BOPM filter chip row mirroring the pattern in `src/pages/Clients.tsx` (lines ~753–778) directly below the VSD chip row. The same `dealMatchesBopm` logic used in Clients filters the deal list. Visible when the user is a VSD persona (or in the All view) — hidden for BOPM persona since they are already scoped.
+### 3. New "Requests" top-level tab
 
-### 4. Schedule MBR in MBR tab of Clients & Deals
+Add `"Requests"` to the `TABS` tuple in `src/pages/DealDetail.tsx` (after `"MBR"`).
 
-In `src/pages/DealDetail.tsx` → `DealMBRTab`:
-- Import `ScheduleOnlyDialog` from `@/components/mbr/ScheduleOnlyDialog`.
-- Add a **Schedule MBR** button next to the existing "Record MBR" button in the MBR History header.
-- Show the next scheduled date prominently — the existing banner uses `sorted[0]?.scheduledDate` but should be `doneEntries[0]` or the most recent future scheduled date. Update to pick the latest non-past `scheduledDate` across all entries. Format: `Next MBR scheduled: dd MMM yyyy`.
-- Wire dialog `onSave` to the existing `upsertMBREntry` (status remains `Pending` until the MBR is actually logged via Record MBR).
+- Visible only to **VSD** and **BOPM** personas. Use the existing role/persona hook (`useUserRole` / persona detection used elsewhere); when the current user isn't VSD/BOPM, hide the tab button and block the section.
+- Render a new `DealRequestsTab` component that queries `approval_requests` filtered by `deal_id = currentDealId` ordered by `created_at desc`. Reuse `useApprovals`-style realtime subscription scoped to this deal.
+- Columns: Created · Type (`request_type`) · Title (`batch_title` or derived) · Status badge (pending/under_review/approved/rejected/cancelled) · Requester · Reviewer · Note. Row click opens the existing approval detail dialog if available, otherwise an inline drawer with `requester_note`, `reviewer_note`, and `approval_comments` (already in schema).
+- Empty state: "No requests sent to Central CX for this deal yet."
+- Tab badge shows count of `pending` + `under_review` requests.
 
-### 5. MBR Tracker — show Insights tab for VSD view
+### Technical notes
 
-In `src/pages/MBRTracker.tsx`, the `Insights` and `Flags` tabs are already gated by `!isBopmPersona`, so VSDs see them. The VSD scope currently shows aggregated insights for All VSDs unless they select their own. Auto-select the VSD's own name when `isVsdPersona && myVsdName` (mirroring the pattern in RGYHealth lines 594–596). This makes Insights show the VSD's data on first load.
+- No migrations required. Existing `approval_requests` RLS already allows requesters and admins/members to read.
+- Persona check: read current user's role via `useUserRole`; treat `VSD` and `BOPM` (incl. Senior/Principal BOPM) as eligible — match on `staffing_people.designation` of the linked profile, mirroring how other tabs gate visibility.
+- For phase rename, single statement: `update deal_tasks set phase = newName where deal_id = X and phase = oldName`.
 
-### 6. Record MBR form parity in Clients & Deals + mandatory fields
+### Files touched
 
-The Clients & Deals MBR tab already uses the same `MBRInputDrawer` as MBR Tracker — they share one component. To enforce the "mandatory except Fathom" rule, update `MBRInputDrawer.tsx`:
-- Required (block submit with toast if empty): MBR Date, Sentiment (already), Transcript, AI Summary, Next MBR Scheduled Date (already), Anirudh Added checkbox = true, Meeting Mode, Notes, MBR PPT Link.
-- Optional: Fathom Link, Action Items.
-- Add red asterisks on all required labels.
-
----
-
-### Verification (after implementation)
-
-1. Build succeeds (typecheck clean).
-2. Manually open a deal → MBR tab: confirm Overall RGY badge appears, Schedule MBR button opens dialog, next scheduled banner shows correctly.
-3. RGY Health: log in fresh (or in a private tab — defaults apply when no localStorage entry); confirm all columns visible, Overall RGY shows band + score, BOPM filter chips render under VSD chips and filter deals.
-4. MBR Tracker as VSD: confirm Insights tab is selected and scoped to the VSD's own row by default.
-5. Open Record MBR drawer from both Deal MBR tab and MBR Tracker → confirm submit is blocked when any required field (except Fathom) is empty.
-
----
-
-### Files to touch
-
-- `src/pages/DealDetail.tsx` — Overall RGY badge, Schedule MBR button, next scheduled date logic.
-- `src/pages/RGYHealth.tsx` — default visible cols, score in Overall RGY cell, BOPM filter row.
-- `src/pages/MBRTracker.tsx` — auto-select VSD's name for VSD persona.
-- `src/components/mbr/MBRInputDrawer.tsx` — make additional fields mandatory + add asterisks.
-
-No DB migrations.
+- `src/components/deals/PhaseTasksView.tsx` — add phase button, rename support, custom-phase local state.
+- `src/pages/DealDetail.tsx` — remove Overall RGY block from MBR tab; add `Requests` to `TABS`, persona-gate it, render new tab section.
+- `src/components/deals/DealRequestsTab.tsx` — new component for the Requests tab.
