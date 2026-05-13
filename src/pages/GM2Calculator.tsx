@@ -1,6 +1,9 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { formatINR } from "@/lib/csvTargets";
+import { useCurrency, useCurrencyVersion } from "@/contexts/CurrencyContext";
+import { CURRENCY_SYMBOL } from "@/lib/currency";
 
 const rateCard = [
   { role: "VSD", category: "VSD/BOPM", rate: 1200 },
@@ -23,6 +26,9 @@ const resources = [
 ];
 
 export default function GM2Calculator() {
+  useCurrencyVersion();
+  const { currency } = useCurrency();
+  const sym = CURRENCY_SYMBOL[currency];
   const [mrr] = useState(850000);
   const [duration] = useState(12);
 
@@ -45,9 +51,9 @@ export default function GM2Calculator() {
               {[
                 ["Customer", "TechCorp India"],
                 ["Mandate", "SEO+Content"],
-                ["MRR", `₹${(mrr / 100000).toFixed(1)}L`],
+                ["MRR", formatINR(mrr)],
                 ["Duration", `${duration} months`],
-                ["Deal Value", `₹${((mrr * duration) / 10000000).toFixed(2)}Cr`],
+                ["Deal Value", formatINR(mrr * duration)],
                 ["GM1%", `${gm1Pct}%`],
               ].map(([label, val]) => (
                 <div key={label}>
@@ -63,15 +69,15 @@ export default function GM2Calculator() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-caption text-muted-foreground">GM1 Absolute</p>
-                <p className="text-subhead font-semibold font-mono tabular-nums text-foreground">₹{(gm1Abs / 100000).toFixed(1)}L</p>
+                <p className="text-subhead font-semibold font-mono tabular-nums text-foreground">{formatINR(gm1Abs)}</p>
               </div>
               <div>
                 <p className="text-caption text-muted-foreground">GM2 Cost (Monthly)</p>
-                <p className="text-subhead font-semibold font-mono tabular-nums text-foreground">₹{(totalMonthlyCost / 100000).toFixed(1)}L</p>
+                <p className="text-subhead font-semibold font-mono tabular-nums text-foreground">{formatINR(totalMonthlyCost)}</p>
               </div>
               <div>
                 <p className="text-caption text-muted-foreground">GM2 Absolute</p>
-                <p className={cn("text-subhead font-semibold font-mono tabular-nums", gm2Abs > 0 ? "text-positive" : "text-destructive")}>₹{(gm2Abs / 100000).toFixed(1)}L</p>
+                <p className={cn("text-subhead font-semibold font-mono tabular-nums", gm2Abs > 0 ? "text-positive" : "text-destructive")}>{formatINR(gm2Abs)}</p>
               </div>
               <div>
                 <p className="text-caption text-muted-foreground">GM2%</p>
@@ -85,7 +91,7 @@ export default function GM2Calculator() {
           <table className="w-full text-ui">
             <thead>
               <tr className="border-b border-border bg-secondary/30">
-                {["Role", "Category", "Person", "Count", "Hrs/Wk", "Rate (₹/hr)", "Monthly Cost"].map(h => (
+                {["Role", "Category", "Person", "Count", "Hrs/Wk", `Rate (${sym}/hr)`, "Monthly Cost"].map(h => (
                   <th key={h} className="text-left py-3 px-4 font-medium text-muted-foreground text-caption uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
@@ -98,13 +104,13 @@ export default function GM2Calculator() {
                   <td className="py-3 px-4 text-foreground">{r.person}</td>
                   <td className="py-3 px-4 font-mono tabular-nums text-foreground">{r.count}</td>
                   <td className="py-3 px-4 font-mono tabular-nums text-foreground">{r.weeklyHrs}</td>
-                  <td className="py-3 px-4 font-mono tabular-nums text-foreground">₹{r.rate}</td>
-                  <td className="py-3 px-4 font-mono tabular-nums text-foreground">₹{Math.round(r.rate * r.weeklyHrs * 4.33 * r.count).toLocaleString()}</td>
+                  <td className="py-3 px-4 font-mono tabular-nums text-foreground">{formatINR(r.rate)}</td>
+                  <td className="py-3 px-4 font-mono tabular-nums text-foreground">{formatINR(Math.round(r.rate * r.weeklyHrs * 4.33 * r.count))}</td>
                 </tr>
               ))}
               <tr className="bg-secondary/30">
                 <td colSpan={6} className="py-3 px-4 font-semibold text-foreground text-right">Total Monthly Cost</td>
-                <td className="py-3 px-4 font-mono tabular-nums font-semibold text-foreground">₹{Math.round(totalMonthlyCost).toLocaleString()}</td>
+                <td className="py-3 px-4 font-mono tabular-nums font-semibold text-foreground">{formatINR(Math.round(totalMonthlyCost))}</td>
               </tr>
             </tbody>
           </table>
