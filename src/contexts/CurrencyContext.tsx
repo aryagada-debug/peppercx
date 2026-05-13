@@ -46,7 +46,10 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   const [currency, setCurrencyState] = useState<Currency>(globalCurrency);
   const [fxRate, setFxRateState] = useState<number>(globalFx);
 
-  // One-time: if no user preference, default Neema's view to USD.
+  // One-time: if user has no local preference, read their saved
+  // `profiles.default_currency` and apply it. Users can override with the
+  // toggle at any time — a manual change writes localStorage so we never
+  // overwrite an explicit choice.
   useEffect(() => {
     if (typeof localStorage === "undefined") return;
     if (localStorage.getItem(LS_CURRENCY)) return;
@@ -56,22 +59,14 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
       if (!user) return;
       const { data: profile } = await supabase
         .from("profiles")
-        .select("staffing_person_id")
+        .select("default_currency")
         .eq("user_id", user.id)
         .maybeSingle();
-      const pid = profile?.staffing_person_id;
-      if (!pid) return;
-      const { data: person } = await supabase
-        .from("staffing_people")
-        .select("name")
-        .eq("id", pid)
-        .maybeSingle();
-      const name = (person?.name || "").trim().toLowerCase();
-      if (!cancelled && name.includes("neema")) {
-        setCurrencyState("USD");
-        globalCurrency = "USD";
-        localStorage.setItem(LS_CURRENCY, "USD");
-      }
+      const pref = (profile as any)?.default_currency as Currency | undefined;
+      if (cancelled || !pref || (pref !== "INR" && pref !== "USD")) return;
+      setCurrencyState(pref);
+      globalCurrency = pref;
+      try { localStorage.setItem(LS_CURRENCY, pref); } catch {}
     })();
     return () => { cancelled = true; };
   }, []);
