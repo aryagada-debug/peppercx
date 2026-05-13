@@ -32,15 +32,20 @@ interface KpiTileProps {
   tone?: KpiTone;
   icon?: LucideIcon;
   className?: string;
+  onClick?: () => void;
 }
 
-export function KpiTile({ label, value, suffix, tone = "muted", icon: Icon, className }: KpiTileProps) {
+export function KpiTile({ label, value, suffix, tone = "muted", icon: Icon, className, onClick }: KpiTileProps) {
+  const Comp: any = onClick ? "button" : "div";
   return (
-    <div
+    <Comp
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
       className={cn(
-        "rounded-xl border px-3 py-2.5 flex items-center gap-3",
+        "rounded-xl border px-3 py-2.5 flex items-center gap-3 text-left w-full",
         toneBg[tone],
         toneBorder[tone],
+        onClick && "hover:ring-2 hover:ring-primary/30 transition-all cursor-pointer",
         className,
       )}
     >
@@ -56,6 +61,6 @@ export function KpiTile({ label, value, suffix, tone = "muted", icon: Icon, clas
           {suffix && <span className="text-xs text-muted-foreground">{suffix}</span>}
         </div>
       </div>
-    </div>
+    </Comp>
   );
 }
