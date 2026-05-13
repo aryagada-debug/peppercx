@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { formatINR } from "@/lib/csvTargets";
 import { toast } from "sonner";
-import { Plus, X, Check } from "lucide-react";
+import { Plus, X, Check, FileCheck2, Truck, Receipt, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -270,22 +270,8 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
         </div>
       </div>
 
-      {/* ── Section 2: Pipeline Health (Current Month / YTD / Lifetime) ── */}
-      {([
-        { label: "Current Month", data: periods.current },
-        { label: "YTD", data: periods.ytd },
-        { label: "Lifetime", data: periods.lifetime },
-      ] as const).map(group => (
-        <div key={group.label}>
-          <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground mb-3">{group.label}</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <PipelineCard title="Contraction" att={group.data.contraction.att} value={group.data.contraction.value} target={group.data.contraction.target} status={group.data.contraction.status} />
-            <PipelineCard title="Delivery" att={group.data.delivery.att} value={group.data.delivery.value} target={group.data.delivery.target} status={group.data.delivery.status} />
-            <PipelineCard title="Invoicing" att={group.data.invoicing.att} value={group.data.invoicing.value} target={group.data.invoicing.target} status={group.data.invoicing.status} />
-            <PipelineCard title="Receivables" att={group.data.receivables.att} value={group.data.receivables.value} target={group.data.receivables.target} status={group.data.receivables.status} />
-          </div>
-        </div>
-      ))}
+      {/* ── Section 2: Pipeline Health Matrix (Current Month / YTD / Lifetime) ── */}
+      <PipelineMatrix periods={periods} />
 
       {/* ── Section 3: Charts ── */}
       {rows.length > 0 && (
@@ -529,6 +515,108 @@ function PipelineCardImpl({ title, att, value, target, status }: { title: string
         <div className="h-full rounded transition-all" style={{ width: `${Math.min(100, att)}%`, backgroundColor: cs.bar }} />
       </div>
       <p className="text-xs text-muted-foreground mt-1.5">{status}</p>
+    </div>
+  );
+}
+
+// ── Pipeline Matrix (Metric × Period table) ──
+type PipelineCell = { att: number; value: number; target: number; status: string };
+
+const METRIC_CONFIG = [
+  { key: "contraction" as const, title: "Contraction", subtitle: "Deals signed", icon: FileCheck2, accent: "#7B6BD9", iconBg: "bg-[#EEEDFE]", iconText: "text-[#534AB7]", titleText: "text-[#534AB7]" },
+  { key: "delivery" as const, title: "Delivery", subtitle: "Work completed", icon: Truck, accent: "#1D9E75", iconBg: "bg-[#DEF2EA]", iconText: "text-[#1D9E75]", titleText: "text-[#1D9E75]" },
+  { key: "invoicing" as const, title: "Invoicing", subtitle: "Bills raised", icon: Receipt, accent: "#3267C7", iconBg: "bg-[#E1EAF8]", iconText: "text-[#3267C7]", titleText: "text-[#3267C7]" },
+  { key: "receivables" as const, title: "Receivables", subtitle: "Payments received", icon: Wallet, accent: "#C7414C", iconBg: "bg-[#F8E1E3]", iconText: "text-[#C7414C]", titleText: "text-[#C7414C]" },
+];
+
+function PipelineMatrix({ periods }: { periods: { current: any; ytd: any; lifetime: any } }) {
+  const cols = [
+    { key: "current", label: "Current Month", data: periods.current },
+    { key: "ytd", label: "YTD", data: periods.ytd },
+    { key: "lifetime", label: "Lifetime", data: periods.lifetime },
+  ] as const;
+  return (
+    <div className="rounded-xl border border-[#D3D1C7] bg-white overflow-hidden">
+      <div className="grid grid-cols-[minmax(180px,1.1fr)_repeat(3,minmax(0,1.4fr))] bg-[#FAF9F4] border-b border-[#D3D1C7]">
+        <div className="py-3 px-4 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Metric</div>
+        {cols.map(c => (
+          <div key={c.key} className="py-3 px-4 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground border-l border-[#D3D1C7]">{c.label}</div>
+        ))}
+      </div>
+      {METRIC_CONFIG.map((m, idx) => {
+        const Icon = m.icon;
+        return (
+          <div
+            key={m.key}
+            className={cn(
+              "grid grid-cols-[minmax(180px,1.1fr)_repeat(3,minmax(0,1.4fr))] relative",
+              idx < METRIC_CONFIG.length - 1 && "border-b border-[#D3D1C7]/60"
+            )}
+          >
+            <div className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ backgroundColor: m.accent }} />
+            <div className="py-4 pl-5 pr-4 flex items-center gap-3">
+              <div className={cn("h-9 w-9 rounded-lg flex items-center justify-center shrink-0", m.iconBg)}>
+                <Icon className={cn("h-[18px] w-[18px]", m.iconText)} strokeWidth={1.75} />
+              </div>
+              <div className="min-w-0">
+                <p className={cn("text-[14px] font-medium leading-tight", m.titleText)}>{m.title}</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">{m.subtitle}</p>
+              </div>
+            </div>
+            {cols.map(c => {
+              const cell: PipelineCell = c.data[m.key];
+              return (
+                <PipelineMatrixCell
+                  key={c.key}
+                  cell={cell}
+                  metricKey={m.key}
+                  accent={m.accent}
+                />
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function PipelineMatrixCell({ cell, metricKey, accent }: { cell: PipelineCell; metricKey: string; accent: string }) {
+  const { value, target, att } = cell;
+  const hasTarget = target > 0;
+  const ac = attColor(att);
+  const cs = colorStyles[ac];
+  const isZero = !hasTarget && value === 0;
+  const gap = target - value;
+  let gapLabel = "";
+  if (hasTarget) {
+    if (metricKey === "receivables") {
+      if (att >= 100) gapLabel = gap === 0 ? "₹0 outstanding" : `+${fmtCurrency(-gap)}`;
+      else gapLabel = `${fmtCurrency(gap)} outstanding`;
+    } else {
+      if (att >= 100) gapLabel = gap === 0 ? "On plan" : `+${fmtCurrency(-gap)}`;
+      else gapLabel = `${fmtCurrency(gap)} gap`;
+    }
+  }
+  return (
+    <div className="py-4 px-4 border-l border-[#D3D1C7]/60 flex flex-col justify-between min-h-[90px]">
+      <div className="flex items-center justify-between gap-2">
+        <p className={cn("text-[20px] font-medium tabular-nums leading-none", isZero && "text-muted-foreground")}>
+          {fmtCurrency(value)}
+        </p>
+        <span className={cn("text-[11px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap", hasTarget ? cs.bg : "bg-[#F1EFE8]", hasTarget ? cs.text : "text-muted-foreground")}>
+          {hasTarget ? `${att.toFixed(0)}%` : "0%"}
+        </span>
+      </div>
+      {hasTarget && (
+        <div className="mt-2 h-[3px] rounded bg-[#F1EFE8] overflow-hidden">
+          <div className="h-full rounded transition-all" style={{ width: `${Math.min(100, att)}%`, backgroundColor: cs.bar }} />
+        </div>
+      )}
+      <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground tabular-nums">
+        <span>Target {fmtCurrency(target)}</span>
+        {hasTarget && <span>{gapLabel}</span>}
+      </div>
     </div>
   );
 }
