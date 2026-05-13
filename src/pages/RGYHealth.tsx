@@ -1483,6 +1483,12 @@ export default function RGYHealth() {
                         {isColVisible("ai_summary") && (
                           <th className="text-left py-2 px-3 font-medium text-muted-foreground text-caption whitespace-nowrap">AI Summary</th>
                         )}
+                        {isAdminPersona && isColVisible("updated_at") && (
+                          <th style={{ width: colWidths.updated_at }} className="text-left py-2 px-3 font-medium text-muted-foreground text-caption whitespace-nowrap">Last Updated At</th>
+                        )}
+                        {isAdminPersona && isColVisible("updated_by") && (
+                          <th style={{ width: colWidths.updated_by }} className="text-left py-2 px-3 font-medium text-muted-foreground text-caption whitespace-nowrap">Last Updated By</th>
+                        )}
                       </tr>
                     </thead>
                     <tbody>
