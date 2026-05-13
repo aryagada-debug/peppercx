@@ -1638,6 +1638,20 @@ export default function RGYHealth() {
                                 )}
                               </td>
                             )}
+                            {isAdminPersona && isColVisible("updated_at") && (
+                              <td className="py-2 px-3 text-xs text-muted-foreground whitespace-nowrap">
+                                {deal.rgy_updated_at
+                                  ? format(new Date(deal.rgy_updated_at), "dd MMM yyyy, HH:mm")
+                                  : <span className="text-muted-foreground/60">—</span>}
+                              </td>
+                            )}
+                            {isAdminPersona && isColVisible("updated_by") && (
+                              <td className="py-2 px-3 text-xs text-foreground whitespace-nowrap">
+                                {deal.rgy_updated_by_name
+                                  ? deal.rgy_updated_by_name
+                                  : <span className="text-muted-foreground/60">—</span>}
+                              </td>
+                            )}
                           </tr>
                         );
                       })}
