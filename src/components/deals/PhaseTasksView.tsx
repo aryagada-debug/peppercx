@@ -916,6 +916,12 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
   const [templateEditorOpen, setTemplateEditorOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Custom phases the user adds inline. Persist to a task only once a task is
+  // created in that phase; until then the phase lives in component state.
+  const [customPhases, setCustomPhases] = useState<string[]>([]);
+  const [renamingPhase, setRenamingPhase] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+
   // Tasks with no phase land in a synthetic "General" bucket so ad-hoc tasks
   // (created from Home, RGY Health, etc.) remain visible in the deal Tasks tab.
   const GENERAL_PHASE = "General";
