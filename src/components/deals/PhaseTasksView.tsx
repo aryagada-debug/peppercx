@@ -1261,26 +1261,57 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
                       ) : (
                         <ChevronRight className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform", isActive && "rotate-90")} />
                       )}
-                      <span className="truncate">{phaseName}</span>
+                      {renamingPhase === phaseName ? (
+                        <Input
+                          autoFocus
+                          value={renameValue}
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") { e.preventDefault(); commitRename(phaseName); }
+                            if (e.key === "Escape") { e.preventDefault(); setRenamingPhase(null); }
+                          }}
+                          onBlur={() => commitRename(phaseName)}
+                          className="h-6 text-xs px-1.5 py-0"
+                        />
+                      ) : (
+                        <span className="truncate">{phaseName}</span>
+                      )}
                     </span>
                     <span className="text-[10px] text-muted-foreground font-mono shrink-0 pr-5">
                       {doneCount}/{pts.length}
                     </span>
                   </span>
                 </button>
-                {canDelete && (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); setDeletePhaseName(phaseName); }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
-                    title={`Delete phase "${phaseName}"`}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                {canDelete && renamingPhase !== phaseName && (
+                  <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setRenameValue(phaseName); setRenamingPhase(phaseName); }}
+                      className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground"
+                      title={`Rename phase "${phaseName}"`}
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setDeletePhaseName(phaseName); }}
+                      className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                      title={`Delete phase "${phaseName}"`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 )}
               </div>
             );
           })}
+          <button
+            onClick={handleAddPhase}
+            className="w-full text-left px-3 py-2.5 text-xs font-medium text-primary hover:bg-primary/5 flex items-center gap-2 border-t border-border/50"
+          >
+            <Plus className="h-3.5 w-3.5" /> Add Phase
+          </button>
         </div>
       </div>
 
