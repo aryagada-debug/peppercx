@@ -291,6 +291,20 @@ function useStaffingDataInternal() {
   const addPerson = useCallback(async (person: Person) => {
     setPeople(prev => [...prev, person]);
     await supabase.from("staffing_people").insert(personToDb(person));
+    // Auto-create login account (password Pepper@2026) if email present.
+    const email = (person.email || "").trim();
+    if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      try {
+        const { data, error } = await supabase.functions.invoke("admin-user-mgmt", {
+          body: { action: "provision_person", person_id: person.id, email, name: person.name },
+        });
+        if (error || (data as any)?.error) {
+          console.warn("[provision_person]", error || (data as any)?.error);
+        }
+      } catch (e) {
+        console.warn("[provision_person] failed", e);
+      }
+    }
   }, []);
 
   const updatePerson = useCallback(async (personId: string, updates: Partial<Person>) => {
