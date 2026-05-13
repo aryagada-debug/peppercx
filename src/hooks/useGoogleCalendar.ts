@@ -28,6 +28,16 @@ function normalizeEvents(events: any[] = []): GCalEvent[] {
   }));
 }
 
+function calendarErrorMessage(message?: string) {
+  if (message === "calendar_oauth_not_configured") {
+    return "Google Calendar credentials are missing. Update the Calendar OAuth secrets, then try again.";
+  }
+  if (message === "calendar_oauth_invalid_client_id_format") {
+    return "The Google Calendar Client ID is invalid. Use the Web application Client ID ending in .apps.googleusercontent.com.";
+  }
+  return "Could not connect Google Calendar";
+}
+
 export function useGoogleCalendar() {
   const [connected, setConnected] = useState(false);
   const [googleEmail, setGoogleEmail] = useState<string | null>(null);
@@ -73,7 +83,8 @@ export function useGoogleCalendar() {
       }
       window.location.assign(data.authorizationUrl);
     } catch (err) {
-      toast.error("Could not connect Google Calendar");
+      const message = err instanceof Error ? err.message : "";
+      toast.error(calendarErrorMessage(message));
       console.error("calendar connect", err);
       setConnecting(false);
     }
