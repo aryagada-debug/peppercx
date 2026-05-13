@@ -803,9 +803,8 @@ export default function MBRTracker() {
 
         {/* Insights — split into Scheduling + Status, with VSD and BOPM-wise rows */}
         {(() => {
-          const dataset: any[] = showBopmInsights
-            ? bopmInsights.map(b => ({ ...b, vsd: b.name }))
-            : vsdInsights;
+          // Insights tables are always rowed by Sr / Principal BOPM (Y-axis).
+          const dataset: any[] = bopmInsights.map(b => ({ ...b, vsd: b.name }));
 
           const NumBtn = ({ value, metric, rowLabel, className }: { value: number; metric: DrillMetric; rowLabel: string; className?: string }) => (
             <button
@@ -821,14 +820,11 @@ export default function MBRTracker() {
             </button>
           );
 
-          const labelHeader = showBopmInsights ? "Sr / Principal BOPM" : "VSD";
-          const titleSuffix = showBopmInsights ? `BOPM-wise — ${activeVsd}` : "VSD-wise";
+          const labelHeader = "Sr / Principal BOPM";
+          const titleSuffix = activeVsd === "All" ? "BOPM-wise" : `BOPM-wise — ${activeVsd}`;
 
           const renderLabel = (v: any) => {
-            const isOverall = v.vsd === "Pod Overall";
-            if (showBopmInsights) return v.vsd;
-            // VSD rollup: show VSD name (cleaner than concatenated BOPMs)
-            return isOverall ? v.vsd : v.vsd;
+            return v.vsd;
           };
 
           return (
