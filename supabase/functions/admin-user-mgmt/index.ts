@@ -111,6 +111,7 @@ Deno.serve(async (req) => {
 
     if (action === "bulk_provision") {
       const sendInvite = body.send_invite !== false;
+      const DEFAULT_PASSWORD = "Pepper@2026";
       // Load all staffing_people with non-empty email
       const { data: people, error: pErr } = await adminClient
         .from("staffing_people")
@@ -150,10 +151,9 @@ Deno.serve(async (req) => {
         let userId = existingByEmail.get(email);
 
         if (!userId) {
-          const tempPassword = crypto.randomUUID() + "Aa1!";
           const { data: newUser, error: cErr } = await adminClient.auth.admin.createUser({
             email,
-            password: tempPassword,
+            password: DEFAULT_PASSWORD,
             email_confirm: true,
             user_metadata: { full_name: person.name },
           });
@@ -163,23 +163,12 @@ Deno.serve(async (req) => {
           }
           userId = newUser.user.id;
           created++;
-
-          if (sendInvite) {
-            // Send password-setup email (non-blocking on failure)
-            const redirectTo = `${new URL(req.url).origin.replace("/functions/v1", "")}`;
-            await adminClient.auth.admin.generateLink({
-              type: "recovery",
-              email,
-              options: { redirectTo: `${SUPABASE_URL.replace(".supabase.co", ".lovable.app")}/reset-password` },
-            }).catch(() => {});
-            // Use the user-friendly resetPasswordForEmail via a public client
-            await userClient.auth.resetPasswordForEmail(email, {
-              redirectTo: req.headers.get("origin")
-                ? `${req.headers.get("origin")}/reset-password`
-                : undefined,
-            }).catch(() => {});
-          }
         } else {
+          // Reset existing accounts to the shared password so it stays predictable.
+          await adminClient.auth.admin.updateUserById(userId, {
+            password: DEFAULT_PASSWORD,
+            email_confirm: true,
+          }).catch(() => {});
           linked.push({ name: person.name, email });
         }
 
@@ -204,7 +193,89 @@ Deno.serve(async (req) => {
           skipped: skipped_names.length,
           skipped_names,
           errors,
+          password: DEFAULT_PASSWORD,
         }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    if (action === "provision_person") {
+      const DEFAULT_PASSWORD = "Pepper@2026";
+      const personId: string | undefined = body.person_id;
+      if (!personId) {
+        return new Response(JSON.stringify({ error: "person_id required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: person, error: pErr } = await adminClient
+        .from("staffing_people")
+        .select("id, name, email")
+        .eq("id", personId)
+        .maybeSingle();
+      if (pErr || !person) {
+        return new Response(JSON.stringify({ error: pErr?.message || "Person not found" }), {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const email = ((body.email as string) || person.email || "").trim();
+      const name = ((body.name as string) || person.name || "").trim();
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return new Response(JSON.stringify({ error: "valid email required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const emailLower = email.toLowerCase();
+
+      // Find existing auth user with this email.
+      const { data: authList } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
+      const existing = (authList?.users || []).find(
+        (u) => (u.email || "").toLowerCase() === emailLower,
+      );
+
+      let userId: string;
+      let status: "created" | "reset";
+      if (existing) {
+        await adminClient.auth.admin.updateUserById(existing.id, {
+          password: DEFAULT_PASSWORD,
+          email_confirm: true,
+        });
+        userId = existing.id;
+        status = "reset";
+      } else {
+        const { data: newUser, error: cErr } = await adminClient.auth.admin.createUser({
+          email,
+          password: DEFAULT_PASSWORD,
+          email_confirm: true,
+          user_metadata: { full_name: name },
+        });
+        if (cErr || !newUser?.user) {
+          return new Response(JSON.stringify({ error: cErr?.message || "create failed" }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        userId = newUser.user.id;
+        status = "created";
+      }
+
+      // Explicit profile link → overrides any email-only auto-link from handle_new_user.
+      await adminClient.from("profiles").upsert(
+        { user_id: userId, display_name: name, staffing_person_id: person.id },
+        { onConflict: "user_id" },
+      );
+      await adminClient
+        .from("user_roles")
+        .insert({ user_id: userId, role: "user" })
+        .select()
+        .then((r) => r, () => null);
+
+      return new Response(
+        JSON.stringify({ status, user_id: userId, email, password: DEFAULT_PASSWORD }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
