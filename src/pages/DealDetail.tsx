@@ -1816,7 +1816,11 @@ export default function DealDetail() {
         {/* ── Tabs ── */}
         <div className="border-b border-border mb-6">
           <div className="flex gap-0 -mb-px overflow-x-auto">
-            {TABS.map(tab => (
+            {TABS.filter(tab => {
+              if (tab !== "Requests") return true;
+              // Requests tab visible to VSDs (member), BOPMs (user) and Admins.
+              return role === "admin" || role === "member" || role === "user";
+            }).map(tab => (
               <button key={tab} onClick={() => setActiveTab(tab)} className={cn(
                 "px-4 py-2.5 text-sm font-medium transition-colors border-b-2 whitespace-nowrap",
                 activeTab === tab ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
@@ -2833,6 +2837,11 @@ export default function DealDetail() {
             deleteMBREntry={deleteMBREntry}
             quickUpdateMBRField={quickUpdateMBRField}
           />
+        )}
+
+        {/* ══════════ Requests ══════════ */}
+        {activeTab === "Requests" && (role === "admin" || role === "member" || role === "user") && (
+          <DealRequestsTab dealId={dealId!} />
         )}
 
       </div>
