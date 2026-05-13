@@ -610,6 +610,8 @@ export default function RGYHealth() {
   // Drill-down for RGY Summary numeric cells
   type RGYDrillMetric = "total" | "red" | "yellow" | "green" | "pending";
   const [rgyDrill, setRgyDrill] = useState<{ rowLabel: string; metric: RGYDrillMetric } | null>(null);
+  // KPI strip drill (Red / Yellow / Green / Score)
+  const [kpiDrill, setKpiDrill] = useState<null | "red" | "yellow" | "green" | "score">(null);
   // Column filter/sort state
   const [colFilters, setColFilters] = useState<Record<string, string>>({});
   const [openFilter, setOpenFilter] = useState<string | null>(null);
@@ -660,18 +662,19 @@ export default function RGYHealth() {
       { key: "updated_by", label: "Last Updated By" },
     ] : []),
   ]), [isAdminPersona]);
+  // Show every column by default. Admin personas additionally see audit columns.
   const DEFAULT_VISIBLE = isAdminPersona
     ? ["account","deal_name","deal_id","deal_status","overall_rgy","customer","internal","content","seo","supply","copy","design","video","ai_summary","updated_at","updated_by"]
     : ["account","deal_name","deal_id","deal_status","overall_rgy","customer","internal","content","seo","supply","copy","design","video","ai_summary"];
   const [visibleCols, setVisibleCols] = useState<string[]>(() => {
     try {
-      const raw = localStorage.getItem("rgy-visible-cols");
+      const raw = localStorage.getItem("rgy-visible-cols-v2");
       if (raw) return JSON.parse(raw);
     } catch {}
     return DEFAULT_VISIBLE;
   });
   useEffect(() => {
-    try { localStorage.setItem("rgy-visible-cols", JSON.stringify(visibleCols)); } catch {}
+    try { localStorage.setItem("rgy-visible-cols-v2", JSON.stringify(visibleCols)); } catch {}
   }, [visibleCols]);
   const REQUIRED_COL_KEYS = useMemo(() => ALL_COLS.filter(c => c.required).map(c => c.key), [ALL_COLS]);
   const isColVisible = (k: string) => visibleCols.includes(k) || REQUIRED_COL_KEYS.includes(k);
@@ -1123,6 +1126,11 @@ export default function RGYHealth() {
       if (colFilters.deal_name && !matches(d.deal_name, colFilters.deal_name)) return false;
       if (colFilters.deal_id && !matches(d.deal_id, colFilters.deal_id)) return false;
       if (colFilters.deal_status && (d.deal_status || "") !== colFilters.deal_status) return false;
+      if (colFilters.updated_by && !matches(d.rgy_updated_by_name, colFilters.updated_by)) return false;
+      if (colFilters.updated_at) {
+        const formatted = d.rgy_updated_at ? format(new Date(d.rgy_updated_at), "dd MMM yyyy, HH:mm") : "";
+        if (!matches(formatted, colFilters.updated_at)) return false;
+      }
       for (const dim of DIMENSIONS) {
         const f = colFilters[dim.key];
         if (f) {
@@ -1246,10 +1254,10 @@ export default function RGYHealth() {
 
         {/* KPI Strip */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-          <KpiTile label="Red" value={String(kpis.red)} tone="destructive" icon={AlertTriangle} />
-          <KpiTile label="Yellow" value={String(kpis.yellow)} tone="warning" icon={AlertCircle} />
-          <KpiTile label="Green" value={String(kpis.green)} tone="positive" icon={CheckCircle2} />
-          <KpiTile label="Score" value={String(kpis.score)} suffix="/ 100" tone="primary" icon={Activity} />
+          <KpiTile label="Red" value={String(kpis.red)} tone="destructive" icon={AlertTriangle} onClick={() => setKpiDrill("red")} />
+          <KpiTile label="Yellow" value={String(kpis.yellow)} tone="warning" icon={AlertCircle} onClick={() => setKpiDrill("yellow")} />
+          <KpiTile label="Green" value={String(kpis.green)} tone="positive" icon={CheckCircle2} onClick={() => setKpiDrill("green")} />
+          <KpiTile label="Score" value={String(kpis.score)} suffix="/ 100" tone="primary" icon={Activity} onClick={() => setKpiDrill("score")} />
         </div>
 
         {/* Tabs: Health Board / Table / Insights */}
@@ -1506,10 +1514,10 @@ export default function RGYHealth() {
                           <th className="text-left py-2 px-3 font-medium text-muted-foreground text-caption whitespace-nowrap">AI Summary</th>
                         )}
                         {isAdminPersona && isColVisible("updated_at") && (
-                          <th style={{ width: colWidths.updated_at }} className="text-left py-2 px-3 font-medium text-muted-foreground text-caption whitespace-nowrap">Last Updated At</th>
+                          <ColHeader label="Last Updated At" colKey="updated_at" sortKey="rgy_updated_at" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.updated_at} onResizeStart={startResize("updated_at")} placeholder="Filter by date..." />
                         )}
                         {isAdminPersona && isColVisible("updated_by") && (
-                          <th style={{ width: colWidths.updated_by }} className="text-left py-2 px-3 font-medium text-muted-foreground text-caption whitespace-nowrap">Last Updated By</th>
+                          <ColHeader label="Last Updated By" colKey="updated_by" sortKey="rgy_updated_by_name" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.updated_by} onResizeStart={startResize("updated_by")} placeholder="Filter by user..." />
                         )}
                       </tr>
                     </thead>
@@ -1811,6 +1819,80 @@ export default function RGYHealth() {
                             </Link>
                           </td>
                           <td className="py-2 px-3 text-muted-foreground">{d.deal_status || "—"}</td>
+                        </tr>
+                      ))}
+                      {rows.length === 0 && (
+                        <tr><td colSpan={4} className="text-center py-6 text-muted-foreground">No matching deals.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </DialogContent>
+            </Dialog>
+          );
+        })()}
+        {/* KPI strip drill-down dialog */}
+        {kpiDrill && (() => {
+          const rows = filteredDeals
+            .map(d => {
+              const dims: Record<string, string> = {};
+              for (const dim of DIMENSIONS) dims[dim.key] = (d[dim.key as keyof DealWithRGY] as string) || "";
+              const score = computeOverallCustomerScore(dims);
+              const w = getWorstRGY(d);
+              return { deal: d, score, worst: w };
+            })
+            .filter(r => {
+              if (kpiDrill === "score") return true;
+              if (kpiDrill === "red") return r.worst === "R";
+              if (kpiDrill === "yellow") return r.worst === "Y";
+              if (kpiDrill === "green") return r.worst === "G";
+              return false;
+            })
+            .sort((a, b) => {
+              if (kpiDrill === "score") return (b.score ?? -1) - (a.score ?? -1);
+              return a.deal.account.localeCompare(b.deal.account);
+            });
+          const titleMap = { red: "Red Deals", yellow: "Yellow Deals", green: "Green Deals", score: "Overall Health Score" } as const;
+          return (
+            <Dialog open={!!kpiDrill} onOpenChange={(o) => !o && setKpiDrill(null)}>
+              <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="text-base">
+                    {titleMap[kpiDrill]} ({rows.length})
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="border border-border rounded-lg overflow-hidden mt-2">
+                  <table className="w-full text-xs">
+                    <thead className="bg-secondary/40 border-b border-border">
+                      <tr>
+                        <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Account</th>
+                        <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Deal Name</th>
+                        <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Deal ID</th>
+                        <th className="text-right py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Overall Health Score</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map(({ deal, score, worst }) => (
+                        <tr key={deal.id} className="border-b border-border/50 hover:bg-secondary/30">
+                          <td className="py-2 px-3 text-foreground">{deal.account}</td>
+                          <td className="py-2 px-3">
+                            <Link to={`/deals/${deal.id}`} className="text-primary hover:underline" onClick={() => setKpiDrill(null)}>
+                              {deal.deal_name}
+                            </Link>
+                          </td>
+                          <td className="py-2 px-3 font-mono tabular-nums text-muted-foreground">{deal.deal_id || "—"}</td>
+                          <td className="py-2 px-3 text-right">
+                            <span className={cn(
+                              "inline-flex items-center gap-1.5 font-mono tabular-nums",
+                              worst === "R" && "text-destructive",
+                              worst === "Y" && "text-warning",
+                              worst === "G" && "text-positive",
+                            )}>
+                              {worst && <span className={cn("w-2 h-2 rounded-full", worstDotColor[worst])} />}
+                              {score === null ? "—" : score.toFixed(1)}
+                              {worst && <span className="text-[10px] text-muted-foreground">{worst}</span>}
+                            </span>
+                          </td>
                         </tr>
                       ))}
                       {rows.length === 0 && (

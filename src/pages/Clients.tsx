@@ -247,16 +247,16 @@ export default function Clients() {
     { key: "rag", label: "RGY" },
   ]), []);
 
-  const DEFAULT_VISIBLE = ["account","dealName","dealId","dealType","dealStatus","vsd","bopm","mrr","totalDealValue","duration","rag"];
+  const DEFAULT_VISIBLE = ["account","dealName","dealId","dealType","dealStatus","vsd","bopm","contentLead","seoLead","mrr","totalDealValue","duration","rag"];
   const [visibleCols, setVisibleCols] = useState<string[]>(() => {
     try {
-      const raw = localStorage.getItem("clients-visible-cols");
+      const raw = localStorage.getItem("clients-visible-cols-v2");
       if (raw) return JSON.parse(raw);
     } catch {}
     return DEFAULT_VISIBLE;
   });
   useEffect(() => {
-    try { localStorage.setItem("clients-visible-cols", JSON.stringify(visibleCols)); } catch {}
+    try { localStorage.setItem("clients-visible-cols-v2", JSON.stringify(visibleCols)); } catch {}
   }, [visibleCols]);
   const isVisible = (k: string) => visibleCols.includes(k);
   const toggleCol = (k: string, required?: boolean) => {
