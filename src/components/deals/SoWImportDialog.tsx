@@ -6,6 +6,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Upload, Trash2 } from "lucide-react";
+import { useCurrency } from "@/contexts/CurrencyContext";
+import { CURRENCY_SYMBOL } from "@/lib/currency";
 
 const TEAM_OPTIONS = ["Account Management", "Content", "SEO", "Creative", "Video"];
 
