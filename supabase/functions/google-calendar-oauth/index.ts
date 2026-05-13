@@ -20,7 +20,8 @@ const SCOPES = [
 ].join(" ");
 
 function getCalendarCredentials() {
-  const clientId = GOOGLE_CLIENT_ID.trim();
+  const clientIdInput = GOOGLE_CLIENT_ID.trim();
+  const clientId = clientIdInput.match(/\d+-[a-z0-9_-]+\.apps\.googleusercontent\.com/i)?.[0] || clientIdInput;
   const clientSecret = GOOGLE_CLIENT_SECRET.trim();
   if (!clientId || !clientSecret) throw new Error("calendar_oauth_not_configured");
   if (!/^\d+-[a-z0-9_-]+\.apps\.googleusercontent\.com$/i.test(clientId)) {
