@@ -28,7 +28,9 @@ async function getUser(req: Request) {
 }
 
 async function getCalendarAccessToken(userId: string) {
-  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) throw new Error("calendar_oauth_not_configured");
+  const googleClientId = GOOGLE_CLIENT_ID.trim().match(/\d+-[a-z0-9_-]+\.apps\.googleusercontent\.com/i)?.[0] || GOOGLE_CLIENT_ID.trim();
+  const googleClientSecret = GOOGLE_CLIENT_SECRET.trim();
+  if (!googleClientId || !googleClientSecret) throw new Error("calendar_oauth_not_configured");
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
   const { data, error } = await admin
     .from("google_calendar_connections")
@@ -51,8 +53,8 @@ async function getCalendarAccessToken(userId: string) {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      client_id: GOOGLE_CLIENT_ID,
-      client_secret: GOOGLE_CLIENT_SECRET,
+      client_id: googleClientId,
+      client_secret: googleClientSecret,
       refresh_token: data.refresh_token,
       grant_type: "refresh_token",
     }).toString(),
