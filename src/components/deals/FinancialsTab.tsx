@@ -521,12 +521,6 @@ function PipelineCardImpl({ title, att, value, target, status }: { title: string
 
 // ── Pipeline Matrix (Metric × Period table) ──
 type PipelineCell = { att: number; value: number; target: number; status: string };
-type PipelinePeriods = {
-  current: { contraction: PipelineCell; delivery: PipelineCell; invoicing: PipelineCell; receivables: PipelineCell };
-  ytd: typeof PipelinePeriodsRef extends never ? never : any;
-  lifetime: any;
-};
-const PipelinePeriodsRef = null as never;
 
 const METRIC_CONFIG = [
   { key: "contraction" as const, title: "Contraction", subtitle: "Deals signed", icon: FileCheck2, accent: "#7B6BD9", iconBg: "bg-[#EEEDFE]", iconText: "text-[#534AB7]", titleText: "text-[#534AB7]" },
@@ -562,7 +556,7 @@ function PipelineMatrix({ periods }: { periods: { current: any; ytd: any; lifeti
             <div className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ backgroundColor: m.accent }} />
             <div className="py-4 pl-5 pr-4 flex items-center gap-3">
               <div className={cn("h-9 w-9 rounded-lg flex items-center justify-center shrink-0", m.iconBg)}>
-                <Icon className={cn("h-4.5 w-4.5", m.iconText)} strokeWidth={1.75} />
+                <Icon className={cn("h-[18px] w-[18px]", m.iconText)} strokeWidth={1.75} />
               </div>
               <div className="min-w-0">
                 <p className={cn("text-[14px] font-medium leading-tight", m.titleText)}>{m.title}</p>
