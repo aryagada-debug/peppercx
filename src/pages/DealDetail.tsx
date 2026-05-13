@@ -1563,7 +1563,8 @@ export default function DealDetail() {
   const deal = useMemo(() => deals.find(d => d.id === dealId), [deals, dealId]);
   // Default the display currency to the currency the deal was entered in.
   // Runs once per deal id; user (admin) can still toggle it manually.
-  const { setCurrency } = useCurrency();
+  const { setCurrency, currency } = useCurrency();
+  const currencySymbol = CURRENCY_SYMBOL[currency];
   useEffect(() => {
     if (!deal?.inputCurrency) return;
     setCurrency(deal.inputCurrency);
