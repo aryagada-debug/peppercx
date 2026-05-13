@@ -515,12 +515,17 @@ function bindBopmDirRealtime() {
     supabase.removeChannel(bopmDirChannel);
     bopmDirChannel = null;
   }
-  const refresh = async () => {
-    const next = await loadBopmDirectory();
-    bopmDirCache = { data: next, ts: Date.now() };
-    bopmDirSubs.forEach((s) => s(next));
+  let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+  const refresh = () => {
+    if (refreshTimer) return;
+    refreshTimer = setTimeout(async () => {
+      refreshTimer = null;
+      const next = await loadBopmDirectory();
+      bopmDirCache = { data: next, ts: Date.now() };
+      bopmDirSubs.forEach((s) => s(next));
+    }, 500);
   };
-  const ch = supabase.channel(`bopm-directory-sync-${Date.now()}`);
+  const ch = supabase.channel("bopm-directory-sync");
   ch.on("postgres_changes", { event: "*", schema: "public", table: "staffing_people" }, refresh);
   ch.subscribe();
   bopmDirChannel = ch;
