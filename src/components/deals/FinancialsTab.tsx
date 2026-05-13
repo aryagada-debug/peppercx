@@ -309,7 +309,13 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-[#D3D1C7]">
-                {["Month", "Contracted", "Contraction", "Att%", "Planned GM%", "Actual GM%", "Invoiced", "Received", "Outstanding"].map((h, i) => (
+                {[
+                  "Month",
+                  "Target Contraction", "Actual Contraction",
+                  "Target Delivery", "Actual Delivery",
+                  "Target Invoiced", "Actual Invoiced",
+                  "Target Received", "Actual Received",
+                ].map((h, i) => (
                   <th key={h} className={cn("py-2.5 px-3 font-medium text-muted-foreground whitespace-nowrap", i === 0 ? "text-left" : "text-right")}>{h}</th>
                 ))}
               </tr>
@@ -324,45 +330,36 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
               ) : (
                 <>
                   {rows.map((row, idx) => {
-                    const att = row.contracted > 0 ? (row.consumption / row.contracted) * 100 : 0;
-                    const ac = attColor(att);
-                    const cs = colorStyles[ac];
+                    const cTarget = row.contractionTarget ?? row.contracted;
+                    const dTarget = row.deliveryTarget ?? 0;
+                    const dActual = row.deliveryActual ?? 0;
+                    const iTarget = row.invoicingTarget ?? 0;
+                    const rTarget = row.receivablesTarget ?? 0;
                     return (
                       <tr key={row.id} className={cn("group", idx < rows.length - 1 && "border-b border-[#D3D1C7]/50")}>
                         <td className="py-2.5 px-3 font-medium text-muted-foreground">{fmtMonth(row.month)}</td>
-                        <EditableTableCell value={row.contracted} field="contracted" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
-                        <EditableTableCell value={row.consumption} field="consumption" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
-                        <td className="py-2.5 px-3 text-right">
-                          <span className={cn("inline-block px-1.5 py-0.5 rounded text-[11px] font-medium", cs.bg, cs.text)}>
-                            {att.toFixed(0)}%
-                          </span>
-                        </td>
-                        <EditableTableCell value={row.plannedGmPct} field="plannedGmPct" rowId={row.id} onUpdate={onUpdate} format="percent" suffix="%" disabled={!canEdit} />
-                        <EditableTableCell value={row.actualGmPct} field="actualGmPct" rowId={row.id} onUpdate={onUpdate} format="percent" suffix="%" disabled={!canEdit} />
-                        <EditableTableCell value={row.invoiced} field="invoiced" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
-                        <EditableTableCell value={row.received} field="received" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
-                        <td className={cn("py-2.5 px-3 text-right tabular-nums", row.outstanding > 0 && "text-[#791F1F]")}>{fmtCurrency(row.outstanding)}</td>
+                        <EditableTableCell value={cTarget} field="contractionTarget" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
+                        <ActualCell value={row.consumption} target={cTarget} field="consumption" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
+                        <EditableTableCell value={dTarget} field="deliveryTarget" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
+                        <ActualCell value={dActual} target={dTarget} field="deliveryActual" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
+                        <EditableTableCell value={iTarget} field="invoicingTarget" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
+                        <ActualCell value={row.invoiced} target={iTarget} field="invoiced" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
+                        <EditableTableCell value={rTarget} field="receivablesTarget" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
+                        <ActualCell value={row.received} target={rTarget} field="received" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
                       </tr>
                     );
                   })}
                   {/* Totals row */}
                   <tr className="bg-[#F1EFE8] font-medium border-t border-[#D3D1C7]">
                     <td className="py-2.5 px-3">Total</td>
-                    <td className="py-2.5 px-3 text-right tabular-nums">{fmtCurrency(totals.contracted)}</td>
-                    <td className="py-2.5 px-3 text-right tabular-nums">{fmtCurrency(totals.consumption)}</td>
-                    <td className="py-2.5 px-3 text-right">
-                      {(() => {
-                        const att = totals.contracted > 0 ? (totals.consumption / totals.contracted) * 100 : 0;
-                        const ac = attColor(att);
-                        const cs = colorStyles[ac];
-                        return <span className={cn("inline-block px-1.5 py-0.5 rounded text-[11px]", cs.bg, cs.text)}>{att.toFixed(0)}%</span>;
-                      })()}
-                    </td>
-                    <td className="py-2.5 px-3 text-right">—</td>
-                    <td className="py-2.5 px-3 text-right">—</td>
-                    <td className="py-2.5 px-3 text-right tabular-nums">{fmtCurrency(totals.invoiced)}</td>
-                    <td className="py-2.5 px-3 text-right tabular-nums">{fmtCurrency(totals.received)}</td>
-                    <td className={cn("py-2.5 px-3 text-right tabular-nums", totals.outstanding > 0 && "text-[#791F1F]")}>{fmtCurrency(totals.outstanding)}</td>
+                    <td className="py-2.5 px-3 text-right tabular-nums">{fmtCurrency(totals.contractionTarget)}</td>
+                    <TotalActualCell value={totals.consumption} target={totals.contractionTarget} />
+                    <td className="py-2.5 px-3 text-right tabular-nums">{fmtCurrency(totals.deliveryTarget)}</td>
+                    <TotalActualCell value={totals.deliveryActual} target={totals.deliveryTarget} />
+                    <td className="py-2.5 px-3 text-right tabular-nums">{fmtCurrency(totals.invoicingTarget)}</td>
+                    <TotalActualCell value={totals.invoiced} target={totals.invoicingTarget} />
+                    <td className="py-2.5 px-3 text-right tabular-nums">{fmtCurrency(totals.receivablesTarget)}</td>
+                    <TotalActualCell value={totals.received} target={totals.receivablesTarget} />
                   </tr>
                 </>
               )}
