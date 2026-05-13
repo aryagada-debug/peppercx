@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import { TaskFormDialog } from "@/components/deals/TaskFormDialog";
 import { useGoogleCalendar, type GCalEvent } from "@/hooks/useGoogleCalendar";
 import { CalendarConnectButton } from "@/components/calendar/CalendarConnectButton";
+import { EventFormDialog, type EventFormValue } from "@/components/calendar/EventFormDialog";
 import { useUserRole } from "@/hooks/useUserRole";
 import { TaskKanban, type DealTask } from "@/components/deals/TaskKanban";
 import { SlackHomeBubble } from "@/components/slack/SlackHomeBubble";
@@ -165,19 +166,40 @@ export default function HomePage() {
   const [finDrill, setFinDrill] = useState<null | "contraction" | "delivery" | "invoicing" | "receivables">(null);
 
   // Google Calendar
-  const { connected: calConnected, listEvents: calListEvents } = useGoogleCalendar();
+  const { connected: calConnected, listEvents: calListEvents, createEvent: calCreateEvent, updateEvent: calUpdateEvent, deleteEvent: calDeleteEvent } = useGoogleCalendar();
   const [calEvents, setCalEvents] = useState<GCalEvent[]>([]);
+  const [calEditing, setCalEditing] = useState<GCalEvent | null>(null);
+  const [calCreating, setCalCreating] = useState(false);
   const [now, setNow] = useState(new Date());
   useEffect(() => {
     const int = setInterval(() => setNow(new Date()), 30000);
     return () => clearInterval(int);
   }, []);
-  useEffect(() => {
+  const refreshCalendar = useCallback(() => {
     if (!calConnected) { setCalEvents([]); return; }
     const tMin = startOfDay(new Date()).toISOString();
     const tMax = addDays(new Date(), 1).toISOString();
-    calListEvents({ timeMin: tMin, timeMax: tMax, maxResults: 20 }).then(setCalEvents);
+    calListEvents({ timeMin: tMin, timeMax: tMax, maxResults: 50 }).then(setCalEvents);
   }, [calConnected, calListEvents]);
+  useEffect(() => { refreshCalendar(); }, [refreshCalendar]);
+  useEffect(() => {
+    if (!calConnected) return;
+    const onVis = () => { if (document.visibilityState === "visible") refreshCalendar(); };
+    document.addEventListener("visibilitychange", onVis);
+    const int = setInterval(() => { if (document.visibilityState === "visible") refreshCalendar(); }, 60_000);
+    return () => { document.removeEventListener("visibilitychange", onVis); clearInterval(int); };
+  }, [calConnected, refreshCalendar]);
+
+  const handleCalSave = useCallback(async (v: EventFormValue) => {
+    const payload = { summary: v.summary, description: v.description, start: v.start, end: v.end, attendees: v.attendees, location: v.location };
+    if (v.id) await calUpdateEvent(v.id, payload);
+    else await calCreateEvent(payload);
+    refreshCalendar();
+  }, [calCreateEvent, calUpdateEvent, refreshCalendar]);
+  const handleCalDelete = useCallback(async (id: string) => {
+    await calDeleteEvent(id);
+    refreshCalendar();
+  }, [calDeleteEvent, refreshCalendar]);
 
   const aliasesRef = useRef<Set<string>>(new Set());
 
