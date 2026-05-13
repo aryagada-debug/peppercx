@@ -814,6 +814,8 @@ export default function RGYHealth() {
         rgy_issue_details: rgy.issue_details || "",
         rgy_issue_date: rgy.issue_date || null,
         rgy_created_at: rgy.created_at || null,
+        rgy_updated_at: rgy.updated_at || null,
+        rgy_updated_by_name: rgy.updated_by_name || "",
         customer: rgy.customer ?? "",
         internal: rgy.internal ?? "",
         content: rgy.content ?? "",
