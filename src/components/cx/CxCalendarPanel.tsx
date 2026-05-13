@@ -72,7 +72,7 @@ export function CxCalendarPanel({ open, onToggle }: Props) {
         </div>
         <div className="flex items-center gap-1">
           {connected && (
-            <button onClick={handleDisconnect} className="p-1 rounded hover:bg-accent" title="Disconnect">
+            <button onClick={disconnect} className="p-1 rounded hover:bg-accent" title="Disconnect">
               <LogOut className="h-3.5 w-3.5 text-muted-foreground" />
             </button>
           )}
@@ -82,7 +82,7 @@ export function CxCalendarPanel({ open, onToggle }: Props) {
         </div>
       </div>
 
-      {checkingAuth ? (
+      {checking ? (
         <div className="flex-1 flex items-center justify-center">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
@@ -94,8 +94,8 @@ export function CxCalendarPanel({ open, onToggle }: Props) {
           <p className="text-xs text-muted-foreground mb-4">
             Connect your Google account to sync tasks with calendar events and see meetings.
           </p>
-          <Button size="sm" className="text-xs" onClick={handleConnect} disabled={loading}>
-            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+          <Button size="sm" className="text-xs" onClick={connect} disabled={connecting}>
+            {connecting ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
             Connect Google Calendar
           </Button>
           <p className="text-[10px] text-muted-foreground mt-3">
