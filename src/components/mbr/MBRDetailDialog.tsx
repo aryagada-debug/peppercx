@@ -11,7 +11,6 @@ import { ExternalLink, CheckCircle2, Circle, Save } from "lucide-react";
 import type { MBRDeal, MBREntry, ActionItem } from "@/hooks/useMBRData";
 import { getLinkLabel, getFileIcon } from "@/lib/fileLink";
 import { formatINR } from "@/lib/csvTargets";
-import { useCurrencyVersion } from "@/contexts/CurrencyContext";
 
 interface MBRDetailDialogProps {
   open: boolean;
