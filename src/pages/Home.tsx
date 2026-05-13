@@ -1686,6 +1686,21 @@ export default function HomePage() {
       )}
       {/* Unified Slack bubble — choose Channel or DM */}
       <SlackHomeBubble />
+      <EventFormDialog
+        open={calCreating || !!calEditing}
+        onOpenChange={(v) => { if (!v) { setCalCreating(false); setCalEditing(null); } }}
+        initial={calEditing ? {
+          id: calEditing.id,
+          summary: calEditing.summary,
+          description: calEditing.description,
+          start: calEditing.start,
+          end: calEditing.end,
+          attendees: (calEditing.attendees || []).map(a => a.email).filter(Boolean) as string[],
+          htmlLink: calEditing.htmlLink,
+        } : null}
+        onSave={handleCalSave}
+        onDelete={calEditing ? () => handleCalDelete(calEditing.id) : undefined}
+      />
     </AppLayout>
   );
 }
