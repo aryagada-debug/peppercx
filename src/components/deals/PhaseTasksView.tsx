@@ -1121,6 +1121,7 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
         setSelectedPhase(null);
         setShowAll(true);
       }
+      setCustomPhases(prev => prev.filter(p => p !== name));
     } catch (e: any) {
       toast.error(e?.message || "Failed to delete phase");
     } finally {
