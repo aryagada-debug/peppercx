@@ -1128,6 +1128,53 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
     }
   }, [deletePhaseName, tasksByPhase, dealId, onDelete, selectedPhase]);
 
+  // Add a brand-new empty custom phase and immediately put it in rename mode.
+  const handleAddPhase = useCallback(() => {
+    const base = "New Phase";
+    let n = 1;
+    const taken = new Set([
+      ...allPhases,
+      ...ONBOARDING_PHASES.map(p => p.phase),
+      ...MANDATORY_PHASES,
+    ]);
+    let candidate = `${base} ${n}`;
+    while (taken.has(candidate)) { n += 1; candidate = `${base} ${n}`; }
+    setCustomPhases(prev => [...prev, candidate]);
+    setShowAll(false);
+    setSelectedPhase(candidate);
+    setRenamingPhase(candidate);
+    setRenameValue(candidate);
+  }, [allPhases]);
+
+  // Commit rename: update db rows for that phase (if any tasks exist) and
+  // local custom-phase state. New name must be unique and non-empty.
+  const commitRename = useCallback(async (oldName: string) => {
+    const next = renameValue.trim();
+    setRenamingPhase(null);
+    if (!next || next === oldName) return;
+    if (allPhases.includes(next)) {
+      toast.error("A phase with that name already exists.");
+      return;
+    }
+    const hasTasks = (tasksByPhase[oldName] || []).length > 0;
+    if (hasTasks) {
+      const { error } = await supabase
+        .from("deal_tasks")
+        .update({ phase: next })
+        .eq("deal_id", dealId)
+        .eq("phase", oldName);
+      if (error) {
+        toast.error(error.message || "Failed to rename phase");
+        return;
+      }
+      // Optimistically rename in parent state
+      (tasksByPhase[oldName] || []).forEach(t => onUpdate(t.id, { phase: next } as any));
+    }
+    setCustomPhases(prev => prev.map(p => (p === oldName ? next : p)));
+    if (selectedPhase === oldName) setSelectedPhase(next);
+    toast.success(`Phase renamed to "${next}"`);
+  }, [renameValue, allPhases, tasksByPhase, dealId, onUpdate, selectedPhase]);
+
   if (!hasPhaseData) {
     return (
       <div className="animate-fade-in flex flex-col items-center justify-center py-16 gap-4">
