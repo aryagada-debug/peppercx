@@ -402,6 +402,68 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
 
 // ── Pipeline Health Card ──
 function PipelineCard({ title, att, value, target, status }: { title: string; att: number; value: number; target: number; status: string }) {
+  return PipelineCardImpl({ title, att, value, target, status });
+}
+
+function ActualCell({ value, target, field, rowId, onUpdate, disabled }: {
+  value: number; target: number; field: string; rowId: string;
+  onUpdate: (id: string, updates: Partial<FinancialRow>) => void;
+  disabled?: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [localVal, setLocalVal] = useState(String(value));
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (editing) { setLocalVal(String(value)); setTimeout(() => inputRef.current?.select(), 0); } }, [editing, value]);
+  const commit = () => {
+    setEditing(false);
+    const num = Number(localVal);
+    if (!isNaN(num) && num !== value) onUpdate(rowId, { [field]: num } as Partial<FinancialRow>);
+  };
+  const att = target > 0 ? (value / target) * 100 : 0;
+  const cs = colorStyles[attColor(att)];
+  if (editing && !disabled) {
+    return (
+      <td className="py-1 px-1.5 text-right">
+        <input
+          ref={inputRef} type="number" value={localVal}
+          onChange={e => setLocalVal(e.target.value)} onBlur={commit}
+          onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
+          className="w-20 h-7 rounded border border-[#534AB7] bg-white px-1.5 text-right text-xs tabular-nums outline-none focus:ring-1 focus:ring-[#534AB7]"
+        />
+      </td>
+    );
+  }
+  return (
+    <td
+      className={cn("py-2.5 px-3 text-right tabular-nums whitespace-nowrap", disabled ? "cursor-default" : "cursor-pointer hover:bg-[#F1EFE8]/60 transition-colors")}
+      onClick={() => { if (!disabled) setEditing(true); }}
+    >
+      <span>{fmtCurrency(value)}</span>
+      {target > 0 && (
+        <span className={cn("ml-1.5 inline-block px-1 py-0.5 rounded text-[10px] font-medium align-middle", cs.bg, cs.text)}>
+          {att.toFixed(0)}%
+        </span>
+      )}
+    </td>
+  );
+}
+
+function TotalActualCell({ value, target }: { value: number; target: number }) {
+  const att = target > 0 ? (value / target) * 100 : 0;
+  const cs = colorStyles[attColor(att)];
+  return (
+    <td className="py-2.5 px-3 text-right tabular-nums whitespace-nowrap">
+      <span>{fmtCurrency(value)}</span>
+      {target > 0 && (
+        <span className={cn("ml-1.5 inline-block px-1 py-0.5 rounded text-[10px] font-medium align-middle", cs.bg, cs.text)}>
+          {att.toFixed(0)}%
+        </span>
+      )}
+    </td>
+  );
+}
+
+function PipelineCardImpl({ title, att, value, target, status }: { title: string; att: number; value: number; target: number; status: string }) {
   const ac = attColor(att);
   const cs = colorStyles[ac];
   return (
