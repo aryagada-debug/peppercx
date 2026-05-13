@@ -777,7 +777,7 @@ export default function RGYHealth() {
 
     const rgyPromise = supabase
       .from("deal_rgy_weekly")
-      .select("id, deal_id, customer, internal, content, seo, supply, copy, design, video, week_start, issue_details, issue_status, action_plan, discussed_action_plan, issue_date, created_at")
+      .select("id, deal_id, customer, internal, content, seo, supply, copy, design, video, week_start, issue_details, issue_status, action_plan, discussed_action_plan, issue_date, created_at, updated_at, updated_by_name")
       .gte("week_start", lookbackIso)
       .order("week_start", { ascending: false });
 
