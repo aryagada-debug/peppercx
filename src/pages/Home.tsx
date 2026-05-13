@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import { TaskFormDialog } from "@/components/deals/TaskFormDialog";
 import { useGoogleCalendar, type GCalEvent } from "@/hooks/useGoogleCalendar";
 import { CalendarConnectButton } from "@/components/calendar/CalendarConnectButton";
+import { EventFormDialog, type EventFormValue } from "@/components/calendar/EventFormDialog";
 import { useUserRole } from "@/hooks/useUserRole";
 import { TaskKanban, type DealTask } from "@/components/deals/TaskKanban";
 import { SlackHomeBubble } from "@/components/slack/SlackHomeBubble";
@@ -165,19 +166,40 @@ export default function HomePage() {
   const [finDrill, setFinDrill] = useState<null | "contraction" | "delivery" | "invoicing" | "receivables">(null);
 
   // Google Calendar
-  const { connected: calConnected, listEvents: calListEvents } = useGoogleCalendar();
+  const { connected: calConnected, listEvents: calListEvents, createEvent: calCreateEvent, updateEvent: calUpdateEvent, deleteEvent: calDeleteEvent } = useGoogleCalendar();
   const [calEvents, setCalEvents] = useState<GCalEvent[]>([]);
+  const [calEditing, setCalEditing] = useState<GCalEvent | null>(null);
+  const [calCreating, setCalCreating] = useState(false);
   const [now, setNow] = useState(new Date());
   useEffect(() => {
     const int = setInterval(() => setNow(new Date()), 30000);
     return () => clearInterval(int);
   }, []);
-  useEffect(() => {
+  const refreshCalendar = useCallback(() => {
     if (!calConnected) { setCalEvents([]); return; }
     const tMin = startOfDay(new Date()).toISOString();
     const tMax = addDays(new Date(), 1).toISOString();
-    calListEvents({ timeMin: tMin, timeMax: tMax, maxResults: 20 }).then(setCalEvents);
+    calListEvents({ timeMin: tMin, timeMax: tMax, maxResults: 50 }).then(setCalEvents);
   }, [calConnected, calListEvents]);
+  useEffect(() => { refreshCalendar(); }, [refreshCalendar]);
+  useEffect(() => {
+    if (!calConnected) return;
+    const onVis = () => { if (document.visibilityState === "visible") refreshCalendar(); };
+    document.addEventListener("visibilitychange", onVis);
+    const int = setInterval(() => { if (document.visibilityState === "visible") refreshCalendar(); }, 60_000);
+    return () => { document.removeEventListener("visibilitychange", onVis); clearInterval(int); };
+  }, [calConnected, refreshCalendar]);
+
+  const handleCalSave = useCallback(async (v: EventFormValue) => {
+    const payload = { summary: v.summary, description: v.description, start: v.start, end: v.end, attendees: v.attendees, location: v.location };
+    if (v.id) await calUpdateEvent(v.id, payload);
+    else await calCreateEvent(payload);
+    refreshCalendar();
+  }, [calCreateEvent, calUpdateEvent, refreshCalendar]);
+  const handleCalDelete = useCallback(async (id: string) => {
+    await calDeleteEvent(id);
+    refreshCalendar();
+  }, [calDeleteEvent, refreshCalendar]);
 
   const aliasesRef = useRef<Set<string>>(new Set());
 
@@ -1283,7 +1305,14 @@ export default function HomePage() {
                 <CalendarDays className="h-4 w-4 text-primary" /> Today's calendar
                 <Badge variant="secondary" className="ml-1 text-[10px]">{todaysMeetings.length}</Badge>
               </CardTitle>
-              <CalendarConnectButton />
+              <div className="flex items-center gap-2">
+                {calConnected && (
+                  <Button size="sm" variant="outline" className="h-7 gap-1" onClick={() => setCalCreating(true)}>
+                    <Plus className="h-3.5 w-3.5" /> New
+                  </Button>
+                )}
+                <CalendarConnectButton />
+              </div>
             </CardHeader>
             <CardContent className="space-y-2">
               {!calConnected ? (
@@ -1303,9 +1332,10 @@ export default function HomePage() {
                   const isCustomer = (ev.attendees || []).some(a => a.email && !a.email.includes("@pepper"));
                   const barCls = isCustomer ? "bg-primary" : "bg-positive";
                   return (
-                    <a key={ev.id} href={ev.htmlLink || "#"} target="_blank" rel="noopener noreferrer"
+                    <div key={ev.id}
                       className={cn("flex gap-3 rounded-md border border-border bg-card hover:bg-secondary/40 transition-colors p-2.5 group",
                         isPastMeeting && "opacity-60")}>
+                      <button type="button" onClick={() => setCalEditing(ev)} className="flex gap-3 flex-1 min-w-0 text-left">
                       <div className="w-[68px] shrink-0">
                         {isSoon && <div className="text-[9px] font-bold text-primary mb-0.5">IN {minsTo}M</div>}
                         <div className="text-[11px] font-mono text-muted-foreground">
@@ -1322,7 +1352,13 @@ export default function HomePage() {
                           </div>
                         )}
                       </div>
-                    </a>
+                      </button>
+                      {ev.htmlLink && (
+                        <a href={ev.htmlLink} target="_blank" rel="noopener noreferrer"
+                          className="opacity-0 group-hover:opacity-100 text-[10px] text-muted-foreground hover:text-foreground self-center px-2 transition-opacity"
+                          title="Open in Google Calendar">↗</a>
+                      )}
+                    </div>
                   );
                 })
               )}
@@ -1650,6 +1686,21 @@ export default function HomePage() {
       )}
       {/* Unified Slack bubble — choose Channel or DM */}
       <SlackHomeBubble />
+      <EventFormDialog
+        open={calCreating || !!calEditing}
+        onOpenChange={(v) => { if (!v) { setCalCreating(false); setCalEditing(null); } }}
+        initial={calEditing ? {
+          id: calEditing.id,
+          summary: calEditing.summary,
+          description: calEditing.description,
+          start: calEditing.start,
+          end: calEditing.end,
+          attendees: (calEditing.attendees || []).map(a => a.email).filter(Boolean) as string[],
+          htmlLink: calEditing.htmlLink,
+        } : null}
+        onSave={handleCalSave}
+        onDelete={calEditing ? () => handleCalDelete(calEditing.id) : undefined}
+      />
     </AppLayout>
   );
 }

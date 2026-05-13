@@ -1,42 +1,80 @@
-# Fix: Staffing & Capacity blank screen for Admin
+## Goal
+Enable per-user Google Calendar integration with full 2-way sync using your custom OAuth credentials, so each user can:
+- Connect their own Google account
+- Schedule MBRs from the app and have them appear on their Google Calendar
+- See today's meetings on the Home screen and **create / edit / delete** them right from the app
 
-## What's happening
+## Important: rotate your client secret
+You pasted your OAuth **Client Secret** in chat. Treat it as compromised — please go to Google Cloud Console → Credentials → your OAuth Client → **Reset secret**, and use the new value in step 1 below. Do not paste secrets in chat again.
 
-Admin users land on `/staffing` and see a blank screen (crash). The page mounts three heavy tabs at once for non-BOPM personas (`DealViewTab`, `PeopleViewTab`, `BopmStaffingFlatTable` with `directEdit`), all fed the full unscoped `deals` / `people` / `assignments` arrays. Any unhandled exception in any of those subtrees takes the whole route down to a blank screen because there is no error boundary between `<AppLayout>` and the tab panels.
+---
 
-There are also two latent issues likely contributing:
+## Step 1 — Configure Google OAuth in Lovable Cloud (you, manually)
 
-1. `useStaffingData` swallows load errors in `catch` (only `console.error`) and leaves the page rendering with empty arrays — fine — but if a *partial* response returns malformed rows (e.g. an assignment referencing a missing person/deal), downstream components that key on `people.find(...)!` crash inside React's render and propagate.
-2. `Staffing.tsx` recently grew the `myVsdName` resolution effect that runs even for true admins. Admins don't need it, and a transient profile/staffing_people lookup failure can throw inside the async IIFE (no try/catch).
+The app already uses `lovable.auth.signInWithOAuth("google", …)` with calendar scopes. To switch from Lovable's managed Google credentials to **your own** (so refresh tokens, branding, and Calendar scope grants belong to your project):
 
-## Plan
+1. Open **Cloud → Users → Authentication Settings → Sign In Methods → Google**.
+2. Toggle **Use my own credentials**.
+3. Paste your **Client ID** (`590659768824-...apps.googleusercontent.com`) and the **newly rotated Client Secret**.
+4. Copy the **Callback URL** shown in that panel.
+5. In Google Cloud Console → your OAuth Client → **Authorized redirect URIs**, add:
+   - the Callback URL from step 4
+   - `https://peppercx.lovable.app`
+   - `https://id-preview--f5822717-2a1e-4473-97d8-aefa7ee45cc2.lovable.app`
+   - `http://localhost:5173` (only if you test locally)
+6. In Google Cloud Console → **OAuth consent screen** → Scopes, ensure these are added:
+   - `openid`, `.../auth/userinfo.email`, `.../auth/userinfo.profile`
+   - `https://www.googleapis.com/auth/calendar.events`
+   - `https://www.googleapis.com/auth/calendar.readonly`
+7. Add yourself + key teammates as **Test users** until the consent screen is verified (or submit for verification if you want all users to use it without being on the test list).
 
-### 1. Add an error boundary around the staffing tabs
-Create `src/components/staffing/StaffingErrorBoundary.tsx` (small class component) and wrap the tab panel area in `Staffing.tsx` so a render crash surfaces a "Something went wrong" card with the error message + a Retry button instead of a blank route. This both fixes the symptom and gives us the real stack on screen.
+No code changes needed for this step — the existing `useGoogleCalendar` hook already requests the right scopes and stores `provider_token` in browser storage.
 
-### 2. Harden `Staffing.tsx`
-- Wrap the `myVsdName` async IIFE in `try/catch` so a Supabase hiccup can't leak an unhandled rejection.
-- Skip the whole VSD-name lookup when the user is an actual admin (use `isAdmin`/`isActuallyAdmin` from `useUserRole`) — admins don't need pod scoping for the BOPM filter.
-- Memoize `scopedDeals`, `scopedAssignments`, `activeBopmDeals`, `bopmActiveAssignments`, `scopedPeople` so identity is stable across renders (avoids repeated re-mount of the heavy table on unrelated state changes).
+---
 
-### 3. Defensive guards in the heavy tables
-- In `BopmStaffingFlatTable` (admin's `directEdit` mount): when looking up a person/deal by id from an assignment, fall back to a "missing" placeholder instead of dereferencing `undefined`. Same in `DealViewTab` / `PeopleViewTab` for any `.find(...)!` style access.
-- Filter out assignments whose `personId`/`dealId` no longer exist in the current data set before rendering (the data is async — these can briefly point at deleted rows).
+## Step 2 — Verify MBR scheduling already syncs both ways
 
-### 4. Verify
-- Navigate the preview to `/staffing` as the admin user, screenshot, and read browser console logs to confirm there are no React errors and the three tabs render.
-- Switch tabs (Deal view → People view → Staffing) and confirm no crash and no warnings.
-- Toggle back to a BOPM persona via the Role Switcher and confirm the BOPM path still works.
+Existing behavior (already wired):
+- `MBRInputDrawer` and `ScheduleOnlyDialog` call `syncMbrToCalendar` → creates a Google Calendar event when a date is set, updates it when the date changes, deletes it when cleared. Link is stored in `mbr_calendar_links`.
+- Home screen pulls today's events via `google-calendar-proxy` and shows them in "Today's calendar".
 
-## Files to touch
+I will:
+- Smoke-test scheduling an MBR from `/mbr` and `/deals/:id` once you've completed step 1.
+- Confirm the event appears on the user's Google Calendar and that re-scheduling / clearing date updates / removes it.
 
-- `src/components/staffing/StaffingErrorBoundary.tsx` (new)
-- `src/pages/Staffing.tsx` (wrap tabs, harden VSD effect, memoize derived arrays, skip lookup for admin)
-- `src/components/staffing/BopmStaffingFlatTable.tsx` (defensive lookups, filter orphan assignments) — minimal touch
-- `src/components/staffing/DealViewTab.tsx` and `PeopleViewTab.tsx` — only if step 4 surfaces a crash there
+No code work expected here unless QA reveals a regression.
 
-## Out of scope
+---
 
-- Any data-model or RLS changes.
-- Visual/UX changes to the tabs themselves.
-- Changes to the BOPM-only flow beyond making sure it still works.
+## Step 3 — Add full edit/delete/create to the Home screen "Today's calendar" panel
+
+Today the panel only **reads** events. To make it true 2-way sync UX:
+
+1. **New event** button on the panel header → opens a small dialog (title, start, end, attendees, description) → calls `createEvent` from `useGoogleCalendar` → optimistic refresh of the list.
+2. Each event row gets a **kebab menu** with:
+   - **Edit** → opens the same dialog pre-filled → `updateEvent`
+   - **Delete** → confirm prompt → `deleteEvent`
+   - **Open in Google** → existing `htmlLink`
+3. After any mutation, re-fetch today's window so the list reflects Google's truth (handles attendee response changes, recurring instances, etc.).
+4. Add a lightweight 60s auto-refresh while the Home tab is visible so changes made directly in Google Calendar appear without a manual reload.
+
+---
+
+## Step 4 — Verification
+
+- Connect a fresh Google account → confirm Calendar scopes are requested on the consent screen.
+- Schedule an MBR → check it appears on Google Calendar with the deep link back to the deal.
+- From Home, create a new event, edit it, delete it; verify each change in Google Calendar.
+- Edit an event directly in Google Calendar; verify it shows up in Home within ~60s.
+- Disconnect → confirm read/write actions surface "reconnect" toast and stop firing API calls.
+
+---
+
+## Technical notes (for reference)
+
+- **No new edge functions needed** — `google-calendar-proxy` (list), `google-calendar-create`, `google-calendar-update`, `google-calendar-delete` already exist and proxy to `calendar/v3/calendars/primary/events`.
+- **No DB migration** — `mbr_calendar_links` already exists.
+- **Files I'll touch in step 3:**
+  - `src/pages/Home.tsx` (panel UI, kebab menus, auto-refresh)
+  - `src/components/calendar/EventFormDialog.tsx` *(new)* — shared create/edit dialog
+- Token storage stays in `localStorage` keyed `lovable.gcal.provider_token`. Long-term, if you want server-side refresh tokens (so events can be created without the user being online — e.g. by `mbr-reminders`), we'd add a `user_google_tokens` table and use Google's `refresh_token` grant. Out of scope unless you ask.
