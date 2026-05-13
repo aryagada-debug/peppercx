@@ -19,6 +19,16 @@ const SCOPES = [
   "https://www.googleapis.com/auth/calendar.readonly",
 ].join(" ");
 
+function getCalendarCredentials() {
+  const clientId = GOOGLE_CLIENT_ID.trim();
+  const clientSecret = GOOGLE_CLIENT_SECRET.trim();
+  if (!clientId || !clientSecret) throw new Error("calendar_oauth_not_configured");
+  if (!/^\d+-[a-z0-9_-]+\.apps\.googleusercontent\.com$/i.test(clientId)) {
+    throw new Error("calendar_oauth_invalid_client_id_format");
+  }
+  return { clientId, clientSecret };
+}
+
 type Action = "init" | "callback" | "status" | "disconnect";
 
 function json(body: Record<string, unknown>, status = 200) {
@@ -106,9 +116,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
-      return json({ error: "calendar_oauth_not_configured" }, 500);
-    }
+    const credentials = getCalendarCredentials();
 
     const body = await req.json().catch(() => ({}));
     const action = body.action as Action;
@@ -131,7 +139,7 @@ Deno.serve(async (req) => {
       const redirectTo = parseRedirectTo(body.redirectTo, redirectUri.origin);
       const state = await signState({ userId: user.id, redirectTo, exp: Date.now() + 10 * 60_000 });
       const params = new URLSearchParams({
-        client_id: GOOGLE_CLIENT_ID,
+        client_id: credentials.clientId,
         redirect_uri: redirectUri.toString(),
         response_type: "code",
         scope: SCOPES,
@@ -158,8 +166,8 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       const tokenData = await tokenRequest(new URLSearchParams({
-        client_id: GOOGLE_CLIENT_ID,
-        client_secret: GOOGLE_CLIENT_SECRET,
+        client_id: credentials.clientId,
+        client_secret: credentials.clientSecret,
         code,
         redirect_uri: redirectUri.toString(),
         grant_type: "authorization_code",
