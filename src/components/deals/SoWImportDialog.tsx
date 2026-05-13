@@ -27,6 +27,8 @@ interface Props {
 }
 
 export const SoWImportDialog = ({ open, onOpenChange, dealId, onImport }: Props) => {
+  const { currency } = useCurrency();
+  const sym = CURRENCY_SYMBOL[currency];
   const [step, setStep] = useState<"upload" | "review">("upload");
   const [parsing, setParsing] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -137,7 +139,7 @@ export const SoWImportDialog = ({ open, onOpenChange, dealId, onImport }: Props)
                 <thead className="bg-secondary/40 sticky top-0">
                   <tr className="text-left text-[11px] uppercase tracking-wider text-muted-foreground">
                     <th className="p-2 w-[35%]">Scope</th>
-                    <th className="p-2 w-[110px] text-right">Value (₹)</th>
+                    <th className="p-2 w-[110px] text-right">Value ({sym})</th>
                     <th className="p-2 w-[80px] text-right">Share %</th>
                     <th className="p-2 w-[120px]">Capability</th>
                     <th className="p-2">Teams</th>
