@@ -914,8 +914,28 @@ export default function RGYHealth() {
       rgyPayload[dim.key] = (updatedDeal[dim.key as keyof DealWithRGY] as string) ?? "";
     });
 
+    // Resolve current user for audit fields
+    let updatedById: string | null = null;
+    let updatedByName = "";
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      updatedById = u?.user?.id || null;
+      if (updatedById) {
+        const { data: prof } = await supabase
+          .from("profiles").select("display_name").eq("user_id", updatedById).maybeSingle();
+        updatedByName = (prof as any)?.display_name || u?.user?.email || "";
+      }
+    } catch {}
+    const nowIso = new Date().toISOString();
+
     if (deal.rgy_row_id && deal.rgy_week_start === weekStart) {
-      await supabase.from("deal_rgy_weekly").update({ [dimKey]: persistValue } as any).eq("id", deal.rgy_row_id);
+      await supabase.from("deal_rgy_weekly").update({
+        [dimKey]: persistValue,
+        updated_at: nowIso,
+        updated_by: updatedById,
+        updated_by_name: updatedByName,
+      } as any).eq("id", deal.rgy_row_id);
+      setDeals(prev => prev.map(d => d.id === dealId ? { ...d, rgy_updated_at: nowIso, rgy_updated_by_name: updatedByName } : d));
     } else {
       const { data: inserted } = await supabase.from("deal_rgy_weekly").insert({
         deal_id: dealId,
@@ -925,10 +945,12 @@ export default function RGYHealth() {
         finance_billing: "",
         capability_seo: rgyPayload.seo || "",
         capability_creative: "",
+        updated_by: updatedById,
+        updated_by_name: updatedByName,
       } as any).select("id").single();
 
       if (inserted) {
-        setDeals(prev => prev.map(d => d.id === dealId ? { ...d, rgy_row_id: inserted.id, rgy_week_start: weekStart } : d));
+        setDeals(prev => prev.map(d => d.id === dealId ? { ...d, rgy_row_id: inserted.id, rgy_week_start: weekStart, rgy_updated_at: nowIso, rgy_updated_by_name: updatedByName } : d));
       }
     }
 
