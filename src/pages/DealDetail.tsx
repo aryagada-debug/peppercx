@@ -25,7 +25,7 @@ import { MBRInputDrawer } from "@/components/mbr/MBRInputDrawer";
 import { MBRDetailDialog } from "@/components/mbr/MBRDetailDialog";
 import { ScheduleOnlyDialog } from "@/components/mbr/ScheduleOnlyDialog";
 import { useDealRgyRollup } from "@/hooks/useDealRgyRollup";
-import { computeOverallCustomerScore, getOverallCustomerRGY, RGY_WEIGHTS } from "@/lib/overallCustomerRGY";
+import { computeOverallCustomerScore, getOverallCustomerRGY } from "@/lib/overallCustomerRGY";
 import { AddStaffingMemberDialog } from "@/components/staffing/AddStaffingMemberDialog";
 import { RequestStaffingDialog } from "@/components/staffing/RequestStaffingDialog";
 import { WeeklyStaffingGrid } from "@/components/deals/WeeklyStaffingGrid";
