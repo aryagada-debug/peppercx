@@ -1,6 +1,7 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { formatINR } from "@/lib/csvTargets";
 import { useCurrencyVersion, useCurrency } from "@/contexts/CurrencyContext";
+import { CURRENCY_SYMBOL } from "@/lib/currency";
 import { useParams, Link, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Loader2, Plus, Trash2, Pencil, Check, X, Calendar, Users, Eye, Edit2, ExternalLink, AlertTriangle, ChevronDown, ChevronUp, ChevronRight, Upload, CalendarCheck, Smile, TrendingUp, MessageSquare, Sparkles, RefreshCw, Wallet, Receipt, BadgeCheck, AlertCircle, Activity, IndianRupee } from "lucide-react";
 import { getLinkLabel, getFileIcon } from "@/lib/fileLink";
@@ -279,10 +280,11 @@ function EditableCell({ value, onSave, type = "text", prefix = "", placeholder =
 
 // ── Financial Metric Card ──
 function FinancialMetricCard({ label, value, subLabel, onSave }: { label: string; value: string; subLabel: string; onSave: (v: string) => void }) {
+  const { currency } = useCurrency();
   return (
     <div className="rounded-lg bg-secondary/50 p-4">
       <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">{label}</p>
-      <EditableCell value={value} onSave={onSave} type="number" prefix="₹" placeholder="—" />
+      <EditableCell value={value} onSave={onSave} type="number" prefix={CURRENCY_SYMBOL[currency]} placeholder="—" />
       <p className="text-xs text-muted-foreground mt-0.5">{subLabel}</p>
     </div>
   );
@@ -1561,7 +1563,8 @@ export default function DealDetail() {
   const deal = useMemo(() => deals.find(d => d.id === dealId), [deals, dealId]);
   // Default the display currency to the currency the deal was entered in.
   // Runs once per deal id; user (admin) can still toggle it manually.
-  const { setCurrency } = useCurrency();
+  const { setCurrency, currency } = useCurrency();
+  const currencySymbol = CURRENCY_SYMBOL[currency];
   useEffect(() => {
     if (!deal?.inputCurrency) return;
     setCurrency(deal.inputCurrency);
@@ -1838,19 +1841,19 @@ export default function DealDetail() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <KpiTile
                   label="MRR" icon={IndianRupee} tone="primary" sublabel="Monthly recurring"
-                  editor={<EditableCell value={String(deal.mrr || "")} onSave={v => handleDealFieldSave("mrr", v)} type="number" prefix="₹" placeholder="—" />}
+                  editor={<EditableCell value={String(deal.mrr || "")} onSave={v => handleDealFieldSave("mrr", v)} type="number" prefix={currencySymbol} placeholder="—" />}
                 />
                 <KpiTile
                   label="Total Value" icon={Wallet} tone="primary" sublabel="Contract total"
-                  editor={<EditableCell value={String(deal.totalDealValue || "")} onSave={v => handleDealFieldSave("totalDealValue", v)} type="number" prefix="₹" placeholder="—" />}
+                  editor={<EditableCell value={String(deal.totalDealValue || "")} onSave={v => handleDealFieldSave("totalDealValue", v)} type="number" prefix={currencySymbol} placeholder="—" />}
                 />
                 <KpiTile
                   label="Retainer Value" icon={Receipt} tone="neutral" sublabel="Of total value"
-                  editor={<EditableCell value={String(deal.retainerDealValue || "")} onSave={v => handleDealFieldSave("retainerDealValue", v)} type="number" prefix="₹" placeholder="—" />}
+                  editor={<EditableCell value={String(deal.retainerDealValue || "")} onSave={v => handleDealFieldSave("retainerDealValue", v)} type="number" prefix={currencySymbol} placeholder="—" />}
                 />
                 <KpiTile
                   label="Non-Retainer" icon={Receipt} tone="neutral" sublabel="Non-retainer portion"
-                  editor={<EditableCell value={String(deal.nonRetainerDealValue || "")} onSave={v => handleDealFieldSave("nonRetainerDealValue", v)} type="number" prefix="₹" placeholder="—" />}
+                  editor={<EditableCell value={String(deal.nonRetainerDealValue || "")} onSave={v => handleDealFieldSave("nonRetainerDealValue", v)} type="number" prefix={currencySymbol} placeholder="—" />}
                 />
               </div>
             </div>
@@ -2217,7 +2220,7 @@ export default function DealDetail() {
                 {/* Column headers */}
                 <div className="grid grid-cols-[1fr_120px_200px_80px_32px] items-center px-5 py-2 bg-secondary/40 border-b border-border gap-2">
                   <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Scope</span>
-                  <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground text-right">Value (₹)</span>
+                  <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground text-right">Value ({currencySymbol})</span>
                   <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Teams</span>
                   <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Capability</span>
                   <span />
@@ -2263,7 +2266,7 @@ export default function DealDetail() {
                       <EditableCell value={s.scope} onSave={v => updateSoWItem(s.id, { scope: v })} />
                     </div>
                     <div className="text-right">
-                      <EditableCell value={String(s.lineItemValue || "")} onSave={v => updateSoWItem(s.id, { lineItemValue: Number(v) || 0 })} type="number" prefix="₹" placeholder="—" />
+                      <EditableCell value={String(s.lineItemValue || "")} onSave={v => updateSoWItem(s.id, { lineItemValue: Number(v) || 0 })} type="number" prefix={currencySymbol} placeholder="—" />
                     </div>
                     <div className="flex flex-wrap gap-1">
                       {(s.teams || []).map(team => (
@@ -2404,7 +2407,7 @@ export default function DealDetail() {
                                   <td className="py-2.5 px-4 text-right font-mono tabular-nums text-muted-foreground">{hrs.toFixed(1)}h</td>
                                   {isAdmin && (
                                     <td className="py-2.5 px-4 text-right font-mono tabular-nums">
-                                      <EditableCell value={String(p.hourlyRate || 0)} onSave={v => updatePerson(p.id, { hourlyRate: Number(v) || 0 })} type="number" prefix="₹" />
+                                      <EditableCell value={String(p.hourlyRate || 0)} onSave={v => updatePerson(p.id, { hourlyRate: Number(v) || 0 })} type="number" prefix={currencySymbol} />
                                     </td>
                                   )}
                                   {isAdmin && (

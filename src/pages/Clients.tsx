@@ -1,6 +1,7 @@
 import React from "react";
 import { formatINR } from "@/lib/csvTargets";
 import { useCurrency, useCurrencyVersion } from "@/contexts/CurrencyContext";
+import { CURRENCY_SYMBOL } from "@/lib/currency";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Link } from "react-router-dom";
 import { Search, Plus, Loader2, Trash2, Pencil, Check, X, Building2, Briefcase, Activity, TrendingUp, DollarSign, IndianRupee, Settings2, Paperclip } from "lucide-react";
@@ -999,12 +1000,12 @@ export default function Clients() {
                       )}
                       {isVisible("mrr") && (
                         <td className="py-2 px-3 text-right">
-                          <InlineEditCell value={String(deal.mrr || "")} onSave={v => handleMRRSave(deal.id, v)} type="number" prefix="₹" placeholder="—" />
+                          <InlineEditCell value={String(deal.mrr || "")} onSave={v => handleMRRSave(deal.id, v)} type="number" prefix={CURRENCY_SYMBOL[currency]} placeholder="—" />
                         </td>
                       )}
                       {isVisible("totalDealValue") && (
                         <td className="py-2 px-3 text-right">
-                          <InlineEditCell value={String(deal.totalDealValue || "")} onSave={v => handleTotalRevenueSave(deal.id, v)} type="number" prefix="₹" placeholder="—" />
+                          <InlineEditCell value={String(deal.totalDealValue || "")} onSave={v => handleTotalRevenueSave(deal.id, v)} type="number" prefix={CURRENCY_SYMBOL[currency]} placeholder="—" />
                         </td>
                       )}
                       {isVisible("duration") && (

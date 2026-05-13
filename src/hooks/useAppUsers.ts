@@ -101,12 +101,18 @@ function bindRealtime() {
     supabase.removeChannel(realtimeChannel);
     realtimeChannel = null;
   }
-  const refresh = async () => {
-    const next = await loadUsers();
-    cache = { users: next, ts: Date.now() };
-    subscribers.forEach((s) => s(next));
+  // Coalesce burst writes (people/profiles/roles) into one reload.
+  let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+  const refresh = () => {
+    if (refreshTimer) return;
+    refreshTimer = setTimeout(async () => {
+      refreshTimer = null;
+      const next = await loadUsers();
+      cache = { users: next, ts: Date.now() };
+      subscribers.forEach((s) => s(next));
+    }, 500);
   };
-  const channel = supabase.channel(`app-users-sync-${Date.now()}`);
+  const channel = supabase.channel("app-users-sync");
   channel.on("postgres_changes", { event: "*", schema: "public", table: "staffing_people" }, refresh);
   channel.on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, refresh);
   channel.on("postgres_changes", { event: "*", schema: "public", table: "user_roles" }, refresh);
@@ -322,12 +328,17 @@ function bindHierarchyRealtime() {
     supabase.removeChannel(hierarchyChannel);
     hierarchyChannel = null;
   }
-  const refresh = async () => {
-    const next = await loadHierarchy();
-    hierarchyCache = { data: next, ts: Date.now() };
-    hierarchySubs.forEach((s) => s(next));
+  let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+  const refresh = () => {
+    if (refreshTimer) return;
+    refreshTimer = setTimeout(async () => {
+      refreshTimer = null;
+      const next = await loadHierarchy();
+      hierarchyCache = { data: next, ts: Date.now() };
+      hierarchySubs.forEach((s) => s(next));
+    }, 500);
   };
-  const ch = supabase.channel(`vsd-hierarchy-sync-${Date.now()}`);
+  const ch = supabase.channel("vsd-hierarchy-sync");
   ch.on("postgres_changes", { event: "*", schema: "public", table: "staffing_deals" }, refresh);
   ch.subscribe();
   hierarchyChannel = ch;
@@ -504,12 +515,17 @@ function bindBopmDirRealtime() {
     supabase.removeChannel(bopmDirChannel);
     bopmDirChannel = null;
   }
-  const refresh = async () => {
-    const next = await loadBopmDirectory();
-    bopmDirCache = { data: next, ts: Date.now() };
-    bopmDirSubs.forEach((s) => s(next));
+  let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+  const refresh = () => {
+    if (refreshTimer) return;
+    refreshTimer = setTimeout(async () => {
+      refreshTimer = null;
+      const next = await loadBopmDirectory();
+      bopmDirCache = { data: next, ts: Date.now() };
+      bopmDirSubs.forEach((s) => s(next));
+    }, 500);
   };
-  const ch = supabase.channel(`bopm-directory-sync-${Date.now()}`);
+  const ch = supabase.channel("bopm-directory-sync");
   ch.on("postgres_changes", { event: "*", schema: "public", table: "staffing_people" }, refresh);
   ch.subscribe();
   bopmDirChannel = ch;

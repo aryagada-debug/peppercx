@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { ExternalLink, CheckCircle2, Circle, Save } from "lucide-react";
 import type { MBRDeal, MBREntry, ActionItem } from "@/hooks/useMBRData";
 import { getLinkLabel, getFileIcon } from "@/lib/fileLink";
+import { formatINR } from "@/lib/csvTargets";
 
 interface MBRDetailDialogProps {
   open: boolean;
@@ -182,7 +183,7 @@ export function MBRDetailDialog({ open, onClose, deal, entry, onSave }: MBRDetai
             <InfoRow label="VSD" value={deal.vsd} />
             <InfoRow label="Sr. BOPM" value={deal.seniorBopm} />
             <InfoRow label="BOPM" value={deal.bopm} />
-            <InfoRow label="MRR" value={deal.mrr ? `₹${deal.mrr.toLocaleString("en-IN")}` : "—"} />
+            <InfoRow label="MRR" value={deal.mrr ? formatINR(deal.mrr) : "—"} />
           </div>
 
           {/* AI Summary (read-only) */}
