@@ -113,6 +113,9 @@ export function AddPersonDialog({ open, onOpenChange, people, defaultDepartment,
             <Input list="add-person-managers" value={reportsTo} onChange={e => setReportsTo(e.target.value)} className="h-8" placeholder="Manager name" />
           </Field>
         </div>
+        <p className="text-[11px] text-muted-foreground -mt-1">
+          A login account will be created automatically with password <span className="font-medium text-foreground">Pepper@2026</span> when an email is provided.
+        </p>
         <DialogFooter>
           <button type="button" onClick={() => onOpenChange(false)}
             className="h-8 px-3 rounded-md border border-border text-xs hover:bg-secondary/50">
