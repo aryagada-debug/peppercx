@@ -126,6 +126,8 @@ interface DealWithRGY {
   rgy_issue_details?: string;
   rgy_issue_date?: string | null;
   rgy_created_at?: string | null;
+  rgy_updated_at?: string | null;
+  rgy_updated_by_name?: string | null;
   customer: string;
   internal: string;
   content: string;
@@ -544,6 +546,7 @@ export default function RGYHealth() {
   const { visibleDealIds, loading: accessLoading, isAdmin: hasAllDealAccess } = useDealAccess();
   const isBopmPersona = role === "user";
   const isVsdPersona = role === "member";
+  const isAdminPersona = role === "admin";
   // Resolve the logged-in person's VSD name (only when they ARE a VSD).
   const { user: authUser } = useAuth();
   const [myVsdName, setMyVsdName] = useState<string | null>(null);
@@ -623,6 +626,7 @@ export default function RGYHealth() {
   const DEFAULT_WIDTHS: Record<string, number> = {
     account: 160, deal_name: 200, deal_id: 110, deal_status: 110, overall_rgy: 120,
     customer: 100, internal: 100, content: 100, seo: 90, supply: 100, copy: 90, design: 100, video: 100,
+    updated_at: 140, updated_by: 140,
   };
   const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
     try {
@@ -651,8 +655,14 @@ export default function RGYHealth() {
     { key: "design", label: "Design" },
     { key: "video", label: "Video" },
     { key: "ai_summary", label: "AI Summary" },
-  ]), []);
-  const DEFAULT_VISIBLE = ["account","deal_name","deal_id","deal_status","overall_rgy","customer","internal","content","seo","supply","copy","design","video","ai_summary"];
+    ...(isAdminPersona ? [
+      { key: "updated_at", label: "Last Updated At" },
+      { key: "updated_by", label: "Last Updated By" },
+    ] : []),
+  ]), [isAdminPersona]);
+  const DEFAULT_VISIBLE = isAdminPersona
+    ? ["account","deal_name","deal_id","deal_status","overall_rgy","customer","internal","content","seo","supply","copy","design","video","ai_summary","updated_at","updated_by"]
+    : ["account","deal_name","deal_id","deal_status","overall_rgy","customer","internal","content","seo","supply","copy","design","video","ai_summary"];
   const [visibleCols, setVisibleCols] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem("rgy-visible-cols");
@@ -774,7 +784,7 @@ export default function RGYHealth() {
 
     const rgyPromise = supabase
       .from("deal_rgy_weekly")
-      .select("id, deal_id, customer, internal, content, seo, supply, copy, design, video, week_start, issue_details, issue_status, action_plan, discussed_action_plan, issue_date, created_at")
+      .select("id, deal_id, customer, internal, content, seo, supply, copy, design, video, week_start, issue_details, issue_status, action_plan, discussed_action_plan, issue_date, created_at, updated_at, updated_by_name")
       .gte("week_start", lookbackIso)
       .order("week_start", { ascending: false });
 
@@ -811,6 +821,8 @@ export default function RGYHealth() {
         rgy_issue_details: rgy.issue_details || "",
         rgy_issue_date: rgy.issue_date || null,
         rgy_created_at: rgy.created_at || null,
+        rgy_updated_at: rgy.updated_at || null,
+        rgy_updated_by_name: rgy.updated_by_name || "",
         customer: rgy.customer ?? "",
         internal: rgy.internal ?? "",
         content: rgy.content ?? "",
@@ -902,8 +914,28 @@ export default function RGYHealth() {
       rgyPayload[dim.key] = (updatedDeal[dim.key as keyof DealWithRGY] as string) ?? "";
     });
 
+    // Resolve current user for audit fields
+    let updatedById: string | null = null;
+    let updatedByName = "";
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      updatedById = u?.user?.id || null;
+      if (updatedById) {
+        const { data: prof } = await supabase
+          .from("profiles").select("display_name").eq("user_id", updatedById).maybeSingle();
+        updatedByName = (prof as any)?.display_name || u?.user?.email || "";
+      }
+    } catch {}
+    const nowIso = new Date().toISOString();
+
     if (deal.rgy_row_id && deal.rgy_week_start === weekStart) {
-      await supabase.from("deal_rgy_weekly").update({ [dimKey]: persistValue } as any).eq("id", deal.rgy_row_id);
+      await supabase.from("deal_rgy_weekly").update({
+        [dimKey]: persistValue,
+        updated_at: nowIso,
+        updated_by: updatedById,
+        updated_by_name: updatedByName,
+      } as any).eq("id", deal.rgy_row_id);
+      setDeals(prev => prev.map(d => d.id === dealId ? { ...d, rgy_updated_at: nowIso, rgy_updated_by_name: updatedByName } : d));
     } else {
       const { data: inserted } = await supabase.from("deal_rgy_weekly").insert({
         deal_id: dealId,
@@ -913,10 +945,12 @@ export default function RGYHealth() {
         finance_billing: "",
         capability_seo: rgyPayload.seo || "",
         capability_creative: "",
+        updated_by: updatedById,
+        updated_by_name: updatedByName,
       } as any).select("id").single();
 
       if (inserted) {
-        setDeals(prev => prev.map(d => d.id === dealId ? { ...d, rgy_row_id: inserted.id, rgy_week_start: weekStart } : d));
+        setDeals(prev => prev.map(d => d.id === dealId ? { ...d, rgy_row_id: inserted.id, rgy_week_start: weekStart, rgy_updated_at: nowIso, rgy_updated_by_name: updatedByName } : d));
       }
     }
 
@@ -1471,6 +1505,12 @@ export default function RGYHealth() {
                         {isColVisible("ai_summary") && (
                           <th className="text-left py-2 px-3 font-medium text-muted-foreground text-caption whitespace-nowrap">AI Summary</th>
                         )}
+                        {isAdminPersona && isColVisible("updated_at") && (
+                          <th style={{ width: colWidths.updated_at }} className="text-left py-2 px-3 font-medium text-muted-foreground text-caption whitespace-nowrap">Last Updated At</th>
+                        )}
+                        {isAdminPersona && isColVisible("updated_by") && (
+                          <th style={{ width: colWidths.updated_by }} className="text-left py-2 px-3 font-medium text-muted-foreground text-caption whitespace-nowrap">Last Updated By</th>
+                        )}
                       </tr>
                     </thead>
                     <tbody>
@@ -1618,6 +1658,20 @@ export default function RGYHealth() {
                                 })() : (
                                   <span className="text-xs text-muted-foreground/60">—</span>
                                 )}
+                              </td>
+                            )}
+                            {isAdminPersona && isColVisible("updated_at") && (
+                              <td className="py-2 px-3 text-xs text-muted-foreground whitespace-nowrap">
+                                {deal.rgy_updated_at
+                                  ? format(new Date(deal.rgy_updated_at), "dd MMM yyyy, HH:mm")
+                                  : <span className="text-muted-foreground/60">—</span>}
+                              </td>
+                            )}
+                            {isAdminPersona && isColVisible("updated_by") && (
+                              <td className="py-2 px-3 text-xs text-foreground whitespace-nowrap">
+                                {deal.rgy_updated_by_name
+                                  ? deal.rgy_updated_by_name
+                                  : <span className="text-muted-foreground/60">—</span>}
                               </td>
                             )}
                           </tr>
