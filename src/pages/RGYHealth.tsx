@@ -1124,6 +1124,11 @@ export default function RGYHealth() {
       if (colFilters.deal_name && !matches(d.deal_name, colFilters.deal_name)) return false;
       if (colFilters.deal_id && !matches(d.deal_id, colFilters.deal_id)) return false;
       if (colFilters.deal_status && (d.deal_status || "") !== colFilters.deal_status) return false;
+      if (colFilters.updated_by && !matches(d.rgy_updated_by_name, colFilters.updated_by)) return false;
+      if (colFilters.updated_at) {
+        const formatted = d.rgy_updated_at ? format(new Date(d.rgy_updated_at), "dd MMM yyyy, HH:mm") : "";
+        if (!matches(formatted, colFilters.updated_at)) return false;
+      }
       for (const dim of DIMENSIONS) {
         const f = colFilters[dim.key];
         if (f) {
