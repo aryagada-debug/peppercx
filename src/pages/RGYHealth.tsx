@@ -660,18 +660,19 @@ export default function RGYHealth() {
       { key: "updated_by", label: "Last Updated By" },
     ] : []),
   ]), [isAdminPersona]);
+  // Show every column by default. Admin personas additionally see audit columns.
   const DEFAULT_VISIBLE = isAdminPersona
     ? ["account","deal_name","deal_id","deal_status","overall_rgy","customer","internal","content","seo","supply","copy","design","video","ai_summary","updated_at","updated_by"]
     : ["account","deal_name","deal_id","deal_status","overall_rgy","customer","internal","content","seo","supply","copy","design","video","ai_summary"];
   const [visibleCols, setVisibleCols] = useState<string[]>(() => {
     try {
-      const raw = localStorage.getItem("rgy-visible-cols");
+      const raw = localStorage.getItem("rgy-visible-cols-v2");
       if (raw) return JSON.parse(raw);
     } catch {}
     return DEFAULT_VISIBLE;
   });
   useEffect(() => {
-    try { localStorage.setItem("rgy-visible-cols", JSON.stringify(visibleCols)); } catch {}
+    try { localStorage.setItem("rgy-visible-cols-v2", JSON.stringify(visibleCols)); } catch {}
   }, [visibleCols]);
   const REQUIRED_COL_KEYS = useMemo(() => ALL_COLS.filter(c => c.required).map(c => c.key), [ALL_COLS]);
   const isColVisible = (k: string) => visibleCols.includes(k) || REQUIRED_COL_KEYS.includes(k);
