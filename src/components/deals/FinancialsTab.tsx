@@ -448,7 +448,7 @@ function ActualCell({ value, target, field, rowId, onUpdate, disabled }: {
     >
       <span>{fmtCurrency(value)}</span>
       {target > 0 && (
-        <span className={cn("ml-1.5 inline-block px-1 py-0.5 rounded text-[10px] font-medium align-middle", cs.bg, cs.text)}>
+        <span className={cn("ml-1.5 inline-block px-1.5 py-0.5 rounded-full text-[10px] font-medium align-middle", cs.bg, cs.text)}>
           {att.toFixed(0)}%
         </span>
       )}
@@ -463,7 +463,7 @@ function TotalActualCell({ value, target }: { value: number; target: number }) {
     <td className="py-2.5 px-3 text-right tabular-nums whitespace-nowrap">
       <span>{fmtCurrency(value)}</span>
       {target > 0 && (
-        <span className={cn("ml-1.5 inline-block px-1 py-0.5 rounded text-[10px] font-medium align-middle", cs.bg, cs.text)}>
+        <span className={cn("ml-1.5 inline-block px-1.5 py-0.5 rounded-full text-[10px] font-medium align-middle", cs.bg, cs.text)}>
           {att.toFixed(0)}%
         </span>
       )}
