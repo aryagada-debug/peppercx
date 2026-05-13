@@ -1831,6 +1831,80 @@ export default function RGYHealth() {
             </Dialog>
           );
         })()}
+        {/* KPI strip drill-down dialog */}
+        {kpiDrill && (() => {
+          const rows = filteredDeals
+            .map(d => {
+              const dims: Record<string, string> = {};
+              for (const dim of DIMENSIONS) dims[dim.key] = (d[dim.key as keyof DealWithRGY] as string) || "";
+              const score = computeOverallCustomerScore(dims);
+              const w = getWorstRGY(d);
+              return { deal: d, score, worst: w };
+            })
+            .filter(r => {
+              if (kpiDrill === "score") return true;
+              if (kpiDrill === "red") return r.worst === "R";
+              if (kpiDrill === "yellow") return r.worst === "Y";
+              if (kpiDrill === "green") return r.worst === "G";
+              return false;
+            })
+            .sort((a, b) => {
+              if (kpiDrill === "score") return (b.score ?? -1) - (a.score ?? -1);
+              return a.deal.account.localeCompare(b.deal.account);
+            });
+          const titleMap = { red: "Red Deals", yellow: "Yellow Deals", green: "Green Deals", score: "Overall Health Score" } as const;
+          return (
+            <Dialog open={!!kpiDrill} onOpenChange={(o) => !o && setKpiDrill(null)}>
+              <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="text-base">
+                    {titleMap[kpiDrill]} ({rows.length})
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="border border-border rounded-lg overflow-hidden mt-2">
+                  <table className="w-full text-xs">
+                    <thead className="bg-secondary/40 border-b border-border">
+                      <tr>
+                        <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Account</th>
+                        <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Deal Name</th>
+                        <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Deal ID</th>
+                        <th className="text-right py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Overall Health Score</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map(({ deal, score, worst }) => (
+                        <tr key={deal.id} className="border-b border-border/50 hover:bg-secondary/30">
+                          <td className="py-2 px-3 text-foreground">{deal.account}</td>
+                          <td className="py-2 px-3">
+                            <Link to={`/deals/${deal.id}`} className="text-primary hover:underline" onClick={() => setKpiDrill(null)}>
+                              {deal.deal_name}
+                            </Link>
+                          </td>
+                          <td className="py-2 px-3 font-mono tabular-nums text-muted-foreground">{deal.deal_id || "—"}</td>
+                          <td className="py-2 px-3 text-right">
+                            <span className={cn(
+                              "inline-flex items-center gap-1.5 font-mono tabular-nums",
+                              worst === "R" && "text-destructive",
+                              worst === "Y" && "text-warning",
+                              worst === "G" && "text-positive",
+                            )}>
+                              {worst && <span className={cn("w-2 h-2 rounded-full", worstDotColor[worst])} />}
+                              {score === null ? "—" : score.toFixed(1)}
+                              {worst && <span className="text-[10px] text-muted-foreground">{worst}</span>}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                      {rows.length === 0 && (
+                        <tr><td colSpan={4} className="text-center py-6 text-muted-foreground">No matching deals.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </DialogContent>
+            </Dialog>
+          );
+        })()}
       </div>
     </AppLayout>
   );
