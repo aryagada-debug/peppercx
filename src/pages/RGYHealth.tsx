@@ -546,6 +546,7 @@ export default function RGYHealth() {
   const { visibleDealIds, loading: accessLoading, isAdmin: hasAllDealAccess } = useDealAccess();
   const isBopmPersona = role === "user";
   const isVsdPersona = role === "member";
+  const isAdminPersona = role === "admin";
   // Resolve the logged-in person's VSD name (only when they ARE a VSD).
   const { user: authUser } = useAuth();
   const [myVsdName, setMyVsdName] = useState<string | null>(null);
