@@ -610,6 +610,8 @@ export default function RGYHealth() {
   // Drill-down for RGY Summary numeric cells
   type RGYDrillMetric = "total" | "red" | "yellow" | "green" | "pending";
   const [rgyDrill, setRgyDrill] = useState<{ rowLabel: string; metric: RGYDrillMetric } | null>(null);
+  // KPI strip drill (Red / Yellow / Green / Score)
+  const [kpiDrill, setKpiDrill] = useState<null | "red" | "yellow" | "green" | "score">(null);
   // Column filter/sort state
   const [colFilters, setColFilters] = useState<Record<string, string>>({});
   const [openFilter, setOpenFilter] = useState<string | null>(null);
