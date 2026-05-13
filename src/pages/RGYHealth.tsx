@@ -626,6 +626,7 @@ export default function RGYHealth() {
   const DEFAULT_WIDTHS: Record<string, number> = {
     account: 160, deal_name: 200, deal_id: 110, deal_status: 110, overall_rgy: 120,
     customer: 100, internal: 100, content: 100, seo: 90, supply: 100, copy: 90, design: 100, video: 100,
+    updated_at: 140, updated_by: 140,
   };
   const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
     try {
@@ -654,8 +655,14 @@ export default function RGYHealth() {
     { key: "design", label: "Design" },
     { key: "video", label: "Video" },
     { key: "ai_summary", label: "AI Summary" },
-  ]), []);
-  const DEFAULT_VISIBLE = ["account","deal_name","deal_id","deal_status","overall_rgy","customer","internal","content","seo","supply","copy","design","video","ai_summary"];
+    ...(isAdminPersona ? [
+      { key: "updated_at", label: "Last Updated At" },
+      { key: "updated_by", label: "Last Updated By" },
+    ] : []),
+  ]), [isAdminPersona]);
+  const DEFAULT_VISIBLE = isAdminPersona
+    ? ["account","deal_name","deal_id","deal_status","overall_rgy","customer","internal","content","seo","supply","copy","design","video","ai_summary","updated_at","updated_by"]
+    : ["account","deal_name","deal_id","deal_status","overall_rgy","customer","internal","content","seo","supply","copy","design","video","ai_summary"];
   const [visibleCols, setVisibleCols] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem("rgy-visible-cols");
