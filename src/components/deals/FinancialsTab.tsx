@@ -309,7 +309,13 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-[#D3D1C7]">
-                {["Month", "Contracted", "Contraction", "Att%", "Planned GM%", "Actual GM%", "Invoiced", "Received", "Outstanding"].map((h, i) => (
+                {[
+                  "Month",
+                  "Target Contraction", "Actual Contraction",
+                  "Target Delivery", "Actual Delivery",
+                  "Target Invoiced", "Actual Invoiced",
+                  "Target Received", "Actual Received",
+                ].map((h, i) => (
                   <th key={h} className={cn("py-2.5 px-3 font-medium text-muted-foreground whitespace-nowrap", i === 0 ? "text-left" : "text-right")}>{h}</th>
                 ))}
               </tr>
@@ -324,45 +330,36 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
               ) : (
                 <>
                   {rows.map((row, idx) => {
-                    const att = row.contracted > 0 ? (row.consumption / row.contracted) * 100 : 0;
-                    const ac = attColor(att);
-                    const cs = colorStyles[ac];
+                    const cTarget = row.contractionTarget ?? row.contracted;
+                    const dTarget = row.deliveryTarget ?? 0;
+                    const dActual = row.deliveryActual ?? 0;
+                    const iTarget = row.invoicingTarget ?? 0;
+                    const rTarget = row.receivablesTarget ?? 0;
                     return (
                       <tr key={row.id} className={cn("group", idx < rows.length - 1 && "border-b border-[#D3D1C7]/50")}>
                         <td className="py-2.5 px-3 font-medium text-muted-foreground">{fmtMonth(row.month)}</td>
-                        <EditableTableCell value={row.contracted} field="contracted" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
-                        <EditableTableCell value={row.consumption} field="consumption" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
-                        <td className="py-2.5 px-3 text-right">
-                          <span className={cn("inline-block px-1.5 py-0.5 rounded text-[11px] font-medium", cs.bg, cs.text)}>
-                            {att.toFixed(0)}%
-                          </span>
-                        </td>
-                        <EditableTableCell value={row.plannedGmPct} field="plannedGmPct" rowId={row.id} onUpdate={onUpdate} format="percent" suffix="%" disabled={!canEdit} />
-                        <EditableTableCell value={row.actualGmPct} field="actualGmPct" rowId={row.id} onUpdate={onUpdate} format="percent" suffix="%" disabled={!canEdit} />
-                        <EditableTableCell value={row.invoiced} field="invoiced" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
-                        <EditableTableCell value={row.received} field="received" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
-                        <td className={cn("py-2.5 px-3 text-right tabular-nums", row.outstanding > 0 && "text-[#791F1F]")}>{fmtCurrency(row.outstanding)}</td>
+                        <EditableTableCell value={cTarget} field="contractionTarget" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
+                        <ActualCell value={row.consumption} target={cTarget} field="consumption" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
+                        <EditableTableCell value={dTarget} field="deliveryTarget" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
+                        <ActualCell value={dActual} target={dTarget} field="deliveryActual" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
+                        <EditableTableCell value={iTarget} field="invoicingTarget" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
+                        <ActualCell value={row.invoiced} target={iTarget} field="invoiced" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
+                        <EditableTableCell value={rTarget} field="receivablesTarget" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
+                        <ActualCell value={row.received} target={rTarget} field="received" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
                       </tr>
                     );
                   })}
                   {/* Totals row */}
                   <tr className="bg-[#F1EFE8] font-medium border-t border-[#D3D1C7]">
                     <td className="py-2.5 px-3">Total</td>
-                    <td className="py-2.5 px-3 text-right tabular-nums">{fmtCurrency(totals.contracted)}</td>
-                    <td className="py-2.5 px-3 text-right tabular-nums">{fmtCurrency(totals.consumption)}</td>
-                    <td className="py-2.5 px-3 text-right">
-                      {(() => {
-                        const att = totals.contracted > 0 ? (totals.consumption / totals.contracted) * 100 : 0;
-                        const ac = attColor(att);
-                        const cs = colorStyles[ac];
-                        return <span className={cn("inline-block px-1.5 py-0.5 rounded text-[11px]", cs.bg, cs.text)}>{att.toFixed(0)}%</span>;
-                      })()}
-                    </td>
-                    <td className="py-2.5 px-3 text-right">—</td>
-                    <td className="py-2.5 px-3 text-right">—</td>
-                    <td className="py-2.5 px-3 text-right tabular-nums">{fmtCurrency(totals.invoiced)}</td>
-                    <td className="py-2.5 px-3 text-right tabular-nums">{fmtCurrency(totals.received)}</td>
-                    <td className={cn("py-2.5 px-3 text-right tabular-nums", totals.outstanding > 0 && "text-[#791F1F]")}>{fmtCurrency(totals.outstanding)}</td>
+                    <td className="py-2.5 px-3 text-right tabular-nums">{fmtCurrency(totals.contractionTarget)}</td>
+                    <TotalActualCell value={totals.consumption} target={totals.contractionTarget} />
+                    <td className="py-2.5 px-3 text-right tabular-nums">{fmtCurrency(totals.deliveryTarget)}</td>
+                    <TotalActualCell value={totals.deliveryActual} target={totals.deliveryTarget} />
+                    <td className="py-2.5 px-3 text-right tabular-nums">{fmtCurrency(totals.invoicingTarget)}</td>
+                    <TotalActualCell value={totals.invoiced} target={totals.invoicingTarget} />
+                    <td className="py-2.5 px-3 text-right tabular-nums">{fmtCurrency(totals.receivablesTarget)}</td>
+                    <TotalActualCell value={totals.received} target={totals.receivablesTarget} />
                   </tr>
                 </>
               )}
@@ -405,6 +402,68 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
 
 // ── Pipeline Health Card ──
 function PipelineCard({ title, att, value, target, status }: { title: string; att: number; value: number; target: number; status: string }) {
+  return PipelineCardImpl({ title, att, value, target, status });
+}
+
+function ActualCell({ value, target, field, rowId, onUpdate, disabled }: {
+  value: number; target: number; field: string; rowId: string;
+  onUpdate: (id: string, updates: Partial<FinancialRow>) => void;
+  disabled?: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [localVal, setLocalVal] = useState(String(value));
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (editing) { setLocalVal(String(value)); setTimeout(() => inputRef.current?.select(), 0); } }, [editing, value]);
+  const commit = () => {
+    setEditing(false);
+    const num = Number(localVal);
+    if (!isNaN(num) && num !== value) onUpdate(rowId, { [field]: num } as Partial<FinancialRow>);
+  };
+  const att = target > 0 ? (value / target) * 100 : 0;
+  const cs = colorStyles[attColor(att)];
+  if (editing && !disabled) {
+    return (
+      <td className="py-1 px-1.5 text-right">
+        <input
+          ref={inputRef} type="number" value={localVal}
+          onChange={e => setLocalVal(e.target.value)} onBlur={commit}
+          onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
+          className="w-20 h-7 rounded border border-[#534AB7] bg-white px-1.5 text-right text-xs tabular-nums outline-none focus:ring-1 focus:ring-[#534AB7]"
+        />
+      </td>
+    );
+  }
+  return (
+    <td
+      className={cn("py-2.5 px-3 text-right tabular-nums whitespace-nowrap", disabled ? "cursor-default" : "cursor-pointer hover:bg-[#F1EFE8]/60 transition-colors")}
+      onClick={() => { if (!disabled) setEditing(true); }}
+    >
+      <span>{fmtCurrency(value)}</span>
+      {target > 0 && (
+        <span className={cn("ml-1.5 inline-block px-1 py-0.5 rounded text-[10px] font-medium align-middle", cs.bg, cs.text)}>
+          {att.toFixed(0)}%
+        </span>
+      )}
+    </td>
+  );
+}
+
+function TotalActualCell({ value, target }: { value: number; target: number }) {
+  const att = target > 0 ? (value / target) * 100 : 0;
+  const cs = colorStyles[attColor(att)];
+  return (
+    <td className="py-2.5 px-3 text-right tabular-nums whitespace-nowrap">
+      <span>{fmtCurrency(value)}</span>
+      {target > 0 && (
+        <span className={cn("ml-1.5 inline-block px-1 py-0.5 rounded text-[10px] font-medium align-middle", cs.bg, cs.text)}>
+          {att.toFixed(0)}%
+        </span>
+      )}
+    </td>
+  );
+}
+
+function PipelineCardImpl({ title, att, value, target, status }: { title: string; att: number; value: number; target: number; status: string }) {
   const ac = attColor(att);
   const cs = colorStyles[ac];
   return (
