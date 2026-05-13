@@ -81,12 +81,13 @@ const colorStyles = {
 };
 
 // ── Editable Table Cell ──
-function EditableTableCell({ value, field, rowId, onUpdate, format = "currency", suffix = "", disabled = false }: {
+function EditableTableCell({ value, field, rowId, onUpdate, format = "currency", suffix = "", disabled = false, groupStart = false }: {
   value: number; field: string; rowId: string;
   onUpdate: (id: string, updates: Partial<FinancialRow>) => void;
   format?: "currency" | "percent";
   suffix?: string;
   disabled?: boolean;
+  groupStart?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [localVal, setLocalVal] = useState(String(value));
@@ -112,7 +113,7 @@ function EditableTableCell({ value, field, rowId, onUpdate, format = "currency",
 
   if (editing && !disabled) {
     return (
-      <td className="py-1 px-1.5 text-right">
+      <td className={cn("py-1 px-1.5 text-right", groupStart && "border-l border-[#D3D1C7]")}>
         <input
           ref={inputRef}
           type="number"
@@ -130,7 +131,8 @@ function EditableTableCell({ value, field, rowId, onUpdate, format = "currency",
     <td
       className={cn(
         "py-2.5 px-3 text-right tabular-nums relative",
-        disabled ? "cursor-default" : "cursor-pointer hover:bg-[#F1EFE8]/60 transition-colors"
+        disabled ? "cursor-default" : "cursor-pointer hover:bg-[#F1EFE8]/60 transition-colors",
+        groupStart && "border-l border-[#D3D1C7]"
       )}
       onClick={() => { if (!disabled) setEditing(true); }}
     >
