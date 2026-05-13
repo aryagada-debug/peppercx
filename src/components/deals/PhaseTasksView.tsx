@@ -1095,8 +1095,10 @@ export function PhaseTasksView({ tasks, dealId, deal, assignees, onAdd, onAddBul
     phaseTasks.forEach(t => {
       if (t.phase && present.has(t.phase)) { ordered.push(t.phase); present.delete(t.phase); }
     });
+    // Append user-added custom phases that don't yet have any tasks.
+    customPhases.forEach(p => { if (!ordered.includes(p)) ordered.push(p); });
     return ordered;
-  }, [phaseTasks]);
+  }, [phaseTasks, customPhases]);
 
   // Phase deletion confirmation state
   const [deletePhaseName, setDeletePhaseName] = useState<string | null>(null);
