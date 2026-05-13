@@ -1,9 +1,9 @@
 import React from "react";
 import { formatINR } from "@/lib/csvTargets";
-import { useCurrencyVersion } from "@/contexts/CurrencyContext";
+import { useCurrency, useCurrencyVersion } from "@/contexts/CurrencyContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Link } from "react-router-dom";
-import { Search, Plus, Loader2, Trash2, Pencil, Check, X, Building2, Briefcase, Activity, TrendingUp, DollarSign, Settings2, Paperclip } from "lucide-react";
+import { Search, Plus, Loader2, Trash2, Pencil, Check, X, Building2, Briefcase, Activity, TrendingUp, DollarSign, IndianRupee, Settings2, Paperclip } from "lucide-react";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useStaffingData } from "@/hooks/useStaffingData";
 import { useClients } from "@/hooks/useClients";
@@ -113,6 +113,8 @@ function InlineEditCell({ value, onSave, type = "text", prefix = "", placeholder
 
 export default function Clients() {
   useCurrencyVersion();
+  const { currency } = useCurrency();
+  const ValueIcon = currency === "USD" ? DollarSign : IndianRupee;
   const { deals: allDeals, people, assignments, loading: staffLoading, refresh: refreshStaffing, updateDeal, addAssignment, updateAssignment, deleteAssignment } = useStaffingData();
   const { clients: allClients, loading: clientsLoading, addClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
   const access = useDealAccess();
@@ -682,7 +684,7 @@ export default function Clients() {
             },
             {
               key: "value",
-              label: "Total Value", value: fmtCurrency(kpis.totalValue), Icon: DollarSign, tint: "rose",
+              label: "Total Value", value: fmtCurrency(kpis.totalValue), Icon: ValueIcon, tint: "rose",
               insight: kpis.topDealLabel,
               tone: "muted" as const,
             },

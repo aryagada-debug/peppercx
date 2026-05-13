@@ -24,6 +24,7 @@ import { MBRInputDrawer } from "@/components/mbr/MBRInputDrawer";
 import { MBRDetailDialog } from "@/components/mbr/MBRDetailDialog";
 import { ScheduleOnlyDialog } from "@/components/mbr/ScheduleOnlyDialog";
 import { useDealRgyRollup } from "@/hooks/useDealRgyRollup";
+import { computeOverallCustomerScore, getOverallCustomerRGY, RGY_WEIGHTS } from "@/lib/overallCustomerRGY";
 import { AddStaffingMemberDialog } from "@/components/staffing/AddStaffingMemberDialog";
 import { RequestStaffingDialog } from "@/components/staffing/RequestStaffingDialog";
 import { WeeklyStaffingGrid } from "@/components/deals/WeeklyStaffingGrid";
@@ -566,10 +567,11 @@ function KpiTile({
 }
 
 
-function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry, deleteMBREntry, quickUpdateMBRField }: {
+function DealMBRTab({ deal, dealId, mbrEntries, currentRGY, upsertMBREntry, deleteMBREntry, quickUpdateMBRField }: {
   deal: any;
   dealId: string;
   mbrEntries: MBREntry[];
+  currentRGY: RGYWeekly | undefined;
   upsertMBREntry: (params: any, weekStart: string) => Promise<void>;
   deleteMBREntry: (id: string) => Promise<void>;
   quickUpdateMBRField: (entryId: string, field: string, value: any) => Promise<void>;
@@ -905,6 +907,88 @@ function DealMBRTab({ deal, dealId, mbrEntries, upsertMBREntry, deleteMBREntry, 
           </Button>
         </div>
       </div>
+
+      {/* Overall RGY — comprehensive weighted score breakdown */}
+      {(() => {
+        const dims = currentRGY ? {
+          customer: currentRGY.customer,
+          internal: currentRGY.internal,
+          content: currentRGY.content,
+          seo: currentRGY.seo,
+          supply: currentRGY.supply,
+          copy: currentRGY.copy,
+          design: currentRGY.design,
+          video: currentRGY.video,
+        } : {};
+        const score = computeOverallCustomerScore(dims);
+        const band = getOverallCustomerRGY(dims);
+        const bandLabel = band === "R" ? "Red" : band === "Y" ? "Yellow" : band === "G" ? "Green" : "Pending";
+        const bandClass =
+          band === "R" ? "bg-destructive/15 text-destructive border-destructive/30"
+          : band === "Y" ? "bg-warning/15 text-warning border-warning/30"
+          : band === "G" ? "bg-positive/15 text-positive border-positive/30"
+          : "bg-muted text-muted-foreground border-border";
+        const breakdown: { key: string; label: string }[] = [
+          { key: "customer", label: "Overall Customer" },
+          { key: "internal", label: "Internal" },
+          { key: "content", label: "Content" },
+          { key: "seo", label: "SEO" },
+          { key: "supply", label: "Supply" },
+          { key: "copy", label: "Copy" },
+          { key: "design", label: "Design" },
+          { key: "video", label: "Video" },
+        ];
+        const dimColor = (v: string | null | undefined) =>
+          v === "R" ? "bg-destructive text-destructive-foreground"
+          : v === "Y" ? "bg-warning text-warning-foreground"
+          : v === "G" ? "bg-positive text-positive-foreground"
+          : "bg-muted text-muted-foreground";
+        const totalWeight = breakdown.reduce((s, b) => s + (RGY_WEIGHTS[b.key] || 0), 0);
+        return (
+          <div className="rounded-xl border border-border bg-card p-4">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Overall RGY</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Weighted health rollup across 8 dimensions. Customer 50% · Internal 10% · Capability 5% each.
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Score</p>
+                  <p className="text-2xl font-bold font-mono tabular-nums leading-none">
+                    {score === null ? "—" : Math.round(score)}
+                    <span className="text-xs text-muted-foreground font-normal">/100</span>
+                  </p>
+                </div>
+                <Badge variant="outline" className={cn("text-sm px-3 py-1.5", bandClass)}>
+                  {bandLabel}
+                </Badge>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {breakdown.map(b => {
+                const v = (dims as any)[b.key];
+                const w = RGY_WEIGHTS[b.key] || 0;
+                return (
+                  <div key={b.key} className="flex items-center gap-2 rounded-md border border-border/60 bg-secondary/30 px-2 py-1.5">
+                    <span className={cn("inline-flex items-center justify-center w-6 h-6 rounded-md text-[11px] font-semibold", dimColor(v))}>
+                      {v && v !== "NA" ? v : "—"}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium text-foreground truncate">{b.label}</p>
+                      <p className="text-[10px] text-muted-foreground">Weight {Math.round((w / totalWeight) * 100)}%</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {!currentRGY && (
+              <p className="text-[11px] text-muted-foreground mt-2">No RGY recorded yet — set status in the RGY Health tab.</p>
+            )}
+          </div>
+        );
+      })()}
 
       {sorted.length > 0 ? (
         <div className="bg-card border border-border rounded-xl overflow-hidden">
@@ -2714,6 +2798,7 @@ export default function DealDetail() {
             deal={deal}
             dealId={dealId!}
             mbrEntries={mbrEntries}
+            currentRGY={currentRGY}
             upsertMBREntry={upsertMBREntry}
             deleteMBREntry={deleteMBREntry}
             quickUpdateMBRField={quickUpdateMBRField}
