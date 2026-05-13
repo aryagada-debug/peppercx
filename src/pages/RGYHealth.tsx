@@ -1254,10 +1254,10 @@ export default function RGYHealth() {
 
         {/* KPI Strip */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-          <KpiTile label="Red" value={String(kpis.red)} tone="destructive" icon={AlertTriangle} />
-          <KpiTile label="Yellow" value={String(kpis.yellow)} tone="warning" icon={AlertCircle} />
-          <KpiTile label="Green" value={String(kpis.green)} tone="positive" icon={CheckCircle2} />
-          <KpiTile label="Score" value={String(kpis.score)} suffix="/ 100" tone="primary" icon={Activity} />
+          <KpiTile label="Red" value={String(kpis.red)} tone="destructive" icon={AlertTriangle} onClick={() => setKpiDrill("red")} />
+          <KpiTile label="Yellow" value={String(kpis.yellow)} tone="warning" icon={AlertCircle} onClick={() => setKpiDrill("yellow")} />
+          <KpiTile label="Green" value={String(kpis.green)} tone="positive" icon={CheckCircle2} onClick={() => setKpiDrill("green")} />
+          <KpiTile label="Score" value={String(kpis.score)} suffix="/ 100" tone="primary" icon={Activity} onClick={() => setKpiDrill("score")} />
         </div>
 
         {/* Tabs: Health Board / Table / Insights */}
