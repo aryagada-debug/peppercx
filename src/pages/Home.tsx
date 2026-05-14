@@ -31,6 +31,8 @@ import { TaskFormDialog } from "@/components/deals/TaskFormDialog";
 import { useGoogleCalendar, type GCalEvent } from "@/hooks/useGoogleCalendar";
 import { CalendarConnectButton } from "@/components/calendar/CalendarConnectButton";
 import { EventFormDialog, type EventFormValue } from "@/components/calendar/EventFormDialog";
+import { FullCalendarDialog } from "@/components/calendar/FullCalendarDialog";
+import { Maximize2 } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
 import { TaskKanban, type DealTask } from "@/components/deals/TaskKanban";
 import { SlackHomeBubble } from "@/components/slack/SlackHomeBubble";
@@ -170,6 +172,7 @@ export default function HomePage() {
   const [calEvents, setCalEvents] = useState<GCalEvent[]>([]);
   const [calEditing, setCalEditing] = useState<GCalEvent | null>(null);
   const [calCreating, setCalCreating] = useState(false);
+  const [calFullscreen, setCalFullscreen] = useState(false);
   const [now, setNow] = useState(new Date());
   useEffect(() => {
     const int = setInterval(() => setNow(new Date()), 30000);
@@ -1311,6 +1314,9 @@ export default function HomePage() {
                     <Plus className="h-3.5 w-3.5" /> New
                   </Button>
                 )}
+                <Button size="sm" variant="outline" className="h-7 gap-1" onClick={() => setCalFullscreen(true)} title="Open full calendar">
+                  <Maximize2 className="h-3.5 w-3.5" />
+                </Button>
                 <CalendarConnectButton />
               </div>
             </CardHeader>
