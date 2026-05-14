@@ -1458,7 +1458,10 @@ export function BopmStaffingFlatTable({
                               <button
                                 type="button"
                                 onClick={() => setQuickAdd({ dealId: d.id, roleKey: rk, category: cat })}
-                                className="w-full flex items-center justify-between gap-1 px-1.5 py-1 text-[10.5px] italic rounded-md border border-dashed text-muted-foreground border-border/50 hover:text-foreground hover:border-border hover:bg-secondary/40 transition-colors"
+                                className={cn(
+                                  "w-full flex items-center justify-between gap-1 px-1.5 py-1 text-[10.5px] rounded-md border border-dashed transition-colors",
+                                  s.add
+                                )}
                               >
                                 <span className="truncate">+ Add {ROLE_LABEL(rk)}</span>
                               </button>
@@ -1534,10 +1537,10 @@ export function BopmStaffingFlatTable({
                               deals={deals}
                               disabled={pickerTotal === 0}
                               triggerClassName={cn(
-                                "w-full flex items-center justify-between gap-1 px-1.5 py-1 text-[10.5px] italic rounded-md border border-dashed transition-colors",
+                                "w-full flex items-center justify-between gap-1 px-1.5 py-1 text-[10.5px] rounded-md border border-dashed transition-colors",
                                 pickerTotal === 0
                                   ? "text-muted-foreground/50 border-border/30 cursor-not-allowed"
-                                  : "text-muted-foreground border-border/50 hover:text-foreground hover:border-border hover:bg-secondary/40"
+                                  : s.add
                               )}
                               triggerLabel={
                                 pickerTotal === 0
