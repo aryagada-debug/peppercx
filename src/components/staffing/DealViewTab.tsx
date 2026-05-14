@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import type { Deal, StaffingAssignment, Person } from "@/data/staffingData";
 import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
-import { useAllPersonNames } from "@/hooks/useAppUsers";
+import { useAllPersonNames, VSD_NAMES, useVsdHierarchy } from "@/hooks/useAppUsers";
 
 const STAFFING_BUCKETS = ["Already Staffed", "No Staffing Needed", "Staffing Needed"] as const;
 type StaffingBucket = typeof STAFFING_BUCKETS[number];
@@ -85,10 +85,11 @@ export function DealViewTab({ deals, people, assignments, onUpdateDeal, bopmFilt
   const [dealStatus, setDealStatus] = useState<typeof DEAL_STATUS_OPTIONS[number]>("Active Deal");
   const [vsdFilter, setVsdFilter] = useState<string>(ALL);
   const [bopmFilter, setBopmFilter] = useState<string>(ALL);
-  const [expandedVsd, setExpandedVsd] = useState<Set<string>>(new Set());
+  const [expandedGroup, setExpandedGroup] = useState<Set<string>>(new Set());
   const [expandedDeal, setExpandedDeal] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const allPersonNames = useAllPersonNames();
+  const { vsdForDeal, bopmsForVsd } = useVsdHierarchy();
 
   const personMap = useMemo(() => {
     const m: Record<string, Person> = {};
@@ -108,8 +109,12 @@ export function DealViewTab({ deals, people, assignments, onUpdateDeal, bopmFilt
       if (dealType !== ALL && d.dealType !== dealType) return false;
       if (dealStatus !== ALL && d.dealStatus !== dealStatus) return false;
       if (vsdFilter !== ALL) {
-        const v = d.vsd?.trim() || "Yet to be assigned";
-        if (v !== vsdFilter) return false;
+        const resolved = vsdForDeal(d as any);
+        if (vsdFilter === "Yet to be assigned") {
+          if (resolved) return false;
+        } else if (resolved !== vsdFilter) {
+          return false;
+        }
       }
       if (bopmFilter !== ALL && !dealMatchesBopm(d as any, bopmFilter, allPersonNames)) return false;
       if (search) {
@@ -120,17 +125,12 @@ export function DealViewTab({ deals, people, assignments, onUpdateDeal, bopmFilt
       }
       return true;
     });
-  }, [deals, dealType, dealStatus, vsdFilter, bopmFilter, search, allPersonNames]);
+  }, [deals, dealType, dealStatus, vsdFilter, bopmFilter, search, allPersonNames, vsdForDeal]);
 
+  // Only the 5 canonical VSDs (plus "Yet to be assigned" bucket).
   const vsdOptions = useMemo(() => {
-    const set = new Set<string>();
-    deals.forEach(d => set.add(d.vsd?.trim() || "Yet to be assigned"));
-    return [ALL, ...Array.from(set).sort((a, b) => {
-      if (a === "Yet to be assigned") return 1;
-      if (b === "Yet to be assigned") return -1;
-      return a.localeCompare(b);
-    })];
-  }, [deals]);
+    return [ALL, ...[...VSD_NAMES].sort((a, b) => a.localeCompare(b)), "Yet to be assigned"];
+  }, []);
 
   // Compute deal bucket — prefer explicit staffingStatus, fall back to assignments presence
   const dealBucket = (d: Deal): StaffingBucket => {
@@ -138,32 +138,66 @@ export function DealViewTab({ deals, people, assignments, onUpdateDeal, bopmFilt
     return dealIdsWithAssignments.has(d.id) ? "Already Staffed" : "Staffing Needed";
   };
 
-  // Group by VSD
-  const vsdGroups = useMemo(() => {
+  // Decide grouping mode based on filter selection.
+  // - BOPM selected → flat list of that BOPM's deals (auto-expanded).
+  // - VSD selected (not ALL/Yet to be assigned) → group by BOPM under that VSD.
+  // - Otherwise → group by VSD (5 canonical VSDs + Unassigned).
+  const groupMode: "vsd" | "bopm" | "deals" =
+    bopmFilter !== ALL ? "deals"
+      : (vsdFilter !== ALL && vsdFilter !== "Yet to be assigned") ? "bopm"
+      : "vsd";
+  const groupLabel = groupMode === "bopm" ? "BOPM" : "VSD";
+
+  const groupedRows = useMemo(() => {
+    if (groupMode === "deals") {
+      return [{ key: bopmFilter, label: bopmFilter, deals: filteredDeals }];
+    }
+    if (groupMode === "bopm") {
+      const pod = bopmsForVsd(vsdFilter);
+      const map = new Map<string, Deal[]>();
+      pod.forEach(name => map.set(name, []));
+      const unassigned: Deal[] = [];
+      filteredDeals.forEach(d => {
+        const matched = pod.find(name => dealMatchesBopm(d as any, name, allPersonNames));
+        if (matched) map.get(matched)!.push(d);
+        else unassigned.push(d);
+      });
+      const rows = pod
+        .map(name => ({ key: name, label: name, deals: map.get(name) || [] }))
+        .filter(r => r.deals.length > 0);
+      if (unassigned.length) rows.push({ key: "__unassigned__", label: "Unassigned", deals: unassigned });
+      return rows;
+    }
+    // VSD mode
     const map = new Map<string, Deal[]>();
+    VSD_NAMES.forEach(v => map.set(v, []));
+    map.set("Yet to be assigned", []);
     filteredDeals.forEach(d => {
-      const v = d.vsd?.trim() || "Yet to be assigned";
+      const v = vsdForDeal(d as any) || "Yet to be assigned";
       if (!map.has(v)) map.set(v, []);
       map.get(v)!.push(d);
     });
-    return Array.from(map.entries()).sort((a, b) => {
-      if (a[0] === "Yet to be assigned") return 1;
-      if (b[0] === "Yet to be assigned") return -1;
-      return a[0].localeCompare(b[0]);
-    });
-  }, [filteredDeals]);
+    return Array.from(map.entries())
+      .filter(([, list]) => list.length > 0)
+      .sort(([a], [b]) => {
+        if (a === "Yet to be assigned") return 1;
+        if (b === "Yet to be assigned") return -1;
+        return a.localeCompare(b);
+      })
+      .map(([k, list]) => ({ key: k, label: k, deals: list }));
+  }, [groupMode, filteredDeals, vsdFilter, bopmFilter, bopmsForVsd, allPersonNames, vsdForDeal]);
 
   const rows = useMemo(() => {
-    return vsdGroups.map(([vsd, list]) => {
+    return groupedRows.map(({ key, label, deals: list }) => {
       const counts: Record<StaffingBucket, number> = {
         "Already Staffed": 0,
         "No Staffing Needed": 0,
         "Staffing Needed": 0,
       };
       list.forEach(d => { counts[dealBucket(d)]++; });
-      return { vsd, deals: list, counts, total: list.length };
+      return { key, label, deals: list, counts, total: list.length };
     });
-  }, [vsdGroups, dealIdsWithAssignments]);
+  }, [groupedRows, dealIdsWithAssignments]);
 
   const totals = useMemo(() => {
     const t: Record<StaffingBucket, number> = { "Already Staffed": 0, "No Staffing Needed": 0, "Staffing Needed": 0 };
@@ -175,10 +209,10 @@ export function DealViewTab({ deals, people, assignments, onUpdateDeal, bopmFilt
     return { counts: t, total };
   }, [rows]);
 
-  const toggle = (vsd: string) => {
-    setExpandedVsd(prev => {
+  const toggle = (key: string) => {
+    setExpandedGroup(prev => {
       const next = new Set(prev);
-      if (next.has(vsd)) next.delete(vsd); else next.add(vsd);
+      if (next.has(key)) next.delete(key); else next.add(key);
       return next;
     });
   };
@@ -258,7 +292,7 @@ export function DealViewTab({ deals, people, assignments, onUpdateDeal, bopmFilt
         <table className="w-full text-ui">
           <thead>
             <tr className="border-b border-border bg-secondary/30">
-              <th className="text-left py-3 px-4 text-caption font-medium text-muted-foreground uppercase tracking-wider">VSD</th>
+              <th className="text-left py-3 px-4 text-caption font-medium text-muted-foreground uppercase tracking-wider">{groupLabel}</th>
               {STAFFING_BUCKETS.map(b => (
                 <th key={b} className={cn(
                   "text-center py-3 px-4 text-caption font-medium uppercase tracking-wider",
@@ -270,14 +304,15 @@ export function DealViewTab({ deals, people, assignments, onUpdateDeal, bopmFilt
           </thead>
           <tbody>
             {rows.map(r => {
-              const isExp = expandedVsd.has(r.vsd);
+              const isExp = groupMode === "deals" ? true : expandedGroup.has(r.key);
               return (
-                <React.Fragment key={r.vsd}>
-                  <tr className="border-b border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer" onClick={() => toggle(r.vsd)}>
+                <React.Fragment key={r.key}>
+                  {groupMode !== "deals" && (
+                  <tr className="border-b border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer" onClick={() => toggle(r.key)}>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
                         {isExp ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
-                        <span className={cn("text-foreground", r.vsd === "Yet to be assigned" && "italic text-muted-foreground")}>{r.vsd}</span>
+                        <span className={cn("text-foreground", (r.label === "Yet to be assigned" || r.label === "Unassigned") && "italic text-muted-foreground")}>{r.label}</span>
                       </div>
                     </td>
                     {STAFFING_BUCKETS.map(b => (
@@ -287,6 +322,7 @@ export function DealViewTab({ deals, people, assignments, onUpdateDeal, bopmFilt
                     ))}
                     <td className="text-right py-3 px-4 font-mono tabular-nums font-medium text-foreground">{r.total}</td>
                   </tr>
+                  )}
                   {isExp && (
                     <tr>
                       <td colSpan={5} className="p-0 bg-accent/5">
