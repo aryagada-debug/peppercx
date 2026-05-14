@@ -111,7 +111,8 @@ function InlineEditCell({ value, onSave, type = "text", prefix = "", placeholder
 
 export default function Clients() {
   useCurrencyVersion();
-  const { currency } = useCurrency();
+  const { currency, fxRate, format } = useCurrency();
+  const fmtCurrency = (n: number | undefined) => format(Number(n) || 0);
   const ValueIcon = currency === "USD" ? DollarSign : IndianRupee;
   const { deals: allDeals, people, assignments, loading: staffLoading, refresh: refreshStaffing, updateDeal, addAssignment, updateAssignment, deleteAssignment } = useStaffingData();
   const { clients: allClients, loading: clientsLoading, addClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
