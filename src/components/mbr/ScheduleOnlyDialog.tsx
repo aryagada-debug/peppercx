@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Calendar, ExternalLink } from "lucide-react";
+import { Loader2, Calendar, ExternalLink, Users, Plus } from "lucide-react";
 import type { MBRDeal, MBREntry } from "@/hooks/useMBRData";
 import { useGoogleCalendar, type GCalEvent } from "@/hooks/useGoogleCalendar";
 import { CalendarConnectButton } from "@/components/calendar/CalendarConnectButton";
@@ -12,6 +12,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { WeekGrid, getWeekStart } from "@/components/calendar/WeekGrid";
 import { addDays, addMinutes } from "date-fns";
+import { AttendeeMultiSelect } from "@/components/calendar/AttendeeMultiSelect";
+import { ConferencingSelect, type ConferencingType } from "@/components/calendar/ConferencingSelect";
+import { useStakeholders } from "@/components/deals/orgmap/useStakeholders";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Label } from "@/components/ui/label";
 
 interface Props {
   open: boolean;
@@ -34,10 +39,16 @@ export function ScheduleOnlyDialog({ open, onClose, deal, entry, onSave }: Props
   const [scheduledDate, setScheduledDate] = useState(entry?.scheduledDate || "");
   const [scheduledTime, setScheduledTime] = useState("11:00");
   const [durationMin, setDurationMin] = useState(30);
-  const [attendeesStr, setAttendeesStr] = useState("");
+  const [attendees, setAttendees] = useState<string[]>([]);
+  const [conferencing, setConferencing] = useState<ConferencingType>("meet");
+  const [conferenceLink, setConferenceLink] = useState("");
   const [saving, setSaving] = useState(false);
   const { connected: calConnected, createEvent, updateEvent, deleteEvent, listEvents } = useGoogleCalendar();
   const { user } = useAuth();
+  const { data: stakeholders, add: addStakeholder, update: updateStakeholder, reload: reloadStakeholders } = useStakeholders(deal.id);
+  const [newSh, setNewSh] = useState({ name: "", role: "", email: "" });
+  const [shOpen, setShOpen] = useState(false);
+  const [newOpen, setNewOpen] = useState(false);
 
   const baseDate = useMemo(() => scheduledDate ? new Date(scheduledDate + "T00:00:00") : new Date(), [scheduledDate]);
   const weekStart = useMemo(() => getWeekStart(baseDate), [baseDate]);
@@ -82,7 +93,6 @@ export function ScheduleOnlyDialog({ open, onClose, deal, entry, onSave }: Props
           .maybeSingle();
         const mbrId = refetched?.id || entry?.id;
         if (mbrId) {
-          const attendees = attendeesStr.split(",").map(s => s.trim()).filter(Boolean);
           const result = await syncMbrToCalendar({
             userId: user.id,
             mbrEntryId: mbrId,
@@ -93,6 +103,8 @@ export function ScheduleOnlyDialog({ open, onClose, deal, entry, onSave }: Props
             account: deal.account,
             dealId: deal.id,
             attendees: attendees.length ? attendees : undefined,
+            conferencing,
+            conferenceLink: conferenceLink.trim() || undefined,
             cal: { createEvent, updateEvent, deleteEvent, connected: calConnected },
           });
           if (result) toast.success("MBR added to your Google Calendar");
@@ -101,6 +113,28 @@ export function ScheduleOnlyDialog({ open, onClose, deal, entry, onSave }: Props
       onClose();
     } finally {
       setSaving(false);
+    }
+  };
+
+  const stakeholdersWithEmail = useMemo(() => stakeholders.filter(s => s.email && s.email.includes("@")), [stakeholders]);
+
+  const addStakeholderToAttendees = (email: string) => {
+    const e = email.trim().toLowerCase();
+    if (!e || attendees.some(a => a.toLowerCase() === e)) return;
+    setAttendees(prev => [...prev, e]);
+  };
+
+  const handleCreateStakeholder = async () => {
+    const email = newSh.email.trim().toLowerCase();
+    if (!email || !email.includes("@")) { toast.error("Enter a valid email"); return; }
+    const inserted = await addStakeholder();
+    if (inserted) {
+      await updateStakeholder(inserted.id, { name: newSh.name || email, role: newSh.role, email });
+      addStakeholderToAttendees(email);
+      setNewSh({ name: "", role: "", email: "" });
+      setNewOpen(false);
+      toast.success("Stakeholder added to Org Map");
+      reloadStakeholders();
     }
   };
 
@@ -135,11 +169,72 @@ export function ScheduleOnlyDialog({ open, onClose, deal, entry, onSave }: Props
             </div>
 
             {calConnected && (
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Attendees (optional)</label>
-                <Input placeholder="comma-separated emails" value={attendeesStr} onChange={(e) => setAttendeesStr(e.target.value)} className="h-9" />
-                <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1"><ExternalLink className="h-3 w-3" /> Saving will create a Google Calendar invite for everyone listed.</p>
-              </div>
+              <>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-medium text-muted-foreground">Attendees</label>
+                    <div className="flex items-center gap-1">
+                      <Popover open={shOpen} onOpenChange={setShOpen}>
+                        <PopoverTrigger asChild>
+                          <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px] gap-1">
+                            <Users className="h-3 w-3" /> Org Map
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-72 p-2" align="end">
+                          <p className="text-[11px] font-medium text-muted-foreground mb-1.5 px-1">Add from {deal.account}'s Org Map</p>
+                          {stakeholdersWithEmail.length === 0 ? (
+                            <p className="text-xs text-muted-foreground px-1 py-2">No stakeholders with emails yet.</p>
+                          ) : (
+                            <div className="max-h-56 overflow-y-auto">
+                              {stakeholdersWithEmail.map(s => {
+                                const already = attendees.some(a => a.toLowerCase() === s.email.toLowerCase());
+                                return (
+                                  <button
+                                    key={s.id}
+                                    type="button"
+                                    disabled={already}
+                                    onClick={() => { addStakeholderToAttendees(s.email); }}
+                                    className="w-full flex items-center justify-between text-left px-2 py-1.5 rounded hover:bg-accent text-xs disabled:opacity-50"
+                                  >
+                                    <div>
+                                      <div className="font-medium">{s.name}</div>
+                                      <div className="text-muted-foreground text-[11px]">{s.role || s.email}</div>
+                                    </div>
+                                    {already && <span className="text-[10px] text-muted-foreground">added</span>}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </PopoverContent>
+                      </Popover>
+                      <Popover open={newOpen} onOpenChange={setNewOpen}>
+                        <PopoverTrigger asChild>
+                          <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px] gap-1">
+                            <Plus className="h-3 w-3" /> New
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-72 p-3 space-y-2" align="end">
+                          <p className="text-[11px] font-medium text-muted-foreground">Add new stakeholder to Org Map</p>
+                          <div className="space-y-1.5">
+                            <Input placeholder="Name" value={newSh.name} onChange={e => setNewSh(p => ({ ...p, name: e.target.value }))} className="h-8 text-xs" />
+                            <Input placeholder="Role" value={newSh.role} onChange={e => setNewSh(p => ({ ...p, role: e.target.value }))} className="h-8 text-xs" />
+                            <Input placeholder="Email" type="email" value={newSh.email} onChange={e => setNewSh(p => ({ ...p, email: e.target.value }))} className="h-8 text-xs" />
+                          </div>
+                          <Button size="sm" className="w-full h-7" onClick={handleCreateStakeholder}>Add & invite</Button>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
+                  <AttendeeMultiSelect
+                    value={attendees}
+                    onChange={setAttendees}
+                    extraOptions={stakeholdersWithEmail.map(s => ({ name: s.name || s.email, email: s.email }))}
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1"><ExternalLink className="h-3 w-3" /> Saving creates a Google Calendar invite for everyone listed.</p>
+                </div>
+                <ConferencingSelect value={conferencing} onChange={setConferencing} link={conferenceLink} onLinkChange={setConferenceLink} />
+              </>
             )}
 
             <p className="text-[11px] text-muted-foreground">
