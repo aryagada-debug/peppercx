@@ -398,7 +398,7 @@ export default function Targets() {
         </div>
 
         {/* Bulk actions */}
-        {isAdmin && (
+        {isAdmin && !overall && (
           <div className="flex flex-wrap items-center justify-between gap-2 mb-4 p-3 rounded-md border border-border bg-secondary/30">
             <p className="text-[12px] text-muted-foreground">
               {summary.needs} deals still need {format(parseISO(monthIso(month)), "MMM")} targets · {summary.behind} deals behind expected pace
@@ -458,7 +458,7 @@ export default function Targets() {
                     <th className="text-left py-2 pr-3 font-medium">Deal</th>
                     <th className="text-right py-2 px-2 font-medium">Size</th>
                     <th className="text-left py-2 px-2 font-medium">Delivery vs expected pace</th>
-                    <th colSpan={4} className="text-center py-2 px-2 font-medium border-l border-border">{format(parseISO(monthIso(month)), "MMM yyyy")} targets</th>
+                    <th colSpan={4} className="text-center py-2 px-2 font-medium border-l border-border">{overall ? "All months — cumulative target vs actual" : `${format(parseISO(monthIso(month)), "MMM yyyy")} targets`}</th>
                   </tr>
                   <tr className="border-b border-border bg-secondary/20 text-[10px] uppercase tracking-wider text-muted-foreground">
                     <th colSpan={4}></th>
@@ -522,9 +522,9 @@ export default function Targets() {
                             <TargetCell
                               key={m}
                               value={Number((t as any)[`${m}_target`]) || 0}
-                              prevValue={prev ? Number((prev as any)[`${m}_target`]) || 0 : undefined}
+                              prevValue={!overall && prev ? Number((prev as any)[`${m}_target`]) || 0 : undefined}
                               prevLabel={prevLabel}
-                              disabled={!isAdmin}
+                              disabled={!isAdmin || overall}
                               onSave={(v) => saveField(d.id, `${m}_target` as keyof TargetRow, v)}
                             />
                           ))}
