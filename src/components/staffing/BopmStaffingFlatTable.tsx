@@ -28,17 +28,45 @@ import { CSS } from "@dnd-kit/utilities";
 // without overwhelming the data.
 // Category palette: light tint + colored dot, with dark-mode-aware tokens.
 // head text uses *-800 in light / *-200 in dark; backgrounds use /15 opacity so they read on both themes.
-const CATEGORY_STYLES: Record<string, { head: string; cell: string; dot: string; label: string }> = {
-  "Operations":          { head: "bg-violet-500/15 text-violet-800 dark:text-violet-200 border-violet-500/30",   cell: "bg-violet-500/5",   dot: "bg-violet-500",   label: "Operations" },
-  "Content":             { head: "bg-sky-500/15 text-sky-800 dark:text-sky-200 border-sky-500/30",                cell: "bg-sky-500/5",      dot: "bg-sky-500",      label: "Content" },
-  "Content Strategy":    { head: "bg-cyan-500/15 text-cyan-800 dark:text-cyan-200 border-cyan-500/30",            cell: "bg-cyan-500/5",     dot: "bg-cyan-500",     label: "Content Strategy" },
-  "SEO":                 { head: "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border-emerald-500/30",cell: "bg-emerald-500/5",  dot: "bg-emerald-500",  label: "SEO" },
-  "Creative Strategy":   { head: "bg-fuchsia-500/15 text-fuchsia-800 dark:text-fuchsia-200 border-fuchsia-500/30",cell: "bg-fuchsia-500/5",  dot: "bg-fuchsia-500",  label: "Creative Strategy" },
-  "Creative Copy":       { head: "bg-pink-500/15 text-pink-800 dark:text-pink-200 border-pink-500/30",            cell: "bg-pink-500/5",     dot: "bg-pink-500",     label: "Creative Copy" },
-  "Creative Art":        { head: "bg-rose-500/15 text-rose-800 dark:text-rose-200 border-rose-500/30",            cell: "bg-rose-500/5",     dot: "bg-rose-500",     label: "Creative Art" },
-  "Video":               { head: "bg-orange-500/15 text-orange-800 dark:text-orange-200 border-orange-500/30",    cell: "bg-orange-500/5",   dot: "bg-orange-500",   label: "Video" },
-  "Performance & Growth":{ head: "bg-amber-500/15 text-amber-800 dark:text-amber-200 border-amber-500/30",        cell: "bg-amber-500/5",    dot: "bg-amber-500",    label: "Performance & Growth" },
-  "Other":               { head: "bg-slate-500/15 text-slate-800 dark:text-slate-200 border-slate-500/30",        cell: "bg-slate-500/5",    dot: "bg-slate-500",    label: "Other" },
+// Each category gets:
+//   head  – the column-header surface (lifted, always readable in dark mode)
+//   cell  – the body cell tint (very subtle group banding)
+//   dot   – the dot in front of the column label
+//   chip  – staffed person pill (filled tint + brighter border + bright text)
+//   add   – empty "+ Add …" placeholder pill (dashed, hint-coloured)
+// All values use Tailwind colour stops with `/NN` opacity so they read in
+// both light and dark themes against our semantic surfaces.
+const CATEGORY_STYLES: Record<string, { head: string; cell: string; dot: string; label: string; chip: string; add: string }> = {
+  "Operations":          { head: "bg-violet-500/15 text-violet-800 dark:text-violet-200 border-violet-500/30",   cell: "bg-violet-500/5",   dot: "bg-violet-500",   label: "Operations",
+                           chip: "bg-violet-500/15 dark:bg-violet-500/25 border-violet-500/40 text-violet-900 dark:text-violet-100",
+                           add:  "border-violet-500/40 text-violet-700/80 dark:text-violet-200/70 hover:bg-violet-500/15 hover:text-violet-900 dark:hover:text-violet-100 hover:border-violet-500/60" },
+  "Content":             { head: "bg-teal-500/15 text-teal-800 dark:text-teal-200 border-teal-500/30",            cell: "bg-teal-500/5",     dot: "bg-teal-500",     label: "Content",
+                           chip: "bg-teal-500/15 dark:bg-teal-500/25 border-teal-500/40 text-teal-900 dark:text-teal-100",
+                           add:  "border-teal-500/40 text-teal-700/80 dark:text-teal-200/70 hover:bg-teal-500/15 hover:text-teal-900 dark:hover:text-teal-100 hover:border-teal-500/60" },
+  "Content Strategy":    { head: "bg-cyan-500/15 text-cyan-800 dark:text-cyan-200 border-cyan-500/30",            cell: "bg-cyan-500/5",     dot: "bg-cyan-500",     label: "Content Strategy",
+                           chip: "bg-cyan-500/15 dark:bg-cyan-500/25 border-cyan-500/40 text-cyan-900 dark:text-cyan-100",
+                           add:  "border-cyan-500/40 text-cyan-700/80 dark:text-cyan-200/70 hover:bg-cyan-500/15 hover:text-cyan-900 dark:hover:text-cyan-100 hover:border-cyan-500/60" },
+  "SEO":                 { head: "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border-emerald-500/30",cell: "bg-emerald-500/5",  dot: "bg-emerald-500",  label: "SEO",
+                           chip: "bg-emerald-500/15 dark:bg-emerald-500/25 border-emerald-500/40 text-emerald-900 dark:text-emerald-100",
+                           add:  "border-emerald-500/40 text-emerald-700/80 dark:text-emerald-200/70 hover:bg-emerald-500/15 hover:text-emerald-900 dark:hover:text-emerald-100 hover:border-emerald-500/60" },
+  "Creative Strategy":   { head: "bg-fuchsia-500/15 text-fuchsia-800 dark:text-fuchsia-200 border-fuchsia-500/30",cell: "bg-fuchsia-500/5",  dot: "bg-fuchsia-500",  label: "Creative Strategy",
+                           chip: "bg-fuchsia-500/15 dark:bg-fuchsia-500/25 border-fuchsia-500/40 text-fuchsia-900 dark:text-fuchsia-100",
+                           add:  "border-fuchsia-500/40 text-fuchsia-700/80 dark:text-fuchsia-200/70 hover:bg-fuchsia-500/15 hover:text-fuchsia-900 dark:hover:text-fuchsia-100 hover:border-fuchsia-500/60" },
+  "Creative Copy":       { head: "bg-pink-500/15 text-pink-800 dark:text-pink-200 border-pink-500/30",            cell: "bg-pink-500/5",     dot: "bg-pink-500",     label: "Creative Copy",
+                           chip: "bg-pink-500/15 dark:bg-pink-500/25 border-pink-500/40 text-pink-900 dark:text-pink-100",
+                           add:  "border-pink-500/40 text-pink-700/80 dark:text-pink-200/70 hover:bg-pink-500/15 hover:text-pink-900 dark:hover:text-pink-100 hover:border-pink-500/60" },
+  "Creative Art":        { head: "bg-rose-500/15 text-rose-800 dark:text-rose-200 border-rose-500/30",            cell: "bg-rose-500/5",     dot: "bg-rose-500",     label: "Creative Art",
+                           chip: "bg-rose-500/15 dark:bg-rose-500/25 border-rose-500/40 text-rose-900 dark:text-rose-100",
+                           add:  "border-rose-500/40 text-rose-700/80 dark:text-rose-200/70 hover:bg-rose-500/15 hover:text-rose-900 dark:hover:text-rose-100 hover:border-rose-500/60" },
+  "Video":               { head: "bg-orange-500/15 text-orange-800 dark:text-orange-200 border-orange-500/30",    cell: "bg-orange-500/5",   dot: "bg-orange-500",   label: "Video",
+                           chip: "bg-orange-500/15 dark:bg-orange-500/25 border-orange-500/40 text-orange-900 dark:text-orange-100",
+                           add:  "border-orange-500/40 text-orange-700/80 dark:text-orange-200/70 hover:bg-orange-500/15 hover:text-orange-900 dark:hover:text-orange-100 hover:border-orange-500/60" },
+  "Performance & Growth":{ head: "bg-amber-500/15 text-amber-800 dark:text-amber-200 border-amber-500/30",        cell: "bg-amber-500/5",    dot: "bg-amber-500",    label: "Performance & Growth",
+                           chip: "bg-amber-500/15 dark:bg-amber-500/25 border-amber-500/40 text-amber-900 dark:text-amber-100",
+                           add:  "border-amber-500/40 text-amber-700/80 dark:text-amber-200/70 hover:bg-amber-500/15 hover:text-amber-900 dark:hover:text-amber-100 hover:border-amber-500/60" },
+  "Other":               { head: "bg-slate-500/15 text-slate-800 dark:text-slate-200 border-slate-500/30",        cell: "bg-slate-500/5",    dot: "bg-slate-500",    label: "Other",
+                           chip: "bg-slate-500/15 dark:bg-slate-500/25 border-slate-500/40 text-slate-900 dark:text-slate-100",
+                           add:  "border-slate-500/40 text-slate-700/80 dark:text-slate-200/70 hover:bg-slate-500/15 hover:text-slate-900 dark:hover:text-slate-100 hover:border-slate-500/60" },
 };
 const styleFor = (cat?: string) => CATEGORY_STYLES[cat || "Other"] || CATEGORY_STYLES["Other"];
 const VIRTUAL_ROW_HEIGHT = 72;
@@ -1116,6 +1144,7 @@ export function BopmStaffingFlatTable({
     const allocVal = draftVal !== undefined ? draftVal : String(e.allocationPct);
     const allocNum = Number(allocVal);
     const hrs = ((Number.isFinite(allocNum) ? allocNum : e.allocationPct) / 100) * MONTH_HOURS / 4.33;
+    const chipStyle = styleFor(ROLE_CATEGORY_OF(roleKey));
 
     return (
       <div
@@ -1125,7 +1154,7 @@ export function BopmStaffingFlatTable({
           e.isMarkedRemove ? "bg-destructive/10 border-destructive/30" :
           e.isAdded ? "bg-positive/10 border-positive/30" :
           e.isUpdated ? "bg-warning/10 border-warning/30" :
-          "bg-card/60 border-border/70 hover:border-border",
+          chipStyle.chip,
           e.isExpired && !e.isMarkedRemove && "opacity-50 font-light"
         )}
         title={e.isExpired ? `No longer staffed (ended ${e.endDate})` : undefined}
@@ -1394,8 +1423,8 @@ export function BopmStaffingFlatTable({
               {virtualRows.deals.map(d => {
                 const byRole = dealRoleMap.get(d.id) || new Map<string, CellEntry[]>();
                 return (
-                  <tr key={d.id} className="border-t border-border/50 align-top hover:bg-secondary/20" style={{ height: VIRTUAL_ROW_HEIGHT }}>
-                    <td className="px-3 py-2 sticky left-0 bg-card z-10 border-r border-border">
+                  <tr key={d.id} className="border-t border-border align-top hover:bg-accent/30 transition-colors group/row" style={{ height: VIRTUAL_ROW_HEIGHT }}>
+                    <td className="px-3 py-2 sticky left-0 bg-card group-hover/row:bg-accent/30 z-10 border-r border-border transition-colors">
                       <div className="font-medium text-foreground truncate max-w-[220px]">{d.account}</div>
                       <div className="text-[11px] text-muted-foreground truncate max-w-[220px]">{d.dealName}</div>
                       <div className="font-mono text-[10px] text-muted-foreground">{d.dealId}</div>
@@ -1429,7 +1458,10 @@ export function BopmStaffingFlatTable({
                               <button
                                 type="button"
                                 onClick={() => setQuickAdd({ dealId: d.id, roleKey: rk, category: cat })}
-                                className="w-full flex items-center justify-between gap-1 px-1.5 py-1 text-[10.5px] italic rounded-md border border-dashed text-muted-foreground border-border/50 hover:text-foreground hover:border-border hover:bg-secondary/40 transition-colors"
+                                className={cn(
+                                  "w-full flex items-center justify-between gap-1 px-1.5 py-1 text-[10.5px] rounded-md border border-dashed transition-colors",
+                                  s.add
+                                )}
                               >
                                 <span className="truncate">+ Add {ROLE_LABEL(rk)}</span>
                               </button>
@@ -1505,10 +1537,10 @@ export function BopmStaffingFlatTable({
                               deals={deals}
                               disabled={pickerTotal === 0}
                               triggerClassName={cn(
-                                "w-full flex items-center justify-between gap-1 px-1.5 py-1 text-[10.5px] italic rounded-md border border-dashed transition-colors",
+                                "w-full flex items-center justify-between gap-1 px-1.5 py-1 text-[10.5px] rounded-md border border-dashed transition-colors",
                                 pickerTotal === 0
                                   ? "text-muted-foreground/50 border-border/30 cursor-not-allowed"
-                                  : "text-muted-foreground border-border/50 hover:text-foreground hover:border-border hover:bg-secondary/40"
+                                  : s.add
                               )}
                               triggerLabel={
                                 pickerTotal === 0

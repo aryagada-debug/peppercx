@@ -205,7 +205,7 @@ export default function Staffing() {
           <div className="flex items-center gap-2">
             {!isBopmPersona && <StaffingReviewRequestsButton />}
             {TABS.length > 1 && (
-              <div className="flex gap-1 bg-secondary rounded-lg p-1">
+              <div className="flex gap-1 bg-secondary rounded-lg p-1 border border-border/60">
                 {TABS.map(t => (
                   <button
                     key={t.key}
@@ -213,8 +213,8 @@ export default function Staffing() {
                     className={cn(
                       "px-4 py-1.5 rounded-md text-ui font-medium transition-colors",
                       tab === t.key
-                        ? "bg-card text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
+                        ? "bg-accent text-accent-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground hover:bg-card/40"
                     )}
                   >
                     {t.label}
