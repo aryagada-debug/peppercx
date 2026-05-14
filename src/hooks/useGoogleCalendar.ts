@@ -31,7 +31,7 @@ function normalizeEvents(events: any[] = []): GCalEvent[] {
 
 export async function invokeCalendarFunction<T = any>(
   functionName: string,
-  body: Record<string, unknown>,
+  body: unknown,
   accessToken?: string,
 ): Promise<T> {
   const token = accessToken ?? (await supabase.auth.getSession()).data.session?.access_token;
