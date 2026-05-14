@@ -1707,6 +1707,7 @@ export default function HomePage() {
         onSave={handleCalSave}
         onDelete={calEditing ? () => handleCalDelete(calEditing.id) : undefined}
       />
+      <FullCalendarDialog open={calFullscreen} onOpenChange={setCalFullscreen} />
     </AppLayout>
   );
 }
