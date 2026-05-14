@@ -11,6 +11,7 @@ export interface GCalEvent {
   end: string;
   htmlLink?: string;
   attendees?: { email: string; responseStatus?: string }[];
+  location?: string;
 }
 
 function getCalendarCallbackUri() {
@@ -26,6 +27,7 @@ function normalizeEvents(events: any[] = []): GCalEvent[] {
     end: e.end?.dateTime || e.end?.date || "",
     htmlLink: e.htmlLink,
     attendees: e.attendees || [],
+    location: e.location || "",
   }));
 }
 
