@@ -1347,6 +1347,11 @@ export function BopmStaffingFlatTable({
           onScroll={e => setTableScrollTop(e.currentTarget.scrollTop)}
           className="max-h-[calc(100vh-260px)] min-h-[420px] overflow-auto"
         >
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleColumnDragEnd}
+          >
           <table className="text-xs border-collapse" style={{ minWidth: "100%", tableLayout: "fixed" }}>
             <thead className="bg-secondary/40 text-[10px] uppercase tracking-wider text-muted-foreground sticky top-0">
               <tr>
@@ -1355,27 +1360,21 @@ export function BopmStaffingFlatTable({
                 {visibleRoleKeys.length === 0 ? (
                   <th className="px-3 py-2 text-left text-muted-foreground/60">No roles staffed yet</th>
                 ) : (
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={handleColumnDragEnd}
-                  >
-                    <SortableContext items={visibleRoleKeys} strategy={horizontalListSortingStrategy}>
-                      {visibleRoleKeys.map(rk => {
-                        const cat = roleCategory.get(rk) || "Other";
-                        const w = colWidths[rk] ?? 200;
-                        return (
-                          <SortableColHeader
-                            key={rk}
-                            rk={rk}
-                            cat={cat}
-                            width={w}
-                            onResize={(ev) => startResize(rk, ev)}
-                          />
-                        );
-                      })}
-                    </SortableContext>
-                  </DndContext>
+                  <SortableContext items={visibleRoleKeys} strategy={horizontalListSortingStrategy}>
+                    {visibleRoleKeys.map(rk => {
+                      const cat = roleCategory.get(rk) || "Other";
+                      const w = colWidths[rk] ?? 200;
+                      return (
+                        <SortableColHeader
+                          key={rk}
+                          rk={rk}
+                          cat={cat}
+                          width={w}
+                          onResize={(ev) => startResize(rk, ev)}
+                        />
+                      );
+                    })}
+                  </SortableContext>
                 )}
               </tr>
             </thead>
@@ -1542,6 +1541,7 @@ export function BopmStaffingFlatTable({
               )}
             </tbody>
           </table>
+          </DndContext>
         </div>
       </div>
 
