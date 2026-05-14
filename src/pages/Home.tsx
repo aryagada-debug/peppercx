@@ -1703,6 +1703,7 @@ export default function HomePage() {
           end: calEditing.end,
           attendees: (calEditing.attendees || []).map(a => a.email).filter(Boolean) as string[],
           htmlLink: calEditing.htmlLink,
+          location: calEditing.location,
         } : null}
         onSave={handleCalSave}
         onDelete={calEditing ? () => handleCalDelete(calEditing.id) : undefined}
