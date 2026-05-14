@@ -39,6 +39,8 @@ const CATEGORY_STYLES: Record<string, { head: string; cell: string; dot: string;
   "Other":               { head: "bg-slate-100/80 text-slate-900 border-slate-200",      cell: "bg-slate-50/40",   dot: "bg-slate-500",   label: "Other" },
 };
 const styleFor = (cat?: string) => CATEGORY_STYLES[cat || "Other"] || CATEGORY_STYLES["Other"];
+const VIRTUAL_ROW_HEIGHT = 72;
+const VIRTUAL_OVERSCAN_ROWS = 8;
 
 // ── Compact inline date picker (used for per-assignment start/end dates) ───
 function InlineDatePicker({
@@ -533,6 +535,7 @@ export function BopmStaffingFlatTable({
   // "Request staffing" replaces the old direct-add flow. We capture the deal
   // (and optional role/category context) and route through staffing_review_requests.
   const [requestForDeal, setRequestForDeal] = useState<{ dealId: string; roleKey?: string; category?: string } | null>(null);
+  const [quickAdd, setQuickAdd] = useState<{ dealId: string; roleKey: string; category: string } | null>(null);
   // Engagement-aware change: opens the dialog in edit mode for an existing assignment.
   const [editEntry, setEditEntry] = useState<{
     dealId: string; assignmentId: string; roleKey: string;
@@ -546,6 +549,9 @@ export function BopmStaffingFlatTable({
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set());
   const [pickerOpen, setPickerOpen] = useState(false);
   const pickerRef = useRef<HTMLDivElement | null>(null);
+  const tableViewportRef = useRef<HTMLDivElement | null>(null);
+  const [tableScrollTop, setTableScrollTop] = useState(0);
+  const [tableViewportHeight, setTableViewportHeight] = useState(560);
 
   // Persisted user reordering: team order + per-team role-key order.
   const [teamOrder, setTeamOrder] = useState<string[] | null>(null);
@@ -562,6 +568,16 @@ export function BopmStaffingFlatTable({
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [pickerOpen]);
+
+  useEffect(() => {
+    const el = tableViewportRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const update = () => setTableViewportHeight(el.clientHeight || 560);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const allPersonById = useMemo(() => new Map(allPeople.map(p => [p.id, p])), [allPeople]);
   const dealById = useMemo(() => new Map(deals.map(d => [d.id, d])), [deals]);
@@ -967,6 +983,26 @@ export function BopmStaffingFlatTable({
     });
   }, [deals, search, bopmFilter, dealRoleMap, allPersonById, allPersonNames]);
 
+  const virtualRows = useMemo(() => {
+    const total = filteredDeals.length;
+    const first = Math.max(0, Math.floor(tableScrollTop / VIRTUAL_ROW_HEIGHT) - VIRTUAL_OVERSCAN_ROWS);
+    const last = Math.min(
+      total,
+      Math.ceil((tableScrollTop + tableViewportHeight) / VIRTUAL_ROW_HEIGHT) + VIRTUAL_OVERSCAN_ROWS
+    );
+    return {
+      start: first,
+      deals: filteredDeals.slice(first, last),
+      topPad: first * VIRTUAL_ROW_HEIGHT,
+      bottomPad: Math.max(0, (total - last) * VIRTUAL_ROW_HEIGHT),
+    };
+  }, [filteredDeals, tableScrollTop, tableViewportHeight]);
+
+  useEffect(() => {
+    setTableScrollTop(0);
+    if (tableViewportRef.current) tableViewportRef.current.scrollTop = 0;
+  }, [search, bopmFilter]);
+
   // Aggregate top stats
   const totals = useMemo(() => {
     // Single pass: O(assignments) instead of O(uniquePeople × assignments).
@@ -1306,7 +1342,16 @@ export function BopmStaffingFlatTable({
             </select>
         </header>
 
-        <div className="overflow-x-auto">
+        <div
+          ref={tableViewportRef}
+          onScroll={e => setTableScrollTop(e.currentTarget.scrollTop)}
+          className="max-h-[calc(100vh-260px)] min-h-[420px] overflow-auto"
+        >
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleColumnDragEnd}
+          >
           <table className="text-xs border-collapse" style={{ minWidth: "100%", tableLayout: "fixed" }}>
             <thead className="bg-secondary/40 text-[10px] uppercase tracking-wider text-muted-foreground sticky top-0">
               <tr>
@@ -1315,27 +1360,21 @@ export function BopmStaffingFlatTable({
                 {visibleRoleKeys.length === 0 ? (
                   <th className="px-3 py-2 text-left text-muted-foreground/60">No roles staffed yet</th>
                 ) : (
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={handleColumnDragEnd}
-                  >
-                    <SortableContext items={visibleRoleKeys} strategy={horizontalListSortingStrategy}>
-                      {visibleRoleKeys.map(rk => {
-                        const cat = roleCategory.get(rk) || "Other";
-                        const w = colWidths[rk] ?? 200;
-                        return (
-                          <SortableColHeader
-                            key={rk}
-                            rk={rk}
-                            cat={cat}
-                            width={w}
-                            onResize={(ev) => startResize(rk, ev)}
-                          />
-                        );
-                      })}
-                    </SortableContext>
-                  </DndContext>
+                  <SortableContext items={visibleRoleKeys} strategy={horizontalListSortingStrategy}>
+                    {visibleRoleKeys.map(rk => {
+                      const cat = roleCategory.get(rk) || "Other";
+                      const w = colWidths[rk] ?? 200;
+                      return (
+                        <SortableColHeader
+                          key={rk}
+                          rk={rk}
+                          cat={cat}
+                          width={w}
+                          onResize={(ev) => startResize(rk, ev)}
+                        />
+                      );
+                    })}
+                  </SortableContext>
                 )}
               </tr>
             </thead>
@@ -1345,10 +1384,15 @@ export function BopmStaffingFlatTable({
                   {search ? "No deals match your search." : "No active deals to staff."}
                 </td></tr>
               )}
-              {filteredDeals.map(d => {
+              {virtualRows.topPad > 0 && (
+                <tr aria-hidden="true">
+                  <td colSpan={2 + Math.max(1, visibleRoleKeys.length)} style={{ height: virtualRows.topPad, padding: 0, border: 0 }} />
+                </tr>
+              )}
+              {virtualRows.deals.map(d => {
                 const byRole = dealRoleMap.get(d.id) || new Map<string, CellEntry[]>();
                 return (
-                  <tr key={d.id} className="border-t border-border/50 align-top hover:bg-secondary/20">
+                  <tr key={d.id} className="border-t border-border/50 align-top hover:bg-secondary/20" style={{ height: VIRTUAL_ROW_HEIGHT }}>
                     <td className="px-3 py-2 sticky left-0 bg-card z-10 border-r border-border">
                       <div className="font-medium text-foreground truncate max-w-[220px]">{d.account}</div>
                       <div className="text-[11px] text-muted-foreground truncate max-w-[220px]">{d.dealName}</div>
@@ -1371,6 +1415,27 @@ export function BopmStaffingFlatTable({
                       const cat = roleCategory.get(rk) || "Other";
                       const s = styleFor(cat);
                       const w = colWidths[rk] ?? 200;
+                      if (directEdit && onAddAssignment) {
+                        return (
+                          <td
+                            key={rk}
+                            style={{ width: w, minWidth: w, maxWidth: w }}
+                            className={cn("px-1.5 py-1.5 border-r border-border/60 align-top", s.cell)}
+                          >
+                            <div className="space-y-1">
+                              {entries.map(e => renderEntry(d, rk, e))}
+                              <button
+                                type="button"
+                                onClick={() => setQuickAdd({ dealId: d.id, roleKey: rk, category: cat })}
+                                className="w-full flex items-center justify-between gap-1 px-1.5 py-1 text-[10.5px] italic rounded-md border border-dashed text-muted-foreground border-border/50 hover:text-foreground hover:border-border hover:bg-secondary/40 transition-colors"
+                              >
+                                <span className="truncate">+ Add {ROLE_LABEL(rk)}</span>
+                              </button>
+                            </div>
+                          </td>
+                        );
+                      }
+
                       // Determine "manager" filter for this column on this deal:
                       // if a more-senior person from the same team is already
                       // staffed, restrict the picker to that manager's reports
@@ -1469,8 +1534,14 @@ export function BopmStaffingFlatTable({
                   </tr>
                 );
               })}
+              {virtualRows.bottomPad > 0 && (
+                <tr aria-hidden="true">
+                  <td colSpan={2 + Math.max(1, visibleRoleKeys.length)} style={{ height: virtualRows.bottomPad, padding: 0, border: 0 }} />
+                </tr>
+              )}
             </tbody>
           </table>
+          </DndContext>
         </div>
       </div>
 
@@ -1538,6 +1609,23 @@ export function BopmStaffingFlatTable({
           />
         );
       })()}
+
+      {quickAdd && directEdit && onAddAssignment && (
+        <AddStaffingMemberDialog
+          open={!!quickAdd}
+          onOpenChange={v => { if (!v) setQuickAdd(null); }}
+          people={allPeople}
+          assignments={assignments}
+          deals={deals}
+          dealId={quickAdd.dealId}
+          initialCategory={quickAdd.category as RoleCategory}
+          initialRoleKey={quickAdd.roleKey}
+          onAdd={(assignment) => {
+            onAddAssignment({ ...assignment, roleKey: quickAdd.roleKey });
+            setQuickAdd(null);
+          }}
+        />
+      )}
 
       {editEntry && (
         <AddStaffingMemberDialog
