@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 export interface GCalEvent {
   id: string;
@@ -28,12 +29,57 @@ function normalizeEvents(events: any[] = []): GCalEvent[] {
   }));
 }
 
+export async function invokeCalendarFunction<T = any>(
+  functionName: string,
+  body: Record<string, unknown>,
+  accessToken?: string,
+): Promise<T> {
+  const token = accessToken ?? (await supabase.auth.getSession()).data.session?.access_token;
+  if (!token) throw new Error("auth_required");
+
+  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${functionName}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+    },
+    body: JSON.stringify(body),
+  });
+
+  const text = await response.text();
+  const data = text
+    ? (() => {
+        try {
+          return JSON.parse(text);
+        } catch {
+          return { error: text };
+        }
+      })()
+    : {};
+
+  if (!response.ok || data?.error) {
+    const error = new Error(data?.error || `Edge function returned ${response.status}`) as Error & {
+      status?: number;
+      data?: unknown;
+    };
+    error.status = response.status;
+    error.data = data;
+    throw error;
+  }
+
+  return data as T;
+}
+
 function calendarErrorMessage(message?: string) {
   if (message === "calendar_oauth_not_configured") {
     return "Google Calendar credentials are missing. Update the Calendar OAuth secrets, then try again.";
   }
   if (message === "calendar_oauth_invalid_client_id_format") {
     return "The Google Calendar Client ID is invalid. Use the Web application Client ID ending in .apps.googleusercontent.com.";
+  }
+  if (message === "auth_required" || message === "unauthorized") {
+    return "Please sign in again before connecting Google Calendar.";
   }
   return "Could not connect Google Calendar";
 }
