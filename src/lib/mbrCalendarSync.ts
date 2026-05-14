@@ -15,6 +15,8 @@ export async function syncMbrToCalendar(params: {
   dealId: string;
   notes?: string;
   attendees?: string[];
+  conferencing?: "meet" | "teams" | "zoom" | "none";
+  conferenceLink?: string;
   cal: {
     createEvent: (i: any) => Promise<{ id: string; htmlLink?: string } | null>;
     updateEvent: (id: string, p: any) => Promise<{ id: string; htmlLink?: string } | null>;
@@ -59,6 +61,8 @@ export async function syncMbrToCalendar(params: {
     start: start.toISOString(),
     end: end.toISOString(),
     attendees: params.attendees,
+    conferencing: params.conferencing,
+    conferenceLink: params.conferenceLink,
   };
 
   if (existing?.google_event_id) {
