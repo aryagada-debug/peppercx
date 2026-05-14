@@ -1119,11 +1119,11 @@ export function BopmStaffingFlatTable({
       <div
         key={e.assignmentId}
         className={cn(
-          "group/entry rounded-md border px-1.5 py-1 transition-colors shadow-[0_1px_0_rgba(0,0,0,0.02)]",
-          e.isMarkedRemove ? "bg-rose-50/80 border-rose-200" :
-          e.isAdded ? "bg-emerald-50/80 border-emerald-200" :
-          e.isUpdated ? "bg-amber-50/80 border-amber-200" :
-          "bg-white/85 border-border/70 hover:border-border",
+          "group/entry rounded-md border px-1.5 py-1 transition-colors",
+          e.isMarkedRemove ? "bg-destructive/10 border-destructive/30" :
+          e.isAdded ? "bg-positive/10 border-positive/30" :
+          e.isUpdated ? "bg-warning/10 border-warning/30" :
+          "bg-card/60 border-border/70 hover:border-border",
           e.isExpired && !e.isMarkedRemove && "opacity-50 font-light"
         )}
         title={e.isExpired ? `No longer staffed (ended ${e.endDate})` : undefined}

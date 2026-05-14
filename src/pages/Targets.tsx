@@ -108,7 +108,7 @@ function TargetCell({ value, prevValue, onSave, disabled, prevLabel }: {
         >
           <span className="inline-flex items-center gap-1 justify-end">
             {saved && <Check className="h-3 w-3 text-positive" />}
-            {value ? formatINR(value) : "Set target"}
+            {value ? formatINR(value) : (disabled ? "—" : "Set target")}
           </span>
         </button>
       )}
@@ -126,6 +126,7 @@ export default function Targets() {
   useCurrencyVersion();
   const { isAdmin } = useUserRole();
   const [month, setMonth] = useState(format(new Date(), "yyyy-MM"));
+  const [overall, setOverall] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [deals, setDeals] = useState<DealMeta[]>([]);
   const [targets, setTargets] = useState<Record<string, TargetRow>>({}); // key: deal_id
@@ -137,22 +138,25 @@ export default function Targets() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [savingState, setSavingState] = useState<"idle" | "saving" | "saved">("saved");
 
-  const monthLabel = format(parseISO(monthIso(month)), "MMMM yyyy");
+  const monthLabel = overall ? "Overall (all months)" : format(parseISO(monthIso(month)), "MMMM yyyy");
   const prevYM = prevMonthYYYYMM(month);
   const prevLabel = format(parseISO(monthIso(prevYM)), "MMM");
 
   // ── Load ──
   const load = useCallback(async () => {
     setLoading(true);
-    const [dealsRes, tgtRes, prevRes] = await Promise.all([
-      supabase
-        .from("staffing_deals")
-        .select("id, deal_name, account, vsd, bopm, mrr, total_deal_value, start_date, deal_status")
-        .in("deal_status", ["Active Deal", "New Deal in SLA/PO", "Deal - Open and WIP", "Deal in Renewal Process"])
-        .order("deal_name"),
-      supabase.from("deal_financial_targets").select("*").eq("month", monthIso(month)),
-      supabase.from("deal_financial_targets").select("*").eq("month", monthIso(prevYM)),
-    ]);
+    const dealsP = supabase
+      .from("staffing_deals")
+      .select("id, deal_name, account, vsd, bopm, mrr, total_deal_value, start_date, deal_status")
+      .in("deal_status", ["Active Deal", "New Deal in SLA/PO", "Deal - Open and WIP", "Deal in Renewal Process"])
+      .order("deal_name");
+    const tgtP = overall
+      ? supabase.from("deal_financial_targets").select("*")
+      : supabase.from("deal_financial_targets").select("*").eq("month", monthIso(month));
+    const prevP = overall
+      ? Promise.resolve({ data: [] as any[] })
+      : supabase.from("deal_financial_targets").select("*").eq("month", monthIso(prevYM));
+    const [dealsRes, tgtRes, prevRes] = await Promise.all([dealsP, tgtP, prevP]);
     const dealRows = (dealsRes.data || []) as any[];
     setDeals(dealRows.map((d): DealMeta => ({
       id: d.id, deal_name: d.deal_name || d.id, account: d.account || "",
@@ -161,13 +165,25 @@ export default function Targets() {
       start_date: d.start_date, deal_status: d.deal_status || "",
     })));
     const tMap: Record<string, TargetRow> = {};
-    (tgtRes.data || []).forEach((r: any) => { tMap[r.deal_id] = r as TargetRow; });
+    if (overall) {
+      // Sum targets & actuals across all months per deal
+      (tgtRes.data || []).forEach((r: any) => {
+        const ex = tMap[r.deal_id] || ZERO_TARGET(r.deal_id, "ALL");
+        METRICS.forEach(m => {
+          (ex as any)[`${m}_target`] = (Number((ex as any)[`${m}_target`]) || 0) + (Number(r[`${m}_target`]) || 0);
+          (ex as any)[`${m}_actual`] = (Number((ex as any)[`${m}_actual`]) || 0) + (Number(r[`${m}_actual`]) || 0);
+        });
+        tMap[r.deal_id] = ex;
+      });
+    } else {
+      (tgtRes.data || []).forEach((r: any) => { tMap[r.deal_id] = r as TargetRow; });
+    }
     setTargets(tMap);
     const pMap: Record<string, TargetRow> = {};
     (prevRes.data || []).forEach((r: any) => { pMap[r.deal_id] = r as TargetRow; });
     setPrevTargets(pMap);
     setLoading(false);
-  }, [month, prevYM]);
+  }, [month, prevYM, overall]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -316,7 +332,7 @@ export default function Targets() {
         <div className="mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
             <h1 className="text-subhead font-semibold tracking-tight text-foreground">
-              Set {monthLabel} targets
+              {overall ? "Overall financial performance (all months)" : `Set ${monthLabel} targets`}
             </h1>
             <p className="text-ui text-muted-foreground mt-1">
               {deals.length} deals · {bopmCount} BOPMs · tracking measured as MRR × months since start
@@ -330,8 +346,20 @@ export default function Targets() {
             )}>
               {savingState === "saving" ? "Saving…" : savingState === "saved" ? "All saved" : "Idle"}
             </span>
-            <DateRangeSelector value={month} onChange={setMonth} />
-            {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setOverall(v => !v)}
+              className={cn(
+                "text-[12px] px-2.5 py-1 rounded-md border transition-colors h-9",
+                overall
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-card border-border text-foreground hover:bg-secondary"
+              )}
+            >
+              Overall
+            </button>
+            {!overall && <DateRangeSelector value={month} onChange={setMonth} />}
+            {isAdmin && !overall && (
               <Button size="sm" variant="outline" onClick={() => setUploadOpen(true)}>
                 <Upload className="h-3.5 w-3.5 mr-1.5" /> Import CSV
               </Button>
@@ -370,7 +398,7 @@ export default function Targets() {
         </div>
 
         {/* Bulk actions */}
-        {isAdmin && (
+        {isAdmin && !overall && (
           <div className="flex flex-wrap items-center justify-between gap-2 mb-4 p-3 rounded-md border border-border bg-secondary/30">
             <p className="text-[12px] text-muted-foreground">
               {summary.needs} deals still need {format(parseISO(monthIso(month)), "MMM")} targets · {summary.behind} deals behind expected pace
@@ -430,7 +458,7 @@ export default function Targets() {
                     <th className="text-left py-2 pr-3 font-medium">Deal</th>
                     <th className="text-right py-2 px-2 font-medium">Size</th>
                     <th className="text-left py-2 px-2 font-medium">Delivery vs expected pace</th>
-                    <th colSpan={4} className="text-center py-2 px-2 font-medium border-l border-border">{format(parseISO(monthIso(month)), "MMM yyyy")} targets</th>
+                    <th colSpan={4} className="text-center py-2 px-2 font-medium border-l border-border">{overall ? "All months — cumulative target vs actual" : `${format(parseISO(monthIso(month)), "MMM yyyy")} targets`}</th>
                   </tr>
                   <tr className="border-b border-border bg-secondary/20 text-[10px] uppercase tracking-wider text-muted-foreground">
                     <th colSpan={4}></th>
@@ -494,9 +522,9 @@ export default function Targets() {
                             <TargetCell
                               key={m}
                               value={Number((t as any)[`${m}_target`]) || 0}
-                              prevValue={prev ? Number((prev as any)[`${m}_target`]) || 0 : undefined}
+                              prevValue={!overall && prev ? Number((prev as any)[`${m}_target`]) || 0 : undefined}
                               prevLabel={prevLabel}
-                              disabled={!isAdmin}
+                              disabled={!isAdmin || overall}
                               onSave={(v) => saveField(d.id, `${m}_target` as keyof TargetRow, v)}
                             />
                           ))}
