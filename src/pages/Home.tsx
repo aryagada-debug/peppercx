@@ -194,7 +194,7 @@ export default function HomePage() {
   }, [calConnected, refreshCalendar]);
 
   const handleCalSave = useCallback(async (v: EventFormValue) => {
-    const payload = { summary: v.summary, description: v.description, start: v.start, end: v.end, attendees: v.attendees, location: v.location };
+    const payload = { summary: v.summary, description: v.description, start: v.start, end: v.end, attendees: v.attendees, location: v.location, conferencing: v.conferencing, conferenceLink: v.conferenceLink };
     if (v.id) await calUpdateEvent(v.id, payload);
     else await calCreateEvent(payload);
     refreshCalendar();
