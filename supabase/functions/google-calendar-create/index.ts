@@ -77,19 +77,37 @@ Deno.serve(async (req) => {
   try {
     const user = await getUser(req);
     const accessToken = await getCalendarAccessToken(user.id);
-    const { summary, description, start, end, attendees, location } = await req.json();
+    const { summary, description, start, end, attendees, location, conferencing, conferenceLink } = await req.json();
     if (!summary || !start || !end) return json({ error: "Missing summary, start, or end" }, 400);
+
+    let finalLocation = location || undefined;
+    let finalDescription = description || "";
+    if ((conferencing === "teams" || conferencing === "zoom") && conferenceLink) {
+      const label = conferencing === "teams" ? "Microsoft Teams" : "Zoom";
+      finalLocation = conferenceLink;
+      finalDescription = `Join via ${label}: ${conferenceLink}\n\n${finalDescription}`.trim();
+    }
 
     const body: Record<string, unknown> = {
       summary,
-      description: description || "",
-      location: location || undefined,
+      description: finalDescription,
+      location: finalLocation,
       start: { dateTime: start },
       end: { dateTime: end },
     };
     if (Array.isArray(attendees) && attendees.length) body.attendees = attendees.map((email: string) => ({ email }));
+    const useMeet = conferencing === "meet";
+    if (useMeet) {
+      body.conferenceData = {
+        createRequest: {
+          requestId: `meet-${crypto.randomUUID()}`,
+          conferenceSolutionKey: { type: "hangoutsMeet" },
+        },
+      };
+    }
 
-    const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events?sendUpdates=all", {
+    const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?sendUpdates=all${useMeet ? "&conferenceDataVersion=1" : ""}`;
+    const res = await fetch(url, {
       method: "POST",
       headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
