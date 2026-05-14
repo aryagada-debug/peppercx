@@ -32,7 +32,7 @@ import { useGoogleCalendar, resolveJoinUrl, type GCalEvent } from "@/hooks/useGo
 import { CalendarConnectButton } from "@/components/calendar/CalendarConnectButton";
 import { EventFormDialog, type EventFormValue } from "@/components/calendar/EventFormDialog";
 import { FullCalendarDialog } from "@/components/calendar/FullCalendarDialog";
-import { Maximize2 } from "lucide-react";
+import { Maximize2, Video } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
 import { TaskKanban, type DealTask } from "@/components/deals/TaskKanban";
 import { SlackHomeBubble } from "@/components/slack/SlackHomeBubble";
