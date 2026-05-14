@@ -12,6 +12,8 @@ export interface GCalEvent {
   htmlLink?: string;
   attendees?: { email: string; responseStatus?: string }[];
   location?: string;
+  hangoutLink?: string;
+  conferenceData?: any;
 }
 
 function getCalendarCallbackUri() {
@@ -28,7 +30,25 @@ function normalizeEvents(events: any[] = []): GCalEvent[] {
     htmlLink: e.htmlLink,
     attendees: e.attendees || [],
     location: e.location || "",
+    hangoutLink: e.hangoutLink || "",
+    conferenceData: e.conferenceData || null,
   }));
+}
+
+/** Resolve a usable join URL from a GCal event (Meet/Teams/Zoom) */
+export function resolveJoinUrl(ev: Pick<GCalEvent, "hangoutLink" | "conferenceData" | "location" | "description">): string | null {
+  if (ev.hangoutLink) return ev.hangoutLink;
+  const eps = ev.conferenceData?.entryPoints;
+  if (Array.isArray(eps)) {
+    const video = eps.find((p: any) => p?.entryPointType === "video" && p?.uri);
+    if (video?.uri) return video.uri as string;
+  }
+  const haystack = `${ev.location || ""} ${ev.description || ""}`;
+  const m = haystack.match(/https?:\/\/[^\s<>"')]+(meet\.google\.com|teams\.microsoft\.com|teams\.live\.com|zoom\.us)[^\s<>"')]*/i);
+  if (m) return m[0];
+  // Try the other direction (URL prefix on the matched domain)
+  const m2 = haystack.match(/https?:\/\/(?:[\w-]+\.)*(?:meet\.google\.com|teams\.microsoft\.com|teams\.live\.com|zoom\.us)\/[^\s<>"')]+/i);
+  return m2 ? m2[0] : null;
 }
 
 export async function invokeCalendarFunction<T = any>(

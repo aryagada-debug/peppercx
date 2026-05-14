@@ -1,163 +1,569 @@
-import { useState, Fragment } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef, Fragment } from "react";
+import { Link } from "react-router-dom";
+import { format, parseISO, differenceInCalendarMonths, addMonths, startOfMonth } from "date-fns";
+import { Upload, Check, ChevronDown, ChevronRight, Copy, Sparkles, AlertTriangle } from "lucide-react";
 import { useCurrencyVersion } from "@/contexts/CurrencyContext";
-import { format } from "date-fns";
-import { Upload, ChevronRight } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { DateRangeSelector } from "@/components/dashboard/DateRangeSelector";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/hooks/useUserRole";
-import { useVsdTargets, useDealTargets } from "@/hooks/useFinanceTargets";
 import { TargetsUploadDialog } from "@/components/targets/TargetsUploadDialog";
-import { DealTargetsTable } from "@/components/targets/DealTargetsTable";
-import {
-  METRICS, METRIC_LABELS, attainmentPct, attainmentTone, formatINR,
-} from "@/lib/csvTargets";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { METRICS, METRIC_LABELS, attainmentPct, attainmentTone, formatINR, type Metric } from "@/lib/csvTargets";
+
+// ── Types ──
+interface DealMeta {
+  id: string;
+  deal_name: string;
+  account: string;
+  vsd: string;
+  bopm: string;
+  mrr: number;
+  total_deal_value: number;
+  start_date: string | null;
+  deal_status: string;
+}
+interface TargetRow {
+  id?: string;
+  deal_id: string;
+  month: string; // YYYY-MM-DD
+  contraction_target: number; contraction_actual: number;
+  delivery_target: number;    delivery_actual: number;
+  invoicing_target: number;   invoicing_actual: number;
+  receivables_target: number; receivables_actual: number;
+}
+const ZERO_TARGET = (deal_id: string, month: string): TargetRow => ({
+  deal_id, month,
+  contraction_target: 0, contraction_actual: 0,
+  delivery_target: 0,    delivery_actual: 0,
+  invoicing_target: 0,   invoicing_actual: 0,
+  receivables_target: 0, receivables_actual: 0,
+});
+
+const monthIso = (yyyymm: string) => `${yyyymm}-01`;
+const prevMonthYYYYMM = (yyyymm: string) => format(addMonths(parseISO(`${yyyymm}-01`), -1), "yyyy-MM");
+
+// Inline editable currency cell
+function TargetCell({ value, prevValue, onSave, disabled, prevLabel }: {
+  value: number;
+  prevValue?: number;
+  onSave: (v: number) => Promise<void>;
+  disabled?: boolean;
+  prevLabel?: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [local, setLocal] = useState(String(value || ""));
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { if (!editing) setLocal(String(value || "")); }, [value, editing]);
+  useEffect(() => { if (editing) setTimeout(() => inputRef.current?.select(), 0); }, [editing]);
+
+  async function commit() {
+    const num = Number(local) || 0;
+    setEditing(false);
+    if (num === value) return;
+    setSaving(true);
+    try {
+      await onSave(num);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1200);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to save");
+      setLocal(String(value || ""));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <td className="py-1 px-1.5 align-top">
+      {editing && !disabled ? (
+        <input
+          ref={inputRef}
+          type="number"
+          value={local}
+          onChange={e => setLocal(e.target.value)}
+          onBlur={commit}
+          onKeyDown={e => {
+            if (e.key === "Enter") commit();
+            if (e.key === "Escape") { setLocal(String(value || "")); setEditing(false); }
+          }}
+          className="w-24 h-7 rounded border border-primary bg-card px-1.5 text-right text-xs tabular-nums outline-none focus:ring-1 focus:ring-primary"
+        />
+      ) : (
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => setEditing(true)}
+          className={cn(
+            "w-full text-right rounded px-1.5 py-1 text-xs tabular-nums",
+            disabled ? "cursor-default text-muted-foreground" : "hover:bg-muted/60 cursor-pointer",
+            !value && "text-muted-foreground italic"
+          )}
+        >
+          <span className="inline-flex items-center gap-1 justify-end">
+            {saved && <Check className="h-3 w-3 text-positive" />}
+            {value ? formatINR(value) : "Set target"}
+          </span>
+        </button>
+      )}
+      {prevValue !== undefined && prevValue > 0 && (
+        <div className="text-[10px] text-muted-foreground text-right pr-1.5">
+          {prevLabel || "Prev"} {formatINR(prevValue)}
+        </div>
+      )}
+      {saving && <div className="text-[9px] text-muted-foreground text-right pr-1.5">saving…</div>}
+    </td>
+  );
+}
 
 export default function Targets() {
   useCurrencyVersion();
   const { isAdmin } = useUserRole();
   const [month, setMonth] = useState(format(new Date(), "yyyy-MM"));
   const [uploadOpen, setUploadOpen] = useState(false);
-  const { rows: vsdRows, totals, loading, reload } = useVsdTargets(month);
-  const { reload: reloadDeal } = useDealTargets(month);
-  const monthLabel = format(new Date(`${month}-01T00:00:00`), "MMMM yyyy");
+  const [deals, setDeals] = useState<DealMeta[]>([]);
+  const [targets, setTargets] = useState<Record<string, TargetRow>>({}); // key: deal_id
+  const [prevTargets, setPrevTargets] = useState<Record<string, TargetRow>>({});
+  const [loading, setLoading] = useState(true);
+  const [vsdFilter, setVsdFilter] = useState<string>("All");
+  const [needsOnly, setNeedsOnly] = useState(false);
+  const [behindOnly, setBehindOnly] = useState(false);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [savingState, setSavingState] = useState<"idle" | "saving" | "saved">("saved");
 
-  const onUploaded = () => { reload(); reloadDeal(); };
+  const monthLabel = format(parseISO(monthIso(month)), "MMMM yyyy");
+  const prevYM = prevMonthYYYYMM(month);
+  const prevLabel = format(parseISO(monthIso(prevYM)), "MMM");
+
+  // ── Load ──
+  const load = useCallback(async () => {
+    setLoading(true);
+    const [dealsRes, tgtRes, prevRes] = await Promise.all([
+      supabase
+        .from("staffing_deals")
+        .select("id, deal_name, account, vsd, bopm, mrr, total_deal_value, start_date, deal_status")
+        .in("deal_status", ["Active Deal", "New Deal in SLA/PO", "Deal - Open and WIP", "Deal in Renewal Process"])
+        .order("deal_name"),
+      supabase.from("deal_financial_targets").select("*").eq("month", monthIso(month)),
+      supabase.from("deal_financial_targets").select("*").eq("month", monthIso(prevYM)),
+    ]);
+    const dealRows = (dealsRes.data || []) as any[];
+    setDeals(dealRows.map((d): DealMeta => ({
+      id: d.id, deal_name: d.deal_name || d.id, account: d.account || "",
+      vsd: d.vsd || "", bopm: d.bopm || "", mrr: Number(d.mrr) || 0,
+      total_deal_value: Number(d.total_deal_value) || 0,
+      start_date: d.start_date, deal_status: d.deal_status || "",
+    })));
+    const tMap: Record<string, TargetRow> = {};
+    (tgtRes.data || []).forEach((r: any) => { tMap[r.deal_id] = r as TargetRow; });
+    setTargets(tMap);
+    const pMap: Record<string, TargetRow> = {};
+    (prevRes.data || []).forEach((r: any) => { pMap[r.deal_id] = r as TargetRow; });
+    setPrevTargets(pMap);
+    setLoading(false);
+  }, [month, prevYM]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  // ── Save (upsert) one field ──
+  const saveField = useCallback(
+    async (deal_id: string, field: keyof TargetRow, value: number) => {
+      const existing = targets[deal_id] || ZERO_TARGET(deal_id, monthIso(month));
+      const next: any = { ...existing, [field]: value, deal_id, month: monthIso(month) };
+      // Optimistic
+      setTargets(prev => ({ ...prev, [deal_id]: next }));
+      setSavingState("saving");
+      const { data, error } = await supabase
+        .from("deal_financial_targets")
+        .upsert(next, { onConflict: "month,deal_id" })
+        .select()
+        .single();
+      if (error) {
+        setSavingState("idle");
+        // Revert
+        setTargets(prev => ({ ...prev, [deal_id]: existing }));
+        throw error;
+      }
+      setTargets(prev => ({ ...prev, [deal_id]: data as TargetRow }));
+      setSavingState("saved");
+    },
+    [targets, month]
+  );
+
+  // ── Bulk: copy previous month targets for empty rows ──
+  async function bulkCopyPrev() {
+    const empties = filteredDeals.filter(d => !targets[d.id] || METRICS.every(m => !targets[d.id][`${m}_target` as keyof TargetRow]));
+    const rows = empties
+      .map(d => ({ deal_id: d.id, prev: prevTargets[d.id] }))
+      .filter(x => x.prev)
+      .map(({ deal_id, prev }) => ({
+        deal_id, month: monthIso(month),
+        contraction_target: prev!.contraction_target,
+        contraction_actual: 0,
+        delivery_target: prev!.delivery_target,
+        delivery_actual: 0,
+        invoicing_target: prev!.invoicing_target,
+        invoicing_actual: 0,
+        receivables_target: prev!.receivables_target,
+        receivables_actual: 0,
+      }));
+    if (!rows.length) { toast.info("Nothing to copy"); return; }
+    setSavingState("saving");
+    const { error } = await supabase.from("deal_financial_targets").upsert(rows, { onConflict: "month,deal_id" });
+    if (error) { toast.error(error.message); setSavingState("idle"); return; }
+    toast.success(`Copied ${prevLabel} targets for ${rows.length} deals`);
+    setSavingState("saved");
+    await load();
+  }
+
+  async function bulkMatchMrr() {
+    const rows = filteredDeals
+      .filter(d => d.mrr > 0)
+      .map(d => {
+        const t = targets[d.id] || ZERO_TARGET(d.id, monthIso(month));
+        const set = (cur: number, fallback: number) => cur > 0 ? cur : fallback;
+        return {
+          deal_id: d.id, month: monthIso(month),
+          contraction_target: set(t.contraction_target, d.mrr),
+          contraction_actual: t.contraction_actual,
+          delivery_target: set(t.delivery_target, d.mrr),
+          delivery_actual: t.delivery_actual,
+          invoicing_target: set(t.invoicing_target, d.mrr),
+          invoicing_actual: t.invoicing_actual,
+          receivables_target: set(t.receivables_target, d.mrr),
+          receivables_actual: t.receivables_actual,
+        };
+      });
+    if (!rows.length) { toast.info("No MRR data on deals"); return; }
+    setSavingState("saving");
+    const { error } = await supabase.from("deal_financial_targets").upsert(rows, { onConflict: "month,deal_id" });
+    if (error) { toast.error(error.message); setSavingState("idle"); return; }
+    toast.success(`MRR-matched targets for ${rows.length} deals`);
+    setSavingState("saved");
+    await load();
+  }
+
+  // ── Derived ──
+  const vsdList = useMemo(() => {
+    const set = new Set<string>();
+    deals.forEach(d => { if (d.vsd) set.add(d.vsd); });
+    return ["All", ...Array.from(set).sort(), "Unassigned"];
+  }, [deals]);
+
+  const monthsElapsed = useCallback((startDate: string | null) => {
+    if (!startDate) return 0;
+    const m = differenceInCalendarMonths(parseISO(monthIso(month)), parseISO(startDate));
+    return Math.max(0, m + 1);
+  }, [month]);
+
+  const expectedPace = useCallback((d: DealMeta) => d.mrr * monthsElapsed(d.start_date), [monthsElapsed]);
+
+  const isBehindPace = useCallback((d: DealMeta) => {
+    const t = targets[d.id];
+    const expected = expectedPace(d);
+    if (!t || expected <= 0) return false;
+    return t.delivery_actual > 0 && t.delivery_actual < expected * 0.85;
+  }, [targets, expectedPace]);
+
+  const filteredDeals = useMemo(() => {
+    let arr = deals;
+    if (vsdFilter !== "All") {
+      arr = arr.filter(d => vsdFilter === "Unassigned" ? !d.vsd : d.vsd === vsdFilter);
+    }
+    if (needsOnly) arr = arr.filter(d => !targets[d.id] || METRICS.every(m => !targets[d.id][`${m}_target` as keyof TargetRow]));
+    if (behindOnly) arr = arr.filter(isBehindPace);
+    return arr;
+  }, [deals, vsdFilter, needsOnly, behindOnly, targets, isBehindPace]);
+
+  // Summary totals (all deals, not filtered)
+  const summary = useMemo(() => {
+    const totals: Record<Metric, { target: number; actual: number }> = {
+      contraction: { target: 0, actual: 0 },
+      delivery:    { target: 0, actual: 0 },
+      invoicing:   { target: 0, actual: 0 },
+      receivables: { target: 0, actual: 0 },
+    };
+    let needs = 0;
+    let behind = 0;
+    deals.forEach(d => {
+      const t = targets[d.id];
+      const isEmpty = !t || METRICS.every(m => !t[`${m}_target` as keyof TargetRow]);
+      if (isEmpty) needs++;
+      if (isBehindPace(d)) behind++;
+      if (t) {
+        METRICS.forEach(m => {
+          totals[m].target += Number((t as any)[`${m}_target`]) || 0;
+          totals[m].actual += Number((t as any)[`${m}_actual`]) || 0;
+        });
+      }
+    });
+    return { totals, needs, behind, total: deals.length };
+  }, [deals, targets, isBehindPace]);
+
+  const bopmCount = useMemo(() => new Set(deals.map(d => d.bopm).filter(Boolean)).size, [deals]);
 
   return (
     <AppLayout>
-      <div className="p-4 md:p-8">
-        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="p-4 md:p-8 max-w-[1400px] mx-auto">
+
+        {/* Header */}
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
-            <h1 className="text-subhead font-semibold tracking-tight text-foreground">Target Setting & Attainment</h1>
-            <p className="text-ui text-muted-foreground mt-1">{monthLabel} — Contraction, Delivery, Invoicing, Receivables</p>
+            <h1 className="text-subhead font-semibold tracking-tight text-foreground">
+              Set {monthLabel} targets
+            </h1>
+            <p className="text-ui text-muted-foreground mt-1">
+              {deals.length} deals · {bopmCount} BOPMs · tracking measured as MRR × months since start
+            </p>
           </div>
           <div className="flex items-center gap-2">
+            <span className={cn(
+              "text-[11px] px-2 py-1 rounded-md",
+              savingState === "saving" ? "bg-warning/10 text-warning" :
+              savingState === "saved" ? "bg-positive/10 text-positive" : "bg-secondary text-muted-foreground"
+            )}>
+              {savingState === "saving" ? "Saving…" : savingState === "saved" ? "All saved" : "Idle"}
+            </span>
             <DateRangeSelector value={month} onChange={setMonth} />
             {isAdmin && (
-              <Button size="sm" onClick={() => setUploadOpen(true)}>
-                <Upload className="h-3.5 w-3.5 mr-1.5" /> Upload CSV
+              <Button size="sm" variant="outline" onClick={() => setUploadOpen(true)}>
+                <Upload className="h-3.5 w-3.5 mr-1.5" /> Import CSV
               </Button>
             )}
           </div>
         </div>
 
-        {/* KPI tiles per metric */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {METRICS.map((m) => {
-            const t = totals[m];
+        {/* Summary strip */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+          <div className="data-card">
+            <p className="metric-label flex items-center gap-1.5">
+              <AlertTriangle className="h-3.5 w-3.5 text-warning" /> Deals needing {format(parseISO(monthIso(month)), "MMM")} targets
+            </p>
+            <p className="text-2xl font-semibold text-foreground mt-1 tabular-nums">{summary.needs}</p>
+            <p className="text-[11px] text-muted-foreground">of {summary.total} deals</p>
+            {summary.behind > 0 && (
+              <p className="text-[11px] text-warning mt-1">{summary.behind} also behind expected pace</p>
+            )}
+          </div>
+          {METRICS.map(m => {
+            const t = summary.totals[m];
             const pct = attainmentPct(t.actual, t.target);
             return (
               <div key={m} className="data-card">
-                <p className="metric-label">{METRIC_LABELS[m]}</p>
-                <p className="text-2xl font-semibold font-mono tabular-nums text-foreground mt-1">
-                  {formatINR(t.actual)}
-                </p>
-                <p className="text-xs text-muted-foreground font-mono tabular-nums">
-                  Target {formatINR(t.target)}
-                </p>
-                <p className={cn("text-sm font-semibold mt-1 font-mono tabular-nums", attainmentTone(pct))}>
-                  {pct === null ? "—" : `${pct.toFixed(1)}% attained`}
-                </p>
+                <div className="flex items-baseline justify-between">
+                  <p className="metric-label">{METRIC_LABELS[m]}</p>
+                  <span className={cn("text-xs font-semibold tabular-nums", attainmentTone(pct))}>
+                    {pct === null ? "—" : `${pct.toFixed(0)}%`}
+                  </span>
+                </div>
+                <p className="text-lg font-semibold text-foreground mt-1 tabular-nums">{formatINR(t.actual)}</p>
+                <p className="text-[11px] text-muted-foreground tabular-nums">/ {formatINR(t.target)} target</p>
               </div>
             );
           })}
         </div>
 
-        <Tabs defaultValue="vsd">
-          <TabsList>
-            <TabsTrigger value="vsd">By VSD</TabsTrigger>
-            <TabsTrigger value="deal">By Deal</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="vsd" className="pt-4">
-            <div className="data-card p-0 overflow-hidden">
-              {loading ? (
-                <div className="h-48 bg-muted/30 animate-pulse" />
-              ) : vsdRows.length === 0 ? (
-                <div className="p-8 text-center">
-                  <p className="text-ui text-muted-foreground mb-3">
-                    No VSD targets for {monthLabel}.
-                  </p>
-                  {isAdmin && (
-                    <Button size="sm" variant="outline" onClick={() => setUploadOpen(true)}>
-                      <Upload className="h-3.5 w-3.5 mr-1.5" /> Upload your first month
-                    </Button>
-                  )}
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-ui">
-                    <thead>
-                      <tr className="border-b border-border bg-secondary/30">
-                        <th rowSpan={2} className="text-left py-2 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider sticky left-0 bg-secondary/30">VSD</th>
-                        {METRICS.map((m) => (
-                          <th key={m} colSpan={3} className="text-center py-2 px-2 font-medium text-muted-foreground text-caption uppercase tracking-wider border-l border-border">
-                            {METRIC_LABELS[m]}
-                          </th>
-                        ))}
-                      </tr>
-                      <tr className="border-b border-border bg-secondary/30">
-                        {METRICS.map((m) => (
-                          <Fragment key={m}>
-                            <th className="text-right py-1.5 pr-2 pl-2 font-medium text-muted-foreground text-[10px] uppercase border-l border-border">Target</th>
-                            <th className="text-right py-1.5 px-2 font-medium text-muted-foreground text-[10px] uppercase">Actual</th>
-                            <th className="text-right py-1.5 px-2 font-medium text-muted-foreground text-[10px] uppercase">Attain%</th>
-                          </Fragment>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {vsdRows.map((r) => (
-                        <tr key={r.id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
-                          <td className="py-2.5 px-3 font-medium text-foreground sticky left-0 bg-card">{r.vsd}</td>
-                          {METRICS.map((m) => {
-                            const tgt = (r as any)[`${m}_target`] as number;
-                            const act = (r as any)[`${m}_actual`] as number;
-                            const pct = attainmentPct(act, tgt);
-                            return (
-                              <Fragment key={m}>
-                                <td className="text-right py-2.5 pr-2 pl-2 font-mono tabular-nums text-muted-foreground border-l border-border/50">{formatINR(tgt)}</td>
-                                <td className="text-right py-2.5 px-2 font-mono tabular-nums text-foreground">{formatINR(act)}</td>
-                                <td className={cn("text-right py-2.5 px-2 font-mono tabular-nums font-semibold", attainmentTone(pct))}>
-                                  {pct === null ? "—" : `${pct.toFixed(1)}%`}
-                                </td>
-                              </Fragment>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                      <tr className="bg-secondary/40 font-semibold">
-                        <td className="py-2.5 px-3 sticky left-0 bg-secondary/40">Total</td>
-                        {METRICS.map((m) => {
-                          const t = totals[m];
-                          const pct = attainmentPct(t.actual, t.target);
-                          return (
-                            <Fragment key={m}>
-                              <td className="text-right py-2.5 pr-2 pl-2 font-mono tabular-nums text-foreground border-l border-border/50">{formatINR(t.target)}</td>
-                              <td className="text-right py-2.5 px-2 font-mono tabular-nums text-foreground">{formatINR(t.actual)}</td>
-                              <td className={cn("text-right py-2.5 px-2 font-mono tabular-nums", attainmentTone(pct))}>
-                                {pct === null ? "—" : `${pct.toFixed(1)}%`}
-                              </td>
-                            </Fragment>
-                          );
-                        })}
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              )}
+        {/* Bulk actions */}
+        {isAdmin && (
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4 p-3 rounded-md border border-border bg-secondary/30">
+            <p className="text-[12px] text-muted-foreground">
+              {summary.needs} deals still need {format(parseISO(monthIso(month)), "MMM")} targets · {summary.behind} deals behind expected pace
+            </p>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={bulkCopyPrev}>
+                <Copy className="h-3.5 w-3.5 mr-1.5" /> Copy {prevLabel} targets
+              </Button>
+              <Button size="sm" variant="outline" onClick={bulkMatchMrr}>
+                <Sparkles className="h-3.5 w-3.5 mr-1.5" /> Match MRR for empty fields
+              </Button>
             </div>
-          </TabsContent>
+          </div>
+        )}
 
-          <TabsContent value="deal" className="pt-4">
-            <DealTargetsTable monthYYYYMM={month} title={`All Deals — ${monthLabel}`} />
-          </TabsContent>
-        </Tabs>
+        {/* Filter chips */}
+        <div className="flex flex-wrap items-center gap-1.5 mb-4">
+          {vsdList.map(v => (
+            <button
+              key={v}
+              onClick={() => setVsdFilter(v)}
+              className={cn(
+                "text-[12px] px-2.5 py-1 rounded-md border transition-colors",
+                vsdFilter === v ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border hover:bg-secondary"
+              )}
+            >
+              {v}
+            </button>
+          ))}
+          <div className="flex-1" />
+          <button
+            onClick={() => setNeedsOnly(v => !v)}
+            className={cn("text-[12px] px-2.5 py-1 rounded-md border", needsOnly ? "bg-warning/15 border-warning text-warning" : "bg-card border-border hover:bg-secondary")}
+          >
+            Needs targets
+          </button>
+          <button
+            onClick={() => setBehindOnly(v => !v)}
+            className={cn("text-[12px] px-2.5 py-1 rounded-md border", behindOnly ? "bg-destructive/15 border-destructive text-destructive" : "bg-card border-border hover:bg-secondary")}
+          >
+            Behind pace
+          </button>
+        </div>
 
-        <TargetsUploadDialog open={uploadOpen} onOpenChange={setUploadOpen} onUploaded={onUploaded} defaultMonth={month} />
+        {/* Table */}
+        <div className="data-card p-0 overflow-hidden">
+          {loading ? (
+            <div className="h-48 bg-muted/30 animate-pulse" />
+          ) : filteredDeals.length === 0 ? (
+            <div className="p-8 text-center text-ui text-muted-foreground">No deals match the current filters.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-ui">
+                <thead>
+                  <tr className="border-b border-border bg-secondary/30 text-[11px] uppercase tracking-wider text-muted-foreground">
+                    <th className="text-left py-2 pl-3 pr-2 font-medium w-8"></th>
+                    <th className="text-left py-2 pr-3 font-medium">Deal</th>
+                    <th className="text-right py-2 px-2 font-medium">Size</th>
+                    <th className="text-left py-2 px-2 font-medium">Delivery vs expected pace</th>
+                    <th colSpan={4} className="text-center py-2 px-2 font-medium border-l border-border">{format(parseISO(monthIso(month)), "MMM yyyy")} targets</th>
+                  </tr>
+                  <tr className="border-b border-border bg-secondary/20 text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <th colSpan={4}></th>
+                    {METRICS.map(m => (
+                      <th key={m} className="text-right py-1.5 px-2 font-medium border-l border-border/50">{METRIC_LABELS[m]}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredDeals.map(d => {
+                    const t = targets[d.id] || ZERO_TARGET(d.id, monthIso(month));
+                    const prev = prevTargets[d.id];
+                    const expected = expectedPace(d);
+                    const monthsN = monthsElapsed(d.start_date);
+                    const deliveryAct = t.delivery_actual;
+                    const pacePct = expected > 0 ? Math.min(100, (deliveryAct / expected) * 100) : 0;
+                    const paceColor = pacePct >= 95 ? "bg-positive" : pacePct >= 70 ? "bg-warning" : "bg-destructive";
+                    const isOpen = !!expanded[d.id];
+                    return (
+                      <Fragment key={d.id}>
+                        <tr className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
+                          <td className="py-2.5 pl-3 pr-2 align-top">
+                            <button
+                              onClick={() => setExpanded(p => ({ ...p, [d.id]: !p[d.id] }))}
+                              className="text-muted-foreground hover:text-foreground"
+                              title={isOpen ? "Collapse" : "Expand"}
+                            >
+                              {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                            </button>
+                          </td>
+                          <td className="py-2.5 pr-3 align-top">
+                            <Link to={`/deals/${d.id}`} className="font-medium text-foreground hover:text-primary block">
+                              {d.deal_name}
+                            </Link>
+                            <div className="text-[11px] text-muted-foreground truncate max-w-[260px]">
+                              {d.account}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground mt-0.5">
+                              {d.id} · {d.bopm || "—"}{d.vsd && ` · VSD ${d.vsd}`}
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-2 text-right align-top">
+                            <div className="font-semibold text-foreground tabular-nums">{formatINR(d.total_deal_value)}</div>
+                            <div className="text-[11px] text-muted-foreground tabular-nums">{formatINR(d.mrr)} MRR</div>
+                          </td>
+                          <td className="py-2.5 px-2 align-top w-[260px]">
+                            <div className="text-[11px] text-muted-foreground">
+                              {formatINR(d.mrr)} × {monthsN}mo = {formatINR(expected)}
+                            </div>
+                            <div className="h-1.5 rounded-full bg-secondary mt-1.5 overflow-hidden">
+                              <div className={cn("h-full rounded-full", paceColor)} style={{ width: `${pacePct}%` }} />
+                            </div>
+                            <div className="flex items-baseline justify-between mt-1">
+                              <span className="text-[11px] tabular-nums text-foreground">{formatINR(deliveryAct)} of {formatINR(expected)}</span>
+                              <span className={cn("text-[11px] font-semibold tabular-nums", attainmentTone(expected > 0 ? (deliveryAct / expected) * 100 : null))}>
+                                {expected > 0 ? `${Math.round((deliveryAct / expected) * 100)}%` : "—"}
+                              </span>
+                            </div>
+                          </td>
+                          {METRICS.map(m => (
+                            <TargetCell
+                              key={m}
+                              value={Number((t as any)[`${m}_target`]) || 0}
+                              prevValue={prev ? Number((prev as any)[`${m}_target`]) || 0 : undefined}
+                              prevLabel={prevLabel}
+                              disabled={!isAdmin}
+                              onSave={(v) => saveField(d.id, `${m}_target` as keyof TargetRow, v)}
+                            />
+                          ))}
+                        </tr>
+                        {isOpen && (
+                          <tr className="border-b border-border bg-secondary/10">
+                            <td colSpan={8} className="px-6 py-4">
+                              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                {METRICS.map(m => {
+                                  const tgt = Number((t as any)[`${m}_target`]) || 0;
+                                  const act = Number((t as any)[`${m}_actual`]) || 0;
+                                  const pct = attainmentPct(act, tgt);
+                                  return (
+                                    <div key={m} className="rounded-md border border-border bg-card p-3">
+                                      <div className="text-[11px] uppercase tracking-wider text-muted-foreground">{METRIC_LABELS[m]}</div>
+                                      <div className="mt-1 text-sm font-semibold text-foreground tabular-nums">
+                                        {formatINR(act)} <span className="text-muted-foreground font-normal">/ {formatINR(tgt)}</span>
+                                      </div>
+                                      <div className={cn("text-[11px] font-semibold tabular-nums", attainmentTone(pct))}>
+                                        {pct === null ? "Set a target to track" : `${pct.toFixed(0)}% attained`}
+                                      </div>
+                                      {prev && (
+                                        <div className="text-[10px] text-muted-foreground mt-1.5">
+                                          {prevLabel} target: {formatINR(Number((prev as any)[`${m}_target`]) || 0)}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              <p className="text-[11px] text-muted-foreground mt-3">
+                                Edits flow into this deal's <Link to={`/deals/${d.id}`} className="text-primary hover:underline">Financials tab</Link> automatically.
+                              </p>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-secondary/40 font-medium text-[12px]">
+                    <td colSpan={4} className="py-2.5 pl-3 pr-2 text-muted-foreground">
+                      Showing {filteredDeals.length} of {deals.length} deals · subtotals
+                    </td>
+                    {METRICS.map(m => {
+                      const subtotal = filteredDeals.reduce((s, d) => s + (Number((targets[d.id] as any)?.[`${m}_target`]) || 0), 0);
+                      return (
+                        <td key={m} className="py-2.5 px-2 text-right tabular-nums text-foreground border-l border-border/50">
+                          {formatINR(subtotal)}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {!isAdmin && (
+          <p className="text-[11px] text-muted-foreground mt-3">
+            Read-only view. Ask an admin to update targets.
+          </p>
+        )}
+
+        <TargetsUploadDialog open={uploadOpen} onOpenChange={setUploadOpen} onUploaded={load} defaultMonth={month} />
       </div>
     </AppLayout>
   );
