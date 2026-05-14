@@ -204,13 +204,13 @@ export function CapacityTab({ deals, people, assignments }: Props) {
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex gap-1 overflow-x-auto pb-1">
           <button onClick={() => setCategoryFilter("All")} className={cn(
-            "px-3 py-1.5 rounded-md text-caption font-medium whitespace-nowrap transition-colors",
-            categoryFilter === "All" ? "bg-foreground text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"
+            "px-3 py-1.5 rounded-md text-caption font-medium whitespace-nowrap transition-colors border",
+            categoryFilter === "All" ? "bg-primary text-primary-foreground border-primary" : "bg-card text-muted-foreground border-border hover:text-foreground hover:bg-secondary"
           )}>All</button>
           {ROLE_CATEGORIES.map(cat => (
             <button key={cat} onClick={() => setCategoryFilter(cat)} className={cn(
-              "px-3 py-1.5 rounded-md text-caption font-medium whitespace-nowrap transition-colors",
-              categoryFilter === cat ? "bg-foreground text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"
+              "px-3 py-1.5 rounded-md text-caption font-medium whitespace-nowrap transition-colors border",
+              categoryFilter === cat ? "bg-primary text-primary-foreground border-primary" : "bg-card text-muted-foreground border-border hover:text-foreground hover:bg-secondary"
             )}>{cat}</button>
           ))}
         </div>
