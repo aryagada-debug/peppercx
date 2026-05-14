@@ -28,7 +28,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { TaskFormDialog } from "@/components/deals/TaskFormDialog";
-import { useGoogleCalendar, type GCalEvent } from "@/hooks/useGoogleCalendar";
+import { useGoogleCalendar, resolveJoinUrl, type GCalEvent } from "@/hooks/useGoogleCalendar";
 import { CalendarConnectButton } from "@/components/calendar/CalendarConnectButton";
 import { EventFormDialog, type EventFormValue } from "@/components/calendar/EventFormDialog";
 import { FullCalendarDialog } from "@/components/calendar/FullCalendarDialog";
@@ -1364,6 +1364,28 @@ export default function HomePage() {
                           className="opacity-0 group-hover:opacity-100 text-[10px] text-muted-foreground hover:text-foreground self-center px-2 transition-opacity"
                           title="Open in Google Calendar">↗</a>
                       )}
+                      {(() => {
+                        const joinUrl = resolveJoinUrl(ev);
+                        if (!joinUrl || isPastMeeting) return null;
+                        const live = endD && startD <= now && endD >= now;
+                        return (
+                          <a
+                            href={joinUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={e => e.stopPropagation()}
+                            className={cn(
+                              "self-center inline-flex items-center gap-1 rounded-md px-2 h-7 text-[11px] font-medium transition-colors",
+                              live || isSoon
+                                ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                                : "border border-border text-foreground hover:bg-secondary opacity-0 group-hover:opacity-100"
+                            )}
+                            title="Join meeting"
+                          >
+                            <Video className="h-3 w-3" /> Join
+                          </a>
+                        );
+                      })()}
                     </div>
                   );
                 })
