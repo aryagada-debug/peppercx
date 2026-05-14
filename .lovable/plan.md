@@ -1,64 +1,26 @@
 ## Goal
-Upgrade the meeting creation experience in **Home** and **MBR scheduling** with:
-1. Conferencing provider selector (Google Meet default, Teams, Zoom)
-2. Attendee autocomplete from app users
-3. From MBR: pull stakeholders from the deal's Org Map, and add new stakeholders to the Org Map while scheduling
 
----
+Make the "Attendees" field in the New/Edit event dialog (Home + Full Calendar) clearly behave as an autocomplete that supports BOTH team users and any external email.
 
-## 1. Conferencing provider
+## What changes
 
-New shared field `conferencing: "meet" | "teams" | "zoom" | "none"` (default `"meet"`).
+**File:** `src/components/calendar/AttendeeMultiSelect.tsx`
 
-- **Google Meet** — Auto-generated via Google Calendar API. Update `supabase/functions/google-calendar-create` & `google-calendar-update` to:
-  - Accept a `conferencing` arg.
-  - When `meet`, attach `conferenceData.createRequest` with a random `requestId` and append `?conferenceDataVersion=1` to the API URL. Returned `hangoutLink` is stored back on the event.
-- **Teams / Zoom** — No OAuth available for those providers, so the dialog shows a "Meeting link" input. The link is written into the event's `location` field and prepended to the description (`Join via Teams: <url>`). If left blank, we save the event without a link and surface a small hint.
-- The selector lives in `EventFormDialog` (used by Home + FullCalendarDialog) and in `ScheduleOnlyDialog` (MBR), defaulting to `meet`.
+1. **Open suggestions immediately on focus/click** — even with empty query, show the full team list (capped at 50) so users see it's an autocomplete.
+2. **Focus the input when the wrapper is clicked** — currently clicking the padded area around the input does nothing.
+3. **Clearer placeholder** — change to `"Add team member or type any email…"` so external emails are obviously allowed.
+4. **Add on blur** — if the user types a valid email and clicks away without pressing Enter, auto-add it. Invalid partials are discarded silently.
+5. **External-email visual cue** — chips for emails not in the team list get a subtle "external" dot/tooltip so it's obvious non-users are accepted.
+6. **Helper hint row in the popover footer** — small muted text: `Press Enter to add a custom email`.
 
-Edge function payload extension:
-```ts
-{ summary, start, end, attendees, location, description,
-  conferencing?: "meet" | "teams" | "zoom",
-  conferenceLink?: string }
-```
+No other files change. No backend / edge-function / data-model changes — the field already returns `string[]` of emails which the create/update edge functions already accept for any address.
 
-## 2. Attendee autocomplete
+## Verification
 
-New component `src/components/calendar/AttendeeMultiSelect.tsx`:
-- Loads `staffing_people` (name + email) once via React Query and merges with any free-typed emails.
-- Uses shadcn `Command` + `Popover` for searchable dropdown; selected attendees render as removable chips.
-- Returns `string[]` of emails (matches existing API).
-- Replaces the comma-separated `Input` in both `EventFormDialog` and `ScheduleOnlyDialog`.
-
-## 3. Org Map integration (MBR only)
-
-In `ScheduleOnlyDialog`:
-- Load `deal_stakeholders` for `deal.id` via existing `useStakeholders` hook.
-- Add **"Add from Org Map"** button beside attendees → opens a small popover listing stakeholders with email; clicking adds them to the attendee list.
-- Add **"+ New stakeholder"** inline form (name, role, email) that inserts into `deal_stakeholders` and immediately adds the email to attendees.
-
-## 4. Files
-
-**New**
-- `src/components/calendar/AttendeeMultiSelect.tsx`
-- `src/components/calendar/ConferencingSelect.tsx` (small select + conditional link input)
-- `src/components/mbr/StakeholderAttendeePicker.tsx`
-
-**Edited**
-- `src/components/calendar/EventFormDialog.tsx` — add conferencing selector, swap attendee input
-- `src/components/mbr/ScheduleOnlyDialog.tsx` — add conferencing, autocomplete, stakeholder picker, pass `conferencing` through to sync
-- `src/lib/mbrCalendarSync.ts` — forward `conferencing` & `conferenceLink` to `createEvent`/`updateEvent`
-- `src/hooks/useGoogleCalendar.ts` — extend `createEvent`/`updateEvent` signatures
-- `supabase/functions/google-calendar-create/index.ts` — Meet `conferenceData`; Teams/Zoom location/description handling
-- `supabase/functions/google-calendar-update/index.ts` — same
-- `src/pages/Home.tsx` — pass new fields through `handleCalSave`
-
-No DB migration needed (`deal_stakeholders` already exists).
-
-## 5. Verification
-
-- Connect calendar → Home → New event → verify Meet link auto-attaches and shows in event.
-- Switch to Teams/Zoom → paste link → verify it appears in created event location.
-- MBR Schedule → autocomplete shows team members, "Add from Org Map" inserts stakeholder emails, "+ New stakeholder" adds to `deal_stakeholders` and Org Map tab.
-- Edit existing event → conferencing change propagates.
+- Open Home → click a calendar slot → New event dialog.
+- Click the Attendees field: dropdown of team members appears instantly.
+- Type `john@acme.com` (not a team member) → "Add '[john@acme.com](mailto:john@acme.com)'" row appears → Enter adds it as a chip with external indicator.
+- Type a team member's name → matching users appear → click adds them.
+- Repeat in Full Calendar dialog (same component) and confirm MBR `ScheduleOnlyDialog` (also uses this component) is unaffected.  
+  
+Do this for Schedule MBR too and verify it
