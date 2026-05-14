@@ -1144,6 +1144,7 @@ export function BopmStaffingFlatTable({
     const allocVal = draftVal !== undefined ? draftVal : String(e.allocationPct);
     const allocNum = Number(allocVal);
     const hrs = ((Number.isFinite(allocNum) ? allocNum : e.allocationPct) / 100) * MONTH_HOURS / 4.33;
+    const chipStyle = styleFor(ROLE_CATEGORY_OF(roleKey));
 
     return (
       <div
@@ -1153,7 +1154,7 @@ export function BopmStaffingFlatTable({
           e.isMarkedRemove ? "bg-destructive/10 border-destructive/30" :
           e.isAdded ? "bg-positive/10 border-positive/30" :
           e.isUpdated ? "bg-warning/10 border-warning/30" :
-          "bg-card/60 border-border/70 hover:border-border",
+          chipStyle.chip,
           e.isExpired && !e.isMarkedRemove && "opacity-50 font-light"
         )}
         title={e.isExpired ? `No longer staffed (ended ${e.endDate})` : undefined}
