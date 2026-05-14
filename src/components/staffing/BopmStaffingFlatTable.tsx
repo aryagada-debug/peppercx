@@ -535,6 +535,7 @@ export function BopmStaffingFlatTable({
   // "Request staffing" replaces the old direct-add flow. We capture the deal
   // (and optional role/category context) and route through staffing_review_requests.
   const [requestForDeal, setRequestForDeal] = useState<{ dealId: string; roleKey?: string; category?: string } | null>(null);
+  const [quickAdd, setQuickAdd] = useState<{ dealId: string; roleKey: string; category: string } | null>(null);
   // Engagement-aware change: opens the dialog in edit mode for an existing assignment.
   const [editEntry, setEditEntry] = useState<{
     dealId: string; assignmentId: string; roleKey: string;
@@ -1415,6 +1416,27 @@ export function BopmStaffingFlatTable({
                       const cat = roleCategory.get(rk) || "Other";
                       const s = styleFor(cat);
                       const w = colWidths[rk] ?? 200;
+                      if (directEdit && onAddAssignment) {
+                        return (
+                          <td
+                            key={rk}
+                            style={{ width: w, minWidth: w, maxWidth: w }}
+                            className={cn("px-1.5 py-1.5 border-r border-border/60 align-top", s.cell)}
+                          >
+                            <div className="space-y-1">
+                              {entries.map(e => renderEntry(d, rk, e))}
+                              <button
+                                type="button"
+                                onClick={() => setQuickAdd({ dealId: d.id, roleKey: rk, category: cat })}
+                                className="w-full flex items-center justify-between gap-1 px-1.5 py-1 text-[10.5px] italic rounded-md border border-dashed text-muted-foreground border-border/50 hover:text-foreground hover:border-border hover:bg-secondary/40 transition-colors"
+                              >
+                                <span className="truncate">+ Add {ROLE_LABEL(rk)}</span>
+                              </button>
+                            </div>
+                          </td>
+                        );
+                      }
+
                       // Determine "manager" filter for this column on this deal:
                       // if a more-senior person from the same team is already
                       // staffed, restrict the picker to that manager's reports
