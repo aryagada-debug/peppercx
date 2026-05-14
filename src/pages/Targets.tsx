@@ -692,6 +692,7 @@ export default function Targets() {
                                                   value={Number((nextRow as any)?.[`${m}_target`]) || 0}
                                                   disabled={!isAdmin || overall}
                                                   onSave={(v) => saveNextField(d.id, `${m}_target` as keyof TargetRow, v)}
+                                                  asTd={false}
                                                 />
                                               </div>
                                             </td>
