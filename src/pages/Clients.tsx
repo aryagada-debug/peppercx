@@ -1,7 +1,7 @@
 import React from "react";
 import { formatINR } from "@/lib/csvTargets";
 import { useCurrency, useCurrencyVersion } from "@/contexts/CurrencyContext";
-import { CURRENCY_SYMBOL } from "@/lib/currency";
+import { CURRENCY_SYMBOL, convertFromInr, convertToInr } from "@/lib/currency";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Link } from "react-router-dom";
 import { Search, Plus, Loader2, Trash2, Pencil, Check, X, Building2, Briefcase, Activity, TrendingUp, DollarSign, IndianRupee, Settings2, Paperclip } from "lucide-react";
@@ -55,9 +55,6 @@ const DEAL_STATUSES = ["Active Deal", "New Deal in SLA/PO", "Deal Disputed", "De
 const ACTIVE_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
 const CLOSED_STATUSES = new Set(["Deal Completed Successfully", "Deal Churned / Lost"]);
 
-const fmtCurrency = (n: number | undefined) => {
-  return formatINR(Number(n) || 0);
-};
 
 const RgyBlock = ({ letter }: { letter: RgyLetter | undefined }) => {
   const l = letter || "PENDING";
