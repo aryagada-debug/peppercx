@@ -22,6 +22,7 @@ import { FinancialsTab } from "@/components/deals/FinancialsTab";
 import { TaskKanban } from "@/components/deals/TaskKanban";
 import { PhaseTasksView } from "@/components/deals/PhaseTasksView";
 import { DealRequestsTab } from "@/components/deals/DealRequestsTab";
+import { OrgMappingTab } from "@/components/deals/orgmap/OrgMappingTab";
 import { MBRInputDrawer } from "@/components/mbr/MBRInputDrawer";
 import { MBRDetailDialog } from "@/components/mbr/MBRDetailDialog";
 import { ScheduleOnlyDialog } from "@/components/mbr/ScheduleOnlyDialog";
@@ -59,7 +60,7 @@ const fmtDate = (d: string | undefined) => {
   return date.toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" });
 };
 
-const TABS = ["Overview", "Staffing", "Financials", "Tasks", "RGY Health", "MBR", "Requests"] as const;
+const TABS = ["Overview", "Staffing", "Financials", "Tasks", "RGY Health", "MBR", "Org Mapping", "Requests"] as const;
 type TabKey = typeof TABS[number];
 
 const rgyColors: Record<string, string> = { G: "rgy-green", R: "rgy-red", Y: "rgy-yellow", NA: "rgy-na", TBU: "rgy-tbu" };
@@ -2845,6 +2846,11 @@ export default function DealDetail() {
         {/* ══════════ Requests ══════════ */}
         {activeTab === "Requests" && (role === "admin" || role === "member" || role === "user") && (
           <DealRequestsTab dealId={dealId!} />
+        )}
+
+        {/* ══════════ Org Mapping ══════════ */}
+        {activeTab === "Org Mapping" && (
+          <OrgMappingTab dealId={dealId!} clientName={deal.account || deal.dealName || ""} />
         )}
 
       </div>
