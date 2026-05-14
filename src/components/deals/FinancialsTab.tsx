@@ -77,9 +77,9 @@ const attColor = (pct: number) => {
 };
 
 const colorStyles = {
-  green: { bg: "bg-[#EAF3DE]", text: "text-[#27500A]", bar: "#639922" },
-  amber: { bg: "bg-[#FAEEDA]", text: "text-[#633806]", bar: "#BA7517" },
-  red: { bg: "bg-[#FCEBEB]", text: "text-[#791F1F]", bar: "#E24B4A" },
+  green: { bg: "bg-[hsl(var(--success-bg))]", text: "text-positive", bar: "hsl(var(--positive))" },
+  amber: { bg: "bg-[hsl(var(--warning-bg))]", text: "text-warning", bar: "hsl(var(--warning))" },
+  red: { bg: "bg-[hsl(var(--danger-bg))]", text: "text-destructive", bar: "hsl(var(--destructive))" },
 };
 
 // ── Editable Table Cell ──
@@ -115,7 +115,7 @@ function EditableTableCell({ value, field, rowId, onUpdate, format = "currency",
 
   if (editing && !disabled) {
     return (
-      <td className={cn("py-1 px-1.5 text-right", groupStart && "border-l border-[#D3D1C7]")}>
+      <td className={cn("py-1 px-1.5 text-right", groupStart && "border-l border-border")}>
         <input
           ref={inputRef}
           type="number"
@@ -123,7 +123,7 @@ function EditableTableCell({ value, field, rowId, onUpdate, format = "currency",
           onChange={e => setLocalVal(e.target.value)}
           onBlur={commit}
           onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
-          className="w-20 h-7 rounded border border-[#534AB7] bg-white px-1.5 text-right text-xs tabular-nums outline-none focus:ring-1 focus:ring-[#534AB7]"
+          className="w-20 h-7 rounded border border-primary bg-card px-1.5 text-right text-xs tabular-nums outline-none focus:ring-1 focus:ring-primary"
         />
       </td>
     );
@@ -133,12 +133,12 @@ function EditableTableCell({ value, field, rowId, onUpdate, format = "currency",
     <td
       className={cn(
         "py-2.5 px-3 text-right tabular-nums relative",
-        disabled ? "cursor-default" : "cursor-pointer hover:bg-[#F1EFE8]/60 transition-colors",
-        groupStart && "border-l border-[#D3D1C7]"
+        disabled ? "cursor-default" : "cursor-pointer hover:bg-muted/60 transition-colors",
+        groupStart && "border-l border-border"
       )}
       onClick={() => { if (!disabled) setEditing(true); }}
     >
-      {showCheck && <Check className="absolute left-0.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#639922]" />}
+      {showCheck && <Check className="absolute left-0.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-positive" />}
       {format === "currency" ? fmtCurrency(value) : `${value}${suffix}`}
     </td>
   );
@@ -258,14 +258,14 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
             const ac = k.att != null ? attColor(k.att) : null;
             const cs = ac ? colorStyles[ac] : null;
             return (
-              <div key={k.label} className="rounded-lg bg-[#F1EFE8] p-3">
+              <div key={k.label} className="rounded-lg bg-muted p-3">
                 <div className="flex items-center justify-between">
                   <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">{k.label}</p>
                   {cs && <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded", cs.bg, cs.text)}>{k.att.toFixed(0)}%</span>}
                 </div>
                 <p className="text-xl font-medium mt-1">{k.value}</p>
                 {k.sub && <p className="text-[11px] text-muted-foreground mt-0.5 tabular-nums">{k.sub}</p>}
-                {k.alert && <p className="text-[11px] text-[#791F1F] mt-0.5">{k.alert}</p>}
+                {k.alert && <p className="text-[11px] text-destructive mt-0.5">{k.alert}</p>}
               </div>
             );
           })}
@@ -279,43 +279,43 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
       {rows.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           {/* Contraction vs Target */}
-          <div className="rounded-xl border border-[#D3D1C7] bg-white p-3.5">
+          <div className="rounded-xl border border-border bg-card p-3.5">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[13px] font-medium">Monthly contraction vs target</p>
               <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-[#AFA9EC]" /> Target</span>
-                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-[#639922]" /> Attainment</span>
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-primary/55" /> Target</span>
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-positive" /> Attainment</span>
               </div>
             </div>
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={chartData} barCategoryGap="20%">
-                <CartesianGrid strokeDasharray="3 3" stroke="#E5E3DB" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                 <XAxis dataKey="month" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 100000 ? `${(v/100000).toFixed(0)}L` : `${(v/1000).toFixed(0)}K`} />
                 <Tooltip formatter={(v: number) => fmtCurrency(v)} />
-                <Bar dataKey="target" fill="#AFA9EC" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="attainment" fill="#639922" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="target" fill="hsl(var(--primary) / 0.55)" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="attainment" fill="hsl(var(--positive))" radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
 
           {/* Gross Margin % */}
-          <div className="rounded-xl border border-[#D3D1C7] bg-white p-3.5">
+          <div className="rounded-xl border border-border bg-card p-3.5">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[13px] font-medium">Gross margin %</p>
               <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm border border-[#8EDBC3]" style={{ borderStyle: "dashed" }} /> Planned</span>
-                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-[#1D9E75]" /> Actual</span>
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm border border-positive/55" style={{ borderStyle: "dashed" }} /> Planned</span>
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-positive" /> Actual</span>
               </div>
             </div>
             <ResponsiveContainer width="100%" height={180}>
               <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E5E3DB" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                 <XAxis dataKey="month" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} domain={[0, 60]} tickFormatter={v => `${v}%`} />
                 <Tooltip formatter={(v: number) => `${v}%`} />
-                <Line type="monotone" dataKey="plannedGm" stroke="#8EDBC3" strokeDasharray="6 3" dot={false} strokeWidth={2} />
-                <Line type="monotone" dataKey="actualGm" stroke="#1D9E75" dot={{ fill: "#1D9E75", r: 3 }} strokeWidth={2} />
+                <Line type="monotone" dataKey="plannedGm" stroke="hsl(var(--positive) / 0.55)" strokeDasharray="6 3" dot={false} strokeWidth={2} />
+                <Line type="monotone" dataKey="actualGm" stroke="hsl(var(--positive))" dot={{ fill: "hsl(var(--positive))", r: 3 }} strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -323,13 +323,13 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
       )}
 
       {/* ── Section 4: Monthly Financials Table ── */}
-      <div className="rounded-xl border border-[#D3D1C7] bg-white overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[#D3D1C7]">
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <p className="text-[13px] font-medium">Monthly financials</p>
           {canAddMonth && (
             <button
               onClick={() => setAddOpen(true)}
-              className="flex items-center gap-1 text-[13px] font-medium text-[#534AB7] bg-[#EEEDFE] border border-[#534AB7]/20 rounded-lg px-3 py-1.5 hover:bg-[#E3E1FC] transition-colors"
+              className="flex items-center gap-1 text-[13px] font-medium text-primary bg-accent border border-primary/20 rounded-lg px-3 py-1.5 hover:bg-accent/80 transition-colors"
             >
               <Plus className="h-3.5 w-3.5" /> Add month
             </button>
@@ -339,21 +339,21 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="border-b border-[#D3D1C7] bg-[#FAF9F4]">
+              <tr className="border-b border-border bg-muted/50">
                 <th rowSpan={2} className="py-2.5 px-3 font-medium text-muted-foreground text-left align-bottom">Month</th>
-                <th colSpan={2} className="py-2 px-3 text-center text-[11px] font-medium uppercase tracking-[0.08em] text-[#534AB7] border-l border-[#D3D1C7]">Contraction</th>
-                <th colSpan={2} className="py-2 px-3 text-center text-[11px] font-medium uppercase tracking-[0.08em] text-[#1D9E75] border-l border-[#D3D1C7]">Delivery</th>
-                <th colSpan={2} className="py-2 px-3 text-center text-[11px] font-medium uppercase tracking-[0.08em] text-[#3267C7] border-l border-[#D3D1C7]">Invoiced</th>
-                <th colSpan={2} className="py-2 px-3 text-center text-[11px] font-medium uppercase tracking-[0.08em] text-[#C7414C] border-l border-[#D3D1C7]">Received</th>
+                <th colSpan={2} className="py-2 px-3 text-center text-[11px] font-medium uppercase tracking-[0.08em] text-primary border-l border-border">Contraction</th>
+                <th colSpan={2} className="py-2 px-3 text-center text-[11px] font-medium uppercase tracking-[0.08em] text-positive border-l border-border">Delivery</th>
+                <th colSpan={2} className="py-2 px-3 text-center text-[11px] font-medium uppercase tracking-[0.08em] text-info border-l border-border">Invoiced</th>
+                <th colSpan={2} className="py-2 px-3 text-center text-[11px] font-medium uppercase tracking-[0.08em] text-destructive border-l border-border">Received</th>
               </tr>
-              <tr className="border-b border-[#D3D1C7]">
+              <tr className="border-b border-border">
                 {[
                   { l: "Target", group: true }, { l: "Actual" },
                   { l: "Target", group: true }, { l: "Actual" },
                   { l: "Target", group: true }, { l: "Actual" },
                   { l: "Target", group: true }, { l: "Actual" },
                 ].map((c, i) => (
-                  <th key={i} className={cn("py-2 px-3 text-right text-[11px] font-medium text-muted-foreground whitespace-nowrap", c.group && "border-l border-[#D3D1C7]")}>{c.l}</th>
+                  <th key={i} className={cn("py-2 px-3 text-right text-[11px] font-medium text-muted-foreground whitespace-nowrap", c.group && "border-l border-border")}>{c.l}</th>
                 ))}
               </tr>
             </thead>
@@ -373,7 +373,7 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
                     const iTarget = row.invoicingTarget ?? 0;
                     const rTarget = row.receivablesTarget ?? 0;
                     return (
-                      <tr key={row.id} className={cn("group", idx < rows.length - 1 && "border-b border-[#D3D1C7]/50")}>
+                      <tr key={row.id} className={cn("group", idx < rows.length - 1 && "border-b border-border/50")}>
                         <td className="py-2.5 px-3 font-medium text-muted-foreground">{fmtMonth(row.month)}</td>
                         <EditableTableCell value={cTarget} field="contractionTarget" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} groupStart />
                         <ActualCell value={row.consumption} target={cTarget} field="consumption" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
@@ -387,15 +387,15 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
                     );
                   })}
                   {/* Totals row */}
-                  <tr className="bg-[#F1EFE8] font-medium border-t border-[#D3D1C7]">
+                  <tr className="bg-muted font-medium border-t border-border">
                     <td className="py-2.5 px-3">Total</td>
-                    <td className="py-2.5 px-3 text-right tabular-nums border-l border-[#D3D1C7]">{fmtCurrency(totals.contractionTarget)}</td>
+                    <td className="py-2.5 px-3 text-right tabular-nums border-l border-border">{fmtCurrency(totals.contractionTarget)}</td>
                     <TotalActualCell value={totals.consumption} target={totals.contractionTarget} />
-                    <td className="py-2.5 px-3 text-right tabular-nums border-l border-[#D3D1C7]">{fmtCurrency(totals.deliveryTarget)}</td>
+                    <td className="py-2.5 px-3 text-right tabular-nums border-l border-border">{fmtCurrency(totals.deliveryTarget)}</td>
                     <TotalActualCell value={totals.deliveryActual} target={totals.deliveryTarget} />
-                    <td className="py-2.5 px-3 text-right tabular-nums border-l border-[#D3D1C7]">{fmtCurrency(totals.invoicingTarget)}</td>
+                    <td className="py-2.5 px-3 text-right tabular-nums border-l border-border">{fmtCurrency(totals.invoicingTarget)}</td>
                     <TotalActualCell value={totals.invoiced} target={totals.invoicingTarget} />
-                    <td className="py-2.5 px-3 text-right tabular-nums border-l border-[#D3D1C7]">{fmtCurrency(totals.receivablesTarget)}</td>
+                    <td className="py-2.5 px-3 text-right tabular-nums border-l border-border">{fmtCurrency(totals.receivablesTarget)}</td>
                     <TotalActualCell value={totals.received} target={totals.receivablesTarget} />
                   </tr>
                 </>
@@ -409,24 +409,24 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
       <div>
         <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground mb-3">Contraction Bucket</p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="rounded-lg bg-[#F1EFE8] p-3">
+          <div className="rounded-lg bg-muted p-3">
             <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">YTD retainer MRR</p>
             <p className="text-xl font-medium mt-1">{fmtCurrency(bucket.ytdMrr)}</p>
           </div>
-          <div className="rounded-lg bg-[#F1EFE8] p-3">
+          <div className="rounded-lg bg-muted p-3">
             <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">YTD retainer contraction</p>
             <p className="text-xl font-medium mt-1">{fmtCurrency(bucket.ytdConsumption)}</p>
-            <p className={cn("text-xs mt-0.5 font-medium", bucket.pct >= 100 ? "text-[#27500A]" : "text-[#633806]")}>
+            <p className={cn("text-xs mt-0.5 font-medium", bucket.pct >= 100 ? "text-positive" : "text-warning")}>
               {bucket.pct.toFixed(0)}% of target
             </p>
           </div>
-          <div className="rounded-lg bg-[#F1EFE8] p-3">
+          <div className="rounded-lg bg-muted p-3">
             <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Under-contraction</p>
-            <p className="text-xl font-medium mt-1 text-[#27500A]">{fmtCurrency(bucket.under)}</p>
+            <p className="text-xl font-medium mt-1 text-positive">{fmtCurrency(bucket.under)}</p>
           </div>
-          <div className="rounded-lg bg-[#F1EFE8] p-3">
+          <div className="rounded-lg bg-muted p-3">
             <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Over-contraction</p>
-            <p className="text-xl font-medium mt-1 text-[#791F1F]">{bucket.over > 0 ? `-${fmtCurrency(bucket.over)}` : fmtCurrency(0)}</p>
+            <p className="text-xl font-medium mt-1 text-destructive">{bucket.over > 0 ? `-${fmtCurrency(bucket.over)}` : fmtCurrency(0)}</p>
           </div>
         </div>
       </div>
@@ -465,14 +465,14 @@ function ActualCell({ value, target, field, rowId, onUpdate, disabled }: {
           ref={inputRef} type="number" value={localVal}
           onChange={e => setLocalVal(e.target.value)} onBlur={commit}
           onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
-          className="w-20 h-7 rounded border border-[#534AB7] bg-white px-1.5 text-right text-xs tabular-nums outline-none focus:ring-1 focus:ring-[#534AB7]"
+          className="w-20 h-7 rounded border border-primary bg-card px-1.5 text-right text-xs tabular-nums outline-none focus:ring-1 focus:ring-primary"
         />
       </td>
     );
   }
   return (
     <td
-      className={cn("py-2.5 px-3 text-right tabular-nums whitespace-nowrap", disabled ? "cursor-default" : "cursor-pointer hover:bg-[#F1EFE8]/60 transition-colors")}
+      className={cn("py-2.5 px-3 text-right tabular-nums whitespace-nowrap", disabled ? "cursor-default" : "cursor-pointer hover:bg-muted/60 transition-colors")}
       onClick={() => { if (!disabled) setEditing(true); }}
     >
       <span>{fmtCurrency(value)}</span>
@@ -504,7 +504,7 @@ function PipelineCardImpl({ title, att, value, target, status }: { title: string
   const ac = attColor(att);
   const cs = colorStyles[ac];
   return (
-    <div className="rounded-xl border border-[#D3D1C7] bg-white p-3.5">
+    <div className="rounded-xl border border-border bg-card p-3.5">
       <div className="flex items-center justify-between mb-2">
         <p className="text-[13px] font-medium">{title}</p>
         <span className={cn("text-[11px] font-medium px-2 py-0.5 rounded-full", cs.bg, cs.text)}>
@@ -513,7 +513,7 @@ function PipelineCardImpl({ title, att, value, target, status }: { title: string
       </div>
       <p className="text-xl font-medium">{fmtCurrency(value)}</p>
       <p className="text-xs text-muted-foreground mt-0.5">Target: {fmtCurrency(target)}</p>
-      <div className="mt-2 h-[5px] rounded bg-[#F1EFE8] overflow-hidden">
+      <div className="mt-2 h-[5px] rounded bg-muted overflow-hidden">
         <div className="h-full rounded transition-all" style={{ width: `${Math.min(100, att)}%`, backgroundColor: cs.bar }} />
       </div>
       <p className="text-xs text-muted-foreground mt-1.5">{status}</p>
@@ -525,10 +525,10 @@ function PipelineCardImpl({ title, att, value, target, status }: { title: string
 type PipelineCell = { att: number; value: number; target: number; status: string };
 
 const METRIC_CONFIG = [
-  { key: "contraction" as const, title: "Contraction", subtitle: "Deals signed", icon: FileCheck2, accent: "#7B6BD9", iconBg: "bg-[#EEEDFE]", iconText: "text-[#534AB7]", titleText: "text-[#534AB7]" },
-  { key: "delivery" as const, title: "Delivery", subtitle: "Work completed", icon: Truck, accent: "#1D9E75", iconBg: "bg-[#DEF2EA]", iconText: "text-[#1D9E75]", titleText: "text-[#1D9E75]" },
-  { key: "invoicing" as const, title: "Invoicing", subtitle: "Bills raised", icon: Receipt, accent: "#3267C7", iconBg: "bg-[#E1EAF8]", iconText: "text-[#3267C7]", titleText: "text-[#3267C7]" },
-  { key: "receivables" as const, title: "Receivables", subtitle: "Payments received", icon: Wallet, accent: "#C7414C", iconBg: "bg-[#F8E1E3]", iconText: "text-[#C7414C]", titleText: "text-[#C7414C]" },
+  { key: "contraction" as const, title: "Contraction", subtitle: "Deals signed", icon: FileCheck2, accent: "hsl(var(--primary))", iconBg: "bg-accent", iconText: "text-primary", titleText: "text-primary" },
+  { key: "delivery" as const, title: "Delivery", subtitle: "Work completed", icon: Truck, accent: "hsl(var(--positive))", iconBg: "bg-positive/10", iconText: "text-positive", titleText: "text-positive" },
+  { key: "invoicing" as const, title: "Invoicing", subtitle: "Bills raised", icon: Receipt, accent: "hsl(var(--info))", iconBg: "bg-info/10", iconText: "text-info", titleText: "text-info" },
+  { key: "receivables" as const, title: "Receivables", subtitle: "Payments received", icon: Wallet, accent: "hsl(var(--destructive))", iconBg: "bg-destructive/10", iconText: "text-destructive", titleText: "text-destructive" },
 ];
 
 function PipelineMatrix({ periods }: { periods: { current: any; ytd: any; lifetime: any } }) {
@@ -538,11 +538,11 @@ function PipelineMatrix({ periods }: { periods: { current: any; ytd: any; lifeti
     { key: "lifetime", label: "Lifetime", data: periods.lifetime },
   ] as const;
   return (
-    <div className="rounded-xl border border-[#D3D1C7] bg-white overflow-hidden">
-      <div className="grid grid-cols-[minmax(180px,1.1fr)_repeat(3,minmax(0,1.4fr))] bg-[#FAF9F4] border-b border-[#D3D1C7]">
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="grid grid-cols-[minmax(180px,1.1fr)_repeat(3,minmax(0,1.4fr))] bg-muted/50 border-b border-border">
         <div className="py-3 px-4 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Metric</div>
         {cols.map(c => (
-          <div key={c.key} className="py-3 px-4 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground border-l border-[#D3D1C7]">{c.label}</div>
+          <div key={c.key} className="py-3 px-4 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground border-l border-border">{c.label}</div>
         ))}
       </div>
       {METRIC_CONFIG.map((m, idx) => {
@@ -552,7 +552,7 @@ function PipelineMatrix({ periods }: { periods: { current: any; ytd: any; lifeti
             key={m.key}
             className={cn(
               "grid grid-cols-[minmax(180px,1.1fr)_repeat(3,minmax(0,1.4fr))] relative",
-              idx < METRIC_CONFIG.length - 1 && "border-b border-[#D3D1C7]/60"
+              idx < METRIC_CONFIG.length - 1 && "border-b border-border/60"
             )}
           >
             <div className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ backgroundColor: m.accent }} />
@@ -601,17 +601,17 @@ function PipelineMatrixCell({ cell, metricKey, accent }: { cell: PipelineCell; m
     }
   }
   return (
-    <div className="py-4 px-4 border-l border-[#D3D1C7]/60 flex flex-col justify-between min-h-[90px]">
+    <div className="py-4 px-4 border-l border-border/60 flex flex-col justify-between min-h-[90px]">
       <div className="flex items-center justify-between gap-2">
         <p className={cn("text-[20px] font-medium tabular-nums leading-none", isZero && "text-muted-foreground")}>
           {fmtCurrency(value)}
         </p>
-        <span className={cn("text-[11px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap", hasTarget ? cs.bg : "bg-[#F1EFE8]", hasTarget ? cs.text : "text-muted-foreground")}>
+        <span className={cn("text-[11px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap", hasTarget ? cs.bg : "bg-muted", hasTarget ? cs.text : "text-muted-foreground")}>
           {hasTarget ? `${att.toFixed(0)}%` : "0%"}
         </span>
       </div>
       {hasTarget && (
-        <div className="mt-2 h-[3px] rounded bg-[#F1EFE8] overflow-hidden">
+        <div className="mt-2 h-[3px] rounded bg-muted overflow-hidden">
           <div className="h-full rounded transition-all" style={{ width: `${Math.min(100, att)}%`, backgroundColor: cs.bar }} />
         </div>
       )}
@@ -688,7 +688,7 @@ function AddMonthDialog({ open, onOpenChange, dealId, defaultMrr, onAdd }: {
           <p className="text-xs text-muted-foreground">Outstanding: {fmtCurrency(form.invoiced - form.received)}</p>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button size="sm" onClick={handleSave} className="bg-[#534AB7] hover:bg-[#4A42A3]">Save</Button>
+            <Button size="sm" onClick={handleSave} className="bg-primary hover:bg-primary/90">Save</Button>
           </div>
         </div>
       </DialogContent>
