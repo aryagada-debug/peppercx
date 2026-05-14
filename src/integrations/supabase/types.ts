@@ -797,6 +797,60 @@ export type Database = {
         }
         Relationships: []
       }
+      deal_stakeholders: {
+        Row: {
+          created_at: string
+          deal_id: string
+          decision_power: number
+          email: string
+          function: string
+          id: string
+          linkedin_url: string
+          name: string
+          notes: string
+          phone: string
+          role: string
+          seniority: string
+          sort_order: number
+          tags: string[]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          deal_id: string
+          decision_power?: number
+          email?: string
+          function?: string
+          id?: string
+          linkedin_url?: string
+          name?: string
+          notes?: string
+          phone?: string
+          role?: string
+          seniority?: string
+          sort_order?: number
+          tags?: string[]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          deal_id?: string
+          decision_power?: number
+          email?: string
+          function?: string
+          id?: string
+          linkedin_url?: string
+          name?: string
+          notes?: string
+          phone?: string
+          role?: string
+          seniority?: string
+          sort_order?: number
+          tags?: string[]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       deal_targets_monthly: {
         Row: {
           contraction_target: number
