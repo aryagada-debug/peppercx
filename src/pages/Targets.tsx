@@ -607,7 +607,7 @@ export default function Targets() {
                     <th className="text-left py-2 pl-3 pr-2 font-medium w-8"></th>
                     <th className="text-left py-2 pr-3 font-medium">Deal</th>
                     <th className="text-right py-2 px-2 font-medium">Size</th>
-                    <th className="text-left py-2 px-2 font-medium">Delivery vs expected pace</th>
+                    <th className="text-left py-2 px-2 font-medium">Delivery progress</th>
                     <th colSpan={4} className="text-center py-2 px-2 font-medium border-l border-border">{overall ? "All months — cumulative target vs actual" : `${format(parseISO(monthIso(month)), "MMM yyyy")} targets`}</th>
                   </tr>
                   <tr className="border-b border-border bg-secondary/20 text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -623,8 +623,13 @@ export default function Targets() {
                     const prev = prevTargets[d.id];
                     const expected = expectedPace(d);
                     const monthsN = monthsElapsed(d.start_date);
-                    const deliveryAct = t.delivery_actual;
-                    const pacePct = expected > 0 ? Math.min(100, (deliveryAct / expected) * 100) : 0;
+                    const curIsoRow = monthIso(month);
+                    const totalMonths = d.mrr > 0 ? Math.round(d.total_deal_value / d.mrr) : 0;
+                    const deliveryTotal = d.mrr * totalMonths;
+                    const deliveredToDate = (allByDeal[d.id] || [])
+                      .filter(r => r.month <= curIsoRow)
+                      .reduce((s, r) => s + (Number(r.delivery_actual) || 0), 0);
+                    const pacePct = deliveryTotal > 0 ? Math.min(100, (deliveredToDate / deliveryTotal) * 100) : 0;
                     const paceColor = pacePct >= 95 ? "bg-positive" : pacePct >= 70 ? "bg-warning" : "bg-destructive";
                     const isOpen = !!expanded[d.id];
                     return (
@@ -656,15 +661,15 @@ export default function Targets() {
                           </td>
                           <td className="py-2.5 px-2 align-top w-[260px]">
                             <div className="text-[11px] text-muted-foreground">
-                              {formatINR(d.mrr)} × {monthsN}mo = {formatINR(expected)}
+                              {formatINR(d.mrr)} × {totalMonths}mo = {formatINR(deliveryTotal)}
                             </div>
                             <div className="h-1.5 rounded-full bg-secondary mt-1.5 overflow-hidden">
                               <div className={cn("h-full rounded-full", paceColor)} style={{ width: `${pacePct}%` }} />
                             </div>
                             <div className="flex items-baseline justify-between mt-1">
-                              <span className="text-[11px] tabular-nums text-foreground">{formatINR(deliveryAct)} of {formatINR(expected)}</span>
-                              <span className={cn("text-[11px] font-semibold tabular-nums", attainmentTone(expected > 0 ? (deliveryAct / expected) * 100 : null))}>
-                                {expected > 0 ? `${Math.round((deliveryAct / expected) * 100)}%` : "—"}
+                              <span className="text-[11px] tabular-nums text-foreground">{formatINR(deliveredToDate)} of {formatINR(deliveryTotal)}</span>
+                              <span className={cn("text-[11px] font-semibold tabular-nums", attainmentTone(deliveryTotal > 0 ? (deliveredToDate / deliveryTotal) * 100 : null))}>
+                                {deliveryTotal > 0 ? `${Math.round((deliveredToDate / deliveryTotal) * 100)}%` : "—"}
                               </span>
                             </div>
                           </td>
@@ -723,11 +728,6 @@ export default function Targets() {
                                     <div className="text-[10px] uppercase tracking-wider text-muted-foreground">VSD · BOPM</div>
                                     <div className="text-sm font-medium text-foreground truncate">{(d.vsd || "—") + " · " + (d.bopm || "—")}</div>
                                   </div>
-                                </div>
-
-                                {/* Pace banner */}
-                                <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-[12px] text-foreground mb-3">
-                                  <span className="font-medium text-primary">Expected pace</span> for this deal: {formatINR(d.mrr)} MRR × {monthsN} months = <span className="font-medium">{formatINR(expected)}</span> of each metric by end of {format(parseISO(curIso), "MMMM")}.
                                 </div>
 
                                 {/* Period table */}
