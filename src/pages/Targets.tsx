@@ -45,6 +45,23 @@ const ZERO_TARGET = (deal_id: string, month: string): TargetRow => ({
 
 const monthIso = (yyyymm: string) => `${yyyymm}-01`;
 const prevMonthYYYYMM = (yyyymm: string) => format(addMonths(parseISO(`${yyyymm}-01`), -1), "yyyy-MM");
+const nextMonthYYYYMM = (yyyymm: string) => format(addMonths(parseISO(`${yyyymm}-01`), 1), "yyyy-MM");
+
+// Fiscal year start month for YTD = November.
+function fiscalYearStartIso(monthIsoStr: string): string {
+  const d = parseISO(monthIsoStr);
+  const y = d.getFullYear();
+  const m = d.getMonth(); // 0-based; Nov = 10
+  const startYear = m >= 10 ? y : y - 1;
+  return format(new Date(startYear, 10, 1), "yyyy-MM-dd");
+}
+
+function pillTone(pct: number | null): string {
+  if (pct === null) return "bg-muted text-muted-foreground";
+  if (pct >= 95) return "bg-positive/15 text-positive";
+  if (pct >= 80) return "bg-warning/15 text-warning";
+  return "bg-destructive/15 text-destructive";
+}
 
 // Inline editable currency cell
 function TargetCell({ value, prevValue, onSave, disabled, prevLabel }: {
