@@ -588,38 +588,120 @@ export default function Targets() {
                             />
                           ))}
                         </tr>
-                        {isOpen && (
-                          <tr className="border-b border-border bg-secondary/10">
-                            <td colSpan={8} className="px-6 py-4">
-                              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                {METRICS.map(m => {
-                                  const tgt = Number((t as any)[`${m}_target`]) || 0;
-                                  const act = Number((t as any)[`${m}_actual`]) || 0;
-                                  const pct = attainmentPct(act, tgt);
-                                  return (
-                                    <div key={m} className="rounded-md border border-border bg-card p-3">
-                                      <div className="text-[11px] uppercase tracking-wider text-muted-foreground">{METRIC_LABELS[m]}</div>
-                                      <div className="mt-1 text-sm font-semibold text-foreground tabular-nums">
-                                        {formatINR(act)} <span className="text-muted-foreground font-normal">/ {formatINR(tgt)}</span>
-                                      </div>
-                                      <div className={cn("text-[11px] font-semibold tabular-nums", attainmentTone(pct))}>
-                                        {pct === null ? "Set a target to track" : `${pct.toFixed(0)}% attained`}
-                                      </div>
-                                      {prev && (
-                                        <div className="text-[10px] text-muted-foreground mt-1.5">
-                                          {prevLabel} target: {formatINR(Number((prev as any)[`${m}_target`]) || 0)}
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                              <p className="text-[11px] text-muted-foreground mt-3">
-                                Edits flow into this deal's <Link to={`/deals/${d.id}`} className="text-primary hover:underline">Financials tab</Link> automatically.
-                              </p>
-                            </td>
-                          </tr>
-                        )}
+                        {isOpen && (() => {
+                          const history = allByDeal[d.id] || [];
+                          const curIso = monthIso(month);
+                          // Sums helpers
+                          const sumWhere = (pred: (iso: string) => boolean) => {
+                            const acc: Record<Metric, { t: number; a: number }> = {
+                              contraction: { t: 0, a: 0 },
+                              delivery: { t: 0, a: 0 },
+                              invoicing: { t: 0, a: 0 },
+                              receivables: { t: 0, a: 0 },
+                            };
+                            history.forEach(r => {
+                              if (!pred(r.month)) return;
+                              METRICS.forEach(m => {
+                                acc[m].t += Number((r as any)[`${m}_target`]) || 0;
+                                acc[m].a += Number((r as any)[`${m}_actual`]) || 0;
+                              });
+                            });
+                            return acc;
+                          };
+                          const ytd = sumWhere(iso => iso >= fyStart && iso <= curIso);
+                          const lifetime = sumWhere(() => true);
+                          const nextRow = nextTargets[d.id];
+                          const monthsSinceStart = monthsN || 1;
+                          const expectedFor = (m: Metric, scaleMonths: number) => d.mrr * scaleMonths;
+                          return (
+                            <tr className="border-b border-border bg-secondary/10">
+                              <td colSpan={8} className="px-6 py-4">
+                                {/* Stats strip */}
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+                                  <div className="rounded-md border border-border bg-card px-3 py-2">
+                                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Deal Value</div>
+                                    <div className="text-sm font-semibold text-foreground tabular-nums">{formatINR(d.total_deal_value)}</div>
+                                  </div>
+                                  <div className="rounded-md border border-border bg-card px-3 py-2">
+                                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">MRR</div>
+                                    <div className="text-sm font-semibold text-foreground tabular-nums">{formatINR(d.mrr)}</div>
+                                  </div>
+                                  <div className="rounded-md border border-border bg-card px-3 py-2">
+                                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Months Elapsed</div>
+                                    <div className="text-sm font-semibold text-foreground tabular-nums">{monthsN}</div>
+                                  </div>
+                                  <div className="rounded-md border border-border bg-card px-3 py-2">
+                                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">VSD · BOPM</div>
+                                    <div className="text-sm font-medium text-foreground truncate">{(d.vsd || "—") + " · " + (d.bopm || "—")}</div>
+                                  </div>
+                                </div>
+
+                                {/* Pace banner */}
+                                <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-[12px] text-foreground mb-3">
+                                  <span className="font-medium text-primary">Expected pace</span> for this deal: {formatINR(d.mrr)} MRR × {monthsN} months = <span className="font-medium">{formatINR(expected)}</span> of each metric by end of {format(parseISO(curIso), "MMMM")}.
+                                </div>
+
+                                {/* Period table */}
+                                <div className="rounded-md border border-border bg-card overflow-hidden">
+                                  <table className="w-full text-[12px]">
+                                    <thead>
+                                      <tr className="bg-secondary/40 text-[10px] uppercase tracking-wider text-muted-foreground">
+                                        <th className="text-left py-2 pl-3 pr-2 font-medium w-[120px]"></th>
+                                        <th className="text-left py-2 px-3 font-medium">{format(parseISO(curIso), "MMMM yyyy")}</th>
+                                        <th className="text-left py-2 px-3 font-medium">{ytdLabel}</th>
+                                        <th className="text-left py-2 px-3 font-medium">Lifetime</th>
+                                        <th className="text-right py-2 pl-3 pr-3 font-medium text-primary">{nextLabel} target</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {METRICS.map(m => {
+                                        const curT = Number((t as any)[`${m}_target`]) || 0;
+                                        const curA = Number((t as any)[`${m}_actual`]) || 0;
+                                        const curPct = attainmentPct(curA, curT);
+                                        const ytdT = ytd[m].t;
+                                        const ytdA = ytd[m].a;
+                                        const ytdPct = attainmentPct(ytdA, ytdT);
+                                        const lifeT = lifetime[m].t;
+                                        const lifeA = lifetime[m].a;
+                                        const lifePct = attainmentPct(lifeA, lifeT);
+                                        const cell = (label: string, exp: number, actual: number, pct: number | null) => (
+                                          <div className="flex items-center gap-2">
+                                            <div className="flex-1 rounded-md border border-border/70 bg-background px-2 py-1.5 text-foreground tabular-nums">
+                                              <span className="text-muted-foreground">Exp {formatINR(exp)} →</span> <span className="font-medium">{formatINR(actual)}</span>
+                                            </div>
+                                            <span className={cn("inline-flex items-center justify-center min-w-[44px] px-1.5 py-0.5 rounded-full text-[10px] font-medium tabular-nums", pillTone(pct))}>
+                                              {pct === null ? "—" : `${Math.round(pct)}%`}
+                                            </span>
+                                          </div>
+                                        );
+                                        return (
+                                          <tr key={m} className="border-t border-border/50">
+                                            <td className="py-2 pl-3 pr-2 text-foreground font-medium">{METRIC_LABELS[m]}</td>
+                                            <td className="py-2 px-3">{cell(`Exp ${formatINR(curT)}`, curT, curA, curPct)}</td>
+                                            <td className="py-2 px-3">{cell(`Exp ${formatINR(ytdT)}`, ytdT, ytdA, ytdPct)}</td>
+                                            <td className="py-2 px-3">{cell(`Exp ${formatINR(lifeT)}`, lifeT, lifeA, lifePct)}</td>
+                                            <td className="py-2 pl-3 pr-2">
+                                              <div className="flex justify-end">
+                                                <TargetCell
+                                                  value={Number((nextRow as any)?.[`${m}_target`]) || 0}
+                                                  disabled={!isAdmin || overall}
+                                                  onSave={(v) => saveNextField(d.id, `${m}_target` as keyof TargetRow, v)}
+                                                />
+                                              </div>
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
+                                </div>
+                                <p className="text-[11px] text-muted-foreground mt-3">
+                                  Edits flow into this deal's <Link to={`/deals/${d.id}`} className="text-primary hover:underline">Financials tab</Link> automatically.
+                                </p>
+                              </td>
+                            </tr>
+                          );
+                        })()}
                       </Fragment>
                     );
                   })}
