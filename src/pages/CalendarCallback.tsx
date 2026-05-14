@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CalendarDays, Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { invokeCalendarFunction } from "@/hooks/useGoogleCalendar";
 
 export default function CalendarCallback() {
   const navigate = useNavigate();
@@ -29,15 +29,12 @@ export default function CalendarCallback() {
       }
 
       try {
-        const { data, error: fnError } = await supabase.functions.invoke("google-calendar-oauth", {
-          body: {
-            action: "callback",
-            code,
-            state,
-            redirectUri: `${window.location.origin}/calendar/callback`,
-          },
+        const data = await invokeCalendarFunction("google-calendar-oauth", {
+          action: "callback",
+          code,
+          state,
+          redirectUri: `${window.location.origin}/calendar/callback`,
         });
-        if (fnError || data?.error) throw fnError || new Error(data.error);
         toast.success("Google Calendar connected");
         window.location.replace(data?.redirectTo || "/home");
       } catch (err) {
