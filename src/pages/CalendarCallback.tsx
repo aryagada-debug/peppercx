@@ -4,13 +4,17 @@ import { CalendarDays, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { invokeCalendarFunction } from "@/hooks/useGoogleCalendar";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 export default function CalendarCallback() {
   const navigate = useNavigate();
+  const { session, loading } = useAuth();
   const [message, setMessage] = useState("Connecting Google Calendar…");
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
+    if (loading) return;
+
     const run = async () => {
       const params = new URLSearchParams(window.location.search);
       const error = params.get("error");
@@ -27,6 +31,11 @@ export default function CalendarCallback() {
         setMessage("Missing Google Calendar callback details.");
         return;
       }
+      if (!session?.access_token) {
+        setFailed(true);
+        setMessage("Please sign in again before connecting Google Calendar.");
+        return;
+      }
 
       try {
         const data = await invokeCalendarFunction("google-calendar-oauth", {
@@ -34,7 +43,7 @@ export default function CalendarCallback() {
           code,
           state,
           redirectUri: `${window.location.origin}/calendar/callback`,
-        });
+        }, session.access_token);
         toast.success("Google Calendar connected");
         window.location.replace(data?.redirectTo || "/home");
       } catch (err) {
@@ -45,7 +54,7 @@ export default function CalendarCallback() {
     };
 
     void run();
-  }, []);
+  }, [loading, session?.access_token]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
