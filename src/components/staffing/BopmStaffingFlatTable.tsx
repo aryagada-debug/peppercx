@@ -1341,7 +1341,11 @@ export function BopmStaffingFlatTable({
             </select>
         </header>
 
-        <div className="overflow-x-auto">
+        <div
+          ref={tableViewportRef}
+          onScroll={e => setTableScrollTop(e.currentTarget.scrollTop)}
+          className="max-h-[calc(100vh-260px)] min-h-[420px] overflow-auto"
+        >
           <table className="text-xs border-collapse" style={{ minWidth: "100%", tableLayout: "fixed" }}>
             <thead className="bg-secondary/40 text-[10px] uppercase tracking-wider text-muted-foreground sticky top-0">
               <tr>
@@ -1380,10 +1384,15 @@ export function BopmStaffingFlatTable({
                   {search ? "No deals match your search." : "No active deals to staff."}
                 </td></tr>
               )}
-              {filteredDeals.map(d => {
+              {virtualRows.topPad > 0 && (
+                <tr aria-hidden="true">
+                  <td colSpan={2 + Math.max(1, visibleRoleKeys.length)} style={{ height: virtualRows.topPad, padding: 0, border: 0 }} />
+                </tr>
+              )}
+              {virtualRows.deals.map(d => {
                 const byRole = dealRoleMap.get(d.id) || new Map<string, CellEntry[]>();
                 return (
-                  <tr key={d.id} className="border-t border-border/50 align-top hover:bg-secondary/20">
+                  <tr key={d.id} className="border-t border-border/50 align-top hover:bg-secondary/20" style={{ height: VIRTUAL_ROW_HEIGHT }}>
                     <td className="px-3 py-2 sticky left-0 bg-card z-10 border-r border-border">
                       <div className="font-medium text-foreground truncate max-w-[220px]">{d.account}</div>
                       <div className="text-[11px] text-muted-foreground truncate max-w-[220px]">{d.dealName}</div>
@@ -1504,6 +1513,11 @@ export function BopmStaffingFlatTable({
                   </tr>
                 );
               })}
+              {virtualRows.bottomPad > 0 && (
+                <tr aria-hidden="true">
+                  <td colSpan={2 + Math.max(1, visibleRoleKeys.length)} style={{ height: virtualRows.bottomPad, padding: 0, border: 0 }} />
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
