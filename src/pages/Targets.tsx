@@ -108,7 +108,7 @@ function TargetCell({ value, prevValue, onSave, disabled, prevLabel }: {
         >
           <span className="inline-flex items-center gap-1 justify-end">
             {saved && <Check className="h-3 w-3 text-positive" />}
-            {value ? formatINR(value) : "Set target"}
+            {value ? formatINR(value) : (disabled ? "—" : "Set target")}
           </span>
         </button>
       )}
