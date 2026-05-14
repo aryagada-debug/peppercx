@@ -1,5 +1,5 @@
 import { AppLayout } from "@/components/layout/AppLayout";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { StaffingErrorBoundary } from "@/components/staffing/StaffingErrorBoundary";
 import { useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -77,6 +77,15 @@ export default function Staffing() {
       ? "table"
       : (tabParam as Tab | null);
   const [tab, setTab] = useState<Tab>(normalizedTabParam || (isBopmPersona ? "table" : "deals"));
+
+  // Track which tabs have ever been opened. We mount each panel lazily the
+  // first time the user visits it and keep it mounted afterwards so column
+  // widths / drafts / search text survive subsequent switches. Without this,
+  // admins paid the full render cost of all three giant tables on first load
+  // — the most common cause of the white-screen / "page unresponsive" crash.
+  const visitedTabs = useRef<Set<Tab>>(new Set([tab]));
+  visitedTabs.current.add(tab);
+  const hasVisited = (t: Tab) => visitedTabs.current.has(t);
 
   // BOPM persona: only Table view + Change requests are valid.
   useEffect(() => {
@@ -229,55 +238,63 @@ export default function Staffing() {
             <div className={cn(tab !== "table" && "hidden")}>
               {showBopmEmpty
                 ? <BopmEmptyState section="Staffing & Capacity" />
-                : (
+                : hasVisited("table") ? (
                   <BopmStaffingFlatTable
                     deals={activeBopmDeals}
                     people={scopedPeople}
                     allPeople={people}
                     assignments={bopmActiveAssignments}
                   />
-                )
+                ) : null
               }
             </div>
             <div className={cn(tab !== "requests" && "hidden")}>
-              <MyStaffingRequests deals={uniqueScopedDeals} people={people} variant="table" />
+              {hasVisited("requests") && (
+                <MyStaffingRequests deals={uniqueScopedDeals} people={people} variant="table" />
+              )}
             </div>
           </>
         ) : (
           <>
             <div className={cn(tab !== "deals" && "hidden")}>
-              <DealViewTab
-                deals={scopedDeals}
-                people={people}
-                assignments={scopedAssignments}
-                onUpdateDeal={updateDeal}
-                bopmFilterScopedVsd={myVsdName}
-              />
+              {hasVisited("deals") && (
+                <DealViewTab
+                  deals={scopedDeals}
+                  people={people}
+                  assignments={scopedAssignments}
+                  onUpdateDeal={updateDeal}
+                  bopmFilterScopedVsd={myVsdName}
+                />
+              )}
             </div>
             <div className={cn(tab !== "people" && "hidden")}>
-              <PeopleViewTab
-                people={people}
-                deals={scopedDeals}
-                assignments={scopedAssignments}
-                revenueTargets={revenueTargets}
-                onUpdateAssignment={updateAssignment}
-                enableBopmFilter
-                bopmFilterScopedVsd={myVsdName}
-              />
+              {hasVisited("people") && (
+                <PeopleViewTab
+                  people={people}
+                  deals={scopedDeals}
+                  assignments={scopedAssignments}
+                  revenueTargets={revenueTargets}
+                  onUpdateAssignment={updateAssignment}
+                  enableBopmFilter
+                  bopmFilterScopedVsd={myVsdName}
+                />
+              )}
             </div>
             <div className={cn(tab !== "table" && "hidden")}>
-              <BopmStaffingFlatTable
-                deals={scopedDeals}
-                people={people}
-                allPeople={people}
-                assignments={scopedAssignments}
-                directEdit
-                onAddAssignment={addAssignment}
-                onUpdateAssignment={updateAssignment}
-                onDeleteAssignment={deleteAssignment}
-                enableBopmFilter
-                bopmFilterScopedVsd={myVsdName}
-              />
+              {hasVisited("table") && (
+                <BopmStaffingFlatTable
+                  deals={scopedDeals}
+                  people={people}
+                  allPeople={people}
+                  assignments={scopedAssignments}
+                  directEdit
+                  onAddAssignment={addAssignment}
+                  onUpdateAssignment={updateAssignment}
+                  onDeleteAssignment={deleteAssignment}
+                  enableBopmFilter
+                  bopmFilterScopedVsd={myVsdName}
+                />
+              )}
             </div>
           </>
         )}
