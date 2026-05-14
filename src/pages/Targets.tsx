@@ -332,7 +332,7 @@ export default function Targets() {
         <div className="mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
             <h1 className="text-subhead font-semibold tracking-tight text-foreground">
-              Set {monthLabel} targets
+              {overall ? "Overall financial performance (all months)" : `Set ${monthLabel} targets`}
             </h1>
             <p className="text-ui text-muted-foreground mt-1">
               {deals.length} deals · {bopmCount} BOPMs · tracking measured as MRR × months since start
@@ -346,8 +346,20 @@ export default function Targets() {
             )}>
               {savingState === "saving" ? "Saving…" : savingState === "saved" ? "All saved" : "Idle"}
             </span>
-            <DateRangeSelector value={month} onChange={setMonth} />
-            {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setOverall(v => !v)}
+              className={cn(
+                "text-[12px] px-2.5 py-1 rounded-md border transition-colors h-9",
+                overall
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-card border-border text-foreground hover:bg-secondary"
+              )}
+            >
+              Overall
+            </button>
+            {!overall && <DateRangeSelector value={month} onChange={setMonth} />}
+            {isAdmin && !overall && (
               <Button size="sm" variant="outline" onClick={() => setUploadOpen(true)}>
                 <Upload className="h-3.5 w-3.5 mr-1.5" /> Import CSV
               </Button>
