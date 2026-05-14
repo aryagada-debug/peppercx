@@ -21,8 +21,9 @@ function json(body: Record<string, unknown>, status = 200) {
 async function getUser(req: Request) {
   const auth = req.headers.get("Authorization") || "";
   if (!auth.startsWith("Bearer ")) throw new Error("unauthorized");
-  const userClient = createClient(SUPABASE_URL, ANON, { global: { headers: { Authorization: auth } } });
-  const { data, error } = await userClient.auth.getUser();
+  const token = auth.replace(/^Bearer\s+/i, "").trim();
+  const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
+  const { data, error } = await admin.auth.getUser(token);
   if (error || !data.user) throw new Error("unauthorized");
   return data.user;
 }
