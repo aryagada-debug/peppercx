@@ -59,7 +59,7 @@ export function FullCalendarDialog({ open, onOpenChange }: Props) {
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-[98vw] w-[98vw] h-[95vh] p-0 gap-0 flex flex-col" hideClose>
+        <DialogContent className="max-w-[98vw] w-[98vw] h-[95vh] p-0 gap-0 flex flex-col">
           {/* Header */}
           <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-border">
             <div className="flex items-center gap-2">
@@ -88,9 +88,7 @@ export function FullCalendarDialog({ open, onOpenChange }: Props) {
                 </Button>
               )}
               <CalendarConnectButton />
-              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onOpenChange(false)} aria-label="Close">
-                <X className="h-4 w-4" />
-              </Button>
+              <div className="w-7" />
             </div>
           </div>
 
