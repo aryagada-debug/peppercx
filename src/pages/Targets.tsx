@@ -45,14 +45,32 @@ const ZERO_TARGET = (deal_id: string, month: string): TargetRow => ({
 
 const monthIso = (yyyymm: string) => `${yyyymm}-01`;
 const prevMonthYYYYMM = (yyyymm: string) => format(addMonths(parseISO(`${yyyymm}-01`), -1), "yyyy-MM");
+const nextMonthYYYYMM = (yyyymm: string) => format(addMonths(parseISO(`${yyyymm}-01`), 1), "yyyy-MM");
+
+// Fiscal year start month for YTD = November.
+function fiscalYearStartIso(monthIsoStr: string): string {
+  const d = parseISO(monthIsoStr);
+  const y = d.getFullYear();
+  const m = d.getMonth(); // 0-based; Nov = 10
+  const startYear = m >= 10 ? y : y - 1;
+  return format(new Date(startYear, 10, 1), "yyyy-MM-dd");
+}
+
+function pillTone(pct: number | null): string {
+  if (pct === null) return "bg-muted text-muted-foreground";
+  if (pct >= 95) return "bg-positive/15 text-positive";
+  if (pct >= 80) return "bg-warning/15 text-warning";
+  return "bg-destructive/15 text-destructive";
+}
 
 // Inline editable currency cell
-function TargetCell({ value, prevValue, onSave, disabled, prevLabel }: {
+function TargetCell({ value, prevValue, onSave, disabled, prevLabel, asTd = true }: {
   value: number;
   prevValue?: number;
   onSave: (v: number) => Promise<void>;
   disabled?: boolean;
   prevLabel?: string;
+  asTd?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [local, setLocal] = useState(String(value || ""));
@@ -80,8 +98,8 @@ function TargetCell({ value, prevValue, onSave, disabled, prevLabel }: {
     }
   }
 
-  return (
-    <td className="py-1 px-1.5 align-top">
+  const inner = (
+    <>
       {editing && !disabled ? (
         <input
           ref={inputRef}
@@ -118,7 +136,12 @@ function TargetCell({ value, prevValue, onSave, disabled, prevLabel }: {
         </div>
       )}
       {saving && <div className="text-[9px] text-muted-foreground text-right pr-1.5">saving…</div>}
-    </td>
+    </>
+  );
+  return asTd ? (
+    <td className="py-1 px-1.5 align-top">{inner}</td>
+  ) : (
+    <div className="py-1 px-1.5">{inner}</div>
   );
 }
 
@@ -131,6 +154,8 @@ export default function Targets() {
   const [deals, setDeals] = useState<DealMeta[]>([]);
   const [targets, setTargets] = useState<Record<string, TargetRow>>({}); // key: deal_id
   const [prevTargets, setPrevTargets] = useState<Record<string, TargetRow>>({});
+  const [allByDeal, setAllByDeal] = useState<Record<string, TargetRow[]>>({});
+  const [nextTargets, setNextTargets] = useState<Record<string, TargetRow>>({});
   const [loading, setLoading] = useState(true);
   const [vsdFilter, setVsdFilter] = useState<string>("All");
   const [needsOnly, setNeedsOnly] = useState(false);
@@ -141,6 +166,11 @@ export default function Targets() {
   const monthLabel = overall ? "Overall (all months)" : format(parseISO(monthIso(month)), "MMMM yyyy");
   const prevYM = prevMonthYYYYMM(month);
   const prevLabel = format(parseISO(monthIso(prevYM)), "MMM");
+  const nextYM = nextMonthYYYYMM(month);
+  const nextLabel = format(parseISO(monthIso(nextYM)), "MMM yyyy");
+  const fyStart = fiscalYearStartIso(monthIso(month));
+  const fyStartLabel = format(parseISO(fyStart), "MMM");
+  const ytdLabel = `YTD (${fyStartLabel}–${format(parseISO(monthIso(month)), "MMM")})`;
 
   // ── Load ──
   const load = useCallback(async () => {
@@ -156,7 +186,12 @@ export default function Targets() {
     const prevP = overall
       ? Promise.resolve({ data: [] as any[] })
       : supabase.from("deal_financial_targets").select("*").eq("month", monthIso(prevYM));
-    const [dealsRes, tgtRes, prevRes] = await Promise.all([dealsP, tgtP, prevP]);
+    const nextP = overall
+      ? Promise.resolve({ data: [] as any[] })
+      : supabase.from("deal_financial_targets").select("*").eq("month", monthIso(nextYM));
+    // Load full target history (used for YTD + Lifetime calculations in expanded view).
+    const allP = supabase.from("deal_financial_targets").select("*").limit(20000);
+    const [dealsRes, tgtRes, prevRes, nextRes, allRes] = await Promise.all([dealsP, tgtP, prevP, nextP, allP]);
     const dealRows = (dealsRes.data || []) as any[];
     setDeals(dealRows.map((d): DealMeta => ({
       id: d.id, deal_name: d.deal_name || d.id, account: d.account || "",
@@ -182,8 +217,16 @@ export default function Targets() {
     const pMap: Record<string, TargetRow> = {};
     (prevRes.data || []).forEach((r: any) => { pMap[r.deal_id] = r as TargetRow; });
     setPrevTargets(pMap);
+    const nMap: Record<string, TargetRow> = {};
+    (nextRes.data || []).forEach((r: any) => { nMap[r.deal_id] = r as TargetRow; });
+    setNextTargets(nMap);
+    const grouped: Record<string, TargetRow[]> = {};
+    (allRes.data || []).forEach((r: any) => {
+      (grouped[r.deal_id] = grouped[r.deal_id] || []).push(r as TargetRow);
+    });
+    setAllByDeal(grouped);
     setLoading(false);
-  }, [month, prevYM, overall]);
+  }, [month, prevYM, nextYM, overall]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -210,6 +253,28 @@ export default function Targets() {
       setSavingState("saved");
     },
     [targets, month]
+  );
+
+  const saveNextField = useCallback(
+    async (deal_id: string, field: keyof TargetRow, value: number) => {
+      const existing = nextTargets[deal_id] || ZERO_TARGET(deal_id, monthIso(nextYM));
+      const row: any = { ...existing, [field]: value, deal_id, month: monthIso(nextYM) };
+      setNextTargets(prev => ({ ...prev, [deal_id]: row }));
+      setSavingState("saving");
+      const { data, error } = await supabase
+        .from("deal_financial_targets")
+        .upsert(row, { onConflict: "month,deal_id" })
+        .select()
+        .single();
+      if (error) {
+        setSavingState("idle");
+        setNextTargets(prev => ({ ...prev, [deal_id]: existing }));
+        throw error;
+      }
+      setNextTargets(prev => ({ ...prev, [deal_id]: data as TargetRow }));
+      setSavingState("saved");
+    },
+    [nextTargets, nextYM]
   );
 
   // ── Bulk: copy previous month targets for empty rows ──
@@ -529,38 +594,119 @@ export default function Targets() {
                             />
                           ))}
                         </tr>
-                        {isOpen && (
-                          <tr className="border-b border-border bg-secondary/10">
-                            <td colSpan={8} className="px-6 py-4">
-                              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                {METRICS.map(m => {
-                                  const tgt = Number((t as any)[`${m}_target`]) || 0;
-                                  const act = Number((t as any)[`${m}_actual`]) || 0;
-                                  const pct = attainmentPct(act, tgt);
-                                  return (
-                                    <div key={m} className="rounded-md border border-border bg-card p-3">
-                                      <div className="text-[11px] uppercase tracking-wider text-muted-foreground">{METRIC_LABELS[m]}</div>
-                                      <div className="mt-1 text-sm font-semibold text-foreground tabular-nums">
-                                        {formatINR(act)} <span className="text-muted-foreground font-normal">/ {formatINR(tgt)}</span>
-                                      </div>
-                                      <div className={cn("text-[11px] font-semibold tabular-nums", attainmentTone(pct))}>
-                                        {pct === null ? "Set a target to track" : `${pct.toFixed(0)}% attained`}
-                                      </div>
-                                      {prev && (
-                                        <div className="text-[10px] text-muted-foreground mt-1.5">
-                                          {prevLabel} target: {formatINR(Number((prev as any)[`${m}_target`]) || 0)}
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                              <p className="text-[11px] text-muted-foreground mt-3">
-                                Edits flow into this deal's <Link to={`/deals/${d.id}`} className="text-primary hover:underline">Financials tab</Link> automatically.
-                              </p>
-                            </td>
-                          </tr>
-                        )}
+                        {isOpen && (() => {
+                          const history = allByDeal[d.id] || [];
+                          const curIso = monthIso(month);
+                          // Sums helpers
+                          const sumWhere = (pred: (iso: string) => boolean) => {
+                            const acc: Record<Metric, { t: number; a: number }> = {
+                              contraction: { t: 0, a: 0 },
+                              delivery: { t: 0, a: 0 },
+                              invoicing: { t: 0, a: 0 },
+                              receivables: { t: 0, a: 0 },
+                            };
+                            history.forEach(r => {
+                              if (!pred(r.month)) return;
+                              METRICS.forEach(m => {
+                                acc[m].t += Number((r as any)[`${m}_target`]) || 0;
+                                acc[m].a += Number((r as any)[`${m}_actual`]) || 0;
+                              });
+                            });
+                            return acc;
+                          };
+                          const ytd = sumWhere(iso => iso >= fyStart && iso <= curIso);
+                          const lifetime = sumWhere(() => true);
+                          const nextRow = nextTargets[d.id];
+                          return (
+                            <tr className="border-b border-border bg-secondary/10">
+                              <td colSpan={8} className="px-6 py-4">
+                                {/* Stats strip */}
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+                                  <div className="rounded-md border border-border bg-card px-3 py-2">
+                                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Deal Value</div>
+                                    <div className="text-sm font-semibold text-foreground tabular-nums">{formatINR(d.total_deal_value)}</div>
+                                  </div>
+                                  <div className="rounded-md border border-border bg-card px-3 py-2">
+                                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">MRR</div>
+                                    <div className="text-sm font-semibold text-foreground tabular-nums">{formatINR(d.mrr)}</div>
+                                  </div>
+                                  <div className="rounded-md border border-border bg-card px-3 py-2">
+                                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Months Elapsed</div>
+                                    <div className="text-sm font-semibold text-foreground tabular-nums">{monthsN}</div>
+                                  </div>
+                                  <div className="rounded-md border border-border bg-card px-3 py-2">
+                                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">VSD · BOPM</div>
+                                    <div className="text-sm font-medium text-foreground truncate">{(d.vsd || "—") + " · " + (d.bopm || "—")}</div>
+                                  </div>
+                                </div>
+
+                                {/* Pace banner */}
+                                <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-[12px] text-foreground mb-3">
+                                  <span className="font-medium text-primary">Expected pace</span> for this deal: {formatINR(d.mrr)} MRR × {monthsN} months = <span className="font-medium">{formatINR(expected)}</span> of each metric by end of {format(parseISO(curIso), "MMMM")}.
+                                </div>
+
+                                {/* Period table */}
+                                <div className="rounded-md border border-border bg-card overflow-hidden">
+                                  <table className="w-full text-[12px]">
+                                    <thead>
+                                      <tr className="bg-secondary/40 text-[10px] uppercase tracking-wider text-muted-foreground">
+                                        <th className="text-left py-2 pl-3 pr-2 font-medium w-[120px]"></th>
+                                        <th className="text-left py-2 px-3 font-medium">{format(parseISO(curIso), "MMMM yyyy")}</th>
+                                        <th className="text-left py-2 px-3 font-medium">{ytdLabel}</th>
+                                        <th className="text-left py-2 px-3 font-medium">Lifetime</th>
+                                        <th className="text-right py-2 pl-3 pr-3 font-medium text-primary">{nextLabel} target</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {METRICS.map(m => {
+                                        const curT = Number((t as any)[`${m}_target`]) || 0;
+                                        const curA = Number((t as any)[`${m}_actual`]) || 0;
+                                        const curPct = attainmentPct(curA, curT);
+                                        const ytdT = ytd[m].t;
+                                        const ytdA = ytd[m].a;
+                                        const ytdPct = attainmentPct(ytdA, ytdT);
+                                        const lifeT = lifetime[m].t;
+                                        const lifeA = lifetime[m].a;
+                                        const lifePct = attainmentPct(lifeA, lifeT);
+                                        const cell = (exp: number, actual: number, pct: number | null) => (
+                                          <div className="flex items-center gap-2">
+                                            <div className="flex-1 rounded-md border border-border/70 bg-background px-2 py-1.5 text-foreground tabular-nums">
+                                              <span className="text-muted-foreground">Exp {formatINR(exp)} →</span> <span className="font-medium">{formatINR(actual)}</span>
+                                            </div>
+                                            <span className={cn("inline-flex items-center justify-center min-w-[44px] px-1.5 py-0.5 rounded-full text-[10px] font-medium tabular-nums", pillTone(pct))}>
+                                              {pct === null ? "—" : `${Math.round(pct)}%`}
+                                            </span>
+                                          </div>
+                                        );
+                                        return (
+                                          <tr key={m} className="border-t border-border/50">
+                                            <td className="py-2 pl-3 pr-2 text-foreground font-medium">{METRIC_LABELS[m]}</td>
+                                            <td className="py-2 px-3">{cell(curT, curA, curPct)}</td>
+                                            <td className="py-2 px-3">{cell(ytdT, ytdA, ytdPct)}</td>
+                                            <td className="py-2 px-3">{cell(lifeT, lifeA, lifePct)}</td>
+                                            <td className="py-2 pl-3 pr-2">
+                                              <div className="flex justify-end">
+                                                <TargetCell
+                                                  value={Number((nextRow as any)?.[`${m}_target`]) || 0}
+                                                  disabled={!isAdmin || overall}
+                                                  onSave={(v) => saveNextField(d.id, `${m}_target` as keyof TargetRow, v)}
+                                                  asTd={false}
+                                                />
+                                              </div>
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
+                                </div>
+                                <p className="text-[11px] text-muted-foreground mt-3">
+                                  Edits flow into this deal's <Link to={`/deals/${d.id}`} className="text-primary hover:underline">Financials tab</Link> automatically.
+                                </p>
+                              </td>
+                            </tr>
+                          );
+                        })()}
                       </Fragment>
                     );
                   })}

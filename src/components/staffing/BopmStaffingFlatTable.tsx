@@ -26,17 +26,19 @@ import { CSS } from "@dnd-kit/utilities";
 // Pastel HSL palette per role category. Header gets a saturated swatch,
 // cells inherit a very subtle tint so the column groups are visually scannable
 // without overwhelming the data.
+// Category palette: light tint + colored dot, with dark-mode-aware tokens.
+// head text uses *-800 in light / *-200 in dark; backgrounds use /15 opacity so they read on both themes.
 const CATEGORY_STYLES: Record<string, { head: string; cell: string; dot: string; label: string }> = {
-  "Operations":          { head: "bg-violet-100/80 text-violet-900 border-violet-200",  cell: "bg-violet-50/40",  dot: "bg-violet-500",  label: "Operations" },
-  "Content":             { head: "bg-sky-100/80 text-sky-900 border-sky-200",            cell: "bg-sky-50/40",     dot: "bg-sky-500",     label: "Content" },
-  "Content Strategy":    { head: "bg-cyan-100/80 text-cyan-900 border-cyan-200",         cell: "bg-cyan-50/40",    dot: "bg-cyan-500",    label: "Content Strategy" },
-  "SEO":                 { head: "bg-emerald-100/80 text-emerald-900 border-emerald-200",cell: "bg-emerald-50/40", dot: "bg-emerald-500", label: "SEO" },
-  "Creative Strategy":   { head: "bg-fuchsia-100/80 text-fuchsia-900 border-fuchsia-200",cell: "bg-fuchsia-50/40", dot: "bg-fuchsia-500", label: "Creative Strategy" },
-  "Creative Copy":       { head: "bg-pink-100/80 text-pink-900 border-pink-200",         cell: "bg-pink-50/40",    dot: "bg-pink-500",    label: "Creative Copy" },
-  "Creative Art":        { head: "bg-rose-100/80 text-rose-900 border-rose-200",         cell: "bg-rose-50/40",    dot: "bg-rose-500",    label: "Creative Art" },
-  "Video":               { head: "bg-orange-100/80 text-orange-900 border-orange-200",   cell: "bg-orange-50/40",  dot: "bg-orange-500",  label: "Video" },
-  "Performance & Growth":{ head: "bg-amber-100/80 text-amber-900 border-amber-200",      cell: "bg-amber-50/40",   dot: "bg-amber-500",   label: "Performance & Growth" },
-  "Other":               { head: "bg-slate-100/80 text-slate-900 border-slate-200",      cell: "bg-slate-50/40",   dot: "bg-slate-500",   label: "Other" },
+  "Operations":          { head: "bg-violet-500/15 text-violet-800 dark:text-violet-200 border-violet-500/30",   cell: "bg-violet-500/5",   dot: "bg-violet-500",   label: "Operations" },
+  "Content":             { head: "bg-sky-500/15 text-sky-800 dark:text-sky-200 border-sky-500/30",                cell: "bg-sky-500/5",      dot: "bg-sky-500",      label: "Content" },
+  "Content Strategy":    { head: "bg-cyan-500/15 text-cyan-800 dark:text-cyan-200 border-cyan-500/30",            cell: "bg-cyan-500/5",     dot: "bg-cyan-500",     label: "Content Strategy" },
+  "SEO":                 { head: "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border-emerald-500/30",cell: "bg-emerald-500/5",  dot: "bg-emerald-500",  label: "SEO" },
+  "Creative Strategy":   { head: "bg-fuchsia-500/15 text-fuchsia-800 dark:text-fuchsia-200 border-fuchsia-500/30",cell: "bg-fuchsia-500/5",  dot: "bg-fuchsia-500",  label: "Creative Strategy" },
+  "Creative Copy":       { head: "bg-pink-500/15 text-pink-800 dark:text-pink-200 border-pink-500/30",            cell: "bg-pink-500/5",     dot: "bg-pink-500",     label: "Creative Copy" },
+  "Creative Art":        { head: "bg-rose-500/15 text-rose-800 dark:text-rose-200 border-rose-500/30",            cell: "bg-rose-500/5",     dot: "bg-rose-500",     label: "Creative Art" },
+  "Video":               { head: "bg-orange-500/15 text-orange-800 dark:text-orange-200 border-orange-500/30",    cell: "bg-orange-500/5",   dot: "bg-orange-500",   label: "Video" },
+  "Performance & Growth":{ head: "bg-amber-500/15 text-amber-800 dark:text-amber-200 border-amber-500/30",        cell: "bg-amber-500/5",    dot: "bg-amber-500",    label: "Performance & Growth" },
+  "Other":               { head: "bg-slate-500/15 text-slate-800 dark:text-slate-200 border-slate-500/30",        cell: "bg-slate-500/5",    dot: "bg-slate-500",    label: "Other" },
 };
 const styleFor = (cat?: string) => CATEGORY_STYLES[cat || "Other"] || CATEGORY_STYLES["Other"];
 const VIRTUAL_ROW_HEIGHT = 72;
@@ -1353,10 +1355,10 @@ export function BopmStaffingFlatTable({
             onDragEnd={handleColumnDragEnd}
           >
           <table className="text-xs border-collapse" style={{ minWidth: "100%", tableLayout: "fixed" }}>
-            <thead className="bg-secondary/40 text-[10px] uppercase tracking-wider text-muted-foreground sticky top-0">
+            <thead className="bg-secondary text-[10px] uppercase tracking-wider text-muted-foreground sticky top-0 z-20">
               <tr>
-                <th className="px-3 py-2 text-left w-[220px] sticky left-0 bg-secondary/60 z-10 border-r border-border">Account · Deal</th>
-                <th className="px-3 py-2 text-right w-[90px] border-r border-border">MRR</th>
+                <th className="px-3 py-2 text-left w-[220px] sticky left-0 bg-secondary z-30 border-r border-border">Account · Deal</th>
+                <th className="px-3 py-2 text-right w-[90px] border-r border-border bg-secondary">MRR</th>
                 {visibleRoleKeys.length === 0 ? (
                   <th className="px-3 py-2 text-left text-muted-foreground/60">No roles staffed yet</th>
                 ) : (

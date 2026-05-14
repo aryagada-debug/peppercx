@@ -184,18 +184,19 @@ export function CapacityTab({ deals, people, assignments }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
+      {/* Summary Cards — semantic, dark-mode safe tints with a left accent bar */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {[
-          { label: "Overloaded", count: overloaded.length, color: "text-destructive", bg: "bg-destructive/10" },
-          { label: "Near Full", count: nearFull.length, color: "text-warning", bg: "bg-warning/10" },
-          { label: "Healthy", count: healthy.length, color: "text-positive", bg: "bg-positive/10" },
-          { label: "Under-utilised", count: underUtilised.length, color: "text-accent", bg: "bg-accent/10" },
-          { label: "Unassigned", count: unassigned.length, color: "text-muted-foreground", bg: "bg-muted" },
+          { label: "Overloaded",     count: overloaded.length,     text: "text-destructive", bar: "bg-destructive", bg: "bg-destructive/10 border-destructive/20" },
+          { label: "Near Full",      count: nearFull.length,       text: "text-warning",     bar: "bg-warning",     bg: "bg-warning/10 border-warning/20" },
+          { label: "Healthy",        count: healthy.length,        text: "text-positive",    bar: "bg-positive",    bg: "bg-positive/10 border-positive/20" },
+          { label: "Under-utilised", count: underUtilised.length,  text: "text-primary",     bar: "bg-primary",     bg: "bg-primary/10 border-primary/20" },
+          { label: "Unassigned",     count: unassigned.length,     text: "text-muted-foreground", bar: "bg-muted-foreground/40", bg: "bg-card border-border" },
         ].map(c => (
-          <div key={c.label} className={cn("rounded-lg border border-border px-4 py-3", c.bg)}>
+          <div key={c.label} className={cn("relative rounded-lg border px-4 py-3 overflow-hidden", c.bg)}>
+            <span className={cn("absolute left-0 top-0 bottom-0 w-1", c.bar)} />
             <p className="text-caption font-medium text-muted-foreground">{c.label}</p>
-            <p className={cn("text-2xl font-semibold font-mono mt-0.5", c.color)}>{c.count}</p>
+            <p className={cn("text-2xl font-semibold font-mono mt-0.5", c.text)}>{c.count}</p>
           </div>
         ))}
       </div>
@@ -224,7 +225,7 @@ export function CapacityTab({ deals, people, assignments }: Props) {
       <div className="data-card p-0 overflow-x-auto">
         <table className="w-full text-ui">
           <thead>
-            <tr className="border-b border-border bg-secondary/30">
+            <tr className="border-b border-border bg-primary/5 text-primary/80">
               <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider min-w-[280px]">Name</th>
               <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider">Designation</th>
               <th className="text-left py-2.5 px-3 font-medium text-muted-foreground text-caption uppercase tracking-wider w-16">Band</th>
