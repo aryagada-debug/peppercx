@@ -617,8 +617,6 @@ export default function Targets() {
                           const ytd = sumWhere(iso => iso >= fyStart && iso <= curIso);
                           const lifetime = sumWhere(() => true);
                           const nextRow = nextTargets[d.id];
-                          const monthsSinceStart = monthsN || 1;
-                          const expectedFor = (m: Metric, scaleMonths: number) => d.mrr * scaleMonths;
                           return (
                             <tr className="border-b border-border bg-secondary/10">
                               <td colSpan={8} className="px-6 py-4">
