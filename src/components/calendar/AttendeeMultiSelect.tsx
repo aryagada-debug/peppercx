@@ -4,6 +4,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Badge } from "@/components/ui/badge";
 import { X } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type Person = { name: string; email: string };
 
@@ -41,7 +42,7 @@ function isValidEmail(s: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 }
 
-export function AttendeeMultiSelect({ value, onChange, placeholder = "Search team or type email…", extraOptions = [] }: Props) {
+export function AttendeeMultiSelect({ value, onChange, placeholder = "Add team member or type any email…", extraOptions = [] }: Props) {
   const [people, setPeople] = useState<Person[]>([]);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -80,17 +81,32 @@ export function AttendeeMultiSelect({ value, onChange, placeholder = "Search tea
   const remove = (email: string) => onChange(value.filter((v) => v.toLowerCase() !== email.toLowerCase()));
 
   return (
-    <div className="border border-border rounded-md px-2 py-1.5 bg-background min-h-[36px] flex flex-wrap items-center gap-1">
+    <div
+      className="border border-border rounded-md px-2 py-1.5 bg-background min-h-[36px] flex flex-wrap items-center gap-1 cursor-text"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) inputRef.current?.focus();
+      }}
+    >
       {value.map((email) => {
         const p = allOptions.find((o) => o.email === email.toLowerCase());
-        return (
+        const isExternal = !p;
+        const chip = (
           <Badge key={email} variant="secondary" className="gap-1 font-normal">
+            {isExternal && <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden />}
             <span className="text-xs">{p?.name || email}</span>
             <button type="button" onClick={() => remove(email)} className="hover:text-destructive">
               <X className="h-3 w-3" />
             </button>
           </Badge>
         );
+        return isExternal ? (
+          <TooltipProvider key={email} delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>{chip}</TooltipTrigger>
+              <TooltipContent>External attendee · {email}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ) : chip;
       })}
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
@@ -99,6 +115,7 @@ export function AttendeeMultiSelect({ value, onChange, placeholder = "Search tea
             value={query}
             onChange={(e) => { setQuery(e.target.value); if (!open) setOpen(true); }}
             onFocus={() => setOpen(true)}
+            onBlur={() => { const q = query.trim(); if (q && isValidEmail(q)) add(q); }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && query.trim()) { e.preventDefault(); add(query); }
               if (e.key === "Backspace" && !query && value.length) remove(value[value.length - 1]);
@@ -118,6 +135,11 @@ export function AttendeeMultiSelect({ value, onChange, placeholder = "Search tea
                   : <span className="px-2 py-1.5 text-xs text-muted-foreground">Type a name or full email</span>}
               </CommandEmpty>
               <CommandGroup>
+                {isValidEmail(query.trim()) && !filtered.some(p => p.email === query.trim().toLowerCase()) && (
+                  <CommandItem value={`__add_${query}`} onSelect={() => { add(query); setOpen(false); }}>
+                    <span className="text-sm">Add "<span className="font-medium">{query.trim()}</span>"</span>
+                  </CommandItem>
+                )}
                 {filtered.map((p) => (
                   <CommandItem key={p.email} value={p.email} onSelect={() => { add(p.email); setOpen(false); }}>
                     <div className="flex flex-col">
@@ -127,6 +149,9 @@ export function AttendeeMultiSelect({ value, onChange, placeholder = "Search tea
                   </CommandItem>
                 ))}
               </CommandGroup>
+              <div className="px-2 py-1.5 text-[11px] text-muted-foreground border-t border-border">
+                Press Enter to add a custom email
+              </div>
             </CommandList>
           </Command>
         </PopoverContent>
