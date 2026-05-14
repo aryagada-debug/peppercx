@@ -525,10 +525,10 @@ function PipelineCardImpl({ title, att, value, target, status }: { title: string
 type PipelineCell = { att: number; value: number; target: number; status: string };
 
 const METRIC_CONFIG = [
-  { key: "contraction" as const, title: "Contraction", subtitle: "Deals signed", icon: FileCheck2, accent: "#7B6BD9", iconBg: "bg-accent", iconText: "text-primary", titleText: "text-primary" },
+  { key: "contraction" as const, title: "Contraction", subtitle: "Deals signed", icon: FileCheck2, accent: "hsl(var(--primary))", iconBg: "bg-accent", iconText: "text-primary", titleText: "text-primary" },
   { key: "delivery" as const, title: "Delivery", subtitle: "Work completed", icon: Truck, accent: "hsl(var(--positive))", iconBg: "bg-positive/10", iconText: "text-positive", titleText: "text-positive" },
-  { key: "invoicing" as const, title: "Invoicing", subtitle: "Bills raised", icon: Receipt, accent: "#3267C7", iconBg: "bg-info/10", iconText: "text-info", titleText: "text-info" },
-  { key: "receivables" as const, title: "Receivables", subtitle: "Payments received", icon: Wallet, accent: "#C7414C", iconBg: "bg-destructive/10", iconText: "text-destructive", titleText: "text-destructive" },
+  { key: "invoicing" as const, title: "Invoicing", subtitle: "Bills raised", icon: Receipt, accent: "hsl(var(--info))", iconBg: "bg-info/10", iconText: "text-info", titleText: "text-info" },
+  { key: "receivables" as const, title: "Receivables", subtitle: "Payments received", icon: Wallet, accent: "hsl(var(--destructive))", iconBg: "bg-destructive/10", iconText: "text-destructive", titleText: "text-destructive" },
 ];
 
 function PipelineMatrix({ periods }: { periods: { current: any; ytd: any; lifetime: any } }) {
