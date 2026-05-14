@@ -387,8 +387,8 @@ export default function Clients() {
       if (colFilters.dealStatus && (d.dealStatus || "Active Deal") !== colFilters.dealStatus) return false;
       if (colFilters.vsd && !matches(d.vsd, colFilters.vsd)) return false;
       if (colFilters.bopm && !matches(`${d.principalBopm || ""} ${d.seniorBopm || ""}`, colFilters.bopm)) return false;
-      if (colFilters.mrr && (Number(d.mrr) || 0) < Number(colFilters.mrr)) return false;
-      if (colFilters.totalDealValue && (Number(d.totalDealValue) || 0) < Number(colFilters.totalDealValue)) return false;
+      if (colFilters.mrr && convertFromInr(Number(d.mrr) || 0, currency, fxRate) < Number(colFilters.mrr)) return false;
+      if (colFilters.totalDealValue && convertFromInr(Number(d.totalDealValue) || 0, currency, fxRate) < Number(colFilters.totalDealValue)) return false;
       if (colFilters.rag) {
         const rag = rgyLetterToFilter(rgyRollup.get(d.id));
         if (rag !== colFilters.rag) return false;
