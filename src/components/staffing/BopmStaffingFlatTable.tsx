@@ -1610,6 +1610,23 @@ export function BopmStaffingFlatTable({
         );
       })()}
 
+      {quickAdd && directEdit && onAddAssignment && (
+        <AddStaffingMemberDialog
+          open={!!quickAdd}
+          onOpenChange={v => { if (!v) setQuickAdd(null); }}
+          people={allPeople}
+          assignments={assignments}
+          deals={deals}
+          dealId={quickAdd.dealId}
+          initialCategory={quickAdd.category as RoleCategory}
+          initialRoleKey={quickAdd.roleKey}
+          onAdd={(assignment) => {
+            onAddAssignment({ ...assignment, roleKey: quickAdd.roleKey });
+            setQuickAdd(null);
+          }}
+        />
+      )}
+
       {editEntry && (
         <AddStaffingMemberDialog
           open={!!editEntry}
