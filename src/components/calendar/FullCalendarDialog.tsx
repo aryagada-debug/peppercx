@@ -41,7 +41,7 @@ export function FullCalendarDialog({ open, onOpenChange }: Props) {
   useEffect(() => { if (open) void refresh(); }, [open, refresh]);
 
   const handleSave = async (v: EventFormValue) => {
-    const payload = { summary: v.summary, description: v.description, start: v.start, end: v.end, attendees: v.attendees, location: v.location };
+    const payload = { summary: v.summary, description: v.description, start: v.start, end: v.end, attendees: v.attendees, location: v.location, conferencing: v.conferencing, conferenceLink: v.conferenceLink };
     if (v.id) await updateEvent(v.id, payload);
     else await createEvent(payload);
     await refresh();
@@ -131,6 +131,7 @@ export function FullCalendarDialog({ open, onOpenChange }: Props) {
           start: editing.start,
           end: editing.end,
           attendees: editing.attendees?.map(a => a.email).filter(Boolean) as string[] | undefined,
+          location: editing.location,
         } : null}
         onSave={async (v) => { await handleSave(v); setEditing(null); }}
         onDelete={handleDelete}
