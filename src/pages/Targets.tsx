@@ -148,20 +148,12 @@ export default function Targets() {
       supabase
         .from("staffing_deals")
         .select("id, deal_name, account, vsd, bopm, mrr, total_deal_value, start_date, deal_status")
-        .in("deal_status", ["Active", "Live", "Active - In Delivery", "Onboarding"])
+        .in("deal_status", ["Active Deal", "New Deal in SLA/PO", "Deal - Open and WIP", "Deal in Renewal Process"])
         .order("deal_name"),
       supabase.from("deal_financial_targets").select("*").eq("month", monthIso(month)),
       supabase.from("deal_financial_targets").select("*").eq("month", monthIso(prevYM)),
     ]);
-    let dealRows = (dealsRes.data || []) as any[];
-    // Fallback if status filter returns nothing
-    if (dealRows.length === 0) {
-      const all = await supabase
-        .from("staffing_deals")
-        .select("id, deal_name, account, vsd, bopm, mrr, total_deal_value, start_date, deal_status")
-        .order("deal_name");
-      dealRows = all.data || [];
-    }
+    const dealRows = (dealsRes.data || []) as any[];
     setDeals(dealRows.map((d): DealMeta => ({
       id: d.id, deal_name: d.deal_name || d.id, account: d.account || "",
       vsd: d.vsd || "", bopm: d.bopm || "", mrr: Number(d.mrr) || 0,
