@@ -1,56 +1,64 @@
-## Add "Org Mapping" tab to each deal
+## Goal
+Upgrade the meeting creation experience in **Home** and **MBR scheduling** with:
+1. Conferencing provider selector (Google Meet default, Teams, Zoom)
+2. Attendee autocomplete from app users
+3. From MBR: pull stakeholders from the deal's Org Map, and add new stakeholders to the Org Map while scheduling
 
-A new tab inside Clients & Deals → Deal Detail that lets users map the client's stakeholders (champions, SPOCs, decision makers) with full CRUD, search, filters, and an inline detail editor.
+---
 
-### 1. Database (Lovable Cloud)
+## 1. Conferencing provider
 
-New table `deal_stakeholders`:
-- `deal_id` (text, FK to deals)
-- `name`, `role`, `function` (Marketing / Finance / Product / Technology / Legal / Ops / Other)
-- `seniority` (e.g. C-1 · VP)
-- `email`, `phone`, `linkedin_url`
-- `decision_power` (int 1–5)
-- `tags` (text[]) — SPOC / Champion / Not met / custom
-- `notes` (text)
-- `sort_order` (int)
-- standard `id`, `created_at`, `updated_at`
+New shared field `conferencing: "meet" | "teams" | "zoom" | "none"` (default `"meet"`).
 
-RLS: same access pattern as other deal-scoped tables (any authenticated user with deal access can read/write; mirrors `deal_documents` policies).
+- **Google Meet** — Auto-generated via Google Calendar API. Update `supabase/functions/google-calendar-create` & `google-calendar-update` to:
+  - Accept a `conferencing` arg.
+  - When `meet`, attach `conferenceData.createRequest` with a random `requestId` and append `?conferenceDataVersion=1` to the API URL. Returned `hangoutLink` is stored back on the event.
+- **Teams / Zoom** — No OAuth available for those providers, so the dialog shows a "Meeting link" input. The link is written into the event's `location` field and prepended to the description (`Join via Teams: <url>`). If left blank, we save the event without a link and surface a small hint.
+- The selector lives in `EventFormDialog` (used by Home + FullCalendarDialog) and in `ScheduleOnlyDialog` (MBR), defaulting to `meet`.
 
-### 2. New components
-
-```
-src/components/deals/orgmap/
-  OrgMappingTab.tsx        // top-level: header, toolbar, stats, list
-  StakeholderRow.tsx       // collapsed row + expandable inline detail
-  StakeholderFilters.tsx   // search, function, power, export
-  useStakeholders.ts       // CRUD hook (Supabase + react-query)
+Edge function payload extension:
+```ts
+{ summary, start, end, attendees, location, description,
+  conferencing?: "meet" | "teams" | "zoom",
+  conferenceLink?: string }
 ```
 
-Reuses existing UI primitives (Input, Button, Badge, Popover, DropdownMenu, Textarea) so it inherits dark-mode tokens. The HTML mockup is used as a **layout reference only** — colors, fonts, borders are mapped to `bg-card`, `border-border`, `text-foreground`, `text-muted-foreground`, `primary`, etc. No hard-coded hex values.
+## 2. Attendee autocomplete
 
-### 3. Features (matching the mockup)
+New component `src/components/calendar/AttendeeMultiSelect.tsx`:
+- Loads `staffing_people` (name + email) once via React Query and merges with any free-typed emails.
+- Uses shadcn `Command` + `Popover` for searchable dropdown; selected attendees render as removable chips.
+- Returns `string[]` of emails (matches existing API).
+- Replaces the comma-separated `Input` in both `EventFormDialog` and `ScheduleOnlyDialog`.
 
-- **Header**: title "Org map · {client name}", subtitle "{n} stakeholders · last updated …", "All saved" indicator, primary "Add person" button.
-- **Toolbar**: search by name/role/email, Function filter, Power-level filter, Export (CSV download of current view).
-- **Stats strip**: Total stakeholders, Functions covered, SPOCs count, Not-yet-met count.
-- **Table** with columns: Name & role (avatar with initials + tag chips), Contact (email/phone), Function (color dot), Seniority, Power (5-dot indicator), row menu.
-- **Expandable detail row**: inline editable fields for email, phone, LinkedIn, function (Select), seniority (Select), 1–5 power picker, tags editor (add/remove chips), notes (textarea). Edits autosave on blur via the hook. Footer actions: Duplicate, Copy email, Delete (with confirm).
-- **Add another person**: appends a new blank stakeholder, auto-opens its detail panel for editing.
-- **Empty state** when a deal has no stakeholders yet.
+## 3. Org Map integration (MBR only)
 
-### 4. Wiring
+In `ScheduleOnlyDialog`:
+- Load `deal_stakeholders` for `deal.id` via existing `useStakeholders` hook.
+- Add **"Add from Org Map"** button beside attendees → opens a small popover listing stakeholders with email; clicking adds them to the attendee list.
+- Add **"+ New stakeholder"** inline form (name, role, email) that inserts into `deal_stakeholders` and immediately adds the email to attendees.
 
-- Add `"Org Mapping"` to the `TABS` tuple in `src/pages/DealDetail.tsx` (between "MBR" and "Requests").
-- Render `<OrgMappingTab dealId={dealId} clientName={deal.clientName} />` when `activeTab === "Org Mapping"`.
-- No changes to other tabs.
+## 4. Files
 
-### 5. Verification
+**New**
+- `src/components/calendar/AttendeeMultiSelect.tsx`
+- `src/components/calendar/ConferencingSelect.tsx` (small select + conditional link input)
+- `src/components/mbr/StakeholderAttendeePicker.tsx`
 
-After implementation: open a deal → switch to Org Mapping → add, edit (inline), filter, search, export, delete a stakeholder. Reload page and confirm persistence. Confirm dark-mode styling.
+**Edited**
+- `src/components/calendar/EventFormDialog.tsx` — add conferencing selector, swap attendee input
+- `src/components/mbr/ScheduleOnlyDialog.tsx` — add conferencing, autocomplete, stakeholder picker, pass `conferencing` through to sync
+- `src/lib/mbrCalendarSync.ts` — forward `conferencing` & `conferenceLink` to `createEvent`/`updateEvent`
+- `src/hooks/useGoogleCalendar.ts` — extend `createEvent`/`updateEvent` signatures
+- `supabase/functions/google-calendar-create/index.ts` — Meet `conferenceData`; Teams/Zoom location/description handling
+- `supabase/functions/google-calendar-update/index.ts` — same
+- `src/pages/Home.tsx` — pass new fields through `handleCalSave`
 
-### Files to add/edit
+No DB migration needed (`deal_stakeholders` already exists).
 
-- migration: `deal_stakeholders` table + RLS
-- new: `src/components/deals/orgmap/OrgMappingTab.tsx`, `StakeholderRow.tsx`, `StakeholderFilters.tsx`, `useStakeholders.ts`
-- edit: `src/pages/DealDetail.tsx` (add tab + render)
+## 5. Verification
+
+- Connect calendar → Home → New event → verify Meet link auto-attaches and shows in event.
+- Switch to Teams/Zoom → paste link → verify it appears in created event location.
+- MBR Schedule → autocomplete shows team members, "Add from Org Map" inserts stakeholder emails, "+ New stakeholder" adds to `deal_stakeholders` and Org Map tab.
+- Edit existing event → conferencing change propagates.
