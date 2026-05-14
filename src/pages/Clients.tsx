@@ -220,7 +220,7 @@ export default function Clients() {
   const [dealWizardClientId, setDealWizardClientId] = useState<string | undefined>();
 
   const [deleteTarget, setDeleteTarget] = useState<{ type: "client" | "deal"; id: string; name: string } | null>(null);
-  const [staffingDialog, setStaffingDialog] = useState<{ open: boolean; dealId: string; roleFilter?: "Operations"; preSelectedName?: string } | null>(null);
+  const [staffingDialog, setStaffingDialog] = useState<{ open: boolean; dealId: string; roleFilter?: "Operations" | "Content" | "SEO"; preSelectedName?: string } | null>(null);
 
   // Per-column filters (text values; numeric filters use min input)
   const [colFilters, setColFilters] = useState<Record<string, string>>({});
@@ -595,6 +595,22 @@ export default function Clients() {
       }
     }
     toast.success("BOPM updated");
+  };
+
+  const handleLeadChange = async (dealId: string, kind: "Content" | "SEO", personId: string) => {
+    const person = people.find(p => p.id === personId);
+    if (!person) return;
+    const existing = assignments.find(a => {
+      if (a.dealId !== dealId) return false;
+      const p = people.find(pp => pp.id === a.personId);
+      return ((p?.roleCategory || "").toLowerCase() === kind.toLowerCase());
+    });
+    if (existing) {
+      await updateAssignment(existing.id, { personId: person.id, roleKey: person.roleTitle || kind });
+    } else {
+      await addAssignment({ id: uid(), dealId, roleKey: person.roleTitle || kind, personId: person.id, allocationPct: 10 });
+    }
+    toast.success(`${kind} lead updated`);
   };
 
   const handleClearBOPM = async (dealId: string) => {
