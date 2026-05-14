@@ -1361,16 +1361,18 @@ export function BopmStaffingFlatTable({
                 </div>
               )}
             </div>
-            <select
-              onChange={e => { if (e.target.value) { setRequestForDeal({ dealId: e.target.value }); e.target.value = ""; } }}
-              className="h-8 px-2 rounded-md border border-border bg-background text-xs text-muted-foreground"
-              defaultValue=""
-            >
-              <option value="" disabled>+ Request staffing for a deal…</option>
-              {dealsForAdd.map(d => (
-                <option key={d.id} value={d.id}>{d.account} — {d.dealName}</option>
-              ))}
-            </select>
+            {!directEdit && (
+              <select
+                onChange={e => { if (e.target.value) { setRequestForDeal({ dealId: e.target.value }); e.target.value = ""; } }}
+                className="h-8 px-2 rounded-md border border-border bg-background text-xs text-muted-foreground"
+                defaultValue=""
+              >
+                <option value="" disabled>+ Request staffing for a deal…</option>
+                {dealsForAdd.map(d => (
+                  <option key={d.id} value={d.id}>{d.account} — {d.dealName}</option>
+                ))}
+              </select>
+            )}
         </header>
 
         <div
@@ -1432,7 +1434,7 @@ export function BopmStaffingFlatTable({
                     <td className="px-3 py-2 text-right font-mono text-foreground border-r border-border whitespace-nowrap">
                       {formatINR(d.mrr || 0)}
                     </td>
-                    {visibleRoleKeys.length === 0 && (
+                    {visibleRoleKeys.length === 0 && !directEdit && (
                       <td className="px-2 py-2">
                         <button
                           type="button"
