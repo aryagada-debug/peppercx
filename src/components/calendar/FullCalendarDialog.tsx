@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { addDays, addMinutes, format } from "date-fns";
-import { ChevronLeft, ChevronRight, Plus, X, Loader2, CalendarDays } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Loader2, CalendarDays } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useGoogleCalendar, type GCalEvent } from "@/hooks/useGoogleCalendar";
