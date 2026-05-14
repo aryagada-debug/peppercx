@@ -77,18 +77,35 @@ Deno.serve(async (req) => {
   try {
     const user = await getUser(req);
     const accessToken = await getCalendarAccessToken(user.id);
-    const { event_id, summary, description, start, end, attendees, location } = await req.json();
+    const { event_id, summary, description, start, end, attendees, location, conferencing, conferenceLink } = await req.json();
     if (!event_id) return json({ error: "Missing event_id" }, 400);
 
     const body: Record<string, unknown> = {};
     if (summary !== undefined) body.summary = summary;
-    if (description !== undefined) body.description = description;
-    if (location !== undefined) body.location = location;
+    let finalLocation = location;
+    let finalDescription = description;
+    if ((conferencing === "teams" || conferencing === "zoom") && conferenceLink) {
+      const label = conferencing === "teams" ? "Microsoft Teams" : "Zoom";
+      finalLocation = conferenceLink;
+      finalDescription = `Join via ${label}: ${conferenceLink}\n\n${description || ""}`.trim();
+    }
+    if (finalDescription !== undefined) body.description = finalDescription;
+    if (finalLocation !== undefined) body.location = finalLocation;
     if (start) body.start = { dateTime: start };
     if (end) body.end = { dateTime: end };
     if (Array.isArray(attendees)) body.attendees = attendees.map((email: string) => ({ email }));
+    const useMeet = conferencing === "meet";
+    if (useMeet) {
+      body.conferenceData = {
+        createRequest: {
+          requestId: `meet-${crypto.randomUUID()}`,
+          conferenceSolutionKey: { type: "hangoutsMeet" },
+        },
+      };
+    }
 
-    const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(event_id)}?sendUpdates=all`, {
+    const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(event_id)}?sendUpdates=all${useMeet ? "&conferenceDataVersion=1" : ""}`;
+    const res = await fetch(url, {
       method: "PATCH",
       headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
