@@ -126,6 +126,7 @@ export default function Targets() {
   useCurrencyVersion();
   const { isAdmin } = useUserRole();
   const [month, setMonth] = useState(format(new Date(), "yyyy-MM"));
+  const [overall, setOverall] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [deals, setDeals] = useState<DealMeta[]>([]);
   const [targets, setTargets] = useState<Record<string, TargetRow>>({}); // key: deal_id
@@ -137,22 +138,25 @@ export default function Targets() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [savingState, setSavingState] = useState<"idle" | "saving" | "saved">("saved");
 
-  const monthLabel = format(parseISO(monthIso(month)), "MMMM yyyy");
+  const monthLabel = overall ? "Overall (all months)" : format(parseISO(monthIso(month)), "MMMM yyyy");
   const prevYM = prevMonthYYYYMM(month);
   const prevLabel = format(parseISO(monthIso(prevYM)), "MMM");
 
   // ── Load ──
   const load = useCallback(async () => {
     setLoading(true);
-    const [dealsRes, tgtRes, prevRes] = await Promise.all([
-      supabase
-        .from("staffing_deals")
-        .select("id, deal_name, account, vsd, bopm, mrr, total_deal_value, start_date, deal_status")
-        .in("deal_status", ["Active Deal", "New Deal in SLA/PO", "Deal - Open and WIP", "Deal in Renewal Process"])
-        .order("deal_name"),
-      supabase.from("deal_financial_targets").select("*").eq("month", monthIso(month)),
-      supabase.from("deal_financial_targets").select("*").eq("month", monthIso(prevYM)),
-    ]);
+    const dealsP = supabase
+      .from("staffing_deals")
+      .select("id, deal_name, account, vsd, bopm, mrr, total_deal_value, start_date, deal_status")
+      .in("deal_status", ["Active Deal", "New Deal in SLA/PO", "Deal - Open and WIP", "Deal in Renewal Process"])
+      .order("deal_name");
+    const tgtP = overall
+      ? supabase.from("deal_financial_targets").select("*")
+      : supabase.from("deal_financial_targets").select("*").eq("month", monthIso(month));
+    const prevP = overall
+      ? Promise.resolve({ data: [] as any[] })
+      : supabase.from("deal_financial_targets").select("*").eq("month", monthIso(prevYM));
+    const [dealsRes, tgtRes, prevRes] = await Promise.all([dealsP, tgtP, prevP]);
     const dealRows = (dealsRes.data || []) as any[];
     setDeals(dealRows.map((d): DealMeta => ({
       id: d.id, deal_name: d.deal_name || d.id, account: d.account || "",
@@ -161,13 +165,25 @@ export default function Targets() {
       start_date: d.start_date, deal_status: d.deal_status || "",
     })));
     const tMap: Record<string, TargetRow> = {};
-    (tgtRes.data || []).forEach((r: any) => { tMap[r.deal_id] = r as TargetRow; });
+    if (overall) {
+      // Sum targets & actuals across all months per deal
+      (tgtRes.data || []).forEach((r: any) => {
+        const ex = tMap[r.deal_id] || ZERO_TARGET(r.deal_id, "ALL");
+        METRICS.forEach(m => {
+          (ex as any)[`${m}_target`] = (Number((ex as any)[`${m}_target`]) || 0) + (Number(r[`${m}_target`]) || 0);
+          (ex as any)[`${m}_actual`] = (Number((ex as any)[`${m}_actual`]) || 0) + (Number(r[`${m}_actual`]) || 0);
+        });
+        tMap[r.deal_id] = ex;
+      });
+    } else {
+      (tgtRes.data || []).forEach((r: any) => { tMap[r.deal_id] = r as TargetRow; });
+    }
     setTargets(tMap);
     const pMap: Record<string, TargetRow> = {};
     (prevRes.data || []).forEach((r: any) => { pMap[r.deal_id] = r as TargetRow; });
     setPrevTargets(pMap);
     setLoading(false);
-  }, [month, prevYM]);
+  }, [month, prevYM, overall]);
 
   useEffect(() => { void load(); }, [load]);
 
