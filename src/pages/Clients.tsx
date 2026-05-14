@@ -987,9 +987,13 @@ export default function Clients() {
                       {isVisible("contentLead") && (
                         <td className="py-2 px-3 truncate">
                           <div className="flex items-center gap-1 group/cell">
-                            <Link to={`/deals/${deal.id}`} className="text-xs text-foreground hover:text-primary hover:underline truncate block flex-1 min-w-0" title={leads.content || ""}>
+                            <button
+                              onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "Content", preSelectedName: leads.content || undefined })}
+                              className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate block text-left flex-1 min-w-0"
+                              title={leads.content || ""}
+                            >
                               {leads.content || <span className="text-muted-foreground">— None —</span>}
-                            </Link>
+                            </button>
                             {leads.content && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleClearLead(deal.id, "content"); }}
@@ -1005,9 +1009,13 @@ export default function Clients() {
                       {isVisible("seoLead") && (
                         <td className="py-2 px-3 truncate">
                           <div className="flex items-center gap-1 group/cell">
-                            <Link to={`/deals/${deal.id}`} className="text-xs text-foreground hover:text-primary hover:underline truncate block flex-1 min-w-0" title={leads.seo || ""}>
+                            <button
+                              onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "SEO", preSelectedName: leads.seo || undefined })}
+                              className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate block text-left flex-1 min-w-0"
+                              title={leads.seo || ""}
+                            >
                               {leads.seo || <span className="text-muted-foreground">— None —</span>}
-                            </Link>
+                            </button>
                             {leads.seo && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleClearLead(deal.id, "seo"); }}
@@ -1151,8 +1159,13 @@ export default function Clients() {
           onAdd={(assignment) => {
             const person = people.find(p => p.id === assignment.personId);
             if (!person) return;
+            const cat = (person.roleCategory || "").toLowerCase();
             const rt = (person.roleTitle || "").toLowerCase();
-            if (rt.includes("vsd")) {
+            if (cat === "content") {
+              handleLeadChange(staffingDialog.dealId, "Content", person.id);
+            } else if (cat === "seo") {
+              handleLeadChange(staffingDialog.dealId, "SEO", person.id);
+            } else if (rt.includes("vsd")) {
               handleVSDChange(staffingDialog.dealId, person.name);
             } else {
               handleBOPMChange(staffingDialog.dealId, person.name);
