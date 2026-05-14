@@ -64,12 +64,13 @@ function pillTone(pct: number | null): string {
 }
 
 // Inline editable currency cell
-function TargetCell({ value, prevValue, onSave, disabled, prevLabel }: {
+function TargetCell({ value, prevValue, onSave, disabled, prevLabel, asTd = true }: {
   value: number;
   prevValue?: number;
   onSave: (v: number) => Promise<void>;
   disabled?: boolean;
   prevLabel?: string;
+  asTd?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [local, setLocal] = useState(String(value || ""));
@@ -97,8 +98,8 @@ function TargetCell({ value, prevValue, onSave, disabled, prevLabel }: {
     }
   }
 
-  return (
-    <td className="py-1 px-1.5 align-top">
+  const inner = (
+    <>
       {editing && !disabled ? (
         <input
           ref={inputRef}
@@ -135,7 +136,12 @@ function TargetCell({ value, prevValue, onSave, disabled, prevLabel }: {
         </div>
       )}
       {saving && <div className="text-[9px] text-muted-foreground text-right pr-1.5">saving…</div>}
-    </td>
+    </>
+  );
+  return asTd ? (
+    <td className="py-1 px-1.5 align-top">{inner}</td>
+  ) : (
+    <div className="py-1 px-1.5">{inner}</div>
   );
 }
 
