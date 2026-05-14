@@ -566,6 +566,64 @@ export function BopmStaffingFlatTable({
   const allPersonById = useMemo(() => new Map(allPeople.map(p => [p.id, p])), [allPeople]);
   const dealById = useMemo(() => new Map(deals.map(d => [d.id, d])), [deals]);
 
+  // Index assignments by dealId once. Previously dealRoleMap did
+  // assignments.filter(a => a.dealId === d.id) inside a loop over every
+  // deal — O(deals × assignments) ≈ 780 k iterations on the live dataset
+  // for every render / keystroke. One pass replaces the hot loop.
+  const assignmentsByDeal = useMemo(() => {
+    const out = new Map<string, StaffingAssignment[]>();
+    for (const a of assignments) {
+      let arr = out.get(a.dealId);
+      if (!arr) { arr = []; out.set(a.dealId, arr); }
+      arr.push(a);
+    }
+    return out;
+  }, [assignments]);
+
+  // Build a fast tokenised lookup for dealCellMatchesPerson once per
+  // (allPeople, allPersonNames) pair. Previously each of the 3 BOPM virtual
+  // columns called allPeople.filter(... regex tests ...) for every deal —
+  // ~1.5 M regex executions per render on the live dataset. Now we just look
+  // a token up in a Map<lowercased token, Person[]>.
+  const personByCellToken = useMemo(() => {
+    const map = new Map<string, Person[]>();
+    for (const p of allPeople) {
+      if (p.leaving) continue;
+      const name = (p.name || "").trim();
+      if (!name) continue;
+      // Use the canonical matcher once per (token, person) — but we collapse
+      // the search by indexing on every plausible alias (full name + first
+      // word + first two words). dealCellMatchesPerson runs at most once per
+      // unique cell token below.
+      const lc = name.toLowerCase();
+      const parts = lc.split(/\s+/).filter(Boolean);
+      const aliases = new Set<string>([lc]);
+      if (parts[0]) aliases.add(parts[0]);
+      if (parts.length >= 2) aliases.add(`${parts[0]} ${parts[1]}`);
+      aliases.forEach(alias => {
+        let arr = map.get(alias);
+        if (!arr) { arr = []; map.set(alias, arr); }
+        arr.push(p);
+      });
+    }
+    return map;
+  }, [allPeople]);
+
+  const resolveCellToken = useCallback((token: string): Person[] => {
+    const t = token.trim().toLowerCase();
+    if (!t) return [];
+    const seeds = personByCellToken.get(t)
+      || personByCellToken.get(t.split(/\s+/)[0] || "")
+      || allPeople;
+    // Final strict check — keeps the exact same matching semantics as before.
+    const out: Person[] = [];
+    for (const p of seeds) {
+      if (p.leaving) continue;
+      if (dealCellMatchesPerson(token, p.name, allPersonNames)) out.push(p);
+    }
+    return out;
+  }, [personByCellToken, allPeople, allPersonNames]);
+
   const getDraft = (dealId: string): DealDraft => drafts[dealId] || emptyDraft();
   const setDraft = (dealId: string, next: DealDraft) =>
     setDrafts(prev => ({ ...prev, [dealId]: next }));
@@ -682,7 +740,7 @@ export function BopmStaffingFlatTable({
     for (const d of deals) {
       const dDraft = drafts[d.id] || emptyDraft();
       const byRole = new Map<string, CellEntry[]>();
-      const aList = assignments.filter(a => a.dealId === d.id);
+      const aList = assignmentsByDeal.get(d.id) || [];
       for (const a of aList) {
         const patch = dDraft.updates[a.id];
         const effectiveEnd = (patch as any)?.endDate ?? a.endDate;
@@ -737,10 +795,11 @@ export function BopmStaffingFlatTable({
         const list = existing.slice();
         for (const tok of tokens) {
           // Try to resolve the cell text to a Person via the same
-          // unambiguous matcher we use for access scoping.
-          const candidates = allPeople.filter(pp =>
-            !pp.leaving && dealCellMatchesPerson(tok, pp.name, allPersonNames)
-          );
+          // unambiguous matcher we use for access scoping. resolveCellToken
+          // narrows the candidate set via personByCellToken first, so we
+          // only run dealCellMatchesPerson against a handful of people —
+          // not all 227.
+          const candidates = resolveCellToken(tok);
           if (candidates.length === 1) {
             const pp = candidates[0];
             if (seenPids.has(pp.id)) continue;
@@ -774,7 +833,7 @@ export function BopmStaffingFlatTable({
       out.set(d.id, byRole);
     }
     return out;
-  }, [deals, assignments, drafts, allPeople, allPersonNames]);
+  }, [deals, drafts, assignmentsByDeal, resolveCellToken]);
 
   // Default columns = full role catalogue, top-down hierarchy from ROLE_SLOTS,
   // plus any extra role keys we encounter on existing assignments (legacy).
@@ -910,18 +969,22 @@ export function BopmStaffingFlatTable({
 
   // Aggregate top stats
   const totals = useMemo(() => {
-    const uniquePeople = new Set<string>();
+    // Single pass: O(assignments) instead of O(uniquePeople × assignments).
+    const allocByPerson = new Map<string, number>();
+    let activeCount = 0;
+    for (const a of assignments) {
+      if (isAssignmentExpired(a)) continue;
+      activeCount++;
+      allocByPerson.set(a.personId, (allocByPerson.get(a.personId) || 0) + a.allocationPct);
+    }
     let allocSum = 0;
-    const activeAssignments = assignments.filter(a => !isAssignmentExpired(a));
-    activeAssignments.forEach(a => uniquePeople.add(a.personId));
-    uniquePeople.forEach(pid => {
-      allocSum += activeAssignments.filter(a => a.personId === pid).reduce((s, a) => s + a.allocationPct, 0);
-    });
+    allocByPerson.forEach(v => { allocSum += v; });
+    const uniquePeopleCount = allocByPerson.size;
     return {
       dealCount: deals.length,
-      peopleCount: uniquePeople.size,
-      avgUtilPct: uniquePeople.size > 0 ? Math.round(allocSum / uniquePeople.size) : 0,
-      assignmentCount: activeAssignments.length,
+      peopleCount: uniquePeopleCount,
+      avgUtilPct: uniquePeopleCount > 0 ? Math.round(allocSum / uniquePeopleCount) : 0,
+      assignmentCount: activeCount,
     };
   }, [deals, assignments]);
 
