@@ -148,6 +148,8 @@ export default function Targets() {
   const [deals, setDeals] = useState<DealMeta[]>([]);
   const [targets, setTargets] = useState<Record<string, TargetRow>>({}); // key: deal_id
   const [prevTargets, setPrevTargets] = useState<Record<string, TargetRow>>({});
+  const [allByDeal, setAllByDeal] = useState<Record<string, TargetRow[]>>({});
+  const [nextTargets, setNextTargets] = useState<Record<string, TargetRow>>({});
   const [loading, setLoading] = useState(true);
   const [vsdFilter, setVsdFilter] = useState<string>("All");
   const [needsOnly, setNeedsOnly] = useState(false);
@@ -158,6 +160,11 @@ export default function Targets() {
   const monthLabel = overall ? "Overall (all months)" : format(parseISO(monthIso(month)), "MMMM yyyy");
   const prevYM = prevMonthYYYYMM(month);
   const prevLabel = format(parseISO(monthIso(prevYM)), "MMM");
+  const nextYM = nextMonthYYYYMM(month);
+  const nextLabel = format(parseISO(monthIso(nextYM)), "MMM yyyy");
+  const fyStart = fiscalYearStartIso(monthIso(month));
+  const fyStartLabel = format(parseISO(fyStart), "MMM");
+  const ytdLabel = `YTD (${fyStartLabel}–${format(parseISO(monthIso(month)), "MMM")})`;
 
   // ── Load ──
   const load = useCallback(async () => {
@@ -173,7 +180,12 @@ export default function Targets() {
     const prevP = overall
       ? Promise.resolve({ data: [] as any[] })
       : supabase.from("deal_financial_targets").select("*").eq("month", monthIso(prevYM));
-    const [dealsRes, tgtRes, prevRes] = await Promise.all([dealsP, tgtP, prevP]);
+    const nextP = overall
+      ? Promise.resolve({ data: [] as any[] })
+      : supabase.from("deal_financial_targets").select("*").eq("month", monthIso(nextYM));
+    // Load full target history (used for YTD + Lifetime calculations in expanded view).
+    const allP = supabase.from("deal_financial_targets").select("*").limit(20000);
+    const [dealsRes, tgtRes, prevRes, nextRes, allRes] = await Promise.all([dealsP, tgtP, prevP, nextP, allP]);
     const dealRows = (dealsRes.data || []) as any[];
     setDeals(dealRows.map((d): DealMeta => ({
       id: d.id, deal_name: d.deal_name || d.id, account: d.account || "",
@@ -199,8 +211,16 @@ export default function Targets() {
     const pMap: Record<string, TargetRow> = {};
     (prevRes.data || []).forEach((r: any) => { pMap[r.deal_id] = r as TargetRow; });
     setPrevTargets(pMap);
+    const nMap: Record<string, TargetRow> = {};
+    (nextRes.data || []).forEach((r: any) => { nMap[r.deal_id] = r as TargetRow; });
+    setNextTargets(nMap);
+    const grouped: Record<string, TargetRow[]> = {};
+    (allRes.data || []).forEach((r: any) => {
+      (grouped[r.deal_id] = grouped[r.deal_id] || []).push(r as TargetRow);
+    });
+    setAllByDeal(grouped);
     setLoading(false);
-  }, [month, prevYM, overall]);
+  }, [month, prevYM, nextYM, overall]);
 
   useEffect(() => { void load(); }, [load]);
 
