@@ -85,18 +85,24 @@ function calendarErrorMessage(message?: string) {
 }
 
 export function useGoogleCalendar() {
+  const { session, loading: authLoading } = useAuth();
   const [connected, setConnected] = useState(false);
   const [googleEmail, setGoogleEmail] = useState<string | null>(null);
-  const [checking, setChecking] = useState(true);
+  const [checking, setChecking] = useState(authLoading);
   const [connecting, setConnecting] = useState(false);
 
   const checkStatus = useCallback(async () => {
+    if (authLoading) return false;
+    if (!session?.access_token) {
+      setChecking(false);
+      setConnected(false);
+      setGoogleEmail(null);
+      return false;
+    }
+
     setChecking(true);
     try {
-      const { data, error } = await supabase.functions.invoke("google-calendar-oauth", {
-        body: { action: "status" },
-      });
-      if (error || data?.error) throw error || new Error(data.error);
+      const data = await invokeCalendarFunction("google-calendar-oauth", { action: "status" }, session.access_token);
       setConnected(!!data?.connected);
       setGoogleEmail(data?.googleEmail || null);
       return !!data?.connected;
@@ -108,7 +114,7 @@ export function useGoogleCalendar() {
     } finally {
       setChecking(false);
     }
-  }, []);
+  }, [authLoading, session?.access_token]);
 
   useEffect(() => {
     void checkStatus();
@@ -117,16 +123,12 @@ export function useGoogleCalendar() {
   const connect = useCallback(async () => {
     setConnecting(true);
     try {
-      const { data, error } = await supabase.functions.invoke("google-calendar-oauth", {
-        body: {
-          action: "init",
-          redirectUri: getCalendarCallbackUri(),
-          redirectTo: window.location.href,
-        },
+      const data = await invokeCalendarFunction("google-calendar-oauth", {
+        action: "init",
+        redirectUri: getCalendarCallbackUri(),
+        redirectTo: window.location.href,
       });
-      if (error || data?.error || !data?.authorizationUrl) {
-        throw error || new Error(data?.error || "Could not start Google Calendar connection");
-      }
+      if (!data?.authorizationUrl) throw new Error("Could not start Google Calendar connection");
       window.location.assign(data.authorizationUrl);
     } catch (err) {
       const message = err instanceof Error ? err.message : "";
@@ -139,10 +141,7 @@ export function useGoogleCalendar() {
   const disconnect = useCallback(async () => {
     setConnecting(true);
     try {
-      const { data, error } = await supabase.functions.invoke("google-calendar-oauth", {
-        body: { action: "disconnect" },
-      });
-      if (error || data?.error) throw error || new Error(data.error);
+      await invokeCalendarFunction("google-calendar-oauth", { action: "disconnect" }, session?.access_token);
       setConnected(false);
       setGoogleEmail(null);
       toast.success("Calendar disconnected");
@@ -152,7 +151,7 @@ export function useGoogleCalendar() {
     } finally {
       setConnecting(false);
     }
-  }, []);
+  }, [session?.access_token]);
 
   const handleCalendarError = useCallback((label: string, error: unknown, data?: any) => {
     const message = data?.error || (error instanceof Error ? error.message : "");
