@@ -1423,8 +1423,8 @@ export function BopmStaffingFlatTable({
               {virtualRows.deals.map(d => {
                 const byRole = dealRoleMap.get(d.id) || new Map<string, CellEntry[]>();
                 return (
-                  <tr key={d.id} className="border-t border-border/50 align-top hover:bg-secondary/20" style={{ height: VIRTUAL_ROW_HEIGHT }}>
-                    <td className="px-3 py-2 sticky left-0 bg-card z-10 border-r border-border">
+                  <tr key={d.id} className="border-t border-border align-top hover:bg-accent/30 transition-colors group/row" style={{ height: VIRTUAL_ROW_HEIGHT }}>
+                    <td className="px-3 py-2 sticky left-0 bg-card group-hover/row:bg-accent/30 z-10 border-r border-border transition-colors">
                       <div className="font-medium text-foreground truncate max-w-[220px]">{d.account}</div>
                       <div className="text-[11px] text-muted-foreground truncate max-w-[220px]">{d.dealName}</div>
                       <div className="font-mono text-[10px] text-muted-foreground">{d.dealId}</div>
