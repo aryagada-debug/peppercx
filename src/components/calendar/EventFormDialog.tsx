@@ -5,6 +5,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
+import { AttendeeMultiSelect } from "@/components/calendar/AttendeeMultiSelect";
+import { ConferencingSelect, type ConferencingType } from "@/components/calendar/ConferencingSelect";
 
 export interface EventFormValue {
   id?: string;
@@ -15,6 +17,8 @@ export interface EventFormValue {
   attendees?: string[];
   location?: string;
   htmlLink?: string;
+  conferencing?: ConferencingType;
+  conferenceLink?: string;
 }
 
 interface Props {
@@ -44,8 +48,10 @@ export function EventFormDialog({ open, onOpenChange, initial, onSave, onDelete 
   const [description, setDescription] = useState("");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
-  const [attendees, setAttendees] = useState("");
+  const [attendees, setAttendees] = useState<string[]>([]);
   const [location, setLocation] = useState("");
+  const [conferencing, setConferencing] = useState<ConferencingType>("meet");
+  const [conferenceLink, setConferenceLink] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -59,8 +65,22 @@ export function EventFormDialog({ open, onOpenChange, initial, onSave, onDelete 
     const defaultEnd = initial?.end ? new Date(initial.end) : new Date(defaultStart.getTime() + 30 * 60_000);
     setStart(isoToLocalInput(defaultStart.toISOString()));
     setEnd(isoToLocalInput(defaultEnd.toISOString()));
-    setAttendees((initial?.attendees || []).join(", "));
+    setAttendees(initial?.attendees || []);
     setLocation(initial?.location || "");
+    // Infer conferencing from existing event if editing
+    const loc = initial?.location || "";
+    const desc = initial?.description || "";
+    if (/meet\.google\.com/i.test(loc) || /meet\.google\.com/i.test(desc)) {
+      setConferencing("meet"); setConferenceLink("");
+    } else if (/teams\.microsoft\.com/i.test(loc)) {
+      setConferencing("teams"); setConferenceLink(loc);
+    } else if (/zoom\.us/i.test(loc)) {
+      setConferencing("zoom"); setConferenceLink(loc);
+    } else if (isEdit) {
+      setConferencing("none"); setConferenceLink("");
+    } else {
+      setConferencing("meet"); setConferenceLink("");
+    }
   }, [open, initial]);
 
   const submit = async () => {
@@ -73,8 +93,10 @@ export function EventFormDialog({ open, onOpenChange, initial, onSave, onDelete 
         description: description.trim() || undefined,
         start: localInputToIso(start),
         end: localInputToIso(end),
-        attendees: attendees.split(/[,\s]+/).map(s => s.trim()).filter(s => s.includes("@")),
+        attendees,
         location: location.trim() || undefined,
+        conferencing,
+        conferenceLink: conferenceLink.trim() || undefined,
       });
       onOpenChange(false);
     } finally { setSaving(false); }
@@ -108,9 +130,10 @@ export function EventFormDialog({ open, onOpenChange, initial, onSave, onDelete 
             </div>
           </div>
           <div>
-            <Label className="text-xs">Attendees (comma separated emails)</Label>
-            <Input value={attendees} onChange={e => setAttendees(e.target.value)} placeholder="alice@x.com, bob@y.com" />
+            <Label className="text-xs">Attendees</Label>
+            <AttendeeMultiSelect value={attendees} onChange={setAttendees} />
           </div>
+          <ConferencingSelect value={conferencing} onChange={setConferencing} link={conferenceLink} onLinkChange={setConferenceLink} />
           <div>
             <Label className="text-xs">Location</Label>
             <Input value={location} onChange={e => setLocation(e.target.value)} placeholder="Optional" />
