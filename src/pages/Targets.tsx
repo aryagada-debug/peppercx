@@ -668,7 +668,7 @@ export default function Targets() {
                                         const lifeT = lifetime[m].t;
                                         const lifeA = lifetime[m].a;
                                         const lifePct = attainmentPct(lifeA, lifeT);
-                                        const cell = (label: string, exp: number, actual: number, pct: number | null) => (
+                                        const cell = (exp: number, actual: number, pct: number | null) => (
                                           <div className="flex items-center gap-2">
                                             <div className="flex-1 rounded-md border border-border/70 bg-background px-2 py-1.5 text-foreground tabular-nums">
                                               <span className="text-muted-foreground">Exp {formatINR(exp)} →</span> <span className="font-medium">{formatINR(actual)}</span>
@@ -681,9 +681,9 @@ export default function Targets() {
                                         return (
                                           <tr key={m} className="border-t border-border/50">
                                             <td className="py-2 pl-3 pr-2 text-foreground font-medium">{METRIC_LABELS[m]}</td>
-                                            <td className="py-2 px-3">{cell(`Exp ${formatINR(curT)}`, curT, curA, curPct)}</td>
-                                            <td className="py-2 px-3">{cell(`Exp ${formatINR(ytdT)}`, ytdT, ytdA, ytdPct)}</td>
-                                            <td className="py-2 px-3">{cell(`Exp ${formatINR(lifeT)}`, lifeT, lifeA, lifePct)}</td>
+                                            <td className="py-2 px-3">{cell(curT, curA, curPct)}</td>
+                                            <td className="py-2 px-3">{cell(ytdT, ytdA, ytdPct)}</td>
+                                            <td className="py-2 px-3">{cell(lifeT, lifeA, lifePct)}</td>
                                             <td className="py-2 pl-3 pr-2">
                                               <div className="flex justify-end">
                                                 <TargetCell
