@@ -1355,10 +1355,10 @@ export function BopmStaffingFlatTable({
             onDragEnd={handleColumnDragEnd}
           >
           <table className="text-xs border-collapse" style={{ minWidth: "100%", tableLayout: "fixed" }}>
-            <thead className="bg-secondary/40 text-[10px] uppercase tracking-wider text-muted-foreground sticky top-0">
+            <thead className="bg-secondary text-[10px] uppercase tracking-wider text-muted-foreground sticky top-0 z-20">
               <tr>
-                <th className="px-3 py-2 text-left w-[220px] sticky left-0 bg-secondary/60 z-10 border-r border-border">Account · Deal</th>
-                <th className="px-3 py-2 text-right w-[90px] border-r border-border">MRR</th>
+                <th className="px-3 py-2 text-left w-[220px] sticky left-0 bg-secondary z-30 border-r border-border">Account · Deal</th>
+                <th className="px-3 py-2 text-right w-[90px] border-r border-border bg-secondary">MRR</th>
                 {visibleRoleKeys.length === 0 ? (
                   <th className="px-3 py-2 text-left text-muted-foreground/60">No roles staffed yet</th>
                 ) : (
