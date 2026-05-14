@@ -253,17 +253,14 @@ export function PeopleViewTab({
   };
   const toggleAll = () => { allCollapsed ? expandAll() : collapseAll(); };
 
-  // Auto-expand "Delivery Ops and CS" + the 5 VSDs once on first mount so the
-  // hierarchy is visible by default.
+  // Auto-expand only the "Delivery Ops and CS" department once on first mount.
+  // VSDs and other people stay collapsed so the default view shows the people
+  // hierarchy without spilling open every per-person deal sub-table.
   React.useEffect(() => {
     if (didAutoExpand) return;
-    const vsdIds = visiblePeople.filter(isVSDPerson).map(p => p.id);
-    if (vsdIds.length === 0) return;
+    if (visiblePeople.length === 0) return;
     setExpandedDept(prev => {
       const n = new Set(prev); n.add("Delivery Ops and CS"); return n;
-    });
-    setExpandedPerson(prev => {
-      const n = new Set(prev); vsdIds.forEach(id => n.add(id)); return n;
     });
     setAllCollapsed(false);
     setDidAutoExpand(true);
