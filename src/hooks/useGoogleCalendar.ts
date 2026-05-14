@@ -181,7 +181,7 @@ export function useGoogleCalendar() {
   );
 
   const createEvent = useCallback(
-    async (input: { summary: string; description?: string; start: string; end: string; attendees?: string[]; location?: string }) => {
+    async (input: { summary: string; description?: string; start: string; end: string; attendees?: string[]; location?: string; conferencing?: "meet" | "teams" | "zoom" | "none"; conferenceLink?: string }) => {
       if (!connected) return null;
       try {
         const data = await invokeCalendarFunction("google-calendar-create", input, session?.access_token);
@@ -196,7 +196,7 @@ export function useGoogleCalendar() {
   );
 
   const updateEvent = useCallback(
-    async (event_id: string, patch: { summary?: string; description?: string; start?: string; end?: string; attendees?: string[]; location?: string }) => {
+    async (event_id: string, patch: { summary?: string; description?: string; start?: string; end?: string; attendees?: string[]; location?: string; conferencing?: "meet" | "teams" | "zoom" | "none"; conferenceLink?: string }) => {
       if (!connected) return null;
       try {
         const data = await invokeCalendarFunction("google-calendar-update", { event_id, ...patch }, session?.access_token);
