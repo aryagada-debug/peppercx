@@ -227,17 +227,16 @@ function useStaffingDataInternal() {
     setLoading(true);
     try {
       const { count } = await supabase.from("staffing_people").select("id", { count: "exact", head: true });
-      
-      // Force re-seed if count doesn't match expected (v2: 207 people = 185 sheet + 21 legacy + 2 TBH)
-      const EXPECTED_MIN = 200;
-      if (!count || count < EXPECTED_MIN) {
+
+      // Only seed when the People table is genuinely empty. Previously this
+      // branch triggered any time count < 200 and *deleted* every assignment
+      // and every person before re-inserting mock defaults — a transient RLS
+      // hiccup or a partial outage could wipe live production data. Now we
+      // only seed an empty database, and we never delete existing rows from
+      // the read path.
+      if (count === 0) {
         if (seedingRef.current) return;
         seedingRef.current = true;
-        // Clear old data first
-        if (count && count > 0) {
-          await supabase.from("staffing_assignments").delete().neq("id", "");
-          await supabase.from("staffing_people").delete().neq("id", "");
-        }
         await seedDatabase();
         setSeeded(true);
         setLoading(false);
