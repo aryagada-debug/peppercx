@@ -123,7 +123,7 @@ function EditableTableCell({ value, field, rowId, onUpdate, format = "currency",
           onChange={e => setLocalVal(e.target.value)}
           onBlur={commit}
           onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
-          className="w-20 h-7 rounded border border-primary bg-card px-1.5 text-right text-xs tabular-nums outline-none focus:ring-1 focus:ring-[#534AB7]"
+          className="w-20 h-7 rounded border border-primary bg-card px-1.5 text-right text-xs tabular-nums outline-none focus:ring-1 focus:ring-primary"
         />
       </td>
     );
@@ -138,7 +138,7 @@ function EditableTableCell({ value, field, rowId, onUpdate, format = "currency",
       )}
       onClick={() => { if (!disabled) setEditing(true); }}
     >
-      {showCheck && <Check className="absolute left-0.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#639922]" />}
+      {showCheck && <Check className="absolute left-0.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-positive" />}
       {format === "currency" ? fmtCurrency(value) : `${value}${suffix}`}
     </td>
   );
@@ -283,8 +283,8 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
             <div className="flex items-center justify-between mb-3">
               <p className="text-[13px] font-medium">Monthly contraction vs target</p>
               <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-[#AFA9EC]" /> Target</span>
-                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-[#639922]" /> Attainment</span>
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-primary/55" /> Target</span>
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-positive" /> Attainment</span>
               </div>
             </div>
             <ResponsiveContainer width="100%" height={180}>
@@ -304,8 +304,8 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
             <div className="flex items-center justify-between mb-3">
               <p className="text-[13px] font-medium">Gross margin %</p>
               <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm border border-[#8EDBC3]" style={{ borderStyle: "dashed" }} /> Planned</span>
-                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-[#1D9E75]" /> Actual</span>
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm border border-positive/55" style={{ borderStyle: "dashed" }} /> Planned</span>
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-positive" /> Actual</span>
               </div>
             </div>
             <ResponsiveContainer width="100%" height={180}>
@@ -465,7 +465,7 @@ function ActualCell({ value, target, field, rowId, onUpdate, disabled }: {
           ref={inputRef} type="number" value={localVal}
           onChange={e => setLocalVal(e.target.value)} onBlur={commit}
           onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
-          className="w-20 h-7 rounded border border-primary bg-card px-1.5 text-right text-xs tabular-nums outline-none focus:ring-1 focus:ring-[#534AB7]"
+          className="w-20 h-7 rounded border border-primary bg-card px-1.5 text-right text-xs tabular-nums outline-none focus:ring-1 focus:ring-primary"
         />
       </td>
     );
