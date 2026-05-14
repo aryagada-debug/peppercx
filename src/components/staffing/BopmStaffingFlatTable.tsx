@@ -39,6 +39,8 @@ const CATEGORY_STYLES: Record<string, { head: string; cell: string; dot: string;
   "Other":               { head: "bg-slate-100/80 text-slate-900 border-slate-200",      cell: "bg-slate-50/40",   dot: "bg-slate-500",   label: "Other" },
 };
 const styleFor = (cat?: string) => CATEGORY_STYLES[cat || "Other"] || CATEGORY_STYLES["Other"];
+const VIRTUAL_ROW_HEIGHT = 72;
+const VIRTUAL_OVERSCAN_ROWS = 8;
 
 // ── Compact inline date picker (used for per-assignment start/end dates) ───
 function InlineDatePicker({
@@ -546,6 +548,9 @@ export function BopmStaffingFlatTable({
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set());
   const [pickerOpen, setPickerOpen] = useState(false);
   const pickerRef = useRef<HTMLDivElement | null>(null);
+  const tableViewportRef = useRef<HTMLDivElement | null>(null);
+  const [tableScrollTop, setTableScrollTop] = useState(0);
+  const [tableViewportHeight, setTableViewportHeight] = useState(560);
 
   // Persisted user reordering: team order + per-team role-key order.
   const [teamOrder, setTeamOrder] = useState<string[] | null>(null);
@@ -562,6 +567,16 @@ export function BopmStaffingFlatTable({
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [pickerOpen]);
+
+  useEffect(() => {
+    const el = tableViewportRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const update = () => setTableViewportHeight(el.clientHeight || 560);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const allPersonById = useMemo(() => new Map(allPeople.map(p => [p.id, p])), [allPeople]);
   const dealById = useMemo(() => new Map(deals.map(d => [d.id, d])), [deals]);
@@ -966,6 +981,26 @@ export function BopmStaffingFlatTable({
       return hay.includes(q);
     });
   }, [deals, search, bopmFilter, dealRoleMap, allPersonById, allPersonNames]);
+
+  const virtualRows = useMemo(() => {
+    const total = filteredDeals.length;
+    const first = Math.max(0, Math.floor(tableScrollTop / VIRTUAL_ROW_HEIGHT) - VIRTUAL_OVERSCAN_ROWS);
+    const last = Math.min(
+      total,
+      Math.ceil((tableScrollTop + tableViewportHeight) / VIRTUAL_ROW_HEIGHT) + VIRTUAL_OVERSCAN_ROWS
+    );
+    return {
+      start: first,
+      deals: filteredDeals.slice(first, last),
+      topPad: first * VIRTUAL_ROW_HEIGHT,
+      bottomPad: Math.max(0, (total - last) * VIRTUAL_ROW_HEIGHT),
+    };
+  }, [filteredDeals, tableScrollTop, tableViewportHeight]);
+
+  useEffect(() => {
+    setTableScrollTop(0);
+    if (tableViewportRef.current) tableViewportRef.current.scrollTop = 0;
+  }, [search, bopmFilter]);
 
   // Aggregate top stats
   const totals = useMemo(() => {
