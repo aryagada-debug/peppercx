@@ -199,19 +199,19 @@ function useStaffingDataInternal() {
     };
     const refetchAssignments = debounce(() => {
       if (typeof document !== "undefined" && document.hidden) return;
-      supabase.from("staffing_assignments").select("*").then(({ data }) => {
+      supabase.from("staffing_assignments").select(STAFFING_ASSIGNMENTS_SELECT).then(({ data }) => {
         if (data) setAssignments(data.map(dbToAssignment));
       });
     }, 300);
     const refetchPeople = debounce(() => {
       if (typeof document !== "undefined" && document.hidden) return;
-      supabase.from("staffing_people").select("*").then(({ data }) => {
+      supabase.from("staffing_people").select(STAFFING_PEOPLE_SELECT).then(({ data }) => {
         if (data) setPeople(data.map(dbToPerson));
       });
     }, 300);
     const refetchDeals = debounce(() => {
       if (typeof document !== "undefined" && document.hidden) return;
-      supabase.from("staffing_deals").select("*").then(({ data }) => {
+      supabase.from("staffing_deals").select(STAFFING_DEALS_SELECT).then(({ data }) => {
         if (data) setDeals(data.map(dbToDeal));
       });
     }, 300);
@@ -248,9 +248,9 @@ function useStaffingDataInternal() {
       }
 
       const [pRes, dRes, aRes, hRes, rRes, bRes] = await Promise.all([
-        supabase.from("staffing_people").select("*"),
-        supabase.from("staffing_deals").select("*"),
-        supabase.from("staffing_assignments").select("*"),
+        supabase.from("staffing_people").select(STAFFING_PEOPLE_SELECT),
+        supabase.from("staffing_deals").select(STAFFING_DEALS_SELECT),
+        supabase.from("staffing_assignments").select(STAFFING_ASSIGNMENTS_SELECT),
         supabase.from("staffing_hiring_needs").select("*"),
         supabase.from("staffing_revenue_targets").select("*"),
         supabase.from("staffing_bw_rules").select("*"),
