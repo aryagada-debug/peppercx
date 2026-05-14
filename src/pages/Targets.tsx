@@ -191,7 +191,48 @@ export default function Targets() {
       : supabase.from("deal_financial_targets").select("*").eq("month", monthIso(nextYM));
     // Load full target history (used for YTD + Lifetime calculations in expanded view).
     const allP = supabase.from("deal_financial_targets").select("*").limit(20000);
-    const [dealsRes, tgtRes, prevRes, nextRes, allRes] = await Promise.all([dealsP, tgtP, prevP, nextP, allP]);
+    // Pull actuals from deal_financials (consumption/invoiced/received) too —
+    // many deals only record actuals there, not in deal_financial_targets.*_actual.
+    const finP = overall
+      ? supabase.from("deal_financials").select("deal_id, month, consumption, invoiced, received").limit(20000)
+      : supabase.from("deal_financials").select("deal_id, month, consumption, invoiced, received").eq("month", monthIso(month));
+    const finAllP = supabase
+      .from("deal_financials")
+      .select("deal_id, month, consumption, invoiced, received")
+      .limit(20000);
+    const [dealsRes, tgtRes, prevRes, nextRes, allRes, finRes, finAllRes] = await Promise.all([
+      dealsP, tgtP, prevP, nextP, allP, finP, finAllP,
+    ]);
+    // Build deal_financials actuals lookup: per (deal_id, monthIso) → {consumption, invoiced, received}
+    const finByKey = new Map<string, { consumption: number; invoiced: number; received: number }>();
+    (finAllRes.data || []).forEach((r: any) => {
+      const monthKey = String(r.month).slice(0, 10);
+      finByKey.set(`${r.deal_id}__${monthKey}`, {
+        consumption: Number(r.consumption) || 0,
+        invoiced: Number(r.invoiced) || 0,
+        received: Number(r.received) || 0,
+      });
+    });
+    // Per-deal sum of all-time financials (for overall mode)
+    const finSumByDeal = new Map<string, { consumption: number; invoiced: number; received: number }>();
+    (finAllRes.data || []).forEach((r: any) => {
+      const ex = finSumByDeal.get(r.deal_id) || { consumption: 0, invoiced: 0, received: 0 };
+      ex.consumption += Number(r.consumption) || 0;
+      ex.invoiced += Number(r.invoiced) || 0;
+      ex.received += Number(r.received) || 0;
+      finSumByDeal.set(r.deal_id, ex);
+    });
+    // Helper: prefer the *_actual on the targets row when > 0, otherwise fall back
+    // to the corresponding column on deal_financials.
+    const mergeActuals = (row: TargetRow, fin?: { consumption: number; invoiced: number; received: number }) => {
+      if (!fin) return row;
+      return {
+        ...row,
+        contraction_actual: row.contraction_actual || fin.consumption,
+        invoicing_actual: row.invoicing_actual || fin.invoiced,
+        receivables_actual: row.receivables_actual || fin.received,
+      };
+    };
     const dealRows = (dealsRes.data || []) as any[];
     setDeals(dealRows.map((d): DealMeta => ({
       id: d.id, deal_name: d.deal_name || d.id, account: d.account || "",
@@ -210,19 +251,63 @@ export default function Targets() {
         });
         tMap[r.deal_id] = ex;
       });
+      // Layer in deal_financials actuals, only filling zeros so we never double-count.
+      finSumByDeal.forEach((fin, deal_id) => {
+        const ex = tMap[deal_id] || ZERO_TARGET(deal_id, "ALL");
+        if (!ex.contraction_actual) ex.contraction_actual = fin.consumption;
+        if (!ex.invoicing_actual)   ex.invoicing_actual   = fin.invoiced;
+        if (!ex.receivables_actual) ex.receivables_actual = fin.received;
+        tMap[deal_id] = ex;
+      });
     } else {
-      (tgtRes.data || []).forEach((r: any) => { tMap[r.deal_id] = r as TargetRow; });
+      (tgtRes.data || []).forEach((r: any) => {
+        const fin = finByKey.get(`${r.deal_id}__${monthIso(month)}`);
+        tMap[r.deal_id] = mergeActuals(r as TargetRow, fin);
+      });
+      // For deals with no targets row but with deal_financials data this month,
+      // synthesize a zero-target row so actuals still show.
+      (finRes.data || []).forEach((r: any) => {
+        if (tMap[r.deal_id]) return;
+        tMap[r.deal_id] = mergeActuals(ZERO_TARGET(r.deal_id, monthIso(month)), {
+          consumption: Number(r.consumption) || 0,
+          invoiced: Number(r.invoiced) || 0,
+          received: Number(r.received) || 0,
+        });
+      });
     }
     setTargets(tMap);
     const pMap: Record<string, TargetRow> = {};
-    (prevRes.data || []).forEach((r: any) => { pMap[r.deal_id] = r as TargetRow; });
+    (prevRes.data || []).forEach((r: any) => {
+      const fin = finByKey.get(`${r.deal_id}__${monthIso(prevYM)}`);
+      pMap[r.deal_id] = mergeActuals(r as TargetRow, fin);
+    });
     setPrevTargets(pMap);
     const nMap: Record<string, TargetRow> = {};
     (nextRes.data || []).forEach((r: any) => { nMap[r.deal_id] = r as TargetRow; });
     setNextTargets(nMap);
     const grouped: Record<string, TargetRow[]> = {};
     (allRes.data || []).forEach((r: any) => {
-      (grouped[r.deal_id] = grouped[r.deal_id] || []).push(r as TargetRow);
+      const monthKey = String(r.month).slice(0, 10);
+      const fin = finByKey.get(`${r.deal_id}__${monthKey}`);
+      (grouped[r.deal_id] = grouped[r.deal_id] || []).push(mergeActuals(r as TargetRow, fin));
+    });
+    // Append financials-only months (no targets row) so YTD/Lifetime sums include them.
+    const seenMonth = new Map<string, Set<string>>();
+    (allRes.data || []).forEach((r: any) => {
+      const set = seenMonth.get(r.deal_id) || new Set<string>();
+      set.add(String(r.month).slice(0, 10));
+      seenMonth.set(r.deal_id, set);
+    });
+    (finAllRes.data || []).forEach((r: any) => {
+      const monthKey = String(r.month).slice(0, 10);
+      const seen = seenMonth.get(r.deal_id);
+      if (seen?.has(monthKey)) return;
+      const stub = mergeActuals(ZERO_TARGET(r.deal_id, monthKey), {
+        consumption: Number(r.consumption) || 0,
+        invoiced: Number(r.invoiced) || 0,
+        received: Number(r.received) || 0,
+      });
+      (grouped[r.deal_id] = grouped[r.deal_id] || []).push(stub);
     });
     setAllByDeal(grouped);
     setLoading(false);

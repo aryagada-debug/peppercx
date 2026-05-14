@@ -1053,7 +1053,7 @@ export function BopmStaffingFlatTable({
             "rounded-md border px-1.5 py-1 transition-colors",
             e.rawText
               ? "bg-muted/40 border-dashed border-muted-foreground/30"
-              : "bg-violet-50/50 border-violet-200/70"
+              : "bg-primary/10 border-primary/25"
           )}
           title={tooltip}
         >
