@@ -1,60 +1,85 @@
-## 1. Home calendar — "Join" button on today's meetings
+# Staffing page — performance audit
 
-**File:** `src/pages/Home.tsx` (today's calendar list, ~line 1340–1370) and `src/hooks/useGoogleCalendar.ts`.
+## What the page actually has to render
 
-- Extend `GCalEvent` to also expose `hangoutLink` and `conferenceData` (Meet link), and pass them through `normalizeEvents()`.
-- Resolve a usable join URL with this priority per event:
-  1. `hangoutLink` (Google Meet)
-  2. `conferenceData.entryPoints[].uri` where `entryPointType === "video"` (covers Meet/Teams/Zoom added via conferenceData)
-  3. First `https://*` URL parsed from `location` or `description` matching `meet.google.com | teams.microsoft.com | teams.live.com | zoom.us`.
-- Render a small primary `Join` button (Video icon) inline with each meeting row in `Today's calendar` only when a join URL is found, and only when the meeting is current or upcoming-within-15-minutes (always-visible for live; hover-visible otherwise to keep the row clean). `target="_blank"`, stops click propagation so the row's edit drawer doesn't open.
-- Same treatment in `FullCalendarDialog` event popovers (one-line addition there) so behaviour is consistent.
+Live Cloud counts: **227 people · 759 deals · 1,028 assignments · 37 revenue targets**. The matrix is the BOPM flat table at 759 rows × ~50 role columns ≈ **38,000 interactive cells**, each wrapping a Popover / picker.
 
-No backend changes — Meet/Teams/Zoom links are already returned by the create function (`google-calendar-create`) when conferencing is selected.
+## Root causes (ordered by impact)
 
----
+### 1. All three heavy tabs mount at once for admin / VSD / capability roles
+`src/pages/Staffing.tsx` renders **`DealViewTab`**, **`PeopleViewTab`**, and **`BopmStaffingFlatTable`** simultaneously, hidden via `className="hidden"`. The "switching feels like a reload" comment explains the intent, but the cost is that the very first paint runs **all three** big tables (each does its own O(deals × assignments) memos and renders thousands of DOM nodes). On the current dataset that single paint is multi-second and is the most common cause of the white-screen / unresponsive tab.
 
-## 2. Targets page — per-deal monthly target setting (single source of truth)
+### 2. `BopmStaffingFlatTable.dealRoleMap` is O(deals × assignments × people)
+- For each of 759 deals: `assignments.filter(a => a.dealId === d.id)` over 1,028 rows ≈ **~780 k iterations** per render.
+- Then for each of 3 BOPM virtual columns: `allPeople.filter(... dealCellMatchesPerson(...))` over 227 people, where `dealCellMatchesPerson` does string normalisation + regex tests. That's **~1.5 M extra regex calls per render**, repeated on every keystroke in search, every draft change, every realtime tick.
+- Build it once: pre-index `assignments` by `dealId` (single pass) and pre-tokenise the BOPM cells.
 
-Replace the current VSD/Deal split with the layout from the supplied HTML. The existing `deal_financial_targets` table already powers Financials, so edits here flow through automatically — no schema change.
+### 3. Per-cell hierarchy recomputation in `renderEntry`
+At ~38 k cells, every render calls `resolvePeopleForRole` → `getDescendantPersonIds` (which walks the org graph). Even at 0.1 ms/call that's seconds of layout + thousands of identical Popover trees. Memoise candidates by `(dealId, roleKey)` and lift them out of `renderEntry`.
 
-### Header
-- Title: `Set {Month} targets · {current user name}`.
-- Sub-line: `{N} deals · {M} BOPMs · tracking measured as MRR × months since start` + `All saved` indicator (auto-save state).
-- Right side: month picker (existing `DateRangeSelector`), `Copy {prevMonth} targets` and `Match MRR for empty fields` action buttons (admin/VSD only).
+### 4. No virtualization on a 759-row × ~50-col table
+Renders ~38 k `<td>` plus their Popover triggers, drag handles, date pickers. We need either row virtualization (`@tanstack/react-virtual` over `<tbody>`) **or** built-in pagination/lazy grouping (e.g. accordion per VSD/account, expand on demand). Until then any data growth makes the crash worse.
 
-### Summary strip (5 tiles)
-1. `Deals needing {Month} targets` — count of deals with no target row this month, plus "X behind expected pace" sub-stat.
-2–5. Contraction / Delivery / Invoicing / Receivables — actual vs target totals with attainment %, 1‑line status (e.g. `₹4.1L gap · 6 deliveries pending`). Reuse `useDealTargets(month)` totals; "expected pace" uses MRR × months elapsed from `staffing_deals` (`mrr`, `start_date`).
+### 5. `useStaffingData.loadAll` fetches everything unbounded
+Six parallel `select("*")` calls on first mount with no column projection or pagination, then a single `setState` cascade re-renders all three mounted tabs. The realtime channel re-runs the full `select("*")` for the changed table on every burst (300 ms debounce helps but it still pulls **all 1,028 assignments** per change).
 
-### Filters bar
-- All / per-VSD chips (derived from `staffing_deals.vsd`) + `Unassigned`.
-- Quick toggles: `Needs targets` and `Behind pace`.
+### 6. Dangerous auto-seed on read path
+`loadAll` triggers `seedDatabase()` whenever `staffing_people.count < 200` and **deletes every assignment + person first**. If a count check ever returns low (RLS hiccup, partial outage), the page nukes live data and re-inserts mock defaults. This is also why a slow/large response can appear as "the page wiped my work and crashed".
 
-### Deal rows (accordion-style table)
-Columns: Deal (name, sub-line, deal id · BOPM) · Size (₹ value, MRR) · Delivery vs expected pace (`₹MRR × N mo = ₹X` and a progress bar of actual delivery vs expected) · Four inline editable target inputs for the selected month (Contraction, Delivery, Invoiced, Received) with the previous month's value shown as muted hint (`Apr 4L`).
-- Inline edit writes to `deal_financial_targets` (upsert on `deal_id+month`); auto-save with check-mark like `EditableTableCell`.
-- Click row to expand: shows April / YTD / Lifetime breakdown for each metric (Expected vs Actual + %), and the editable May-target column repeated for clarity. Data sources: `deal_financials` rollup + `deal_financial_targets`.
-- VSD subtotals row at the bottom of each VSD group (and a global subtotal in the table footer when filter = All).
+### 7. Smaller but additive issues
+- `totals` memo: O(unique_people × assignments) = ~200 × 1,028 ≈ 200 k filter ops per render.
+- `filteredDeals`: copies + re-sorts the deal list and reflows on every keystroke; depends on `dealRoleMap` so any draft edit triggers it.
+- `Staffing.tsx` `scopedAssignments` rebuilds Sets of all deal/person ids every render.
+- `useDealAccess` runs a chain of awaits for every non-admin user before the page can show its loader; only after that can the data hooks start.
+- Realtime subscription refetches **all** rows on any change to any of three tables — multiplied by 38 k cells re-rendering.
 
-### Sync to Financials
-- No new code path needed — `useDealDetail.loadAll()` already merges `deal_financial_targets` into `FinancialRow` (lines 144 + 166–204). Verify by editing a target on the new page and confirming it appears in the deal's Financials tab.
+## Fix plan (incremental, no behaviour change)
 
-### Files to add / change
-- `src/pages/Targets.tsx` — rewrite to the new layout.
-- `src/components/targets/TargetSummaryStrip.tsx` *(new)* — 5 tiles.
-- `src/components/targets/TargetDealRow.tsx` *(new)* — collapsible row with 4 inline target editors and expanded breakdown.
-- `src/components/targets/TargetActionsBar.tsx` *(new)* — "Copy previous month" / "Match MRR" bulk actions (upsert into `deal_financial_targets`).
-- `src/hooks/useFinanceTargets.ts` — add `useDealTargetsWithMeta(month)` joining `staffing_deals` (deal_name, account, vsd, bopm, mrr, total_deal_value, start_date) and computing `expectedToDate` per metric.
-- Keep `DealTargetsTable.tsx` (used by Home preview) untouched.
+```text
+P0 — stop the crash
+1. Lazy-mount tab panels in src/pages/Staffing.tsx
+   - keep state via useRef draft caches, but only render the active panel;
+     mount a tab the first time it is opened (keep mounted afterwards).
+2. Index assignments by dealId in BopmStaffingFlatTable (single useMemo) and
+   reuse inside dealRoleMap, filteredDeals, renderEntry, totals.
+3. Pre-resolve BOPM virtual entries with a single pass over assignments +
+   one per-deal tokenisation (drop the per-cell allPeople.filter loop).
 
-### Permissions
-- Edit targets: VSD owner of the deal OR admin (reuse `useUserRole` + `staffing_deals.vsd` match against current profile). Read-only otherwise — disable the inputs and hide bulk actions.
+P1 — make 759×50 sustainable
+4. Virtualize <tbody> with @tanstack/react-virtual (overscan 8 rows) OR
+   group rows by VSD/account with collapsible sections (default collapsed
+   below N=50 visible).
+5. Memoise candidate lists per (dealId, roleKey); compute once in a useMemo
+   built from dealRoleMap + ROLE_SLOTS, not inside renderEntry.
+6. React.memo the row component (DealRow) keyed by dealId, with stable
+   handler refs from useCallback.
 
----
+P2 — tighten data layer
+7. Project columns explicitly in loadAll() instead of select("*"); cap
+   assignments fetch with a server-side filter when persona is BOPM/VSD.
+8. Realtime: on row change, patch the in-memory list (insert/update/delete
+   by id) instead of refetching the whole table.
+9. Remove the destructive auto-seed branch from loadAll(); move seeding
+   behind an explicit admin action / migration. At minimum, gate it by
+   isActuallyAdmin AND a confirmation flag.
+
+P3 — small wins
+10. Replace totals' O(n²) loop with a single pass:
+    Σ allocation_pct grouped by personId.
+11. In Staffing.tsx, build deal-id and person-id Sets once via useMemo
+    keyed on identity; share them with downstream tabs via context/props.
+```
 
 ## Verification
 
-- Targets page: open `/targets`, change a target inline → toast/check confirms save → open the corresponding deal's Financials tab → number reflects in Target columns.
-- Bulk "Copy April targets" sets May targets only for empty rows; "Match MRR" sets each empty target = `staffing_deals.mrr` for the month.
-- Home: a meeting created with `Conferencing = Google Meet` shows a `Join` button that opens Meet in a new tab; one with no conferencing shows no button.
+- Devtools Profiler: initial commit on `/staffing` (admin) drops from "long task" (>3 s) to under 300 ms after P0+P1.
+- `Performance` panel: no main-thread block >50 ms while typing in the search box.
+- Open the page on a throttled CPU 4× profile — page must remain interactive (no `Page Unresponsive`).
+- Confirm realtime still propagates: change one assignment in another tab → only that row re-renders.
+- Confirm seed path no longer deletes data unless explicitly invoked.
+
+## Out of scope
+
+- UI redesign of the staffing tables.
+- Schema changes to `staffing_*` tables.
+- Touching DealViewTab/PeopleViewTab internals beyond what P0 lazy-mount requires (their own perf passes can follow).
