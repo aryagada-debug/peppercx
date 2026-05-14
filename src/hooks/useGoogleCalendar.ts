@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 export interface GCalEvent {
   id: string;
@@ -28,6 +29,48 @@ function normalizeEvents(events: any[] = []): GCalEvent[] {
   }));
 }
 
+export async function invokeCalendarFunction<T = any>(
+  functionName: string,
+  body: unknown,
+  accessToken?: string,
+): Promise<T> {
+  const token = accessToken ?? (await supabase.auth.getSession()).data.session?.access_token;
+  if (!token) throw new Error("auth_required");
+
+  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${functionName}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+    },
+    body: JSON.stringify(body),
+  });
+
+  const text = await response.text();
+  const data = text
+    ? (() => {
+        try {
+          return JSON.parse(text);
+        } catch {
+          return { error: text };
+        }
+      })()
+    : {};
+
+  if (!response.ok || data?.error) {
+    const error = new Error(data?.error || `Edge function returned ${response.status}`) as Error & {
+      status?: number;
+      data?: unknown;
+    };
+    error.status = response.status;
+    error.data = data;
+    throw error;
+  }
+
+  return data as T;
+}
+
 function calendarErrorMessage(message?: string) {
   if (message === "calendar_oauth_not_configured") {
     return "Google Calendar credentials are missing. Update the Calendar OAuth secrets, then try again.";
@@ -35,22 +78,31 @@ function calendarErrorMessage(message?: string) {
   if (message === "calendar_oauth_invalid_client_id_format") {
     return "The Google Calendar Client ID is invalid. Use the Web application Client ID ending in .apps.googleusercontent.com.";
   }
+  if (message === "auth_required" || message === "unauthorized") {
+    return "Please sign in again before connecting Google Calendar.";
+  }
   return "Could not connect Google Calendar";
 }
 
 export function useGoogleCalendar() {
+  const { session, loading: authLoading } = useAuth();
   const [connected, setConnected] = useState(false);
   const [googleEmail, setGoogleEmail] = useState<string | null>(null);
-  const [checking, setChecking] = useState(true);
+  const [checking, setChecking] = useState(authLoading);
   const [connecting, setConnecting] = useState(false);
 
   const checkStatus = useCallback(async () => {
+    if (authLoading) return false;
+    if (!session?.access_token) {
+      setChecking(false);
+      setConnected(false);
+      setGoogleEmail(null);
+      return false;
+    }
+
     setChecking(true);
     try {
-      const { data, error } = await supabase.functions.invoke("google-calendar-oauth", {
-        body: { action: "status" },
-      });
-      if (error || data?.error) throw error || new Error(data.error);
+      const data = await invokeCalendarFunction("google-calendar-oauth", { action: "status" }, session.access_token);
       setConnected(!!data?.connected);
       setGoogleEmail(data?.googleEmail || null);
       return !!data?.connected;
@@ -62,7 +114,7 @@ export function useGoogleCalendar() {
     } finally {
       setChecking(false);
     }
-  }, []);
+  }, [authLoading, session?.access_token]);
 
   useEffect(() => {
     void checkStatus();
@@ -71,16 +123,12 @@ export function useGoogleCalendar() {
   const connect = useCallback(async () => {
     setConnecting(true);
     try {
-      const { data, error } = await supabase.functions.invoke("google-calendar-oauth", {
-        body: {
-          action: "init",
-          redirectUri: getCalendarCallbackUri(),
-          redirectTo: window.location.href,
-        },
+      const data = await invokeCalendarFunction("google-calendar-oauth", {
+        action: "init",
+        redirectUri: getCalendarCallbackUri(),
+        redirectTo: window.location.href,
       });
-      if (error || data?.error || !data?.authorizationUrl) {
-        throw error || new Error(data?.error || "Could not start Google Calendar connection");
-      }
+      if (!data?.authorizationUrl) throw new Error("Could not start Google Calendar connection");
       window.location.assign(data.authorizationUrl);
     } catch (err) {
       const message = err instanceof Error ? err.message : "";
@@ -93,10 +141,7 @@ export function useGoogleCalendar() {
   const disconnect = useCallback(async () => {
     setConnecting(true);
     try {
-      const { data, error } = await supabase.functions.invoke("google-calendar-oauth", {
-        body: { action: "disconnect" },
-      });
-      if (error || data?.error) throw error || new Error(data.error);
+      await invokeCalendarFunction("google-calendar-oauth", { action: "disconnect" }, session?.access_token);
       setConnected(false);
       setGoogleEmail(null);
       toast.success("Calendar disconnected");
@@ -106,7 +151,7 @@ export function useGoogleCalendar() {
     } finally {
       setConnecting(false);
     }
-  }, []);
+  }, [session?.access_token]);
 
   const handleCalendarError = useCallback((label: string, error: unknown, data?: any) => {
     const message = data?.error || (error instanceof Error ? error.message : "");
@@ -124,55 +169,59 @@ export function useGoogleCalendar() {
   const listEvents = useCallback(
     async (opts?: { timeMin?: string; timeMax?: string; q?: string; maxResults?: number }): Promise<GCalEvent[]> => {
       if (!connected) return [];
-      const { data, error } = await supabase.functions.invoke("google-calendar-proxy", { body: opts || {} });
-      if (error || data?.error) {
-        handleCalendarError("listEvents", error, data);
+      try {
+        const data = await invokeCalendarFunction("google-calendar-proxy", opts || {}, session?.access_token);
+        return normalizeEvents(data?.events || []);
+      } catch (err) {
+        handleCalendarError("listEvents", err, (err as Error & { data?: unknown }).data);
         return [];
       }
-      return normalizeEvents(data?.events || []);
     },
-    [connected, handleCalendarError],
+    [connected, handleCalendarError, session?.access_token],
   );
 
   const createEvent = useCallback(
     async (input: { summary: string; description?: string; start: string; end: string; attendees?: string[]; location?: string }) => {
       if (!connected) return null;
-      const { data, error } = await supabase.functions.invoke("google-calendar-create", { body: input });
-      if (error || data?.error) {
+      try {
+        const data = await invokeCalendarFunction("google-calendar-create", input, session?.access_token);
+        return data.event as { id: string; htmlLink?: string };
+      } catch (err) {
         toast.error("Failed to create calendar event");
-        handleCalendarError("createEvent", error, data);
+        handleCalendarError("createEvent", err, (err as Error & { data?: unknown }).data);
         return null;
       }
-      return data.event as { id: string; htmlLink?: string };
     },
-    [connected, handleCalendarError],
+    [connected, handleCalendarError, session?.access_token],
   );
 
   const updateEvent = useCallback(
     async (event_id: string, patch: { summary?: string; description?: string; start?: string; end?: string; attendees?: string[]; location?: string }) => {
       if (!connected) return null;
-      const { data, error } = await supabase.functions.invoke("google-calendar-update", { body: { event_id, ...patch } });
-      if (error || data?.error) {
+      try {
+        const data = await invokeCalendarFunction("google-calendar-update", { event_id, ...patch }, session?.access_token);
+        return data.event as { id: string; htmlLink?: string };
+      } catch (err) {
         toast.error("Failed to update calendar event");
-        handleCalendarError("updateEvent", error, data);
+        handleCalendarError("updateEvent", err, (err as Error & { data?: unknown }).data);
         return null;
       }
-      return data.event as { id: string; htmlLink?: string };
     },
-    [connected, handleCalendarError],
+    [connected, handleCalendarError, session?.access_token],
   );
 
   const deleteEvent = useCallback(
     async (event_id: string) => {
       if (!connected) return false;
-      const { data, error } = await supabase.functions.invoke("google-calendar-delete", { body: { event_id } });
-      if (error || data?.error) {
-        handleCalendarError("deleteEvent", error, data);
+      try {
+        await invokeCalendarFunction("google-calendar-delete", { event_id }, session?.access_token);
+        return true;
+      } catch (err) {
+        handleCalendarError("deleteEvent", err, (err as Error & { data?: unknown }).data);
         return false;
       }
-      return true;
     },
-    [connected, handleCalendarError],
+    [connected, handleCalendarError, session?.access_token],
   );
 
   return {
