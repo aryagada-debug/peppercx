@@ -625,12 +625,20 @@ export default function Clients() {
   };
 
   const handleMRRSave = (dealId: string, value: string) => {
-    guardedUpdateDeal(dealId, { mrr: Number(value) || undefined });
+    const entered = Number(value);
+    const inInr = Number.isFinite(entered) && entered !== 0
+      ? Math.round(convertToInr(entered, currency, fxRate))
+      : undefined;
+    guardedUpdateDeal(dealId, { mrr: inInr });
     toast.success("MRR updated");
   };
 
   const handleTotalRevenueSave = (dealId: string, value: string) => {
-    guardedUpdateDeal(dealId, { totalDealValue: Number(value) || undefined });
+    const entered = Number(value);
+    const inInr = Number.isFinite(entered) && entered !== 0
+      ? Math.round(convertToInr(entered, currency, fxRate))
+      : undefined;
+    guardedUpdateDeal(dealId, { totalDealValue: inInr });
     toast.success("Total Revenue updated");
   };
 
@@ -998,12 +1006,12 @@ export default function Clients() {
                       )}
                       {isVisible("mrr") && (
                         <td className="py-2 px-3 text-right">
-                          <InlineEditCell value={String(deal.mrr || "")} onSave={v => handleMRRSave(deal.id, v)} type="number" prefix={CURRENCY_SYMBOL[currency]} placeholder="—" />
+                          <InlineEditCell value={deal.mrr ? String(Math.round(convertFromInr(Number(deal.mrr), currency, fxRate))) : ""} onSave={v => handleMRRSave(deal.id, v)} type="number" prefix={CURRENCY_SYMBOL[currency]} placeholder="—" />
                         </td>
                       )}
                       {isVisible("totalDealValue") && (
                         <td className="py-2 px-3 text-right">
-                          <InlineEditCell value={String(deal.totalDealValue || "")} onSave={v => handleTotalRevenueSave(deal.id, v)} type="number" prefix={CURRENCY_SYMBOL[currency]} placeholder="—" />
+                          <InlineEditCell value={deal.totalDealValue ? String(Math.round(convertFromInr(Number(deal.totalDealValue), currency, fxRate))) : ""} onSave={v => handleTotalRevenueSave(deal.id, v)} type="number" prefix={CURRENCY_SYMBOL[currency]} placeholder="—" />
                         </td>
                       )}
                       {isVisible("duration") && (
