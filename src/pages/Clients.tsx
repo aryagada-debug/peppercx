@@ -1,7 +1,7 @@
 import React from "react";
 import { formatINR } from "@/lib/csvTargets";
 import { useCurrency, useCurrencyVersion } from "@/contexts/CurrencyContext";
-import { CURRENCY_SYMBOL } from "@/lib/currency";
+import { CURRENCY_SYMBOL, convertFromInr, convertToInr } from "@/lib/currency";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Link } from "react-router-dom";
 import { Search, Plus, Loader2, Trash2, Pencil, Check, X, Building2, Briefcase, Activity, TrendingUp, DollarSign, IndianRupee, Settings2, Paperclip } from "lucide-react";
@@ -55,9 +55,6 @@ const DEAL_STATUSES = ["Active Deal", "New Deal in SLA/PO", "Deal Disputed", "De
 const ACTIVE_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
 const CLOSED_STATUSES = new Set(["Deal Completed Successfully", "Deal Churned / Lost"]);
 
-const fmtCurrency = (n: number | undefined) => {
-  return formatINR(Number(n) || 0);
-};
 
 const RgyBlock = ({ letter }: { letter: RgyLetter | undefined }) => {
   const l = letter || "PENDING";
@@ -114,7 +111,8 @@ function InlineEditCell({ value, onSave, type = "text", prefix = "", placeholder
 
 export default function Clients() {
   useCurrencyVersion();
-  const { currency } = useCurrency();
+  const { currency, fxRate, format } = useCurrency();
+  const fmtCurrency = (n: number | undefined) => format(Number(n) || 0);
   const ValueIcon = currency === "USD" ? DollarSign : IndianRupee;
   const { deals: allDeals, people, assignments, loading: staffLoading, refresh: refreshStaffing, updateDeal, addAssignment, updateAssignment, deleteAssignment } = useStaffingData();
   const { clients: allClients, loading: clientsLoading, addClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
@@ -389,8 +387,8 @@ export default function Clients() {
       if (colFilters.dealStatus && (d.dealStatus || "Active Deal") !== colFilters.dealStatus) return false;
       if (colFilters.vsd && !matches(d.vsd, colFilters.vsd)) return false;
       if (colFilters.bopm && !matches(`${d.principalBopm || ""} ${d.seniorBopm || ""}`, colFilters.bopm)) return false;
-      if (colFilters.mrr && (Number(d.mrr) || 0) < Number(colFilters.mrr)) return false;
-      if (colFilters.totalDealValue && (Number(d.totalDealValue) || 0) < Number(colFilters.totalDealValue)) return false;
+      if (colFilters.mrr && convertFromInr(Number(d.mrr) || 0, currency, fxRate) < Number(colFilters.mrr)) return false;
+      if (colFilters.totalDealValue && convertFromInr(Number(d.totalDealValue) || 0, currency, fxRate) < Number(colFilters.totalDealValue)) return false;
       if (colFilters.rag) {
         const rag = rgyLetterToFilter(rgyRollup.get(d.id));
         if (rag !== colFilters.rag) return false;
@@ -627,12 +625,20 @@ export default function Clients() {
   };
 
   const handleMRRSave = (dealId: string, value: string) => {
-    guardedUpdateDeal(dealId, { mrr: Number(value) || undefined });
+    const entered = Number(value);
+    const inInr = Number.isFinite(entered) && entered !== 0
+      ? Math.round(convertToInr(entered, currency, fxRate))
+      : undefined;
+    guardedUpdateDeal(dealId, { mrr: inInr });
     toast.success("MRR updated");
   };
 
   const handleTotalRevenueSave = (dealId: string, value: string) => {
-    guardedUpdateDeal(dealId, { totalDealValue: Number(value) || undefined });
+    const entered = Number(value);
+    const inInr = Number.isFinite(entered) && entered !== 0
+      ? Math.round(convertToInr(entered, currency, fxRate))
+      : undefined;
+    guardedUpdateDeal(dealId, { totalDealValue: inInr });
     toast.success("Total Revenue updated");
   };
 
@@ -1000,12 +1006,12 @@ export default function Clients() {
                       )}
                       {isVisible("mrr") && (
                         <td className="py-2 px-3 text-right">
-                          <InlineEditCell value={String(deal.mrr || "")} onSave={v => handleMRRSave(deal.id, v)} type="number" prefix={CURRENCY_SYMBOL[currency]} placeholder="—" />
+                          <InlineEditCell value={deal.mrr ? String(Math.round(convertFromInr(Number(deal.mrr), currency, fxRate))) : ""} onSave={v => handleMRRSave(deal.id, v)} type="number" prefix={CURRENCY_SYMBOL[currency]} placeholder="—" />
                         </td>
                       )}
                       {isVisible("totalDealValue") && (
                         <td className="py-2 px-3 text-right">
-                          <InlineEditCell value={String(deal.totalDealValue || "")} onSave={v => handleTotalRevenueSave(deal.id, v)} type="number" prefix={CURRENCY_SYMBOL[currency]} placeholder="—" />
+                          <InlineEditCell value={deal.totalDealValue ? String(Math.round(convertFromInr(Number(deal.totalDealValue), currency, fxRate))) : ""} onSave={v => handleTotalRevenueSave(deal.id, v)} type="number" prefix={CURRENCY_SYMBOL[currency]} placeholder="—" />
                         </td>
                       )}
                       {isVisible("duration") && (
