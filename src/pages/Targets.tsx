@@ -249,6 +249,28 @@ export default function Targets() {
     [targets, month]
   );
 
+  const saveNextField = useCallback(
+    async (deal_id: string, field: keyof TargetRow, value: number) => {
+      const existing = nextTargets[deal_id] || ZERO_TARGET(deal_id, monthIso(nextYM));
+      const row: any = { ...existing, [field]: value, deal_id, month: monthIso(nextYM) };
+      setNextTargets(prev => ({ ...prev, [deal_id]: row }));
+      setSavingState("saving");
+      const { data, error } = await supabase
+        .from("deal_financial_targets")
+        .upsert(row, { onConflict: "month,deal_id" })
+        .select()
+        .single();
+      if (error) {
+        setSavingState("idle");
+        setNextTargets(prev => ({ ...prev, [deal_id]: existing }));
+        throw error;
+      }
+      setNextTargets(prev => ({ ...prev, [deal_id]: data as TargetRow }));
+      setSavingState("saved");
+    },
+    [nextTargets, nextYM]
+  );
+
   // ── Bulk: copy previous month targets for empty rows ──
   async function bulkCopyPrev() {
     const empties = filteredDeals.filter(d => !targets[d.id] || METRICS.every(m => !targets[d.id][`${m}_target` as keyof TargetRow]));
