@@ -1,85 +1,103 @@
-# Staffing page — performance audit
+## Part 1 — Slack mentions: show real names
 
-## What the page actually has to render
+**Issue:** mention text contains raw `<@U06A6Q3YSZNJ>` Slack IDs, displayed as-is.
 
-Live Cloud counts: **227 people · 759 deals · 1,028 assignments · 37 revenue targets**. The matrix is the BOPM flat table at 759 rows × ~50 role columns ≈ **38,000 interactive cells**, each wrapping a Popover / picker.
+**Fix:** in `src/pages/Home.tsx` (mentions render around line 1455), post-process `m.text`:
 
-## Root causes (ordered by impact)
+1. Regex-extract every `<@U…>` token from the message.
+2. Resolve each ID → name via `staffing_people` (we have `slack_user_id` after the recent backfill); cache results in component state to avoid refetching.
+3. For unresolved IDs, fall back to the existing `slack-resolve-user` edge function (`users.info`) and upsert the name back into `staffing_people` so it sticks.
+4. Replace each `<@U…>` with `@<Name>`, render as a subtle chip.
+5. Same treatment for the message author (`m.user_name`) when missing.
 
-### 1. All three heavy tabs mount at once for admin / VSD / capability roles
-`src/pages/Staffing.tsx` renders **`DealViewTab`**, **`PeopleViewTab`**, and **`BopmStaffingFlatTable`** simultaneously, hidden via `className="hidden"`. The "switching feels like a reload" comment explains the intent, but the cost is that the very first paint runs **all three** big tables (each does its own O(deals × assignments) memos and renders thousands of DOM nodes). On the current dataset that single paint is multi-second and is the most common cause of the white-screen / unresponsive tab.
+No schema changes required.
 
-### 2. `BopmStaffingFlatTable.dealRoleMap` is O(deals × assignments × people)
-- For each of 759 deals: `assignments.filter(a => a.dealId === d.id)` over 1,028 rows ≈ **~780 k iterations** per render.
-- Then for each of 3 BOPM virtual columns: `allPeople.filter(... dealCellMatchesPerson(...))` over 227 people, where `dealCellMatchesPerson` does string normalisation + regex tests. That's **~1.5 M extra regex calls per render**, repeated on every keystroke in search, every draft change, every realtime tick.
-- Build it once: pre-index `assignments` by `dealId` (single pass) and pre-tokenise the BOPM cells.
+## Part 2 — Activity tab
 
-### 3. Per-cell hierarchy recomputation in `renderEntry`
-At ~38 k cells, every render calls `resolvePeopleForRole` → `getDescendantPersonIds` (which walks the org graph). Even at 0.1 ms/call that's seconds of layout + thousands of identical Popover trees. Memoise candidates by `(dealId, roleKey)` and lift them out of `renderEntry`.
+Per your decision: **remove the Activity tab entirely**. The card becomes "Slack mentions" only. Drop `useAccountActivity`, the `notifTab` state, and the tab chrome; render the mentions list directly.
 
-### 4. No virtualization on a 759-row × ~50-col table
-Renders ~38 k `<td>` plus their Popover triggers, drag handles, date pickers. We need either row virtualization (`@tanstack/react-virtual` over `<tbody>`) **or** built-in pagination/lazy grouping (e.g. accordion per VSD/account, expand on demand). Until then any data growth makes the crash worse.
+---
 
-### 5. `useStaffingData.loadAll` fetches everything unbounded
-Six parallel `select("*")` calls on first mount with no column projection or pagination, then a single `setState` cascade re-renders all three mounted tabs. The realtime channel re-runs the full `select("*")` for the changed table on every burst (300 ms debounce helps but it still pulls **all 1,028 assignments** per change).
+## Part 3 — Weekly role-based summary email
 
-### 6. Dangerous auto-seed on read path
-`loadAll` triggers `seedDatabase()` whenever `staffing_people.count < 200` and **deletes every assignment + person first**. If a count check ever returns low (RLS hiccup, partial outage), the page nukes live data and re-inserts mock defaults. This is also why a slow/large response can appear as "the page wiped my work and crashed".
-
-### 7. Smaller but additive issues
-- `totals` memo: O(unique_people × assignments) = ~200 × 1,028 ≈ 200 k filter ops per render.
-- `filteredDeals`: copies + re-sorts the deal list and reflows on every keystroke; depends on `dealRoleMap` so any draft edit triggers it.
-- `Staffing.tsx` `scopedAssignments` rebuilds Sets of all deal/person ids every render.
-- `useDealAccess` runs a chain of awaits for every non-admin user before the page can show its loader; only after that can the data hooks start.
-- Realtime subscription refetches **all** rows on any change to any of three tables — multiplied by 38 k cells re-rendering.
-
-## Fix plan (incremental, no behaviour change)
+### Format (one email, two columns)
 
 ```text
-P0 — stop the crash
-1. Lazy-mount tab panels in src/pages/Staffing.tsx
-   - keep state via useRef draft caches, but only render the active panel;
-     mount a tab the first time it is opened (keep mounted afterwards).
-2. Index assignments by dealId in BopmStaffingFlatTable (single useMemo) and
-   reuse inside dealRoleMap, filteredDeals, renderEntry, totals.
-3. Pre-resolve BOPM virtual entries with a single pass over assignments +
-   one per-deal tokenisation (drop the per-cell allPeople.filter loop).
+Subject:  Your week at Pepper · 18 May → 24 May
 
-P1 — make 759×50 sustainable
-4. Virtualize <tbody> with @tanstack/react-virtual (overscan 8 rows) OR
-   group rows by VSD/account with collapsible sections (default collapsed
-   below N=50 visible).
-5. Memoise candidate lists per (dealId, roleKey); compute once in a useMemo
-   built from dealRoleMap + ROLE_SLOTS, not inside renderEntry.
-6. React.memo the row component (DealRow) keyed by dealId, with stable
-   handler refs from useCallback.
+Hi <First name>,
 
-P2 — tighten data layer
-7. Project columns explicitly in loadAll() instead of select("*"); cap
-   assignments fetch with a server-side filter when persona is BOPM/VSD.
-8. Realtime: on row change, patch the in-memory list (insert/update/delete
-   by id) instead of refetching the whole table.
-9. Remove the destructive auto-seed branch from loadAll(); move seeding
-   behind an explicit admin action / migration. At minimum, gate it by
-   isActuallyAdmin AND a confirmation flag.
+═══ DONE THIS WEEK ═══
+✅ Tasks completed              12
+✅ MBRs scheduled                3
+✅ MBRs recorded (notes saved)   2
+✅ RGY updates                   7   (4 deals moved to Green)
 
-P3 — small wins
-10. Replace totals' O(n²) loop with a single pass:
-    Σ allocation_pct grouped by personId.
-11. In Staffing.tsx, build deal-id and person-id Sets once via useMemo
-    keyed on identity; share them with downstream tabs via context/props.
+═══ NEEDS YOUR ATTENTION ═══
+⚠ Tasks overdue                 5   → [view]
+⚠ MBRs to schedule              4   → [view]
+⚠ MBRs to record (past date)    2   → [view]
+⚠ RGY stale (>14 days)          6   → [view]
+
+[Open dashboard]
 ```
 
-## Verification
+Below the headline counts, an itemised section grouped by deal (top 10 items per bucket; "+N more" link).
 
-- Devtools Profiler: initial commit on `/staffing` (admin) drops from "long task" (>3 s) to under 300 ms after P0+P1.
-- `Performance` panel: no main-thread block >50 ms while typing in the search box.
-- Open the page on a throttled CPU 4× profile — page must remain interactive (no `Page Unresponsive`).
-- Confirm realtime still propagates: change one assignment in another tab → only that row re-renders.
-- Confirm seed path no longer deletes data unless explicitly invoked.
+### Scope per role
 
-## Out of scope
 
-- UI redesign of the staffing tables.
-- Schema changes to `staffing_*` tables.
-- Touching DealViewTab/PeopleViewTab internals beyond what P0 lazy-mount requires (their own perf passes can follow).
+| Role               | Scope of data                                                                  |
+| ------------------ | ------------------------------------------------------------------------------ |
+| Admin              | All deals, all people. Top-level totals + breakdown by VSD and BOPM            |
+| VSD                | All BOPMs reporting to them, and the deals those BOPMs own. Breakdown by BOPM. |
+| P.BOPM / Sr BOPM   | Only the deals where they are tagged (BOPM/SR BOPM stakeholder or staffed).    |
+| Content / SEO Lead | Same pattern — only deals they're tagged on (optional, future).                |
+
+
+Scope resolution reuses the existing `useDealAccess` / staffing-hierarchy logic, executed server-side in the edge function.
+
+### Data sources (read-only queries)
+
+- **Tasks done / overdue:** `tasks` (status = done, completed_at within window) / (due_date < now() AND status ≠ done).
+- **MBRs scheduled / recorded / to-schedule / to-record:** `mbr_sessions` (created_at, notes_saved_at) and the existing "MBR compliance" logic.
+- **RGY updates / stale:** `deal_rgy_history` rows in window + `useStaleRgy` rule (>14 days).
+- All filtered by the role-scoped deal-id list.
+
+### Schedule
+
+- **When:** Every Monday 10:00 IST.
+- **Window:** Previous Mon 00:00 IST → Sun 23:59 IST.
+- **Mechanism:** `pg_cron` row that POSTs to a new edge function `weekly-summary-email`. Cron expression `30 4 * * 1` (UTC = 10:00 IST).
+
+### Sender / delivery
+
+- **Custom domain** (e.g. `notify.peppercontent.io` — final subdomain to be confirmed).
+- Lovable-managed email path: `email_domain--scaffold_transactional_email` after the domain is verified, then call `send-transactional-email` from the new edge function.
+- Each user's address comes from `auth.users.email`. Suppression list and unsubscribe token come for free with the Lovable email infra.
+
+### New pieces to build
+
+1. **Edge function** `weekly-summary-email`
+  - Input: `{ dryRun?: boolean, onlyEmail?: string }`.
+  - Iterates active users, computes role + scope, builds payload, calls `send-transactional-email`.
+  - Service-role client; chunked (50/run) to stay within timeout.
+2. **Email template** (React Email) `weekly-summary.tsx` in `supabase/functions/_shared/email-templates/` matching the format above. Uses semantic tokens (purple primary, off-white bg) per project design memory.
+3. **DB:** no new tables required for v1. Optional `email_send_log` row already exists via Lovable email infra.
+4. **Cron:** SQL inserted via `supabase--insert` (project-specific URL + anon key — not a migration).
+5. **Settings UI (small):** "Send me the weekly summary" toggle on Settings page → stores to `profiles.weekly_summary_opt_in BOOLEAN DEFAULT true`. Default ON, unsubscribe link in footer flips it off.
+
+### Step-by-step rollout
+
+1. Fix mentions name resolution + remove Activity tab (Part 1 & 2). Verify in preview.
+2. Ask you to run the email-domain setup dialog for the custom subdomain (DNS records).
+3. While DNS verifies, scaffold transactional email, build `weekly-summary-email` edge function and template.
+4. Add the opt-in column + settings toggle.
+5. Trigger a `dryRun=true` run, send a single test email to your address (`onlyEmail`).
+6. Once you sign off, schedule the Monday 10:00 IST cron.
+
+### Open items needing your input before build
+
+- Final sender address (e.g. `weekly@notify.peppercontent.io` vs `nudges@…`). centralcx@peppercontent.io
+- Should Content Lead / SEO Lead also receive the email in v1, or only Admin / VSD / BOPM? only Admin,VSD, BOPM
+- For a VSD's email — do you want the per-BOPM breakdown inline, or just totals + a CSV attachment? per BOPM breakdown inline
