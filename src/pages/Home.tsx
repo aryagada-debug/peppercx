@@ -902,7 +902,7 @@ export default function HomePage() {
   }, [loadTodos]);
 
   // Account activity (replaces Recently Viewed) — recomputes when alias set changes
-  const { items: activityItems, loading: loadingActivity } = useAccountActivity(aliasesRef.current, !!displayName, 25);
+  const { items: activityItems, loading: loadingActivity } = useAccountActivity(aliasesRef.current, !!displayName, 25, isAdmin);
 
   const overdue = useMemo(() => allMyTasks.filter(t => isOverdue(t.due)), [allMyTasks]);
   const today = useMemo(() => allMyTasks.filter(t => isDueToday(t.due)), [allMyTasks]);
