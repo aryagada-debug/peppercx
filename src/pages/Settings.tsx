@@ -29,6 +29,10 @@ import { GripVertical } from "lucide-react";
 import { PeopleTreeView } from "@/components/settings/PeopleTreeView";
 import { OrgChartView } from "@/components/settings/OrgChartView";
 import { EmailMappingTable } from "@/components/settings/EmailMappingTable";
+import { useEffect } from "react";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { supabase } from "@/integrations/supabase/client";
+import { Switch } from "@/components/ui/switch";
 
 const tabs = [
   "People & Reporting",
@@ -331,9 +335,7 @@ export default function SettingsPage() {
         )}
 
         {activeTab === "Notifications" && (
-          <div className="rounded-xl border border-border bg-card p-8 text-center">
-            <p className="text-sm text-muted-foreground">Notification settings coming soon.</p>
-          </div>
+          <NotificationsPanel />
         )}
       </div>
 
