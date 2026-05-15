@@ -42,11 +42,13 @@ Deno.serve(async (req) => {
     } catch (_) { /* no body */ }
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
+    const limit = 80;
     let q = admin.from("staffing_people")
       .select("id, email, slack_user_id, name")
       .eq("leaving", false)
       .eq("tbh", false)
-      .not("email", "is", null);
+      .not("email", "is", null)
+      .limit(limit);
     if (onlyMissing) q = q.or("slack_user_id.is.null,slack_user_id.eq.");
     if (onlyEmail) q = q.ilike("email", onlyEmail);
     const { data: people, error } = await q;
