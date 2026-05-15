@@ -138,7 +138,7 @@ export default function HomePage() {
   // can pick "all" or a specific person to see other people's tasks.
   const [taskViewAs, setTaskViewAs] = useState<string>("me"); // "me" | "all" | "created" | personId
   const [isVsdViewer, setIsVsdViewer] = useState(false);
-  const [notifTab, setNotifTab] = useState<"activity" | "mentions">("activity");
+  // Activity tab removed per product decision; notifications card now shows mentions only.
   // For VSD viewers, restrict the "View tasks for…" dropdown to their team
   // BOPMs (same logic as the BOPM filter on Clients & Deals). Admins see all.
   const myVsdName = useMemo(
@@ -156,6 +156,8 @@ export default function HomePage() {
     return [];
   }, [isAdmin, isVsdViewer, myVsdName, bopmUsersForVsd, allPeople]);
   const [mentions, setMentions] = useState<any[]>([]);
+  // Map of Slack user id -> display name, used to humanise <@U123> tokens in mention text.
+  const [slackNameMap, setSlackNameMap] = useState<Record<string, string>>({});
   const [recents, setRecents] = useState<RecentView[]>([]);
   const [pins, setPins] = useState<UserPin[]>([]);
   const [myDeals, setMyDeals] = useState<MyDeal[]>([]);
@@ -462,7 +464,34 @@ export default function HomePage() {
       .ilike("text", `%<@${slackUserId}>%`)
       .order("created_at", { ascending: false })
       .limit(20);
-    setMentions(data || []);
+    const rows = data || [];
+    setMentions(rows);
+    // Collect every <@U…> id referenced and resolve to a display name.
+    const ids = new Set<string>();
+    for (const r of rows) {
+      const m = String(r.text || "").matchAll(/<@([UW][A-Z0-9]+)>/g);
+      for (const x of m) ids.add(x[1]);
+    }
+    if (slackUserId) ids.add(slackUserId);
+    if (ids.size === 0) return;
+    const idArr = Array.from(ids);
+    const { data: people } = await supabase.from("staffing_people")
+      .select("name, slack_user_id").in("slack_user_id", idArr);
+    const map: Record<string, string> = {};
+    (people || []).forEach((p: any) => {
+      if (p.slack_user_id) map[p.slack_user_id] = p.name || p.slack_user_id;
+    });
+    if (slackUserId && map[slackUserId]) map[slackUserId] = "you";
+    // Fallback to Slack users.info via existing edge function for unresolved ids.
+    const missing = idArr.filter((id) => !map[id] && id !== slackUserId);
+    await Promise.all(missing.slice(0, 8).map(async (id) => {
+      try {
+        const { data: r } = await supabase.functions.invoke("slack-resolve-user", { body: { user_id: id } });
+        const nm = (r as any)?.name || (r as any)?.real_name;
+        if (nm) map[id] = nm;
+      } catch {/* ignore */}
+    }));
+    setSlackNameMap((prev) => ({ ...prev, ...map }));
   }, []);
 
   const loadQuota = useCallback(async () => {
