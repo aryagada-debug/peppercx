@@ -67,6 +67,8 @@ export const slackActivity: Record<string, SlackActivityEntry[]> = {
 };
 
 export const availableMonths = [
+  { value: "2026-06", label: "June 2026" },
+  { value: "2026-05", label: "May 2026" },
   { value: "2026-04", label: "April 2026" },
   { value: "2026-03", label: "March 2026" },
   { value: "2026-02", label: "February 2026" },
