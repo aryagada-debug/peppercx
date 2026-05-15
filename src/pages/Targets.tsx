@@ -13,6 +13,8 @@ import { TargetsUploadDialog } from "@/components/targets/TargetsUploadDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { METRICS, METRIC_LABELS, attainmentPct, attainmentTone, formatINR, type Metric } from "@/lib/csvTargets";
+import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
+import { useAllPersonNames } from "@/hooks/useAppUsers";
 
 // ── Types ──
 interface DealMeta {
@@ -149,7 +151,7 @@ export default function Targets() {
   useCurrencyVersion();
   const { isAdmin } = useUserRole();
   const [month, setMonth] = useState(format(new Date(), "yyyy-MM"));
-  const [overall, setOverall] = useState(false);
+  const [overall, setOverall] = useState(true);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [deals, setDeals] = useState<DealMeta[]>([]);
   const [targets, setTargets] = useState<Record<string, TargetRow>>({}); // key: deal_id
@@ -158,7 +160,10 @@ export default function Targets() {
   const [nextTargets, setNextTargets] = useState<Record<string, TargetRow>>({});
   const [loading, setLoading] = useState(true);
   const [vsdFilter, setVsdFilter] = useState<string>("All");
+  const [bopmFilter, setBopmFilter] = useState<string>("All");
   const [needsOnly, setNeedsOnly] = useState(false);
+  const allPersonNames = useAllPersonNames();
+
   const [behindOnly, setBehindOnly] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [savingState, setSavingState] = useState<"idle" | "saving" | "saved">("saved");
@@ -508,7 +513,10 @@ export default function Targets() {
             >
               Overall
             </button>
-            {!overall && <DateRangeSelector value={month} onChange={setMonth} />}
+            <DateRangeSelector
+              value={month}
+              onChange={(v) => { setMonth(v); setOverall(false); }}
+            />
             {isAdmin && !overall && (
               <Button size="sm" variant="outline" onClick={() => setUploadOpen(true)}>
                 <Upload className="h-3.5 w-3.5 mr-1.5" /> Import CSV
