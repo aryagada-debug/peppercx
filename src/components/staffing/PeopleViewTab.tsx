@@ -309,7 +309,7 @@ export function PeopleViewTab({
     const bucket = getBucket(totalPct);
     const cfg = BUCKET_CONFIG[bucket];
     const hours = Math.round(u?.hours || 0);
-    const deals = u?.assigns || [];
+    const deals = (u?.assigns || []).filter(a => a.allocationPct > 0 && activeDealIds.has(a.dealId));
     const activeCount = deals.filter(a => activeDealIds.has(a.dealId)).length;
     const target = targetFor(p);
     const revPct = target > 0 ? Math.round((u?.rev || 0) / target * 100) : 0;
