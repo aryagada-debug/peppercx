@@ -16,15 +16,17 @@ export interface ActivityItem {
 /**
  * Fetches recent activity for the deals the user is tagged into (vsd / bopm / principal_bopm / senior_bopm).
  * Aggregates slack messages, RGY weekly updates, MBR entries and deal-task changes.
+ * When `allAccounts` is true (admins), returns activity across every active deal in the workspace
+ * regardless of the alias set.
  */
-export function useAccountActivity(aliases: Set<string>, enabled: boolean, limit = 20) {
+export function useAccountActivity(aliases: Set<string>, enabled: boolean, limit = 20, allAccounts = false) {
   const [items, setItems] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   // Re-derive a primitive key so callers passing a mutated ref still trigger reloads
   const aliasKey = Array.from(aliases).sort().join("|");
 
   const load = useCallback(async () => {
-    if (!enabled || aliases.size === 0) { setItems([]); setLoading(false); return; }
+    if (!enabled || (!allAccounts && aliases.size === 0)) { setItems([]); setLoading(false); return; }
     setLoading(true);
     const inA = (s: string | null) => !!s && aliases.has((s || "").trim().toLowerCase());
 
@@ -33,8 +35,10 @@ export function useAccountActivity(aliases: Set<string>, enabled: boolean, limit
       .from("staffing_deals")
       .select("id, deal_name, account, vsd, principal_bopm, senior_bopm, bopm")
       .in("deal_status", ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
-    const mine = (deals || []).filter((d: any) =>
-      inA(d.vsd) || inA(d.principal_bopm) || inA(d.senior_bopm) || inA(d.bopm));
+    const mine = allAccounts
+      ? (deals || [])
+      : (deals || []).filter((d: any) =>
+          inA(d.vsd) || inA(d.principal_bopm) || inA(d.senior_bopm) || inA(d.bopm));
     const dealMap = new Map<string, { deal_name: string; account: string }>();
     mine.forEach((d: any) => dealMap.set(d.id, { deal_name: d.deal_name, account: d.account }));
     const ids = Array.from(dealMap.keys());
@@ -99,7 +103,7 @@ export function useAccountActivity(aliases: Set<string>, enabled: boolean, limit
     setItems(out.slice(0, limit));
     setLoading(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aliasKey, enabled, limit]);
+  }, [aliasKey, enabled, limit, allAccounts]);
 
   useEffect(() => { load(); }, [load]);
 
