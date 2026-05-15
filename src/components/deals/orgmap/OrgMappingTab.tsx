@@ -51,7 +51,7 @@ function avatarColor(id: string) {
 }
 
 export function OrgMappingTab({ dealId, clientName }: { dealId: string; clientName: string }) {
-  const { data, loading, lastSavedAt, add, update, remove, duplicate } = useStakeholders(dealId);
+  const { data, loading, lastSavedAt, add, update, remove, duplicate } = useStakeholders(dealId, clientName);
   const [search, setSearch] = useState("");
   const [fnFilter, setFnFilter] = useState<string>("all");
   const [powerFilter, setPowerFilter] = useState<string>("all");
