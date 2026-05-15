@@ -194,8 +194,9 @@ Deno.serve(async (req) => {
       if (role === "admin") {
         dealIds = new Set((deals || []).map((d: any) => d.id));
         scopeLabel = `all ${dealIds.size} active deals across every VSD and BOPM.`;
-        const vsdNames = Array.from(new Set((deals || []).map((d: any) => (d.vsd || "").trim()).filter(Boolean)));
-        bopmBreakdown = vsdNames.slice(0, 25).map((nm) => {
+        const activeVsds = (people || []).filter((p: any) => !p.leaving && !p.tbh && (p.role_category || "").toLowerCase().includes("vsd"));
+        const vsdNames = activeVsds.map((p: any) => p.name).filter(Boolean);
+        bopmBreakdown = vsdNames.map((nm: string) => {
           const ids = new Set((deals || []).filter((d: any) => eq(d.vsd, nm)).map((d: any) => d.id));
           const s = statsForDeals(ids);
           return { name: nm, deals: s.deals, tasksDone: s.tasksDone, tasksOverdue: s.tasksOverdue, mbrsRecorded: s.mbrsRecorded, mbrsToRecord: s.mbrsToRecord, rgyStale: s.rgyStale };
