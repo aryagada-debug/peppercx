@@ -61,37 +61,43 @@ function renderBlocks(opts: {
   bopmBreakdown?: { name: string; deals: number; tasksDone: number; tasksOverdue: number; mbrsRecorded: number; mbrsToRecord: number; rgyStale: number }[];
 }) {
   const { firstName, windowLabel, scopeLabel, done, todo, bopmBreakdown } = opts;
-  const blocks: any[] = [
-    { type: "header", text: { type: "plain_text", text: `Your week at Pepper · ${windowLabel}` } },
-    { type: "context", elements: [{ type: "mrkdwn", text: `Hi *${firstName}* — ${scopeLabel}` }] },
-    { type: "section", text: { type: "mrkdwn", text:
-      `*✅ Done this week*\n` +
-      `• Tasks completed: *${done.tasks}*\n` +
-      `• MBRs scheduled: *${done.mbrsScheduled}*\n` +
-      `• MBRs recorded: *${done.mbrsRecorded}*\n` +
-      `• RGY updates: *${done.rgyUpdates}*`
-    } },
-    { type: "section", text: { type: "mrkdwn", text:
-      `*⚠ Needs your attention*\n` +
-      `• Tasks overdue: *${todo.tasksOverdue}*\n` +
-      `• MBRs to schedule: *${todo.mbrsToSchedule}*\n` +
-      `• MBRs to record: *${todo.mbrsToRecord}*\n` +
-      `• RGY stale (>14d): *${todo.rgyStale}*`
-    } },
-  ];
+  const padR = (s: string | number, w: number) => String(s).padEnd(w, " ");
+  const padL = (n: number, w: number) => String(n).padStart(w, " ");
+  const lines: string[] = [];
+  lines.push(`Your week at Pepper   ${windowLabel}`);
+  lines.push(`Hi ${firstName} - ${scopeLabel}`);
+  lines.push("");
+  lines.push("Done this week");
+  lines.push(`  Tasks completed     ${padL(done.tasks, 4)}`);
+  lines.push(`  MBRs scheduled      ${padL(done.mbrsScheduled, 4)}`);
+  lines.push(`  MBRs recorded       ${padL(done.mbrsRecorded, 4)}`);
+  lines.push(`  RGY updates         ${padL(done.rgyUpdates, 4)}`);
+  lines.push("");
+  lines.push("Needs your attention");
+  lines.push(`  Tasks overdue       ${padL(todo.tasksOverdue, 4)}`);
+  lines.push(`  MBRs to schedule    ${padL(todo.mbrsToSchedule, 4)}`);
+  lines.push(`  MBRs to record      ${padL(todo.mbrsToRecord, 4)}`);
+  lines.push(`  RGY stale (>14d)    ${padL(todo.rgyStale, 4)}`);
   if (bopmBreakdown && bopmBreakdown.length) {
-    const lines = bopmBreakdown.map((b) =>
-      `• *${b.name}* — ${b.deals} deals · ✅${b.tasksDone} ⏰${b.tasksOverdue} · MBR ✅${b.mbrsRecorded}/⏰${b.mbrsToRecord} · RGY stale ${b.rgyStale}`
-    ).join("\n");
-    blocks.push({ type: "divider" });
-    blocks.push({ type: "section", text: { type: "mrkdwn", text: `*Per-team breakdown*\n${lines}` } });
+    const nameW = Math.max(4, ...bopmBreakdown.map((b) => b.name.length));
+    lines.push("");
+    lines.push("Per-team breakdown");
+    lines.push(`  ${padR("Name", nameW)}  Deals  TaskDone  TaskOver  MBRrec  MBRtodo  RGYstale`);
+    for (const b of bopmBreakdown) {
+      lines.push(
+        `  ${padR(b.name, nameW)}  ${padL(b.deals, 5)}  ${padL(b.tasksDone, 8)}  ${padL(b.tasksOverdue, 8)}  ${padL(b.mbrsRecorded, 6)}  ${padL(b.mbrsToRecord, 7)}  ${padL(b.rgyStale, 8)}`
+      );
+    }
   }
-  blocks.push({
-    type: "actions",
-    elements: [{ type: "button", text: { type: "plain_text", text: "Open dashboard" }, url: `${APP_URL}/home`, style: "primary" }],
-  });
-  blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: "Manage preferences in Settings → Notifications." }] });
-  return blocks;
+  const body = "```\n" + lines.join("\n") + "\n```";
+  return [
+    { type: "section", text: { type: "mrkdwn", text: body } },
+    {
+      type: "actions",
+      elements: [{ type: "button", text: { type: "plain_text", text: "Open dashboard" }, url: `${APP_URL}/home`, style: "primary" }],
+    },
+    { type: "context", elements: [{ type: "mrkdwn", text: "Manage preferences in Settings > Notifications." }] },
+  ];
 }
 
 Deno.serve(async (req) => {
@@ -188,8 +194,9 @@ Deno.serve(async (req) => {
       if (role === "admin") {
         dealIds = new Set((deals || []).map((d: any) => d.id));
         scopeLabel = `all ${dealIds.size} active deals across every VSD and BOPM.`;
-        const vsdNames = Array.from(new Set((deals || []).map((d: any) => (d.vsd || "").trim()).filter(Boolean)));
-        bopmBreakdown = vsdNames.slice(0, 25).map((nm) => {
+        const activeVsds = (people || []).filter((p: any) => !p.leaving && !p.tbh && (p.role_category || "").toLowerCase().includes("vsd"));
+        const vsdNames = activeVsds.map((p: any) => p.name).filter(Boolean);
+        bopmBreakdown = vsdNames.map((nm: string) => {
           const ids = new Set((deals || []).filter((d: any) => eq(d.vsd, nm)).map((d: any) => d.id));
           const s = statsForDeals(ids);
           return { name: nm, deals: s.deals, tasksDone: s.tasksDone, tasksOverdue: s.tasksOverdue, mbrsRecorded: s.mbrsRecorded, mbrsToRecord: s.mbrsToRecord, rgyStale: s.rgyStale };
