@@ -145,6 +145,9 @@ export default function Clients() {
     return () => { cancelled = true; };
   }, [authUser, canonVsd]);
   const isVsdViewer = !access.isAdmin && !!myVsdName;
+  // True BOPMs are view-only on Type / Status / MRR / Total Revenue —
+  // they cannot edit and cannot submit a change request for these fields.
+  const isBopmViewOnly = isBopm && !isVsdViewer;
   const myBopms = useMemo(
     () => (myVsdName ? bopmUsersForVsd(myVsdName).map((p) => p.name) : []),
     [myVsdName, bopmUsersForVsd]
