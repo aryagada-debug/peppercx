@@ -548,18 +548,9 @@ export default function Clients() {
   };
 
   const handleStatusChange = async (dealId: string, newStatus: string) => {
-    // VSDs can change deal status directly without CX approval — only
-    // route through the approval flow for true BOPM users.
-    if (isBopm && !isVsdViewer) {
-      const deal = deals.find(d => d.id === dealId);
-      await submitApprovalRequest({
-        type: "deal.update",
-        targetKind: "deal",
-        targetId: dealId,
-        dealId,
-        payload: { deal_status: newStatus, deal_status_cx: newStatus },
-        previous: { deal_status: deal?.dealStatus, deal_status_cx: (deal as any)?.dealStatusCx },
-      } as any);
+    // BOPMs are view-only on Status — block silently with a toast.
+    if (isBopmViewOnly) {
+      toast.error("View only — Status can't be changed by BOPMs");
       return;
     }
     await supabase.from("staffing_deals").update({ deal_status: newStatus, deal_status_cx: newStatus } as any).eq("id", dealId);
