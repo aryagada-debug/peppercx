@@ -45,7 +45,7 @@ export function ScheduleOnlyDialog({ open, onClose, deal, entry, onSave }: Props
   const [saving, setSaving] = useState(false);
   const { connected: calConnected, createEvent, updateEvent, deleteEvent, listEvents } = useGoogleCalendar();
   const { user } = useAuth();
-  const { data: stakeholders, add: addStakeholder, update: updateStakeholder, reload: reloadStakeholders } = useStakeholders(deal.id);
+  const { data: stakeholders, add: addStakeholder, update: updateStakeholder, reload: reloadStakeholders } = useStakeholders(deal.id, deal.account || "");
   const [newSh, setNewSh] = useState({ name: "", role: "", email: "" });
   const [shOpen, setShOpen] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
