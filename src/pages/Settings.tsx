@@ -380,33 +380,34 @@ function NotificationsPanel() {
   const onToggle = async (v: boolean) => {
     setOptIn(v);
     await supabase.from("profiles").update({ weekly_summary_opt_in: v }).eq("user_id", user!.id);
-    toast.success(v ? "You'll receive the weekly summary on Mondays" : "Weekly summary turned off");
+    toast.success(v ? "You'll get the weekly summary on Slack every Monday" : "Weekly summary turned off");
   };
   const sendTest = async () => {
     if (!user?.email) return;
     setSendingTest(true);
-    const { data, error } = await supabase.functions.invoke("weekly-summary-email", { body: { onlyEmail: user.email } });
+    const { data, error } = await supabase.functions.invoke("weekly-summary-slack", { body: { onlyEmail: user.email } });
     setSendingTest(false);
     if (error) toast.error(error.message);
-    else if ((data as any)?.results?.[0]?.sent === false) toast.error("Send failed: " + ((data as any)?.results?.[0]?.error || "unknown"));
-    else toast.success("Test email queued — check your inbox in a minute");
+    else if (!(data as any)?.results?.length) toast.error("No matching Slack user found for your account");
+    else if ((data as any).results[0].sent === false) toast.error("Send failed: " + ((data as any).results[0].error || "unknown"));
+    else toast.success("Test summary sent — check your Slack DMs");
   };
   return (
     <div className="rounded-xl border border-border bg-card p-6 space-y-4">
       <div>
-        <h2 className="text-base font-semibold text-foreground">Weekly summary email</h2>
-        <p className="text-xs text-muted-foreground mt-1">Every Monday at 10:00 IST you'll get a recap of last week's tasks, MBRs and RGY updates plus what still needs attention. Scoped to your role: admins see all, VSDs see their team, BOPMs see their deals.</p>
+        <h2 className="text-base font-semibold text-foreground">Weekly Slack summary</h2>
+        <p className="text-xs text-muted-foreground mt-1">Every Monday at 10:00 IST you'll get a Slack DM recapping last week's tasks, MBRs and RGY updates plus what still needs attention. Scoped to your role: admins see all, VSDs see their team, BOPMs see their deals.</p>
       </div>
       <div className="flex items-center justify-between border-t border-border pt-4">
         <div>
-          <p className="text-sm font-medium text-foreground">Send me the weekly summary</p>
-          <p className="text-[11px] text-muted-foreground">Sent to {user?.email}</p>
+          <p className="text-sm font-medium text-foreground">DM me the weekly summary</p>
+          <p className="text-[11px] text-muted-foreground">Delivered via Slack to your linked account</p>
         </div>
         <Switch checked={optIn} onCheckedChange={onToggle} disabled={loading} />
       </div>
       <div className="border-t border-border pt-4">
         <button onClick={sendTest} disabled={sendingTest} className="text-xs text-primary hover:underline disabled:opacity-50">
-          {sendingTest ? "Sending…" : "Send me a test email now"}
+          {sendingTest ? "Sending…" : "Send me a test Slack DM now"}
         </button>
       </div>
     </div>
