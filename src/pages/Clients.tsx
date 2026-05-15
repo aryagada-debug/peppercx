@@ -900,6 +900,16 @@ export default function Clients() {
                       {isVisible("dealId") && <td className="py-2 px-3 text-xs font-mono text-muted-foreground truncate">{deal.dealId}</td>}
                       {isVisible("dealType") && (
                         <td className="py-2 px-3">
+                          {isBopmViewOnly ? (
+                            <span
+                              className={cn(
+                                "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium",
+                                (deal.dealType === "Retainer") ? "bg-accent text-accent-foreground" : "bg-secondary text-secondary-foreground"
+                              )}
+                            >
+                              {deal.dealType === "Retainer" ? "Retainer" : "Non-Retainer"}
+                            </span>
+                          ) : (
                           <Select
                             value={deal.dealType === "Retainer" ? "Retainer" : "Non-Retainer"}
                             onValueChange={async (v) => {
@@ -931,20 +941,25 @@ export default function Clients() {
                               <SelectItem value="Non-Retainer" className="text-xs">Non-Retainer</SelectItem>
                             </SelectContent>
                           </Select>
+                          )}
                         </td>
                       )}
                       {isVisible("dealStatus") && (
                         <td className="py-2 px-3">
-                          <Select value={deal.dealStatus || "Active Deal"} onValueChange={(v) => handleStatusChange(deal.id, v)}>
-                            <SelectTrigger className="h-6 w-full text-[11px] border-none bg-transparent shadow-none px-1 focus:ring-0">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {DEAL_STATUSES.map(s => (
-                                <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          {isBopmViewOnly ? (
+                            <span className="text-[11px] text-foreground px-1">{deal.dealStatus || "Active Deal"}</span>
+                          ) : (
+                            <Select value={deal.dealStatus || "Active Deal"} onValueChange={(v) => handleStatusChange(deal.id, v)}>
+                              <SelectTrigger className="h-6 w-full text-[11px] border-none bg-transparent shadow-none px-1 focus:ring-0">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {DEAL_STATUSES.map(s => (
+                                  <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
                         </td>
                       )}
                       {isVisible("vsd") && (
@@ -1024,12 +1039,24 @@ export default function Clients() {
                       )}
                       {isVisible("mrr") && (
                         <td className="py-2 px-3 text-right">
-                          <InlineEditCell value={deal.mrr ? String(Math.round(convertFromInr(Number(deal.mrr), currency, fxRate))) : ""} onSave={v => handleMRRSave(deal.id, v)} type="number" prefix={CURRENCY_SYMBOL[currency]} placeholder="—" />
+                          {isBopmViewOnly ? (
+                            <span className="text-xs text-foreground">
+                              {deal.mrr ? `${CURRENCY_SYMBOL[currency]}${Math.round(convertFromInr(Number(deal.mrr), currency, fxRate)).toLocaleString()}` : "—"}
+                            </span>
+                          ) : (
+                            <InlineEditCell value={deal.mrr ? String(Math.round(convertFromInr(Number(deal.mrr), currency, fxRate))) : ""} onSave={v => handleMRRSave(deal.id, v)} type="number" prefix={CURRENCY_SYMBOL[currency]} placeholder="—" />
+                          )}
                         </td>
                       )}
                       {isVisible("totalDealValue") && (
                         <td className="py-2 px-3 text-right">
-                          <InlineEditCell value={deal.totalDealValue ? String(Math.round(convertFromInr(Number(deal.totalDealValue), currency, fxRate))) : ""} onSave={v => handleTotalRevenueSave(deal.id, v)} type="number" prefix={CURRENCY_SYMBOL[currency]} placeholder="—" />
+                          {isBopmViewOnly ? (
+                            <span className="text-xs text-foreground">
+                              {deal.totalDealValue ? `${CURRENCY_SYMBOL[currency]}${Math.round(convertFromInr(Number(deal.totalDealValue), currency, fxRate)).toLocaleString()}` : "—"}
+                            </span>
+                          ) : (
+                            <InlineEditCell value={deal.totalDealValue ? String(Math.round(convertFromInr(Number(deal.totalDealValue), currency, fxRate))) : ""} onSave={v => handleTotalRevenueSave(deal.id, v)} type="number" prefix={CURRENCY_SYMBOL[currency]} placeholder="—" />
+                          )}
                         </td>
                       )}
                       {isVisible("duration") && (
