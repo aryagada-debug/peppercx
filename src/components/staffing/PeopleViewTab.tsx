@@ -346,17 +346,6 @@ export function PeopleViewTab({
           <td className="py-2 px-3 text-right font-mono tabular-nums text-xs">{noData ? "—" : activeCount}</td>
           <td className="py-2 px-3 text-right font-mono tabular-nums text-xs text-foreground">{noData ? "—" : fmtCurrency(u?.mrr)}</td>
           <td className="py-2 px-3 text-right font-mono tabular-nums text-xs text-foreground">{noData ? "—" : fmtCurrency(u?.rev)}</td>
-          <td className="py-2 px-3 text-right font-mono tabular-nums text-xs text-muted-foreground">{target ? fmtCurrency(target) : "—"}</td>
-          <td className="py-2 px-3">
-            {noData ? <span className="text-xs text-muted-foreground">—</span> : (
-              <div className="flex items-center gap-1.5" title={`${revPct}%`}>
-                <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden min-w-[40px]">
-                  <div className={cn("h-full", revPct > 100 ? "bg-destructive" : revPct >= 70 ? "bg-positive" : "bg-warning")} style={{ width: `${Math.min(revPct, 100)}%` }} />
-                </div>
-                <span className="text-[10px] font-mono text-muted-foreground w-9 text-right">{revPct}%</span>
-              </div>
-            )}
-          </td>
           <td className="py-2 px-3">
             {noData ? <span className="text-xs text-muted-foreground">—</span> : (
               <div className="flex items-center gap-1.5" title={`${hours}h / 160h`}>
@@ -371,7 +360,7 @@ export function PeopleViewTab({
 
         {isExp && deals.length > 0 && (
           <tr>
-            <td colSpan={8} className="p-0 bg-accent/5">
+            <td colSpan={6} className="p-0 bg-accent/5">
               <div className="px-12 py-2 border-y border-border/40">
                 <table className="w-full text-caption">
                   <thead>
@@ -540,8 +529,6 @@ export function PeopleViewTab({
                         <th className="text-right py-2 px-3 text-[10px] uppercase tracking-wider font-medium text-muted-foreground">Deals</th>
                         <th className="text-right py-2 px-3 text-[10px] uppercase tracking-wider font-medium text-muted-foreground">MRR</th>
                         <th className="text-right py-2 px-3 text-[10px] uppercase tracking-wider font-medium text-muted-foreground">Total Rev</th>
-                        <th className="text-right py-2 px-3 text-[10px] uppercase tracking-wider font-medium text-muted-foreground">Target</th>
-                        <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider font-medium text-muted-foreground">Rev %</th>
                         <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider font-medium text-muted-foreground">Hours</th>
                       </tr>
                     </thead>
