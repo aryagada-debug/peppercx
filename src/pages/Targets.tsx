@@ -447,10 +447,13 @@ export default function Targets() {
     if (vsdFilter !== "All") {
       arr = arr.filter(d => vsdFilter === "Unassigned" ? !d.vsd : d.vsd === vsdFilter);
     }
+    if (bopmFilter && bopmFilter !== "All") {
+      arr = arr.filter(d => dealMatchesBopm(d as any, bopmFilter, allPersonNames));
+    }
     if (needsOnly) arr = arr.filter(d => !targets[d.id] || METRICS.every(m => !targets[d.id][`${m}_target` as keyof TargetRow]));
     if (behindOnly) arr = arr.filter(isBehindPace);
     return arr;
-  }, [deals, vsdFilter, needsOnly, behindOnly, targets, isBehindPace]);
+  }, [deals, vsdFilter, bopmFilter, allPersonNames, needsOnly, behindOnly, targets, isBehindPace]);
 
   // Summary totals (all deals, not filtered)
   const summary = useMemo(() => {
@@ -586,6 +589,15 @@ export default function Targets() {
               {v}
             </button>
           ))}
+          <div className="flex items-center gap-2 ml-2">
+            <label className="text-[11px] text-muted-foreground uppercase tracking-wider">BOPM</label>
+            <BopmFilter
+              value={bopmFilter}
+              onChange={setBopmFilter}
+              scopedVsd={vsdFilter !== "All" && vsdFilter !== "Unassigned" ? vsdFilter : undefined}
+              className="h-8 w-[200px] text-[12px]"
+            />
+          </div>
           <div className="flex-1" />
           <button
             onClick={() => setNeedsOnly(v => !v)}
