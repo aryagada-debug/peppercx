@@ -365,6 +365,9 @@ export default function SettingsPage() {
 
 // ── Revenue Capacity panel ──────────────────────────────────────────────────
 function DraggablePersonChip({ id, name }: { id: string; name: string }) {
+  return null as any;
+}
+function _placeholder_remove() {}
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id });
   return (
     <div
