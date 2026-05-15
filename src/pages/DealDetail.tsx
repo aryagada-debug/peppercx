@@ -2302,8 +2302,8 @@ export default function DealDetail() {
           <div className="animate-fade-in space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-foreground">Team Members</h3>
-              <Button size="sm" onClick={() => setRequestStaffingOpen(true)}>
-                <Plus className="h-3.5 w-3.5 mr-1" /> Request Staffing
+              <Button size="sm" onClick={() => (isAdmin ? setAddMemberOpen(true) : setRequestStaffingOpen(true))}>
+                <Plus className="h-3.5 w-3.5 mr-1" /> {isAdmin ? "Add Staffing" : "Request Staffing"}
               </Button>
             </div>
 
@@ -2437,8 +2437,8 @@ export default function DealDetail() {
             ) : (
               <div className="bg-card border border-border rounded-xl text-center py-8 px-5">
                 <p className="text-muted-foreground mb-3">No team members assigned to this deal.</p>
-                <Button size="sm" onClick={() => setRequestStaffingOpen(true)}>
-                  <Plus className="h-3.5 w-3.5 mr-1" /> Request Staffing
+                <Button size="sm" onClick={() => (isAdmin ? setAddMemberOpen(true) : setRequestStaffingOpen(true))}>
+                  <Plus className="h-3.5 w-3.5 mr-1" /> {isAdmin ? "Add Staffing" : "Request Staffing"}
                 </Button>
               </div>
             )}
