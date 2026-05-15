@@ -50,6 +50,8 @@ export interface FinancialRow {
 interface DealInfo {
   totalDealValue?: number | null;
   mrr?: number | null;
+  startDate?: string | null;
+  endDate?: string | null;
 }
 
 interface Props {
@@ -168,20 +170,41 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
   }, [rows]);
 
   const netDealValue = deal?.totalDealValue || 0;
+  const dealMrr = Number(deal?.mrr) || 0;
+
+  // Number of months between two dates, inclusive on both ends.
+  // Always returns at least 1 if both dates are valid.
+  const monthsBetween = (start?: string | null, end?: string | null): number => {
+    if (!start || !end) return 0;
+    const s = new Date(start);
+    const e = new Date(end);
+    if (isNaN(s.getTime()) || isNaN(e.getTime())) return 0;
+    const months = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth()) + 1;
+    return Math.max(1, months);
+  };
+
+  const lifetimeMonths = useMemo(
+    () => monthsBetween(deal?.startDate, deal?.endDate),
+    [deal?.startDate, deal?.endDate]
+  );
 
   // Pipeline health for an arbitrary subset of rows
-  const computePipeline = useCallback((subset: FinancialRow[]) => {
+  const computePipeline = useCallback((subset: FinancialRow[], targetOverride?: number) => {
     const consumption = subset.reduce((s, r) => s + r.consumption, 0);
     const invoiced = subset.reduce((s, r) => s + r.invoiced, 0);
     const received = subset.reduce((s, r) => s + r.received, 0);
-    const contractionTarget = subset.reduce((s, r) => s + (r.contractionTarget ?? r.contracted), 0);
-    const deliveryTarget = subset.reduce((s, r) => s + (r.deliveryTarget ?? 0), 0);
+    const sumContractionTarget = subset.reduce((s, r) => s + (r.contractionTarget ?? r.contracted), 0);
+    const sumDeliveryTarget = subset.reduce((s, r) => s + (r.deliveryTarget ?? 0), 0);
     const deliveryActual = subset.reduce((s, r) => s + (r.deliveryActual ?? 0), 0);
-    const invoicingTarget = subset.reduce((s, r) => s + (r.invoicingTarget ?? 0), 0);
-    const receivablesTarget = subset.reduce((s, r) => s + (r.receivablesTarget ?? 0), 0);
+    const sumInvoicingTarget = subset.reduce((s, r) => s + (r.invoicingTarget ?? 0), 0);
+    const sumReceivablesTarget = subset.reduce((s, r) => s + (r.receivablesTarget ?? 0), 0);
     const outstanding = invoiced - received;
-    const invTgt = invoicingTarget || netDealValue;
-    const recTgt = receivablesTarget || invoiced;
+    // When a targetOverride is provided (for YTD = MRR×elapsed months and
+    // Lifetime = MRR×contract months), it replaces all four metric targets.
+    const contractionTarget = targetOverride ?? sumContractionTarget;
+    const deliveryTarget = targetOverride ?? sumDeliveryTarget;
+    const invTgt = targetOverride ?? (sumInvoicingTarget || netDealValue);
+    const recTgt = targetOverride ?? (sumReceivablesTarget || invoiced);
     return {
       contraction: {
         att: contractionTarget > 0 ? (consumption / contractionTarget) * 100 : 0,
@@ -217,12 +240,25 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
       return d.getFullYear() === curY && d.getMonth() === curM;
     });
     const ytdRows = rows.filter(r => new Date(r.month).getFullYear() === curY);
+    // YTD target = MRR × elapsed months in the current year, capped to the
+    // contract span. Lifetime target = MRR × total contract months.
+    const yearStart = new Date(curY, 0, 1).toISOString().slice(0, 10);
+    const today = now.toISOString().slice(0, 10);
+    const contractStart = deal?.startDate || "";
+    const contractEnd = deal?.endDate || "";
+    const ytdStart = contractStart && contractStart > yearStart ? contractStart : yearStart;
+    const ytdEnd = contractEnd && contractEnd < today ? contractEnd : today;
+    const ytdMonths = ytdStart && ytdEnd && ytdStart <= ytdEnd
+      ? monthsBetween(ytdStart, ytdEnd)
+      : 0;
+    const ytdTarget = dealMrr > 0 && ytdMonths > 0 ? dealMrr * ytdMonths : undefined;
+    const lifetimeTarget = dealMrr > 0 && lifetimeMonths > 0 ? dealMrr * lifetimeMonths : undefined;
     return {
       current: computePipeline(currentMonthRows),
-      ytd: computePipeline(ytdRows),
-      lifetime: computePipeline(rows),
+      ytd: computePipeline(ytdRows, ytdTarget),
+      lifetime: computePipeline(rows, lifetimeTarget),
     };
-  }, [rows, computePipeline]);
+  }, [rows, computePipeline, deal?.startDate, deal?.endDate, dealMrr, lifetimeMonths]);
 
   // Chart data
   const chartData = useMemo(() => rows.map(r => ({
