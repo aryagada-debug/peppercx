@@ -138,7 +138,7 @@ export default function HomePage() {
   // can pick "all" or a specific person to see other people's tasks.
   const [taskViewAs, setTaskViewAs] = useState<string>("me"); // "me" | "all" | "created" | personId
   const [isVsdViewer, setIsVsdViewer] = useState(false);
-  const [notifTab, setNotifTab] = useState<"activity" | "mentions">("activity");
+  // Activity tab removed per product decision; notifications card now shows mentions only.
   // For VSD viewers, restrict the "View tasks for…" dropdown to their team
   // BOPMs (same logic as the BOPM filter on Clients & Deals). Admins see all.
   const myVsdName = useMemo(
@@ -156,6 +156,8 @@ export default function HomePage() {
     return [];
   }, [isAdmin, isVsdViewer, myVsdName, bopmUsersForVsd, allPeople]);
   const [mentions, setMentions] = useState<any[]>([]);
+  // Map of Slack user id -> display name, used to humanise <@U123> tokens in mention text.
+  const [slackNameMap, setSlackNameMap] = useState<Record<string, string>>({});
   const [recents, setRecents] = useState<RecentView[]>([]);
   const [pins, setPins] = useState<UserPin[]>([]);
   const [myDeals, setMyDeals] = useState<MyDeal[]>([]);
@@ -462,7 +464,34 @@ export default function HomePage() {
       .ilike("text", `%<@${slackUserId}>%`)
       .order("created_at", { ascending: false })
       .limit(20);
-    setMentions(data || []);
+    const rows = data || [];
+    setMentions(rows);
+    // Collect every <@U…> id referenced and resolve to a display name.
+    const ids = new Set<string>();
+    for (const r of rows) {
+      const m = String(r.text || "").matchAll(/<@([UW][A-Z0-9]+)>/g);
+      for (const x of m) ids.add(x[1]);
+    }
+    if (slackUserId) ids.add(slackUserId);
+    if (ids.size === 0) return;
+    const idArr = Array.from(ids);
+    const { data: people } = await supabase.from("staffing_people")
+      .select("name, slack_user_id").in("slack_user_id", idArr);
+    const map: Record<string, string> = {};
+    (people || []).forEach((p: any) => {
+      if (p.slack_user_id) map[p.slack_user_id] = p.name || p.slack_user_id;
+    });
+    if (slackUserId && map[slackUserId]) map[slackUserId] = "you";
+    // Fallback to Slack users.info via existing edge function for unresolved ids.
+    const missing = idArr.filter((id) => !map[id] && id !== slackUserId);
+    await Promise.all(missing.slice(0, 8).map(async (id) => {
+      try {
+        const { data: r } = await supabase.functions.invoke("slack-resolve-user", { body: { user_id: id } });
+        const nm = (r as any)?.name || (r as any)?.real_name;
+        if (nm) map[id] = nm;
+      } catch {/* ignore */}
+    }));
+    setSlackNameMap((prev) => ({ ...prev, ...map }));
   }, []);
 
   const loadQuota = useCallback(async () => {
@@ -1400,66 +1429,35 @@ export default function HomePage() {
           <Card className="col-span-12 lg:col-span-6 rounded-xl">
             <CardHeader className="pb-3 flex-row items-center justify-between space-y-0">
               <CardTitle className="text-[15px] font-bold flex items-center gap-2">
-                <Bell className="h-4 w-4 text-primary" /> Notifications & mentions
-                {unreadCount > 0 && <Badge className="ml-1 text-[10px] bg-primary">{unreadCount}</Badge>}
+                <MessageSquare className="h-4 w-4 text-primary" /> Slack mentions
+                {mentions.length > 0 && <Badge className="ml-1 text-[10px] bg-primary">{mentions.length}</Badge>}
               </CardTitle>
-              {unreadCount > 0 && (
-                <Button variant="ghost" size="sm" className="h-6 text-[11px] text-muted-foreground" onClick={markAllRead}>Mark all read</Button>
-              )}
             </CardHeader>
-            <CardContent>
-              <Tabs value={notifTab} onValueChange={(v) => setNotifTab(v as any)}>
-                <TabsList className="mb-3 bg-secondary">
-                  <TabsTrigger value="activity">Activity ({notifications.length})</TabsTrigger>
-                  <TabsTrigger value="mentions">Slack mentions ({mentions.length})</TabsTrigger>
-                </TabsList>
-                <TabsContent value="activity" className="space-y-1 mt-0">
-                  {loadingNotifs ? <SkeletonRows /> : notifications.length === 0 ? (
-                    <div className="text-center py-6">
-                      <CheckCircle2 className="h-8 w-8 text-positive/40 mx-auto mb-2" />
-                      <p className="text-xs text-muted-foreground">You're all caught up.</p>
+            <CardContent className="space-y-1">
+              {mentions.length === 0 ? (
+                <div className="text-center py-6">
+                  <MessageSquare className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
+                  <p className="text-xs text-muted-foreground">No Slack mentions yet.</p>
+                </div>
+              ) : mentions.slice(0, 6).map((m: any) => {
+                const prettyText = String(m.text || "").replace(/<@([UW][A-Z0-9]+)>/g,
+                  (_full: string, id: string) => `@${slackNameMap[id] || id}`);
+                const author = m.user_name || (m.slack_user_id ? slackNameMap[m.slack_user_id] : "") || "Slack";
+                return (
+                  <button key={m.id} onClick={() => navigate(`/deals/${m.deal_id}?tab=Slack`)}
+                    className="w-full text-left flex items-start gap-2 rounded-md hover:bg-secondary/40 px-2 py-2 transition-colors">
+                    <div className="h-7 w-7 rounded-full bg-primary/15 flex items-center justify-center text-[10px] font-semibold text-primary shrink-0">
+                      {(author || "?").slice(0, 2).toUpperCase()}
                     </div>
-                  ) : notifications.slice(0, 5).map(n => (
-                    <div key={n.id} className="group flex items-start gap-2 rounded-md hover:bg-secondary/40 px-2 py-2 transition-colors">
-                      <div className="h-7 w-7 rounded-full bg-gradient-to-br from-primary/20 to-primary/40 flex items-center justify-center text-[10px] font-semibold text-primary shrink-0">
-                        {n.actor_name ? n.actor_name.slice(0, 2).toUpperCase() : "📬"}
-                      </div>
-                      <button type="button" onClick={() => { markRead(n.id); if (n.cta_href) navigate(n.cta_href); }} className="flex-1 text-left min-w-0">
-                        <p className="text-[12.5px] leading-snug text-foreground line-clamp-2">
-                          <span className="font-semibold">{n.actor_name}</span> {n.body}
-                          {n.source_entity_name && <span className="font-semibold"> · {n.source_entity_name}</span>}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">{format(parseISO(n.created_at), "dd MMM, h:mm a")}</p>
-                      </button>
-                      {!n.read && <div className="h-1.5 w-1.5 rounded-full bg-primary mt-2 shrink-0" />}
-                      <button onClick={() => dismissNotification(n.id)} className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity">
-                        <X className="h-3.5 w-3.5" />
-                      </button>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[12.5px] leading-snug text-foreground line-clamp-2">
+                        <span className="font-semibold">{author}</span> mentioned you · <span className="text-muted-foreground">{prettyText}</span>
+                      </p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{format(parseISO(m.created_at), "dd MMM, h:mm a")}</p>
                     </div>
-                  ))}
-                </TabsContent>
-                <TabsContent value="mentions" className="space-y-1 mt-0">
-                  {mentions.length === 0 ? (
-                    <div className="text-center py-6">
-                      <MessageSquare className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
-                      <p className="text-xs text-muted-foreground">No Slack mentions yet.</p>
-                    </div>
-                  ) : mentions.slice(0, 6).map((m: any) => (
-                    <button key={m.id} onClick={() => navigate(`/deals/${m.deal_id}?tab=Slack`)}
-                      className="w-full text-left flex items-start gap-2 rounded-md hover:bg-secondary/40 px-2 py-2 transition-colors">
-                      <div className="h-7 w-7 rounded-full bg-primary/15 flex items-center justify-center text-[10px] font-semibold text-primary shrink-0">
-                        {(m.user_name || "?").slice(0, 2).toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[12.5px] leading-snug text-foreground line-clamp-2">
-                          <span className="font-semibold">{m.user_name || "Slack"}</span> mentioned you · <span className="text-muted-foreground">{m.text}</span>
-                        </p>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">{format(parseISO(m.created_at), "dd MMM, h:mm a")}</p>
-                      </div>
-                    </button>
-                  ))}
-                </TabsContent>
-              </Tabs>
+                  </button>
+                );
+              })}
             </CardContent>
           </Card>
 

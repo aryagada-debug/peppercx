@@ -1,0 +1,1 @@
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS weekly_summary_opt_in BOOLEAN NOT NULL DEFAULT true;

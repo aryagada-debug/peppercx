@@ -1179,6 +1179,7 @@ export type Database = {
           staffing_person_id: string | null
           updated_at: string
           user_id: string
+          weekly_summary_opt_in: boolean
         }
         Insert: {
           avatar_url?: string | null
@@ -1189,6 +1190,7 @@ export type Database = {
           staffing_person_id?: string | null
           updated_at?: string
           user_id: string
+          weekly_summary_opt_in?: boolean
         }
         Update: {
           avatar_url?: string | null
@@ -1199,6 +1201,7 @@ export type Database = {
           staffing_person_id?: string | null
           updated_at?: string
           user_id?: string
+          weekly_summary_opt_in?: boolean
         }
         Relationships: []
       }
