@@ -410,6 +410,14 @@ export default function Clients() {
       if (colFilters.dealStatus && (d.dealStatus || "Active Deal") !== colFilters.dealStatus) return false;
       if (colFilters.vsd && !matches(d.vsd, colFilters.vsd)) return false;
       if (colFilters.bopm && !matches(`${d.principalBopm || ""} ${d.seniorBopm || ""}`, colFilters.bopm)) return false;
+      if (colFilters.contentLead) {
+        const name = leadByDeal[d.id]?.content || "";
+        if (!matches(name, colFilters.contentLead)) return false;
+      }
+      if (colFilters.seoLead) {
+        const name = leadByDeal[d.id]?.seo || "";
+        if (!matches(name, colFilters.seoLead)) return false;
+      }
       if (colFilters.mrr && convertFromInr(Number(d.mrr) || 0, currency, fxRate) < Number(colFilters.mrr)) return false;
       if (colFilters.totalDealValue && convertFromInr(Number(d.totalDealValue) || 0, currency, fxRate) < Number(colFilters.totalDealValue)) return false;
       if (colFilters.rag) {
@@ -429,7 +437,7 @@ export default function Clients() {
       rows = [...rows].sort((a, b) => a.account.localeCompare(b.account) || a.dealName.localeCompare(b.dealName));
     }
     return rows;
-  }, [filteredDeals, colFilters, sortKey, sortDir, rgyRollup, renewalFilter, renewingIds]);
+    }, [filteredDeals, colFilters, sortKey, sortDir, rgyRollup, renewalFilter, renewingIds, leadByDeal, currency, fxRate]);
 
   const kpis = useMemo(() => {
     const clientSet = new Set(filteredDeals.map(d => d.account));
