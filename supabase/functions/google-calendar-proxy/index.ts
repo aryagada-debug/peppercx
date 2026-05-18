@@ -25,9 +25,9 @@ async function getUser(req: Request) {
   const userClient = createClient(SUPABASE_URL, ANON, {
     global: { headers: { Authorization: auth } },
   });
-  const { data, error } = await userClient.auth.getClaims(token);
-  if (error || !data?.claims?.sub) throw new Error("unauthorized");
-  return { id: data.claims.sub as string };
+  const { data, error } = await userClient.auth.getUser(token);
+  if (error || !data?.user?.id) throw new Error("unauthorized");
+  return { id: data.user.id };
 }
 
 async function getCalendarAccessToken(userId: string) {
