@@ -367,6 +367,24 @@ export default function Clients() {
     return d;
   }, [deals, activeVsd, activeBopm, search, showClosed, allPersonNames]);
 
+  // Build dropdown options from people actually assigned to the visible deals
+  const peopleColOptions = useMemo(() => {
+    const vsd = new Set<string>();
+    const bopm = new Set<string>();
+    const content = new Set<string>();
+    const seo = new Set<string>();
+    for (const d of filteredDeals) {
+      const v = (d.vsd || "").trim(); if (v) vsd.add(v);
+      const pb = (d.principalBopm || "").trim(); if (pb) bopm.add(pb);
+      const sb = (d.seniorBopm || "").trim(); if (sb) bopm.add(sb);
+      const leads = leadByDeal[d.id];
+      if (leads?.content) content.add(leads.content);
+      if (leads?.seo) seo.add(leads.seo);
+    }
+    const sortArr = (s: Set<string>) => Array.from(s).sort((a, b) => a.localeCompare(b));
+    return { vsd: sortArr(vsd), bopm: sortArr(bopm), content: sortArr(content), seo: sortArr(seo) };
+  }, [filteredDeals, leadByDeal]);
+
   // Deals up for renewal within 90 days (used by both KPI and renewals filter)
   const renewingIds = useMemo(() => {
     const now = new Date();
