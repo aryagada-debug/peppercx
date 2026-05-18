@@ -118,7 +118,9 @@ export default function Clients() {
   const { clients: allClients, loading: clientsLoading, addClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
   const access = useDealAccess();
   const { canEditAll, role } = useUserRole();
-  const isBopm = role === "user";
+  const isCapLead = role === "capability_lead";
+  const isCapMember = role === "capability_member";
+  const isBopm = role === "user" || isCapMember;
   const { users: appUsers } = useAppUsers();
   const { vsdUsers, isVsdName, canonVsd } = useVsdUsers();
   const { bopmUsersForVsd } = useBopmDirectory();
@@ -756,7 +758,7 @@ export default function Clients() {
 
         {/* Row 2: Filters + Search + Closed + Columns */}
         <div className="flex items-center gap-2 mb-2 flex-wrap">
-          {access.isAdmin && (
+          {(access.isAdmin || isCapLead) && (
             <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
               {VSD_FILTERS.map(v => (
                 <button key={v.key} onClick={() => setActiveVsd(v.key)} className={cn(
@@ -771,7 +773,7 @@ export default function Clients() {
             <BopmFilter
               value={activeBopm}
               onChange={setActiveBopm}
-              scopedVsd={access.isAdmin && activeVsd !== "All" && activeVsd !== "Other" && activeVsd !== "Unassigned" ? activeVsd : undefined}
+              scopedVsd={(access.isAdmin || isCapLead) && activeVsd !== "All" && activeVsd !== "Other" && activeVsd !== "Unassigned" ? activeVsd : undefined}
             />
           )}
 
