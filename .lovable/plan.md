@@ -1,22 +1,42 @@
-## Hide "Add Client" and "Add Deal" for Capability Lead and Capability IC
+## Assign Capability Lead + Admin roles
 
-### Change
-In `src/pages/Clients.tsx` (around lines 749–756), wrap the action buttons container so the two CTAs do not render when `isCapLead || isCapMember`.
+### Capability Leads (role `capability_lead` + `is_lead=true` on existing membership)
 
-```tsx
-{!(isCapLead || isCapMember) && (
-  <div className="flex items-center gap-2 ml-auto">
-    <Button variant="outline" size="sm" onClick={() => setClientDialogOpen(true)}>
-      <Plus className="h-4 w-4 mr-1" /> Add Client
-    </Button>
-    <Button size="sm" onClick={() => { setDealWizardClientId(undefined); setDealWizardOpen(true); }}>
-      <Plus className="h-4 w-4 mr-1" /> Add Deal
-    </Button>
-  </div>
-)}
-```
+Editorial:
 
-### Scope
-- VSD, BOPM, and Admin continue to see both buttons unchanged.
-- Capability Lead and Capability IC see neither button.
-- No other files changed; dialogs remain mounted but unreachable for these roles.
+- Gaurab Chatterjee (P028)
+- Pratima K (P111)
+
+SEO:
+
+- Mayur Varade (P484)
+- Vedanga Bandyopadhyay (P542)
+
+Creative (Copy):
+
+- Stefan Amanna (P568)
+
+Creative (Design):
+
+- Viraj Ghodgaonkar (P512) — has two profile rows, both will be granted
+- Nikhil Somani (P394)
+- Divya Ganapathy (P533)
+
+All eight are already members of their respective `capability_groups`, so flipping `is_lead = true` plus inserting the `capability_lead` role is enough. The `useCapability` hook will then surface the Cap Lead view, and every other person in the same capability (Editorial 19, SEO 35, Creative 27) automatically becomes a Cap IC (capability_member) — no per-person inserts needed for that view.
+
+### Admins (role `admin`)
+
+- Priyanka Sharma (user f54…ea47)
+- Sudhanshu Sikhwal (user bef3…5099)
+
+### Technical steps
+
+1. `INSERT … ON CONFLICT DO NOTHING` into `user_roles` for the 9 user_ids above with the right role (`capability_lead` / `admin`).
+2. `UPDATE capability_memberships SET is_lead = true` for the 8 (person_id, capability_id) pairs.
+3. No schema changes, no code changes.
+
+### Confirm before I run
+
+- "Gaurabh" → mapped to **Gaurab Chatterjee** (only match). OK? Yes
+- "Divya Ganpati" → **Divya Ganapathy** (Creative). There is also a Divya Ranganathan — confirming we mean Ganapathy. Yes
+- The four names listed before "copy - stefan" (Gaurabh, Pratima, Mayur, Vedang) are split across **Editorial** (Gaurab, Pratima) and **SEO** (Mayur, Vedanga) based on their existing capability memberships — confirming that mapping is what you want. Yes
