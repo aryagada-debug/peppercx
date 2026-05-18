@@ -21,8 +21,6 @@ import { BopmEmptyState } from "@/components/access/BopmEmptyState";
 import { computePortfolioScore, type ScoreOutput } from "@/lib/portfolioScore";
 import { PortfolioHealthCard } from "@/components/dashboard/PortfolioHealthCard";
 import { DealScorecardTable, type ScorecardRow } from "@/components/dashboard/DealScorecardTable";
-import { CapabilityLeaderDashboard } from "@/components/dashboard/CapabilityLeaderDashboard";
-import { CapabilityMemberDashboard } from "@/components/dashboard/CapabilityMemberDashboard";
 import { getOverallCustomerRGY } from "@/lib/overallCustomerRGY";
 
 const ACTIVE_STATUSES = ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"];
