@@ -34,6 +34,7 @@ import { EventFormDialog, type EventFormValue } from "@/components/calendar/Even
 import { FullCalendarDialog } from "@/components/calendar/FullCalendarDialog";
 import { Maximize2, Video } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useDealAccess } from "@/hooks/useDealAccess";
 import { TaskKanban, type DealTask } from "@/components/deals/TaskKanban";
 import { SlackHomeBubble } from "@/components/slack/SlackHomeBubble";
 import { CxDatePickerPopover } from "@/components/cx/CxDatePickerPopover";
@@ -93,7 +94,10 @@ function isDueWithin(s: string | null, days: number) {
 export default function HomePage() {
   useCurrencyVersion();
   const { user } = useAuth();
-  const { isAdmin, isReadOnly } = useUserRole();
+  const { isAdmin, isReadOnly, role } = useUserRole();
+  const { visibleDealIds: accessDealIds } = useDealAccess();
+  const isCapLead = role === "capability_lead";
+  const isCapMember = role === "capability_member";
   const navigate = useNavigate();
   const { canonVsd } = useVsdUsers();
   const { bopmUsersForVsd } = useBopmDirectory();
@@ -250,10 +254,20 @@ export default function HomePage() {
       .range(0, 9999);
     const myDealsForScope = (allDealsForScope || []).filter((d: any) =>
       inAliases(d.vsd) || inAliases(d.principal_bopm) || inAliases(d.senior_bopm) || inAliases(d.bopm));
-    const myDealIdsForScope = myDealsForScope.map((d: any) => d.id);
-    const myVsdDealSet = new Set(
+    const aliasDealIds = new Set(myDealsForScope.map((d: any) => d.id));
+    // Capability leads/members don't appear in deal vsd/bopm cells — pull
+    // their team's deals from useDealAccess so Home isn't empty for them.
+    accessDealIds.forEach((id) => aliasDealIds.add(id));
+    const myDealIdsForScope = Array.from(aliasDealIds);
+    let myVsdDealSet = new Set(
       (allDealsForScope || []).filter((d: any) => inAliases(d.vsd)).map((d: any) => d.id)
     );
+    // Cap leads should see every task on every deal their team is staffed on,
+    // not just tasks where they're personally assigned. Treat them like a VSD
+    // for the purposes of the "me" task scope.
+    if (isCapLead) {
+      myVsdDealSet = new Set([...myVsdDealSet, ...accessDealIds]);
+    }
     const isVsd = myVsdDealSet.size > 0;
     setIsVsdViewer(isVsd);
     setMyVsdDealIds(myVsdDealSet);
@@ -288,7 +302,7 @@ export default function HomePage() {
     const { data: peopleRows } = await supabase.from("staffing_people").select("id, name, designation, tbh");
     setAllPeople((peopleRows as PersonLite[]) || []);
     setLoadingTasks(false);
-  }, [user, isAdmin]);
+  }, [user, isAdmin, isCapLead, accessDealIds]);
 
   const loadFlags = useCallback(async () => {
     if (!user) return;
@@ -299,6 +313,7 @@ export default function HomePage() {
       .select("id, deal_name, account, vsd, principal_bopm, senior_bopm, bopm, end_date, deal_status")
       .in("deal_status", ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
     const myDeals = (allDeals || []).filter((d: any) =>
+      accessDealIds.has(d.id) ||
       inAliases(d.vsd) || inAliases(d.principal_bopm) || inAliases(d.senior_bopm) || inAliases(d.bopm));
     const myDealIds = myDeals.map((d: any) => d.id);
     // Track VSD-only scope separately so we can show team tasks on those deals.
@@ -326,7 +341,7 @@ export default function HomePage() {
     });
     setExpiringDeals(expiring as DealLite[]);
     setLoadingFlags(false);
-  }, [user]);
+  }, [user, accessDealIds]);
 
   const loadMyDeals = useCallback(async () => {
     if (!user) return;
@@ -336,7 +351,7 @@ export default function HomePage() {
     const { data } = await supabase.from("staffing_deals")
       .select("id, deal_name, account, vsd, principal_bopm, senior_bopm, bopm, end_date, deal_status, mrr, total_deal_value")
       .in("deal_status", ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
-    const visible = (data || []).filter((d: any) => isAdmin || inAliases(d.vsd) || inAliases(d.principal_bopm) || inAliases(d.senior_bopm) || inAliases(d.bopm));
+    const visible = (data || []).filter((d: any) => isAdmin || accessDealIds.has(d.id) || inAliases(d.vsd) || inAliases(d.principal_bopm) || inAliases(d.senior_bopm) || inAliases(d.bopm));
     const mine: MyDeal[] = visible
       .map((d: any) => {
         let role = "";
@@ -345,6 +360,8 @@ export default function HomePage() {
         else if (inAliases(d.senior_bopm)) role = "Senior BOPM";
         else if (inAliases(d.bopm)) role = "BOPM";
         else if (isAdmin) role = "Admin";
+        else if (isCapLead) role = "Capability Lead";
+        else if (isCapMember) role = "Capability IC";
         return { id: d.id, deal_name: d.deal_name, account: d.account, deal_status: d.deal_status, mrr: d.mrr, total_deal_value: d.total_deal_value, end_date: d.end_date, my_role: role };
       })
       .sort((a, b) => (b.mrr || 0) - (a.mrr || 0));
@@ -411,7 +428,7 @@ export default function HomePage() {
       setFinTargets({ contraction: 0, delivery: 0, invoicing: 0, receivables: 0 });
     }
     setLoadingMyDeals(false);
-  }, [user, isAdmin]);
+  }, [user, isAdmin, isCapLead, isCapMember, accessDealIds]);
 
   const loadTodos = useCallback(async () => {
     if (!user) return;
@@ -541,10 +558,10 @@ export default function HomePage() {
       .in("deal_status", ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"])
       .order("deal_name");
     const visible = (data || []).filter((d: any) =>
-      isAdmin || inAliases(d.vsd) || inAliases(d.principal_bopm) || inAliases(d.senior_bopm) || inAliases(d.bopm)
+      isAdmin || accessDealIds.has(d.id) || inAliases(d.vsd) || inAliases(d.principal_bopm) || inAliases(d.senior_bopm) || inAliases(d.bopm)
     );
     setAllActiveDeals(visible.map((d: any) => ({ id: d.id, deal_name: d.deal_name, account: d.account })));
-  }, [isAdmin]);
+  }, [isAdmin, accessDealIds]);
 
   // Create a new deal task from Home (two-way synced with the deal's Kanban).
   const handleAddTaskSubmit = useCallback(async (data: any) => {
