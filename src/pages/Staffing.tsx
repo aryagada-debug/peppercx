@@ -68,9 +68,12 @@ export default function Staffing() {
     })();
     return () => { cancelled = true; };
   }, [authUser, canonVsd, isActuallyAdmin]);
-  const isBopmPersona = role === "user";
-  const isVsdPersona = role === "member";
-  // VSDs and BOPMs both have their own deal-set scope. Admin/capability roles see everything.
+  const isCapLead = role === "capability_lead";
+  const isCapMember = role === "capability_member";
+  // Capability ICs behave like BOPMs; capability leads behave like VSDs.
+  const isBopmPersona = role === "user" || isCapMember;
+  const isVsdPersona = role === "member" || isCapLead;
+  // VSDs/Cap Leads and BOPMs/Cap ICs all have their own deal-set scope. Admin sees everything.
   const shouldScopeToOwnDeals = isBopmPersona || isVsdPersona;
   const normalizedTabParam: Tab | null =
     tabParam === ("matrix" as any) || tabParam === ("tables" as any)

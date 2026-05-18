@@ -89,7 +89,7 @@ export default function MBRTracker() {
   const { vsdForDeal, vsdForPerson, bopmsForVsd, allBopms } = useVsdHierarchy();
   const { role } = useUserRole();
   const { visibleDealIds, loading: accessLoading } = useDealAccess();
-  const isBopmPersona = role === "user";
+  const isBopmPersona = role === "user" || role === "capability_member";
   const isVsdPersona = role === "member";
   const VSD_FILTERS = useMemo(() => {
     const items: { key: string; label: string }[] = [{ key: "All", label: "All" }];

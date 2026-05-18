@@ -21,8 +21,6 @@ import { BopmEmptyState } from "@/components/access/BopmEmptyState";
 import { computePortfolioScore, type ScoreOutput } from "@/lib/portfolioScore";
 import { PortfolioHealthCard } from "@/components/dashboard/PortfolioHealthCard";
 import { DealScorecardTable, type ScorecardRow } from "@/components/dashboard/DealScorecardTable";
-import { CapabilityLeaderDashboard } from "@/components/dashboard/CapabilityLeaderDashboard";
-import { CapabilityMemberDashboard } from "@/components/dashboard/CapabilityMemberDashboard";
 import { getOverallCustomerRGY } from "@/lib/overallCustomerRGY";
 
 const ACTIVE_STATUSES = ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"];
@@ -68,9 +66,9 @@ const addStatus = (c: RgyCounts, s: RGYStatus) => {
 export default function Dashboard() {
   useCurrencyVersion();
   const { role } = useUserRole();
-  // Persona-specific dashboards short-circuit before loading legacy data.
-  if (role === "capability_lead") return <CapabilityLeaderDashboard />;
-  if (role === "capability_member") return <CapabilityMemberDashboard />;
+  // Capability Lead mirrors the VSD dashboard (team-scoped via useDealAccess);
+  // Capability IC mirrors the BOPM dashboard. Both fall through to the legacy
+  // dashboard which already adapts to BOPM/VSD personas.
   return <LegacyDashboard />;
 }
 
@@ -91,7 +89,7 @@ function LegacyDashboard() {
   const [scorecardRows, setScorecardRows] = useState<ScorecardRow[]>([]);
   const { role } = useUserRole();
   const { visibleDealIds, loading: accessLoading } = useDealAccess();
-  const isBopmPersona = role === "user";
+  const isBopmPersona = role === "user" || role === "capability_member";
 
   useEffect(() => {
     let cancelled = false;
