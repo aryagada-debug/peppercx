@@ -746,14 +746,16 @@ export default function Clients() {
             );
           })}
           </div>
-          <div className="flex items-center gap-2 ml-auto">
-            <Button variant="outline" size="sm" onClick={() => setClientDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" /> Add Client
-            </Button>
-            <Button size="sm" onClick={() => { setDealWizardClientId(undefined); setDealWizardOpen(true); }}>
-              <Plus className="h-4 w-4 mr-1" /> Add Deal
-            </Button>
-          </div>
+          {!(isCapLead || isCapMember) && (
+            <div className="flex items-center gap-2 ml-auto">
+              <Button variant="outline" size="sm" onClick={() => setClientDialogOpen(true)}>
+                <Plus className="h-4 w-4 mr-1" /> Add Client
+              </Button>
+              <Button size="sm" onClick={() => { setDealWizardClientId(undefined); setDealWizardOpen(true); }}>
+                <Plus className="h-4 w-4 mr-1" /> Add Deal
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Row 2: Filters + Search + Closed + Columns */}
