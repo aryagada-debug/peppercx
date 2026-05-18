@@ -367,6 +367,24 @@ export default function Clients() {
     return d;
   }, [deals, activeVsd, activeBopm, search, showClosed, allPersonNames]);
 
+  // Build dropdown options from people actually assigned to the visible deals
+  const peopleColOptions = useMemo(() => {
+    const vsd = new Set<string>();
+    const bopm = new Set<string>();
+    const content = new Set<string>();
+    const seo = new Set<string>();
+    for (const d of filteredDeals) {
+      const v = (d.vsd || "").trim(); if (v) vsd.add(v);
+      const pb = (d.principalBopm || "").trim(); if (pb) bopm.add(pb);
+      const sb = (d.seniorBopm || "").trim(); if (sb) bopm.add(sb);
+      const leads = leadByDeal[d.id];
+      if (leads?.content) content.add(leads.content);
+      if (leads?.seo) seo.add(leads.seo);
+    }
+    const sortArr = (s: Set<string>) => Array.from(s).sort((a, b) => a.localeCompare(b));
+    return { vsd: sortArr(vsd), bopm: sortArr(bopm), content: sortArr(content), seo: sortArr(seo) };
+  }, [filteredDeals, leadByDeal]);
+
   // Deals up for renewal within 90 days (used by both KPI and renewals filter)
   const renewingIds = useMemo(() => {
     const now = new Date();
@@ -392,6 +410,14 @@ export default function Clients() {
       if (colFilters.dealStatus && (d.dealStatus || "Active Deal") !== colFilters.dealStatus) return false;
       if (colFilters.vsd && !matches(d.vsd, colFilters.vsd)) return false;
       if (colFilters.bopm && !matches(`${d.principalBopm || ""} ${d.seniorBopm || ""}`, colFilters.bopm)) return false;
+      if (colFilters.contentLead) {
+        const name = leadByDeal[d.id]?.content || "";
+        if (!matches(name, colFilters.contentLead)) return false;
+      }
+      if (colFilters.seoLead) {
+        const name = leadByDeal[d.id]?.seo || "";
+        if (!matches(name, colFilters.seoLead)) return false;
+      }
       if (colFilters.mrr && convertFromInr(Number(d.mrr) || 0, currency, fxRate) < Number(colFilters.mrr)) return false;
       if (colFilters.totalDealValue && convertFromInr(Number(d.totalDealValue) || 0, currency, fxRate) < Number(colFilters.totalDealValue)) return false;
       if (colFilters.rag) {
@@ -411,7 +437,7 @@ export default function Clients() {
       rows = [...rows].sort((a, b) => a.account.localeCompare(b.account) || a.dealName.localeCompare(b.dealName));
     }
     return rows;
-  }, [filteredDeals, colFilters, sortKey, sortDir, rgyRollup, renewalFilter, renewingIds]);
+    }, [filteredDeals, colFilters, sortKey, sortDir, rgyRollup, renewalFilter, renewingIds, leadByDeal, currency, fxRate]);
 
   const kpis = useMemo(() => {
     const clientSet = new Set(filteredDeals.map(d => d.account));
@@ -872,10 +898,10 @@ export default function Clients() {
                   {isVisible("dealId") && <ColHeader label="Deal ID" sortKey="dealId" colKey="dealId" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.dealId} onResizeStart={startResize("dealId")} />}
                   {isVisible("dealType") && <ColHeader label="Type" sortKey="dealType" colKey="dealType" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["Retainer","Non-Retainer"]} width={colWidths.dealType} onResizeStart={startResize("dealType")} />}
                   {isVisible("dealStatus") && <ColHeader label="Status" sortKey="dealStatus" colKey="dealStatus" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={[...DEAL_STATUSES]} width={colWidths.dealStatus} onResizeStart={startResize("dealStatus")} />}
-                  {isVisible("vsd") && <ColHeader label="VSD" sortKey="vsd" colKey="vsd" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.vsd} onResizeStart={startResize("vsd")} />}
-                  {isVisible("bopm") && <ColHeader label="P.BOPM / Sr BOPM" colKey="bopm" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.bopm} onResizeStart={startResize("bopm")} />}
-                  {isVisible("contentLead") && <ColHeader label="Content Lead" colKey="contentLead" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.contentLead} onResizeStart={startResize("contentLead")} />}
-                  {isVisible("seoLead") && <ColHeader label="SEO Lead" colKey="seoLead" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.seoLead} onResizeStart={startResize("seoLead")} />}
+                  {isVisible("vsd") && <ColHeader label="VSD" sortKey="vsd" colKey="vsd" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={peopleColOptions.vsd} width={colWidths.vsd} onResizeStart={startResize("vsd")} />}
+                  {isVisible("bopm") && <ColHeader label="P.BOPM / Sr BOPM" colKey="bopm" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={peopleColOptions.bopm} width={colWidths.bopm} onResizeStart={startResize("bopm")} />}
+                  {isVisible("contentLead") && <ColHeader label="Content Lead" colKey="contentLead" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={peopleColOptions.content} width={colWidths.contentLead} onResizeStart={startResize("contentLead")} />}
+                  {isVisible("seoLead") && <ColHeader label="SEO Lead" colKey="seoLead" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={peopleColOptions.seo} width={colWidths.seoLead} onResizeStart={startResize("seoLead")} />}
                   {isVisible("mrr") && <ColHeader label="MRR" align="right" sortKey="mrr" colKey="mrr" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} numeric placeholder="≥ amount" width={colWidths.mrr} onResizeStart={startResize("mrr")} />}
                   {isVisible("totalDealValue") && <ColHeader label="Total Revenue" align="right" sortKey="totalDealValue" colKey="totalDealValue" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} numeric placeholder="≥ amount" width={colWidths.totalDealValue} onResizeStart={startResize("totalDealValue")} />}
                   {isVisible("duration") && <ColHeader label="Duration" colKey="duration" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.duration} onResizeStart={startResize("duration")} />}
