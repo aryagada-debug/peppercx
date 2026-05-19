@@ -143,31 +143,49 @@ export default function HomePage() {
     invalidate: invalidateNudges,
   } = useHomeNudgesQuery(user?.id);
 
-  // Per-card loading states (staggered)
-  const [loadingTasks, setLoadingTasks] = useState(true);
-  const [loadingFlags, setLoadingFlags] = useState(true);
+  // Phase 4c-ii: tasks / flags / my-deals are now React Query–owned.
+  const {
+    data: tasksData,
+    isLoading: loadingTasks,
+    patchDealTasks,
+    patchCxTasks,
+    invalidate: invalidateTasks,
+  } = useHomeTasksQuery({
+    userId: user?.id,
+    isAdmin,
+    isCapLead,
+    aliases: profileData.aliases,
+    accessIds: accessDealIds,
+  });
+  const {
+    dealTasks, cxTasks, dealAssignmentsMap, allPeople,
+    isVsdViewer, myVsdDealIds,
+    deals: tasksDeals,
+  } = tasksData;
 
-  // Data
-  const [dealTasks, setDealTasks] = useState<DealTaskRow[]>([]);
-  const [cxTasks, setCxTasks] = useState<CxTaskRow[]>([]);
-  const [deals, setDeals] = useState<Record<string, DealLite>>({});
-  const [allPeople, setAllPeople] = useState<PersonLite[]>([]);
-  const [rgyFlags, setRgyFlags] = useState<RGYFlagRow[]>([]);
-  const [inactivity, setInactivity] = useState<InactivityRow[]>([]);
-  const [expiringDeals, setExpiringDeals] = useState<DealLite[]>([]);
+  const { data: flagsData, isLoading: loadingFlags } = useHomeFlagsQuery({
+    userId: user?.id,
+    isAdmin,
+    aliases: profileData.aliases,
+    accessIds: accessDealIds,
+  });
+  const { rgyFlags, inactivity, expiringDeals, deals: flagsDeals } = flagsData;
+
+  // Merge per-deal metadata from both queries so legacy consumers ("deals[id]")
+  // keep finding the row regardless of which loader populated it.
+  const deals = useMemo<Record<string, DealLite>>(
+    () => ({ ...flagsDeals, ...tasksDeals }),
+    [flagsDeals, tasksDeals],
+  );
+
   const [editingDealTask, setEditingDealTask] = useState<DealTaskRow | null>(null);
-  const [dealAssignmentsMap, setDealAssignmentsMap] = useState<Record<string, Set<string>>>({});
   const [addingTask, setAddingTask] = useState(false);
   const [addTaskDealId, setAddTaskDealId] = useState<string>("");
-  // Deal IDs where the viewer is the VSD (active deals only). Tasks on these
-  // deals are visible to the VSD even when assigned to a team member.
-  const [myVsdDealIds, setMyVsdDealIds] = useState<Set<string>>(new Set());
   const [periodType, setPeriodType] = useState<"year">("year");
   const [taskFilter, setTaskFilter] = useState<"all" | "overdue" | "today" | "upcoming">("today");
   // View-as filter (mirrors Clients & Deals): "me" by default; admins / VSDs
   // can pick "all" or a specific person to see other people's tasks.
   const [taskViewAs, setTaskViewAs] = useState<string>("me"); // "me" | "all" | "created" | personId
-  const [isVsdViewer, setIsVsdViewer] = useState(false);
   // Activity tab removed per product decision; notifications card now shows mentions only.
   // For VSD viewers, restrict the "View tasks for…" dropdown to their team
   // BOPMs (same logic as the BOPM filter on Clients & Deals). Admins see all.
@@ -188,13 +206,15 @@ export default function HomePage() {
   const [mentions, setMentions] = useState<any[]>([]);
   // Map of Slack user id -> display name, used to humanise <@U123> tokens in mention text.
   const [slackNameMap, setSlackNameMap] = useState<Record<string, string>>({});
-  const [myDeals, setMyDeals] = useState<MyDeal[]>([]);
-  const [loadingMyDeals, setLoadingMyDeals] = useState(true);
-
-  // Financial summary across deals visible to the user — actual + target this month
-  const [finSummary, setFinSummary] = useState<{ contraction: number; delivery: number; invoicing: number; receivables: number }>({ contraction: 0, delivery: 0, invoicing: 0, receivables: 0 });
-  const [finTargets, setFinTargets] = useState<{ contraction: number; delivery: number; invoicing: number; receivables: number }>({ contraction: 0, delivery: 0, invoicing: 0, receivables: 0 });
-  const [finByDeal, setFinByDeal] = useState<Record<string, { contraction: number; delivery: number; invoicing: number; receivables: number }>>({});
+  const { data: myDealsData, isLoading: loadingMyDeals } = useHomeMyDealsQuery({
+    userId: user?.id,
+    isAdmin,
+    isCapLead,
+    isCapMember,
+    aliases: profileData.aliases,
+    accessIds: accessDealIds,
+  });
+  const { myDeals, finByDeal, finSummary, finTargets } = myDealsData;
   const [finDrill, setFinDrill] = useState<null | "contraction" | "delivery" | "invoicing" | "receivables">(null);
 
   // Google Calendar
