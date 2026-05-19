@@ -6,7 +6,7 @@ function decodeEntities(s: string) {
 
 export function renderSlackText(text: string, users: Record<string, string>): ReactNode {
   if (!text) return null;
-  const tokenRe = /<(@[UW][A-Z0-9]+(?:\|[^>]+)?|#[CG][A-Z0-9]+(?:\|[^>]+)?|!(?:channel|here|everyone|subteam\^[A-Z0-9]+(?:\|[^>]+)?)|https?:\/\/[^>]+)>/g;
+  const tokenRe = /<(@[UW][A-Z0-9]+(?:\|[^>]+)?|#[CG][A-Z0-9]+(?:\|[^>]+)?|!(?:(?:channel|here|everyone)(?:\|[^>]+)?|subteam\^[A-Z0-9]+(?:\|[^>]+)?)|https?:\/\/[^>]+)>/g;
   const nodes: ReactNode[] = [];
   let last = 0;
   let m: RegExpExecArray | null;
@@ -23,8 +23,8 @@ export function renderSlackText(text: string, users: Record<string, string>): Re
       nodes.push(<span key={key++} className="text-primary font-medium">#{label || inner.slice(1)}</span>);
     } else if (inner.startsWith("!")) {
       const body = inner.slice(1);
-      const parts = body.split("|");
-      nodes.push(<span key={key++} className="text-primary font-medium">@{body.startsWith("subteam^") ? parts[1] || "group" : body}</span>);
+      const [token, label] = body.split("|");
+      nodes.push(<span key={key++} className="text-primary font-medium">@{label || (token.startsWith("subteam^") ? "group" : token)}</span>);
     } else {
       const url = inner.split("|")[0];
       nodes.push(<a key={key++} href={url} target="_blank" rel="noopener noreferrer" className="text-primary underline">URL</a>);
@@ -47,4 +47,28 @@ export function renderSlackText(text: string, users: Record<string, string>): Re
     if (lastIdx < node.length) out.push(node.slice(lastIdx));
   });
   return out;
+}
+
+export function slackMentionToken(id: string, label: string) {
+  const safeLabel = label.replace(/[<>|]/g, "").trim() || id;
+  return `<@${id}|${safeLabel}>`;
+}
+
+export function normalizeSlackMentionsForSend(text: string) {
+  return text
+    .replace(/<@([UW][A-Z0-9]+)\|[^>]+>/g, "<@$1>")
+    .replace(/<!(channel|here|everyone)\|[^>]+>/g, "<!$1>")
+    .replace(/<!subteam\^([A-Z0-9]+)\|[^>]+>/g, "<!subteam^$1>");
+}
+
+export function getSlackMentionLabels(text: string, users: Record<string, string> = {}) {
+  const labels: string[] = [];
+  const tokenRe = /<@([UW][A-Z0-9]+)(?:\|([^>]+))?>|<!(channel|here|everyone)(?:\|([^>]+))?>|<!subteam\^[A-Z0-9]+(?:\|([^>]+))?>/g;
+  let match: RegExpExecArray | null;
+  while ((match = tokenRe.exec(text)) !== null) {
+    const label = match[2] || (match[1] ? users[match[1]] || match[1] : "") || match[4] || match[3] || match[5] || "group";
+    const display = `@${label}`;
+    if (!labels.includes(display)) labels.push(display);
+  }
+  return labels;
 }
