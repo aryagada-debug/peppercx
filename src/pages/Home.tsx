@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { formatINR } from "@/lib/csvTargets";
 import { useCurrencyVersion } from "@/contexts/CurrencyContext";
 import { Link, useNavigate } from "react-router-dom";
@@ -41,7 +41,6 @@ import { CxDatePickerPopover } from "@/components/cx/CxDatePickerPopover";
 import { useAccountActivity } from "@/hooks/useAccountActivity";
 import { Activity as ActivityIcon } from "lucide-react";
 import { useVsdUsers, useBopmDirectory, nameKey } from "@/hooks/queries/legacy";
-import { useTableSubscription } from "@/lib/realtime";
 import {
   useHomeTodosQuery,
   useHomeNotificationsQuery,
@@ -53,6 +52,11 @@ import {
   useHomeActiveDealsQuery,
   useHomeQuotaQuery,
 } from "@/hooks/queries/useHomeIdentityQueries";
+import {
+  useHomeTasksQuery,
+  useHomeFlagsQuery,
+  useHomeMyDealsQuery,
+} from "@/hooks/queries/useHomeBoardQueries";
 
 const DEAL_STAGES = ["To Do", "In Progress", "In Review", "Done", "Dropped"] as const;
 
@@ -138,31 +142,49 @@ export default function HomePage() {
     invalidate: invalidateNudges,
   } = useHomeNudgesQuery(user?.id);
 
-  // Per-card loading states (staggered)
-  const [loadingTasks, setLoadingTasks] = useState(true);
-  const [loadingFlags, setLoadingFlags] = useState(true);
+  // Phase 4c-ii: tasks / flags / my-deals are now React Query–owned.
+  const {
+    data: tasksData,
+    isLoading: loadingTasks,
+    patchDealTasks,
+    patchCxTasks,
+    invalidate: invalidateTasks,
+  } = useHomeTasksQuery({
+    userId: user?.id,
+    isAdmin,
+    isCapLead,
+    aliases: profileData.aliases,
+    accessIds: accessDealIds,
+  });
+  const {
+    dealTasks, cxTasks, dealAssignmentsMap, allPeople,
+    isVsdViewer, myVsdDealIds,
+    deals: tasksDeals,
+  } = tasksData;
 
-  // Data
-  const [dealTasks, setDealTasks] = useState<DealTaskRow[]>([]);
-  const [cxTasks, setCxTasks] = useState<CxTaskRow[]>([]);
-  const [deals, setDeals] = useState<Record<string, DealLite>>({});
-  const [allPeople, setAllPeople] = useState<PersonLite[]>([]);
-  const [rgyFlags, setRgyFlags] = useState<RGYFlagRow[]>([]);
-  const [inactivity, setInactivity] = useState<InactivityRow[]>([]);
-  const [expiringDeals, setExpiringDeals] = useState<DealLite[]>([]);
+  const { data: flagsData, isLoading: loadingFlags } = useHomeFlagsQuery({
+    userId: user?.id,
+    isAdmin,
+    aliases: profileData.aliases,
+    accessIds: accessDealIds,
+  });
+  const { rgyFlags, inactivity, expiringDeals, deals: flagsDeals } = flagsData;
+
+  // Merge per-deal metadata from both queries so legacy consumers ("deals[id]")
+  // keep finding the row regardless of which loader populated it.
+  const deals = useMemo<Record<string, DealLite>>(
+    () => ({ ...flagsDeals, ...tasksDeals }),
+    [flagsDeals, tasksDeals],
+  );
+
   const [editingDealTask, setEditingDealTask] = useState<DealTaskRow | null>(null);
-  const [dealAssignmentsMap, setDealAssignmentsMap] = useState<Record<string, Set<string>>>({});
   const [addingTask, setAddingTask] = useState(false);
   const [addTaskDealId, setAddTaskDealId] = useState<string>("");
-  // Deal IDs where the viewer is the VSD (active deals only). Tasks on these
-  // deals are visible to the VSD even when assigned to a team member.
-  const [myVsdDealIds, setMyVsdDealIds] = useState<Set<string>>(new Set());
   const [periodType, setPeriodType] = useState<"year">("year");
   const [taskFilter, setTaskFilter] = useState<"all" | "overdue" | "today" | "upcoming">("today");
   // View-as filter (mirrors Clients & Deals): "me" by default; admins / VSDs
   // can pick "all" or a specific person to see other people's tasks.
   const [taskViewAs, setTaskViewAs] = useState<string>("me"); // "me" | "all" | "created" | personId
-  const [isVsdViewer, setIsVsdViewer] = useState(false);
   // Activity tab removed per product decision; notifications card now shows mentions only.
   // For VSD viewers, restrict the "View tasks for…" dropdown to their team
   // BOPMs (same logic as the BOPM filter on Clients & Deals). Admins see all.
@@ -183,13 +205,15 @@ export default function HomePage() {
   const [mentions, setMentions] = useState<any[]>([]);
   // Map of Slack user id -> display name, used to humanise <@U123> tokens in mention text.
   const [slackNameMap, setSlackNameMap] = useState<Record<string, string>>({});
-  const [myDeals, setMyDeals] = useState<MyDeal[]>([]);
-  const [loadingMyDeals, setLoadingMyDeals] = useState(true);
-
-  // Financial summary across deals visible to the user — actual + target this month
-  const [finSummary, setFinSummary] = useState<{ contraction: number; delivery: number; invoicing: number; receivables: number }>({ contraction: 0, delivery: 0, invoicing: 0, receivables: 0 });
-  const [finTargets, setFinTargets] = useState<{ contraction: number; delivery: number; invoicing: number; receivables: number }>({ contraction: 0, delivery: 0, invoicing: 0, receivables: 0 });
-  const [finByDeal, setFinByDeal] = useState<Record<string, { contraction: number; delivery: number; invoicing: number; receivables: number }>>({});
+  const { data: myDealsData, isLoading: loadingMyDeals } = useHomeMyDealsQuery({
+    userId: user?.id,
+    isAdmin,
+    isCapLead,
+    isCapMember,
+    aliases: profileData.aliases,
+    accessIds: accessDealIds,
+  });
+  const { myDeals, finByDeal, finSummary, finTargets } = myDealsData;
   const [finDrill, setFinDrill] = useState<null | "contraction" | "delivery" | "invoicing" | "receivables">(null);
 
   // Google Calendar
@@ -231,249 +255,6 @@ export default function HomePage() {
     await calDeleteEvent(id);
     refreshCalendar();
   }, [calDeleteEvent, refreshCalendar]);
-
-  const aliasesRef = useRef<Set<string>>(new Set());
-  // Mirror the React Query–owned aliases into a ref so the still-imperative
-  // loaders (loadTasks / loadFlags / loadMyDeals — Phase 4c-ii) keep working.
-  useEffect(() => {
-    aliasesRef.current = profileData.aliases;
-  }, [profileData.aliases]);
-
-  // Build a server-side `.or(...)` clause that narrows a staffing_deals
-  // query to only rows the viewer can see (alias match on any role column,
-  // OR explicit access deal IDs from useDealAccess). Returns null when the
-  // viewer is admin (no narrowing needed) or has no signal to narrow on
-  // (fall back to client-side filter for safety).
-  const buildDealScopeOrClause = useCallback(
-    (aliases: Set<string>, accessIds: Set<string>): string | null => {
-      if (isAdmin) return null;
-      const safeAliases = Array.from(aliases).filter(
-        (a) => a && !a.includes("@") && !/[,()"\\]/.test(a),
-      );
-      const cols = ["vsd", "principal_bopm", "senior_bopm", "bopm"];
-      const parts: string[] = [];
-      for (const a of safeAliases) {
-        for (const c of cols) parts.push(`${c}.ilike.${a}`);
-      }
-      const ids = Array.from(accessIds);
-      if (ids.length) parts.push(`id.in.(${ids.join(",")})`);
-      return parts.length ? parts.join(",") : null;
-    },
-    [isAdmin],
-  );
-
-  const loadTasks = useCallback(async () => {
-    if (!user) return;
-    setLoadingTasks(true);
-    // First scope by deals the viewer is on (any role column matches their
-    // aliases). For non-admin viewers this dramatically shrinks the
-    // deal_tasks payload and avoids the 1000-row default cap missing the
-    // viewer's / their BOPMs' tasks when total tasks are large.
-    const aliasSet = aliasesRef.current;
-    const inAliases = (s: string | null) => !!s && aliasSet.has((s || "").trim().toLowerCase());
-    const scopeClause = buildDealScopeOrClause(aliasSet, accessDealIds);
-    let scopeQuery = supabase
-      .from("staffing_deals")
-      .select("id, vsd, principal_bopm, senior_bopm, bopm");
-    if (scopeClause) scopeQuery = scopeQuery.or(scopeClause);
-    const { data: allDealsForScope } = await scopeQuery;
-    const myDealsForScope = (allDealsForScope || []).filter((d: any) =>
-      inAliases(d.vsd) || inAliases(d.principal_bopm) || inAliases(d.senior_bopm) || inAliases(d.bopm));
-    const aliasDealIds = new Set(myDealsForScope.map((d: any) => d.id));
-    // Capability leads/members don't appear in deal vsd/bopm cells — pull
-    // their team's deals from useDealAccess so Home isn't empty for them.
-    accessDealIds.forEach((id) => aliasDealIds.add(id));
-    const myDealIdsForScope = Array.from(aliasDealIds);
-    let myVsdDealSet = new Set(
-      (allDealsForScope || []).filter((d: any) => inAliases(d.vsd)).map((d: any) => d.id)
-    );
-    // Cap leads should see every task on every deal their team is staffed on,
-    // not just tasks where they're personally assigned. Treat them like a VSD
-    // for the purposes of the "me" task scope.
-    if (isCapLead) {
-      myVsdDealSet = new Set([...myVsdDealSet, ...accessDealIds]);
-    }
-    const isVsd = myVsdDealSet.size > 0;
-    setIsVsdViewer(isVsd);
-    setMyVsdDealIds(myVsdDealSet);
-
-    // Home only ever renders non-terminal tasks (overdue / today / upcoming
-    // / kanban excluding Done & Dropped). Scoping by stage at the server
-    // drops the payload from ~all-time tasks to the active working set —
-    // and keeps us comfortably under PostgREST's 1000-row default cap for
-    // typical viewers, so we no longer need the explicit .range() override.
-    let dtQuery = supabase.from("deal_tasks")
-      .select("id, deal_id, title, description, assignee, assignees, created_by_name, created_at, stage, start_date, end_date, urgency, estimated_hours, logged_hours, subtasks, auto_regen, sort_order, phase")
-      .in("stage", ["To Do", "In Progress", "In Review"]);
-    if (!isAdmin && !isVsd) {
-      dtQuery = dtQuery.in("deal_id", myDealIdsForScope);
-    }
-    const [{ data: dtAll }, { data: ctAll }] = await Promise.all([
-      dtQuery,
-      supabase.from("cx_tasks")
-        .select("id, space_id, title, assignee, assignees, status, start_date, end_date, urgency")
-        .not("status", "in", "(Done,Closed)"),
-    ]);
-    const dt = (dtAll || []) as any[];
-    const ct = (ctAll || []) as any[];
-    setDealTasks(dt as DealTaskRow[]);
-    setCxTasks(ct as CxTaskRow[]);
-    const dealIds = Array.from(new Set(dt.map((t: any) => t.deal_id)));
-    if (dealIds.length) {
-      const { data: dealRows } = await supabase.from("staffing_deals").select("id, deal_name, account, end_date, vsd, principal_bopm, senior_bopm, bopm").in("id", dealIds);
-      const map: Record<string, DealLite> = {};
-      (dealRows || []).forEach((d: any) => { map[d.id] = d; });
-      setDeals(prev => ({ ...prev, ...map }));
-      const { data: assigns } = await supabase.from("staffing_assignments").select("deal_id, person_id").in("deal_id", dealIds);
-      const m: Record<string, Set<string>> = {};
-      (assigns || []).forEach((a: any) => { if (!m[a.deal_id]) m[a.deal_id] = new Set(); m[a.deal_id].add(a.person_id); });
-      setDealAssignmentsMap(m);
-    }
-    // staffing_people is only needed to populate the "View tasks for…"
-    // dropdown, which is only rendered for admins and VSD viewers. Skip
-    // the full-table scan for everyone else.
-    if (isAdmin || isVsd) {
-      const { data: peopleRows } = await supabase
-        .from("staffing_people")
-        .select("id, name, designation, tbh")
-        .eq("tbh", false)
-        .eq("leaving", false);
-      setAllPeople((peopleRows as PersonLite[]) || []);
-    }
-    setLoadingTasks(false);
-  }, [user, isAdmin, isCapLead, accessDealIds, buildDealScopeOrClause]);
-
-  const loadFlags = useCallback(async () => {
-    if (!user) return;
-    setLoadingFlags(true);
-    const aliasSet = aliasesRef.current;
-    const inAliases = (s: string | null) => !!s && aliasSet.has((s || "").trim().toLowerCase());
-    const scopeClause = buildDealScopeOrClause(aliasSet, accessDealIds);
-    let q = supabase.from("staffing_deals")
-      .select("id, deal_name, account, vsd, principal_bopm, senior_bopm, bopm, end_date, deal_status")
-      .in("deal_status", ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
-    if (scopeClause) q = q.or(scopeClause);
-    const { data: allDeals } = await q;
-    const myDeals = (allDeals || []).filter((d: any) =>
-      accessDealIds.has(d.id) ||
-      inAliases(d.vsd) || inAliases(d.principal_bopm) || inAliases(d.senior_bopm) || inAliases(d.bopm));
-    const myDealIds = myDeals.map((d: any) => d.id);
-    // Track VSD-only scope separately so we can show team tasks on those deals.
-    setMyVsdDealIds(new Set((allDeals || []).filter((d: any) => inAliases(d.vsd)).map((d: any) => d.id)));
-    const dealMap: Record<string, DealLite> = {};
-    myDeals.forEach((d: any) => { dealMap[d.id] = d; });
-    setDeals(prev => ({ ...prev, ...dealMap }));
-
-    if (myDealIds.length) {
-      const [{ data: rgy }, { data: inact }] = await Promise.all([
-        supabase.from("deal_rgy_weekly").select("id, deal_id, week_start, issue_status, resolution_due_date, issue_details")
-          .in("deal_id", myDealIds).eq("issue_status", "Open").order("week_start", { ascending: false }).limit(20),
-        supabase.from("slack_inactivity_nudges").select("id, deal_id, channel_id, week_start, message_count")
-          .in("deal_id", myDealIds).order("week_start", { ascending: false }).limit(20),
-      ]);
-      setRgyFlags((rgy as RGYFlagRow[]) || []);
-      setInactivity((inact as InactivityRow[]) || []);
-    }
-    const today = new Date();
-    const expiring = myDeals.filter((d: any) => {
-      if (!d.end_date) return false;
-      const end = new Date(d.end_date);
-      const days = (end.getTime() - today.getTime()) / 86400000;
-      return days >= 0 && days <= 30;
-    });
-    setExpiringDeals(expiring as DealLite[]);
-    setLoadingFlags(false);
-  }, [user, accessDealIds, buildDealScopeOrClause]);
-
-  const loadMyDeals = useCallback(async () => {
-    if (!user) return;
-    setLoadingMyDeals(true);
-    const aliasSet = aliasesRef.current;
-    const inAliases = (s: string | null) => !!s && aliasSet.has((s || "").trim().toLowerCase());
-    const scopeClause = buildDealScopeOrClause(aliasSet, accessDealIds);
-    let q = supabase.from("staffing_deals")
-      .select("id, deal_name, account, vsd, principal_bopm, senior_bopm, bopm, end_date, deal_status, mrr, total_deal_value")
-      .in("deal_status", ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
-    if (scopeClause) q = q.or(scopeClause);
-    const { data } = await q;
-    const visible = (data || []).filter((d: any) => isAdmin || accessDealIds.has(d.id) || inAliases(d.vsd) || inAliases(d.principal_bopm) || inAliases(d.senior_bopm) || inAliases(d.bopm));
-    const mine: MyDeal[] = visible
-      .map((d: any) => {
-        let role = "";
-        if (inAliases(d.vsd)) role = "VSD";
-        else if (inAliases(d.principal_bopm)) role = "Principal BOPM";
-        else if (inAliases(d.senior_bopm)) role = "Senior BOPM";
-        else if (inAliases(d.bopm)) role = "BOPM";
-        else if (isAdmin) role = "Admin";
-        else if (isCapLead) role = "Capability Lead";
-        else if (isCapMember) role = "Capability IC";
-        return { id: d.id, deal_name: d.deal_name, account: d.account, deal_status: d.deal_status, mrr: d.mrr, total_deal_value: d.total_deal_value, end_date: d.end_date, my_role: role };
-      })
-      .sort((a, b) => (b.mrr || 0) - (a.mrr || 0));
-    setMyDeals(mine);
-    // Aggregate financials for these deals
-    const ids = mine.map(d => d.id);
-    if (ids.length) {
-      const { data: fins } = await supabase.from("deal_financials")
-        .select("deal_id, consumption, invoiced, received").in("deal_id", ids);
-      const byDeal: Record<string, { contraction: number; delivery: number; invoicing: number; receivables: number }> = {};
-      (fins || []).forEach((r: any) => {
-        const cur = byDeal[r.deal_id] || { contraction: 0, delivery: 0, invoicing: 0, receivables: 0 };
-        const cons = Number(r.consumption) || 0;
-        const inv = Number(r.invoiced) || 0;
-        const rec = Number(r.received) || 0;
-        cur.contraction += cons;
-        cur.delivery += cons;
-        cur.invoicing += inv;
-        cur.receivables += Math.max(0, inv - rec);
-        byDeal[r.deal_id] = cur;
-      });
-      setFinByDeal(byDeal);
-      const totals = Object.values(byDeal).reduce((s, v) => ({
-        contraction: s.contraction + v.contraction,
-        delivery: s.delivery + v.delivery,
-        invoicing: s.invoicing + v.invoicing,
-        receivables: s.receivables + v.receivables,
-      }), { contraction: 0, delivery: 0, invoicing: 0, receivables: 0 });
-      setFinSummary(totals);
-      // Targets for the current month (cap to deal scope). If the current month has no
-      // imported targets yet, fall back to the most recent month that does.
-      let monthStart = format(startOfMonth(new Date()), "yyyy-MM-dd");
-      let { data: tgts } = await supabase.from("deal_financial_targets")
-        .select("deal_id, month, contraction_target, delivery_target, invoicing_target, receivables_target")
-        .eq("month", monthStart)
-        .in("deal_id", ids);
-      if (!tgts || tgts.length === 0) {
-        const { data: latest } = await supabase.from("deal_financial_targets")
-          .select("month")
-          .in("deal_id", ids)
-          .lte("month", monthStart)
-          .order("month", { ascending: false })
-          .limit(1);
-        const fallbackMonth = latest?.[0]?.month;
-        if (fallbackMonth) {
-          monthStart = fallbackMonth;
-          const res = await supabase.from("deal_financial_targets")
-            .select("deal_id, month, contraction_target, delivery_target, invoicing_target, receivables_target")
-            .eq("month", fallbackMonth)
-            .in("deal_id", ids);
-          tgts = res.data || [];
-        }
-      }
-      const tTotals = (tgts || []).reduce((s, r: any) => ({
-        contraction: s.contraction + (Number(r.contraction_target) || 0),
-        delivery: s.delivery + (Number(r.delivery_target) || 0),
-        invoicing: s.invoicing + (Number(r.invoicing_target) || 0),
-        receivables: s.receivables + (Number(r.receivables_target) || 0),
-      }), { contraction: 0, delivery: 0, invoicing: 0, receivables: 0 });
-      setFinTargets(tTotals);
-    } else {
-      setFinByDeal({});
-      setFinSummary({ contraction: 0, delivery: 0, invoicing: 0, receivables: 0 });
-      setFinTargets({ contraction: 0, delivery: 0, invoicing: 0, receivables: 0 });
-    }
-    setLoadingMyDeals(false);
-  }, [user, isAdmin, isCapLead, isCapMember, accessDealIds, buildDealScopeOrClause]);
 
   const loadMentions = useCallback(async (slackUserId?: string | null) => {
     if (!slackUserId) { setMentions([]); return; }
@@ -567,8 +348,8 @@ export default function HomePage() {
     toast.success("Task added");
     setAddingTask(false);
     setAddTaskDealId("");
-    loadTasks();
-  }, [addTaskDealId, staffingName, displayName, loadTasks, user]);
+    invalidateTasks();
+  }, [addTaskDealId, staffingName, displayName, invalidateTasks, user]);
 
   // Create an internal personal todo, optionally assigned to another teammate.
   const handleInternalTaskSubmit = useCallback(async (data: {
@@ -631,22 +412,6 @@ export default function HomePage() {
     invalidateTodos();
   }, [user, displayName, todos.length, invalidateTodos]);
 
-  // Initial load - staggered
-  useEffect(() => {
-    if (!user) return;
-    (async () => {
-      // Profile / quota / recents / activeDeals are now React Query–owned and
-      // auto-fetch as soon as their inputs (user, aliases, accessIds) are
-      // ready. We only need to kick the still-imperative cascading loaders.
-      loadTasks();
-      // Then signals
-      setTimeout(() => {
-        loadFlags();
-        loadMyDeals();
-      }, 100);
-    })();
-  }, [user, loadTasks, loadFlags, loadMyDeals]);
-
   // Slack mentions depend on the profile's staffing person → resolve once
   // the profile query lands.
   useEffect(() => {
@@ -658,23 +423,13 @@ export default function HomePage() {
     })();
   }, [user, staffingPersonId, loadMentions]);
 
-  // Realtime for the remaining imperative loader (deal_tasks). Todos /
-  // notifications / nudges own their own subscriptions inside their
-  // React Query hooks.
-  const userId = user?.id;
-  useTableSubscription({
-    table: "deal_tasks",
-    enabled: !!userId,
-    patcher: useCallback(() => { loadTasks(); }, [loadTasks]),
-  });
-
   // Visible deal/cx tasks, scoped by the "view-as" filter.
   const aliasMatches = useCallback((names: string[], aliases: Set<string>) => {
     return names.some(n => !!n && aliases.has(n.trim().toLowerCase()));
   }, []);
 
   const taskScopePredicate = useMemo(() => {
-    const aliasSet = aliasesRef.current;
+    const aliasSet = profileData.aliases;
     if (taskViewAs === "all") {
       if (isAdmin) return (_t: DealTaskRow | CxTaskRow) => true;
       const teamNames = new Set(viewAsPeople.map(p => nameKey(p.name)));
@@ -838,9 +593,9 @@ export default function HomePage() {
     if (updates.subtasks !== undefined) dbUpdates.subtasks = updates.subtasks;
     if (updates.autoRegen !== undefined) dbUpdates.auto_regen = updates.autoRegen;
     // Optimistic
-    setDealTasks(prev => prev.map(t => t.id === id ? { ...t, ...dbUpdates } : t));
+    patchDealTasks(prev => prev.map(t => t.id === id ? { ...t, ...dbUpdates } : t));
     const { error } = await supabase.from("deal_tasks").update(dbUpdates).eq("id", id);
-    if (error) { toast.error(error.message); loadTasks(); }
+    if (error) { toast.error(error.message); invalidateTasks(); }
     // Auto-regen: clone task back into "To Do" when it lands in Done.
     if (
       !error &&
@@ -867,9 +622,9 @@ export default function HomePage() {
         phase: prevTask.phase || "",
         sort_order: 0,
       } as any).select().maybeSingle();
-      if (inserted) setDealTasks(prev => [...prev, inserted as any]);
+      if (inserted) patchDealTasks(prev => [...prev, inserted as any]);
     }
-  }, [loadTasks, invalidateTodos, dealTasks]);
+  }, [patchDealTasks, invalidateTasks, dealTasks]);
 
   const handleKanbanDelete = useCallback(async (id: string) => {
     const todoId = fromTodoTaskId(id);
@@ -880,14 +635,14 @@ export default function HomePage() {
       else toast.success("Task deleted");
       return;
     }
-    setDealTasks(prev => prev.filter(t => t.id !== id));
+    patchDealTasks(prev => prev.filter(t => t.id !== id));
     const { error } = await supabase.from("deal_tasks").delete().eq("id", id);
     if (error) toast.error(error.message);
     else toast.success("Task deleted");
-  }, [invalidateTodos]);
+  }, [invalidateTodos, patchTodos, patchDealTasks]);
 
   // Account activity (replaces Recently Viewed) — recomputes when alias set changes
-  const { items: activityItems, loading: loadingActivity } = useAccountActivity(aliasesRef.current, !!displayName, 25, isAdmin);
+  const { items: activityItems, loading: loadingActivity } = useAccountActivity(profileData.aliases, !!displayName, 25, isAdmin);
 
   const overdue = useMemo(() => allMyTasks.filter(t => isOverdue(t.due)), [allMyTasks]);
   const today = useMemo(() => allMyTasks.filter(t => isDueToday(t.due)), [allMyTasks]);
@@ -926,20 +681,20 @@ export default function HomePage() {
   const onTaskComplete = async (t: any) => {
     if (t.kind === "deal") {
       await supabase.from("deal_tasks").update({ stage: "Done" }).eq("id", t.id);
-      setDealTasks(prev => prev.map(x => x.id === t.id ? { ...x, stage: "Done" } : x));
+      patchDealTasks(prev => prev.map(x => x.id === t.id ? { ...x, stage: "Done" } : x));
     } else {
       await supabase.from("cx_tasks").update({ status: "Done" }).eq("id", t.id);
-      setCxTasks(prev => prev.map(x => x.id === t.id ? { ...x, status: "Done" } : x));
+      patchCxTasks(prev => prev.map(x => x.id === t.id ? { ...x, status: "Done" } : x));
     }
     toast.success("Task completed", { action: { label: "Undo", onClick: () => onTaskUncomplete(t) } });
   };
   const onTaskUncomplete = async (t: any) => {
     if (t.kind === "deal") {
       await supabase.from("deal_tasks").update({ stage: "To Do" }).eq("id", t.id);
-      loadTasks();
+      invalidateTasks();
     } else {
       await supabase.from("cx_tasks").update({ status: "Open" }).eq("id", t.id);
-      loadTasks();
+      invalidateTasks();
     }
   };
 
@@ -1045,12 +800,12 @@ export default function HomePage() {
       subtasks: data.subtasks, auto_regen: data.autoRegen,
     }).eq("id", editingDealTask.id);
     if (error) toast.error(error.message);
-    else { toast.success("Saved"); loadTasks(); setEditingDealTask(null); }
+    else { toast.success("Saved"); invalidateTasks(); setEditingDealTask(null); }
   };
   const handleDealTaskDelete = async () => {
     if (!editingDealTask) return;
     await supabase.from("deal_tasks").delete().eq("id", editingDealTask.id);
-    toast.success("Deleted"); loadTasks(); setEditingDealTask(null);
+    toast.success("Deleted"); invalidateTasks(); setEditingDealTask(null);
   };
 
   // Today's calendar — derive
