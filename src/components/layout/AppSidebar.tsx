@@ -10,6 +10,33 @@ import { useEffect, useState } from "react";
 import { useUserRole } from "@/hooks/useUserRole";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
+// Prefetch lazy route chunks on hover/focus so clicking a sidebar item
+// feels instant instead of waiting on the Suspense fallback.
+const routePrefetch: Record<string, () => Promise<unknown>> = {
+  "/home": () => import("@/pages/Home"),
+  "/": () => import("@/pages/Index"),
+  "/clients": () => import("@/pages/Clients"),
+  "/staffing": () => import("@/pages/Staffing"),
+  "/revenue": () => import("@/pages/Revenue"),
+  "/targets": () => import("@/pages/Targets"),
+  "/central-cx": () => import("@/pages/CentralCx"),
+  "/rgy-health": () => import("@/pages/RGYHealth"),
+  "/mbr-tracker": () => import("@/pages/MBRTracker"),
+  "/slack-health": () => import("@/pages/SlackHealth"),
+  "/deal-desk": () => import("@/pages/DealDesk"),
+  "/seo-staffing": () => import("@/pages/SEOStaffing"),
+  "/gm2-calculator": () => import("@/pages/GM2Calculator"),
+  "/settings": () => import("@/pages/Settings"),
+};
+const prefetched = new Set<string>();
+const prefetchRoute = (to: string) => {
+  if (prefetched.has(to)) return;
+  const loader = routePrefetch[to];
+  if (!loader) return;
+  prefetched.add(to);
+  loader().catch(() => prefetched.delete(to));
+};
+
 const navSections = [
   {
     label: "Core",
@@ -130,6 +157,8 @@ export function AppSidebar() {
                       <NavLink
                         key={item.to}
                         to={item.to}
+                        onMouseEnter={() => prefetchRoute(item.to)}
+                        onFocus={() => prefetchRoute(item.to)}
                         className={({ isActive }) =>
                           cn(
                             "flex items-center rounded-md text-ui transition-colors",
