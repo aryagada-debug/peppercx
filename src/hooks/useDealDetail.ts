@@ -81,6 +81,22 @@ export interface OnboardingStep {
   sortOrder: number;
 }
 
+interface DealDetailBundle {
+  sowItems: SoWItem[];
+  revenue: RevenueMonthly[];
+  targets: TargetMonthly[];
+  rgyWeekly: RGYWeekly[];
+  onboarding: OnboardingStep[];
+  financials: FinancialRow[];
+  tasks: DealTask[];
+  mbrEntries: MBREntry[];
+}
+
+const EMPTY_BUNDLE: DealDetailBundle = {
+  sowItems: [], revenue: [], targets: [], rgyWeekly: [],
+  onboarding: [], financials: [], tasks: [], mbrEntries: [],
+};
+
 export function useDealDetail(dealId: string | undefined) {
   const qc = useQueryClient();
   const queryKey = ["dealDetail", dealId ?? ""] as const;
