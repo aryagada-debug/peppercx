@@ -7,12 +7,22 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { SlackDmPanel } from "./SlackDmPanel";
+import { renderSlackText } from "@/components/deals/SlackChatBot";
 
 interface Channel { id: string; name: string; is_private: boolean }
 interface ChannelMsg { id: string; user_name: string; text: string; source: string; created_at: string; slack_ts: string; dm_thread_id?: string | null }
 interface ChannelListResponse { channels?: Channel[]; error?: string }
-interface SlackHistoryResponse { messages?: ChannelMsg[]; error?: string }
+interface SlackHistoryResponse { messages?: ChannelMsg[]; users?: Record<string, string>; error?: string }
 interface SlackSendResponse { ok?: boolean; ts?: string; error?: string }
+interface SlackWorkspaceUser { id: string; name: string; real_name: string; display_name: string; email: string }
+interface SlackUserListResponse { users?: SlackWorkspaceUser[]; error?: string }
+type MentionOption = { id: string; label: string; token: string; sub?: string };
+
+const BROADCASTS: MentionOption[] = [
+  { id: "channel", label: "channel", token: "<!channel>", sub: "Notify everyone in this channel" },
+  { id: "here", label: "here", token: "<!here>", sub: "Notify active members" },
+  { id: "everyone", label: "everyone", token: "<!everyone>", sub: "Notify the whole workspace" },
+];
 
 /**
  * Unified Slack bubble for the Home page: lets the user choose between
