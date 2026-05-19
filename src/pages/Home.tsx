@@ -41,6 +41,7 @@ import { CxDatePickerPopover } from "@/components/cx/CxDatePickerPopover";
 import { useAccountActivity } from "@/hooks/useAccountActivity";
 import { Activity as ActivityIcon } from "lucide-react";
 import { useVsdUsers, useBopmDirectory, nameKey } from "@/hooks/queries/legacy";
+import { useTableSubscription } from "@/lib/realtime";
 
 const DEAL_STAGES = ["To Do", "In Progress", "In Review", "Done", "Dropped"] as const;
 
@@ -700,21 +701,33 @@ export default function HomePage() {
 
   useEffect(() => { if (user) loadQuota(); }, [periodType, user, loadQuota]);
 
-  // Realtime: notifications + nudges
-  useEffect(() => {
-    if (!user) return;
-    const ch = supabase.channel(`home-${user.id}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "user_notifications", filter: `user_id=eq.${user.id}` },
-        () => loadNotifications())
-      .on("postgres_changes", { event: "*", schema: "public", table: "smart_nudges", filter: `user_id=eq.${user.id}` },
-        () => loadNudges())
-      .on("postgres_changes", { event: "*", schema: "public", table: "personal_todos" },
-        () => loadTodos())
-      .on("postgres_changes", { event: "*", schema: "public", table: "deal_tasks" },
-        () => loadTasks())
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, [user, loadNotifications, loadNudges, loadTodos, loadTasks]);
+  // Realtime: route table-level signals through the shared subscription
+  // bridge so we get channel-dedup + tab-visibility deferral for free.
+  // Loaders are still imperative for now (Phase 4b-ii will convert them to
+  // React Query); the patcher just re-runs the appropriate loader.
+  const userId = user?.id;
+  useTableSubscription({
+    table: "user_notifications",
+    filter: userId ? `user_id=eq.${userId}` : undefined,
+    enabled: !!userId,
+    patcher: useCallback(() => { loadNotifications(); }, [loadNotifications]),
+  });
+  useTableSubscription({
+    table: "smart_nudges",
+    filter: userId ? `user_id=eq.${userId}` : undefined,
+    enabled: !!userId,
+    patcher: useCallback(() => { loadNudges(); }, [loadNudges]),
+  });
+  useTableSubscription({
+    table: "personal_todos",
+    enabled: !!userId,
+    patcher: useCallback(() => { loadTodos(); }, [loadTodos]),
+  });
+  useTableSubscription({
+    table: "deal_tasks",
+    enabled: !!userId,
+    patcher: useCallback(() => { loadTasks(); }, [loadTasks]),
+  });
 
   // Visible deal/cx tasks, scoped by the "view-as" filter.
   const aliasMatches = useCallback((names: string[], aliases: Set<string>) => {
