@@ -4,7 +4,8 @@ import { StaffingErrorBoundary } from "@/components/staffing/StaffingErrorBounda
 import { useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Loader2, Eye } from "lucide-react";
-import { useStaffingData } from "@/hooks/useStaffingData";
+import { useStaffingQueries } from "@/hooks/queries/useStaffingQueries";
+import { useStaffingMutations } from "@/hooks/queries/useStaffingMutations";
 import { useCurrencyVersion } from "@/contexts/CurrencyContext";
 import { DealViewTab } from "@/components/staffing/DealViewTab";
 import { PeopleViewTab } from "@/components/staffing/PeopleViewTab";
@@ -109,11 +110,11 @@ export default function Staffing() {
     setSearchParams(next, { replace: true });
   };
 
+  const { people, deals, assignments, revenueTargets, loading } = useStaffingQueries();
   const {
-    people, deals, assignments, revenueTargets, loading,
     updateAssignment, updateDeal, upsertAssignmentByRole,
     addAssignment, deleteAssignment,
-  } = useStaffingData();
+  } = useStaffingMutations();
 
   // For BOPM and VSD personas, narrow deals + assignments to their tagged
   // deals (per useDealAccess). VSDs see deals where they are the VSD or
