@@ -240,12 +240,11 @@ export default function HomePage() {
   }, [calDeleteEvent, refreshCalendar]);
 
   const aliasesRef = useRef<Set<string>>(new Set());
-
-  const computeAliases = (dn: string, sn: string, email: string | null | undefined): Set<string> => {
-    const s = new Set<string>();
-    [dn, sn, email || ""].forEach(v => { const t = (v || "").trim().toLowerCase(); if (t) s.add(t); });
-    return s;
-  };
+  // Mirror the React Query–owned aliases into a ref so the still-imperative
+  // loaders (loadTasks / loadFlags / loadMyDeals — Phase 4c-ii) keep working.
+  useEffect(() => {
+    aliasesRef.current = profileData.aliases;
+  }, [profileData.aliases]);
 
   // Build a server-side `.or(...)` clause that narrows a staffing_deals
   // query to only rows the viewer can see (alias match on any role column,
@@ -269,27 +268,6 @@ export default function HomePage() {
     },
     [isAdmin],
   );
-
-  const loadProfile = useCallback(async () => {
-    if (!user) return null;
-    const { data: profile } = await supabase
-      .from("profiles").select("display_name, staffing_person_id").eq("user_id", user.id).maybeSingle();
-    const dn = profile?.display_name || user.email || "";
-    setDisplayName(dn);
-    setStaffingPersonId(profile?.staffing_person_id || null);
-    let sn = "";
-    if (profile?.staffing_person_id) {
-      const { data: p } = await supabase.from("staffing_people").select("name").eq("id", profile.staffing_person_id).maybeSingle();
-      sn = p?.name || "";
-    }
-    if (!sn && user.email) {
-      const { data: pByEmail } = await supabase.from("staffing_people").select("name").ilike("email", user.email).maybeSingle();
-      sn = pByEmail?.name || "";
-    }
-    setStaffingName(sn);
-    aliasesRef.current = computeAliases(dn, sn, user.email);
-    return { aliases: aliasesRef.current, staffingPersonId: profile?.staffing_person_id || null };
-  }, [user]);
 
   const loadTasks = useCallback(async () => {
     if (!user) return;
