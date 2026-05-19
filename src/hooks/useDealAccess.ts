@@ -273,6 +273,28 @@ export function useDealAccess(): DealAccessState {
       }
     }
 
+    // Fallback: users who are neither VSD nor BOPM (e.g. view_only, sales,
+    // ops, mis-classified roles) should still see any deal they are
+    // explicitly marked on — either tagged in one of the deal's
+    // VSD/BOPM cells, or staffed via `staffing_assignments`.
+    if (!isPrincipalOrSeniorBopm && !isRegularBopm && !looksLikeVsd) {
+      for (const d of allDeals) {
+        if (myAssignedDealIds.has(d.id)) {
+          ownDealIds.add(d.id);
+          continue;
+        }
+        if (!me) continue;
+        if (
+          dealCellMatchesPerson(d.vsd, me, allPersonNames) ||
+          dealCellMatchesPerson(d.principal_bopm, me, allPersonNames) ||
+          dealCellMatchesPerson(d.senior_bopm, me, allPersonNames) ||
+          dealCellMatchesPerson(d.bopm, me, allPersonNames)
+        ) {
+          ownDealIds.add(d.id);
+        }
+      }
+    }
+
     // NOTE: We intentionally do NOT use `myAssignedDealIds` (rows from
     // `staffing_assignments`) to grant visibility here. That table contains
     // legacy/ghost rows that don't reflect the deal sheet's actual
