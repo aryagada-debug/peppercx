@@ -27,7 +27,7 @@ interface SlackMessage {
 
 interface Channel { id: string; name: string; is_private: boolean }
 interface ChannelListResponse { channels?: Channel[]; error?: string }
-interface SlackHistoryResponse { messages?: SlackMessage[]; error?: string }
+interface SlackHistoryResponse { messages?: SlackMessage[]; users?: Record<string, string>; error?: string }
 interface SlackSendResponse { ok?: boolean; ts?: string; error?: string }
 
 export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
@@ -37,6 +37,7 @@ export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const [messages, setMessages] = useState<SlackMessage[]>([]);
+  const [userNames, setUserNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -83,6 +84,7 @@ export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
           return;
         }
         setMessages(data?.messages || []);
+        setUserNames(data?.users || {});
       });
     return () => { cancelled = true; };
   }, [open, channelId, dealId]);
@@ -263,7 +265,7 @@ export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
                   <span className={cn("font-semibold", m.source === "app" ? "text-primary" : "text-foreground")}>{m.user_name || "Unknown"}</span>
                   <span className="text-[10px] text-muted-foreground">{new Date(m.created_at).toLocaleString([], { hour: "2-digit", minute: "2-digit", month: "short", day: "numeric" })}</span>
                 </div>
-                <div className="text-foreground/90 whitespace-pre-wrap break-words">{m.text}</div>
+                <div className="text-foreground/90 whitespace-pre-wrap break-words">{renderSlackText(m.text, userNames)}</div>
               </div>
             ))}
           </div>
