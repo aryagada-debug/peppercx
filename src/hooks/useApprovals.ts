@@ -1,60 +1,75 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { ApprovalRequestRow } from "@/lib/approvals";
 
-export function useApprovals() {
-  const [items, setItems] = useState<ApprovalRequestRow[]>([]);
-  const [loading, setLoading] = useState(true);
+const APPROVALS_KEY = ["approval_requests"] as const;
+const openApprovalKey = (dealId: string) => ["approval_requests", "open", dealId] as const;
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    const { data } = await (supabase as any)
-      .from("approval_requests")
-      .select("*")
-      .order("created_at", { ascending: false });
-    setItems((data as ApprovalRequestRow[]) || []);
-    setLoading(false);
-  }, []);
+async function fetchAllApprovals(): Promise<ApprovalRequestRow[]> {
+  const { data } = await (supabase as any)
+    .from("approval_requests")
+    .select("*")
+    .order("created_at", { ascending: false });
+  return (data as ApprovalRequestRow[]) || [];
+}
+
+async function fetchOpenApprovalForDeal(dealId: string): Promise<ApprovalRequestRow | null> {
+  const { data } = await (supabase as any)
+    .from("approval_requests")
+    .select("*")
+    .eq("deal_id", dealId)
+    .in("status", ["pending", "under_review"])
+    .order("created_at", { ascending: false })
+    .limit(1);
+  return (data && data[0]) || null;
+}
+
+export function useApprovals() {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: APPROVALS_KEY, queryFn: fetchAllApprovals });
 
   useEffect(() => {
-    refresh();
     const ch = supabase
       .channel("approval_requests_changes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "approval_requests" }, () => refresh())
+      .on("postgres_changes", { event: "*", schema: "public", table: "approval_requests" }, () => {
+        qc.invalidateQueries({ queryKey: ["approval_requests"] });
+      })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [refresh]);
+  }, [qc]);
 
-  return { items, loading, refresh };
+  return {
+    items: q.data || [],
+    loading: q.isLoading,
+    refresh: () => qc.invalidateQueries({ queryKey: APPROVALS_KEY }),
+  };
 }
 
 export function useOpenApprovalForDeal(dealId: string | undefined) {
-  const [open, setOpen] = useState<ApprovalRequestRow | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const refresh = useCallback(async () => {
-    if (!dealId) { setOpen(null); setLoading(false); return; }
-    setLoading(true);
-    const { data } = await (supabase as any)
-      .from("approval_requests")
-      .select("*")
-      .eq("deal_id", dealId)
-      .in("status", ["pending", "under_review"])
-      .order("created_at", { ascending: false })
-      .limit(1);
-    setOpen((data && data[0]) || null);
-    setLoading(false);
-  }, [dealId]);
+  const qc = useQueryClient();
+  const q = useQuery({
+    queryKey: openApprovalKey(dealId || "__none__"),
+    queryFn: () => fetchOpenApprovalForDeal(dealId!),
+    enabled: !!dealId,
+  });
 
   useEffect(() => {
-    refresh();
     if (!dealId) return;
     const ch = supabase
       .channel(`approval_open_${dealId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "approval_requests", filter: `deal_id=eq.${dealId}` }, () => refresh())
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "approval_requests", filter: `deal_id=eq.${dealId}` },
+        () => qc.invalidateQueries({ queryKey: openApprovalKey(dealId) }),
+      )
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [refresh, dealId]);
+  }, [dealId, qc]);
 
-  return { openRequest: open, loading, refresh };
+  return {
+    openRequest: dealId ? (q.data ?? null) : null,
+    loading: !!dealId && q.isLoading,
+    refresh: () => dealId && qc.invalidateQueries({ queryKey: openApprovalKey(dealId) }),
+  };
 }
