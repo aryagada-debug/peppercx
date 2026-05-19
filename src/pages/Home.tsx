@@ -195,8 +195,11 @@ export default function HomePage() {
     if (!calConnected) return;
     const onVis = () => { if (document.visibilityState === "visible") refreshCalendar(); };
     document.addEventListener("visibilitychange", onVis);
-    const int = setInterval(() => { if (document.visibilityState === "visible") refreshCalendar(); }, 60_000);
-    return () => { document.removeEventListener("visibilitychange", onVis); clearInterval(int); };
+    // Calendar refreshes on tab refocus only. The old 60s poll burned
+    // GCal API quota with no visible benefit since the user can't see
+    // hidden tabs anyway. React Query's refetchOnWindowFocus covers the
+    // other cards on the page.
+    return () => { document.removeEventListener("visibilitychange", onVis); };
   }, [calConnected, refreshCalendar]);
 
   const handleCalSave = useCallback(async (v: EventFormValue) => {
