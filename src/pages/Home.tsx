@@ -982,7 +982,7 @@ export default function HomePage() {
 
   // Pins
   const unpin = async (id: string) => {
-    setPins(prev => prev.filter(p => p.id !== id));
+    patchPins(prev => prev.filter(p => p.id !== id));
     await supabase.from("user_pins").delete().eq("id", id);
   };
   const pinFromRecent = async (r: RecentView) => {
@@ -991,7 +991,7 @@ export default function HomePage() {
       user_id: user.id, entity_type: r.entity_type, entity_id: r.entity_id, entity_name: r.entity_name,
     });
     if (error && !error.message.includes("duplicate")) toast.error(error.message);
-    else { toast.success("Pinned"); loadRecentsAndPins(); }
+    else { toast.success("Pinned"); invalidateRecentsPins(); }
   };
 
   // Quota math
