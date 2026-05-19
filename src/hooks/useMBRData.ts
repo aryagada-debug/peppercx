@@ -274,6 +274,24 @@ export function useMBRData() {
         { onConflict: "deal_id,week_start" }
       ).select();
 
+      // If an MBR was scheduled (or marked done) for the current month,
+      // auto-close any open "Schedule MBR" auto-task for this deal.
+      try {
+        const sd = params.scheduledDate || (params.status === "Done" ? new Date().toISOString().slice(0, 10) : null);
+        if (sd) {
+          const d = new Date(sd);
+          const now = new Date();
+          if (d.getUTCFullYear() === now.getUTCFullYear() && d.getUTCMonth() === now.getUTCMonth()) {
+            await (supabase.from("deal_tasks") as any)
+              .update({ stage: "Done" })
+              .eq("deal_id", params.dealId)
+              .eq("phase", "MBR")
+              .neq("stage", "Done")
+              .ilike("title", "Schedule MBR%");
+          }
+        }
+      } catch (_) { /* non-fatal */ }
+
       // Realtime will handle refresh
     },
     [],
