@@ -243,6 +243,7 @@ export default function Clients() {
     { key: "dealStatus", label: "Status" },
     { key: "vsd", label: "VSD" },
     { key: "bopm", label: "P.BOPM / Sr BOPM" },
+    { key: "bopmOnly", label: "BOPM" },
     { key: "contentLead", label: "Content Lead" },
     { key: "seoLead", label: "SEO Lead" },
     { key: "mrr", label: "MRR" },
@@ -251,7 +252,7 @@ export default function Clients() {
     { key: "rag", label: "RGY" },
   ]), []);
 
-  const DEFAULT_VISIBLE = ["account","dealName","dealId","dealType","dealStatus","vsd","bopm","contentLead","seoLead","mrr","totalDealValue","duration","rag"];
+  const DEFAULT_VISIBLE = ["account","dealName","dealId","dealType","dealStatus","vsd","bopm","bopmOnly","contentLead","seoLead","mrr","totalDealValue","duration","rag"];
   const [visibleCols, setVisibleCols] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem("clients-visible-cols-v2");
@@ -271,7 +272,7 @@ export default function Clients() {
   // Column widths (resizable)
   const DEFAULT_WIDTHS: Record<string, number> = {
     account: 160, dealName: 200, dealId: 100, dealType: 100, dealStatus: 130,
-    vsd: 130, bopm: 150, contentLead: 140, seoLead: 140, mrr: 110, totalDealValue: 130, duration: 130, rag: 70, actions: 40,
+    vsd: 130, bopm: 150, bopmOnly: 130, contentLead: 140, seoLead: 140, mrr: 110, totalDealValue: 130, duration: 130, rag: 70, actions: 40,
   };
   const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
     try {
@@ -371,18 +372,20 @@ export default function Clients() {
   const peopleColOptions = useMemo(() => {
     const vsd = new Set<string>();
     const bopm = new Set<string>();
+    const bopmOnly = new Set<string>();
     const content = new Set<string>();
     const seo = new Set<string>();
     for (const d of filteredDeals) {
       const v = (d.vsd || "").trim(); if (v) vsd.add(v);
       const pb = (d.principalBopm || "").trim(); if (pb) bopm.add(pb);
       const sb = (d.seniorBopm || "").trim(); if (sb) bopm.add(sb);
+      const bo = ((d as any).bopm || "").trim(); if (bo) bopmOnly.add(bo);
       const leads = leadByDeal[d.id];
       if (leads?.content) content.add(leads.content);
       if (leads?.seo) seo.add(leads.seo);
     }
     const sortArr = (s: Set<string>) => Array.from(s).sort((a, b) => a.localeCompare(b));
-    return { vsd: sortArr(vsd), bopm: sortArr(bopm), content: sortArr(content), seo: sortArr(seo) };
+    return { vsd: sortArr(vsd), bopm: sortArr(bopm), bopmOnly: sortArr(bopmOnly), content: sortArr(content), seo: sortArr(seo) };
   }, [filteredDeals, leadByDeal]);
 
   // Deals up for renewal within 90 days (used by both KPI and renewals filter)
@@ -410,6 +413,7 @@ export default function Clients() {
       if (colFilters.dealStatus && (d.dealStatus || "Active Deal") !== colFilters.dealStatus) return false;
       if (colFilters.vsd && !matches(d.vsd, colFilters.vsd)) return false;
       if (colFilters.bopm && !matches(`${d.principalBopm || ""} ${d.seniorBopm || ""}`, colFilters.bopm)) return false;
+      if (colFilters.bopmOnly && !matches((d as any).bopm || "", colFilters.bopmOnly)) return false;
       if (colFilters.contentLead) {
         const name = leadByDeal[d.id]?.content || "";
         if (!matches(name, colFilters.contentLead)) return false;
@@ -900,6 +904,7 @@ export default function Clients() {
                   {isVisible("dealStatus") && <ColHeader label="Status" sortKey="dealStatus" colKey="dealStatus" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={[...DEAL_STATUSES]} width={colWidths.dealStatus} onResizeStart={startResize("dealStatus")} />}
                   {isVisible("vsd") && <ColHeader label="VSD" sortKey="vsd" colKey="vsd" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={peopleColOptions.vsd} width={colWidths.vsd} onResizeStart={startResize("vsd")} />}
                   {isVisible("bopm") && <ColHeader label="P.BOPM / Sr BOPM" colKey="bopm" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={peopleColOptions.bopm} width={colWidths.bopm} onResizeStart={startResize("bopm")} />}
+                  {isVisible("bopmOnly") && <ColHeader label="BOPM" colKey="bopmOnly" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={peopleColOptions.bopmOnly} width={colWidths.bopmOnly} onResizeStart={startResize("bopmOnly")} />}
                   {isVisible("contentLead") && <ColHeader label="Content Lead" colKey="contentLead" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={peopleColOptions.content} width={colWidths.contentLead} onResizeStart={startResize("contentLead")} />}
                   {isVisible("seoLead") && <ColHeader label="SEO Lead" colKey="seoLead" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={peopleColOptions.seo} width={colWidths.seoLead} onResizeStart={startResize("seoLead")} />}
                   {isVisible("mrr") && <ColHeader label="MRR" align="right" sortKey="mrr" colKey="mrr" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} numeric placeholder="≥ amount" width={colWidths.mrr} onResizeStart={startResize("mrr")} />}
@@ -1021,6 +1026,17 @@ export default function Clients() {
                               </button>
                             )}
                           </div>
+                        </td>
+                      )}
+                      {isVisible("bopmOnly") && (
+                        <td className="py-2 px-3 truncate">
+                          <button
+                            onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "Operations", preSelectedName: (deal as any).bopm || undefined })}
+                            className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate block text-left w-full"
+                            title={(deal as any).bopm || ""}
+                          >
+                            {(deal as any).bopm || <span className="text-muted-foreground">— None —</span>}
+                          </button>
                         </td>
                       )}
                       {isVisible("contentLead") && (
