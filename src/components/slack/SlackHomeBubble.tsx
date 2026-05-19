@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { SlackDmPanel } from "./SlackDmPanel";
-import { renderSlackText } from "./SlackText";
+import { getSlackMentionLabels, normalizeSlackMentionsForSend, renderSlackText, slackMentionToken } from "./SlackText";
 
 interface Channel { id: string; name: string; is_private: boolean }
 interface ChannelMsg { id: string; user_name: string; text: string; source: string; created_at: string; slack_ts: string; dm_thread_id?: string | null }
@@ -19,6 +19,7 @@ interface SlackUserListResponse { users?: SlackWorkspaceUser[]; error?: string }
 type MentionOption = { id: string; label: string; token: string; sub?: string };
 
 const BROADCASTS: MentionOption[] = [
+  { id: "all", label: "all", token: "<!channel|all>", sub: "Notify everyone in this channel" },
   { id: "channel", label: "channel", token: "<!channel>", sub: "Notify everyone in this channel" },
   { id: "here", label: "here", token: "<!here>", sub: "Notify active members" },
   { id: "everyone", label: "everyone", token: "<!everyone>", sub: "Notify the whole workspace" },
