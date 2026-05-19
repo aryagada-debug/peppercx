@@ -275,17 +275,22 @@ export default function HomePage() {
     setIsVsdViewer(isVsd);
     setMyVsdDealIds(myVsdDealSet);
 
-    // Build the deal_tasks query: scope to viewer's deals unless admin.
-    // Bypass PostgREST's default 1000-row cap with an explicit range.
+    // Home only ever renders non-terminal tasks (overdue / today / upcoming
+    // / kanban excluding Done & Dropped). Scoping by stage at the server
+    // drops the payload from ~all-time tasks to the active working set —
+    // and keeps us comfortably under PostgREST's 1000-row default cap for
+    // typical viewers, so we no longer need the explicit .range() override.
     let dtQuery = supabase.from("deal_tasks")
       .select("id, deal_id, title, description, assignee, assignees, created_by_name, created_at, stage, start_date, end_date, urgency, estimated_hours, logged_hours, subtasks, auto_regen, sort_order, phase")
-      .range(0, 49999);
+      .in("stage", ["To Do", "In Progress", "In Review"]);
     if (!isAdmin && !isVsd) {
       dtQuery = dtQuery.in("deal_id", myDealIdsForScope);
     }
     const [{ data: dtAll }, { data: ctAll }] = await Promise.all([
       dtQuery,
-      supabase.from("cx_tasks").select("id, space_id, title, assignee, assignees, status, start_date, end_date, urgency").range(0, 9999),
+      supabase.from("cx_tasks")
+        .select("id, space_id, title, assignee, assignees, status, start_date, end_date, urgency")
+        .not("status", "in", "(Done,Closed)"),
     ]);
     const dt = (dtAll || []) as any[];
     const ct = (ctAll || []) as any[];
