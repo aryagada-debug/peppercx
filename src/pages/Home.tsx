@@ -682,7 +682,7 @@ export default function HomePage() {
     );
     setAddingTask(false);
     setAddTaskDealId("");
-    loadTodos();
+    invalidateTodos();
   }, [user, displayName, todos.length, loadTodos]);
 
   // Initial load - staggered
@@ -693,7 +693,7 @@ export default function HomePage() {
       // Fast cards first
       loadQuota();
       loadTasks();
-      loadTodos();
+      invalidateTodos();
       loadRecentsAndPins();
       loadActiveDeals();
       // Then signals
@@ -729,12 +729,12 @@ export default function HomePage() {
     table: "smart_nudges",
     filter: userId ? `user_id=eq.${userId}` : undefined,
     enabled: !!userId,
-    patcher: useCallback(() => { loadNudges(); }, [loadNudges]),
+    patcher: useCallback(() => { invalidateNudges(); }, [loadNudges]),
   });
   useTableSubscription({
     table: "personal_todos",
     enabled: !!userId,
-    patcher: useCallback(() => { loadTodos(); }, [loadTodos]),
+    patcher: useCallback(() => { invalidateTodos(); }, [loadTodos]),
   });
   useTableSubscription({
     table: "deal_tasks",
@@ -888,9 +888,9 @@ export default function HomePage() {
       if (updates.urgency !== undefined) dbUpdates.priority = updates.urgency;
       if (updates.stage === "Done" || updates.stage === "Dropped") dbUpdates.done = true;
       if (Object.keys(dbUpdates).length === 0) return;
-      setTodos(prev => prev.map(t => t.id === todoId ? { ...t, ...dbUpdates } : t));
+      patchTodos(prev => prev.map(t => t.id === todoId ? { ...t, ...dbUpdates } : t));
       const { error } = await supabase.from("personal_todos").update(dbUpdates).eq("id", todoId);
-      if (error) { toast.error(error.message); loadTodos(); }
+      if (error) { toast.error(error.message); invalidateTodos(); }
       return;
     }
     const prevTask = dealTasks.find(t => t.id === id);
@@ -948,9 +948,9 @@ export default function HomePage() {
   const handleKanbanDelete = useCallback(async (id: string) => {
     const todoId = fromTodoTaskId(id);
     if (todoId) {
-      setTodos(prev => prev.filter(t => t.id !== todoId));
+      patchTodos(prev => prev.filter(t => t.id !== todoId));
       const { error } = await supabase.from("personal_todos").delete().eq("id", todoId);
-      if (error) { toast.error(error.message); loadTodos(); }
+      if (error) { toast.error(error.message); invalidateTodos(); }
       else toast.success("Task deleted");
       return;
     }
@@ -979,19 +979,19 @@ export default function HomePage() {
     });
     if (error) { toast.error(error.message); return; }
     setNewTodo(""); setNewTodoDue(undefined);
-    loadTodos();
+    invalidateTodos();
   };
   const toggleTodo = async (t: PersonalTodo) => {
     const next = !t.done;
-    setTodos(prev => prev.map(x => x.id === t.id ? { ...x, done: next } : x));
+    patchTodos(prev => prev.map(x => x.id === t.id ? { ...x, done: next } : x));
     await supabase.from("personal_todos").update({ done: next }).eq("id", t.id);
   };
   const updateTodoPriority = async (id: string, p: string) => {
-    setTodos(prev => prev.map(x => x.id === id ? { ...x, priority: p } : x));
+    patchTodos(prev => prev.map(x => x.id === id ? { ...x, priority: p } : x));
     await supabase.from("personal_todos").update({ priority: p }).eq("id", id);
   };
   const deleteTodo = async (id: string) => {
-    setTodos(prev => prev.filter(x => x.id !== id));
+    patchTodos(prev => prev.filter(x => x.id !== id));
     await supabase.from("personal_todos").delete().eq("id", id);
     toast.success("Deleted");
   };
@@ -1024,19 +1024,19 @@ export default function HomePage() {
       const { data, error } = await supabase.functions.invoke("generate-smart-nudges");
       if (error) throw error;
       toast.success(`Generated ${data?.count ?? 0} nudges`);
-      loadNudges();
+      invalidateNudges();
     } catch (e: any) {
       toast.error(e.message || "Failed to refresh nudges");
       setLoadingNudges(false);
     }
   };
   const dismissNudge = async (id: string) => {
-    setNudges(prev => prev.filter(n => n.id !== id));
+    patchNudges(prev => prev.filter(n => n.id !== id));
     await supabase.from("smart_nudges").update({ dismissed: true }).eq("id", id);
   };
   const snoozeNudge = async (id: string, days: number) => {
     const until = addDays(new Date(), days).toISOString();
-    setNudges(prev => prev.filter(n => n.id !== id));
+    patchNudges(prev => prev.filter(n => n.id !== id));
     await supabase.from("smart_nudges").update({ snoozed_until: until }).eq("id", id);
     toast.success(`Snoozed for ${days}d`);
   };
@@ -1044,15 +1044,15 @@ export default function HomePage() {
   // Notifications
   const markAllRead = async () => {
     if (!user) return;
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    patchNotifications(prev => prev.map(n => ({ ...n, read: true })));
     await supabase.from("user_notifications").update({ read: true }).eq("user_id", user.id).eq("read", false);
   };
   const markRead = async (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    patchNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
     await supabase.from("user_notifications").update({ read: true }).eq("id", id);
   };
   const dismissNotification = async (id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
+    patchNotifications(prev => prev.filter(n => n.id !== id));
     await supabase.from("user_notifications").delete().eq("id", id);
   };
 
@@ -1598,7 +1598,7 @@ export default function HomePage() {
                     <CxDatePickerPopover
                       value={t.due_date}
                       onChange={async (v) => {
-                        setTodos(prev => prev.map(x => x.id === t.id ? { ...x, due_date: v } : x));
+                        patchTodos(prev => prev.map(x => x.id === t.id ? { ...x, due_date: v } : x));
                         const { error } = await supabase.from("personal_todos").update({ due_date: v }).eq("id", t.id);
                         if (error) toast.error(error.message);
                       }}
