@@ -923,7 +923,7 @@ export default function HomePage() {
       } as any).select().maybeSingle();
       if (inserted) setDealTasks(prev => [...prev, inserted as any]);
     }
-  }, [loadTasks, loadTodos, dealTasks]);
+  }, [loadTasks, invalidateTodos, dealTasks]);
 
   const handleKanbanDelete = useCallback(async (id: string) => {
     const todoId = fromTodoTaskId(id);
@@ -938,7 +938,7 @@ export default function HomePage() {
     const { error } = await supabase.from("deal_tasks").delete().eq("id", id);
     if (error) toast.error(error.message);
     else toast.success("Task deleted");
-  }, [loadTodos]);
+  }, [invalidateTodos]);
 
   // Account activity (replaces Recently Viewed) — recomputes when alias set changes
   const { items: activityItems, loading: loadingActivity } = useAccountActivity(aliasesRef.current, !!displayName, 25, isAdmin);
@@ -999,7 +999,6 @@ export default function HomePage() {
 
   // Smart nudges actions
   const refreshNudges = async () => {
-    setLoadingNudges(true);
     try {
       const { data, error } = await supabase.functions.invoke("generate-smart-nudges");
       if (error) throw error;
@@ -1007,7 +1006,6 @@ export default function HomePage() {
       invalidateNudges();
     } catch (e: any) {
       toast.error(e.message || "Failed to refresh nudges");
-      setLoadingNudges(false);
     }
   };
   const dismissNudge = async (id: string) => {
