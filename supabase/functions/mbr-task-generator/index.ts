@@ -4,10 +4,11 @@
 // 2) Update overdue: for any mbr_entries row whose scheduled_date is in the past
 //    by > 24h with status != 'Done' and no notes, create an "Update MBR notes" task.
 // Deduped via mbr_reminder_log on (mbr_entry_id, reminder_type, sent_date).
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const APP_ORIGIN = Deno.env.get("APP_ORIGIN") || "https://peppercx.lovable.app";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -48,6 +49,8 @@ Deno.serve(async (req) => {
     const thirtyDaysAgo = addDays(today, -30);
     const mStart = ymd(monthStart(today));
     const mEnd = ymd(monthEnd(today));
+    const daysToMonthEnd = Math.ceil((monthEnd(today).getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+    const isEndOfMonthWindow = daysToMonthEnd <= 7; // create Schedule MBR tasks only in the last week
 
     // ── Part 1: scheduling pending ─────────────────────────────
     const { data: deals } = await admin
@@ -72,34 +75,46 @@ Deno.serve(async (req) => {
         .not("scheduled_date", "is", null);
       const hasSchedule = new Set((scheduled || []).map(r => r.deal_id));
 
+      // Auto-close any open Schedule MBR auto-tasks for deals that now have a schedule.
+      if (hasSchedule.size > 0) {
+        await admin
+          .from("deal_tasks")
+          .update({ stage: "Done" })
+          .in("deal_id", Array.from(hasSchedule))
+          .eq("phase", "MBR")
+          .neq("stage", "Done")
+          .ilike("title", "Schedule MBR%");
+      }
+
       for (const d of eligible) {
         if (hasSchedule.has(d.id)) continue;
+        if (!isEndOfMonthWindow) continue;
         const assignee = d.principal_bopm || d.senior_bopm || d.bopm || "";
         if (!assignee) continue;
 
-        // Dedupe against open auto-gen Schedule-MBR task this month.
+        // Dedupe against any auto-gen Schedule-MBR task for this deal this month
+        // (regardless of stage) so we never recreate.
         const { data: existing } = await admin
           .from("deal_tasks")
           .select("id")
           .eq("deal_id", d.id)
-          .eq("assignee", assignee)
           .eq("phase", "MBR")
-          .eq("auto_regen", true)
-          .neq("stage", "Done")
           .ilike("title", "Schedule MBR%")
+          .gte("created_at", `${mStart}T00:00:00Z`)
           .limit(1);
         if (existing && existing.length > 0) continue;
 
-        const due = ymd(addDays(today, 7));
+        const due = mEnd;
+        const recordUrl = `${APP_ORIGIN}/deals/${d.id}?tab=MBR&action=record`;
         const { error: tErr } = await admin.from("deal_tasks").insert({
           deal_id: d.id,
           title: `Schedule MBR — ${d.deal_name || d.deal_id}`,
-          description: `Auto-generated: no MBR is scheduled for ${mStart.slice(0, 7)}. Please schedule a session.`,
+          description: `Auto-generated: no MBR is scheduled for ${mStart.slice(0, 7)}. Please schedule a session.\n\nRecord the MBR directly: ${recordUrl}`,
           assignee,
           stage: "To Do",
           urgency: "High",
           phase: "MBR",
-          auto_regen: true,
+          auto_regen: false,
           end_date: due,
         } as any);
         if (!tErr) p1Created++;
@@ -135,22 +150,22 @@ Deno.serve(async (req) => {
         .eq("deal_id", e.deal_id)
         .eq("assignee", assignee)
         .eq("phase", "MBR")
-        .eq("auto_regen", true)
         .neq("stage", "Done")
         .ilike("title", "Update MBR%")
         .limit(1);
       if (existingT && existingT.length > 0) continue;
 
       const due = ymd(addDays(today, 1));
+      const recordUrl = `${APP_ORIGIN}/deals/${e.deal_id}?tab=MBR&action=record`;
       const { error: tErr } = await admin.from("deal_tasks").insert({
         deal_id: e.deal_id,
         title: `Update MBR notes — ${deal.deal_name || deal.deal_id}`,
-        description: `Auto-generated: scheduled MBR on ${e.scheduled_date} hasn't been updated in the app. Please add notes & sentiment.`,
+        description: `Auto-generated: scheduled MBR on ${e.scheduled_date} hasn't been updated in the app. Please add notes & sentiment.\n\nRecord the MBR directly: ${recordUrl}`,
         assignee,
         stage: "To Do",
         urgency: "High",
         phase: "MBR",
-        auto_regen: true,
+        auto_regen: false,
         end_date: due,
       } as any);
       if (!tErr) {
