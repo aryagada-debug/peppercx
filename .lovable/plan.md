@@ -1,72 +1,51 @@
-## Goal
-Use the 5 uploaded CSVs (Neema, Sneha, Sumit, Shaw, Aamir — ~208 deal rows total) to **replace** deal-level values and **replace** staffing allocations in `staffing_deals` / `staffing_assignments`, while keeping `staffing_deals.id` (the PC+DealID primary key) untouched.
+## 1. Slack chatbot: resolve user mentions and shorten URLs
 
-## Matching strategy
-The CSVs don't have an explicit deal ID column, but they do carry both `PC Code` and `New Deal ID- Formulated`. The `staffing_deals.id` is exactly `{pc_code}_{new_deal_id_formulated}`. Spot-check on 4 sample rows from Neema/Sumit confirmed an exact match for all 4.
+**File:** `src/components/deals/SlackChatBot.tsx` (also reuse the same logic for `slack-channel-history`-fed text).
 
-- **Primary key:** `id = pc_code + "_" + new_deal_id_formulated`
-- **Fallback (only if primary miss):** match by `lower(account)` + `lower(deal_name)` within the VSD's name
-- Unmatched rows will be reported (not inserted as new deals).
+Slack sends raw markup inside `text`:
+- User mentions: `<@U12345>` or `<@U12345|name>`
+- Links: `<http://example.com>` or `<http://example.com|label>`
+- Channels: `<#C123|name>`
 
-## What gets replaced
+Replace the plain `{m.text}` render with a small formatter that:
+- Builds a `Map<userId, displayName>` from the messages already fetched (the history function already resolves `user` → name; we extend it to also return a `users` map keyed by Slack user ID so the frontend can rewrite `<@Uxxx>` tokens inside message text).
+- Splits text into tokens and renders:
+  - `<@Uxxx>` / `<@Uxxx|name>` → `@DisplayName` (badge styled, primary color). If unknown, fetch via a small lookup call (cached) or fall back to the inline name.
+  - `<http…|label>` and bare `<http…>` → a single clickable token labelled **URL** (opens in new tab, `rel="noopener"`).
+  - `<#Cxxx|name>` → `#name`.
+- Decodes Slack entities (`&amp;`, `&lt;`, `&gt;`).
 
-### Deal-level fields (per matched `staffing_deals` row)
-From the CSV columns: `MRR`, `Duration`, `Retainer Deal Value`, `Non-Retainer Deal Value`, `Total Deal Value`, `Deal Value Lost`, `Net Deal Value`, `Total MIS Recognition`, `Total Pending Recognition`, `Consumption of Deal Value`, `MIS vs Consumption`, `Invoiced Deal Value`, `Undelivered Funnel`, `Start Month`, `End Month`, `Deal Target Status`, `Deal Status from New Deal Master`, `Pod Name`, `VSD` (from filename), `Validation by Central CX`, `Staffing Status`, `Month of Closed Won`, plus `TCV (USD)` where present (Aamir).
+**Backend change** in `supabase/functions/slack-channel-history/index.ts`: in addition to `messages`, also scan each message's `text` for `<@U…>` IDs, resolve them via `users.info` (same cached batch we already do), and return a `users: { [id]: displayName }` map so the frontend can rewrite mentions without extra round-trips.
 
-Currency strings (`₹6,912,000`, `"6,912,000"`) get stripped to numbers. Empty/`-`/`Not Applicable` → null/0.
+No DB changes.
 
-### Staffing allocations (`staffing_assignments`)
-For every matched deal:
-1. `DELETE FROM staffing_assignments WHERE deal_id = <id>`
-2. Re-insert one row per `(role_key, person)` pair from the CSV where the person cell is non-empty and not `-` / `Not Applicable` / `TBD`.
+## 2. MBR auto-task: end-of-month, auto-close, no recurrence, record link
 
-### Role column → `role_key` mapping
-Header-driven (each CSV has a different column count: 73 / 106 / 63 / 106 / 105). Mapped to existing `role_key` values already in the DB:
+**File:** `supabase/functions/mbr-task-generator/index.ts`
 
-| CSV column (current/new variant) | `role_key` |
-|---|---|
-| VSD | `vsd` |
-| Principal BOPM | `principal_bopm` |
-| Senior BOPM | `senior_bopm` |
-| Junior BOPM / BOPM / Intern | `bopm` |
-| Content Lead | `content_lead` |
-| Senior Editor / Sr Content Editor | `senior_editor` |
-| Managing Editor | `managing_editor` |
-| SEO Leader | `seo_leader` |
-| SEO Growth Lead / Growth Lead | `seo_group_head` |
-| SEO Operations / Manager 1 | `seo_manager` |
-| Manager 2 | `sr_seo_manager` |
-| Strategy CD | `strategy_cd` |
-| Strategy ACD | `strategy_acd` |
-| CD-Copy / ACD-Copy / Sr/Jr Copywriter | `acd_copy` / `sr_copywriter` / `jr_copywriter` (CD-Copy → `acd_copy` per existing data) |
-| Sr CD-Art / ACD-Art / Art Director / Sr/Jr Designer | `sr_cd_art` / `acd_art` / `art_director` / `sr_designer` / `jr_designer` |
-| Production Head | (no key — skipped) |
-| AD - Video PM | `ad_video_pm` |
-| Video PM/ACP | `video_pm` |
-| Video Editor 1/2 | `video_editor_1` (Editor 2 same key with sequence suffix in `id`) |
-| Influencer Team | `influencer` |
-| Performance and Growth | `perf_growth` |
+Changes to Part 1 ("Schedule MBR"):
+- Only create the task in the **last 7 days of the current month** (skip otherwise). This makes it "appear at the end of the month".
+- Set `auto_regen: false` so it does not recur.
+- `end_date` = last day of the month (not today+7).
+- Add a record link into `description`, e.g.:
+  ```
+  Record the MBR directly: <APP_ORIGIN>/deals/<deal.id>?tab=MBR&action=record
+  ```
+  `APP_ORIGIN` comes from a new env var (e.g. `APP_ORIGIN`, defaulting to the published URL).
 
-Where a CSV has both "Old X" and "New X" columns, only the **New** value is used (the "Old" column is historical). The `% Mapping` column to the right of each role becomes `allocation_pct`.
+New Part 1b — **auto-close**:
+- For each Active deal that **does** have a scheduled MBR for the current month, find any open auto-gen task with `phase = 'MBR'`, `auto_regen = false` (or legacy `true`), title starting with `Schedule MBR`, and update `stage = 'Done'`. This handles users who scheduled after the task was created.
 
-### People resolution
-Names are matched to `staffing_people.name` case-insensitively. For names that don't resolve (typed-in placeholders like `New US BOPM TBH 2`, `India FMCG Creative BOPM 3`, freelancer text, typos):
-- I'll produce a "needs resolution" report grouped by name with proposed action: create as `tbh=true` placeholder vs skip.
-- **Recommendation:** auto-create placeholders for names containing `TBH` / `TBA` / `New ... BOPM`; skip and report everything else. Final list will be in the dry-run output for your approval before the writes run.
+Part 2 ("Update MBR notes") — also flip `auto_regen` to `false` to match the "no recurring" rule; keep dedup via `mbr_reminder_log`.
 
-## Execution
-1. Write a Python script `/tmp/import_staffing.py` that:
-   - Parses each CSV with the right header layout per VSD
-   - Resolves deals by composite key + reports misses
-   - Resolves people + reports misses
-   - Outputs a dry-run summary: matched deals, unmatched deals, unknown people, total assignments to delete vs insert, deal-field diffs
-2. You review the dry-run report.
-3. On approval, run the same script in apply mode using `supabase--insert` migrations (per-deal UPDATE + DELETE/INSERT batches) inside a transaction per VSD file.
+**Frontend hook (optional but recommended):** in `src/components/mbr/ScheduleOnlyDialog.tsx` / wherever an MBR `scheduled_date` is saved (`useMBRData`), after a successful upsert that sets `scheduled_date` in the current month, run the same close-task update so the kanban reflects immediately without waiting for the daily cron.
+
+**Record action in UI:** in `src/pages/DealDetail.tsx` (or the MBR tab component), read `?action=record` from the URL and auto-open the existing MBR notes drawer / `MBRInputDrawer` so the link in the task description lands users directly in the record flow.
+
+No DB schema changes.
 
 ## Technical notes
-- All writes go through `supabase--insert` (data, not schema). No migrations needed — schema already supports everything.
-- `staffing_deals.id` is preserved; no deletes/inserts on `staffing_deals`, only updates.
-- Realtime subscribers on `staffing_assignments` will see the replacement as delete+insert events per deal.
 
-## Open question (will be resolved in dry-run output, but flagging now)
-For unknown person names: auto-create as TBH placeholder, or strict-skip with report? Default = the hybrid above (auto-create only for explicit TBH-style names).
+- The Slack history function already resolves the message author IDs; we extend the same resolved `nameMap` lookup to cover mention IDs found inside `text` so we avoid N+1 calls.
+- All edge-function edits keep the existing `npm:@supabase/supabase-js@2` import style (no other functions touched).
+- The mbr-task-generator already deploys with the daily cron; behaviour change is purely in logic, no schedule changes needed.
