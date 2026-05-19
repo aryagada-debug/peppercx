@@ -1028,6 +1028,17 @@ export default function Clients() {
                           </div>
                         </td>
                       )}
+                      {isVisible("bopmOnly") && (
+                        <td className="py-2 px-3 truncate">
+                          <button
+                            onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "Operations", preSelectedName: (deal as any).bopm || undefined })}
+                            className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate block text-left w-full"
+                            title={(deal as any).bopm || ""}
+                          >
+                            {(deal as any).bopm || <span className="text-muted-foreground">— None —</span>}
+                          </button>
+                        </td>
+                      )}
                       {isVisible("contentLead") && (
                         <td className="py-2 px-3 truncate">
                           <div className="flex items-center gap-1 group/cell">
