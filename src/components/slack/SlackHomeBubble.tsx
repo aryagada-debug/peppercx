@@ -7,12 +7,22 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { SlackDmPanel } from "./SlackDmPanel";
+import { renderSlackText } from "./SlackText";
 
 interface Channel { id: string; name: string; is_private: boolean }
 interface ChannelMsg { id: string; user_name: string; text: string; source: string; created_at: string; slack_ts: string; dm_thread_id?: string | null }
 interface ChannelListResponse { channels?: Channel[]; error?: string }
-interface SlackHistoryResponse { messages?: ChannelMsg[]; error?: string }
+interface SlackHistoryResponse { messages?: ChannelMsg[]; users?: Record<string, string>; error?: string }
 interface SlackSendResponse { ok?: boolean; ts?: string; error?: string }
+interface SlackWorkspaceUser { id: string; name: string; real_name: string; display_name: string; email: string }
+interface SlackUserListResponse { users?: SlackWorkspaceUser[]; error?: string }
+type MentionOption = { id: string; label: string; token: string; sub?: string };
+
+const BROADCASTS: MentionOption[] = [
+  { id: "channel", label: "channel", token: "<!channel>", sub: "Notify everyone in this channel" },
+  { id: "here", label: "here", token: "<!here>", sub: "Notify active members" },
+  { id: "everyone", label: "everyone", token: "<!everyone>", sub: "Notify the whole workspace" },
+];
 
 /**
  * Unified Slack bubble for the Home page: lets the user choose between
@@ -71,10 +81,17 @@ function ChannelChat() {
   const [loadingChannels, setLoadingChannels] = useState(false);
   const [chSearch, setChSearch] = useState("");
   const [messages, setMessages] = useState<ChannelMsg[]>([]);
+  const [userNames, setUserNames] = useState<Record<string, string>>({});
+  const [wsUsers, setWsUsers] = useState<SlackWorkspaceUser[]>([]);
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [mentionStart, setMentionStart] = useState(-1);
+  const [mentionIdx, setMentionIdx] = useState(0);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const loadChannels = async () => {
     setLoadingChannels(true);
@@ -112,6 +129,7 @@ function ChannelChat() {
           return;
         }
         setMessages(data?.messages || []);
+        setUserNames(data?.users || {});
       });
     const ch = supabase
       .channel(`slack-home-ch-${channelId}`)
@@ -128,6 +146,16 @@ function ChannelChat() {
       .subscribe();
     return () => { cancelled = true; supabase.removeChannel(ch); };
   }, [channelId]);
+
+  useEffect(() => {
+    if (!channelId || wsUsers.length > 0) return;
+    supabase.functions.invoke<SlackUserListResponse>("slack-list-users").then(({ data, error }) => {
+      if (error || data?.error) return;
+      const users = data?.users || [];
+      setWsUsers(users);
+      setUserNames(prev => users.reduce((acc, u) => ({ ...acc, [u.id]: u.display_name || u.real_name || u.name || u.id }), prev));
+    });
+  }, [channelId, wsUsers.length]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -150,6 +178,53 @@ function ChannelChat() {
       return;
     }
     setDraft("");
+  };
+
+  const mentionOptions = useMemo<MentionOption[]>(() => {
+    const q = mentionQuery.trim().toLowerCase();
+    const broadcasts = BROADCASTS.filter(b => !q || b.label.startsWith(q));
+    const users = wsUsers
+      .filter(u => !q || u.display_name.toLowerCase().includes(q) || u.real_name.toLowerCase().includes(q) || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
+      .slice(0, 8)
+      .map<MentionOption>(u => ({ id: u.id, label: u.display_name || u.real_name || u.name || u.id, token: `<@${u.id}>`, sub: u.email || u.real_name }));
+    return [...broadcasts, ...users];
+  }, [mentionQuery, wsUsers]);
+
+  const onDraftChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    setDraft(v);
+    const caret = e.target.selectionStart ?? v.length;
+    const upto = v.slice(0, caret);
+    const at = upto.lastIndexOf("@");
+    if (at >= 0 && (at === 0 || /\s/.test(upto[at - 1]))) {
+      const q = upto.slice(at + 1);
+      if (!/\s/.test(q)) {
+        setMentionStart(at);
+        setMentionQuery(q);
+        setMentionIdx(0);
+        setMentionOpen(true);
+        return;
+      }
+    }
+    setMentionOpen(false);
+    setMentionStart(-1);
+  };
+
+  const insertMention = (opt: MentionOption) => {
+    if (mentionStart < 0) return;
+    const before = draft.slice(0, mentionStart);
+    const after = draft.slice(mentionStart + 1 + mentionQuery.length);
+    const insert = `${opt.token} `;
+    const next = before + insert + after;
+    setDraft(next);
+    setMentionOpen(false);
+    setMentionStart(-1);
+    setMentionQuery("");
+    requestAnimationFrame(() => {
+      const pos = before.length + insert.length;
+      inputRef.current?.focus();
+      inputRef.current?.setSelectionRange(pos, pos);
+    });
   };
 
   if (!channelId || pickerOpen) {
@@ -203,17 +278,46 @@ function ChannelChat() {
               <span className={cn("font-medium", m.source === "app" ? "text-primary" : "text-foreground")}>{m.user_name || "Unknown"}</span>
               <span className="text-[9px] text-muted-foreground">{new Date(m.created_at).toLocaleString([], { hour: "2-digit", minute: "2-digit", month: "short", day: "numeric" })}</span>
             </div>
-            <div className="whitespace-pre-wrap break-words">{m.text}</div>
+            <div className="whitespace-pre-wrap break-words">{renderSlackText(m.text, userNames)}</div>
           </div>
         ))}
       </div>
-      <div className="px-2 py-2 border-t border-border flex items-center gap-1.5">
+      <div className="px-2 py-2 border-t border-border flex items-center gap-1.5 relative">
+        {mentionOpen && mentionOptions.length > 0 && (
+          <div className="absolute bottom-full left-2 right-2 mb-1 max-h-56 overflow-y-auto rounded-md border border-border bg-popover shadow-lg z-10">
+            {mentionOptions.map((opt, i) => (
+              <button
+                key={opt.id}
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); insertMention(opt); }}
+                onMouseEnter={() => setMentionIdx(i)}
+                className={cn(
+                  "w-full text-left px-2.5 py-1.5 text-xs flex items-center gap-2 border-b border-border/40 last:border-0",
+                  i === mentionIdx ? "bg-accent/50" : "hover:bg-accent/30"
+                )}
+              >
+                <span className="font-medium text-primary">@{opt.label}</span>
+                {opt.sub && <span className="text-[10px] text-muted-foreground truncate">{opt.sub}</span>}
+              </button>
+            ))}
+          </div>
+        )}
         <Input
+          ref={inputRef}
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder={`Message #${channelName}…`}
+          onChange={onDraftChange}
+          placeholder={`Message #${channelName}… Type @ to mention`}
           className="h-8 text-xs"
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+          onBlur={() => setTimeout(() => setMentionOpen(false), 120)}
+          onKeyDown={(e) => {
+            if (mentionOpen && mentionOptions.length > 0) {
+              if (e.key === "ArrowDown") { e.preventDefault(); setMentionIdx(i => (i + 1) % mentionOptions.length); return; }
+              if (e.key === "ArrowUp") { e.preventDefault(); setMentionIdx(i => (i - 1 + mentionOptions.length) % mentionOptions.length); return; }
+              if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); insertMention(mentionOptions[mentionIdx]); return; }
+              if (e.key === "Escape") { e.preventDefault(); setMentionOpen(false); return; }
+            }
+            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+          }}
           disabled={sending}
         />
         <Button size="sm" className="h-8 px-2" onClick={send} disabled={sending || !draft.trim()}>
