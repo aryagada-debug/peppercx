@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { SlackDmPanel } from "./SlackDmPanel";
-import { renderSlackText } from "@/components/deals/SlackChatBot";
+import { renderSlackText } from "./SlackText";
 
 interface Channel { id: string; name: string; is_private: boolean }
 interface ChannelMsg { id: string; user_name: string; text: string; source: string; created_at: string; slack_ts: string; dm_thread_id?: string | null }
