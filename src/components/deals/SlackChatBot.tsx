@@ -8,7 +8,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { renderSlackText } from "@/components/slack/SlackText";
+import { getSlackMentionLabels, normalizeSlackMentionsForSend, renderSlackText, slackMentionToken } from "@/components/slack/SlackText";
 
 interface SlackChatBotProps {
   dealId: string;
@@ -35,6 +35,7 @@ interface SlackUserListResponse { users?: SlackWorkspaceUser[]; error?: string }
 
 type MentionOption = { id: string; label: string; token: string; sub?: string };
 const BROADCASTS: MentionOption[] = [
+  { id: "all", label: "all", token: "<!channel|all>", sub: "Notify everyone in this channel" },
   { id: "channel", label: "channel", token: "<!channel>", sub: "Notify everyone in this channel" },
   { id: "here", label: "here", token: "<!here>", sub: "Notify active members" },
   { id: "everyone", label: "everyone", token: "<!everyone>", sub: "Notify the whole workspace" },
