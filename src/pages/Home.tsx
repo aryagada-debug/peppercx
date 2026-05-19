@@ -112,6 +112,26 @@ export default function HomePage() {
   const [staffingName, setStaffingName] = useState("");
   const [staffingPersonId, setStaffingPersonId] = useState<string | null>(null);
 
+  // React Query–backed lists (replaces loadTodos / loadNudges / loadNotifications).
+  // The hooks own their realtime subscriptions and re-fetch on tab focus.
+  const {
+    data: todos = [],
+    isLoading: loadingTodos,
+    patch: patchTodos,
+    invalidate: invalidateTodos,
+  } = useHomeTodosQuery(user?.id, staffingPersonId);
+  const {
+    data: notifications = [],
+    isLoading: loadingNotifs,
+    patch: patchNotifications,
+  } = useHomeNotificationsQuery(user?.id);
+  const {
+    data: nudges = [],
+    isLoading: loadingNudges,
+    patch: patchNudges,
+    invalidate: invalidateNudges,
+  } = useHomeNudgesQuery(user?.id);
+
   // Per-card loading states (staggered)
   const [loadingTasks, setLoadingTasks] = useState(true);
   const [loadingFlags, setLoadingFlags] = useState(true);
