@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { formatINR } from "@/lib/csvTargets";
 import { useCurrencyVersion } from "@/contexts/CurrencyContext";
 import { Link, useNavigate } from "react-router-dom";
@@ -41,7 +41,6 @@ import { CxDatePickerPopover } from "@/components/cx/CxDatePickerPopover";
 import { useAccountActivity } from "@/hooks/useAccountActivity";
 import { Activity as ActivityIcon } from "lucide-react";
 import { useVsdUsers, useBopmDirectory, nameKey } from "@/hooks/queries/legacy";
-import { useTableSubscription } from "@/lib/realtime";
 import {
   useHomeTodosQuery,
   useHomeNotificationsQuery,
