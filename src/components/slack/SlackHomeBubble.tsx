@@ -328,6 +328,15 @@ function ChannelChat() {
           {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
         </Button>
       </div>
+      {getSlackMentionLabels(draft, userNames).length > 0 && (
+        <div className="px-2 pb-2 flex flex-wrap gap-1">
+          {getSlackMentionLabels(draft, userNames).map(label => (
+            <span key={label} className="rounded border border-border bg-muted/40 px-1.5 py-0.5 text-[10px] text-primary">
+              {label}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
