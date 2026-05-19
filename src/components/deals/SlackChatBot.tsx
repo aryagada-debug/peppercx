@@ -16,7 +16,7 @@ function decodeEntities(s: string) {
 
 export function renderSlackText(text: string, users: Record<string, string>) {
   if (!text) return null;
-  const tokenRe = /<(@[UW][A-Z0-9]+(?:\|[^>]+)?|#[CG][A-Z0-9]+(?:\|[^>]+)?|https?:\/\/[^>]+)>/g;
+  const tokenRe = /<(@[UW][A-Z0-9]+(?:\|[^>]+)?|#[CG][A-Z0-9]+(?:\|[^>]+)?|!(?:channel|here|everyone|subteam\^[A-Z0-9]+(?:\|[^>]+)?)|https?:\/\/[^>]+)>/g;
   const nodes: React.ReactNode[] = [];
   let last = 0;
   let m: RegExpExecArray | null;
@@ -31,6 +31,14 @@ export function renderSlackText(text: string, users: Record<string, string>) {
     } else if (inner.startsWith("#")) {
       const [, label] = inner.slice(1).split("|");
       nodes.push(<span key={key++} className="text-primary font-medium">#{label || inner.slice(1)}</span>);
+    } else if (inner.startsWith("!")) {
+      const body = inner.slice(1);
+      let label = body;
+      if (body.startsWith("subteam^")) {
+        const parts = body.split("|");
+        label = parts[1] || "group";
+      }
+      nodes.push(<span key={key++} className="text-primary font-medium">@{label}</span>);
     } else {
       const url = inner.split("|")[0];
       nodes.push(
