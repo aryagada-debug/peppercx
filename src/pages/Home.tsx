@@ -349,8 +349,8 @@ export default function HomePage() {
     toast.success("Task added");
     setAddingTask(false);
     setAddTaskDealId("");
-    loadTasks();
-  }, [addTaskDealId, staffingName, displayName, loadTasks, user]);
+    invalidateTasks();
+  }, [addTaskDealId, staffingName, displayName, invalidateTasks, user]);
 
   // Create an internal personal todo, optionally assigned to another teammate.
   const handleInternalTaskSubmit = useCallback(async (data: {
@@ -413,22 +413,6 @@ export default function HomePage() {
     invalidateTodos();
   }, [user, displayName, todos.length, invalidateTodos]);
 
-  // Initial load - staggered
-  useEffect(() => {
-    if (!user) return;
-    (async () => {
-      // Profile / quota / recents / activeDeals are now React Query–owned and
-      // auto-fetch as soon as their inputs (user, aliases, accessIds) are
-      // ready. We only need to kick the still-imperative cascading loaders.
-      loadTasks();
-      // Then signals
-      setTimeout(() => {
-        loadFlags();
-        loadMyDeals();
-      }, 100);
-    })();
-  }, [user, loadTasks, loadFlags, loadMyDeals]);
-
   // Slack mentions depend on the profile's staffing person → resolve once
   // the profile query lands.
   useEffect(() => {
@@ -440,23 +424,13 @@ export default function HomePage() {
     })();
   }, [user, staffingPersonId, loadMentions]);
 
-  // Realtime for the remaining imperative loader (deal_tasks). Todos /
-  // notifications / nudges own their own subscriptions inside their
-  // React Query hooks.
-  const userId = user?.id;
-  useTableSubscription({
-    table: "deal_tasks",
-    enabled: !!userId,
-    patcher: useCallback(() => { loadTasks(); }, [loadTasks]),
-  });
-
   // Visible deal/cx tasks, scoped by the "view-as" filter.
   const aliasMatches = useCallback((names: string[], aliases: Set<string>) => {
     return names.some(n => !!n && aliases.has(n.trim().toLowerCase()));
   }, []);
 
   const taskScopePredicate = useMemo(() => {
-    const aliasSet = aliasesRef.current;
+    const aliasSet = profileData.aliases;
     if (taskViewAs === "all") {
       if (isAdmin) return (_t: DealTaskRow | CxTaskRow) => true;
       const teamNames = new Set(viewAsPeople.map(p => nameKey(p.name)));
