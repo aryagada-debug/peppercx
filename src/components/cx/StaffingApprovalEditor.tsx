@@ -5,7 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useStaffingData } from "@/hooks/useStaffingData";
+import { useStaffingQueries } from "@/hooks/queries/useStaffingQueries";
 import { updateApprovalRequestDetails, type ApprovalRequestRow } from "@/lib/approvals";
 import { toast } from "sonner";
 
@@ -21,7 +21,7 @@ interface Props {
  * current engagements and free capacity (same UX as the request dialog).
  */
 export function StaffingApprovalEditor({ request, onSaved }: Props) {
-  const { people, deals, assignments } = useStaffingData();
+  const { people, deals, assignments } = useStaffingQueries();
   const payload = (request.payload || {}) as any;
 
   const initialPersonId: string = payload.personId || "";
