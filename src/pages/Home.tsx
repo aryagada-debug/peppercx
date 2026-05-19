@@ -42,6 +42,11 @@ import { useAccountActivity } from "@/hooks/useAccountActivity";
 import { Activity as ActivityIcon } from "lucide-react";
 import { useVsdUsers, useBopmDirectory, nameKey } from "@/hooks/queries/legacy";
 import { useTableSubscription } from "@/lib/realtime";
+import {
+  useHomeTodosQuery,
+  useHomeNotificationsQuery,
+  useHomeNudgesQuery,
+} from "@/hooks/queries/useHomeListsQueries";
 
 const DEAL_STAGES = ["To Do", "In Progress", "In Review", "Done", "Dropped"] as const;
 
@@ -107,12 +112,29 @@ export default function HomePage() {
   const [staffingName, setStaffingName] = useState("");
   const [staffingPersonId, setStaffingPersonId] = useState<string | null>(null);
 
+  // React Query–backed lists (replaces loadTodos / loadNudges / loadNotifications).
+  // The hooks own their realtime subscriptions and re-fetch on tab focus.
+  const {
+    data: todos = [],
+    isLoading: loadingTodos,
+    patch: patchTodos,
+    invalidate: invalidateTodos,
+  } = useHomeTodosQuery(user?.id, staffingPersonId);
+  const {
+    data: notifications = [],
+    isLoading: loadingNotifs,
+    patch: patchNotifications,
+  } = useHomeNotificationsQuery(user?.id);
+  const {
+    data: nudges = [],
+    isLoading: loadingNudges,
+    patch: patchNudges,
+    invalidate: invalidateNudges,
+  } = useHomeNudgesQuery(user?.id);
+
   // Per-card loading states (staggered)
   const [loadingTasks, setLoadingTasks] = useState(true);
   const [loadingFlags, setLoadingFlags] = useState(true);
-  const [loadingTodos, setLoadingTodos] = useState(true);
-  const [loadingNudges, setLoadingNudges] = useState(true);
-  const [loadingNotifs, setLoadingNotifs] = useState(true);
   const [loadingQuota, setLoadingQuota] = useState(true);
   const [loadingRecents, setLoadingRecents] = useState(true);
 
@@ -124,17 +146,14 @@ export default function HomePage() {
   const [rgyFlags, setRgyFlags] = useState<RGYFlagRow[]>([]);
   const [inactivity, setInactivity] = useState<InactivityRow[]>([]);
   const [expiringDeals, setExpiringDeals] = useState<DealLite[]>([]);
-  const [todos, setTodos] = useState<PersonalTodo[]>([]);
   const [editingDealTask, setEditingDealTask] = useState<DealTaskRow | null>(null);
   const [dealAssignmentsMap, setDealAssignmentsMap] = useState<Record<string, Set<string>>>({});
   const [addingTask, setAddingTask] = useState(false);
   const [addTaskDealId, setAddTaskDealId] = useState<string>("");
   const [allActiveDeals, setAllActiveDeals] = useState<{ id: string; deal_name: string; account: string }[]>([]);
-  const [nudges, setNudges] = useState<SmartNudge[]>([]);
   // Deal IDs where the viewer is the VSD (active deals only). Tasks on these
   // deals are visible to the VSD even when assigned to a team member.
   const [myVsdDealIds, setMyVsdDealIds] = useState<Set<string>>(new Set());
-  const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [quota, setQuota] = useState<QuotaRow | null>(null);
   const [closedAmount, setClosedAmount] = useState(0);
   const [periodType, setPeriodType] = useState<"year">("year");
@@ -479,50 +498,6 @@ export default function HomePage() {
     setLoadingMyDeals(false);
   }, [user, isAdmin, isCapLead, isCapMember, accessDealIds, buildDealScopeOrClause]);
 
-  const loadTodos = useCallback(async () => {
-    if (!user) return;
-    setLoadingTodos(true);
-    const orParts = [
-      `user_id.eq.${user.id}`,
-      `assigned_by_user_id.eq.${user.id}`,
-    ];
-    if (staffingPersonId) {
-      orParts.push(`assignee_staffing_person_id.eq.${staffingPersonId}`);
-    }
-    const { data, error } = await supabase
-      .from("personal_todos")
-      .select("*")
-      .or(orParts.join(","))
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: true });
-    if (error) {
-      toast.error(error.message);
-      setTodos([]);
-      setLoadingTodos(false);
-      return;
-    }
-    setTodos((data as PersonalTodo[]) || []);
-    setLoadingTodos(false);
-  }, [user, staffingPersonId]);
-
-  const loadNudges = useCallback(async () => {
-    if (!user) return;
-    setLoadingNudges(true);
-    const { data } = await supabase.from("smart_nudges").select("*").eq("user_id", user.id).eq("dismissed", false)
-      .order("generated_at", { ascending: false }).limit(20);
-    setNudges((data as SmartNudge[]) || []);
-    setLoadingNudges(false);
-  }, [user]);
-
-  const loadNotifications = useCallback(async () => {
-    if (!user) return;
-    setLoadingNotifs(true);
-    const { data } = await supabase.from("user_notifications").select("*").eq("user_id", user.id)
-      .order("created_at", { ascending: false }).limit(30);
-    setNotifications((data as UserNotification[]) || []);
-    setLoadingNotifs(false);
-  }, [user]);
-
   const loadMentions = useCallback(async (slackUserId?: string | null) => {
     if (!slackUserId) { setMentions([]); return; }
     const { data } = await supabase.from("slack_messages")
@@ -707,8 +682,8 @@ export default function HomePage() {
     );
     setAddingTask(false);
     setAddTaskDealId("");
-    loadTodos();
-  }, [user, displayName, todos.length, loadTodos]);
+    invalidateTodos();
+  }, [user, displayName, todos.length, invalidateTodos]);
 
   // Initial load - staggered
   useEffect(() => {
@@ -718,13 +693,11 @@ export default function HomePage() {
       // Fast cards first
       loadQuota();
       loadTasks();
-      loadTodos();
       loadRecentsAndPins();
       loadActiveDeals();
       // Then signals
       setTimeout(() => {
         loadFlags();
-        loadNotifications();
         loadMyDeals();
         // Load slack mentions if we know the user's slack id
         (async () => {
@@ -735,32 +708,14 @@ export default function HomePage() {
         })();
       }, 100);
     })();
-  }, [user, loadProfile, loadQuota, loadTasks, loadTodos, loadFlags, loadNotifications, loadRecentsAndPins, loadMyDeals, loadMentions, loadActiveDeals]);
+  }, [user, loadProfile, loadQuota, loadTasks, loadFlags, loadRecentsAndPins, loadMyDeals, loadMentions, loadActiveDeals]);
 
   useEffect(() => { if (user) loadQuota(); }, [periodType, user, loadQuota]);
 
-  // Realtime: route table-level signals through the shared subscription
-  // bridge so we get channel-dedup + tab-visibility deferral for free.
-  // Loaders are still imperative for now (Phase 4b-ii will convert them to
-  // React Query); the patcher just re-runs the appropriate loader.
+  // Realtime for the remaining imperative loader (deal_tasks). Todos /
+  // notifications / nudges own their own subscriptions inside their
+  // React Query hooks.
   const userId = user?.id;
-  useTableSubscription({
-    table: "user_notifications",
-    filter: userId ? `user_id=eq.${userId}` : undefined,
-    enabled: !!userId,
-    patcher: useCallback(() => { loadNotifications(); }, [loadNotifications]),
-  });
-  useTableSubscription({
-    table: "smart_nudges",
-    filter: userId ? `user_id=eq.${userId}` : undefined,
-    enabled: !!userId,
-    patcher: useCallback(() => { loadNudges(); }, [loadNudges]),
-  });
-  useTableSubscription({
-    table: "personal_todos",
-    enabled: !!userId,
-    patcher: useCallback(() => { loadTodos(); }, [loadTodos]),
-  });
   useTableSubscription({
     table: "deal_tasks",
     enabled: !!userId,
@@ -913,9 +868,9 @@ export default function HomePage() {
       if (updates.urgency !== undefined) dbUpdates.priority = updates.urgency;
       if (updates.stage === "Done" || updates.stage === "Dropped") dbUpdates.done = true;
       if (Object.keys(dbUpdates).length === 0) return;
-      setTodos(prev => prev.map(t => t.id === todoId ? { ...t, ...dbUpdates } : t));
+      patchTodos(prev => prev.map(t => t.id === todoId ? { ...t, ...dbUpdates } : t));
       const { error } = await supabase.from("personal_todos").update(dbUpdates).eq("id", todoId);
-      if (error) { toast.error(error.message); loadTodos(); }
+      if (error) { toast.error(error.message); invalidateTodos(); }
       return;
     }
     const prevTask = dealTasks.find(t => t.id === id);
@@ -968,14 +923,14 @@ export default function HomePage() {
       } as any).select().maybeSingle();
       if (inserted) setDealTasks(prev => [...prev, inserted as any]);
     }
-  }, [loadTasks, loadTodos, dealTasks]);
+  }, [loadTasks, invalidateTodos, dealTasks]);
 
   const handleKanbanDelete = useCallback(async (id: string) => {
     const todoId = fromTodoTaskId(id);
     if (todoId) {
-      setTodos(prev => prev.filter(t => t.id !== todoId));
+      patchTodos(prev => prev.filter(t => t.id !== todoId));
       const { error } = await supabase.from("personal_todos").delete().eq("id", todoId);
-      if (error) { toast.error(error.message); loadTodos(); }
+      if (error) { toast.error(error.message); invalidateTodos(); }
       else toast.success("Task deleted");
       return;
     }
@@ -983,7 +938,7 @@ export default function HomePage() {
     const { error } = await supabase.from("deal_tasks").delete().eq("id", id);
     if (error) toast.error(error.message);
     else toast.success("Task deleted");
-  }, [loadTodos]);
+  }, [invalidateTodos]);
 
   // Account activity (replaces Recently Viewed) — recomputes when alias set changes
   const { items: activityItems, loading: loadingActivity } = useAccountActivity(aliasesRef.current, !!displayName, 25, isAdmin);
@@ -1004,19 +959,19 @@ export default function HomePage() {
     });
     if (error) { toast.error(error.message); return; }
     setNewTodo(""); setNewTodoDue(undefined);
-    loadTodos();
+    invalidateTodos();
   };
   const toggleTodo = async (t: PersonalTodo) => {
     const next = !t.done;
-    setTodos(prev => prev.map(x => x.id === t.id ? { ...x, done: next } : x));
+    patchTodos(prev => prev.map(x => x.id === t.id ? { ...x, done: next } : x));
     await supabase.from("personal_todos").update({ done: next }).eq("id", t.id);
   };
   const updateTodoPriority = async (id: string, p: string) => {
-    setTodos(prev => prev.map(x => x.id === id ? { ...x, priority: p } : x));
+    patchTodos(prev => prev.map(x => x.id === id ? { ...x, priority: p } : x));
     await supabase.from("personal_todos").update({ priority: p }).eq("id", id);
   };
   const deleteTodo = async (id: string) => {
-    setTodos(prev => prev.filter(x => x.id !== id));
+    patchTodos(prev => prev.filter(x => x.id !== id));
     await supabase.from("personal_todos").delete().eq("id", id);
     toast.success("Deleted");
   };
@@ -1044,24 +999,22 @@ export default function HomePage() {
 
   // Smart nudges actions
   const refreshNudges = async () => {
-    setLoadingNudges(true);
     try {
       const { data, error } = await supabase.functions.invoke("generate-smart-nudges");
       if (error) throw error;
       toast.success(`Generated ${data?.count ?? 0} nudges`);
-      loadNudges();
+      invalidateNudges();
     } catch (e: any) {
       toast.error(e.message || "Failed to refresh nudges");
-      setLoadingNudges(false);
     }
   };
   const dismissNudge = async (id: string) => {
-    setNudges(prev => prev.filter(n => n.id !== id));
+    patchNudges(prev => prev.filter(n => n.id !== id));
     await supabase.from("smart_nudges").update({ dismissed: true }).eq("id", id);
   };
   const snoozeNudge = async (id: string, days: number) => {
     const until = addDays(new Date(), days).toISOString();
-    setNudges(prev => prev.filter(n => n.id !== id));
+    patchNudges(prev => prev.filter(n => n.id !== id));
     await supabase.from("smart_nudges").update({ snoozed_until: until }).eq("id", id);
     toast.success(`Snoozed for ${days}d`);
   };
@@ -1069,15 +1022,15 @@ export default function HomePage() {
   // Notifications
   const markAllRead = async () => {
     if (!user) return;
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    patchNotifications(prev => prev.map(n => ({ ...n, read: true })));
     await supabase.from("user_notifications").update({ read: true }).eq("user_id", user.id).eq("read", false);
   };
   const markRead = async (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    patchNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
     await supabase.from("user_notifications").update({ read: true }).eq("id", id);
   };
   const dismissNotification = async (id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
+    patchNotifications(prev => prev.filter(n => n.id !== id));
     await supabase.from("user_notifications").delete().eq("id", id);
   };
 
@@ -1623,7 +1576,7 @@ export default function HomePage() {
                     <CxDatePickerPopover
                       value={t.due_date}
                       onChange={async (v) => {
-                        setTodos(prev => prev.map(x => x.id === t.id ? { ...x, due_date: v } : x));
+                        patchTodos(prev => prev.map(x => x.id === t.id ? { ...x, due_date: v } : x));
                         const { error } = await supabase.from("personal_todos").update({ due_date: v }).eq("id", t.id);
                         if (error) toast.error(error.message);
                       }}
