@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useWeeklyStaffing, getMonday, fmtISODate, generateWeeks, getAssignmentAllocationForWeek } from "@/hooks/useWeeklyStaffing";
 import type { Person, StaffingAssignment } from "@/data/staffingData";
-import { useStaffingData } from "@/hooks/useStaffingData";
+import { useStaffingMutations } from "@/hooks/queries/useStaffingMutations";
 import { useUserRole } from "@/hooks/useUserRole";
 import { toast } from "sonner";
 
@@ -33,7 +33,7 @@ function monthLabel(key: string): string {
 
 export function WeeklyStaffingGrid({ dealId, dealPeople, dealAssignments }: Props) {
   const { rows, loading, getCell } = useWeeklyStaffing(dealId);
-  const { updateAssignment } = useStaffingData();
+  const { updateAssignment } = useStaffingMutations();
   const { canEditAll } = useUserRole();
 
   // Page anchor — Monday of "today" minus offset weeks

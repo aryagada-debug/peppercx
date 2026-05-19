@@ -1,42 +1,14 @@
 /**
- * Compatibility shim — the legacy ~650 LOC of hand-rolled pubsub has been
- * replaced by React Query hooks under `src/hooks/queries/`. This file
- * re-exports the same public API so existing consumers keep working
- * while Phase 3 cutover migrates them individually.
- *
- * Slated for deletion once every consumer imports from
- * `@/hooks/queries/...` directly.
+ * Derived hierarchy: VSD → BOPMs map, computed from `staffing_deals`.
+ * Moved verbatim from the legacy `useAppUsers` shim.
  */
 import { useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { qk } from "@/lib/queryKeys";
 import { useTableSubscription, invalidatePatcher } from "@/lib/realtime";
-import {
-  useAppUsersQuery,
-  nameKey,
-  type AppUser,
-} from "@/hooks/queries/useAppUsersQuery";
-import { useVsdUsersQuery, VSD_NAMES } from "@/hooks/queries/useVsdUsersQuery";
-import { useBopmDirectoryQuery } from "@/hooks/queries/useBopmDirectoryQuery";
-
-// ─── Re-exports preserving the legacy import surface ────────────────────────
-export { nameKey, VSD_NAMES };
-export type { AppUser };
-
-export function useAppUsers() {
-  return useAppUsersQuery();
-}
-
-export function useVsdUsers() {
-  return useVsdUsersQuery();
-}
-
-export function useBopmDirectory() {
-  return useBopmDirectoryQuery();
-}
-
-// ─── VSD hierarchy (kept inline; sources from staffing_deals) ───────────────
+import { nameKey } from "@/hooks/queries/useAppUsersQuery";
+import { VSD_NAMES } from "@/hooks/queries/useVsdUsersQuery";
 
 const VSD_KEYS = new Set(VSD_NAMES.map((n) => nameKey(n)));
 const VSD_PARTIALS = VSD_NAMES.map((n) => nameKey(n).split(" "));

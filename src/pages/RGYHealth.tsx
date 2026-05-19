@@ -26,7 +26,7 @@ import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ColHeader } from "@/components/table/ColHeader";
-import { useAppUsers, useVsdUsers, useVsdHierarchy, nameKey } from "@/hooks/useAppUsers";
+import { useAppUsers, useVsdUsers, useVsdHierarchy, nameKey } from "@/hooks/queries/legacy";
 import { useUserRole } from "@/hooks/useUserRole";
 import { ReadOnlyBanner } from "@/components/access/ReadOnlyBanner";
 import { useDealAccess } from "@/hooks/useDealAccess";

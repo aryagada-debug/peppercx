@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useVsdUsers, useBopmDirectory, nameKey, dealCellMatchesPerson } from "@/hooks/useAppUsers";
+import { useVsdUsers, useBopmDirectory, nameKey, dealCellMatchesPerson } from "@/hooks/queries/legacy";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useEffect, useState } from "react";

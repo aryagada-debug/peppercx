@@ -9,6 +9,7 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { UserRoleProvider } from "@/hooks/useUserRole";
 import { CurrencyProvider } from "@/contexts/CurrencyContext";
 import { RouteFallback } from "./components/layout/RouteFallback";
+import { useStaffingSeeder } from "@/hooks/queries/useStaffingMutations";
 
 // Auth pages stay eager — login screen must paint instantly.
 import Login from "./pages/Login";
@@ -37,6 +38,13 @@ const GM2Calculator = lazy(() => import("./pages/GM2Calculator"));
 const SettingsPage = lazy(() => import("./pages/Settings"));
 const CentralCx = lazy(() => import("./pages/CentralCx"));
 
+// Mounts the one-shot seeder under the auth provider so it can read the
+// session and only fire when staffing_people is empty.
+function StaffingSeederMount() {
+  useStaffingSeeder();
+  return null;
+}
+
 // React Query defaults tuned for an internal data app: keep responses fresh
 // for 5 min and cache for 30 min so navigating between pages doesn't refetch
 // the same tables, and don't refetch on every window focus.
@@ -62,6 +70,7 @@ const App = () => (
           <AuthProvider>
           <UserRoleProvider>
           <CurrencyProvider>
+          <StaffingSeederMount />
           <Suspense fallback={<RouteFallback />}>
           <Routes>
             {/* Public auth routes */}

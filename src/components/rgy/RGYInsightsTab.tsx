@@ -8,7 +8,7 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { TeamCountDrillDialog } from "./TeamCountDrillDialog";
 import { VSDDrillDialog } from "./VSDDrillDialog";
-import { useAppUsers, useVsdUsers, useVsdHierarchy, useBopmDirectory } from "@/hooks/useAppUsers";
+import { useAppUsers, useVsdUsers, useVsdHierarchy, useBopmDirectory } from "@/hooks/queries/legacy";
 import { getOverallCustomerRGY as computeOverallCustomerRGY } from "@/lib/overallCustomerRGY";
 
 const DIMENSIONS = [

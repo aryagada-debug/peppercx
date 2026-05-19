@@ -1,23 +1,10 @@
 /**
- * Compatibility shim. Replaces the ~600 LOC monolithic provider with a
- * composition of the new React Query hooks under `src/hooks/queries/*`.
- * Public API is byte-compatible with the old `useStaffingData()` so the
- * 15+ consumer pages don't need touching in this phase.
- *
- * Behavior preserved:
- *  - Same return-shape: `{ people, deals, assignments, hiringNeeds,
- *    revenueTargets, bwRules, loading, addPerson, ..., refresh }`
- *  - Approval-gated assignment writes (canEditAll === false → submit
- *    approval request instead of mutating)
- *  - Slack DM on staffing assignment
- *  - First-load seeding when staffing_people is empty
- *
- * `StaffingDataProvider` is now a no-op passthrough — every consumer
- * subscribes through React Query directly so a context provider is no
- * longer required. It stays exported for backwards-compat with App.tsx,
- * which is being updated in the same patch.
+ * Mutation orchestration for staffing CRUD. Wraps direct Supabase writes
+ * with optimistic React Query cache patches, approval-gating, Slack
+ * notifications, and the first-load seed effect. Consumers should pair
+ * this with the individual `useXQuery` hooks for reads.
  */
-import { createElement, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -45,12 +32,6 @@ import {
   assignmentToDb,
   hiringToDb,
 } from "@/lib/dbMappers";
-import { usePeopleQuery } from "@/hooks/queries/usePeopleQuery";
-import { useDealsQuery } from "@/hooks/queries/useDealsQuery";
-import { useAssignmentsQuery } from "@/hooks/queries/useAssignmentsQuery";
-import { useHiringQuery } from "@/hooks/queries/useHiringQuery";
-import { useRevTargetsQuery } from "@/hooks/queries/useRevTargetsQuery";
-import { useBWRulesQuery } from "@/hooks/queries/useBWRulesQuery";
 
 async function batchUpsert<T extends Record<string, unknown>>(
   table: string,
@@ -66,44 +47,25 @@ async function batchUpsert<T extends Record<string, unknown>>(
   }
 }
 
-export function useStaffingData() {
+/**
+ * One-shot seeder. Mount once at the top of the app (or skip — Phase 1
+ * runs this from <StaffingDataProvider> historically). Safe no-op when
+ * staffing_people already has rows.
+ */
+export function useStaffingSeeder() {
   const qc = useQueryClient();
-  const { canEditAll } = useUserRole();
   const { session, loading: authLoading } = useAuth();
   const isAuthenticated = !authLoading && !!session;
-
-  // ── Data hooks (each owns its own realtime channel) ──
-  const peopleQ = usePeopleQuery();
-  const dealsQ = useDealsQuery();
-  const assignmentsQ = useAssignmentsQuery();
-  const hiringQ = useHiringQuery();
-  const targetsQ = useRevTargetsQuery();
-  const rulesQ = useBWRulesQuery();
-
-  const people = peopleQ.data ?? DEFAULT_PEOPLE;
-  const deals = dealsQ.data ?? DEFAULT_DEALS;
-  const assignments = assignmentsQ.data ?? DEFAULT_ASSIGNMENTS;
-  const hiringNeeds = hiringQ.data ?? DEFAULT_HIRING_NEEDS;
-  const revenueTargets = targetsQ.data ?? DEFAULT_REVENUE_TARGETS;
-  const bwRules = rulesQ.data ?? [];
-
-  const loading =
-    peopleQ.isLoading ||
-    dealsQ.isLoading ||
-    assignmentsQ.isLoading ||
-    hiringQ.isLoading ||
-    targetsQ.isLoading ||
-    rulesQ.isLoading;
-
-  // ── First-load seed (only when staffing_people is genuinely empty) ──
   const seedingRef = useRef(false);
+
   useEffect(() => {
-    if (!isAuthenticated) return;
-    if (peopleQ.isLoading) return;
-    if ((peopleQ.data?.length ?? 0) > 0) return;
-    if (seedingRef.current) return;
+    if (!isAuthenticated || seedingRef.current) return;
     seedingRef.current = true;
     (async () => {
+      const { count } = await supabase
+        .from("staffing_people")
+        .select("id", { count: "exact", head: true });
+      if ((count ?? 0) > 0) return;
       await batchUpsert("staffing_people", DEFAULT_PEOPLE.map(personToDb));
       await batchUpsert("staffing_deals", DEFAULT_DEALS.map(dealToDb));
       const validPersonIds = new Set(DEFAULT_PEOPLE.map((p) => p.id));
@@ -129,50 +91,40 @@ export function useStaffingData() {
       qc.invalidateQueries({ queryKey: qk.hiringNeeds() });
       qc.invalidateQueries({ queryKey: qk.revenueTargets() });
     })();
-  }, [isAuthenticated, peopleQ.isLoading, peopleQ.data, qc]);
+  }, [isAuthenticated, qc]);
+}
 
-  // ── Cache patch helpers (used by all mutations) ──
-  const patchPeople = useCallback(
-    (updater: (prev: Person[]) => Person[]) => {
-      qc.setQueryData<Person[]>(qk.people(), (prev) => updater(prev || []));
-    },
-    [qc],
-  );
-  const patchDeals = useCallback(
-    (updater: (prev: Deal[]) => Deal[]) => {
-      qc.setQueryData<Deal[]>(qk.deals(), (prev) => updater(prev || []));
-    },
-    [qc],
-  );
-  const patchAssignments = useCallback(
-    (updater: (prev: StaffingAssignment[]) => StaffingAssignment[]) => {
-      qc.setQueryData<StaffingAssignment[]>(qk.assignments(), (prev) => updater(prev || []));
-    },
-    [qc],
-  );
-  const patchHiring = useCallback(
-    (next: HiringNeed[]) => {
-      qc.setQueryData<HiringNeed[]>(qk.hiringNeeds(), next);
-    },
-    [qc],
-  );
-  const patchTargets = useCallback(
-    (next: RevenueCapacityTarget[]) => {
-      qc.setQueryData<RevenueCapacityTarget[]>(qk.revenueTargets(), next);
-    },
-    [qc],
-  );
-  const patchRules = useCallback(
-    (updater: (prev: BWRule[]) => BWRule[]) => {
-      qc.setQueryData<BWRule[]>(qk.bwRules(), (prev) => updater(prev || []));
-    },
+export function useStaffingMutations() {
+  const qc = useQueryClient();
+  const { canEditAll } = useUserRole();
+
+  const patch = useMemo(
+    () => ({
+      people: (u: (prev: Person[]) => Person[]) =>
+        qc.setQueryData<Person[]>(qk.people(), (p) => u(p || [])),
+      deals: (u: (prev: Deal[]) => Deal[]) =>
+        qc.setQueryData<Deal[]>(qk.deals(), (p) => u(p || [])),
+      assignments: (u: (prev: StaffingAssignment[]) => StaffingAssignment[]) =>
+        qc.setQueryData<StaffingAssignment[]>(qk.assignments(), (p) => u(p || [])),
+      hiring: (next: HiringNeed[]) =>
+        qc.setQueryData<HiringNeed[]>(qk.hiringNeeds(), next),
+      targets: (next: RevenueCapacityTarget[]) =>
+        qc.setQueryData<RevenueCapacityTarget[]>(qk.revenueTargets(), next),
+      rules: (u: (prev: BWRule[]) => BWRule[]) =>
+        qc.setQueryData<BWRule[]>(qk.bwRules(), (p) => u(p || [])),
+    }),
     [qc],
   );
 
-  // ── CRUD: People ──
+  const getAssignments = useCallback(
+    () => qc.getQueryData<StaffingAssignment[]>(qk.assignments()) || [],
+    [qc],
+  );
+
+  // ── People ──
   const addPerson = useCallback(
     async (person: Person) => {
-      patchPeople((prev) => [...prev, person]);
+      patch.people((prev) => [...prev, person]);
       await supabase.from("staffing_people").insert(personToDb(person));
       const email = (person.email || "").trim();
       if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -188,12 +140,12 @@ export function useStaffingData() {
         }
       }
     },
-    [patchPeople],
+    [patch],
   );
 
   const updatePerson = useCallback(
     async (personId: string, updates: Partial<Person>) => {
-      patchPeople((prev) => prev.map((p) => (p.id === personId ? { ...p, ...updates } : p)));
+      patch.people((prev) => prev.map((p) => (p.id === personId ? { ...p, ...updates } : p)));
       const dbUpdates: TablesUpdate<"staffing_people"> = {};
       if (updates.name !== undefined) dbUpdates.name = updates.name;
       if (updates.roleCategory !== undefined) dbUpdates.role_category = updates.roleCategory;
@@ -212,21 +164,21 @@ export function useStaffingData() {
       if (updates.subTeam !== undefined) dbUpdates.sub_team = updates.subTeam;
       await supabase.from("staffing_people").update(dbUpdates).eq("id", personId);
     },
-    [patchPeople],
+    [patch],
   );
 
   const deletePerson = useCallback(
     async (personId: string) => {
-      patchPeople((prev) => prev.filter((p) => p.id !== personId));
-      patchAssignments((prev) => prev.filter((a) => a.personId !== personId));
+      patch.people((prev) => prev.filter((p) => p.id !== personId));
+      patch.assignments((prev) => prev.filter((a) => a.personId !== personId));
       await supabase.from("staffing_people").delete().eq("id", personId);
     },
-    [patchPeople, patchAssignments],
+    [patch],
   );
 
   const bulkUpdatePeople = useCallback(
     async (personIds: string[], field: keyof Person, value: string) => {
-      patchPeople((prev) =>
+      patch.people((prev) =>
         prev.map((p) => (personIds.includes(p.id) ? { ...p, [field]: value } : p)),
       );
       const dbField =
@@ -240,10 +192,10 @@ export function useStaffingData() {
       const updateObj: TablesUpdate<"staffing_people"> = { [dbField]: value } as any;
       await supabase.from("staffing_people").update(updateObj).in("id", personIds);
     },
-    [patchPeople],
+    [patch],
   );
 
-  // ── CRUD: Assignments ──
+  // ── Assignments ──
   const notifyStaffing = useCallback(
     (personId: string, dealId: string, roleKey: string, allocationPct: number) => {
       if (!personId || !dealId) return;
@@ -268,17 +220,17 @@ export function useStaffingData() {
         });
         return;
       }
-      patchAssignments((prev) => [...prev, assignment]);
+      patch.assignments((prev) => [...prev, assignment]);
       await supabase.from("staffing_assignments").insert(assignmentToDb(assignment));
       notifyStaffing(assignment.personId, assignment.dealId, assignment.roleKey, assignment.allocationPct);
     },
-    [notifyStaffing, canEditAll, patchAssignments],
+    [notifyStaffing, canEditAll, patch],
   );
 
   const updateAssignment = useCallback(
     async (id: string, updates: Partial<StaffingAssignment>) => {
       if (!canEditAll) {
-        const current = assignments.find((a) => a.id === id);
+        const current = getAssignments().find((a) => a.id === id);
         await submitApprovalRequest({
           type: "staffing.update",
           dealId: current?.dealId,
@@ -290,7 +242,7 @@ export function useStaffingData() {
         return;
       }
       let next: StaffingAssignment | undefined;
-      patchAssignments((prev) =>
+      patch.assignments((prev) =>
         prev.map((a) => {
           if (a.id !== id) return a;
           next = { ...a, ...updates };
@@ -309,13 +261,13 @@ export function useStaffingData() {
         notifyStaffing(next.personId, next.dealId, next.roleKey, next.allocationPct);
       }
     },
-    [notifyStaffing, canEditAll, assignments, patchAssignments],
+    [notifyStaffing, canEditAll, getAssignments, patch],
   );
 
   const deleteAssignment = useCallback(
     async (id: string) => {
       if (!canEditAll) {
-        const current = assignments.find((a) => a.id === id);
+        const current = getAssignments().find((a) => a.id === id);
         await submitApprovalRequest({
           type: "staffing.remove",
           dealId: current?.dealId,
@@ -326,10 +278,10 @@ export function useStaffingData() {
         });
         return;
       }
-      patchAssignments((prev) => prev.filter((a) => a.id !== id));
+      patch.assignments((prev) => prev.filter((a) => a.id !== id));
       await supabase.from("staffing_assignments").delete().eq("id", id);
     },
-    [canEditAll, assignments, patchAssignments],
+    [canEditAll, getAssignments, patch],
   );
 
   const upsertAssignmentByRole = useCallback(
@@ -340,6 +292,7 @@ export function useStaffingData() {
       allocationPct: number,
       extras?: { startDate?: string; endDate?: string },
     ) => {
+      const assignments = getAssignments();
       const existing = assignments.find((a) => a.dealId === dealId && a.roleKey === roleKey);
       if (!canEditAll) {
         if (!personId) {
@@ -393,13 +346,13 @@ export function useStaffingData() {
       }
       if (!personId) {
         if (existing) {
-          patchAssignments((prev) => prev.filter((a) => a.id !== existing.id));
+          patch.assignments((prev) => prev.filter((a) => a.id !== existing.id));
           await supabase.from("staffing_assignments").delete().eq("id", existing.id);
         }
         return;
       }
       if (existing) {
-        patchAssignments((prev) =>
+        patch.assignments((prev) =>
           prev.map((a) =>
             a.id === existing.id
               ? {
@@ -433,18 +386,18 @@ export function useStaffingData() {
           startDate: extras?.startDate || undefined,
           endDate: extras?.endDate || undefined,
         };
-        patchAssignments((prev) => [...prev, newAssignment]);
+        patch.assignments((prev) => [...prev, newAssignment]);
         await supabase.from("staffing_assignments").insert(assignmentToDb(newAssignment));
         notifyStaffing(personId, dealId, roleKey, allocationPct);
       }
     },
-    [assignments, notifyStaffing, canEditAll, patchAssignments],
+    [getAssignments, notifyStaffing, canEditAll, patch],
   );
 
-  // ── CRUD: Deals ──
+  // ── Deals ──
   const updateDeal = useCallback(
     async (dealId: string, updates: Partial<Deal>) => {
-      patchDeals((prev) => prev.map((d) => (d.id === dealId ? { ...d, ...updates } : d)));
+      patch.deals((prev) => prev.map((d) => (d.id === dealId ? { ...d, ...updates } : d)));
       const dbUpdates: TablesUpdate<"staffing_deals"> = {};
       Object.entries(updates).forEach(([k, v]) => {
         const snakeKey = k.replace(/([A-Z])/g, "_$1").toLowerCase();
@@ -452,25 +405,25 @@ export function useStaffingData() {
       });
       await supabase.from("staffing_deals").update(dbUpdates).eq("id", dealId);
     },
-    [patchDeals],
+    [patch],
   );
 
-  // ── CRUD: Hiring Needs ──
-  const setHiringNeedsAndSync = useCallback(
+  // ── Hiring Needs ──
+  const setHiringNeeds = useCallback(
     async (newNeeds: HiringNeed[]) => {
-      patchHiring(newNeeds);
+      patch.hiring(newNeeds);
       await supabase.from("staffing_hiring_needs").delete().neq("id", "");
       if (newNeeds.length > 0) {
         await batchUpsert("staffing_hiring_needs", newNeeds.map(hiringToDb));
       }
     },
-    [patchHiring],
+    [patch],
   );
 
-  // ── CRUD: Revenue Targets ──
-  const setRevenueTargetsAndSync = useCallback(
+  // ── Revenue Targets ──
+  const setRevenueTargets = useCallback(
     async (newTargets: RevenueCapacityTarget[]) => {
-      patchTargets(newTargets);
+      patch.targets(newTargets);
       await supabase
         .from("staffing_revenue_targets")
         .delete()
@@ -486,13 +439,13 @@ export function useStaffingData() {
         );
       }
     },
-    [patchTargets],
+    [patch],
   );
 
-  // ── CRUD: BW Rules ──
+  // ── BW Rules ──
   const updateBWRule = useCallback(
     async (ruleId: string, updates: Partial<BWRule>) => {
-      patchRules((prev) => prev.map((r) => (r.id === ruleId ? { ...r, ...updates } : r)));
+      patch.rules((prev) => prev.map((r) => (r.id === ruleId ? { ...r, ...updates } : r)));
       const dbUpdates: Record<string, any> = {};
       if (updates.recommendedPct !== undefined) dbUpdates.recommended_pct = updates.recommendedPct;
       if (updates.capability !== undefined) dbUpdates.capability = updates.capability;
@@ -500,49 +453,23 @@ export function useStaffingData() {
       if (updates.roleKey !== undefined) dbUpdates.role_key = updates.roleKey;
       await (supabase.from("staffing_bw_rules") as any).update(dbUpdates).eq("id", ruleId);
     },
-    [patchRules],
+    [patch],
   );
 
   const addBWRule = useCallback(
     async (rule: BWRule) => {
-      patchRules((prev) => [...prev, rule]);
+      patch.rules((prev) => [...prev, rule]);
       await (supabase.from("staffing_bw_rules") as any).insert(rule);
     },
-    [patchRules],
+    [patch],
   );
 
   const deleteBWRule = useCallback(
     async (ruleId: string) => {
-      patchRules((prev) => prev.filter((r) => r.id !== ruleId));
+      patch.rules((prev) => prev.filter((r) => r.id !== ruleId));
       await (supabase.from("staffing_bw_rules") as any).delete().eq("id", ruleId);
     },
-    [patchRules],
-  );
-
-  // ── Legacy setters (no-op for new code; preserved for shape compat) ──
-  const setPeople = useCallback(
-    (next: Person[] | ((prev: Person[]) => Person[])) => {
-      patchPeople((prev) => (typeof next === "function" ? (next as any)(prev) : next));
-    },
-    [patchPeople],
-  );
-  const setDeals = useCallback(
-    (next: Deal[] | ((prev: Deal[]) => Deal[])) => {
-      patchDeals((prev) => (typeof next === "function" ? (next as any)(prev) : next));
-    },
-    [patchDeals],
-  );
-  const setAssignments = useCallback(
-    (next: StaffingAssignment[] | ((prev: StaffingAssignment[]) => StaffingAssignment[])) => {
-      patchAssignments((prev) => (typeof next === "function" ? (next as any)(prev) : next));
-    },
-    [patchAssignments],
-  );
-  const setBwRules = useCallback(
-    (next: BWRule[] | ((prev: BWRule[]) => BWRule[])) => {
-      patchRules((prev) => (typeof next === "function" ? (next as any)(prev) : next));
-    },
-    [patchRules],
+    [patch],
   );
 
   const refresh = useCallback(async () => {
@@ -558,68 +485,38 @@ export function useStaffingData() {
 
   return useMemo(
     () => ({
-      people,
-      deals,
-      assignments,
-      hiringNeeds,
-      revenueTargets,
-      bwRules,
-      loading,
       addPerson,
       updatePerson,
       deletePerson,
       bulkUpdatePeople,
-      setPeople,
       addAssignment,
       updateAssignment,
       deleteAssignment,
-      setAssignments,
-      updateDeal,
-      setDeals,
       upsertAssignmentByRole,
-      setHiringNeeds: setHiringNeedsAndSync,
-      setRevenueTargets: setRevenueTargetsAndSync,
+      updateDeal,
+      setHiringNeeds,
+      setRevenueTargets,
       updateBWRule,
       addBWRule,
       deleteBWRule,
-      setBwRules,
       refresh,
     }),
     [
-      people,
-      deals,
-      assignments,
-      hiringNeeds,
-      revenueTargets,
-      bwRules,
-      loading,
       addPerson,
       updatePerson,
       deletePerson,
       bulkUpdatePeople,
-      setPeople,
       addAssignment,
       updateAssignment,
       deleteAssignment,
-      setAssignments,
-      updateDeal,
-      setDeals,
       upsertAssignmentByRole,
-      setHiringNeedsAndSync,
-      setRevenueTargetsAndSync,
+      updateDeal,
+      setHiringNeeds,
+      setRevenueTargets,
       updateBWRule,
       addBWRule,
       deleteBWRule,
-      setBwRules,
       refresh,
     ],
   );
-}
-
-// ── Legacy provider — now a pass-through ──
-// Old code expected a context boundary. Now every consumer reads through
-// React Query directly, so the provider is a no-op kept only for App.tsx
-// import compatibility. Safe to delete once App.tsx is updated.
-export function StaffingDataProvider({ children }: { children: ReactNode }) {
-  return createElement("div", { style: { display: "contents" } }, children);
 }

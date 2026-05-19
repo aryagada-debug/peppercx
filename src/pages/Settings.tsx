@@ -1,7 +1,8 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { cn } from "@/lib/utils";
 import { useState, useMemo } from "react";
-import { useStaffingData } from "@/hooks/useStaffingData";
+import { useStaffingQueries } from "@/hooks/queries/useStaffingQueries";
+import { useStaffingMutations } from "@/hooks/queries/useStaffingMutations";
 import { Loader2, Pencil, Check, X, Search, Trash2, LayoutGrid, Table as TableIcon, ListTree, Network, AtSign } from "lucide-react";
 import {
   AlertDialog,
@@ -131,7 +132,8 @@ function InlineEdit({
 export default function SettingsPage() {
   useCurrencyVersion();
   const [activeTab, setActiveTab] = useState<SettingsTab>("People & Reporting");
-  const { people, revenueTargets, loading, addPerson, updatePerson, deletePerson, setRevenueTargets } = useStaffingData();
+  const { people, revenueTargets, loading } = useStaffingQueries();
+  const { addPerson, updatePerson, deletePerson, setRevenueTargets } = useStaffingMutations();
   const { isActuallyAdmin } = useUserRole();
   const [search, setSearch] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
@@ -466,13 +468,13 @@ function RevenueCapacityPanel({
   onDragEnd,
   draggingPerson,
 }: {
-  revenueTargets: ReturnType<typeof useStaffingData>["revenueTargets"];
-  peopleByGroup: Map<string, ReturnType<typeof useStaffingData>["people"]>;
+  revenueTargets: ReturnType<typeof useStaffingQueries>["revenueTargets"];
+  peopleByGroup: Map<string, ReturnType<typeof useStaffingQueries>["people"]>;
   onTargetChange: (dept: string, desg: string, val: number) => void;
   sensors: ReturnType<typeof useSensors>;
   onDragStart: (e: DragStartEvent) => void;
   onDragEnd: (e: DragEndEvent) => void;
-  draggingPerson: ReturnType<typeof useStaffingData>["people"][number] | null;
+  draggingPerson: ReturnType<typeof useStaffingQueries>["people"][number] | null;
 }) {
   // Build the union of (dept|desg) keys from both targets and people, so
   // unmapped people still show up.

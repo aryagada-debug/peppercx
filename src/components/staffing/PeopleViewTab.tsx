@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import type { Deal, Person, StaffingAssignment, RevenueCapacityTarget } from "@/data/staffingData";
 import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
-import { useAllPersonNames } from "@/hooks/useAppUsers";
+import { useAllPersonNames } from "@/hooks/queries/legacy";
 
 const ACTIVE_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
 

@@ -6,7 +6,8 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Link } from "react-router-dom";
 import { Search, Plus, Loader2, Trash2, Pencil, Check, X, Building2, Briefcase, Activity, TrendingUp, DollarSign, IndianRupee, Settings2, Paperclip } from "lucide-react";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import { useStaffingData } from "@/hooks/useStaffingData";
+import { useStaffingQueries } from "@/hooks/queries/useStaffingQueries";
+import { useStaffingMutations } from "@/hooks/queries/useStaffingMutations";
 import { useClients } from "@/hooks/useClients";
 import { useDealAccess } from "@/hooks/useDealAccess";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -41,7 +42,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ColHeader } from "@/components/table/ColHeader";
-import { useAppUsers, useVsdUsers, useBopmDirectory, nameKey, useAllPersonNames } from "@/hooks/useAppUsers";
+import { useAppUsers, useVsdUsers, useBopmDirectory, nameKey, useAllPersonNames } from "@/hooks/queries/legacy";
 import { ReadOnlyBanner } from "@/components/access/ReadOnlyBanner";
 import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -114,7 +115,8 @@ export default function Clients() {
   const { currency, fxRate, format } = useCurrency();
   const fmtCurrency = (n: number | undefined) => format(Number(n) || 0);
   const ValueIcon = currency === "USD" ? DollarSign : IndianRupee;
-  const { deals: allDeals, people, assignments, loading: staffLoading, refresh: refreshStaffing, updateDeal, addAssignment, updateAssignment, deleteAssignment } = useStaffingData();
+  const { deals: allDeals, people, assignments, loading: staffLoading, refresh: refreshStaffing } = useStaffingQueries();
+  const { updateDeal, addAssignment, updateAssignment, deleteAssignment } = useStaffingMutations();
   const { clients: allClients, loading: clientsLoading, addClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
   const access = useDealAccess();
   const { canEditAll, role } = useUserRole();
