@@ -801,12 +801,12 @@ export default function HomePage() {
       subtasks: data.subtasks, auto_regen: data.autoRegen,
     }).eq("id", editingDealTask.id);
     if (error) toast.error(error.message);
-    else { toast.success("Saved"); loadTasks(); setEditingDealTask(null); }
+    else { toast.success("Saved"); invalidateTasks(); setEditingDealTask(null); }
   };
   const handleDealTaskDelete = async () => {
     if (!editingDealTask) return;
     await supabase.from("deal_tasks").delete().eq("id", editingDealTask.id);
-    toast.success("Deleted"); loadTasks(); setEditingDealTask(null);
+    toast.success("Deleted"); invalidateTasks(); setEditingDealTask(null);
   };
 
   // Today's calendar — derive
