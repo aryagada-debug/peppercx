@@ -2,9 +2,7 @@ import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { ApprovalRequestRow } from "@/lib/approvals";
-
-const APPROVALS_KEY = ["approval_requests"] as const;
-const openApprovalKey = (dealId: string) => ["approval_requests", "open", dealId] as const;
+import { qk } from "@/lib/queryKeys";
 
 async function fetchAllApprovals(): Promise<ApprovalRequestRow[]> {
   const { data } = await (supabase as any)
@@ -27,13 +25,13 @@ async function fetchOpenApprovalForDeal(dealId: string): Promise<ApprovalRequest
 
 export function useApprovals() {
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: APPROVALS_KEY, queryFn: fetchAllApprovals });
+  const q = useQuery({ queryKey: qk.approvals(), queryFn: fetchAllApprovals });
 
   useEffect(() => {
     const ch = supabase
       .channel("approval_requests_changes")
       .on("postgres_changes", { event: "*", schema: "public", table: "approval_requests" }, () => {
-        qc.invalidateQueries({ queryKey: ["approval_requests"] });
+        qc.invalidateQueries({ queryKey: qk.approvals() });
       })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
@@ -42,14 +40,14 @@ export function useApprovals() {
   return {
     items: q.data || [],
     loading: q.isLoading,
-    refresh: () => qc.invalidateQueries({ queryKey: APPROVALS_KEY }),
+    refresh: () => qc.invalidateQueries({ queryKey: qk.approvals() }),
   };
 }
 
 export function useOpenApprovalForDeal(dealId: string | undefined) {
   const qc = useQueryClient();
   const q = useQuery({
-    queryKey: openApprovalKey(dealId || "__none__"),
+    queryKey: qk.openApprovalForDeal(dealId || "__none__"),
     queryFn: () => fetchOpenApprovalForDeal(dealId!),
     enabled: !!dealId,
   });
@@ -61,7 +59,7 @@ export function useOpenApprovalForDeal(dealId: string | undefined) {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "approval_requests", filter: `deal_id=eq.${dealId}` },
-        () => qc.invalidateQueries({ queryKey: openApprovalKey(dealId) }),
+        () => qc.invalidateQueries({ queryKey: qk.openApprovalForDeal(dealId) }),
       )
       .subscribe();
     return () => { supabase.removeChannel(ch); };
@@ -70,6 +68,6 @@ export function useOpenApprovalForDeal(dealId: string | undefined) {
   return {
     openRequest: dealId ? (q.data ?? null) : null,
     loading: !!dealId && q.isLoading,
-    refresh: () => dealId && qc.invalidateQueries({ queryKey: openApprovalKey(dealId) }),
+    refresh: () => dealId && qc.invalidateQueries({ queryKey: qk.openApprovalForDeal(dealId) }),
   };
 }

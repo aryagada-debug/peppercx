@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { qk } from "@/lib/queryKeys";
 
 export interface ActivityItem {
   id: string;
@@ -102,7 +103,7 @@ export function useAccountActivity(aliases: Set<string>, enabled: boolean, limit
   };
 
   const q = useQuery({
-    queryKey: ["account-activity", aliasKey, limit, allAccounts],
+    queryKey: qk.accountActivity(aliasKey, limit, allAccounts),
     queryFn: fetchActivity,
     enabled,
   });
@@ -110,6 +111,6 @@ export function useAccountActivity(aliases: Set<string>, enabled: boolean, limit
   return {
     items: q.data || [],
     loading: q.isLoading,
-    reload: () => qc.invalidateQueries({ queryKey: ["account-activity", aliasKey, limit, allAccounts] }),
+    reload: () => qc.invalidateQueries({ queryKey: qk.accountActivity(aliasKey, limit, allAccounts) }),
   };
 }
