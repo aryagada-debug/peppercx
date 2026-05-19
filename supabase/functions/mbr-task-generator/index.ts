@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
         const { error: tErr } = await admin.from("deal_tasks").insert({
           deal_id: d.id,
           title: `Schedule MBR — ${d.deal_name || d.deal_id}`,
-          description: `Auto-generated: no MBR is scheduled for ${mStart.slice(0, 7)}. Please schedule a session.\n\nRecord the MBR directly: ${recordUrl}`,
+          description: `<p>Auto-generated: no MBR is scheduled for ${mStart.slice(0, 7)}. Please schedule a session.</p><p>Record the MBR directly: <a href="${recordUrl}" target="_blank" rel="noopener noreferrer">Open MBR recorder</a></p>`,
           assignee,
           stage: "To Do",
           urgency: "High",
@@ -160,7 +160,7 @@ Deno.serve(async (req) => {
       const { error: tErr } = await admin.from("deal_tasks").insert({
         deal_id: e.deal_id,
         title: `Update MBR notes — ${deal.deal_name || deal.deal_id}`,
-        description: `Auto-generated: scheduled MBR on ${e.scheduled_date} hasn't been updated in the app. Please add notes & sentiment.\n\nRecord the MBR directly: ${recordUrl}`,
+        description: `<p>Auto-generated: scheduled MBR on ${e.scheduled_date} hasn't been updated in the app. Please add notes & sentiment.</p><p>Record the MBR directly: <a href="${recordUrl}" target="_blank" rel="noopener noreferrer">Open MBR recorder</a></p>`,
         assignee,
         stage: "To Do",
         urgency: "High",
