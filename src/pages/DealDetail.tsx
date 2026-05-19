@@ -587,6 +587,18 @@ function DealMBRTab({ deal, dealId, mbrEntries, currentRGY, upsertMBREntry, dele
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [scheduleEntry, setScheduleEntry] = useState<MBREntry | null>(null);
+  const [mbrSearchParams, setMbrSearchParams] = useSearchParams();
+
+  // Auto-open the record drawer when navigated with ?action=record.
+  useEffect(() => {
+    if (mbrSearchParams.get("action") === "record") {
+      setEditingEntry(null);
+      setDrawerOpen(true);
+      const next = new URLSearchParams(mbrSearchParams);
+      next.delete("action");
+      setMbrSearchParams(next, { replace: true });
+    }
+  }, [mbrSearchParams, setMbrSearchParams]);
 
   // Overall RGY rollup for this deal (band: R / Y / G / PENDING)
   const { rgyRollup } = useDealRgyRollup([dealId]);
