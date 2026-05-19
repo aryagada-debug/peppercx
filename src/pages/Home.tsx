@@ -141,8 +141,6 @@ export default function HomePage() {
   // Per-card loading states (staggered)
   const [loadingTasks, setLoadingTasks] = useState(true);
   const [loadingFlags, setLoadingFlags] = useState(true);
-  const [loadingQuota, setLoadingQuota] = useState(true);
-  const [loadingRecents, setLoadingRecents] = useState(true);
 
   // Data
   const [dealTasks, setDealTasks] = useState<DealTaskRow[]>([]);
@@ -156,12 +154,9 @@ export default function HomePage() {
   const [dealAssignmentsMap, setDealAssignmentsMap] = useState<Record<string, Set<string>>>({});
   const [addingTask, setAddingTask] = useState(false);
   const [addTaskDealId, setAddTaskDealId] = useState<string>("");
-  const [allActiveDeals, setAllActiveDeals] = useState<{ id: string; deal_name: string; account: string }[]>([]);
   // Deal IDs where the viewer is the VSD (active deals only). Tasks on these
   // deals are visible to the VSD even when assigned to a team member.
   const [myVsdDealIds, setMyVsdDealIds] = useState<Set<string>>(new Set());
-  const [quota, setQuota] = useState<QuotaRow | null>(null);
-  const [closedAmount, setClosedAmount] = useState(0);
   const [periodType, setPeriodType] = useState<"year">("year");
   const [taskFilter, setTaskFilter] = useState<"all" | "overdue" | "today" | "upcoming">("today");
   // View-as filter (mirrors Clients & Deals): "me" by default; admins / VSDs
@@ -188,8 +183,6 @@ export default function HomePage() {
   const [mentions, setMentions] = useState<any[]>([]);
   // Map of Slack user id -> display name, used to humanise <@U123> tokens in mention text.
   const [slackNameMap, setSlackNameMap] = useState<Record<string, string>>({});
-  const [recents, setRecents] = useState<RecentView[]>([]);
-  const [pins, setPins] = useState<UserPin[]>([]);
   const [myDeals, setMyDeals] = useState<MyDeal[]>([]);
   const [loadingMyDeals, setLoadingMyDeals] = useState(true);
 
