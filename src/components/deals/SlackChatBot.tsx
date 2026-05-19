@@ -404,6 +404,15 @@ export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
               {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>
           </div>
+          {getSlackMentionLabels(draft, userNames).length > 0 && (
+            <div className="px-3 pb-2 flex flex-wrap gap-1">
+              {getSlackMentionLabels(draft, userNames).map(label => (
+                <span key={label} className="rounded border border-border bg-muted/40 px-1.5 py-0.5 text-[10px] text-primary">
+                  {label}
+                </span>
+              ))}
+            </div>
+          )}
           <div className="px-3 pb-2 text-[10px] text-muted-foreground">
             Sending as you (your profile name in Slack)
           </div>
