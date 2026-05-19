@@ -42,6 +42,11 @@ import { useAccountActivity } from "@/hooks/useAccountActivity";
 import { Activity as ActivityIcon } from "lucide-react";
 import { useVsdUsers, useBopmDirectory, nameKey } from "@/hooks/queries/legacy";
 import { useTableSubscription } from "@/lib/realtime";
+import {
+  useHomeTodosQuery,
+  useHomeNotificationsQuery,
+  useHomeNudgesQuery,
+} from "@/hooks/queries/useHomeListsQueries";
 
 const DEAL_STAGES = ["To Do", "In Progress", "In Review", "Done", "Dropped"] as const;
 
