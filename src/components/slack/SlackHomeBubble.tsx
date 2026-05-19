@@ -169,7 +169,7 @@ function ChannelChat() {
   };
 
   const send = async () => {
-    const text = draft.trim();
+    const text = normalizeSlackMentionsForSend(draft.trim());
     if (!text || !channelId || sending) return;
     setSending(true);
     const { data, error } = await supabase.functions.invoke<SlackSendResponse>("slack-send", { body: { channelId, text } });
@@ -187,7 +187,10 @@ function ChannelChat() {
     const users = wsUsers
       .filter(u => !q || u.display_name.toLowerCase().includes(q) || u.real_name.toLowerCase().includes(q) || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
       .slice(0, 8)
-      .map<MentionOption>(u => ({ id: u.id, label: u.display_name || u.real_name || u.name || u.id, token: `<@${u.id}>`, sub: u.email || u.real_name }));
+      .map<MentionOption>(u => {
+        const label = u.display_name || u.real_name || u.name || u.id;
+        return { id: u.id, label, token: slackMentionToken(u.id, label), sub: u.email || u.real_name };
+      });
     return [...broadcasts, ...users];
   }, [mentionQuery, wsUsers]);
 
