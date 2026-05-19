@@ -16,7 +16,7 @@ function decodeEntities(s: string) {
 
 export function renderSlackText(text: string, users: Record<string, string>) {
   if (!text) return null;
-  const tokenRe = /<(@[UW][A-Z0-9]+(?:\|[^>]+)?|#[CG][A-Z0-9]+(?:\|[^>]+)?|https?:\/\/[^>]+)>/g;
+  const tokenRe = /<(@[UW][A-Z0-9]+(?:\|[^>]+)?|#[CG][A-Z0-9]+(?:\|[^>]+)?|!(?:channel|here|everyone|subteam\^[A-Z0-9]+(?:\|[^>]+)?)|https?:\/\/[^>]+)>/g;
   const nodes: React.ReactNode[] = [];
   let last = 0;
   let m: RegExpExecArray | null;
@@ -31,6 +31,14 @@ export function renderSlackText(text: string, users: Record<string, string>) {
     } else if (inner.startsWith("#")) {
       const [, label] = inner.slice(1).split("|");
       nodes.push(<span key={key++} className="text-primary font-medium">#{label || inner.slice(1)}</span>);
+    } else if (inner.startsWith("!")) {
+      const body = inner.slice(1);
+      let label = body;
+      if (body.startsWith("subteam^")) {
+        const parts = body.split("|");
+        label = parts[1] || "group";
+      }
+      nodes.push(<span key={key++} className="text-primary font-medium">@{label}</span>);
     } else {
       const url = inner.split("|")[0];
       nodes.push(
@@ -83,6 +91,15 @@ interface Channel { id: string; name: string; is_private: boolean }
 interface ChannelListResponse { channels?: Channel[]; error?: string }
 interface SlackHistoryResponse { messages?: SlackMessage[]; users?: Record<string, string>; error?: string }
 interface SlackSendResponse { ok?: boolean; ts?: string; error?: string }
+interface SlackWorkspaceUser { id: string; name: string; real_name: string; display_name: string; email: string }
+interface SlackUserListResponse { users?: SlackWorkspaceUser[]; error?: string }
+
+type MentionOption = { id: string; label: string; token: string; sub?: string };
+const BROADCASTS: MentionOption[] = [
+  { id: "channel", label: "channel", token: "<!channel>", sub: "Notify everyone in this channel" },
+  { id: "here", label: "here", token: "<!here>", sub: "Notify active members" },
+  { id: "everyone", label: "everyone", token: "<!everyone>", sub: "Notify the whole workspace" },
+];
 
 export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
   const [open, setOpen] = useState(false);
@@ -100,6 +117,13 @@ export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
   const [chSearch, setChSearch] = useState("");
   const [loadingChannels, setLoadingChannels] = useState(false);
 
+  const [wsUsers, setWsUsers] = useState<SlackWorkspaceUser[]>([]);
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [mentionStart, setMentionStart] = useState<number>(-1);
+  const [mentionIdx, setMentionIdx] = useState(0);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Load linked channel for this deal
@@ -114,6 +138,17 @@ export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
         setChannelId(data?.slack_channel_id || "");
       });
   }, [dealId]);
+
+  // Lazy-load workspace users (for @mention picker) the first time the chat is opened.
+  useEffect(() => {
+    if (!open || wsUsers.length > 0) return;
+    supabase.functions
+      .invoke<SlackUserListResponse>("slack-list-users")
+      .then(({ data, error }) => {
+        if (error || data?.error) return;
+        setWsUsers(data?.users || []);
+      });
+  }, [open, wsUsers.length]);
 
   // Resolve channel name when channelId is set
   useEffect(() => {
@@ -224,6 +259,75 @@ export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
     setDraft("");
   };
 
+  // Mention picker helpers
+  const mentionOptions = useMemo<MentionOption[]>(() => {
+    const q = mentionQuery.trim().toLowerCase();
+    const broadcasts = BROADCASTS.filter(b => !q || b.label.startsWith(q));
+    const users = wsUsers
+      .filter(u => {
+        if (!q) return true;
+        return (
+          u.display_name.toLowerCase().includes(q) ||
+          u.real_name.toLowerCase().includes(q) ||
+          u.name.toLowerCase().includes(q)
+        );
+      })
+      .slice(0, 8)
+      .map<MentionOption>(u => ({ id: u.id, label: u.display_name, token: `<@${u.id}>`, sub: u.email || u.real_name }));
+    return [...broadcasts, ...users];
+  }, [wsUsers, mentionQuery]);
+
+  const onDraftChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const v = e.target.value;
+    setDraft(v);
+    const caret = e.target.selectionStart ?? v.length;
+    // Find the nearest '@' before caret that is at word start
+    const upto = v.slice(0, caret);
+    const at = upto.lastIndexOf("@");
+    if (at >= 0 && (at === 0 || /\s/.test(upto[at - 1]))) {
+      const q = upto.slice(at + 1);
+      if (!/\s/.test(q)) {
+        setMentionStart(at);
+        setMentionQuery(q);
+        setMentionOpen(true);
+        setMentionIdx(0);
+        return;
+      }
+    }
+    setMentionOpen(false);
+    setMentionStart(-1);
+  };
+
+  const insertMention = (opt: MentionOption) => {
+    if (mentionStart < 0) return;
+    const before = draft.slice(0, mentionStart);
+    const after = draft.slice(mentionStart + 1 + mentionQuery.length);
+    const insert = `${opt.token} `;
+    const next = before + insert + after;
+    setDraft(next);
+    setMentionOpen(false);
+    setMentionStart(-1);
+    setMentionQuery("");
+    requestAnimationFrame(() => {
+      const ta = textareaRef.current;
+      if (ta) {
+        const pos = before.length + insert.length;
+        ta.focus();
+        ta.setSelectionRange(pos, pos);
+      }
+    });
+  };
+
+  const onDraftKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (mentionOpen && mentionOptions.length > 0) {
+      if (e.key === "ArrowDown") { e.preventDefault(); setMentionIdx(i => (i + 1) % mentionOptions.length); return; }
+      if (e.key === "ArrowUp") { e.preventDefault(); setMentionIdx(i => (i - 1 + mentionOptions.length) % mentionOptions.length); return; }
+      if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); insertMention(mentionOptions[mentionIdx]); return; }
+      if (e.key === "Escape") { e.preventDefault(); setMentionOpen(false); return; }
+    }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+  };
+
   // Floating bubble (collapsed)
   if (!open) {
     return (
@@ -323,12 +427,33 @@ export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
               </div>
             ))}
           </div>
-          <div className="border-t border-border p-2.5 flex items-end gap-2">
+          <div className="border-t border-border p-2.5 flex items-end gap-2 relative">
+            {mentionOpen && mentionOptions.length > 0 && (
+              <div className="absolute bottom-full left-2.5 right-2.5 mb-1 max-h-56 overflow-y-auto rounded-md border border-border bg-popover shadow-lg z-10">
+                {mentionOptions.map((opt, i) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onMouseDown={(e) => { e.preventDefault(); insertMention(opt); }}
+                    onMouseEnter={() => setMentionIdx(i)}
+                    className={cn(
+                      "w-full text-left px-2.5 py-1.5 text-xs flex items-center gap-2 border-b border-border/40 last:border-0",
+                      i === mentionIdx ? "bg-accent/50" : "hover:bg-accent/30"
+                    )}
+                  >
+                    <span className="font-medium text-primary">@{opt.label}</span>
+                    {opt.sub && <span className="text-[10px] text-muted-foreground truncate">{opt.sub}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
             <textarea
+              ref={textareaRef}
               value={draft}
-              onChange={e => setDraft(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-              placeholder="Message #channel… (Enter to send)"
+              onChange={onDraftChange}
+              onKeyDown={onDraftKeyDown}
+              onBlur={() => setTimeout(() => setMentionOpen(false), 120)}
+              placeholder="Message #channel… Type @ to mention"
               rows={2}
               className="flex-1 resize-none rounded-md border border-border bg-background text-xs p-2 focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
