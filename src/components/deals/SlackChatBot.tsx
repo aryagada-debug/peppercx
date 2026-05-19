@@ -8,7 +8,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { renderSlackText } from "@/components/slack/SlackText";
+import { getSlackMentionLabels, normalizeSlackMentionsForSend, renderSlackText, slackMentionToken } from "@/components/slack/SlackText";
 
 interface SlackChatBotProps {
   dealId: string;
@@ -35,6 +35,7 @@ interface SlackUserListResponse { users?: SlackWorkspaceUser[]; error?: string }
 
 type MentionOption = { id: string; label: string; token: string; sub?: string };
 const BROADCASTS: MentionOption[] = [
+  { id: "all", label: "all", token: "<!channel|all>", sub: "Notify everyone in this channel" },
   { id: "channel", label: "channel", token: "<!channel>", sub: "Notify everyone in this channel" },
   { id: "here", label: "here", token: "<!here>", sub: "Notify active members" },
   { id: "everyone", label: "everyone", token: "<!everyone>", sub: "Notify the whole workspace" },
@@ -85,7 +86,9 @@ export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
       .invoke<SlackUserListResponse>("slack-list-users")
       .then(({ data, error }) => {
         if (error || data?.error) return;
-        setWsUsers(data?.users || []);
+        const users = data?.users || [];
+        setWsUsers(users);
+        setUserNames(prev => users.reduce((acc, u) => ({ ...acc, [u.id]: u.display_name || u.real_name || u.name || u.id }), prev));
       });
   }, [open, wsUsers.length]);
 
@@ -184,7 +187,7 @@ export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
   };
 
   const send = async () => {
-    const text = draft.trim();
+    const text = normalizeSlackMentionsForSend(draft.trim());
     if (!text || !channelId) return;
     setSending(true);
     const { data, error } = await supabase.functions.invoke<SlackSendResponse>("slack-send", {
@@ -212,7 +215,10 @@ export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
         );
       })
       .slice(0, 8)
-      .map<MentionOption>(u => ({ id: u.id, label: u.display_name, token: `<@${u.id}>`, sub: u.email || u.real_name }));
+      .map<MentionOption>(u => {
+        const label = u.display_name || u.real_name || u.name || u.id;
+        return { id: u.id, label, token: slackMentionToken(u.id, label), sub: u.email || u.real_name };
+      });
     return [...broadcasts, ...users];
   }, [wsUsers, mentionQuery]);
 
@@ -400,6 +406,15 @@ export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
               {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>
           </div>
+          {getSlackMentionLabels(draft, userNames).length > 0 && (
+            <div className="px-3 pb-2 flex flex-wrap gap-1">
+              {getSlackMentionLabels(draft, userNames).map(label => (
+                <span key={label} className="rounded border border-border bg-muted/40 px-1.5 py-0.5 text-[10px] text-primary">
+                  {label}
+                </span>
+              ))}
+            </div>
+          )}
           <div className="px-3 pb-2 text-[10px] text-muted-foreground">
             Sending as you (your profile name in Slack)
           </div>
