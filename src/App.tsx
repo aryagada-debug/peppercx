@@ -7,7 +7,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { UserRoleProvider } from "@/hooks/useUserRole";
-import { StaffingDataProvider } from "@/hooks/useStaffingData";
 import { CurrencyProvider } from "@/contexts/CurrencyContext";
 import { RouteFallback } from "./components/layout/RouteFallback";
 
@@ -63,7 +62,6 @@ const App = () => (
           <AuthProvider>
           <UserRoleProvider>
           <CurrencyProvider>
-          <StaffingDataProvider>
           <Suspense fallback={<RouteFallback />}>
           <Routes>
             {/* Public auth routes */}
@@ -94,7 +92,6 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
           </Suspense>
-          </StaffingDataProvider>
           </CurrencyProvider>
           </UserRoleProvider>
           </AuthProvider>
