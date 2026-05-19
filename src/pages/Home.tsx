@@ -576,15 +576,18 @@ export default function HomePage() {
     // Closed amount: sum net_deal_value of active/won deals where I am VSD/BOPM and start_date in period
     const aliasSet = aliasesRef.current;
     const inAliases = (s: string | null) => !!s && aliasSet.has((s || "").trim().toLowerCase());
-    const { data: allDeals } = await supabase.from("staffing_deals")
+    const scopeClause = buildDealScopeOrClause(aliasSet, accessDealIds);
+    let q2 = supabase.from("staffing_deals")
       .select("net_deal_value, total_deal_value, vsd, principal_bopm, senior_bopm, bopm, start_date, deal_status")
       .gte("start_date", format(start, "yyyy-MM-dd")).lte("start_date", format(end, "yyyy-MM-dd"));
+    if (scopeClause) q2 = q2.or(scopeClause);
+    const { data: allDeals } = await q2;
     const mine = (allDeals || []).filter((d: any) =>
       inAliases(d.vsd) || inAliases(d.principal_bopm) || inAliases(d.senior_bopm) || inAliases(d.bopm));
     const total = mine.reduce((sum: number, d: any) => sum + Number(d.net_deal_value || d.total_deal_value || 0), 0);
     setClosedAmount(total);
     setLoadingQuota(false);
-  }, [user, periodType]);
+  }, [user, periodType, accessDealIds, buildDealScopeOrClause]);
 
   const loadRecentsAndPins = useCallback(async () => {
     if (!user) return;
@@ -602,15 +605,18 @@ export default function HomePage() {
   const loadActiveDeals = useCallback(async () => {
     const aliasSet = aliasesRef.current;
     const inAliases = (s: string | null) => !!s && aliasSet.has((s || "").trim().toLowerCase());
-    const { data } = await supabase.from("staffing_deals")
+    const scopeClause = buildDealScopeOrClause(aliasSet, accessDealIds);
+    let q = supabase.from("staffing_deals")
       .select("id, deal_name, account, deal_status, vsd, principal_bopm, senior_bopm, bopm")
       .in("deal_status", ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"])
       .order("deal_name");
+    if (scopeClause) q = q.or(scopeClause);
+    const { data } = await q;
     const visible = (data || []).filter((d: any) =>
       isAdmin || accessDealIds.has(d.id) || inAliases(d.vsd) || inAliases(d.principal_bopm) || inAliases(d.senior_bopm) || inAliases(d.bopm)
     );
     setAllActiveDeals(visible.map((d: any) => ({ id: d.id, deal_name: d.deal_name, account: d.account })));
-  }, [isAdmin, accessDealIds]);
+  }, [isAdmin, accessDealIds, buildDealScopeOrClause]);
 
   // Create a new deal task from Home (two-way synced with the deal's Kanban).
   const handleAddTaskSubmit = useCallback(async (data: any) => {
