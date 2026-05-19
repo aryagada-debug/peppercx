@@ -114,9 +114,9 @@ export default function HomePage() {
   const { canonVsd } = useVsdUsers();
   const { bopmUsersForVsd } = useBopmDirectory();
 
-  const [displayName, setDisplayName] = useState("");
-  const [staffingName, setStaffingName] = useState("");
-  const [staffingPersonId, setStaffingPersonId] = useState<string | null>(null);
+  // Identity / scope queries (Phase 4c-i): replaces loadProfile + state.
+  const { data: profileData } = useHomeProfileQuery(user?.id, user?.email);
+  const { displayName, staffingName, staffingPersonId } = profileData;
 
   // React Query–backed lists (replaces loadTodos / loadNudges / loadNotifications).
   // The hooks own their realtime subscriptions and re-fetch on tab focus.
