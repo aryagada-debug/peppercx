@@ -17,7 +17,7 @@ import { BopmStaffingSummary } from "@/components/staffing/BopmStaffingSummary";
 import { BopmStaffingFlatTable } from "@/components/staffing/BopmStaffingFlatTable";
 import { MyStaffingRequests } from "@/components/staffing/MyStaffingRequests";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { useVsdUsers } from "@/hooks/useAppUsers";
+import { useVsdUsers } from "@/hooks/queries/legacy";
 import { supabase } from "@/integrations/supabase/client";
 
 type Tab = "deals" | "people" | "table" | "requests";

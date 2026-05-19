@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useUserRole } from "@/hooks/useUserRole";
-import { dealCellMatchesPerson } from "@/hooks/useAppUsers";
+import { dealCellMatchesPerson } from "@/hooks/queries/legacy";
 
 interface DealAccessState {
   loading: boolean;

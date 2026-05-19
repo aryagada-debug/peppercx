@@ -41,7 +41,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ColHeader } from "@/components/table/ColHeader";
-import { useAppUsers, useVsdUsers, useBopmDirectory, nameKey, useAllPersonNames } from "@/hooks/useAppUsers";
+import { useAppUsers, useVsdUsers, useBopmDirectory, nameKey, useAllPersonNames } from "@/hooks/queries/legacy";
 import { ReadOnlyBanner } from "@/components/access/ReadOnlyBanner";
 import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
 import { useAuth } from "@/components/auth/AuthProvider";

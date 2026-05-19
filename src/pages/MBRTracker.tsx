@@ -21,7 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { ColHeader } from "@/components/table/ColHeader";
 import { CalendarConnectButton } from "@/components/calendar/CalendarConnectButton";
-import { useAppUsers, useVsdUsers, useVsdHierarchy } from "@/hooks/useAppUsers";
+import { useAppUsers, useVsdUsers, useVsdHierarchy } from "@/hooks/queries/legacy";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useDealAccess } from "@/hooks/useDealAccess";
 import { BopmEmptyState } from "@/components/access/BopmEmptyState";

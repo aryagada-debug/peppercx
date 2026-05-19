@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import type { Deal, StaffingAssignment, Person } from "@/data/staffingData";
 import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
-import { useAllPersonNames, VSD_NAMES, useVsdHierarchy } from "@/hooks/useAppUsers";
+import { useAllPersonNames, VSD_NAMES, useVsdHierarchy } from "@/hooks/queries/legacy";
 
 const STAFFING_BUCKETS = ["Already Staffed", "No Staffing Needed", "Staffing Needed"] as const;
 type StaffingBucket = typeof STAFFING_BUCKETS[number];
