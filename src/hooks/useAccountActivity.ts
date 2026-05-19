@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface ActivityItem {
@@ -20,14 +20,12 @@ export interface ActivityItem {
  * regardless of the alias set.
  */
 export function useAccountActivity(aliases: Set<string>, enabled: boolean, limit = 20, allAccounts = false) {
-  const [items, setItems] = useState<ActivityItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const qc = useQueryClient();
   // Re-derive a primitive key so callers passing a mutated ref still trigger reloads
   const aliasKey = Array.from(aliases).sort().join("|");
 
-  const load = useCallback(async () => {
-    if (!enabled || (!allAccounts && aliases.size === 0)) { setItems([]); setLoading(false); return; }
-    setLoading(true);
+  const fetchActivity = async (): Promise<ActivityItem[]> => {
+    if (!allAccounts && aliases.size === 0) return [];
     const inA = (s: string | null) => !!s && aliases.has((s || "").trim().toLowerCase());
 
     // 1. My deals
@@ -42,7 +40,7 @@ export function useAccountActivity(aliases: Set<string>, enabled: boolean, limit
     const dealMap = new Map<string, { deal_name: string; account: string }>();
     mine.forEach((d: any) => dealMap.set(d.id, { deal_name: d.deal_name, account: d.account }));
     const ids = Array.from(dealMap.keys());
-    if (!ids.length) { setItems([]); setLoading(false); return; }
+    if (!ids.length) return [];
 
     // 2. Pull recent activity in parallel
     const [{ data: slack }, { data: rgy }, { data: mbr }, { data: tasks }] = await Promise.all([
@@ -100,12 +98,18 @@ export function useAccountActivity(aliases: Set<string>, enabled: boolean, limit
       });
     });
     out.sort((a, b) => (b.at || "").localeCompare(a.at || ""));
-    setItems(out.slice(0, limit));
-    setLoading(false);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aliasKey, enabled, limit, allAccounts]);
+    return out.slice(0, limit);
+  };
 
-  useEffect(() => { load(); }, [load]);
+  const q = useQuery({
+    queryKey: ["account-activity", aliasKey, limit, allAccounts],
+    queryFn: fetchActivity,
+    enabled,
+  });
 
-  return { items, loading, reload: load };
+  return {
+    items: q.data || [],
+    loading: q.isLoading,
+    reload: () => qc.invalidateQueries({ queryKey: ["account-activity", aliasKey, limit, allAccounts] }),
+  };
 }
