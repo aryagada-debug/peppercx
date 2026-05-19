@@ -372,18 +372,20 @@ export default function Clients() {
   const peopleColOptions = useMemo(() => {
     const vsd = new Set<string>();
     const bopm = new Set<string>();
+    const bopmOnly = new Set<string>();
     const content = new Set<string>();
     const seo = new Set<string>();
     for (const d of filteredDeals) {
       const v = (d.vsd || "").trim(); if (v) vsd.add(v);
       const pb = (d.principalBopm || "").trim(); if (pb) bopm.add(pb);
       const sb = (d.seniorBopm || "").trim(); if (sb) bopm.add(sb);
+      const bo = ((d as any).bopm || "").trim(); if (bo) bopmOnly.add(bo);
       const leads = leadByDeal[d.id];
       if (leads?.content) content.add(leads.content);
       if (leads?.seo) seo.add(leads.seo);
     }
     const sortArr = (s: Set<string>) => Array.from(s).sort((a, b) => a.localeCompare(b));
-    return { vsd: sortArr(vsd), bopm: sortArr(bopm), content: sortArr(content), seo: sortArr(seo) };
+    return { vsd: sortArr(vsd), bopm: sortArr(bopm), bopmOnly: sortArr(bopmOnly), content: sortArr(content), seo: sortArr(seo) };
   }, [filteredDeals, leadByDeal]);
 
   // Deals up for renewal within 90 days (used by both KPI and renewals filter)
@@ -411,6 +413,7 @@ export default function Clients() {
       if (colFilters.dealStatus && (d.dealStatus || "Active Deal") !== colFilters.dealStatus) return false;
       if (colFilters.vsd && !matches(d.vsd, colFilters.vsd)) return false;
       if (colFilters.bopm && !matches(`${d.principalBopm || ""} ${d.seniorBopm || ""}`, colFilters.bopm)) return false;
+      if (colFilters.bopmOnly && !matches((d as any).bopm || "", colFilters.bopmOnly)) return false;
       if (colFilters.contentLead) {
         const name = leadByDeal[d.id]?.content || "";
         if (!matches(name, colFilters.contentLead)) return false;
