@@ -278,17 +278,46 @@ function ChannelChat() {
               <span className={cn("font-medium", m.source === "app" ? "text-primary" : "text-foreground")}>{m.user_name || "Unknown"}</span>
               <span className="text-[9px] text-muted-foreground">{new Date(m.created_at).toLocaleString([], { hour: "2-digit", minute: "2-digit", month: "short", day: "numeric" })}</span>
             </div>
-            <div className="whitespace-pre-wrap break-words">{m.text}</div>
+            <div className="whitespace-pre-wrap break-words">{renderSlackText(m.text, userNames)}</div>
           </div>
         ))}
       </div>
-      <div className="px-2 py-2 border-t border-border flex items-center gap-1.5">
+      <div className="px-2 py-2 border-t border-border flex items-center gap-1.5 relative">
+        {mentionOpen && mentionOptions.length > 0 && (
+          <div className="absolute bottom-full left-2 right-2 mb-1 max-h-56 overflow-y-auto rounded-md border border-border bg-popover shadow-lg z-10">
+            {mentionOptions.map((opt, i) => (
+              <button
+                key={opt.id}
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); insertMention(opt); }}
+                onMouseEnter={() => setMentionIdx(i)}
+                className={cn(
+                  "w-full text-left px-2.5 py-1.5 text-xs flex items-center gap-2 border-b border-border/40 last:border-0",
+                  i === mentionIdx ? "bg-accent/50" : "hover:bg-accent/30"
+                )}
+              >
+                <span className="font-medium text-primary">@{opt.label}</span>
+                {opt.sub && <span className="text-[10px] text-muted-foreground truncate">{opt.sub}</span>}
+              </button>
+            ))}
+          </div>
+        )}
         <Input
+          ref={inputRef}
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder={`Message #${channelName}…`}
+          onChange={onDraftChange}
+          placeholder={`Message #${channelName}… Type @ to mention`}
           className="h-8 text-xs"
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+          onBlur={() => setTimeout(() => setMentionOpen(false), 120)}
+          onKeyDown={(e) => {
+            if (mentionOpen && mentionOptions.length > 0) {
+              if (e.key === "ArrowDown") { e.preventDefault(); setMentionIdx(i => (i + 1) % mentionOptions.length); return; }
+              if (e.key === "ArrowUp") { e.preventDefault(); setMentionIdx(i => (i - 1 + mentionOptions.length) % mentionOptions.length); return; }
+              if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); insertMention(mentionOptions[mentionIdx]); return; }
+              if (e.key === "Escape") { e.preventDefault(); setMentionOpen(false); return; }
+            }
+            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+          }}
           disabled={sending}
         />
         <Button size="sm" className="h-8 px-2" onClick={send} disabled={sending || !draft.trim()}>
