@@ -47,6 +47,12 @@ import {
   useHomeNotificationsQuery,
   useHomeNudgesQuery,
 } from "@/hooks/queries/useHomeListsQueries";
+import {
+  useHomeProfileQuery,
+  useHomeRecentsAndPinsQuery,
+  useHomeActiveDealsQuery,
+  useHomeQuotaQuery,
+} from "@/hooks/queries/useHomeIdentityQueries";
 
 const DEAL_STAGES = ["To Do", "In Progress", "In Review", "Done", "Dropped"] as const;
 
@@ -108,9 +114,9 @@ export default function HomePage() {
   const { canonVsd } = useVsdUsers();
   const { bopmUsersForVsd } = useBopmDirectory();
 
-  const [displayName, setDisplayName] = useState("");
-  const [staffingName, setStaffingName] = useState("");
-  const [staffingPersonId, setStaffingPersonId] = useState<string | null>(null);
+  // Identity / scope queries (Phase 4c-i): replaces loadProfile + state.
+  const { data: profileData } = useHomeProfileQuery(user?.id, user?.email);
+  const { displayName, staffingName, staffingPersonId } = profileData;
 
   // React Query–backed lists (replaces loadTodos / loadNudges / loadNotifications).
   // The hooks own their realtime subscriptions and re-fetch on tab focus.
@@ -135,8 +141,6 @@ export default function HomePage() {
   // Per-card loading states (staggered)
   const [loadingTasks, setLoadingTasks] = useState(true);
   const [loadingFlags, setLoadingFlags] = useState(true);
-  const [loadingQuota, setLoadingQuota] = useState(true);
-  const [loadingRecents, setLoadingRecents] = useState(true);
 
   // Data
   const [dealTasks, setDealTasks] = useState<DealTaskRow[]>([]);
@@ -150,12 +154,9 @@ export default function HomePage() {
   const [dealAssignmentsMap, setDealAssignmentsMap] = useState<Record<string, Set<string>>>({});
   const [addingTask, setAddingTask] = useState(false);
   const [addTaskDealId, setAddTaskDealId] = useState<string>("");
-  const [allActiveDeals, setAllActiveDeals] = useState<{ id: string; deal_name: string; account: string }[]>([]);
   // Deal IDs where the viewer is the VSD (active deals only). Tasks on these
   // deals are visible to the VSD even when assigned to a team member.
   const [myVsdDealIds, setMyVsdDealIds] = useState<Set<string>>(new Set());
-  const [quota, setQuota] = useState<QuotaRow | null>(null);
-  const [closedAmount, setClosedAmount] = useState(0);
   const [periodType, setPeriodType] = useState<"year">("year");
   const [taskFilter, setTaskFilter] = useState<"all" | "overdue" | "today" | "upcoming">("today");
   // View-as filter (mirrors Clients & Deals): "me" by default; admins / VSDs
@@ -182,8 +183,6 @@ export default function HomePage() {
   const [mentions, setMentions] = useState<any[]>([]);
   // Map of Slack user id -> display name, used to humanise <@U123> tokens in mention text.
   const [slackNameMap, setSlackNameMap] = useState<Record<string, string>>({});
-  const [recents, setRecents] = useState<RecentView[]>([]);
-  const [pins, setPins] = useState<UserPin[]>([]);
   const [myDeals, setMyDeals] = useState<MyDeal[]>([]);
   const [loadingMyDeals, setLoadingMyDeals] = useState(true);
 
@@ -234,12 +233,11 @@ export default function HomePage() {
   }, [calDeleteEvent, refreshCalendar]);
 
   const aliasesRef = useRef<Set<string>>(new Set());
-
-  const computeAliases = (dn: string, sn: string, email: string | null | undefined): Set<string> => {
-    const s = new Set<string>();
-    [dn, sn, email || ""].forEach(v => { const t = (v || "").trim().toLowerCase(); if (t) s.add(t); });
-    return s;
-  };
+  // Mirror the React Query–owned aliases into a ref so the still-imperative
+  // loaders (loadTasks / loadFlags / loadMyDeals — Phase 4c-ii) keep working.
+  useEffect(() => {
+    aliasesRef.current = profileData.aliases;
+  }, [profileData.aliases]);
 
   // Build a server-side `.or(...)` clause that narrows a staffing_deals
   // query to only rows the viewer can see (alias match on any role column,
@@ -263,27 +261,6 @@ export default function HomePage() {
     },
     [isAdmin],
   );
-
-  const loadProfile = useCallback(async () => {
-    if (!user) return null;
-    const { data: profile } = await supabase
-      .from("profiles").select("display_name, staffing_person_id").eq("user_id", user.id).maybeSingle();
-    const dn = profile?.display_name || user.email || "";
-    setDisplayName(dn);
-    setStaffingPersonId(profile?.staffing_person_id || null);
-    let sn = "";
-    if (profile?.staffing_person_id) {
-      const { data: p } = await supabase.from("staffing_people").select("name").eq("id", profile.staffing_person_id).maybeSingle();
-      sn = p?.name || "";
-    }
-    if (!sn && user.email) {
-      const { data: pByEmail } = await supabase.from("staffing_people").select("name").ilike("email", user.email).maybeSingle();
-      sn = pByEmail?.name || "";
-    }
-    setStaffingName(sn);
-    aliasesRef.current = computeAliases(dn, sn, user.email);
-    return { aliases: aliasesRef.current, staffingPersonId: profile?.staffing_person_id || null };
-  }, [user]);
 
   const loadTasks = useCallback(async () => {
     if (!user) return;
@@ -535,63 +512,32 @@ export default function HomePage() {
     setSlackNameMap((prev) => ({ ...prev, ...map }));
   }, []);
 
-  const loadQuota = useCallback(async () => {
-    if (!user) return;
-    setLoadingQuota(true);
-    const today = new Date();
-    const start: Date = startOfYear(today);
-    const end: Date = endOfYear(today);
+  // 4c-i: loadQuota / loadRecentsAndPins / loadActiveDeals now React Query.
+  const { data: quotaData, isLoading: loadingQuota } = useHomeQuotaQuery({
+    userId: user?.id,
+    periodType,
+    aliases: profileData.aliases,
+    accessIds: accessDealIds,
+    isAdmin,
+  });
+  const quota = quotaData?.quota ?? null;
+  const closedAmount = quotaData?.closedAmount ?? 0;
 
-    const { data: q } = await supabase.from("user_quotas").select("*")
-      .eq("user_id", user.id).eq("period_type", periodType)
-      .lte("period_start", format(today, "yyyy-MM-dd")).gte("period_end", format(today, "yyyy-MM-dd"))
-      .maybeSingle();
-    setQuota(q as QuotaRow | null);
+  const {
+    data: recentsPinsData,
+    isLoading: loadingRecents,
+    patchPins,
+    invalidate: invalidateRecentsPins,
+  } = useHomeRecentsAndPinsQuery(user?.id);
+  const recents = recentsPinsData?.recents ?? [];
+  const pins = recentsPinsData?.pins ?? [];
 
-    // Closed amount: sum net_deal_value of active/won deals where I am VSD/BOPM and start_date in period
-    const aliasSet = aliasesRef.current;
-    const inAliases = (s: string | null) => !!s && aliasSet.has((s || "").trim().toLowerCase());
-    const scopeClause = buildDealScopeOrClause(aliasSet, accessDealIds);
-    let q2 = supabase.from("staffing_deals")
-      .select("net_deal_value, total_deal_value, vsd, principal_bopm, senior_bopm, bopm, start_date, deal_status")
-      .gte("start_date", format(start, "yyyy-MM-dd")).lte("start_date", format(end, "yyyy-MM-dd"));
-    if (scopeClause) q2 = q2.or(scopeClause);
-    const { data: allDeals } = await q2;
-    const mine = (allDeals || []).filter((d: any) =>
-      inAliases(d.vsd) || inAliases(d.principal_bopm) || inAliases(d.senior_bopm) || inAliases(d.bopm));
-    const total = mine.reduce((sum: number, d: any) => sum + Number(d.net_deal_value || d.total_deal_value || 0), 0);
-    setClosedAmount(total);
-    setLoadingQuota(false);
-  }, [user, periodType, accessDealIds, buildDealScopeOrClause]);
-
-  const loadRecentsAndPins = useCallback(async () => {
-    if (!user) return;
-    setLoadingRecents(true);
-    const [{ data: r }, { data: p }] = await Promise.all([
-      supabase.from("user_recent_views").select("*").eq("user_id", user.id).order("viewed_at", { ascending: false }).limit(8),
-      supabase.from("user_pins").select("*").eq("user_id", user.id).order("pinned_at", { ascending: false }),
-    ]);
-    setRecents((r as RecentView[]) || []);
-    setPins((p as UserPin[]) || []);
-    setLoadingRecents(false);
-  }, [user]);
-
-  // Load all active deals for the "Add Task" deal picker.
-  const loadActiveDeals = useCallback(async () => {
-    const aliasSet = aliasesRef.current;
-    const inAliases = (s: string | null) => !!s && aliasSet.has((s || "").trim().toLowerCase());
-    const scopeClause = buildDealScopeOrClause(aliasSet, accessDealIds);
-    let q = supabase.from("staffing_deals")
-      .select("id, deal_name, account, deal_status, vsd, principal_bopm, senior_bopm, bopm")
-      .in("deal_status", ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"])
-      .order("deal_name");
-    if (scopeClause) q = q.or(scopeClause);
-    const { data } = await q;
-    const visible = (data || []).filter((d: any) =>
-      isAdmin || accessDealIds.has(d.id) || inAliases(d.vsd) || inAliases(d.principal_bopm) || inAliases(d.senior_bopm) || inAliases(d.bopm)
-    );
-    setAllActiveDeals(visible.map((d: any) => ({ id: d.id, deal_name: d.deal_name, account: d.account })));
-  }, [isAdmin, accessDealIds, buildDealScopeOrClause]);
+  const { data: allActiveDeals = [] } = useHomeActiveDealsQuery({
+    userId: user?.id,
+    aliases: profileData.aliases,
+    accessIds: accessDealIds,
+    isAdmin,
+  });
 
   // Create a new deal task from Home (two-way synced with the deal's Kanban).
   const handleAddTaskSubmit = useCallback(async (data: any) => {
@@ -689,28 +635,28 @@ export default function HomePage() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const prof = await loadProfile();
-      // Fast cards first
-      loadQuota();
+      // Profile / quota / recents / activeDeals are now React Query–owned and
+      // auto-fetch as soon as their inputs (user, aliases, accessIds) are
+      // ready. We only need to kick the still-imperative cascading loaders.
       loadTasks();
-      loadRecentsAndPins();
-      loadActiveDeals();
       // Then signals
       setTimeout(() => {
         loadFlags();
         loadMyDeals();
-        // Load slack mentions if we know the user's slack id
-        (async () => {
-          if (!prof?.staffingPersonId) return;
-          const { data } = await supabase.from("staffing_people")
-            .select("slack_user_id").eq("id", prof.staffingPersonId).maybeSingle();
-          loadMentions(data?.slack_user_id || null);
-        })();
       }, 100);
     })();
-  }, [user, loadProfile, loadQuota, loadTasks, loadFlags, loadRecentsAndPins, loadMyDeals, loadMentions, loadActiveDeals]);
+  }, [user, loadTasks, loadFlags, loadMyDeals]);
 
-  useEffect(() => { if (user) loadQuota(); }, [periodType, user, loadQuota]);
+  // Slack mentions depend on the profile's staffing person → resolve once
+  // the profile query lands.
+  useEffect(() => {
+    if (!user || !staffingPersonId) return;
+    (async () => {
+      const { data } = await supabase.from("staffing_people")
+        .select("slack_user_id").eq("id", staffingPersonId).maybeSingle();
+      loadMentions(data?.slack_user_id || null);
+    })();
+  }, [user, staffingPersonId, loadMentions]);
 
   // Realtime for the remaining imperative loader (deal_tasks). Todos /
   // notifications / nudges own their own subscriptions inside their
@@ -1036,7 +982,7 @@ export default function HomePage() {
 
   // Pins
   const unpin = async (id: string) => {
-    setPins(prev => prev.filter(p => p.id !== id));
+    patchPins(prev => prev.filter(p => p.id !== id));
     await supabase.from("user_pins").delete().eq("id", id);
   };
   const pinFromRecent = async (r: RecentView) => {
@@ -1045,7 +991,7 @@ export default function HomePage() {
       user_id: user.id, entity_type: r.entity_type, entity_id: r.entity_id, entity_name: r.entity_name,
     });
     if (error && !error.message.includes("duplicate")) toast.error(error.message);
-    else { toast.success("Pinned"); loadRecentsAndPins(); }
+    else { toast.success("Pinned"); invalidateRecentsPins(); }
   };
 
   // Quota math
