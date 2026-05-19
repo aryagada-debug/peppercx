@@ -49,7 +49,7 @@ export function useMyNotificationsQuery(userId: string | null | undefined) {
     enabled: !!userId,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("notifications")
+        .from("user_notifications")
         .select("*")
         .eq("user_id", userId!)
         .order("created_at", { ascending: false })
