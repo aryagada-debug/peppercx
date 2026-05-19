@@ -683,7 +683,7 @@ export default function HomePage() {
     setAddingTask(false);
     setAddTaskDealId("");
     invalidateTodos();
-  }, [user, displayName, todos.length, loadTodos]);
+  }, [user, displayName, todos.length, invalidateTodos]);
 
   // Initial load - staggered
   useEffect(() => {
@@ -693,13 +693,11 @@ export default function HomePage() {
       // Fast cards first
       loadQuota();
       loadTasks();
-      invalidateTodos();
       loadRecentsAndPins();
       loadActiveDeals();
       // Then signals
       setTimeout(() => {
         loadFlags();
-        loadNotifications();
         loadMyDeals();
         // Load slack mentions if we know the user's slack id
         (async () => {
@@ -710,32 +708,14 @@ export default function HomePage() {
         })();
       }, 100);
     })();
-  }, [user, loadProfile, loadQuota, loadTasks, loadTodos, loadFlags, loadNotifications, loadRecentsAndPins, loadMyDeals, loadMentions, loadActiveDeals]);
+  }, [user, loadProfile, loadQuota, loadTasks, loadFlags, loadRecentsAndPins, loadMyDeals, loadMentions, loadActiveDeals]);
 
   useEffect(() => { if (user) loadQuota(); }, [periodType, user, loadQuota]);
 
-  // Realtime: route table-level signals through the shared subscription
-  // bridge so we get channel-dedup + tab-visibility deferral for free.
-  // Loaders are still imperative for now (Phase 4b-ii will convert them to
-  // React Query); the patcher just re-runs the appropriate loader.
+  // Realtime for the remaining imperative loader (deal_tasks). Todos /
+  // notifications / nudges own their own subscriptions inside their
+  // React Query hooks.
   const userId = user?.id;
-  useTableSubscription({
-    table: "user_notifications",
-    filter: userId ? `user_id=eq.${userId}` : undefined,
-    enabled: !!userId,
-    patcher: useCallback(() => { loadNotifications(); }, [loadNotifications]),
-  });
-  useTableSubscription({
-    table: "smart_nudges",
-    filter: userId ? `user_id=eq.${userId}` : undefined,
-    enabled: !!userId,
-    patcher: useCallback(() => { invalidateNudges(); }, [loadNudges]),
-  });
-  useTableSubscription({
-    table: "personal_todos",
-    enabled: !!userId,
-    patcher: useCallback(() => { invalidateTodos(); }, [loadTodos]),
-  });
   useTableSubscription({
     table: "deal_tasks",
     enabled: !!userId,
