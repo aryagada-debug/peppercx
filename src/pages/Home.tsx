@@ -195,8 +195,11 @@ export default function HomePage() {
     if (!calConnected) return;
     const onVis = () => { if (document.visibilityState === "visible") refreshCalendar(); };
     document.addEventListener("visibilitychange", onVis);
-    const int = setInterval(() => { if (document.visibilityState === "visible") refreshCalendar(); }, 60_000);
-    return () => { document.removeEventListener("visibilitychange", onVis); clearInterval(int); };
+    // Calendar refreshes on tab refocus only. The old 60s poll burned
+    // GCal API quota with no visible benefit since the user can't see
+    // hidden tabs anyway. React Query's refetchOnWindowFocus covers the
+    // other cards on the page.
+    return () => { document.removeEventListener("visibilitychange", onVis); };
   }, [calConnected, refreshCalendar]);
 
   const handleCalSave = useCallback(async (v: EventFormValue) => {
@@ -250,8 +253,7 @@ export default function HomePage() {
     const inAliases = (s: string | null) => !!s && aliasSet.has((s || "").trim().toLowerCase());
     const { data: allDealsForScope } = await supabase
       .from("staffing_deals")
-      .select("id, vsd, principal_bopm, senior_bopm, bopm")
-      .range(0, 9999);
+      .select("id, vsd, principal_bopm, senior_bopm, bopm");
     const myDealsForScope = (allDealsForScope || []).filter((d: any) =>
       inAliases(d.vsd) || inAliases(d.principal_bopm) || inAliases(d.senior_bopm) || inAliases(d.bopm));
     const aliasDealIds = new Set(myDealsForScope.map((d: any) => d.id));
@@ -272,17 +274,22 @@ export default function HomePage() {
     setIsVsdViewer(isVsd);
     setMyVsdDealIds(myVsdDealSet);
 
-    // Build the deal_tasks query: scope to viewer's deals unless admin.
-    // Bypass PostgREST's default 1000-row cap with an explicit range.
+    // Home only ever renders non-terminal tasks (overdue / today / upcoming
+    // / kanban excluding Done & Dropped). Scoping by stage at the server
+    // drops the payload from ~all-time tasks to the active working set —
+    // and keeps us comfortably under PostgREST's 1000-row default cap for
+    // typical viewers, so we no longer need the explicit .range() override.
     let dtQuery = supabase.from("deal_tasks")
       .select("id, deal_id, title, description, assignee, assignees, created_by_name, created_at, stage, start_date, end_date, urgency, estimated_hours, logged_hours, subtasks, auto_regen, sort_order, phase")
-      .range(0, 49999);
+      .in("stage", ["To Do", "In Progress", "In Review"]);
     if (!isAdmin && !isVsd) {
       dtQuery = dtQuery.in("deal_id", myDealIdsForScope);
     }
     const [{ data: dtAll }, { data: ctAll }] = await Promise.all([
       dtQuery,
-      supabase.from("cx_tasks").select("id, space_id, title, assignee, assignees, status, start_date, end_date, urgency").range(0, 9999),
+      supabase.from("cx_tasks")
+        .select("id, space_id, title, assignee, assignees, status, start_date, end_date, urgency")
+        .not("status", "in", "(Done,Closed)"),
     ]);
     const dt = (dtAll || []) as any[];
     const ct = (ctAll || []) as any[];
@@ -299,8 +306,17 @@ export default function HomePage() {
       (assigns || []).forEach((a: any) => { if (!m[a.deal_id]) m[a.deal_id] = new Set(); m[a.deal_id].add(a.person_id); });
       setDealAssignmentsMap(m);
     }
-    const { data: peopleRows } = await supabase.from("staffing_people").select("id, name, designation, tbh");
-    setAllPeople((peopleRows as PersonLite[]) || []);
+    // staffing_people is only needed to populate the "View tasks for…"
+    // dropdown, which is only rendered for admins and VSD viewers. Skip
+    // the full-table scan for everyone else.
+    if (isAdmin || isVsd) {
+      const { data: peopleRows } = await supabase
+        .from("staffing_people")
+        .select("id, name, designation, tbh")
+        .eq("tbh", false)
+        .eq("leaving", false);
+      setAllPeople((peopleRows as PersonLite[]) || []);
+    }
     setLoadingTasks(false);
   }, [user, isAdmin, isCapLead, accessDealIds]);
 
