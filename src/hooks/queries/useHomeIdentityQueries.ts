@@ -100,12 +100,11 @@ export function useHomeProfileQuery(userId: string | undefined, email: string | 
   });
 
   // Stable default so consumers can destructure without nullish checks.
-  const data = query.data ?? useMemo<HomeProfile>(
+  const fallback = useMemo<HomeProfile>(
     () => ({ displayName: "", staffingName: "", staffingPersonId: null, aliases: new Set() }),
     [],
   );
-
-  return { ...query, data };
+  return { ...query, data: query.data ?? fallback };
 }
 
 // --- recents + pins ------------------------------------------------------
