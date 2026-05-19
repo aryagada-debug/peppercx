@@ -115,9 +115,6 @@ export default function HomePage() {
   // Per-card loading states (staggered)
   const [loadingTasks, setLoadingTasks] = useState(true);
   const [loadingFlags, setLoadingFlags] = useState(true);
-  const [loadingTodos, setLoadingTodos] = useState(true);
-  const [loadingNudges, setLoadingNudges] = useState(true);
-  const [loadingNotifs, setLoadingNotifs] = useState(true);
   const [loadingQuota, setLoadingQuota] = useState(true);
   const [loadingRecents, setLoadingRecents] = useState(true);
 
@@ -129,17 +126,14 @@ export default function HomePage() {
   const [rgyFlags, setRgyFlags] = useState<RGYFlagRow[]>([]);
   const [inactivity, setInactivity] = useState<InactivityRow[]>([]);
   const [expiringDeals, setExpiringDeals] = useState<DealLite[]>([]);
-  const [todos, setTodos] = useState<PersonalTodo[]>([]);
   const [editingDealTask, setEditingDealTask] = useState<DealTaskRow | null>(null);
   const [dealAssignmentsMap, setDealAssignmentsMap] = useState<Record<string, Set<string>>>({});
   const [addingTask, setAddingTask] = useState(false);
   const [addTaskDealId, setAddTaskDealId] = useState<string>("");
   const [allActiveDeals, setAllActiveDeals] = useState<{ id: string; deal_name: string; account: string }[]>([]);
-  const [nudges, setNudges] = useState<SmartNudge[]>([]);
   // Deal IDs where the viewer is the VSD (active deals only). Tasks on these
   // deals are visible to the VSD even when assigned to a team member.
   const [myVsdDealIds, setMyVsdDealIds] = useState<Set<string>>(new Set());
-  const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [quota, setQuota] = useState<QuotaRow | null>(null);
   const [closedAmount, setClosedAmount] = useState(0);
   const [periodType, setPeriodType] = useState<"year">("year");
