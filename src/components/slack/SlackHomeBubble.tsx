@@ -81,10 +81,17 @@ function ChannelChat() {
   const [loadingChannels, setLoadingChannels] = useState(false);
   const [chSearch, setChSearch] = useState("");
   const [messages, setMessages] = useState<ChannelMsg[]>([]);
+  const [userNames, setUserNames] = useState<Record<string, string>>({});
+  const [wsUsers, setWsUsers] = useState<SlackWorkspaceUser[]>([]);
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [mentionStart, setMentionStart] = useState(-1);
+  const [mentionIdx, setMentionIdx] = useState(0);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const loadChannels = async () => {
     setLoadingChannels(true);
@@ -122,6 +129,7 @@ function ChannelChat() {
           return;
         }
         setMessages(data?.messages || []);
+        setUserNames(data?.users || {});
       });
     const ch = supabase
       .channel(`slack-home-ch-${channelId}`)
@@ -138,6 +146,16 @@ function ChannelChat() {
       .subscribe();
     return () => { cancelled = true; supabase.removeChannel(ch); };
   }, [channelId]);
+
+  useEffect(() => {
+    if (!channelId || wsUsers.length > 0) return;
+    supabase.functions.invoke<SlackUserListResponse>("slack-list-users").then(({ data, error }) => {
+      if (error || data?.error) return;
+      const users = data?.users || [];
+      setWsUsers(users);
+      setUserNames(prev => users.reduce((acc, u) => ({ ...acc, [u.id]: u.display_name || u.real_name || u.name || u.id }), prev));
+    });
+  }, [channelId, wsUsers.length]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
