@@ -47,6 +47,12 @@ import {
   useHomeNotificationsQuery,
   useHomeNudgesQuery,
 } from "@/hooks/queries/useHomeListsQueries";
+import {
+  useHomeProfileQuery,
+  useHomeRecentsAndPinsQuery,
+  useHomeActiveDealsQuery,
+  useHomeQuotaQuery,
+} from "@/hooks/queries/useHomeIdentityQueries";
 
 const DEAL_STAGES = ["To Do", "In Progress", "In Review", "Done", "Dropped"] as const;
 
