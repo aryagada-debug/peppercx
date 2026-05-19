@@ -222,6 +222,29 @@ export default function HomePage() {
     return s;
   };
 
+  // Build a server-side `.or(...)` clause that narrows a staffing_deals
+  // query to only rows the viewer can see (alias match on any role column,
+  // OR explicit access deal IDs from useDealAccess). Returns null when the
+  // viewer is admin (no narrowing needed) or has no signal to narrow on
+  // (fall back to client-side filter for safety).
+  const buildDealScopeOrClause = useCallback(
+    (aliases: Set<string>, accessIds: Set<string>): string | null => {
+      if (isAdmin) return null;
+      const safeAliases = Array.from(aliases).filter(
+        (a) => a && !a.includes("@") && !/[,()"\\]/.test(a),
+      );
+      const cols = ["vsd", "principal_bopm", "senior_bopm", "bopm"];
+      const parts: string[] = [];
+      for (const a of safeAliases) {
+        for (const c of cols) parts.push(`${c}.ilike.${a}`);
+      }
+      const ids = Array.from(accessIds);
+      if (ids.length) parts.push(`id.in.(${ids.join(",")})`);
+      return parts.length ? parts.join(",") : null;
+    },
+    [isAdmin],
+  );
+
   const loadProfile = useCallback(async () => {
     if (!user) return null;
     const { data: profile } = await supabase
@@ -252,9 +275,12 @@ export default function HomePage() {
     // viewer's / their BOPMs' tasks when total tasks are large.
     const aliasSet = aliasesRef.current;
     const inAliases = (s: string | null) => !!s && aliasSet.has((s || "").trim().toLowerCase());
-    const { data: allDealsForScope } = await supabase
+    const scopeClause = buildDealScopeOrClause(aliasSet, accessDealIds);
+    let scopeQuery = supabase
       .from("staffing_deals")
       .select("id, vsd, principal_bopm, senior_bopm, bopm");
+    if (scopeClause) scopeQuery = scopeQuery.or(scopeClause);
+    const { data: allDealsForScope } = await scopeQuery;
     const myDealsForScope = (allDealsForScope || []).filter((d: any) =>
       inAliases(d.vsd) || inAliases(d.principal_bopm) || inAliases(d.senior_bopm) || inAliases(d.bopm));
     const aliasDealIds = new Set(myDealsForScope.map((d: any) => d.id));
@@ -319,16 +345,19 @@ export default function HomePage() {
       setAllPeople((peopleRows as PersonLite[]) || []);
     }
     setLoadingTasks(false);
-  }, [user, isAdmin, isCapLead, accessDealIds]);
+  }, [user, isAdmin, isCapLead, accessDealIds, buildDealScopeOrClause]);
 
   const loadFlags = useCallback(async () => {
     if (!user) return;
     setLoadingFlags(true);
     const aliasSet = aliasesRef.current;
     const inAliases = (s: string | null) => !!s && aliasSet.has((s || "").trim().toLowerCase());
-    const { data: allDeals } = await supabase.from("staffing_deals")
+    const scopeClause = buildDealScopeOrClause(aliasSet, accessDealIds);
+    let q = supabase.from("staffing_deals")
       .select("id, deal_name, account, vsd, principal_bopm, senior_bopm, bopm, end_date, deal_status")
       .in("deal_status", ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
+    if (scopeClause) q = q.or(scopeClause);
+    const { data: allDeals } = await q;
     const myDeals = (allDeals || []).filter((d: any) =>
       accessDealIds.has(d.id) ||
       inAliases(d.vsd) || inAliases(d.principal_bopm) || inAliases(d.senior_bopm) || inAliases(d.bopm));
@@ -358,16 +387,19 @@ export default function HomePage() {
     });
     setExpiringDeals(expiring as DealLite[]);
     setLoadingFlags(false);
-  }, [user, accessDealIds]);
+  }, [user, accessDealIds, buildDealScopeOrClause]);
 
   const loadMyDeals = useCallback(async () => {
     if (!user) return;
     setLoadingMyDeals(true);
     const aliasSet = aliasesRef.current;
     const inAliases = (s: string | null) => !!s && aliasSet.has((s || "").trim().toLowerCase());
-    const { data } = await supabase.from("staffing_deals")
+    const scopeClause = buildDealScopeOrClause(aliasSet, accessDealIds);
+    let q = supabase.from("staffing_deals")
       .select("id, deal_name, account, vsd, principal_bopm, senior_bopm, bopm, end_date, deal_status, mrr, total_deal_value")
       .in("deal_status", ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
+    if (scopeClause) q = q.or(scopeClause);
+    const { data } = await q;
     const visible = (data || []).filter((d: any) => isAdmin || accessDealIds.has(d.id) || inAliases(d.vsd) || inAliases(d.principal_bopm) || inAliases(d.senior_bopm) || inAliases(d.bopm));
     const mine: MyDeal[] = visible
       .map((d: any) => {
@@ -445,7 +477,7 @@ export default function HomePage() {
       setFinTargets({ contraction: 0, delivery: 0, invoicing: 0, receivables: 0 });
     }
     setLoadingMyDeals(false);
-  }, [user, isAdmin, isCapLead, isCapMember, accessDealIds]);
+  }, [user, isAdmin, isCapLead, isCapMember, accessDealIds, buildDealScopeOrClause]);
 
   const loadTodos = useCallback(async () => {
     if (!user) return;
@@ -544,15 +576,18 @@ export default function HomePage() {
     // Closed amount: sum net_deal_value of active/won deals where I am VSD/BOPM and start_date in period
     const aliasSet = aliasesRef.current;
     const inAliases = (s: string | null) => !!s && aliasSet.has((s || "").trim().toLowerCase());
-    const { data: allDeals } = await supabase.from("staffing_deals")
+    const scopeClause = buildDealScopeOrClause(aliasSet, accessDealIds);
+    let q2 = supabase.from("staffing_deals")
       .select("net_deal_value, total_deal_value, vsd, principal_bopm, senior_bopm, bopm, start_date, deal_status")
       .gte("start_date", format(start, "yyyy-MM-dd")).lte("start_date", format(end, "yyyy-MM-dd"));
+    if (scopeClause) q2 = q2.or(scopeClause);
+    const { data: allDeals } = await q2;
     const mine = (allDeals || []).filter((d: any) =>
       inAliases(d.vsd) || inAliases(d.principal_bopm) || inAliases(d.senior_bopm) || inAliases(d.bopm));
     const total = mine.reduce((sum: number, d: any) => sum + Number(d.net_deal_value || d.total_deal_value || 0), 0);
     setClosedAmount(total);
     setLoadingQuota(false);
-  }, [user, periodType]);
+  }, [user, periodType, accessDealIds, buildDealScopeOrClause]);
 
   const loadRecentsAndPins = useCallback(async () => {
     if (!user) return;
@@ -570,15 +605,18 @@ export default function HomePage() {
   const loadActiveDeals = useCallback(async () => {
     const aliasSet = aliasesRef.current;
     const inAliases = (s: string | null) => !!s && aliasSet.has((s || "").trim().toLowerCase());
-    const { data } = await supabase.from("staffing_deals")
+    const scopeClause = buildDealScopeOrClause(aliasSet, accessDealIds);
+    let q = supabase.from("staffing_deals")
       .select("id, deal_name, account, deal_status, vsd, principal_bopm, senior_bopm, bopm")
       .in("deal_status", ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"])
       .order("deal_name");
+    if (scopeClause) q = q.or(scopeClause);
+    const { data } = await q;
     const visible = (data || []).filter((d: any) =>
       isAdmin || accessDealIds.has(d.id) || inAliases(d.vsd) || inAliases(d.principal_bopm) || inAliases(d.senior_bopm) || inAliases(d.bopm)
     );
     setAllActiveDeals(visible.map((d: any) => ({ id: d.id, deal_name: d.deal_name, account: d.account })));
-  }, [isAdmin, accessDealIds]);
+  }, [isAdmin, accessDealIds, buildDealScopeOrClause]);
 
   // Create a new deal task from Home (two-way synced with the deal's Kanban).
   const handleAddTaskSubmit = useCallback(async (data: any) => {
