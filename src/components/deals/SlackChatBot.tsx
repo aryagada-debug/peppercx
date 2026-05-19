@@ -185,7 +185,7 @@ export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
   };
 
   const send = async () => {
-    const text = draft.trim();
+    const text = normalizeSlackMentionsForSend(draft.trim());
     if (!text || !channelId) return;
     setSending(true);
     const { data, error } = await supabase.functions.invoke<SlackSendResponse>("slack-send", {
@@ -213,7 +213,10 @@ export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
         );
       })
       .slice(0, 8)
-      .map<MentionOption>(u => ({ id: u.id, label: u.display_name, token: `<@${u.id}>`, sub: u.email || u.real_name }));
+      .map<MentionOption>(u => {
+        const label = u.display_name || u.real_name || u.name || u.id;
+        return { id: u.id, label, token: slackMentionToken(u.id, label), sub: u.email || u.real_name };
+      });
     return [...broadcasts, ...users];
   }, [wsUsers, mentionQuery]);
 
