@@ -724,6 +724,6 @@ export function useDealDetail(dealId: string | undefined) {
     addFinancial, updateFinancial, deleteFinancial,
     addTask, addTasksBulk, updateTask, deleteTask,
     upsertMBREntry, deleteMBREntry, quickUpdateMBRField,
-    refresh: loadAll,
+    refresh: () => qc.invalidateQueries({ queryKey }),
   };
 }
