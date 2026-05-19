@@ -468,13 +468,13 @@ function RevenueCapacityPanel({
   onDragEnd,
   draggingPerson,
 }: {
-  revenueTargets: ReturnType<typeof useStaffingData>["revenueTargets"];
-  peopleByGroup: Map<string, ReturnType<typeof useStaffingData>["people"]>;
+  revenueTargets: ReturnType<typeof useStaffingQueries>["revenueTargets"];
+  peopleByGroup: Map<string, ReturnType<typeof useStaffingQueries>["people"]>;
   onTargetChange: (dept: string, desg: string, val: number) => void;
   sensors: ReturnType<typeof useSensors>;
   onDragStart: (e: DragStartEvent) => void;
   onDragEnd: (e: DragEndEvent) => void;
-  draggingPerson: ReturnType<typeof useStaffingData>["people"][number] | null;
+  draggingPerson: ReturnType<typeof useStaffingQueries>["people"][number] | null;
 }) {
   // Build the union of (dept|desg) keys from both targets and people, so
   // unmapped people still show up.
