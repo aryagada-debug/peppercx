@@ -253,8 +253,7 @@ export default function HomePage() {
     const inAliases = (s: string | null) => !!s && aliasSet.has((s || "").trim().toLowerCase());
     const { data: allDealsForScope } = await supabase
       .from("staffing_deals")
-      .select("id, vsd, principal_bopm, senior_bopm, bopm")
-      .range(0, 9999);
+      .select("id, vsd, principal_bopm, senior_bopm, bopm");
     const myDealsForScope = (allDealsForScope || []).filter((d: any) =>
       inAliases(d.vsd) || inAliases(d.principal_bopm) || inAliases(d.senior_bopm) || inAliases(d.bopm));
     const aliasDealIds = new Set(myDealsForScope.map((d: any) => d.id));
@@ -307,8 +306,17 @@ export default function HomePage() {
       (assigns || []).forEach((a: any) => { if (!m[a.deal_id]) m[a.deal_id] = new Set(); m[a.deal_id].add(a.person_id); });
       setDealAssignmentsMap(m);
     }
-    const { data: peopleRows } = await supabase.from("staffing_people").select("id, name, designation, tbh");
-    setAllPeople((peopleRows as PersonLite[]) || []);
+    // staffing_people is only needed to populate the "View tasks for…"
+    // dropdown, which is only rendered for admins and VSD viewers. Skip
+    // the full-table scan for everyone else.
+    if (isAdmin || isVsd) {
+      const { data: peopleRows } = await supabase
+        .from("staffing_people")
+        .select("id, name, designation, tbh")
+        .eq("tbh", false)
+        .eq("leaving", false);
+      setAllPeople((peopleRows as PersonLite[]) || []);
+    }
     setLoadingTasks(false);
   }, [user, isAdmin, isCapLead, accessDealIds]);
 
