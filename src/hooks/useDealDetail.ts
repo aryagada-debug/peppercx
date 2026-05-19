@@ -1,6 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback } from "react";
 import { toast } from "sonner";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useTableSubscription, invalidatePatcher } from "@/lib/realtime";
 import type { FinancialRow } from "@/components/deals/FinancialsTab";
 import type { DealTask } from "@/components/deals/TaskKanban";
 import type { MBREntry, ActionItem } from "@/hooks/useMBRData";
@@ -79,59 +81,28 @@ export interface OnboardingStep {
   sortOrder: number;
 }
 
+interface DealDetailBundle {
+  sowItems: SoWItem[];
+  revenue: RevenueMonthly[];
+  targets: TargetMonthly[];
+  rgyWeekly: RGYWeekly[];
+  onboarding: OnboardingStep[];
+  financials: FinancialRow[];
+  tasks: DealTask[];
+  mbrEntries: MBREntry[];
+}
+
+const EMPTY_BUNDLE: DealDetailBundle = {
+  sowItems: [], revenue: [], targets: [], rgyWeekly: [],
+  onboarding: [], financials: [], tasks: [], mbrEntries: [],
+};
+
 export function useDealDetail(dealId: string | undefined) {
-  const [sowItems, setSowItems] = useState<SoWItem[]>([]);
-  const [revenue, setRevenue] = useState<RevenueMonthly[]>([]);
-  const [targets, setTargets] = useState<TargetMonthly[]>([]);
-  const [rgyWeekly, setRgyWeekly] = useState<RGYWeekly[]>([]);
-  const [onboarding, setOnboarding] = useState<OnboardingStep[]>([]);
-  const [financials, setFinancials] = useState<FinancialRow[]>([]);
-  const [tasks, setTasks] = useState<DealTask[]>([]);
-  const [mbrEntries, setMbrEntries] = useState<MBREntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const qc = useQueryClient();
+  const queryKey = ["dealDetail", dealId ?? ""] as const;
 
-  useEffect(() => {
-    if (!dealId) return;
-    loadAll();
-
-    // Realtime sync for MBR entries and deal tasks
-    const channel = supabase
-      .channel(`mbr-deal-${dealId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "mbr_entries", filter: `deal_id=eq.${dealId}` }, async () => {
-        const { data } = await supabase.from("mbr_entries").select("*").eq("deal_id", dealId).order("week_start", { ascending: false });
-        if (data) setMbrEntries(data.map((e: any) => ({
-          id: e.id, dealId: e.deal_id, weekStart: e.week_start, status: e.status, mode: e.mode,
-          notes: e.notes, updatedBy: e.updated_by, sentiment: e.sentiment || null,
-          fathomLink: e.fathom_link || null, transcript: e.transcript || null,
-          aiSummary: e.ai_summary || null, actionItems: Array.isArray(e.action_items) ? e.action_items : [],
-          scheduledDate: e.scheduled_date || null, anirudhAdded: !!e.anirudh_added,
-          anirudhJoining: !!e.anirudh_joining, inputRecordedAt: e.input_recorded_at || null,
-          mbrPptLink: e.mbr_ppt_link || null,
-        })));
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "deal_tasks", filter: `deal_id=eq.${dealId}` }, async () => {
-        const { data } = await supabase.from("deal_tasks").select("*").eq("deal_id", dealId).order("sort_order");
-        if (data) setTasks(data.map((r: any) => ({
-          id: r.id, dealId: r.deal_id, title: r.title, description: r.description || "",
-          stage: r.stage, assignee: r.assignee || "", startDate: r.start_date || undefined,
-          endDate: r.end_date || undefined, urgency: r.urgency, loggedHours: Number(r.logged_hours),
-          sortOrder: r.sort_order, estimatedHours: Number(r.estimated_hours || 0),
-          subtasks: Array.isArray(r.subtasks) ? r.subtasks : [],
-          phase: r.phase || "", tags: Array.isArray(r.tags) ? r.tags : [],
-          autoRegen: !!r.auto_regen,
-          assignees: Array.isArray(r.assignees) ? r.assignees : (r.assignee ? [r.assignee] : []),
-          createdAt: r.created_at,
-          createdByName: r.created_by_name,
-        })));
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [dealId]);
-
-  async function loadAll() {
-    if (!dealId) return;
-    setLoading(true);
+  async function loadAll(): Promise<DealDetailBundle> {
+    if (!dealId) return EMPTY_BUNDLE;
     const [sow, rev, tgt, rgy, onb, fin, tsk, mbr, finTgt] = await Promise.all([
       supabase.from("deal_sow_items").select("*").eq("deal_id", dealId),
       supabase.from("deal_revenue_monthly").select("*").eq("deal_id", dealId).order("month"),
@@ -143,10 +114,10 @@ export function useDealDetail(dealId: string | undefined) {
       supabase.from("mbr_entries").select("*").eq("deal_id", dealId).order("week_start", { ascending: false }),
       supabase.from("deal_financial_targets").select("*").eq("deal_id", dealId).order("month"),
     ]);
-    if (sow.data) setSowItems(sow.data.map((r: any) => ({ id: r.id, dealId: r.deal_id, scope: r.scope, revenueShare: Number(r.revenue_share), teamCapability: r.team_capability, teams: Array.isArray(r.teams) ? r.teams : [], lineItemValue: Number(r.line_item_value || 0) })));
-    if (rev.data) setRevenue(rev.data.map((r: any) => ({ id: r.id, dealId: r.deal_id, month: r.month, mrr: Number(r.mrr), contraction: Number(r.contraction), delivered: Number(r.delivered), invoiced: Number(r.invoiced), actuals: Number(r.actuals) })));
-    if (tgt.data) setTargets(tgt.data.map((r: any) => ({ id: r.id, dealId: r.deal_id, month: r.month, contractionTarget: Number(r.contraction_target), deliveryTarget: Number(r.delivery_target), invoicingTarget: Number(r.invoicing_target) })));
-    if (rgy.data) setRgyWeekly(rgy.data.map((r: any) => ({
+    const sowItems: SoWItem[] = (sow.data || []).map((r: any) => ({ id: r.id, dealId: r.deal_id, scope: r.scope, revenueShare: Number(r.revenue_share), teamCapability: r.team_capability, teams: Array.isArray(r.teams) ? r.teams : [], lineItemValue: Number(r.line_item_value || 0) }));
+    const revenue: RevenueMonthly[] = (rev.data || []).map((r: any) => ({ id: r.id, dealId: r.deal_id, month: r.month, mrr: Number(r.mrr), contraction: Number(r.contraction), delivered: Number(r.delivered), invoiced: Number(r.invoiced), actuals: Number(r.actuals) }));
+    const targets: TargetMonthly[] = (tgt.data || []).map((r: any) => ({ id: r.id, dealId: r.deal_id, month: r.month, contractionTarget: Number(r.contraction_target), deliveryTarget: Number(r.delivery_target), invoicingTarget: Number(r.invoicing_target) }));
+    const rgyWeekly: RGYWeekly[] = (rgy.data || []).map((r: any) => ({
       id: r.id, dealId: r.deal_id, weekStart: r.week_start, internal: r.internal, customer: r.customer,
       delivery: r.delivery, consumption: r.consumption, notes: r.notes,
       accountHealth: r.account_health || "G", financeBilling: r.finance_billing || "G",
@@ -161,8 +132,9 @@ export function useDealDetail(dealId: string | undefined) {
       updatedBy: r.updated_by || undefined,
       updatedByName: r.updated_by_name || "",
       updatedAt: r.updated_at || r.created_at,
-    })));
-    if (onb.data) setOnboarding(onb.data.map((r: any) => ({ id: r.id, dealId: r.deal_id, stepName: r.step_name, category: r.category, owner: r.owner, dueDate: r.due_date, completed: r.completed, completedAt: r.completed_at, sortOrder: r.sort_order })));
+    }));
+    const onboarding: OnboardingStep[] = (onb.data || []).map((r: any) => ({ id: r.id, dealId: r.deal_id, stepName: r.step_name, category: r.category, owner: r.owner, dueDate: r.due_date, completed: r.completed, completedAt: r.completed_at, sortOrder: r.sort_order }));
+    let financials: FinancialRow[];
     {
       const tgtMap = new Map<string, any>();
       (finTgt.data || []).forEach((t: any) => tgtMap.set(String(t.month), t));
@@ -203,9 +175,9 @@ export function useDealDetail(dealId: string | undefined) {
         });
       });
       finRows.sort((a, b) => String(a.month).localeCompare(String(b.month)));
-      setFinancials(finRows);
+      financials = finRows;
     }
-    if (tsk.data) setTasks(tsk.data.map((r: any) => ({
+    const tasks: DealTask[] = (tsk.data || []).map((r: any) => ({
       id: r.id, dealId: r.deal_id, title: r.title, description: r.description || "",
       stage: r.stage, assignee: r.assignee || "", startDate: r.start_date || undefined,
       endDate: r.end_date || undefined, urgency: r.urgency, loggedHours: Number(r.logged_hours),
@@ -216,8 +188,8 @@ export function useDealDetail(dealId: string | undefined) {
       assignees: Array.isArray(r.assignees) ? r.assignees : (r.assignee ? [r.assignee] : []),
       createdAt: r.created_at,
       createdByName: r.created_by_name,
-    })));
-    if (mbr.data) setMbrEntries(mbr.data.map((e: any) => ({
+    }));
+    const mbrEntries: MBREntry[] = (mbr.data || []).map((e: any) => ({
       id: e.id,
       dealId: e.deal_id,
       weekStart: e.week_start,
@@ -235,9 +207,70 @@ export function useDealDetail(dealId: string | undefined) {
       anirudhJoining: !!e.anirudh_joining,
       inputRecordedAt: e.input_recorded_at || null,
       mbrPptLink: e.mbr_ppt_link || null,
-    })));
-    setLoading(false);
+    }));
+    return { sowItems, revenue, targets, rgyWeekly, onboarding, financials, tasks, mbrEntries };
   }
+
+  const { data: bundle = EMPTY_BUNDLE, isLoading: loading } = useQuery({
+    queryKey,
+    enabled: !!dealId,
+    queryFn: loadAll,
+  });
+  const { sowItems, revenue, targets, rgyWeekly, onboarding, financials, tasks, mbrEntries } = bundle;
+
+  // Realtime: any change to this deal's tasks or MBRs re-fetches the bundle.
+  // The single-channel-per-(table,filter) bridge in `useTableSubscription`
+  // dedupes across mounted tabs.
+  useTableSubscription({
+    table: "mbr_entries",
+    filter: dealId ? `deal_id=eq.${dealId}` : undefined,
+    enabled: !!dealId,
+    patcher: invalidatePatcher(queryKey),
+  });
+  useTableSubscription({
+    table: "deal_tasks",
+    filter: dealId ? `deal_id=eq.${dealId}` : undefined,
+    enabled: !!dealId,
+    patcher: invalidatePatcher(queryKey),
+  });
+
+  // Cache patch helpers used by the mutations below.
+  const patchBundle = useCallback(
+    (updater: (prev: DealDetailBundle) => DealDetailBundle) => {
+      qc.setQueryData<DealDetailBundle>(queryKey, (prev) => updater(prev ?? EMPTY_BUNDLE));
+    },
+    [qc, queryKey],
+  );
+  const setSowItems = useCallback(
+    (u: SoWItem[] | ((p: SoWItem[]) => SoWItem[])) =>
+      patchBundle((b) => ({ ...b, sowItems: typeof u === "function" ? (u as any)(b.sowItems) : u })),
+    [patchBundle],
+  );
+  const setOnboarding = useCallback(
+    (u: OnboardingStep[] | ((p: OnboardingStep[]) => OnboardingStep[])) =>
+      patchBundle((b) => ({ ...b, onboarding: typeof u === "function" ? (u as any)(b.onboarding) : u })),
+    [patchBundle],
+  );
+  const setRgyWeekly = useCallback(
+    (u: RGYWeekly[] | ((p: RGYWeekly[]) => RGYWeekly[])) =>
+      patchBundle((b) => ({ ...b, rgyWeekly: typeof u === "function" ? (u as any)(b.rgyWeekly) : u })),
+    [patchBundle],
+  );
+  const setFinancials = useCallback(
+    (u: FinancialRow[] | ((p: FinancialRow[]) => FinancialRow[])) =>
+      patchBundle((b) => ({ ...b, financials: typeof u === "function" ? (u as any)(b.financials) : u })),
+    [patchBundle],
+  );
+  const setTasks = useCallback(
+    (u: DealTask[] | ((p: DealTask[]) => DealTask[])) =>
+      patchBundle((b) => ({ ...b, tasks: typeof u === "function" ? (u as any)(b.tasks) : u })),
+    [patchBundle],
+  );
+  const setMbrEntries = useCallback(
+    (u: MBREntry[] | ((p: MBREntry[]) => MBREntry[])) =>
+      patchBundle((b) => ({ ...b, mbrEntries: typeof u === "function" ? (u as any)(b.mbrEntries) : u })),
+    [patchBundle],
+  );
 
   // ── MBR upsert ──
   const upsertMBREntry = useCallback(async (params: {
@@ -691,6 +724,6 @@ export function useDealDetail(dealId: string | undefined) {
     addFinancial, updateFinancial, deleteFinancial,
     addTask, addTasksBulk, updateTask, deleteTask,
     upsertMBREntry, deleteMBREntry, quickUpdateMBRField,
-    refresh: loadAll,
+    refresh: () => qc.invalidateQueries({ queryKey }),
   };
 }
