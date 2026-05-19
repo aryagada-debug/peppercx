@@ -673,28 +673,28 @@ export default function HomePage() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const prof = await loadProfile();
-      // Fast cards first
-      loadQuota();
+      // Profile / quota / recents / activeDeals are now React Query–owned and
+      // auto-fetch as soon as their inputs (user, aliases, accessIds) are
+      // ready. We only need to kick the still-imperative cascading loaders.
       loadTasks();
-      loadRecentsAndPins();
-      loadActiveDeals();
       // Then signals
       setTimeout(() => {
         loadFlags();
         loadMyDeals();
-        // Load slack mentions if we know the user's slack id
-        (async () => {
-          if (!prof?.staffingPersonId) return;
-          const { data } = await supabase.from("staffing_people")
-            .select("slack_user_id").eq("id", prof.staffingPersonId).maybeSingle();
-          loadMentions(data?.slack_user_id || null);
-        })();
       }, 100);
     })();
-  }, [user, loadProfile, loadQuota, loadTasks, loadFlags, loadRecentsAndPins, loadMyDeals, loadMentions, loadActiveDeals]);
+  }, [user, loadTasks, loadFlags, loadMyDeals]);
 
-  useEffect(() => { if (user) loadQuota(); }, [periodType, user, loadQuota]);
+  // Slack mentions depend on the profile's staffing person → resolve once
+  // the profile query lands.
+  useEffect(() => {
+    if (!user || !staffingPersonId) return;
+    (async () => {
+      const { data } = await supabase.from("staffing_people")
+        .select("slack_user_id").eq("id", staffingPersonId).maybeSingle();
+      loadMentions(data?.slack_user_id || null);
+    })();
+  }, [user, staffingPersonId, loadMentions]);
 
   // Realtime for the remaining imperative loader (deal_tasks). Todos /
   // notifications / nudges own their own subscriptions inside their
