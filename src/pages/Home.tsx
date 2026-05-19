@@ -41,6 +41,7 @@ import { CxDatePickerPopover } from "@/components/cx/CxDatePickerPopover";
 import { useAccountActivity } from "@/hooks/useAccountActivity";
 import { Activity as ActivityIcon } from "lucide-react";
 import { useVsdUsers, useBopmDirectory, nameKey } from "@/hooks/queries/legacy";
+import { useTableSubscription } from "@/lib/realtime";
 
 const DEAL_STAGES = ["To Do", "In Progress", "In Review", "Done", "Dropped"] as const;
 
