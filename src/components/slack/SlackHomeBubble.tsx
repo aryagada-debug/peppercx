@@ -180,6 +180,53 @@ function ChannelChat() {
     setDraft("");
   };
 
+  const mentionOptions = useMemo<MentionOption[]>(() => {
+    const q = mentionQuery.trim().toLowerCase();
+    const broadcasts = BROADCASTS.filter(b => !q || b.label.startsWith(q));
+    const users = wsUsers
+      .filter(u => !q || u.display_name.toLowerCase().includes(q) || u.real_name.toLowerCase().includes(q) || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
+      .slice(0, 8)
+      .map<MentionOption>(u => ({ id: u.id, label: u.display_name || u.real_name || u.name || u.id, token: `<@${u.id}>`, sub: u.email || u.real_name }));
+    return [...broadcasts, ...users];
+  }, [mentionQuery, wsUsers]);
+
+  const onDraftChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    setDraft(v);
+    const caret = e.target.selectionStart ?? v.length;
+    const upto = v.slice(0, caret);
+    const at = upto.lastIndexOf("@");
+    if (at >= 0 && (at === 0 || /\s/.test(upto[at - 1]))) {
+      const q = upto.slice(at + 1);
+      if (!/\s/.test(q)) {
+        setMentionStart(at);
+        setMentionQuery(q);
+        setMentionIdx(0);
+        setMentionOpen(true);
+        return;
+      }
+    }
+    setMentionOpen(false);
+    setMentionStart(-1);
+  };
+
+  const insertMention = (opt: MentionOption) => {
+    if (mentionStart < 0) return;
+    const before = draft.slice(0, mentionStart);
+    const after = draft.slice(mentionStart + 1 + mentionQuery.length);
+    const insert = `${opt.token} `;
+    const next = before + insert + after;
+    setDraft(next);
+    setMentionOpen(false);
+    setMentionStart(-1);
+    setMentionQuery("");
+    requestAnimationFrame(() => {
+      const pos = before.length + insert.length;
+      inputRef.current?.focus();
+      inputRef.current?.setSelectionRange(pos, pos);
+    });
+  };
+
   if (!channelId || pickerOpen) {
     return (
       <div className="h-full flex flex-col p-2 gap-2">
