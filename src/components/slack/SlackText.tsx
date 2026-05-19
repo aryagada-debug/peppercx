@@ -58,7 +58,9 @@ export function normalizeSlackMentionsForSend(text: string) {
   return text
     .replace(/<@([UW][A-Z0-9]+)\|[^>]+>/g, "<@$1>")
     .replace(/<!(channel|here|everyone)\|[^>]+>/g, "<!$1>")
-    .replace(/<!subteam\^([A-Z0-9]+)\|[^>]+>/g, "<!subteam^$1>");
+    .replace(/<!subteam\^([A-Z0-9]+)\|[^>]+>/g, "<!subteam^$1>")
+    .replace(/(^|\s)@all(?=\s|$)/gi, "$1<!channel>")
+    .replace(/(^|\s)@(channel|here|everyone)(?=\s|$)/gi, (_match, lead, word) => `${lead}<!${word.toLowerCase()}>`);
 }
 
 export function getSlackMentionLabels(text: string, users: Record<string, string> = {}) {
