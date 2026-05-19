@@ -35,10 +35,19 @@ Deno.serve(async (req) => {
 
     const raw: SlackMsg[] = (j.messages || []).filter((m: SlackMsg) => m.type === "message" && (!m.subtype || m.subtype === "thread_broadcast" || m.subtype === "bot_message"));
 
-    // Resolve unique user IDs to display names in parallel
-    const userIds = Array.from(new Set(raw.map(m => m.user).filter(Boolean))) as string[];
+    // Collect user IDs from authors AND from inline <@Uxxx> mentions in message text.
+    const mentionRegex = /<@([UW][A-Z0-9]+)(?:\|[^>]+)?>/g;
+    const userIds = new Set<string>();
+    for (const m of raw) {
+      if (m.user) userIds.add(m.user);
+      const text = m.text || "";
+      let mt: RegExpExecArray | null;
+      while ((mt = mentionRegex.exec(text)) !== null) {
+        userIds.add(mt[1]);
+      }
+    }
     const nameMap: Record<string, string> = {};
-    await Promise.all(userIds.map(async (uid) => {
+    await Promise.all(Array.from(userIds).map(async (uid) => {
       try {
         const ur = await fetch(`https://slack.com/api/users.info?user=${uid}`, { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } });
         const uj = await ur.json();
@@ -60,7 +69,7 @@ Deno.serve(async (req) => {
       // Slack returns newest-first; UI expects oldest-first
       .sort((a, b) => Number(a.slack_ts) - Number(b.slack_ts));
 
-    return new Response(JSON.stringify({ messages }), {
+    return new Response(JSON.stringify({ messages, users: nameMap }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
