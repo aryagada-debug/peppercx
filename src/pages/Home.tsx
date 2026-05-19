@@ -594,9 +594,9 @@ export default function HomePage() {
     if (updates.subtasks !== undefined) dbUpdates.subtasks = updates.subtasks;
     if (updates.autoRegen !== undefined) dbUpdates.auto_regen = updates.autoRegen;
     // Optimistic
-    setDealTasks(prev => prev.map(t => t.id === id ? { ...t, ...dbUpdates } : t));
+    patchDealTasks(prev => prev.map(t => t.id === id ? { ...t, ...dbUpdates } : t));
     const { error } = await supabase.from("deal_tasks").update(dbUpdates).eq("id", id);
-    if (error) { toast.error(error.message); loadTasks(); }
+    if (error) { toast.error(error.message); invalidateTasks(); }
     // Auto-regen: clone task back into "To Do" when it lands in Done.
     if (
       !error &&
@@ -623,9 +623,9 @@ export default function HomePage() {
         phase: prevTask.phase || "",
         sort_order: 0,
       } as any).select().maybeSingle();
-      if (inserted) setDealTasks(prev => [...prev, inserted as any]);
+      if (inserted) patchDealTasks(prev => [...prev, inserted as any]);
     }
-  }, [loadTasks, invalidateTodos, dealTasks]);
+  }, [patchDealTasks, invalidateTasks, dealTasks]);
 
   const handleKanbanDelete = useCallback(async (id: string) => {
     const todoId = fromTodoTaskId(id);
@@ -636,14 +636,14 @@ export default function HomePage() {
       else toast.success("Task deleted");
       return;
     }
-    setDealTasks(prev => prev.filter(t => t.id !== id));
+    patchDealTasks(prev => prev.filter(t => t.id !== id));
     const { error } = await supabase.from("deal_tasks").delete().eq("id", id);
     if (error) toast.error(error.message);
     else toast.success("Task deleted");
-  }, [invalidateTodos]);
+  }, [invalidateTodos, patchTodos, patchDealTasks]);
 
   // Account activity (replaces Recently Viewed) — recomputes when alias set changes
-  const { items: activityItems, loading: loadingActivity } = useAccountActivity(aliasesRef.current, !!displayName, 25, isAdmin);
+  const { items: activityItems, loading: loadingActivity } = useAccountActivity(profileData.aliases, !!displayName, 25, isAdmin);
 
   const overdue = useMemo(() => allMyTasks.filter(t => isOverdue(t.due)), [allMyTasks]);
   const today = useMemo(() => allMyTasks.filter(t => isDueToday(t.due)), [allMyTasks]);
@@ -682,20 +682,20 @@ export default function HomePage() {
   const onTaskComplete = async (t: any) => {
     if (t.kind === "deal") {
       await supabase.from("deal_tasks").update({ stage: "Done" }).eq("id", t.id);
-      setDealTasks(prev => prev.map(x => x.id === t.id ? { ...x, stage: "Done" } : x));
+      patchDealTasks(prev => prev.map(x => x.id === t.id ? { ...x, stage: "Done" } : x));
     } else {
       await supabase.from("cx_tasks").update({ status: "Done" }).eq("id", t.id);
-      setCxTasks(prev => prev.map(x => x.id === t.id ? { ...x, status: "Done" } : x));
+      patchCxTasks(prev => prev.map(x => x.id === t.id ? { ...x, status: "Done" } : x));
     }
     toast.success("Task completed", { action: { label: "Undo", onClick: () => onTaskUncomplete(t) } });
   };
   const onTaskUncomplete = async (t: any) => {
     if (t.kind === "deal") {
       await supabase.from("deal_tasks").update({ stage: "To Do" }).eq("id", t.id);
-      loadTasks();
+      invalidateTasks();
     } else {
       await supabase.from("cx_tasks").update({ status: "Open" }).eq("id", t.id);
-      loadTasks();
+      invalidateTasks();
     }
   };
 
