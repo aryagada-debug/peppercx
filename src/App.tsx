@@ -62,6 +62,7 @@ const App = () => (
           <AuthProvider>
           <UserRoleProvider>
           <CurrencyProvider>
+          <StaffingSeederMount />
           <Suspense fallback={<RouteFallback />}>
           <Routes>
             {/* Public auth routes */}
