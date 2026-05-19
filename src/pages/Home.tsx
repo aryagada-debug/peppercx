@@ -498,50 +498,6 @@ export default function HomePage() {
     setLoadingMyDeals(false);
   }, [user, isAdmin, isCapLead, isCapMember, accessDealIds, buildDealScopeOrClause]);
 
-  const loadTodos = useCallback(async () => {
-    if (!user) return;
-    setLoadingTodos(true);
-    const orParts = [
-      `user_id.eq.${user.id}`,
-      `assigned_by_user_id.eq.${user.id}`,
-    ];
-    if (staffingPersonId) {
-      orParts.push(`assignee_staffing_person_id.eq.${staffingPersonId}`);
-    }
-    const { data, error } = await supabase
-      .from("personal_todos")
-      .select("*")
-      .or(orParts.join(","))
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: true });
-    if (error) {
-      toast.error(error.message);
-      setTodos([]);
-      setLoadingTodos(false);
-      return;
-    }
-    setTodos((data as PersonalTodo[]) || []);
-    setLoadingTodos(false);
-  }, [user, staffingPersonId]);
-
-  const loadNudges = useCallback(async () => {
-    if (!user) return;
-    setLoadingNudges(true);
-    const { data } = await supabase.from("smart_nudges").select("*").eq("user_id", user.id).eq("dismissed", false)
-      .order("generated_at", { ascending: false }).limit(20);
-    setNudges((data as SmartNudge[]) || []);
-    setLoadingNudges(false);
-  }, [user]);
-
-  const loadNotifications = useCallback(async () => {
-    if (!user) return;
-    setLoadingNotifs(true);
-    const { data } = await supabase.from("user_notifications").select("*").eq("user_id", user.id)
-      .order("created_at", { ascending: false }).limit(30);
-    setNotifications((data as UserNotification[]) || []);
-    setLoadingNotifs(false);
-  }, [user]);
-
   const loadMentions = useCallback(async (slackUserId?: string | null) => {
     if (!slackUserId) { setMentions([]); return; }
     const { data } = await supabase.from("slack_messages")
