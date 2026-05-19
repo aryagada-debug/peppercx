@@ -222,6 +222,29 @@ export default function HomePage() {
     return s;
   };
 
+  // Build a server-side `.or(...)` clause that narrows a staffing_deals
+  // query to only rows the viewer can see (alias match on any role column,
+  // OR explicit access deal IDs from useDealAccess). Returns null when the
+  // viewer is admin (no narrowing needed) or has no signal to narrow on
+  // (fall back to client-side filter for safety).
+  const buildDealScopeOrClause = useCallback(
+    (aliases: Set<string>, accessIds: Set<string>): string | null => {
+      if (isAdmin) return null;
+      const safeAliases = Array.from(aliases).filter(
+        (a) => a && !a.includes("@") && !/[,()"\\]/.test(a),
+      );
+      const cols = ["vsd", "principal_bopm", "senior_bopm", "bopm"];
+      const parts: string[] = [];
+      for (const a of safeAliases) {
+        for (const c of cols) parts.push(`${c}.ilike.${a}`);
+      }
+      const ids = Array.from(accessIds);
+      if (ids.length) parts.push(`id.in.(${ids.join(",")})`);
+      return parts.length ? parts.join(",") : null;
+    },
+    [isAdmin],
+  );
+
   const loadProfile = useCallback(async () => {
     if (!user) return null;
     const { data: profile } = await supabase
