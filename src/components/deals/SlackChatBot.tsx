@@ -86,7 +86,9 @@ export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
       .invoke<SlackUserListResponse>("slack-list-users")
       .then(({ data, error }) => {
         if (error || data?.error) return;
-        setWsUsers(data?.users || []);
+        const users = data?.users || [];
+        setWsUsers(users);
+        setUserNames(prev => users.reduce((acc, u) => ({ ...acc, [u.id]: u.display_name || u.real_name || u.name || u.id }), prev));
       });
   }, [open, wsUsers.length]);
 
