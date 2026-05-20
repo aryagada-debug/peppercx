@@ -204,8 +204,8 @@ export async function restoreTrashItem(item: TrashItem): Promise<{ ok: boolean; 
   if (parentErr) return { ok: false, error: parentErr.message };
 
   if (children) {
-    for (const [table, rows] of Object.entries(children)) {
-      if (!rows?.length) continue;
+    for (const [table, rows] of Object.entries(children) as [string, any[]][]) {
+      if (!Array.isArray(rows) || rows.length === 0) continue;
       const { error: childErr } = await supabase.from(table as any).insert(rows);
       if (childErr) {
         console.error("restore child failed", table, childErr);
