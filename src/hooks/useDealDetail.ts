@@ -365,7 +365,7 @@ export function useDealDetail(dealId: string | undefined) {
 
   const deleteSoWItem = useCallback(async (id: string) => {
     setSowItems(prev => prev.filter(s => s.id !== id));
-    await supabase.from("deal_sow_items").delete().eq("id", id);
+    await softDelete("deal_sow_item", id);
   }, []);
 
   // ── Onboarding ──
@@ -681,7 +681,7 @@ export function useDealDetail(dealId: string | undefined) {
 
   const deleteTask = useCallback(async (id: string) => {
     setTasks(prev => prev.filter(t => t.id !== id));
-    await supabase.from("deal_tasks").delete().eq("id", id);
+    await softDelete("deal_task", id);
   }, []);
 
   const deleteMBREntry = useCallback(async (id: string) => {
