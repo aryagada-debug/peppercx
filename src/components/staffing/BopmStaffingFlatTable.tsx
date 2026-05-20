@@ -1002,9 +1002,16 @@ export function BopmStaffingFlatTable({
       (a.account || "").localeCompare(b.account || "") ||
       (a.dealName || "").localeCompare(b.dealName || "")
     );
-    const bopmFiltered = bopmFilter && bopmFilter !== "All"
-      ? sorted.filter(d => dealMatchesBopm(d as any, bopmFilter, allPersonNames))
+    const vsdFiltered = vsdFilter && vsdFilter !== "All"
+      ? sorted.filter(d => {
+          const resolved = vsdForDeal(d as any);
+          if (vsdFilter === "Yet to be assigned") return !resolved;
+          return resolved === vsdFilter;
+        })
       : sorted;
+    const bopmFiltered = bopmFilter && bopmFilter !== "All"
+      ? vsdFiltered.filter(d => dealMatchesBopm(d as any, bopmFilter, allPersonNames))
+      : vsdFiltered;
     if (!q) return bopmFiltered;
     return bopmFiltered.filter(d => {
       const byRole = dealRoleMap.get(d.id);
@@ -1013,7 +1020,7 @@ export function BopmStaffingFlatTable({
       const hay = `${d.account} ${d.dealName} ${d.dealId} ${personHay}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [deals, search, bopmFilter, dealRoleMap, allPersonById, allPersonNames]);
+  }, [deals, search, bopmFilter, vsdFilter, vsdForDeal, dealRoleMap, allPersonById, allPersonNames]);
 
   const virtualRows = useMemo(() => {
     const total = filteredDeals.length;
@@ -1033,7 +1040,7 @@ export function BopmStaffingFlatTable({
   useEffect(() => {
     setTableScrollTop(0);
     if (tableViewportRef.current) tableViewportRef.current.scrollTop = 0;
-  }, [search, bopmFilter]);
+  }, [search, bopmFilter, vsdFilter]);
 
   // Aggregate top stats
   const totals = useMemo(() => {
