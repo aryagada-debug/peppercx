@@ -1297,6 +1297,32 @@ export function BopmStaffingFlatTable({
 
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <header className="px-3 py-2 border-b border-border flex items-center justify-end gap-2 flex-wrap">
+            <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
+              <button
+                onClick={() => setActiveOnly(true)}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
+                  activeOnly
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                title="Show only Active Deal, Deal Disputed, New Deal in SLA/PO"
+              >
+                Active
+              </button>
+              <button
+                onClick={() => setActiveOnly(false)}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
+                  !activeOnly
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                title="Include closed/churned deals"
+              >
+                All deals
+              </button>
+            </div>
             <div className="relative">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <input
