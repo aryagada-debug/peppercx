@@ -1290,24 +1290,31 @@ export function BopmStaffingFlatTable({
               />
             </div>
             {enableBopmFilter && (
-              <select
-                value={vsdFilter}
-                onChange={e => {
-                  setVsdFilter(e.target.value);
-                  // Clear BOPM filter if the chosen BOPM no longer fits the new VSD scope
-                  if (e.target.value !== "All" && e.target.value !== "Yet to be assigned") {
-                    setBopmFilter("All");
-                  }
-                }}
-                className="h-8 px-2 rounded-md border border-border bg-background text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
-                title="Filter deals by VSD"
-              >
-                <option value="All">All VSDs</option>
-                {[...VSD_NAMES].sort((a, b) => a.localeCompare(b)).map(v => (
-                  <option key={v} value={v}>{v}</option>
+              <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5 overflow-x-auto max-w-full">
+                {([
+                  { key: "All", label: "All" },
+                  ...[...VSD_NAMES].sort((a, b) => a.localeCompare(b)).map(v => ({ key: v, label: v })),
+                  { key: "Yet to be assigned", label: "Unassigned" },
+                ]).map(v => (
+                  <button
+                    key={v.key}
+                    onClick={() => {
+                      setVsdFilter(v.key);
+                      if (v.key !== "All" && v.key !== "Yet to be assigned") {
+                        setBopmFilter("All");
+                      }
+                    }}
+                    className={cn(
+                      "px-2.5 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
+                      vsdFilter === v.key
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {v.label}
+                  </button>
                 ))}
-                <option value="Yet to be assigned">Yet to be assigned</option>
-              </select>
+              </div>
             )}
             {enableBopmFilter && (
               <BopmFilter
