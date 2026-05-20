@@ -563,6 +563,7 @@ export function BopmStaffingFlatTable({
   const [search, setSearch] = useState("");
   const [bopmFilter, setBopmFilter] = useState<string>("All");
   const [vsdFilter, setVsdFilter] = useState<string>("All");
+  const [activeOnly, setActiveOnly] = useState<boolean>(true);
   const { vsdForDeal } = useVsdHierarchy();
   const allPersonNames = useAllPersonNames();
   // "Request staffing" replaces the old direct-add flow. We capture the deal
@@ -1014,13 +1015,17 @@ export function BopmStaffingFlatTable({
       (a.account || "").localeCompare(b.account || "") ||
       (a.dealName || "").localeCompare(b.dealName || "")
     );
+    const ACTIVE_STATUSES = new Set(["Active Deal", "Deal Disputed", "New Deal in SLA/PO"]);
+    const activeFiltered = activeOnly
+      ? sorted.filter(d => ACTIVE_STATUSES.has((d as any).dealStatus || ""))
+      : sorted;
     const vsdFiltered = vsdFilter && vsdFilter !== "All"
-      ? sorted.filter(d => {
+      ? activeFiltered.filter(d => {
           const resolved = vsdForDeal(d as any);
           if (vsdFilter === "Yet to be assigned") return !resolved;
           return resolved === vsdFilter;
         })
-      : sorted;
+      : activeFiltered;
     const bopmFiltered = bopmFilter && bopmFilter !== "All"
       ? vsdFiltered.filter(d => dealMatchesBopm(d as any, bopmFilter, allPersonNames))
       : vsdFiltered;
@@ -1032,7 +1037,7 @@ export function BopmStaffingFlatTable({
       const hay = `${d.account} ${d.dealName} ${d.dealId} ${personHay}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [deals, search, bopmFilter, vsdFilter, vsdForDeal, dealRoleMap, allPersonById, allPersonNames]);
+  }, [deals, search, bopmFilter, vsdFilter, activeOnly, vsdForDeal, dealRoleMap, allPersonById, allPersonNames]);
 
   const virtualRows = useMemo(() => {
     const total = filteredDeals.length;
@@ -1052,7 +1057,7 @@ export function BopmStaffingFlatTable({
   useEffect(() => {
     setTableScrollTop(0);
     if (tableViewportRef.current) tableViewportRef.current.scrollTop = 0;
-  }, [search, bopmFilter, vsdFilter]);
+  }, [search, bopmFilter, vsdFilter, activeOnly]);
 
   // Aggregate top stats
   const totals = useMemo(() => {
@@ -1292,6 +1297,32 @@ export function BopmStaffingFlatTable({
 
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <header className="px-3 py-2 border-b border-border flex items-center justify-end gap-2 flex-wrap">
+            <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
+              <button
+                onClick={() => setActiveOnly(true)}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
+                  activeOnly
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                title="Show only Active Deal, Deal Disputed, New Deal in SLA/PO"
+              >
+                Active
+              </button>
+              <button
+                onClick={() => setActiveOnly(false)}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
+                  !activeOnly
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                title="Include closed/churned deals"
+              >
+                All deals
+              </button>
+            </div>
             <div className="relative">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <input
