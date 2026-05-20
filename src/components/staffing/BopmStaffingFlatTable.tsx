@@ -574,6 +574,7 @@ export function BopmStaffingFlatTable({
     category: string; allocationPct: number;
   } | null>(null);
   const [allocDraft, setAllocDraft] = useState<Record<string, string>>({});
+  const [savingAlloc, setSavingAlloc] = useState<Record<string, number>>({});
   const [drafts, setDrafts] = useState<Record<string, DealDraft>>({});
   const [submitting, setSubmitting] = useState<Record<string, boolean>>({});
   const [noteByDeal, setNoteByDeal] = useState<Record<string, string>>({});
@@ -680,8 +681,10 @@ export function BopmStaffingFlatTable({
 
   const stageUpdate = (dealId: string, assignmentId: string, patch: Partial<StaffingAssignment>) => {
     if (directEdit && onUpdateAssignment) {
-      onUpdateAssignment(assignmentId, patch);
-      return;
+      if (patch.allocationPct !== undefined) {
+        setSavingAlloc(prev => ({ ...prev, [assignmentId]: patch.allocationPct! }));
+      }
+      return onUpdateAssignment(assignmentId, patch);
     }
     const cur = getDraft(dealId);
     const addIdx = cur.adds.findIndex(a => a.id === assignmentId);
