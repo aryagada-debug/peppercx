@@ -31,7 +31,7 @@ async function fetchSlackHealth(): Promise<SlackHealthRow[]> {
 
   const dealIds = deals.map((d) => d.id);
 
-  const [assignRes, msgRes, peopleRes] = await Promise.all([
+  const [assignRes, msgRes, peopleRes, channelsRes] = await Promise.all([
     supabase
       .from("staffing_assignments")
       .select("deal_id, person_id")
@@ -44,10 +44,17 @@ async function fetchSlackHealth(): Promise<SlackHealthRow[]> {
     supabase
       .from("staffing_people")
       .select("id, slack_user_id"),
+    supabase.functions.invoke("slack-list-channels").catch(() => ({ data: null, error: null })),
   ]);
   if (assignRes.error) throw assignRes.error;
   if (msgRes.error) throw msgRes.error;
   if (peopleRes.error) throw peopleRes.error;
+
+  const channelNameById = new Map<string, string>();
+  const channelList = (channelsRes as any)?.data?.channels as Array<{ id: string; name: string }> | undefined;
+  if (Array.isArray(channelList)) {
+    for (const c of channelList) channelNameById.set(c.id, c.name);
+  }
 
   const personBySlack = new Map<string, string>();
   const slackIdByPerson = new Map<string, string>();
@@ -107,7 +114,7 @@ async function fetchSlackHealth(): Promise<SlackHealthRow[]> {
 
     return {
       channelId: d.slack_channel_id!,
-      channelName: `#${d.slack_channel_id}`,
+      channelName: `#${channelNameById.get(d.slack_channel_id!) ?? d.slack_channel_id}`,
       dealId: d.id,
       dealCode: d.deal_id || d.id,
       dealName: d.deal_name,
