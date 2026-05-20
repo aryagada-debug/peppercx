@@ -684,7 +684,15 @@ export function BopmStaffingFlatTable({
       if (patch.allocationPct !== undefined) {
         setSavingAlloc(prev => ({ ...prev, [assignmentId]: patch.allocationPct! }));
       }
-      return onUpdateAssignment(assignmentId, patch);
+      return Promise.resolve(onUpdateAssignment(assignmentId, patch)).finally(() => {
+        if (patch.allocationPct !== undefined) {
+          setSavingAlloc(prev => {
+            const next = { ...prev };
+            delete next[assignmentId];
+            return next;
+          });
+        }
+      });
     }
     const cur = getDraft(dealId);
     const addIdx = cur.adds.findIndex(a => a.id === assignmentId);
