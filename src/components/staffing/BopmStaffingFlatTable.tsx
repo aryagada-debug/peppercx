@@ -574,6 +574,7 @@ export function BopmStaffingFlatTable({
     category: string; allocationPct: number;
   } | null>(null);
   const [allocDraft, setAllocDraft] = useState<Record<string, string>>({});
+  const [savingAlloc, setSavingAlloc] = useState<Record<string, number>>({});
   const [drafts, setDrafts] = useState<Record<string, DealDraft>>({});
   const [submitting, setSubmitting] = useState<Record<string, boolean>>({});
   const [noteByDeal, setNoteByDeal] = useState<Record<string, string>>({});
@@ -680,8 +681,18 @@ export function BopmStaffingFlatTable({
 
   const stageUpdate = (dealId: string, assignmentId: string, patch: Partial<StaffingAssignment>) => {
     if (directEdit && onUpdateAssignment) {
-      onUpdateAssignment(assignmentId, patch);
-      return;
+      if (patch.allocationPct !== undefined) {
+        setSavingAlloc(prev => ({ ...prev, [assignmentId]: patch.allocationPct! }));
+      }
+      return Promise.resolve(onUpdateAssignment(assignmentId, patch)).finally(() => {
+        if (patch.allocationPct !== undefined) {
+          setSavingAlloc(prev => {
+            const next = { ...prev };
+            delete next[assignmentId];
+            return next;
+          });
+        }
+      });
     }
     const cur = getDraft(dealId);
     const addIdx = cur.adds.findIndex(a => a.id === assignmentId);
@@ -795,7 +806,7 @@ export function BopmStaffingFlatTable({
         const entry: CellEntry = {
           assignmentId: a.id,
           personId: patch?.personId ?? a.personId,
-          allocationPct: patch?.allocationPct ?? a.allocationPct,
+          allocationPct: savingAlloc[a.id] ?? patch?.allocationPct ?? a.allocationPct,
           isAdded: false,
           isUpdated: !!patch,
           isMarkedRemove: !!dDraft.removes[a.id],
@@ -881,7 +892,7 @@ export function BopmStaffingFlatTable({
       out.set(d.id, byRole);
     }
     return out;
-  }, [deals, drafts, assignmentsByDeal, resolveCellToken]);
+  }, [deals, drafts, assignmentsByDeal, resolveCellToken, savingAlloc]);
 
   // Default columns = full role catalogue, top-down hierarchy from ROLE_SLOTS,
   // plus any extra role keys we encounter on existing assignments (legacy).

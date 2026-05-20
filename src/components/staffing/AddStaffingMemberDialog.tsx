@@ -17,6 +17,13 @@ import { useUserRole } from "@/hooks/useUserRole";
 
 const ROLE_CATEGORIES: RoleCategory[] = ["Operations", "SEO", "Content", "Content Strategy", "Creative Strategy", "Creative Art", "Creative Copy", "Video", "Performance & Growth"];
 
+const clampAllocationPct = (value: number) => Math.max(0, Math.min(100, Math.round(value * 10) / 10));
+const formatAllocationPct = (value: number) => Number.isInteger(value) ? String(value) : String(Number(value.toFixed(1)));
+const parseAllocationPct = (raw: string, fallback: number) => {
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? clampAllocationPct(parsed) : fallback;
+};
+
 interface AddStaffingMemberDialogProps {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -57,6 +64,7 @@ export function AddStaffingMemberDialog({
     return null;
   });
   const [allocationPct, setAllocationPct] = useState(initialAllocationPct ?? 10);
+  const [allocationInput, setAllocationInput] = useState(formatAllocationPct(initialAllocationPct ?? 10));
   const [expandedPerson, setExpandedPerson] = useState<string | null>(null);
   const dealForDates = useMemo(() => deals.find(d => d.id === dealId), [deals, dealId]);
   const editingAssignment = useMemo(
@@ -106,10 +114,12 @@ export function AddStaffingMemberDialog({
   }, [deals]);
 
   const reset = () => {
+    const initialPct = initialAllocationPct ?? 10;
     setStep(initialCategory ? 2 : 1);
     setSelectedCategory(initialCategory || null);
     setSelectedPerson(null);
-    setAllocationPct(initialAllocationPct ?? 10);
+    setAllocationPct(initialPct);
+    setAllocationInput(formatAllocationPct(initialPct));
     setExpandedPerson(null);
     setRoleOnDeal(initialRoleKey || "");
     setAssignmentType("Internal");
@@ -136,7 +146,9 @@ export function AddStaffingMemberDialog({
           setSelectedCategory(initialCategory);
         }
         if (cur) {
-          setAllocationPct(cur.allocationPct ?? initialAllocationPct ?? 10);
+          const nextPct = cur.allocationPct ?? initialAllocationPct ?? 10;
+          setAllocationPct(nextPct);
+          setAllocationInput(formatAllocationPct(nextPct));
           setStartDate(cur.startDate || dealForDates?.startDate || "");
           setEndDate(cur.endDate || dealForDates?.endDate || "");
           setRoleOnDeal(cur.roleKey || initialRoleKey || curPerson?.roleTitle || "");
@@ -147,9 +159,12 @@ export function AddStaffingMemberDialog({
       if (initialPersonName) {
         const p = people.find(pp => pp.name === initialPersonName);
         if (p) {
+          const nextPct = initialAllocationPct ?? 10;
           setSelectedPerson(p);
           setRoleOnDeal(p.roleTitle || p.roleCategory);
           setSelectedCategory(p.roleCategory as RoleCategory);
+          setAllocationPct(nextPct);
+          setAllocationInput(formatAllocationPct(nextPct));
           setStep(3);
           return;
         }
@@ -165,11 +180,12 @@ export function AddStaffingMemberDialog({
 
   const handleConfirm = () => {
     if (!selectedPerson) return;
+    const finalAllocationPct = parseAllocationPct(allocationInput, allocationPct);
     if (isEditMode && editingAssignmentId && onUpdate) {
       onUpdate(editingAssignmentId, {
         personId: selectedPerson.id,
         roleKey: roleOnDeal || selectedPerson.roleTitle || selectedPerson.roleCategory,
-        allocationPct,
+        allocationPct: finalAllocationPct,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
       });
@@ -183,12 +199,12 @@ export function AddStaffingMemberDialog({
       dealId,
       roleKey: roleOnDeal || selectedPerson.roleTitle || selectedPerson.roleCategory,
       personId: selectedPerson.id,
-      allocationPct,
+      allocationPct: finalAllocationPct,
       startDate: startDate || undefined,
       endDate: endDate || undefined,
     });
     if (!requiresApproval) {
-      toast.success(`${selectedPerson.name} added at ${allocationPct}%`);
+      toast.success(`${selectedPerson.name} added at ${finalAllocationPct}%`);
     }
     reset();
     onOpenChange(false);
@@ -484,13 +500,21 @@ export function AddStaffingMemberDialog({
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Hrs / Week</label>
-                    <Input type="number" min={0} max={40} step="0.5" value={(allocationPct / 100 * 40).toFixed(1)}
+                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Allocation %</label>
+                    <Input type="number" min={0} max={100} step="0.1" value={allocationInput}
                       onChange={e => {
-                        const hrs = Math.max(0, Math.min(40, Number(e.target.value) || 0));
-                        setAllocationPct(Math.round((hrs / 40) * 100));
-                      }} className="h-8 text-sm" />
-                    <p className="text-[10px] text-muted-foreground mt-1">= {allocationPct}% allocation{newTotal > 100 ? ` · ⚠ Total ${newTotal}%` : ""}</p>
+                        const next = e.target.value;
+                        setAllocationInput(next);
+                        if (next === "") return;
+                        setAllocationPct(parseAllocationPct(next, allocationPct));
+                      }}
+                      onBlur={() => {
+                        const nextPct = parseAllocationPct(allocationInput, allocationPct);
+                        setAllocationPct(nextPct);
+                        setAllocationInput(formatAllocationPct(nextPct));
+                      }}
+                      className="h-8 text-sm" />
+                    <p className="text-[10px] text-muted-foreground mt-1">= {(allocationPct / 100 * 40).toFixed(1)} hrs/week{newTotal > 100 ? ` · ⚠ Total ${newTotal}%` : ""}</p>
                   </div>
                   <div>
                     <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Type</label>
