@@ -12,6 +12,7 @@ import {
   STAFFING_ASSIGNMENTS_SELECT,
 } from "@/lib/dbMappers";
 import type { StaffingAssignment } from "@/data/staffingData";
+import { softDelete } from "@/lib/trash";
 
 async function fetchAssignments(): Promise<StaffingAssignment[]> {
   const { data, error } = await supabase
@@ -55,8 +56,8 @@ export function useAssignmentMutations() {
 
   const deleteAssignment = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("staffing_assignments").delete().eq("id", id);
-      if (error) throw error;
+      const ok = await softDelete("staffing_assignment", id);
+      if (!ok) throw new Error("Failed to move assignment to trash");
       return id;
     },
     onSuccess: (id) => {

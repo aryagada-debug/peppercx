@@ -8,6 +8,7 @@ import { qk } from "@/lib/queryKeys";
 import { useTableSubscription, defaultListPatcher } from "@/lib/realtime";
 import { dbToDeal, dealToDb, STAFFING_DEALS_SELECT } from "@/lib/dbMappers";
 import type { Deal } from "@/data/staffingData";
+import { softDelete } from "@/lib/trash";
 
 async function fetchDeals(): Promise<Deal[]> {
   const { data, error } = await supabase.from("staffing_deals").select(STAFFING_DEALS_SELECT);
@@ -65,8 +66,8 @@ export function useDealMutations() {
 
   const deleteDeal = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("staffing_deals").delete().eq("id", id);
-      if (error) throw error;
+      const ok = await softDelete("staffing_deal", id);
+      if (!ok) throw new Error("Failed to move deal to trash");
       return id;
     },
     onSuccess: (id) => {

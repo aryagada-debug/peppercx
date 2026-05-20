@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { softDelete } from "@/lib/trash";
 import {
   DEFAULT_DEALS,
   DEFAULT_PEOPLE,
@@ -279,7 +280,7 @@ export function useStaffingMutations() {
         return;
       }
       patch.assignments((prev) => prev.filter((a) => a.id !== id));
-      await supabase.from("staffing_assignments").delete().eq("id", id);
+      await softDelete("staffing_assignment", id);
     },
     [canEditAll, getAssignments, patch],
   );
@@ -347,7 +348,7 @@ export function useStaffingMutations() {
       if (!personId) {
         if (existing) {
           patch.assignments((prev) => prev.filter((a) => a.id !== existing.id));
-          await supabase.from("staffing_assignments").delete().eq("id", existing.id);
+          await softDelete("staffing_assignment", existing.id);
         }
         return;
       }

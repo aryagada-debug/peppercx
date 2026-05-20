@@ -1979,6 +1979,45 @@ export type Database = {
         }
         Relationships: []
       }
+      trash_items: {
+        Row: {
+          deleted_at: string
+          deleted_by: string | null
+          deleted_by_name: string
+          entity_id: string
+          entity_label: string
+          entity_type: string
+          expires_at: string
+          id: string
+          restored_at: string | null
+          snapshot: Json
+        }
+        Insert: {
+          deleted_at?: string
+          deleted_by?: string | null
+          deleted_by_name?: string
+          entity_id: string
+          entity_label?: string
+          entity_type: string
+          expires_at?: string
+          id?: string
+          restored_at?: string | null
+          snapshot?: Json
+        }
+        Update: {
+          deleted_at?: string
+          deleted_by?: string | null
+          deleted_by_name?: string
+          entity_id?: string
+          entity_label?: string
+          entity_type?: string
+          expires_at?: string
+          id?: string
+          restored_at?: string | null
+          snapshot?: Json
+        }
+        Relationships: []
+      }
       user_notifications: {
         Row: {
           actor_avatar_url: string

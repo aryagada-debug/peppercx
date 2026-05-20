@@ -5,6 +5,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { format, isToday, isPast, parseISO, isWithinInterval, addDays, startOfDay, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, differenceInMinutes, differenceInDays } from "date-fns";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
+import { softDelete } from "@/lib/trash";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -630,15 +631,15 @@ export default function HomePage() {
     const todoId = fromTodoTaskId(id);
     if (todoId) {
       patchTodos(prev => prev.filter(t => t.id !== todoId));
-      const { error } = await supabase.from("personal_todos").delete().eq("id", todoId);
-      if (error) { toast.error(error.message); invalidateTodos(); }
-      else toast.success("Task deleted");
+      const ok = await softDelete("personal_todo", todoId);
+      if (!ok) { toast.error("Delete failed"); invalidateTodos(); }
+      else toast.success("Moved to Trash");
       return;
     }
     patchDealTasks(prev => prev.filter(t => t.id !== id));
-    const { error } = await supabase.from("deal_tasks").delete().eq("id", id);
-    if (error) toast.error(error.message);
-    else toast.success("Task deleted");
+    const ok = await softDelete("deal_task", id);
+    if (!ok) toast.error("Delete failed");
+    else toast.success("Moved to Trash");
   }, [invalidateTodos, patchTodos, patchDealTasks]);
 
   // Account activity (replaces Recently Viewed) — recomputes when alias set changes
@@ -673,8 +674,8 @@ export default function HomePage() {
   };
   const deleteTodo = async (id: string) => {
     patchTodos(prev => prev.filter(x => x.id !== id));
-    await supabase.from("personal_todos").delete().eq("id", id);
-    toast.success("Deleted");
+    await softDelete("personal_todo", id);
+    toast.success("Moved to Trash");
   };
 
   // Task complete (deal/cx)
@@ -804,8 +805,8 @@ export default function HomePage() {
   };
   const handleDealTaskDelete = async () => {
     if (!editingDealTask) return;
-    await supabase.from("deal_tasks").delete().eq("id", editingDealTask.id);
-    toast.success("Deleted"); invalidateTasks(); setEditingDealTask(null);
+    await softDelete("deal_task", editingDealTask.id);
+    toast.success("Moved to Trash"); invalidateTasks(); setEditingDealTask(null);
   };
 
   // Today's calendar — derive

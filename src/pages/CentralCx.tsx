@@ -7,6 +7,7 @@ import { CxOverview } from "@/components/cx/CxOverview";
 import { CxSpaceMembersDialog } from "@/components/cx/CxSpaceMembersDialog";
 import { CxStatusManagerDialog } from "@/components/cx/CxStatusManagerDialog";
 import { supabase } from "@/integrations/supabase/client";
+import { softDelete } from "@/lib/trash";
 import { CxCalendarPanel } from "@/components/cx/CxCalendarPanel";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Users, Columns3, CalendarDays, ShieldCheck } from "lucide-react";
@@ -168,7 +169,7 @@ export default function CentralCx() {
   };
 
   const deleteTask = async (id: string) => {
-    await supabase.from("cx_tasks").delete().eq("id", id);
+    await softDelete("cx_task", id);
     setTasks(prev => prev.filter(t => t.id !== id));
   };
 

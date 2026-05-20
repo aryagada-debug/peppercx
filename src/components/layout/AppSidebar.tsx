@@ -4,6 +4,7 @@ import {
   Target, Activity, FileText, MessageSquare, Clock,
   CheckSquare, Settings, Building2, Calculator, BarChart3,
   ChevronDown, ShieldCheck, Home, ChevronsLeft, ChevronsRight,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
@@ -27,6 +28,7 @@ const routePrefetch: Record<string, () => Promise<unknown>> = {
   "/seo-staffing": () => import("@/pages/SEOStaffing"),
   "/gm2-calculator": () => import("@/pages/GM2Calculator"),
   "/settings": () => import("@/pages/Settings"),
+  "/trash": () => import("@/pages/Trash"),
 };
 const prefetched = new Set<string>();
 const prefetchRoute = (to: string) => {
@@ -75,6 +77,7 @@ const navSections = [
     label: "System",
     items: [
       { to: "/settings", icon: Settings, label: "Settings", routeKey: "settings" },
+      { to: "/trash", icon: Trash2, label: "Trash", routeKey: "settings" },
     ],
   },
 ];

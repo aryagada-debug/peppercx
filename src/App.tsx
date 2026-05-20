@@ -37,6 +37,7 @@ const SEOStaffing = lazy(() => import("./pages/SEOStaffing"));
 const GM2Calculator = lazy(() => import("./pages/GM2Calculator"));
 const SettingsPage = lazy(() => import("./pages/Settings"));
 const CentralCx = lazy(() => import("./pages/CentralCx"));
+const Trash = lazy(() => import("./pages/Trash"));
 
 // Mounts the one-shot seeder under the auth provider so it can read the
 // session and only fire when staffing_people is empty.
@@ -98,6 +99,7 @@ const App = () => (
             <Route path="/gm2-calculator" element={<ProtectedRoute routeKey="gm2-calculator"><GM2Calculator /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute routeKey="settings"><SettingsPage /></ProtectedRoute>} />
             <Route path="/central-cx" element={<ProtectedRoute routeKey="central-cx"><CentralCx /></ProtectedRoute>} />
+            <Route path="/trash" element={<ProtectedRoute routeKey="settings"><Trash /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
           </Suspense>

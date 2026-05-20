@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { softDelete } from "@/lib/trash";
 
 export type Stakeholder = {
   id: string;
@@ -73,9 +74,9 @@ export function useStakeholders(dealId: string, clientName: string) {
 
   const remove = useCallback(async (id: string) => {
     setData(prev => prev.filter(r => r.id !== id));
-    const { error } = await supabase.from("deal_stakeholders").delete().eq("id", id);
-    if (error) { toast.error("Delete failed"); load(); return; }
-    toast.success("Stakeholder removed");
+    const ok = await softDelete("deal_stakeholder", id);
+    if (!ok) { toast.error("Delete failed"); load(); return; }
+    toast.success("Moved to Trash");
     setLastSavedAt(new Date().toISOString());
   }, [load]);
 
