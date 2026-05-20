@@ -440,7 +440,7 @@ export default function Clients() {
         return String(av).localeCompare(String(bv)) * dir;
       });
     } else {
-      rows = [...rows].sort((a, b) => a.account.localeCompare(b.account) || a.dealName.localeCompare(b.dealName));
+      rows = [...rows].sort((a, b) => (a.account ?? "").localeCompare(b.account ?? "") || (a.dealName ?? "").localeCompare(b.dealName ?? ""));
     }
     return rows;
     }, [filteredDeals, colFilters, sortKey, sortDir, rgyRollup, renewalFilter, renewingIds, leadByDeal, currency, fxRate]);
