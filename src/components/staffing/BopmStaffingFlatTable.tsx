@@ -1286,10 +1286,34 @@ export function BopmStaffingFlatTable({
               />
             </div>
             {enableBopmFilter && (
+              <select
+                value={vsdFilter}
+                onChange={e => {
+                  setVsdFilter(e.target.value);
+                  // Clear BOPM filter if the chosen BOPM no longer fits the new VSD scope
+                  if (e.target.value !== "All" && e.target.value !== "Yet to be assigned") {
+                    setBopmFilter("All");
+                  }
+                }}
+                className="h-8 px-2 rounded-md border border-border bg-background text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
+                title="Filter deals by VSD"
+              >
+                <option value="All">All VSDs</option>
+                {[...VSD_NAMES].sort((a, b) => a.localeCompare(b)).map(v => (
+                  <option key={v} value={v}>{v}</option>
+                ))}
+                <option value="Yet to be assigned">Yet to be assigned</option>
+              </select>
+            )}
+            {enableBopmFilter && (
               <BopmFilter
                 value={bopmFilter}
                 onChange={setBopmFilter}
-                scopedVsd={bopmFilterScopedVsd ?? undefined}
+                scopedVsd={
+                  vsdFilter !== "All" && vsdFilter !== "Yet to be assigned"
+                    ? vsdFilter
+                    : (bopmFilterScopedVsd ?? undefined)
+                }
                 className="h-8 w-[200px] text-xs"
               />
             )}
