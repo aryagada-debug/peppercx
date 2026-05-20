@@ -8,7 +8,7 @@ import { submitStaffingBatch, type BatchItem } from "@/lib/approvals";
 import { AddStaffingMemberDialog } from "./AddStaffingMemberDialog";
 import { RequestStaffingDialog } from "./RequestStaffingDialog";
 import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
-import { useAllPersonNames, dealCellMatchesPerson } from "@/hooks/queries/legacy";
+import { useAllPersonNames, dealCellMatchesPerson, useVsdHierarchy, VSD_NAMES } from "@/hooks/queries/legacy";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ChevronDown, CalendarIcon } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
@@ -561,6 +561,8 @@ export function BopmStaffingFlatTable({
 }: Props) {
   const [search, setSearch] = useState("");
   const [bopmFilter, setBopmFilter] = useState<string>("All");
+  const [vsdFilter, setVsdFilter] = useState<string>("All");
+  const { vsdForDeal } = useVsdHierarchy();
   const allPersonNames = useAllPersonNames();
   // "Request staffing" replaces the old direct-add flow. We capture the deal
   // (and optional role/category context) and route through staffing_review_requests.
@@ -1000,9 +1002,16 @@ export function BopmStaffingFlatTable({
       (a.account || "").localeCompare(b.account || "") ||
       (a.dealName || "").localeCompare(b.dealName || "")
     );
-    const bopmFiltered = bopmFilter && bopmFilter !== "All"
-      ? sorted.filter(d => dealMatchesBopm(d as any, bopmFilter, allPersonNames))
+    const vsdFiltered = vsdFilter && vsdFilter !== "All"
+      ? sorted.filter(d => {
+          const resolved = vsdForDeal(d as any);
+          if (vsdFilter === "Yet to be assigned") return !resolved;
+          return resolved === vsdFilter;
+        })
       : sorted;
+    const bopmFiltered = bopmFilter && bopmFilter !== "All"
+      ? vsdFiltered.filter(d => dealMatchesBopm(d as any, bopmFilter, allPersonNames))
+      : vsdFiltered;
     if (!q) return bopmFiltered;
     return bopmFiltered.filter(d => {
       const byRole = dealRoleMap.get(d.id);
@@ -1011,7 +1020,7 @@ export function BopmStaffingFlatTable({
       const hay = `${d.account} ${d.dealName} ${d.dealId} ${personHay}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [deals, search, bopmFilter, dealRoleMap, allPersonById, allPersonNames]);
+  }, [deals, search, bopmFilter, vsdFilter, vsdForDeal, dealRoleMap, allPersonById, allPersonNames]);
 
   const virtualRows = useMemo(() => {
     const total = filteredDeals.length;
@@ -1031,7 +1040,7 @@ export function BopmStaffingFlatTable({
   useEffect(() => {
     setTableScrollTop(0);
     if (tableViewportRef.current) tableViewportRef.current.scrollTop = 0;
-  }, [search, bopmFilter]);
+  }, [search, bopmFilter, vsdFilter]);
 
   // Aggregate top stats
   const totals = useMemo(() => {
@@ -1188,10 +1197,14 @@ export function BopmStaffingFlatTable({
             min={0}
             max={100}
             step={1}
-            disabled={e.isMarkedRemove}
+            disabled={e.isMarkedRemove || e.isVirtual}
             value={allocVal}
             onChange={ev => setAllocDraft(prev => ({ ...prev, [draftKey]: ev.target.value }))}
             onBlur={() => {
+              if (e.isVirtual) {
+                setAllocDraft(prev => { const next = { ...prev }; delete next[draftKey]; return next; });
+                return;
+              }
               const n = Math.max(0, Math.min(100, Number(allocVal)));
               if (Number.isFinite(n) && n !== e.allocationPct) {
                 stageUpdate(deal.id, e.assignmentId, { allocationPct: n });
@@ -1199,7 +1212,7 @@ export function BopmStaffingFlatTable({
               setAllocDraft(prev => { const next = { ...prev }; delete next[draftKey]; return next; });
             }}
             className="h-5 w-9 px-1 rounded border border-border/60 bg-background/70 text-right font-mono text-[10px] disabled:opacity-50 focus:outline-none focus:ring-1 focus:ring-primary/40"
-            title={`${hrs.toFixed(1)} h/wk`}
+            title={e.isVirtual ? "Read-only (synced from deal sheet)" : `${hrs.toFixed(1)} h/wk`}
           />
           <span className="text-[9px] text-muted-foreground -ml-0.5">%</span>
           {/* Remove (×) — replaces the old trash icon */}
@@ -1277,10 +1290,34 @@ export function BopmStaffingFlatTable({
               />
             </div>
             {enableBopmFilter && (
+              <select
+                value={vsdFilter}
+                onChange={e => {
+                  setVsdFilter(e.target.value);
+                  // Clear BOPM filter if the chosen BOPM no longer fits the new VSD scope
+                  if (e.target.value !== "All" && e.target.value !== "Yet to be assigned") {
+                    setBopmFilter("All");
+                  }
+                }}
+                className="h-8 px-2 rounded-md border border-border bg-background text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
+                title="Filter deals by VSD"
+              >
+                <option value="All">All VSDs</option>
+                {[...VSD_NAMES].sort((a, b) => a.localeCompare(b)).map(v => (
+                  <option key={v} value={v}>{v}</option>
+                ))}
+                <option value="Yet to be assigned">Yet to be assigned</option>
+              </select>
+            )}
+            {enableBopmFilter && (
               <BopmFilter
                 value={bopmFilter}
                 onChange={setBopmFilter}
-                scopedVsd={bopmFilterScopedVsd ?? undefined}
+                scopedVsd={
+                  vsdFilter !== "All" && vsdFilter !== "Yet to be assigned"
+                    ? vsdFilter
+                    : (bopmFilterScopedVsd ?? undefined)
+                }
                 className="h-8 w-[200px] text-xs"
               />
             )}
