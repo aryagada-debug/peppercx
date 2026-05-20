@@ -561,6 +561,8 @@ export function BopmStaffingFlatTable({
 }: Props) {
   const [search, setSearch] = useState("");
   const [bopmFilter, setBopmFilter] = useState<string>("All");
+  const [vsdFilter, setVsdFilter] = useState<string>("All");
+  const { vsdForDeal } = useVsdHierarchy();
   const allPersonNames = useAllPersonNames();
   // "Request staffing" replaces the old direct-add flow. We capture the deal
   // (and optional role/category context) and route through staffing_review_requests.
