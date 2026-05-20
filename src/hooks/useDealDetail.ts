@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { softDelete } from "@/lib/trash";
 import { useTableSubscription, invalidatePatcher } from "@/lib/realtime";
 import type { FinancialRow } from "@/components/deals/FinancialsTab";
 import type { DealTask } from "@/components/deals/TaskKanban";
