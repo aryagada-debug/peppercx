@@ -1197,10 +1197,14 @@ export function BopmStaffingFlatTable({
             min={0}
             max={100}
             step={1}
-            disabled={e.isMarkedRemove}
+            disabled={e.isMarkedRemove || e.isVirtual}
             value={allocVal}
             onChange={ev => setAllocDraft(prev => ({ ...prev, [draftKey]: ev.target.value }))}
             onBlur={() => {
+              if (e.isVirtual) {
+                setAllocDraft(prev => { const next = { ...prev }; delete next[draftKey]; return next; });
+                return;
+              }
               const n = Math.max(0, Math.min(100, Number(allocVal)));
               if (Number.isFinite(n) && n !== e.allocationPct) {
                 stageUpdate(deal.id, e.assignmentId, { allocationPct: n });
@@ -1208,7 +1212,7 @@ export function BopmStaffingFlatTable({
               setAllocDraft(prev => { const next = { ...prev }; delete next[draftKey]; return next; });
             }}
             className="h-5 w-9 px-1 rounded border border-border/60 bg-background/70 text-right font-mono text-[10px] disabled:opacity-50 focus:outline-none focus:ring-1 focus:ring-primary/40"
-            title={`${hrs.toFixed(1)} h/wk`}
+            title={e.isVirtual ? "Read-only (synced from deal sheet)" : `${hrs.toFixed(1)} h/wk`}
           />
           <span className="text-[9px] text-muted-foreground -ml-0.5">%</span>
           {/* Remove (×) — replaces the old trash icon */}
