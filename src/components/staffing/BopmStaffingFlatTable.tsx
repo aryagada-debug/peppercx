@@ -8,7 +8,7 @@ import { submitStaffingBatch, type BatchItem } from "@/lib/approvals";
 import { AddStaffingMemberDialog } from "./AddStaffingMemberDialog";
 import { RequestStaffingDialog } from "./RequestStaffingDialog";
 import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
-import { useAllPersonNames, dealCellMatchesPerson } from "@/hooks/queries/legacy";
+import { useAllPersonNames, dealCellMatchesPerson, useVsdHierarchy, VSD_NAMES } from "@/hooks/queries/legacy";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ChevronDown, CalendarIcon } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
