@@ -798,7 +798,7 @@ export function BopmStaffingFlatTable({
         const entry: CellEntry = {
           assignmentId: a.id,
           personId: patch?.personId ?? a.personId,
-          allocationPct: patch?.allocationPct ?? a.allocationPct,
+          allocationPct: savingAlloc[a.id] ?? patch?.allocationPct ?? a.allocationPct,
           isAdded: false,
           isUpdated: !!patch,
           isMarkedRemove: !!dDraft.removes[a.id],
@@ -884,7 +884,7 @@ export function BopmStaffingFlatTable({
       out.set(d.id, byRole);
     }
     return out;
-  }, [deals, drafts, assignmentsByDeal, resolveCellToken]);
+  }, [deals, drafts, assignmentsByDeal, resolveCellToken, savingAlloc]);
 
   // Default columns = full role catalogue, top-down hierarchy from ROLE_SLOTS,
   // plus any extra role keys we encounter on existing assignments (legacy).
