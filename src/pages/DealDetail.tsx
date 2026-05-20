@@ -1806,8 +1806,33 @@ export default function DealDetail() {
             <ArrowLeft className="h-4 w-4 text-muted-foreground" />
           </Link>
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground leading-tight">{deal.dealName}</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>
+            {isAdmin ? (
+              <div className="text-2xl font-semibold tracking-tight text-foreground leading-tight">
+                <EditableCell
+                  value={deal.dealName || ""}
+                  onSave={(v) => handleDealFieldSave("dealName", v)}
+                  placeholder="Deal name"
+                />
+              </div>
+            ) : (
+              <h1 className="text-2xl font-semibold tracking-tight text-foreground leading-tight">{deal.dealName}</h1>
+            )}
+            <div className="text-sm text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
+              <span>{subtitle}</span>
+              <span className="text-muted-foreground/50">·</span>
+              <span className="inline-flex items-center gap-1">
+                <span className="text-xs uppercase tracking-wider">Deal ID:</span>
+                {isAdmin ? (
+                  <EditableCell
+                    value={deal.dealId || ""}
+                    onSave={(v) => handleDealFieldSave("dealId", v)}
+                    placeholder="—"
+                  />
+                ) : (
+                  <span className="text-foreground font-medium">{deal.dealId || "—"}</span>
+                )}
+              </span>
+            </div>
           </div>
           <div className="flex items-center gap-2 shrink-0 mt-1">
             {!canEditThisDeal && canViewThisDeal && (
