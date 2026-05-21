@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import type { Deal, Person, StaffingAssignment, RevenueCapacityTarget } from "@/data/staffingData";
-import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
+import { BopmFilter, dealMatchesBopm, dealsStaffedByName } from "@/components/access/BopmFilter";
 import { DealTypeFilter, dealMatchesType, type DealTypeFilterValue } from "@/components/filters/DealTypeFilter";
 import { useAllPersonNames } from "@/hooks/queries/legacy";
 
@@ -65,13 +65,14 @@ export function PeopleViewTab({
   const scopedDeals = useMemo(() => {
     let out = deals;
     if (enableBopmFilter && bopmFilter && bopmFilter !== "All") {
-      out = out.filter(d => dealMatchesBopm(d as any, bopmFilter, allPersonNames));
+      const staffed = dealsStaffedByName(bopmFilter, people, assignments);
+      out = out.filter(d => dealMatchesBopm(d as any, bopmFilter, allPersonNames, staffed));
     }
     if (dealTypeFilter !== "All") {
       out = out.filter(d => dealMatchesType((d as any).dealType, dealTypeFilter));
     }
     return out;
-  }, [deals, enableBopmFilter, bopmFilter, allPersonNames, dealTypeFilter]);
+  }, [deals, enableBopmFilter, bopmFilter, allPersonNames, dealTypeFilter, people, assignments]);
 
   const scopedDealIds = useMemo(() => new Set(scopedDeals.map(d => d.id)), [scopedDeals]);
   const scopedAssignments = useMemo(
