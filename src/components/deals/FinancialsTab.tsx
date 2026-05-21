@@ -305,9 +305,10 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
       {/* ── Section 1: Deal Snapshot ── */}
       <div>
         <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground mb-3">Deal Snapshot</p>
-        <div className="grid grid-cols-1 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {[
-            { label: "Net deal value", value: fmtCurrency(netDealValue), sub: deal?.mrr ? `MRR ${fmtCurrency(deal.mrr)}` : "" },
+            { label: "Net deal value", value: fmtCurrency(netDealValue) },
+            { label: "MRR", value: fmtCurrency(dealMrr) },
           ].map((k: any) => {
             const ac = k.att != null ? attColor(k.att) : null;
             const cs = ac ? colorStyles[ac] : null;
