@@ -164,7 +164,15 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
     const curKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
     return rows.filter(r => {
       const k = String(r.month).slice(0, 7);
-      return k >= startKey && k <= curKey;
+      if (!(k >= startKey && k <= curKey)) return false;
+      // Hide months where every numeric value is zero.
+      const vals = [
+        r.contracted, r.consumption, r.invoiced, r.received,
+        r.contractionTarget ?? 0, r.deliveryTarget ?? 0, r.deliveryActual ?? 0,
+        r.invoicingTarget ?? 0, r.receivablesTarget ?? 0,
+        r.plannedGmPct ?? 0, r.actualGmPct ?? 0,
+      ];
+      return vals.some(v => Number(v) !== 0);
     });
   }, [rows, deal?.startDate]);
 
