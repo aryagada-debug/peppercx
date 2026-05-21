@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import type { Deal, Person, StaffingAssignment, RevenueCapacityTarget } from "@/data/staffingData";
 import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
+import { DealTypeFilter, dealMatchesType, type DealTypeFilterValue } from "@/components/filters/DealTypeFilter";
 import { useAllPersonNames } from "@/hooks/queries/legacy";
 
 const ACTIVE_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
@@ -50,6 +51,7 @@ export function PeopleViewTab({
   const [search, setSearch] = useState("");
   const [bucketFilter, setBucketFilter] = useState<Bucket | null>(null);
   const [bopmFilter, setBopmFilter] = useState<string>("All");
+  const [dealTypeFilter, setDealTypeFilter] = useState<DealTypeFilterValue>("All");
   const [expandedDept, setExpandedDept] = useState<Set<string>>(new Set());
   const [expandedPerson, setExpandedPerson] = useState<Set<string>>(new Set());
   const [editingAlloc, setEditingAlloc] = useState<string | null>(null);
@@ -61,9 +63,15 @@ export function PeopleViewTab({
   // Apply BOPM filter (if any) to the deal universe — utilisation/MRR/etc.
   // are computed against `scopedDeals` so they reflect only the filtered pod.
   const scopedDeals = useMemo(() => {
-    if (!enableBopmFilter || !bopmFilter || bopmFilter === "All") return deals;
-    return deals.filter(d => dealMatchesBopm(d as any, bopmFilter, allPersonNames));
-  }, [deals, enableBopmFilter, bopmFilter, allPersonNames]);
+    let out = deals;
+    if (enableBopmFilter && bopmFilter && bopmFilter !== "All") {
+      out = out.filter(d => dealMatchesBopm(d as any, bopmFilter, allPersonNames));
+    }
+    if (dealTypeFilter !== "All") {
+      out = out.filter(d => dealMatchesType((d as any).dealType, dealTypeFilter));
+    }
+    return out;
+  }, [deals, enableBopmFilter, bopmFilter, allPersonNames, dealTypeFilter]);
 
   const scopedDealIds = useMemo(() => new Set(scopedDeals.map(d => d.id)), [scopedDeals]);
   const scopedAssignments = useMemo(
@@ -472,6 +480,8 @@ export function PeopleViewTab({
             />
           </div>
         )}
+
+        <DealTypeFilter value={dealTypeFilter} onChange={setDealTypeFilter} size="md" />
 
         <button
           onClick={toggleAll}
