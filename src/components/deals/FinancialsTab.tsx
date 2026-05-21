@@ -267,8 +267,8 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
     const currentMrrTarget = dealMrr > 0 ? dealMrr : undefined;
     return {
       current: computePipeline(currentMonthRows, undefined, currentMrrTarget),
-      ytd: computePipeline(ytdRows, ytdTarget, ytdTarget),
-      lifetime: computePipeline(lifetimeRows, lifetimeTarget, lifetimeTarget),
+      ytd: computePipeline(ytdRows, undefined, ytdTarget),
+      lifetime: computePipeline(lifetimeRows, undefined, lifetimeTarget),
     };
   }, [rows, computePipeline, deal?.startDate, deal?.endDate, dealMrr, lifetimeMonths]);
 
