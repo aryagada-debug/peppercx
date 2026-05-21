@@ -533,6 +533,8 @@ interface Props {
   onAddAssignment?: (a: StaffingAssignment) => Promise<any> | any;
   onUpdateAssignment?: (id: string, patch: Partial<StaffingAssignment>) => Promise<any> | any;
   onDeleteAssignment?: (id: string) => Promise<any> | any;
+  /** Used to clear stale BOPM names from the deal sheet (virtual chips). */
+  onUpdateDeal?: (dealId: string, updates: Partial<Deal>) => Promise<any> | any;
   /** When true, render a "Filter by BOPM" dropdown in the header. Used by VSD/Admin views. */
   enableBopmFilter?: boolean;
   /** Optional VSD scope for the BOPM filter dropdown (limits options to that VSD's pod). */
@@ -558,7 +560,7 @@ const emptyDraft = (): DealDraft => ({ adds: [], updates: {}, removes: {} });
 export function BopmStaffingFlatTable({
   deals, people, allPeople, assignments,
   directEdit, onAddAssignment, onUpdateAssignment, onDeleteAssignment,
-  enableBopmFilter, bopmFilterScopedVsd,
+  onUpdateDeal, enableBopmFilter, bopmFilterScopedVsd,
 }: Props) {
   const [search, setSearch] = useState("");
   const [bopmFilter, setBopmFilter] = useState<string>("All");
