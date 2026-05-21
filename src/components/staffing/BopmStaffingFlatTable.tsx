@@ -8,7 +8,7 @@ import { uid, ROLE_SLOTS, ROLE_TO_PEOPLE_FILTER, ROLE_SENIORITY_PARENTS, getDesc
 import { submitStaffingBatch, type BatchItem } from "@/lib/approvals";
 import { AddStaffingMemberDialog } from "./AddStaffingMemberDialog";
 import { RequestStaffingDialog } from "./RequestStaffingDialog";
-import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
+import { BopmFilter, dealMatchesBopm, dealsStaffedByName } from "@/components/access/BopmFilter";
 import { DealTypeFilter, dealMatchesType, type DealTypeFilterValue } from "@/components/filters/DealTypeFilter";
 import { useAllPersonNames, dealCellMatchesPerson, useVsdHierarchy, VSD_NAMES } from "@/hooks/queries/legacy";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
