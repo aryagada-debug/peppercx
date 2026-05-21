@@ -131,9 +131,10 @@ async function runSync(triggeredBy: string) {
       if (c.pc_code) clientByPc.set(String(c.pc_code).trim(), { id: c.id, name: c.name });
     }
 
-    // Group financial rows by (deal_id, month)
-    type FinKey = string;
-    const finMap = new Map<FinKey, any>();
+    // Collect new clients to insert in bulk, deals to upsert in bulk
+    const newClientsByPc = new Map<string, string>(); // pc -> name
+    const dealsToUpsert: any[] = [];
+    const finMap = new Map<string, any>();
 
     for (const row of dataRows) {
       try {
@@ -142,30 +143,9 @@ async function runSync(triggeredBy: string) {
         if (!dealId || !/^\d+$/.test(dealId)) { rowsSkipped++; continue; }
 
         const clientName = (row[colIdx("D")] || "").trim();
-
-        // Ensure client
-        let clientId: string | null = null;
-        if (pc) {
-          const existing = clientByPc.get(pc);
-          if (existing) {
-            clientId = existing.id;
-            if (clientName && existing.name !== clientName) {
-              await supa.from("clients").update({ name: clientName }).eq("id", existing.id);
-              existing.name = clientName;
-            }
-          } else {
-            const { data: newC, error: cErr } = await supa
-              .from("clients")
-              .insert({ pc_code: pc, name: clientName || pc })
-              .select("id, pc_code, name")
-              .single();
-            if (cErr) throw cErr;
-            clientId = newC.id;
-            clientByPc.set(pc, { id: newC.id, name: newC.name });
-            clientsCreated++;
-          }
+        if (pc && !clientByPc.has(pc) && !newClientsByPc.has(pc)) {
+          newClientsByPc.set(pc, clientName || pc);
         }
-
         const id = `${pc}_${dealId}`;
         const dealPayload: any = {
           id,
@@ -173,7 +153,6 @@ async function runSync(triggeredBy: string) {
           deal_id: dealId,
           deal_name: (row[colIdx("E")] || "").trim(),
           account: clientName,
-          client_id: clientId,
           sales_leader: (row[colIdx("G")] || "").trim(),
           sales_rep: (row[colIdx("H")] || "").trim(),
           vsd: (row[colIdx("I")] || "").trim(),
@@ -191,10 +170,7 @@ async function runSync(triggeredBy: string) {
         const nrdv = toNum(row[colIdx("S")]); if (nrdv != null) dealPayload.non_retainer_deal_value = nrdv;
         const tdv = toNum(row[colIdx("T")]); if (tdv != null) dealPayload.total_deal_value = tdv;
         const ndv = toNum(row[colIdx("X")]); if (ndv != null) dealPayload.net_deal_value = ndv;
-
-        const { error: dErr } = await supa.from("staffing_deals").upsert(dealPayload, { onConflict: "id" });
-        if (dErr) throw dErr;
-        dealsUpserted++;
+        dealsToUpsert.push(dealPayload);
 
         // Financials — only non-empty cells
         function addFin(month: string, field: string, val: number) {
@@ -218,6 +194,30 @@ async function runSync(triggeredBy: string) {
         errors.push({ row: row.slice(0, 5), error: String(rowErr?.message || rowErr) });
         if (errors.length > 50) errors.length = 50;
       }
+    }
+
+    // Bulk-insert new clients
+    if (newClientsByPc.size) {
+      const inserts = Array.from(newClientsByPc.entries()).map(([pc, name]) => ({ pc_code: pc, name }));
+      const { data: created, error: cErr } = await supa.from("clients").insert(inserts).select("id, pc_code, name");
+      if (cErr) errors.push({ stage: "client_insert", error: String(cErr.message) });
+      else {
+        for (const c of created || []) clientByPc.set(c.pc_code, { id: c.id, name: c.name });
+        clientsCreated = (created || []).length;
+      }
+    }
+
+    // Resolve client_id on deals + batch-upsert
+    for (const d of dealsToUpsert) {
+      const c = clientByPc.get(d.pc_code);
+      if (c) d.client_id = c.id;
+    }
+    const DEAL_BATCH = 200;
+    for (let i = 0; i < dealsToUpsert.length; i += DEAL_BATCH) {
+      const slice = dealsToUpsert.slice(i, i + DEAL_BATCH);
+      const { error: dErr } = await supa.from("staffing_deals").upsert(slice, { onConflict: "id" });
+      if (dErr) errors.push({ stage: "deal_upsert", error: String(dErr.message), sample: slice[0]?.id });
+      else dealsUpserted += slice.length;
     }
 
     // Upsert financials in batches (need a unique constraint on (deal_id,month) — use manual upsert)
