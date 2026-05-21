@@ -542,6 +542,10 @@ export default function Targets() {
               value={month}
               onChange={(v) => { setMonth(v); setOverall(false); }}
             />
+            <label className="flex items-center gap-2 text-[12px] text-muted-foreground pl-1">
+              <Switch checked={showCompleted} onCheckedChange={setShowCompleted} />
+              Show completed
+            </label>
             {isAdmin && !overall && (
               <Button size="sm" variant="outline" onClick={() => setUploadOpen(true)}>
                 <Upload className="h-3.5 w-3.5 mr-1.5" /> Import CSV
@@ -599,6 +603,7 @@ export default function Targets() {
 
         {/* Filter chips */}
         <div className="flex flex-wrap items-center gap-1.5 mb-4">
+          {!isCapMember && (<>
           {vsdList.map(v => (
             <button
               key={v}
@@ -620,6 +625,7 @@ export default function Targets() {
               className="h-8 w-[200px] text-[12px]"
             />
           </div>
+          </>)}
           <div className="flex-1" />
           <button
             onClick={() => setNeedsOnly(v => !v)}
