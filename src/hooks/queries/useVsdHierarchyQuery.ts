@@ -73,13 +73,18 @@ async function loadHierarchy(): Promise<HierarchyData> {
     if (bestVsd) {
       personToVsd.set(personKey, bestVsd);
       const display = displayByKey.get(personKey);
-      if (display && nameKey(display) !== nameKey(bestVsd)) {
-        let set = bopmsByVsd.get(bestVsd);
-        if (!set) {
-          set = new Set();
-          bopmsByVsd.set(bestVsd, set);
+      // Index this BOPM under EVERY VSD they appear with on a deal — a BOPM
+      // can support multiple VSDs and should surface in each VSD's filter list.
+      if (display) {
+        for (const v of vsdCounts.keys()) {
+          if (nameKey(display) === nameKey(v)) continue;
+          let set = bopmsByVsd.get(v);
+          if (!set) {
+            set = new Set();
+            bopmsByVsd.set(v, set);
+          }
+          set.add(display);
         }
-        set.add(display);
       }
     }
   }
