@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useUserRole } from "@/hooks/useUserRole";
 import { dealCellMatchesPerson } from "@/hooks/queries/legacy";
+import { qk } from "@/lib/queryKeys";
 
 interface DealAccessState {
   loading: boolean;
@@ -31,35 +33,16 @@ export function useDealAccess(): DealAccessState {
   const { user, loading: authLoading } = useAuth();
   const { isAdmin, role, loading: roleLoading } = useUserRole();
 
-  const [loading, setLoading] = useState(true);
-  const [allDeals, setAllDeals] = useState<
-    {
-      id: string;
-      client_id: string | null;
-      vsd: string | null;
-      principal_bopm: string | null;
-      senior_bopm: string | null;
-      bopm: string | null;
-    }[]
-  >([]);
-  const [myAssignedDealIds, setMyAssignedDealIds] = useState<Set<string>>(new Set());
-  const [myPersonName, setMyPersonName] = useState<string | null>(null);
-  const [myRoleTitle, setMyRoleTitle] = useState<string>("");
-  const [myRoleCategory, setMyRoleCategory] = useState<string>("");
-  const [myDesignation, setMyDesignation] = useState<string>("");
-  const [myTeamDealIds, setMyTeamDealIds] = useState<Set<string>>(new Set());
-  // Names of every active person in Settings → People. Used by the strict
-  // BOPM matcher to refuse ambiguous "Shreshtha P" → "Shreshtha Patel" type
-  // collisions when more than one registered person could satisfy the cell.
-  const [allPersonNames, setAllPersonNames] = useState<string[]>([]);
+  const enabled = !authLoading && !roleLoading;
+  const userId = user?.id ?? null;
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      if (authLoading || roleLoading) return;
-      setLoading(true);
-
-      // Always need the deal universe (id, client, vsd, bopm fields).
+  // React Query caches this snapshot across navigations so switching pages
+  // doesn't re-issue 4-6 Supabase calls on every mount.
+  const { data, isLoading } = useQuery({
+    queryKey: qk.dealAccess(userId, role, isAdmin),
+    enabled,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
       const dealsP = supabase
         .from("staffing_deals")
         .select("id, client_id, vsd, principal_bopm, senior_bopm, bopm");
@@ -69,29 +52,18 @@ export function useDealAccess(): DealAccessState {
         .eq("leaving", false)
         .eq("tbh", false);
 
-      // Admin: skip user-specific lookups.
-      if (isAdmin) {
+      if (isAdmin || !user) {
         const [{ data: deals }, { data: peopleAll }] = await Promise.all([dealsP, allPeopleP]);
-        if (cancelled) return;
-        setAllDeals(deals || []);
-        setAllPersonNames(((peopleAll as any[]) || []).map((p: any) => p.name).filter(Boolean));
-        setMyAssignedDealIds(new Set());
-        setMyPersonName(null);
-        setMyRoleTitle("");
-        setLoading(false);
-        return;
-      }
-
-      if (!user) {
-        const [{ data: deals }, { data: peopleAll }] = await Promise.all([dealsP, allPeopleP]);
-        if (cancelled) return;
-        setAllDeals(deals || []);
-        setAllPersonNames(((peopleAll as any[]) || []).map((p: any) => p.name).filter(Boolean));
-        setMyAssignedDealIds(new Set());
-        setMyPersonName(null);
-        setMyRoleTitle("");
-        setLoading(false);
-        return;
+        return {
+          allDeals: deals || [],
+          allPersonNames: ((peopleAll as any[]) || []).map((p: any) => p.name).filter(Boolean),
+          myAssignedDealIds: new Set<string>(),
+          myPersonName: null as string | null,
+          myRoleTitle: "",
+          myRoleCategory: "",
+          myDesignation: "",
+          myTeamDealIds: new Set<string>(),
+        };
       }
 
       const { data: profile } = await supabase
@@ -99,7 +71,6 @@ export function useDealAccess(): DealAccessState {
         .select("staffing_person_id")
         .eq("user_id", user.id)
         .maybeSingle();
-
       const personId = (profile as any)?.staffing_person_id || null;
 
       let personName: string | null = null;
@@ -130,7 +101,6 @@ export function useDealAccess(): DealAccessState {
       const [{ data: deals }, { data: peopleAll }] = await Promise.all([dealsP, allPeopleP]);
       const personNames = ((peopleAll as any[]) || []).map((p: any) => p.name).filter(Boolean);
 
-      // For Capability Leaders: build the set of deals their team is staffed on.
       let teamDealIds = new Set<string>();
       if (personId && role === "capability_lead") {
         const { data: myMems } = await supabase
@@ -154,22 +124,28 @@ export function useDealAccess(): DealAccessState {
         }
       }
 
-      if (cancelled) return;
-      setAllDeals(deals || []);
-      setAllPersonNames(personNames);
-      setMyAssignedDealIds(assignedIds);
-      setMyPersonName(personName);
-      setMyRoleTitle(roleTitle);
-      setMyRoleCategory(roleCategory);
-      setMyDesignation(designation);
-      setMyTeamDealIds(teamDealIds);
-      setLoading(false);
-    }
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [user, authLoading, roleLoading, isAdmin, role]);
+      return {
+        allDeals: deals || [],
+        allPersonNames: personNames,
+        myAssignedDealIds: assignedIds,
+        myPersonName: personName,
+        myRoleTitle: roleTitle,
+        myRoleCategory: roleCategory,
+        myDesignation: designation,
+        myTeamDealIds: teamDealIds,
+      };
+    },
+  });
+
+  const loading = !enabled || isLoading;
+  const allDeals = data?.allDeals ?? [];
+  const allPersonNames = data?.allPersonNames ?? [];
+  const myAssignedDealIds = data?.myAssignedDealIds ?? new Set<string>();
+  const myPersonName = data?.myPersonName ?? null;
+  const myRoleTitle = data?.myRoleTitle ?? "";
+  const myRoleCategory = data?.myRoleCategory ?? "";
+  const myDesignation = data?.myDesignation ?? "";
+  const myTeamDealIds = data?.myTeamDealIds ?? new Set<string>();
 
   const result = useMemo<DealAccessState>(() => {
     if (isAdmin) {
