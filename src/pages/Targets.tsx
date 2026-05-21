@@ -168,6 +168,7 @@ export default function Targets() {
   const [bopmFilter, setBopmFilter] = useState<string>("All");
   const [needsOnly, setNeedsOnly] = useState(false);
   const allPersonNames = useAllPersonNames();
+  const bopmStaffedDealIds = useStaffedDealIdsByName(bopmFilter);
 
   const [behindOnly, setBehindOnly] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
