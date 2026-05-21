@@ -1495,27 +1495,21 @@ export default function RGYHealth() {
                           <ColHeader label="Status" colKey="deal_status" sortKey="deal_status" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={Object.keys(statusBadgeStyles)} width={colWidths.deal_status} onResizeStart={startResize("deal_status")} />
                         )}
                         {isColVisible("overall_rgy") && (
-                          <th
-                            style={{ width: colWidths.overall_rgy }}
-                            className="text-center py-2 px-3 font-medium text-muted-foreground text-caption whitespace-nowrap"
-                          >
-                            <div className="inline-flex items-center gap-1">
-                              <span>Overall RGY</span>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <button type="button" className="text-muted-foreground/70 hover:text-foreground">
-                                    <Info className="h-3 w-3" />
-                                  </button>
-                                </TooltipTrigger>
-                                <TooltipContent className="max-w-xs text-xs">
-                                  <p className="font-semibold mb-1">Weighted Overall RGY</p>
-                                  <p>Each dim scores R=0, Y=50, G=100; NA/blank excluded.</p>
-                                  <p className="mt-1">Weights: Overall Customer 50, Internal 10, Content/SEO/Supply/Copy/Design/Video 5 each.</p>
-                                  <p className="mt-1">Bands: &lt;40 Red · 40–75 Yellow · &gt;75 Green.</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </div>
-                          </th>
+                          <ColHeader
+                            label="Overall RGY"
+                            colKey="overall_rgy"
+                            align="center"
+                            sortState={{sortKey, sortDir}}
+                            onSort={toggleSort}
+                            colFilters={colFilters}
+                            openFilter={openFilter}
+                            setOpenFilter={setOpenFilter}
+                            setFilter={setFilter}
+                            clearFilter={clearFilter}
+                            options={["Green","Yellow","Red","Pending"]}
+                            width={colWidths.overall_rgy}
+                            onResizeStart={startResize("overall_rgy")}
+                          />
                         )}
                         {DIMENSIONS.filter(d => isColVisible(d.key)).map(d => (
                           <ColHeader key={d.key} label={d.label} colKey={d.key} align="center" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["Green","Yellow","Red","NA","Pending"]} width={colWidths[d.key]} onResizeStart={startResize(d.key)} />
