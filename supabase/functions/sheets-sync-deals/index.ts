@@ -226,6 +226,12 @@ async function runSync(triggeredBy: string) {
       if (typeof f.invoiced === "number" && typeof f.received === "number") {
         f.outstanding = f.invoiced - f.received;
       }
+      // Required NOT NULL columns — fill missing with 0 so partial upserts don't fail.
+      if (typeof f.invoiced !== "number") f.invoiced = 0;
+      if (typeof f.received !== "number") f.received = 0;
+      if (typeof f.contracted !== "number") f.contracted = 0;
+      if (typeof f.consumption !== "number") f.consumption = 0;
+      if (typeof f.outstanding !== "number") f.outstanding = 0;
     }
     const BATCH = 1000;
     for (let i = 0; i < finRows.length; i += BATCH) {
