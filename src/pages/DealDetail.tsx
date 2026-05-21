@@ -2115,7 +2115,7 @@ export default function DealDetail() {
                     pct: number;
                     pickable?: { roleKey: string; people: typeof people; onPick: (name: string) => void };
                   };
-                  const coreRoleKeys = ["VSD", "Principal BOPM", "Senior BOPM", "BOPM"] as const;
+                  const coreRoleKeys = ["vsd", "principal_bopm", "senior_bopm", "bopm", "VSD", "Principal BOPM", "Senior BOPM", "BOPM"] as const;
                   const allocFor = (roleKey: string) =>
                     assignments.find(a => a.dealId === dealId && a.roleKey === roleKey)?.allocationPct ?? 0;
                   const makeOnPick = (roleKey: string, field: "vsd" | "principalBopm" | "seniorBopm" | "bopm") => (name: string) => {
@@ -2133,14 +2133,14 @@ export default function DealDetail() {
                     }
                   };
                   const coreRows: Row[] = [
-                    { key: "VSD", name: deal.vsd || "", role: "VSD", pct: allocFor("VSD"),
-                      pickable: { roleKey: "VSD", people: people.filter(p => (p.roleTitle || "").toLowerCase().includes("vsd")), onPick: makeOnPick("VSD", "vsd") } },
-                    { key: "Principal BOPM", name: deal.principalBopm || "", role: "Principal BOPM", pct: allocFor("Principal BOPM"),
-                      pickable: { roleKey: "Principal BOPM", people: people.filter(p => (p.roleTitle || "").toLowerCase().includes("principal bopm")), onPick: makeOnPick("Principal BOPM", "principalBopm") } },
-                    { key: "Senior BOPM", name: deal.seniorBopm || "", role: "Senior BOPM", pct: allocFor("Senior BOPM"),
-                      pickable: { roleKey: "Senior BOPM", people: people.filter(p => (p.roleTitle || "").toLowerCase().includes("senior bopm")), onPick: makeOnPick("Senior BOPM", "seniorBopm") } },
-                    { key: "BOPM", name: deal.bopm || "", role: "BOPM", pct: allocFor("BOPM"),
-                      pickable: { roleKey: "BOPM", people: people.filter(p => { const rt = (p.roleTitle || "").toLowerCase(); return rt.includes("bopm") && !rt.includes("senior") && !rt.includes("principal"); }), onPick: makeOnPick("BOPM", "bopm") } },
+                    { key: "VSD", name: deal.vsd || "", role: "VSD", pct: allocFor("vsd") || allocFor("VSD"),
+                      pickable: { roleKey: "vsd", people: people.filter(p => (p.roleTitle || "").toLowerCase().includes("vsd")), onPick: makeOnPick("vsd", "vsd") } },
+                    { key: "Principal BOPM", name: deal.principalBopm || "", role: "Principal BOPM", pct: allocFor("principal_bopm") || allocFor("Principal BOPM"),
+                      pickable: { roleKey: "principal_bopm", people: people.filter(p => (p.roleTitle || "").toLowerCase().includes("principal bopm")), onPick: makeOnPick("principal_bopm", "principalBopm") } },
+                    { key: "Senior BOPM", name: deal.seniorBopm || "", role: "Senior BOPM", pct: allocFor("senior_bopm") || allocFor("Senior BOPM"),
+                      pickable: { roleKey: "senior_bopm", people: people.filter(p => (p.roleTitle || "").toLowerCase().includes("senior bopm")), onPick: makeOnPick("senior_bopm", "seniorBopm") } },
+                    { key: "BOPM", name: deal.bopm || "", role: "BOPM", pct: allocFor("bopm") || allocFor("BOPM"),
+                      pickable: { roleKey: "bopm", people: people.filter(p => { const rt = (p.roleTitle || "").toLowerCase(); return rt.includes("bopm") && !rt.includes("senior") && !rt.includes("principal"); }), onPick: makeOnPick("bopm", "bopm") } },
                   ];
                   const coreSet = new Set<string>(coreRoleKeys);
                   const extraRows: Row[] = dealAssignments
