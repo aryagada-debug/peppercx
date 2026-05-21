@@ -586,7 +586,7 @@ function LatestMBRSummaryCard({ entries }: { entries: MBREntry[] }) {
           ) : error ? (
             <p className="text-sm text-muted-foreground italic">{error}</p>
           ) : summary ? (
-            <p className="text-sm text-foreground leading-relaxed">{summary}</p>
+            <StructuredSummary text={summary} />
           ) : (
             <p className="text-sm text-muted-foreground italic">No summary yet.</p>
           )}
