@@ -46,10 +46,18 @@ export function useAccountActivity(aliases: Set<string>, enabled: boolean, limit
     // 2. Pull recent activity in parallel
     const [{ data: slack }, { data: rgy }, { data: mbr }, { data: tasks }] = await Promise.all([
       supabase.from("slack_messages").select("id, deal_id, user_name, text, created_at").in("deal_id", ids).order("created_at", { ascending: false }).limit(limit),
-      supabase.from("deal_rgy_weekly").select("id, deal_id, week_start, issue_status, issue_details, created_at").in("deal_id", ids).order("created_at", { ascending: false }).limit(limit),
+      supabase.from("deal_rgy_weekly").select("id, deal_id, week_start, issue_status, issue_details, created_at, updated_by_name").in("deal_id", ids).order("created_at", { ascending: false }).limit(limit),
       supabase.from("mbr_entries").select("id, deal_id, status, updated_by, updated_at").in("deal_id", ids).order("updated_at", { ascending: false }).limit(limit),
-      supabase.from("deal_tasks").select("id, deal_id, title, stage, assignee, updated_at").in("deal_id", ids).order("updated_at", { ascending: false }).limit(limit),
+      supabase.from("deal_tasks").select("id, deal_id, title, stage, assignee, updated_at, created_by_name").in("deal_id", ids).order("updated_at", { ascending: false }).limit(limit),
     ]);
+
+    // Resolve MBR updated_by uuids → display names in one batched profile lookup
+    const mbrUserIds = Array.from(new Set((mbr || []).map((m: any) => m.updated_by).filter((v: any) => typeof v === "string" && v.length === 36)));
+    const nameByUserId = new Map<string, string>();
+    if (mbrUserIds.length) {
+      const { data: profs } = await supabase.from("profiles").select("user_id, display_name").in("user_id", mbrUserIds);
+      (profs || []).forEach((p: any) => { if (p.display_name) nameByUserId.set(p.user_id, p.display_name); });
+    }
 
     const out: ActivityItem[] = [];
     (slack || []).forEach((m: any) => {
@@ -68,7 +76,7 @@ export function useAccountActivity(aliases: Set<string>, enabled: boolean, limit
       out.push({
         id: `rgy-${r.id}`, kind: "rgy", deal_id: r.deal_id,
         deal_name: d.deal_name, account: d.account,
-        actor: "RGY",
+        actor: r.updated_by_name || "RGY",
         text: r.issue_status === "Open"
           ? `Issue logged${r.issue_details ? `: ${String(r.issue_details).slice(0, 100)}` : ""}`
           : `Health updated for week of ${r.week_start}`,
@@ -78,10 +86,11 @@ export function useAccountActivity(aliases: Set<string>, enabled: boolean, limit
     });
     (mbr || []).forEach((m: any) => {
       const d = dealMap.get(m.deal_id)!;
+      const resolved = m.updated_by ? nameByUserId.get(m.updated_by) : null;
       out.push({
         id: `mbr-${m.id}`, kind: "mbr", deal_id: m.deal_id,
         deal_name: d.deal_name, account: d.account,
-        actor: m.updated_by || "MBR",
+        actor: resolved || "MBR",
         text: `MBR ${String(m.status || "").toLowerCase()}`,
         href: `/deals/${m.deal_id}?tab=MBR`,
         at: m.updated_at,
@@ -92,7 +101,7 @@ export function useAccountActivity(aliases: Set<string>, enabled: boolean, limit
       out.push({
         id: `task-${t.id}`, kind: "task", deal_id: t.deal_id,
         deal_name: d.deal_name, account: d.account,
-        actor: t.assignee || "Task",
+        actor: t.created_by_name || t.assignee || "Task",
         text: `Task "${t.title}" → ${t.stage}`,
         href: `/deals/${t.deal_id}?tab=Tasks`,
         at: t.updated_at,
