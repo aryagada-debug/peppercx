@@ -1131,6 +1131,16 @@ export default function RGYHealth() {
         const formatted = d.rgy_updated_at ? format(new Date(d.rgy_updated_at), "dd MMM yyyy, HH:mm") : "";
         if (!matches(formatted, colFilters.updated_at)) return false;
       }
+      if (colFilters.overall_rgy) {
+        const f = colFilters.overall_rgy;
+        const code = RGY_FILTER_LABEL_TO_CODE[f] ?? f;
+        const band = getWorstRGY(d);
+        if (code === "Pending") {
+          if (band !== null) return false;
+        } else if (band !== code) {
+          return false;
+        }
+      }
       for (const dim of DIMENSIONS) {
         const f = colFilters[dim.key];
         if (f) {
