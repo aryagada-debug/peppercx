@@ -188,8 +188,11 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
     [deal?.startDate, deal?.endDate]
   );
 
-  // Pipeline health for an arbitrary subset of rows
-  const computePipeline = useCallback((subset: FinancialRow[], targetOverride?: number) => {
+  // Pipeline health for an arbitrary subset of rows.
+  // `targetOverride` replaces the contraction & delivery targets (used for YTD/Lifetime
+  // roll-ups). `mrrTarget` always replaces the invoicing & receivables targets so that
+  // retainer-style deals are measured against MRR × months for the period.
+  const computePipeline = useCallback((subset: FinancialRow[], targetOverride?: number, mrrTarget?: number) => {
     const consumption = subset.reduce((s, r) => s + r.consumption, 0);
     const invoiced = subset.reduce((s, r) => s + r.invoiced, 0);
     const received = subset.reduce((s, r) => s + r.received, 0);
@@ -199,12 +202,12 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
     const sumInvoicingTarget = subset.reduce((s, r) => s + (r.invoicingTarget ?? 0), 0);
     const sumReceivablesTarget = subset.reduce((s, r) => s + (r.receivablesTarget ?? 0), 0);
     const outstanding = invoiced - received;
-    // When a targetOverride is provided (for YTD = MRR×elapsed months and
-    // Lifetime = MRR×contract months), it replaces all four metric targets.
     const contractionTarget = targetOverride ?? sumContractionTarget;
     const deliveryTarget = targetOverride ?? sumDeliveryTarget;
-    const invTgt = targetOverride ?? (sumInvoicingTarget || netDealValue);
-    const recTgt = targetOverride ?? (sumReceivablesTarget || invoiced);
+    // For retainer deals (MRR > 0), invoicing & receivables targets = MRR × months
+    // in the period. Otherwise fall back to per-row sums / net deal value.
+    const invTgt = mrrTarget ?? (sumInvoicingTarget || netDealValue);
+    const recTgt = mrrTarget ?? (sumReceivablesTarget || invoiced);
     return {
       contraction: {
         att: contractionTarget > 0 ? (consumption / contractionTarget) * 100 : 0,
@@ -253,10 +256,11 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
       : 0;
     const ytdTarget = dealMrr > 0 && ytdMonths > 0 ? dealMrr * ytdMonths : undefined;
     const lifetimeTarget = dealMrr > 0 && lifetimeMonths > 0 ? dealMrr * lifetimeMonths : undefined;
+    const currentMrrTarget = dealMrr > 0 ? dealMrr : undefined;
     return {
-      current: computePipeline(currentMonthRows),
-      ytd: computePipeline(ytdRows, ytdTarget),
-      lifetime: computePipeline(rows, lifetimeTarget),
+      current: computePipeline(currentMonthRows, undefined, currentMrrTarget),
+      ytd: computePipeline(ytdRows, ytdTarget, ytdTarget),
+      lifetime: computePipeline(rows, lifetimeTarget, lifetimeTarget),
     };
   }, [rows, computePipeline, deal?.startDate, deal?.endDate, dealMrr, lifetimeMonths]);
 
