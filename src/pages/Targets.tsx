@@ -15,6 +15,8 @@ import { toast } from "sonner";
 import { METRICS, METRIC_LABELS, attainmentPct, attainmentTone, formatINR, type Metric } from "@/lib/csvTargets";
 import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
 import { useAllPersonNames } from "@/hooks/queries/legacy";
+import { useDealAccess } from "@/hooks/useDealAccess";
+import { Switch } from "@/components/ui/switch";
 
 // ── Types ──
 interface DealMeta {
@@ -149,10 +151,13 @@ function TargetCell({ value, prevValue, onSave, disabled, prevLabel, asTd = true
 
 export default function Targets() {
   useCurrencyVersion();
-  const { isAdmin } = useUserRole();
+  const { isAdmin, role } = useUserRole();
+  const access = useDealAccess();
+  const isCapMember = role === "capability_member";
   const [month, setMonth] = useState(format(new Date(), "yyyy-MM"));
   const [overall, setOverall] = useState(true);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [showCompleted, setShowCompleted] = useState(false);
   const [deals, setDeals] = useState<DealMeta[]>([]);
   const [targets, setTargets] = useState<Record<string, TargetRow>>({}); // key: deal_id
   const [prevTargets, setPrevTargets] = useState<Record<string, TargetRow>>({});
@@ -180,11 +185,12 @@ export default function Targets() {
   // ── Load ──
   const load = useCallback(async () => {
     setLoading(true);
-    const dealsP = supabase
+    const ACTIVE_STATUSES = ["Active Deal", "New Deal in SLA/PO", "Deal - Open and WIP", "Deal in Renewal Process"];
+    const dealsQuery = supabase
       .from("staffing_deals")
       .select("id, deal_name, account, vsd, bopm, mrr, total_deal_value, start_date, deal_status")
-      .in("deal_status", ["Active Deal", "New Deal in SLA/PO", "Deal - Open and WIP", "Deal in Renewal Process"])
       .order("deal_name");
+    const dealsP = showCompleted ? dealsQuery : dealsQuery.in("deal_status", ACTIVE_STATUSES);
     const tgtP = overall
       ? supabase.from("deal_financial_targets").select("*")
       : supabase.from("deal_financial_targets").select("*").eq("month", monthIso(month));
@@ -239,7 +245,10 @@ export default function Targets() {
       };
     };
     const dealRows = (dealsRes.data || []) as any[];
-    setDeals(dealRows.map((d): DealMeta => ({
+    const scoped = access.isAdmin
+      ? dealRows
+      : dealRows.filter((d) => access.canViewDeal(d.id));
+    setDeals(scoped.map((d): DealMeta => ({
       id: d.id, deal_name: d.deal_name || d.id, account: d.account || "",
       vsd: d.vsd || "", bopm: d.bopm || "", mrr: Number(d.mrr) || 0,
       total_deal_value: Number(d.total_deal_value) || 0,
@@ -316,7 +325,7 @@ export default function Targets() {
     });
     setAllByDeal(grouped);
     setLoading(false);
-  }, [month, prevYM, nextYM, overall]);
+  }, [month, prevYM, nextYM, overall, showCompleted, access.isAdmin, access.canViewDeal]);
 
   useEffect(() => { void load(); }, [load]);
 
