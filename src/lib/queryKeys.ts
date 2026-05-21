@@ -52,4 +52,8 @@ export const qk = {
   // account activity feed
   accountActivity: (aliasKey: string, limit: number, allAccounts: boolean) =>
     ["account-activity", aliasKey, limit, allAccounts] as const,
+
+  // access control (Clients & Deals visibility/edit)
+  dealAccess: (userId: string | null, role: string | null, isAdmin: boolean) =>
+    ["deal-access", userId ?? "anon", role ?? "none", isAdmin] as const,
 } as const;
