@@ -367,7 +367,13 @@ export default function Clients() {
       const staffed = dealsStaffedByName(activeBopm, people, assignments);
       d = d.filter(deal => dealMatchesBopm(deal as any, activeBopm, allPersonNames, staffed));
     }
-    if (search) d = d.filter(deal => deal.account.toLowerCase().includes(search.toLowerCase()) || deal.dealName.toLowerCase().includes(search.toLowerCase()));
+    if (search) {
+      const q = search.toLowerCase();
+      d = d.filter(deal =>
+        (deal.account || "").toLowerCase().includes(q) ||
+        (deal.dealName || "").toLowerCase().includes(q)
+      );
+    }
     return d;
   }, [deals, activeVsd, activeBopm, search, showClosed, allPersonNames, people, assignments]);
 
