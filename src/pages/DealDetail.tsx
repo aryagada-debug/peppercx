@@ -351,6 +351,82 @@ function TeamMemberSelect({ currentName, role, color, people, onSelect }: {
   );
 }
 
+// ── Unified Team Allocation Row ──
+function TeamAllocationRow({ row }: {
+  row: {
+    key: string;
+    name: string;
+    role: string;
+    pct: number;
+    pickable?: { roleKey: string; people: { id: string; name: string; roleTitle: string }[]; onPick: (name: string) => void };
+  };
+}) {
+  const [open, setOpen] = useState(false);
+  const hasName = !!row.name && row.name !== "Not assigned";
+  const initials = hasName
+    ? row.name.split(" ").map(n => n[0]).filter(Boolean).join("").slice(0, 2).toUpperCase()
+    : "—";
+  const pct = Math.max(0, Math.min(100, row.pct || 0));
+  const uniquePeople = row.pickable
+    ? row.pickable.people.filter((v, i, arr) => arr.findIndex(x => x.name === v.name) === i)
+    : [];
+
+  return (
+    <div className="flex items-center gap-3 py-2.5 px-1">
+      <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-[11px] font-medium text-foreground/80 shrink-0">
+        {initials}
+      </div>
+      <div className="flex-1 min-w-0">
+        {row.pickable ? (
+          <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+              <button className="text-sm font-medium text-foreground hover:underline cursor-pointer truncate text-left block max-w-full">
+                {hasName ? row.name : "Not assigned"}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-1" align="start">
+              <div className="flex flex-col">
+                {uniquePeople.map(p => (
+                  <button
+                    key={p.id}
+                    className={cn(
+                      "text-xs text-left px-2 py-1.5 rounded hover:bg-muted flex items-center justify-between",
+                      p.name === row.name && "bg-muted font-medium"
+                    )}
+                    onClick={() => { row.pickable!.onPick(p.name === row.name ? "" : p.name); setOpen(false); }}
+                  >
+                    {p.name}
+                    {p.name === row.name && <Check className="h-3 w-3 text-primary" />}
+                  </button>
+                ))}
+                {hasName && (
+                  <button
+                    className="text-xs text-left px-2 py-1.5 rounded hover:bg-muted text-muted-foreground border-t mt-1 pt-1.5"
+                    onClick={() => { row.pickable!.onPick(""); setOpen(false); }}
+                  >
+                    — Clear —
+                  </button>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
+        ) : (
+          <p className="text-sm font-medium text-foreground truncate">{hasName ? row.name : "—"}</p>
+        )}
+        <p className="text-[11px] text-muted-foreground truncate">{row.role}</p>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <div className="w-20 h-1 rounded bg-muted overflow-hidden">
+          <div className="h-full bg-foreground/70 rounded" style={{ width: `${pct}%` }} />
+        </div>
+        <span className="text-[11px] tabular-nums text-muted-foreground w-9 text-right">
+          {hasName ? `${pct}%` : "—"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 
 function InlineLinkEditor({ value, label, onSave }: { value: string | null; label: string; onSave: (v: string | null) => void }) {
   const [editing, setEditing] = useState(false);
