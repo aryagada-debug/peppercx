@@ -33,7 +33,7 @@ serve(async (req) => {
           {
             role: "system",
             content:
-              "Summarize the given MBR notes in EXACTLY two short sentences (max ~40 words total). Focus on customer sentiment, key risks/wins, and the next action. No preamble, no bullets, no markdown.",
+              "Summarize the given MBR notes as 3-5 scannable bullet points. Format EACH bullet EXACTLY as: `* **Title:** body` where Title is 1-3 words (e.g., Performance, Risks, Wins, Next Steps, Sentiment) and body is one concise sentence (max ~25 words). Output ONLY the bullets separated by newlines. No preamble, no closing remarks, no extra markdown.",
           },
           { role: "user", content: text },
         ],
