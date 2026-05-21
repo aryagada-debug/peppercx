@@ -2423,6 +2423,10 @@ export type Database = {
       }
     }
     Functions: {
+      _recompute_deal_bopm_field: {
+        Args: { _deal_id: string; _role_key: string }
+        Returns: undefined
+      }
       get_home_personal_todos: {
         Args: never
         Returns: {

@@ -248,6 +248,7 @@ export default function Staffing() {
                     people={scopedPeople}
                     allPeople={people}
                     assignments={bopmActiveAssignments}
+                    onUpdateDeal={updateDeal}
                   />
                 ) : null
               }
