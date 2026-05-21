@@ -2028,120 +2028,59 @@ export default function DealDetail() {
                   <Users className="h-4 w-4 text-muted-foreground" />
                   <h3 className="text-sm font-semibold text-foreground">Team</h3>
                 </div>
-                <div className="divide-y divide-border">
-                  <TeamMemberSelect
-                    currentName={deal.vsd || ""}
-                    role="VSD"
-                    color="bg-teal-600"
-                    people={people.filter(p => (p.roleTitle || "").toLowerCase().includes("vsd"))}
-                    onSelect={name => {
-                      handleDealFieldSave("vsd", name);
-                      if (!name) {
-                        const existing = assignments.find(a => a.dealId === dealId && a.roleKey === "VSD");
-                        if (existing) deleteAssignment(existing.id);
-                      } else {
-                        const person = people.find(p => p.name === name);
-                        if (person) {
-                          const existing = assignments.find(a => a.dealId === dealId && a.roleKey === "VSD");
-                          if (existing) updateAssignment(existing.id, { personId: person.id });
-                          else addAssignment({ id: uid(), dealId: dealId!, roleKey: "VSD", personId: person.id, allocationPct: 10 });
-                        }
-                      }
-                    }}
-                  />
-                  <TeamMemberSelect
-                    currentName={deal.principalBopm || ""}
-                    role="Principal BOPM"
-                    color="bg-primary"
-                    people={people.filter(p => (p.roleTitle || "").toLowerCase().includes("principal bopm"))}
-                    onSelect={name => {
-                      handleDealFieldSave("principalBopm", name);
-                      if (!name) {
-                        const existing = assignments.find(a => a.dealId === dealId && a.roleKey === "Principal BOPM");
-                        if (existing) deleteAssignment(existing.id);
-                      } else {
-                        const person = people.find(p => p.name === name);
-                        if (person) {
-                          const existing = assignments.find(a => a.dealId === dealId && a.roleKey === "Principal BOPM");
-                          if (existing) updateAssignment(existing.id, { personId: person.id });
-                          else addAssignment({ id: uid(), dealId: dealId!, roleKey: "Principal BOPM", personId: person.id, allocationPct: 10 });
-                        }
-                      }
-                    }}
-                  />
-                  <TeamMemberSelect
-                    currentName={deal.seniorBopm || ""}
-                    role="Senior BOPM"
-                    color="bg-muted-foreground/60"
-                    people={people.filter(p => (p.roleTitle || "").toLowerCase().includes("senior bopm"))}
-                    onSelect={name => {
-                      handleDealFieldSave("seniorBopm", name);
-                      if (!name) {
-                        const existing = assignments.find(a => a.dealId === dealId && a.roleKey === "Senior BOPM");
-                        if (existing) deleteAssignment(existing.id);
-                      } else {
-                        const person = people.find(p => p.name === name);
-                        if (person) {
-                          const existing = assignments.find(a => a.dealId === dealId && a.roleKey === "Senior BOPM");
-                          if (existing) updateAssignment(existing.id, { personId: person.id });
-                          else addAssignment({ id: uid(), dealId: dealId!, roleKey: "Senior BOPM", personId: person.id, allocationPct: 10 });
-                        }
-                      }
-                    }}
-                  />
-                  <TeamMemberSelect
-                    currentName={deal.bopm || ""}
-                    role="BOPM"
-                    color="bg-muted-foreground/60"
-                    people={people.filter(p => {
-                      const rt = (p.roleTitle || "").toLowerCase();
-                      return rt.includes("bopm") && !rt.includes("senior") && !rt.includes("principal");
-                    })}
-                    onSelect={name => {
-                      handleDealFieldSave("bopm", name);
-                      if (!name) {
-                        const existing = assignments.find(a => a.dealId === dealId && a.roleKey === "BOPM");
-                        if (existing) deleteAssignment(existing.id);
-                      } else {
-                        const person = people.find(p => p.name === name);
-                        if (person) {
-                          const existing = assignments.find(a => a.dealId === dealId && a.roleKey === "BOPM");
-                          if (existing) updateAssignment(existing.id, { personId: person.id });
-                          else addAssignment({ id: uid(), dealId: dealId!, roleKey: "BOPM", personId: person.id, allocationPct: 10 });
-                        }
-                      }
-                    }}
-                  />
-                </div>
-
-                {/* Additional assigned members from staffing */}
                 {(() => {
-                  const coreRoles = new Set(["VSD", "Principal BOPM", "Senior BOPM", "BOPM"]);
-                  const otherAssignments = dealAssignments.filter(a => !coreRoles.has(a.roleKey));
-                  if (otherAssignments.length === 0) return null;
-                  const grouped: Record<string, { person: typeof people[0]; alloc: typeof otherAssignments[0] }[]> = {};
-                  otherAssignments.forEach(a => {
-                    const p = people.find(pp => pp.id === a.personId);
-                    if (!p) return;
-                    const cat = p.roleCategory || "Other";
-                    if (!grouped[cat]) grouped[cat] = [];
-                    grouped[cat].push({ person: p, alloc: a });
-                  });
+                  type Row = {
+                    key: string;
+                    name: string;
+                    role: string;
+                    pct: number;
+                    pickable?: { roleKey: string; people: typeof people; onPick: (name: string) => void };
+                  };
+                  const coreRoleKeys = ["VSD", "Principal BOPM", "Senior BOPM", "BOPM"] as const;
+                  const allocFor = (roleKey: string) =>
+                    assignments.find(a => a.dealId === dealId && a.roleKey === roleKey)?.allocationPct ?? 0;
+                  const makeOnPick = (roleKey: string, field: "vsd" | "principalBopm" | "seniorBopm" | "bopm") => (name: string) => {
+                    handleDealFieldSave(field, name);
+                    if (!name) {
+                      const existing = assignments.find(a => a.dealId === dealId && a.roleKey === roleKey);
+                      if (existing) deleteAssignment(existing.id);
+                    } else {
+                      const person = people.find(p => p.name === name);
+                      if (person) {
+                        const existing = assignments.find(a => a.dealId === dealId && a.roleKey === roleKey);
+                        if (existing) updateAssignment(existing.id, { personId: person.id });
+                        else addAssignment({ id: uid(), dealId: dealId!, roleKey, personId: person.id, allocationPct: 10 });
+                      }
+                    }
+                  };
+                  const coreRows: Row[] = [
+                    { key: "VSD", name: deal.vsd || "", role: "VSD", pct: allocFor("VSD"),
+                      pickable: { roleKey: "VSD", people: people.filter(p => (p.roleTitle || "").toLowerCase().includes("vsd")), onPick: makeOnPick("VSD", "vsd") } },
+                    { key: "Principal BOPM", name: deal.principalBopm || "", role: "Principal BOPM", pct: allocFor("Principal BOPM"),
+                      pickable: { roleKey: "Principal BOPM", people: people.filter(p => (p.roleTitle || "").toLowerCase().includes("principal bopm")), onPick: makeOnPick("Principal BOPM", "principalBopm") } },
+                    { key: "Senior BOPM", name: deal.seniorBopm || "", role: "Senior BOPM", pct: allocFor("Senior BOPM"),
+                      pickable: { roleKey: "Senior BOPM", people: people.filter(p => (p.roleTitle || "").toLowerCase().includes("senior bopm")), onPick: makeOnPick("Senior BOPM", "seniorBopm") } },
+                    { key: "BOPM", name: deal.bopm || "", role: "BOPM", pct: allocFor("BOPM"),
+                      pickable: { roleKey: "BOPM", people: people.filter(p => { const rt = (p.roleTitle || "").toLowerCase(); return rt.includes("bopm") && !rt.includes("senior") && !rt.includes("principal"); }), onPick: makeOnPick("BOPM", "bopm") } },
+                  ];
+                  const coreSet = new Set<string>(coreRoleKeys);
+                  const extraRows: Row[] = dealAssignments
+                    .filter(a => !coreSet.has(a.roleKey))
+                    .map(a => {
+                      const p = people.find(pp => pp.id === a.personId);
+                      return {
+                        key: a.id,
+                        name: p?.name || "",
+                        role: p?.roleCategory || a.roleKey || "Other",
+                        pct: a.allocationPct || 0,
+                      } as Row;
+                    });
+                  const rows: Row[] = [...coreRows, ...extraRows];
                   return (
-                    <div className="mt-3 pt-3 border-t border-border space-y-2">
-                      <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">Other Assigned</p>
-                      {Object.entries(grouped).map(([cat, members]) => (
-                        <div key={cat}>
-                          <p className="text-[10px] text-muted-foreground font-medium mb-1">{cat}</p>
-                          {members.map(({ person, alloc }) => (
-                            <div key={alloc.id} className="flex items-center gap-2 py-1 text-xs">
-                              <span className="text-foreground">{person.name}</span>
-                              <span className="text-muted-foreground">·</span>
-                              <span className="font-mono text-muted-foreground">{alloc.allocationPct}%</span>
-                            </div>
-                          ))}
-                        </div>
-                      ))}
+                    <div className="max-h-[360px] overflow-y-auto -mx-1 px-1">
+                      <div className="divide-y divide-border">
+                        {rows.map(r => <TeamAllocationRow key={r.key} row={r} />)}
+                      </div>
                     </div>
                   );
                 })()}
