@@ -220,47 +220,21 @@ async function runSync(triggeredBy: string) {
       else dealsUpserted += slice.length;
     }
 
-    // Upsert financials in batches (need a unique constraint on (deal_id,month) — use manual upsert)
+    // Native upsert on (deal_id, month) — requires uq_deal_financials_deal_month unique index.
     const finRows = Array.from(finMap.values());
-    const BATCH = 500;
+    for (const f of finRows) {
+      if (typeof f.invoiced === "number" && typeof f.received === "number") {
+        f.outstanding = f.invoiced - f.received;
+      }
+    }
+    const BATCH = 1000;
     for (let i = 0; i < finRows.length; i += BATCH) {
       const slice = finRows.slice(i, i + BATCH);
-      // Compute outstanding when both present
-      for (const f of slice) {
-        if (typeof f.invoiced === "number" && typeof f.received === "number") {
-          f.outstanding = f.invoiced - f.received;
-        }
-      }
-      // Manual upsert via select-then-update/insert because no unique constraint exists.
-      const dealIds = [...new Set(slice.map((s) => s.deal_id))];
-      const months = [...new Set(slice.map((s) => s.month))];
-      const { data: existing } = await supa
+      const { error: fErr } = await supa
         .from("deal_financials")
-        .select("id, deal_id, month")
-        .in("deal_id", dealIds)
-        .in("month", months);
-      const existMap = new Map<string, string>();
-      for (const e of existing || []) existMap.set(`${e.deal_id}__${e.month}`, e.id);
-
-      const toUpdate: any[] = [];
-      const toInsert: any[] = [];
-      for (const f of slice) {
-        const key = `${f.deal_id}__${f.month}`;
-        const eid = existMap.get(key);
-        if (eid) toUpdate.push({ id: eid, ...f });
-        else toInsert.push(f);
-      }
-      for (const u of toUpdate) {
-        const { id: uid, ...rest } = u;
-        const { error: uErr } = await supa.from("deal_financials").update(rest).eq("id", uid);
-        if (uErr) errors.push({ stage: "fin_update", error: String(uErr.message) });
-        else financialsUpserted++;
-      }
-      if (toInsert.length) {
-        const { error: iErr } = await supa.from("deal_financials").insert(toInsert);
-        if (iErr) errors.push({ stage: "fin_insert", error: String(iErr.message) });
-        else financialsUpserted += toInsert.length;
-      }
+        .upsert(slice, { onConflict: "deal_id,month", ignoreDuplicates: false });
+      if (fErr) errors.push({ stage: "fin_upsert", error: String(fErr.message) });
+      else financialsUpserted += slice.length;
     }
 
     const status = errors.length === 0 ? "success" : "partial";
