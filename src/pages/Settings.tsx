@@ -340,6 +340,16 @@ export default function SettingsPage() {
         {activeTab === "Notifications" && (
           <NotificationsPanel />
         )}
+
+        {activeTab === "Data Sync" && (
+          isActuallyAdmin ? (
+            <DataSyncPanel />
+          ) : (
+            <div className="rounded-xl border border-border bg-card p-8 text-center">
+              <p className="text-sm text-muted-foreground">Admin access required.</p>
+            </div>
+          )
+        )}
       </div>
 
       <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
