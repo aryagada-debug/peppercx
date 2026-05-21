@@ -978,7 +978,7 @@ export function BopmStaffingFlatTable({
         })
       : typeFiltered;
     const bopmFiltered = bopmFilter && bopmFilter !== "All"
-      ? vsdFiltered.filter(d => dealMatchesBopm(d as any, bopmFilter, allPersonNames))
+      ? vsdFiltered.filter(d => dealMatchesBopm(d as any, bopmFilter, allPersonNames, bopmStaffedDealIds))
       : vsdFiltered;
     if (!q) return bopmFiltered;
     return bopmFiltered.filter(d => {
@@ -988,7 +988,7 @@ export function BopmStaffingFlatTable({
       const hay = `${d.account} ${d.dealName} ${d.dealId} ${personHay}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [deals, search, bopmFilter, vsdFilter, activeOnly, dealTypeFilter, vsdForDeal, dealRoleMap, allPersonById, allPersonNames]);
+  }, [deals, search, bopmFilter, vsdFilter, activeOnly, dealTypeFilter, vsdForDeal, dealRoleMap, allPersonById, allPersonNames, bopmStaffedDealIds]);
 
   const virtualRows = useMemo(() => {
     const total = filteredDeals.length;
