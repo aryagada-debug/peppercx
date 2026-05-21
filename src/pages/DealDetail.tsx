@@ -512,10 +512,6 @@ function InlineNotesEditor({ value, onSave }: { value: string | null; onSave: (v
 }
 
 // ── AI summary of the latest MBR notes (2 sentences) ──
-function LatestMBRSummaryCard({ entries }: { entries: MBREntry[] }) {
-  // no-op
-}
-
 // Parse the AI summary text (markdown-ish bullets like `* **Title:** body`)
 // and render as a clean, scannable list.
 function StructuredSummary({ text }: { text: string }) {
@@ -557,7 +553,7 @@ function StructuredSummary({ text }: { text: string }) {
   );
 }
 
-function _LatestMBRSummaryCardImpl({ entries }: { entries: MBREntry[] }) {
+function LatestMBRSummaryCard({ entries }: { entries: MBREntry[] }) {
   const latest = useMemo(() => {
     return entries.find(e => (e.notes && e.notes.trim().length > 10)) || null;
   }, [entries]);
