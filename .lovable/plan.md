@@ -1,42 +1,83 @@
-# Slack Health — Live Data
+# Google Sheets → App sync
 
-Replace the fully-mocked `SlackHealth.tsx` with a real view over every Slack channel currently linked to a deal, and compute the health metrics on the fly from `slack_messages` + staffing data.
+Pull the "Deal Master - Base data" tab from the master Google Sheet every 3 hours and upsert into Clients, Deals, and per-deal monthly Financials. Sheet is the source of truth: deal metadata and financials always overwrite app values.
 
-## Source of channels
+## Source sheet
 
-A "connected channel" = any `staffing_deals` row where `slack_channel_id` is non-empty. That field is set when a deal owner links a Slack channel from the deal page, so it already represents the union of channels users have connected.
+- **Spreadsheet:** `1t8d0v1vKFSBZPizMaBQF2B_biF8epp12hb3hM1ogr9Q`, tab `Deal Master - Base data`.
+- One row per Deal ID.
+- Wide-format financial sections (one column per month) on the same row:
+  - **Invoicing:** columns DI → ET
+  - **Receivables:** columns FA → GL
+  - **Contraction:** columns HS → IQ
+  - **Delivery:** columns JA → KL
+- Each section's header row holds month labels (e.g. `Apr-24`, `May-24`, …) that drive the `month` value for `deal_financials`.
 
-For each such row we already have: `id`, `deal_name`, `slack_channel_id`, `slack_channel_name` (if missing in schema we fall back to fetching via `conversations.info`), `deal_status`.
+## Setup the user does once
 
-## Health metrics (same 5 columns as today)
+1. Connect **Google Sheets** in Lovable Cloud (the connector picker — I'll trigger it from build mode).
+2. Make sure the connected Google account has at least Viewer access to the spreadsheet.
 
-Computed per deal/channel for the last 7 days, all from existing tables — no extra Slack API calls per render:
+## What gets built
 
-| Column | Source | Formula |
-|---|---|---|
-| Staff Match | `staffing_assignments` for the deal vs `slack_messages.user_id` distinct senders in 7d | `matched / expected` (expected = active assignees, matched = those who posted ≥1 msg) |
-| Daily (7d) | `slack_messages` grouped by day | count of distinct days with ≥1 team message (max 5, weekdays only) |
-| Weekly Internal | `slack_messages` where sender is in our staffing list | clamp(count, 0, 4) |
-| Weekly Customer | `slack_messages` where sender is **not** in staffing list (external) | clamp(count, 0, 4) |
-| Score | weighted blend | `round(staffMatch*25 + daily*10 + wkInt*10 + wkCust*15)` capped 0–100 |
+### 1. Edge function: `sheets-sync-deals`
 
-Top metric cards (Avg Health, Well Run ≥75, Needs Attention 50–74, Critical <50) are derived from the same array.
+- Calls Google Sheets API via the connector gateway (`google_sheets/v4/spreadsheets/.../values:batchGet`) for:
+  - Header row (row 1) to discover month labels per section.
+  - The full data range of `Deal Master - Base data`.
+- For each row:
+  - **Clients** — upsert by `pc_code` (auto-create with just `name` + `pc_code` if missing).
+  - **Deals (`staffing_deals`)** — upsert by the existing composite key `${pc_code}_${deal_id}`. Overwrites mapped metadata columns every run (status, VSD, BOPMs, MRR, dates, etc.).
+  - **Financials (`deal_financials`)** — one upsert per non-empty month cell per section, keyed on `(deal_id, month)`. Maps:
+    - Invoicing block → `invoiced`
+    - Receivables block → `received` (+ `outstanding` derived as `invoiced − received` if both present)
+    - Contraction block → `contracted`
+    - Delivery block → `consumption` (matches the existing "Consumption (actual/contracted)" model in Financial Reporting)
+- Writes a `sync_runs` row at the end with counts (deals upserted, financials upserted, clients created, errors) so we have an audit trail.
 
-## Implementation
+### 2. `sync_runs` table (new)
 
-1. **Edge function `slack-health-snapshot`** (new): runs server-side with service role, returns `{ channels: [{ channel_id, channel_name, deal_id, deal_name, score, staffMatch, daily, wkInt, wkCust }] }`. One query joins `staffing_deals` + `staffing_assignments` + aggregates over `slack_messages` for the last 7 days. Cached for 5 min in-memory.
-2. **Hook `useSlackHealth`** (new, `src/hooks/queries/`): React Query wrapper invoking that function.
-3. **`src/pages/SlackHealth.tsx`**: remove mock array, render rows from the hook, keep the existing table + `ScoreBadge` + metric cards UI exactly. Add empty state ("No Slack channels connected yet") and loading skeleton. Channel name renders as a link that opens `slack://channel?team=...&id=...` (fallback to web).
-4. No schema migration needed — all required tables exist (`staffing_deals`, `staffing_assignments`, `slack_messages`, `staffing_people`).
+Tracks each run for the UI and debugging:
 
-## Out of scope
+- `started_at`, `finished_at`, `status` (`success` / `partial` / `failed`)
+- `deals_upserted`, `financials_upserted`, `clients_created`, `rows_skipped`
+- `error_log` (jsonb array of `{ row, reason }` for bad rows)
 
-- Adding a "connect channel" flow from this page (already done on deal detail).
-- Persisting historical health scores / trend lines.
-- Backfilling messages for channels the bot was just invited to.
+### 3. Schedule
 
-## Files
+`pg_cron` job runs `sheets-sync-deals` every 3 hours.
 
-- New: `supabase/functions/slack-health-snapshot/index.ts`
-- New: `src/hooks/queries/useSlackHealth.ts`
-- Edit: `src/pages/SlackHealth.tsx`
+### 4. Settings UI: "Google Sheets Sync" card
+
+Lives under **Settings**. Shows:
+
+- Last run time + status + counts.
+- Last few errors (collapsed).
+- A **Sync now** button that invokes the edge function on demand (handy for testing without waiting 3h).
+
+## Behavior notes
+
+- **Sheet wins.** Each run overwrites deal metadata and financial cells from the sheet. Document this in the UI so users know in-app edits to those fields will be replaced on the next sync.
+- **App-only fields are preserved.** Anything not present in the sheet (RGY weekly, MBR entries, tasks, SoW, stakeholders, staffing assignments, etc.) is never touched by the sync.
+- **Blank cells = no write.** A blank financial cell does not zero out an existing value — only non-empty cells trigger an upsert. This avoids the sheet wiping data the team hasn't filled in yet.
+- **New deals show up automatically.** When a new Deal ID appears in the sheet, the next run creates the client (if needed) and the deal, and seeds whatever financial months are populated.
+
+## Technical details
+
+- Connector: `google_sheets` via Lovable connector gateway (`https://connector-gateway.lovable.dev/google_sheets/v4`). Server-side only — no per-user OAuth.
+- Edge function uses the `SUPABASE_SERVICE_ROLE_KEY` to write, bypassing RLS (all writes are server-validated).
+- Sheets API call shape:
+  - `GET /spreadsheets/{id}/values:batchGet?ranges='Deal Master - Base data'!1:1&ranges='Deal Master - Base data'!2:5000&valueRenderOption=UNFORMATTED_VALUE`
+  - Parse with column-letter helpers (`DI`→113, `ET`→150, etc.) to slice each section.
+- Cron registered via `pg_cron` + `pg_net`:
+  ```text
+  schedule: '0 */3 * * *'  (every 3 hours, on the hour)
+  ```
+- Idempotent: re-running on the same data produces zero diffs.
+- Soft-deleted rows in app trash are not resurrected by the sync (the upsert keys exclude trashed IDs).
+
+## Out of scope (flag if you want them later)
+
+- Two-way sync (app → sheet). Sheet remains read-only from the app's perspective.
+- Syncing staffing assignments / team allocations (the existing memory mentions a `'1.0 Deal Level Mapping'` tab — not part of this request).
+- Email/Slack alerts on failed runs. The Settings card will show the last error. - want this later
