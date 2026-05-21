@@ -412,7 +412,7 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
               </tr>
             </thead>
             <tbody>
-              {rows.length === 0 ? (
+              {displayRows.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="py-12 text-center text-muted-foreground text-sm">
                     No financial data recorded yet. Click 'Add month' to get started.
@@ -420,14 +420,14 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
                 </tr>
               ) : (
                 <>
-                  {rows.map((row, idx) => {
+                  {displayRows.map((row, idx) => {
                     const cTarget = row.contractionTarget ?? row.contracted;
                     const dTarget = row.deliveryTarget ?? 0;
                     const dActual = row.deliveryActual ?? 0;
                     const iTarget = row.invoicingTarget ?? 0;
                     const rTarget = row.receivablesTarget ?? 0;
                     return (
-                      <tr key={row.id} className={cn("group", idx < rows.length - 1 && "border-b border-border/50")}>
+                      <tr key={row.id} className={cn("group", idx < displayRows.length - 1 && "border-b border-border/50")}>
                         <td className="py-2.5 px-3 font-medium text-muted-foreground">{fmtMonth(row.month)}</td>
                         <EditableTableCell value={cTarget} field="contractionTarget" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} groupStart />
                         <ActualCell value={row.consumption} target={cTarget} field="consumption" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
