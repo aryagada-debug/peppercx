@@ -36,6 +36,7 @@ import { FullCalendarDialog } from "@/components/calendar/FullCalendarDialog";
 import { Maximize2, Video } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useDealAccess } from "@/hooks/useDealAccess";
+import { useQuery } from "@tanstack/react-query";
 import { TaskKanban, type DealTask } from "@/components/deals/TaskKanban";
 import { SlackHomeBubble } from "@/components/slack/SlackHomeBubble";
 import { CxDatePickerPopover } from "@/components/cx/CxDatePickerPopover";
@@ -122,6 +123,30 @@ export default function HomePage() {
   // Identity / scope queries (Phase 4c-i): replaces loadProfile + state.
   const { data: profileData } = useHomeProfileQuery(user?.id, user?.email);
   const { displayName, staffingName, staffingPersonId } = profileData;
+
+  // Personal staffing_assignments — surface deals the user is staffed on,
+  // regardless of role (the `user` role doesn't include these via useDealAccess).
+  const { data: ownAssignedDealIds = new Set<string>() } = useQuery({
+    queryKey: ["home", "ownAssignedDeals", staffingPersonId ?? ""],
+    enabled: !!staffingPersonId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("staffing_assignments")
+        .select("deal_id")
+        .eq("person_id", staffingPersonId!);
+      return new Set<string>((data || []).map((r: any) => r.deal_id).filter(Boolean));
+    },
+  });
+
+  // Merge into the scope used by Home queries so non-admins still see their
+  // own staffed deals on the home page.
+  const mergedAccessIds = useMemo(() => {
+    if (isAdmin) return accessDealIds;
+    const out = new Set<string>(accessDealIds);
+    ownAssignedDealIds.forEach((id) => out.add(id));
+    return out;
+  }, [isAdmin, accessDealIds, ownAssignedDealIds]);
 
   // React Query–backed lists (replaces loadTodos / loadNudges / loadNotifications).
   // The hooks own their realtime subscriptions and re-fetch on tab focus.
