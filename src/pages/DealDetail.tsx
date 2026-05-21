@@ -260,14 +260,16 @@ function RGYTrendView({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
 // ── Editable Cell ──
 function EditableCell({ value, onSave, type = "text", prefix = "", placeholder = "—", size = "default" }: { value: string; onSave: (v: string) => void; type?: string; prefix?: string; placeholder?: string; size?: "default" | "lg" }) {
   const [editing, setEditing] = useState(false);
-  const [local, setLocal] = useState(value);
+  const normalize = (v: string) => (type === "date" && v ? String(v).slice(0, 10) : v);
+  const [local, setLocal] = useState(normalize(value));
+  useEffect(() => { setLocal(normalize(value)); }, [value]);
 
   if (editing) {
     return (
       <div className="flex items-center gap-1">
-        <Input value={local} onChange={e => setLocal(e.target.value)} type={type} className={cn("w-full", size === "lg" ? "h-10 text-2xl font-semibold font-mono tabular-nums" : "h-7 text-sm")} autoFocus onKeyDown={e => { if (e.key === "Enter") { onSave(local); setEditing(false); } if (e.key === "Escape") { setLocal(value); setEditing(false); } }} />
+        <Input value={local} onChange={e => setLocal(e.target.value)} type={type} className={cn(size === "lg" ? "h-10 text-2xl font-semibold font-mono tabular-nums w-full" : type === "date" ? "h-7 text-sm w-[160px]" : "h-7 text-sm w-full")} autoFocus onBlur={() => { if (type === "date") { onSave(local); setEditing(false); } }} onKeyDown={e => { if (e.key === "Enter") { onSave(local); setEditing(false); } if (e.key === "Escape") { setLocal(normalize(value)); setEditing(false); } }} />
         <button onClick={() => { onSave(local); setEditing(false); }} className="text-primary"><Check className="h-3.5 w-3.5" /></button>
-        <button onClick={() => { setLocal(value); setEditing(false); }} className="text-muted-foreground"><X className="h-3.5 w-3.5" /></button>
+        <button onClick={() => { setLocal(normalize(value)); setEditing(false); }} className="text-muted-foreground"><X className="h-3.5 w-3.5" /></button>
       </div>
     );
   }
@@ -277,7 +279,7 @@ function EditableCell({ value, onSave, type = "text", prefix = "", placeholder =
       <span className={cn(
         size === "lg" ? "text-3xl font-semibold font-mono tabular-nums tracking-tight leading-tight" : "text-sm font-medium",
         value ? "text-foreground" : "text-muted-foreground",
-      )}>{prefix}{value || placeholder}</span>
+      )}>{prefix}{normalize(value) || placeholder}</span>
       <Pencil className={cn("text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity", size === "lg" ? "h-3.5 w-3.5" : "h-3 w-3")} />
     </div>
   );
