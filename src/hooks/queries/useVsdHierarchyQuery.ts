@@ -107,9 +107,9 @@ export function useVsdHierarchy() {
   const inv = useMemo(() => {
     const invHier = invalidatePatcher(key);
     const invLite = invalidatePatcher(qk.dealsLite());
-    return (payload: any) => {
-      invLite(payload);
-      invHier(payload);
+    return (payload: any, client: any) => {
+      invLite(payload, client);
+      invHier(payload, client);
     };
   }, [key, qc]);
   useTableSubscription({ table: "staffing_deals", patcher: inv });
