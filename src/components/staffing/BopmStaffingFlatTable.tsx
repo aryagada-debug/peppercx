@@ -9,6 +9,7 @@ import { submitStaffingBatch, type BatchItem } from "@/lib/approvals";
 import { AddStaffingMemberDialog } from "./AddStaffingMemberDialog";
 import { RequestStaffingDialog } from "./RequestStaffingDialog";
 import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
+import { DealTypeFilter, dealMatchesType, type DealTypeFilterValue } from "@/components/filters/DealTypeFilter";
 import { useAllPersonNames, dealCellMatchesPerson, useVsdHierarchy, VSD_NAMES } from "@/hooks/queries/legacy";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ChevronDown, CalendarIcon } from "lucide-react";
@@ -566,6 +567,7 @@ export function BopmStaffingFlatTable({
   const [bopmFilter, setBopmFilter] = useState<string>("All");
   const [vsdFilter, setVsdFilter] = useState<string>("All");
   const [activeOnly, setActiveOnly] = useState<boolean>(true);
+  const [dealTypeFilter, setDealTypeFilter] = useState<DealTypeFilterValue>("All");
   const { vsdForDeal } = useVsdHierarchy();
   const allPersonNames = useAllPersonNames();
   // "Request staffing" replaces the old direct-add flow. We capture the deal
@@ -965,13 +967,16 @@ export function BopmStaffingFlatTable({
     const activeFiltered = activeOnly
       ? sorted.filter(d => ACTIVE_STATUSES.has((d as any).dealStatus || ""))
       : sorted;
+    const typeFiltered = dealTypeFilter === "All"
+      ? activeFiltered
+      : activeFiltered.filter(d => dealMatchesType((d as any).dealType, dealTypeFilter));
     const vsdFiltered = vsdFilter && vsdFilter !== "All"
-      ? activeFiltered.filter(d => {
+      ? typeFiltered.filter(d => {
           const resolved = vsdForDeal(d as any);
           if (vsdFilter === "Yet to be assigned") return !resolved;
           return resolved === vsdFilter;
         })
-      : activeFiltered;
+      : typeFiltered;
     const bopmFiltered = bopmFilter && bopmFilter !== "All"
       ? vsdFiltered.filter(d => dealMatchesBopm(d as any, bopmFilter, allPersonNames))
       : vsdFiltered;
@@ -983,7 +988,7 @@ export function BopmStaffingFlatTable({
       const hay = `${d.account} ${d.dealName} ${d.dealId} ${personHay}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [deals, search, bopmFilter, vsdFilter, activeOnly, vsdForDeal, dealRoleMap, allPersonById, allPersonNames]);
+  }, [deals, search, bopmFilter, vsdFilter, activeOnly, dealTypeFilter, vsdForDeal, dealRoleMap, allPersonById, allPersonNames]);
 
   const virtualRows = useMemo(() => {
     const total = filteredDeals.length;
@@ -1003,7 +1008,7 @@ export function BopmStaffingFlatTable({
   useEffect(() => {
     setTableScrollTop(0);
     if (tableViewportRef.current) tableViewportRef.current.scrollTop = 0;
-  }, [search, bopmFilter, vsdFilter, activeOnly]);
+  }, [search, bopmFilter, vsdFilter, activeOnly, dealTypeFilter]);
 
   // Aggregate top stats
   const totals = useMemo(() => {
@@ -1233,6 +1238,7 @@ export function BopmStaffingFlatTable({
                 All deals
               </button>
             </div>
+            <DealTypeFilter value={dealTypeFilter} onChange={setDealTypeFilter} />
             <div className="relative">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <input
