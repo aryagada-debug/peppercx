@@ -513,6 +513,51 @@ function InlineNotesEditor({ value, onSave }: { value: string | null; onSave: (v
 
 // ── AI summary of the latest MBR notes (2 sentences) ──
 function LatestMBRSummaryCard({ entries }: { entries: MBREntry[] }) {
+  // no-op
+}
+
+// Parse the AI summary text (markdown-ish bullets like `* **Title:** body`)
+// and render as a clean, scannable list.
+function StructuredSummary({ text }: { text: string }) {
+  const items = useMemo(() => {
+    const raw = (text || "").trim();
+    if (!raw) return [] as { title: string; body: string }[];
+    // Split on bullet markers "*" or "-" at start of a segment
+    const parts = raw
+      .split(/(?:^|\s)[\*\-]\s+(?=\*\*|[A-Z])/g)
+      .map(s => s.trim())
+      .filter(Boolean);
+    const segs = parts.length > 1 ? parts : [raw];
+    return segs.map(seg => {
+      // Match **Title:** body or Title: body
+      const m = seg.match(/^\*\*([^*]+?)\*\*[:\s]*([\s\S]*)$/) || seg.match(/^([A-Z][A-Za-z &/]{2,40}):\s*([\s\S]*)$/);
+      if (m) return { title: m[1].replace(/:$/, "").trim(), body: m[2].trim() };
+      return { title: "", body: seg.replace(/^\*+|\*+$/g, "").trim() };
+    }).filter(x => x.body.length > 0);
+  }, [text]);
+
+  if (items.length === 0) return <p className="text-sm text-foreground leading-relaxed">{text}</p>;
+  if (items.length === 1 && !items[0].title) {
+    return <p className="text-sm text-foreground leading-relaxed">{items[0].body}</p>;
+  }
+  return (
+    <ul className="space-y-1.5 mt-1">
+      {items.map((it, i) => (
+        <li key={i} className="text-sm text-foreground leading-relaxed flex gap-2">
+          <span className="mt-2 h-1 w-1 rounded-full bg-primary shrink-0" />
+          <span>
+            {it.title && (
+              <span className="font-medium text-foreground">{it.title}: </span>
+            )}
+            <span className="text-muted-foreground">{it.body}</span>
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function _LatestMBRSummaryCardImpl({ entries }: { entries: MBREntry[] }) {
   const latest = useMemo(() => {
     return entries.find(e => (e.notes && e.notes.trim().length > 10)) || null;
   }, [entries]);
