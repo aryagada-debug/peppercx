@@ -702,6 +702,9 @@ export default function Targets() {
                             <div className="text-[10px] text-muted-foreground mt-0.5">
                               {d.id} · {d.bopm || "—"}{d.vsd && ` · VSD ${d.vsd}`}
                             </div>
+                            {!["Active Deal","New Deal in SLA/PO","Deal - Open and WIP","Deal in Renewal Process"].includes(d.deal_status) && (
+                              <Badge variant="outline" className="mt-1 text-[9px] py-0 px-1.5 h-4">{d.deal_status || "Completed"}</Badge>
+                            )}
                           </td>
                           <td className="py-2.5 px-2 text-right align-top">
                             <div className="font-semibold text-foreground tabular-nums">{formatINR(d.total_deal_value)}</div>
