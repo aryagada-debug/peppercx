@@ -1,10 +1,11 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useUserRole } from "@/hooks/useUserRole";
 import { dealCellMatchesPerson } from "@/hooks/queries/legacy";
 import { qk } from "@/lib/queryKeys";
+import { ensureDealsLite } from "@/hooks/queries/useDealsLiteQuery";
 
 interface DealAccessState {
   loading: boolean;
@@ -32,6 +33,7 @@ interface DealAccessState {
 export function useDealAccess(): DealAccessState {
   const { user, loading: authLoading } = useAuth();
   const { isAdmin, role, loading: roleLoading } = useUserRole();
+  const qc = useQueryClient();
 
   const enabled = !authLoading && !roleLoading;
   const userId = user?.id ?? null;
@@ -43,9 +45,7 @@ export function useDealAccess(): DealAccessState {
     enabled,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
-      const dealsP = supabase
-        .from("staffing_deals")
-        .select("id, client_id, vsd, principal_bopm, senior_bopm, bopm");
+      const dealsP = ensureDealsLite(qc);
       const allPeopleP = supabase
         .from("staffing_people")
         .select("name")
@@ -53,9 +53,9 @@ export function useDealAccess(): DealAccessState {
         .eq("tbh", false);
 
       if (isAdmin || !user) {
-        const [{ data: deals }, { data: peopleAll }] = await Promise.all([dealsP, allPeopleP]);
+        const [deals, { data: peopleAll }] = await Promise.all([dealsP, allPeopleP]);
         return {
-          allDeals: deals || [],
+          allDeals: deals,
           allPersonNames: ((peopleAll as any[]) || []).map((p: any) => p.name).filter(Boolean),
           myAssignedDealIds: new Set<string>(),
           myPersonName: null as string | null,
@@ -98,7 +98,7 @@ export function useDealAccess(): DealAccessState {
         assignedIds = new Set((assigns || []).map((a: any) => a.deal_id));
       }
 
-      const [{ data: deals }, { data: peopleAll }] = await Promise.all([dealsP, allPeopleP]);
+      const [deals, { data: peopleAll }] = await Promise.all([dealsP, allPeopleP]);
       const personNames = ((peopleAll as any[]) || []).map((p: any) => p.name).filter(Boolean);
 
       let teamDealIds = new Set<string>();
@@ -125,7 +125,7 @@ export function useDealAccess(): DealAccessState {
       }
 
       return {
-        allDeals: deals || [],
+        allDeals: deals,
         allPersonNames: personNames,
         myAssignedDealIds: assignedIds,
         myPersonName: personName,
