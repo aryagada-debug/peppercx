@@ -621,6 +621,16 @@ export function BopmStaffingFlatTable({
   const allPersonById = useMemo(() => new Map(allPeople.map(p => [p.id, p])), [allPeople]);
   const dealById = useMemo(() => new Map(deals.map(d => [d.id, d])), [deals]);
 
+  // Set of deal IDs where the selected BOPM filter person is actively
+  // staffed (assignment-based). Falls back to text-field match inside
+  // `dealMatchesBopm` only when undefined.
+  const bopmStaffedDealIds = useMemo(
+    () => bopmFilter && bopmFilter !== "All"
+      ? dealsStaffedByName(bopmFilter, allPeople, assignments)
+      : undefined,
+    [bopmFilter, allPeople, assignments],
+  );
+
   // Index assignments by dealId once. Previously dealRoleMap did
   // assignments.filter(a => a.dealId === d.id) inside a loop over every
   // deal — O(deals × assignments) ≈ 780 k iterations on the live dataset
