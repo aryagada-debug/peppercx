@@ -242,17 +242,25 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
       const d = new Date(r.month);
       return d.getFullYear() === curY && d.getMonth() === curM;
     });
-    const ytdRows = rows.filter(r => new Date(r.month).getFullYear() === curY);
-    // YTD target = MRR × elapsed months in the current year, capped to the
-    // contract span. Lifetime target = MRR × total contract months.
-    const yearStart = new Date(curY, 0, 1).toISOString().slice(0, 10);
+    // YTD = from contract start date through the current month (inclusive).
+    // Lifetime = from contract start date through contract end date.
     const today = now.toISOString().slice(0, 10);
     const contractStart = deal?.startDate || "";
     const contractEnd = deal?.endDate || "";
-    const ytdStart = contractStart && contractStart > yearStart ? contractStart : yearStart;
-    const ytdEnd = contractEnd && contractEnd < today ? contractEnd : today;
-    const ytdMonths = ytdStart && ytdEnd && ytdStart <= ytdEnd
-      ? monthsBetween(ytdStart, ytdEnd)
+    const currentMonthEnd = new Date(curY, curM + 1, 0).toISOString().slice(0, 10);
+    const ytdEnd = contractEnd && contractEnd < today ? contractEnd : currentMonthEnd;
+    const inRange = (m: string, start: string, end: string) => {
+      if (!start || !end) return false;
+      return m >= start.slice(0, 7) + "-01" && m <= end;
+    };
+    const ytdRows = contractStart
+      ? rows.filter(r => inRange(r.month, contractStart, ytdEnd))
+      : rows.filter(r => new Date(r.month).getFullYear() === curY);
+    const lifetimeRows = contractStart && contractEnd
+      ? rows.filter(r => inRange(r.month, contractStart, contractEnd))
+      : rows;
+    const ytdMonths = contractStart && ytdEnd && contractStart <= ytdEnd
+      ? monthsBetween(contractStart, ytdEnd)
       : 0;
     const ytdTarget = dealMrr > 0 && ytdMonths > 0 ? dealMrr * ytdMonths : undefined;
     const lifetimeTarget = dealMrr > 0 && lifetimeMonths > 0 ? dealMrr * lifetimeMonths : undefined;
@@ -260,7 +268,7 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
     return {
       current: computePipeline(currentMonthRows, undefined, currentMrrTarget),
       ytd: computePipeline(ytdRows, ytdTarget, ytdTarget),
-      lifetime: computePipeline(rows, lifetimeTarget, lifetimeTarget),
+      lifetime: computePipeline(lifetimeRows, lifetimeTarget, lifetimeTarget),
     };
   }, [rows, computePipeline, deal?.startDate, deal?.endDate, dealMrr, lifetimeMonths]);
 
