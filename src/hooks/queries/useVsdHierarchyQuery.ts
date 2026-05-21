@@ -3,12 +3,13 @@
  * Moved verbatim from the legacy `useAppUsers` shim.
  */
 import { useCallback, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { qk } from "@/lib/queryKeys";
 import { useTableSubscription, invalidatePatcher } from "@/lib/realtime";
 import { nameKey } from "@/hooks/queries/useAppUsersQuery";
 import { VSD_NAMES } from "@/hooks/queries/useVsdUsersQuery";
+import { ensureDealsLite } from "@/hooks/queries/useDealsLiteQuery";
 
 const VSD_KEYS = new Set(VSD_NAMES.map((n) => nameKey(n)));
 const VSD_PARTIALS = VSD_NAMES.map((n) => nameKey(n).split(" "));
@@ -32,10 +33,8 @@ interface HierarchyData {
   bopmsByVsd: Map<string, string[]>;
 }
 
-async function loadHierarchy(): Promise<HierarchyData> {
-  const { data } = await supabase
-    .from("staffing_deals")
-    .select("vsd, principal_bopm, senior_bopm");
+async function loadHierarchy(qc: ReturnType<typeof useQueryClient>): Promise<HierarchyData> {
+  const data = await ensureDealsLite(qc);
 
   const tally = new Map<string, Map<string, number>>();
   const displayByKey = new Map<string, string>();
@@ -98,13 +97,21 @@ async function loadHierarchy(): Promise<HierarchyData> {
 }
 
 export function useVsdHierarchy() {
+  const qc = useQueryClient();
   const key = qk.vsdHierarchy();
   const query = useQuery({
     queryKey: key,
-    queryFn: loadHierarchy,
+    queryFn: () => loadHierarchy(qc),
     staleTime: 60_000,
   });
-  const inv = useMemo(() => invalidatePatcher(key), [key]);
+  const inv = useMemo(() => {
+    const invHier = invalidatePatcher(key);
+    const invLite = invalidatePatcher(qk.dealsLite());
+    return (payload: any, client: any) => {
+      invLite(payload, client);
+      invHier(payload, client);
+    };
+  }, [key, qc]);
   useTableSubscription({ table: "staffing_deals", patcher: inv });
 
   const data = query.data ?? { map: new Map<string, string>(), bopmsByVsd: new Map<string, string[]>() };

@@ -30,6 +30,11 @@ export const qk = {
   vsdHierarchy: () => ["vsd-hierarchy"] as const,
   bopmDirectory: () => ["bopm-directory"] as const,
 
+  // shared lite deal list (id + access/hierarchy columns) — fetched once and
+  // reused by useDealAccess and useVsdHierarchy to avoid duplicate scans of
+  // staffing_deals on every page navigation.
+  dealsLite: () => ["staffing-deals", "lite"] as const,
+
   // approvals
   approvals: () => ["approval-requests"] as const,
   openApprovalForDeal: (dealId: string) => ["approval-requests", "open", dealId] as const,
