@@ -1960,19 +1960,19 @@ export default function DealDetail() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <KpiTile
                   label="MRR" icon={IndianRupee} tone="primary" sublabel="Monthly recurring"
-                  editor={<EditableCell value={String(deal.mrr || "")} onSave={v => handleDealFieldSave("mrr", v)} type="number" prefix={currencySymbol} placeholder="—" />}
+                  editor={<EditableCell value={String(deal.mrr || "")} onSave={v => handleDealFieldSave("mrr", v)} type="number" prefix={currencySymbol} placeholder="—" size="lg" />}
                 />
                 <KpiTile
-                  label="Total Value" icon={Wallet} tone="primary" sublabel="Contract total"
-                  editor={<EditableCell value={String(deal.totalDealValue || "")} onSave={v => handleDealFieldSave("totalDealValue", v)} type="number" prefix={currencySymbol} placeholder="—" />}
+                  label="Total Value" icon={Wallet} tone="positive" sublabel="Contract total"
+                  editor={<EditableCell value={String(deal.totalDealValue || "")} onSave={v => handleDealFieldSave("totalDealValue", v)} type="number" prefix={currencySymbol} placeholder="—" size="lg" />}
                 />
                 <KpiTile
-                  label="Retainer Value" icon={Receipt} tone="neutral" sublabel="Of total value"
-                  editor={<EditableCell value={String(deal.retainerDealValue || "")} onSave={v => handleDealFieldSave("retainerDealValue", v)} type="number" prefix={currencySymbol} placeholder="—" />}
+                  label="Retainer Value" icon={Receipt} tone="warning" sublabel="Of total value"
+                  editor={<EditableCell value={String(deal.retainerDealValue || "")} onSave={v => handleDealFieldSave("retainerDealValue", v)} type="number" prefix={currencySymbol} placeholder="—" size="lg" />}
                 />
                 <KpiTile
-                  label="Non-Retainer" icon={Receipt} tone="neutral" sublabel="Non-retainer portion"
-                  editor={<EditableCell value={String(deal.nonRetainerDealValue || "")} onSave={v => handleDealFieldSave("nonRetainerDealValue", v)} type="number" prefix={currencySymbol} placeholder="—" />}
+                  label="Non-Retainer" icon={Receipt} tone="destructive" sublabel="Non-retainer portion"
+                  editor={<EditableCell value={String(deal.nonRetainerDealValue || "")} onSave={v => handleDealFieldSave("nonRetainerDealValue", v)} type="number" prefix={currencySymbol} placeholder="—" size="lg" />}
                 />
               </div>
             </div>
