@@ -1,24 +1,42 @@
-## Problem
+# Plan
 
-The Staffing & Capacity table (`BopmStaffingFlatTable`) currently shows two kinds of rows in the BOPM columns (Principal BOPM / Senior BOPM / BOPM):
+## Part 1 — Refresh deals from the master Google Sheet
 
-1. **Real staffing assignments** — rows actually added via "Add Staffing Member" with an allocation %.
-2. **Virtual chips** — read-only entries synthesized from the deal sheet's `principal_bopm` / `senior_bopm` / `bopm` text fields (e.g. `Risha Sinha`, `Ritu Shinde`). These come from the legacy Google Sheets sync and have no real assignment, no %, no start/end.
+Trigger the existing `sheets-sync-deals` edge function (no code changes). It pulls the published deal-master CSV and upserts:
+- `staffing_deals` (id = `pc_code_dealId`) — names, VSD, BOPMs, MRR, deal values, dates
+- `deal_financials` — monthly invoiced / received / contracted / consumption per deal
+- `clients` — auto-creates any missing `pc_code`
 
-The user wants the virtual chips gone from Staffing & Capacity. They should not appear in Clients & Deals either (already correct, since Clients & Deals only mirrors real assignments via the trigger we added last turn).
+After it runs, verify counts (deals upserted, financials upserted, errors). Report the run summary back.
 
-## Change
+Note: the current sync does **not** populate `deal_type` (Retainer / Non-Retainer / Pilot) because the source column for it isn't mapped. If the master sheet has a Type column you want pulled, tell me the column letter and I'll add it; otherwise existing `dealType` values in the DB are left as-is.
 
-In `src/components/staffing/BopmStaffingFlatTable.tsx`, **remove the virtual-chip synthesis block** (lines ~840–895) so only real `staffing_assignments` rows render. Also drop the now-unused `isVirtual` / `rawText` branches:
+## Part 2 — Global Retainer / Non-Retainer / Pilot filter
 
-- Delete the `virtualBopmFields` loop that injects synthetic entries into `byRole`.
-- Remove the `isVirtual` rendering branch (the muted chip + "clear virtual" X button).
-- Remove the `onUpdateDeal`-based `clearVirtual` handler (no longer needed) and the `onUpdateDeal` prop wiring in `Staffing.tsx` if nothing else uses it.
-- Keep `resolveCellToken` only if still used elsewhere; otherwise prune.
+A `dealType` filter (All / Retainer / Non-Retainer / Pilot) already exists on **Staffing → Deal view**. Add the same control everywhere deals are listed:
 
-Result: the BOPM columns show **only** people with explicit allocations, matching what's shown in Clients & Deals.
+### Staffing page
+- `BopmStaffingFlatTable` (Staffing & Capacity flat table) — add filter in toolbar
+- `CapacityTab` — add to header
+- `MatrixTab` — add to filter row
+- `AccountsTab` — add to header
+- `PeopleViewTab` / `DealLevelView` — add to header
+- `RevenueCapacityTab` — add to header
 
-## Notes
+### Other pages
+- **Clients & Deals** (`Clients.tsx`) — the column-header filter currently exposes only Retainer / Non-Retainer; extend to include Pilot.
+- **Dashboard** (`pages/Home.tsx` / scorecard) — add a top-level Deal Type filter that flows through KPI tiles, scorecard, drilldowns.
+- **RGY Health** (`pages/RGYHealth.tsx`) — add to filter bar.
+- **MBR Tracker** (`pages/MBRTracker.tsx`) — add to filter bar.
+- **Targets** (`pages/Targets.tsx`) — add to deal-table filter row.
+- **Revenue** (`pages/Revenue.tsx`) — add to filter row.
 
-- This is purely a display change. No DB migration. Deal sheet text fields (`principal_bopm` etc.) are left untouched — the trigger from the previous turn still keeps them in sync going forward whenever real assignments change.
-- If the user later wants to backfill assignments from those legacy text fields, that's a separate one-time data task.
+### Implementation details
+- New shared component `src/components/filters/DealTypeFilter.tsx` — a small Select with options: `All`, `Retainer`, `Non-Retainer`, `Pilot`. Controlled (`value`, `onChange`).
+- Each consumer keeps the filter state local (`useState<"All"|Deal["dealType"]>`) and applies `dealType === filter || filter === "All"` to its `deals` array before rendering / aggregation.
+- No DB or schema changes.
+- Empty / unknown `dealType` rows are shown only when filter = `All`.
+
+## Out of scope
+- Persisting filter selection across navigation (can add later via URL param if you want).
+- Adding a Pilot variant to badge styling — Pilot will use the same neutral chip as Non-Retainer unless you want a distinct color.
