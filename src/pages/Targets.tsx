@@ -13,7 +13,7 @@ import { TargetsUploadDialog } from "@/components/targets/TargetsUploadDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { METRICS, METRIC_LABELS, attainmentPct, attainmentTone, formatINR, type Metric } from "@/lib/csvTargets";
-import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
+import { BopmFilter, dealMatchesBopm, useStaffedDealIdsByName } from "@/components/access/BopmFilter";
 import { useAllPersonNames } from "@/hooks/queries/legacy";
 import { useDealAccess } from "@/hooks/useDealAccess";
 import { Switch } from "@/components/ui/switch";
