@@ -967,13 +967,16 @@ export function BopmStaffingFlatTable({
     const activeFiltered = activeOnly
       ? sorted.filter(d => ACTIVE_STATUSES.has((d as any).dealStatus || ""))
       : sorted;
+    const typeFiltered = dealTypeFilter === "All"
+      ? activeFiltered
+      : activeFiltered.filter(d => dealMatchesType((d as any).dealType, dealTypeFilter));
     const vsdFiltered = vsdFilter && vsdFilter !== "All"
-      ? activeFiltered.filter(d => {
+      ? typeFiltered.filter(d => {
           const resolved = vsdForDeal(d as any);
           if (vsdFilter === "Yet to be assigned") return !resolved;
           return resolved === vsdFilter;
         })
-      : activeFiltered;
+      : typeFiltered;
     const bopmFiltered = bopmFilter && bopmFilter !== "All"
       ? vsdFiltered.filter(d => dealMatchesBopm(d as any, bopmFilter, allPersonNames))
       : vsdFiltered;
@@ -985,7 +988,7 @@ export function BopmStaffingFlatTable({
       const hay = `${d.account} ${d.dealName} ${d.dealId} ${personHay}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [deals, search, bopmFilter, vsdFilter, activeOnly, vsdForDeal, dealRoleMap, allPersonById, allPersonNames]);
+  }, [deals, search, bopmFilter, vsdFilter, activeOnly, dealTypeFilter, vsdForDeal, dealRoleMap, allPersonById, allPersonNames]);
 
   const virtualRows = useMemo(() => {
     const total = filteredDeals.length;
@@ -1005,7 +1008,7 @@ export function BopmStaffingFlatTable({
   useEffect(() => {
     setTableScrollTop(0);
     if (tableViewportRef.current) tableViewportRef.current.scrollTop = 0;
-  }, [search, bopmFilter, vsdFilter, activeOnly]);
+  }, [search, bopmFilter, vsdFilter, activeOnly, dealTypeFilter]);
 
   // Aggregate top stats
   const totals = useMemo(() => {
