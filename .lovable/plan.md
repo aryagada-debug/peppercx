@@ -1,23 +1,20 @@
-## Redefine YTD & Lifetime periods in Financials tab
+## Fix Financials targets in Deal Detail
 
-In `src/components/deals/FinancialsTab.tsx`, the YTD and Lifetime period roll-ups currently use the calendar fiscal year and all available rows. Redefine them to be anchored on the deal's contract dates.
+In `src/components/deals/FinancialsTab.tsx`, separate the MRR-based target from the contraction/delivery target so they no longer collide.
 
-### Changes (single file: `FinancialsTab.tsx`, `periods` useMemo)
+### Current bug
 
-**YTD ("Contract-to-date")**
+The `targetOverride` parameter passed to `computePipeline` for YTD and Lifetime currently equals `dealMrr × months`. That value overrides BOTH contraction/delivery targets AND invoicing/receivables targets, so contraction/delivery attainment is wrong on retainer deals.
 
-- Rows: months where `r.month` is between `deal.startDate` and the current month (inclusive), instead of "months in current calendar year".
-- Target (MRR-based): `MRR × months from deal.startDate to min(today, deal.endDate)`, dropping the current `yearStart` clamp.
-- If `deal.startDate` is missing, fall back to the existing behavior so partial deals don't break.
+### Changes
 
-**Lifetime ("Full contract")**
+1. **YTD invoicing/receivables target** = `MRR × months elapsed since contract start` (through current month, capped at contract end).
+2. **Lifetime invoicing/receivables target** = `MRR × total contract months` (= total deal value).
+3. **Current month invoicing/receivables target** = `MRR` (unchanged).
+4. **Contraction & Delivery targets (all periods)** = sum of per-row `contractionTarget` / `deliveryTarget` from sheet rows in the period. No MRR override. Totals (consumption, deliveryActual) continue to come from the same row subset.
+5. Drop the `targetOverride` argument for the YTD / Lifetime calls — pass `undefined` for it so contraction/delivery fall back to per-row sums, and pass the MRR-based number only as `mrrTarget`.
+6. Non-retainer deals (MRR = 0 or empty) keep falling back to per-row `invoicingTarget` / `receivablesTarget` sums, as today.
 
-- Rows: months where `r.month` is between `deal.startDate` and `deal.endDate` (inclusive), instead of all rows. This excludes any stray rows outside the contract window.
-- Target: unchanged — already `MRR × monthsBetween(startDate, endDate)`.
+### Files
 
-**Current Month**: unchanged.
-
-### Notes
-
-- Pure presentation/calculation change inside `FinancialsTab`. No schema, backend, or other component changes.
-- Labels in `PipelineMatrix` may optionally be tweaked from "YTD" → "Contract YTD" for clarity (will confirm during implementation; default keeps "YTD" label). keep YTD
+- `src/components/deals/FinancialsTab.tsx` — update the `periods` useMemo only. No schema, no other component, no backend changes.
