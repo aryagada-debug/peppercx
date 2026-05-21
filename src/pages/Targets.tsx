@@ -289,6 +289,19 @@ export default function Targets() {
         });
       });
     }
+    // Default invoicing/receivables targets to MRR (monthly) or MRR×totalMonths (overall)
+    // for any deal with mrr>0 whose target is missing or zero — so the implicit
+    // "expected = MRR per month" rule shows everywhere on this page.
+    scoped.forEach((d: any) => {
+      const mrr = Number(d.mrr) || 0;
+      if (mrr <= 0) return;
+      const totalMonths = mrr > 0 ? Math.round((Number(d.total_deal_value) || 0) / mrr) : 0;
+      const defaultTarget = overall ? mrr * totalMonths : mrr;
+      const ex = tMap[d.id] || ZERO_TARGET(d.id, overall ? "ALL" : monthIso(month));
+      if (!ex.invoicing_target) ex.invoicing_target = defaultTarget;
+      if (!ex.receivables_target) ex.receivables_target = defaultTarget;
+      tMap[d.id] = ex;
+    });
     setTargets(tMap);
     const pMap: Record<string, TargetRow> = {};
     (prevRes.data || []).forEach((r: any) => {
