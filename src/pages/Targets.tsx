@@ -15,6 +15,8 @@ import { toast } from "sonner";
 import { METRICS, METRIC_LABELS, attainmentPct, attainmentTone, formatINR, type Metric } from "@/lib/csvTargets";
 import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
 import { useAllPersonNames } from "@/hooks/queries/legacy";
+import { useDealAccess } from "@/hooks/useDealAccess";
+import { Switch } from "@/components/ui/switch";
 
 // ── Types ──
 interface DealMeta {
@@ -149,10 +151,13 @@ function TargetCell({ value, prevValue, onSave, disabled, prevLabel, asTd = true
 
 export default function Targets() {
   useCurrencyVersion();
-  const { isAdmin } = useUserRole();
+  const { isAdmin, role } = useUserRole();
+  const access = useDealAccess();
+  const isCapMember = role === "capability_member";
   const [month, setMonth] = useState(format(new Date(), "yyyy-MM"));
   const [overall, setOverall] = useState(true);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [showCompleted, setShowCompleted] = useState(false);
   const [deals, setDeals] = useState<DealMeta[]>([]);
   const [targets, setTargets] = useState<Record<string, TargetRow>>({}); // key: deal_id
   const [prevTargets, setPrevTargets] = useState<Record<string, TargetRow>>({});
@@ -180,11 +185,12 @@ export default function Targets() {
   // ── Load ──
   const load = useCallback(async () => {
     setLoading(true);
-    const dealsP = supabase
+    const ACTIVE_STATUSES = ["Active Deal", "New Deal in SLA/PO", "Deal - Open and WIP", "Deal in Renewal Process"];
+    const dealsQuery = supabase
       .from("staffing_deals")
       .select("id, deal_name, account, vsd, bopm, mrr, total_deal_value, start_date, deal_status")
-      .in("deal_status", ["Active Deal", "New Deal in SLA/PO", "Deal - Open and WIP", "Deal in Renewal Process"])
       .order("deal_name");
+    const dealsP = showCompleted ? dealsQuery : dealsQuery.in("deal_status", ACTIVE_STATUSES);
     const tgtP = overall
       ? supabase.from("deal_financial_targets").select("*")
       : supabase.from("deal_financial_targets").select("*").eq("month", monthIso(month));
@@ -239,7 +245,10 @@ export default function Targets() {
       };
     };
     const dealRows = (dealsRes.data || []) as any[];
-    setDeals(dealRows.map((d): DealMeta => ({
+    const scoped = access.isAdmin
+      ? dealRows
+      : dealRows.filter((d) => access.canViewDeal(d.id));
+    setDeals(scoped.map((d): DealMeta => ({
       id: d.id, deal_name: d.deal_name || d.id, account: d.account || "",
       vsd: d.vsd || "", bopm: d.bopm || "", mrr: Number(d.mrr) || 0,
       total_deal_value: Number(d.total_deal_value) || 0,
@@ -280,6 +289,19 @@ export default function Targets() {
         });
       });
     }
+    // Default invoicing/receivables targets to MRR (monthly) or MRR×totalMonths (overall)
+    // for any deal with mrr>0 whose target is missing or zero — so the implicit
+    // "expected = MRR per month" rule shows everywhere on this page.
+    scoped.forEach((d: any) => {
+      const mrr = Number(d.mrr) || 0;
+      if (mrr <= 0) return;
+      const totalMonths = mrr > 0 ? Math.round((Number(d.total_deal_value) || 0) / mrr) : 0;
+      const defaultTarget = overall ? mrr * totalMonths : mrr;
+      const ex = tMap[d.id] || ZERO_TARGET(d.id, overall ? "ALL" : monthIso(month));
+      if (!ex.invoicing_target) ex.invoicing_target = defaultTarget;
+      if (!ex.receivables_target) ex.receivables_target = defaultTarget;
+      tMap[d.id] = ex;
+    });
     setTargets(tMap);
     const pMap: Record<string, TargetRow> = {};
     (prevRes.data || []).forEach((r: any) => {
@@ -316,7 +338,7 @@ export default function Targets() {
     });
     setAllByDeal(grouped);
     setLoading(false);
-  }, [month, prevYM, nextYM, overall]);
+  }, [month, prevYM, nextYM, overall, showCompleted, access.isAdmin, access.canViewDeal]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -520,6 +542,10 @@ export default function Targets() {
               value={month}
               onChange={(v) => { setMonth(v); setOverall(false); }}
             />
+            <label className="flex items-center gap-2 text-[12px] text-muted-foreground pl-1">
+              <Switch checked={showCompleted} onCheckedChange={setShowCompleted} />
+              Show completed
+            </label>
             {isAdmin && !overall && (
               <Button size="sm" variant="outline" onClick={() => setUploadOpen(true)}>
                 <Upload className="h-3.5 w-3.5 mr-1.5" /> Import CSV
@@ -577,6 +603,7 @@ export default function Targets() {
 
         {/* Filter chips */}
         <div className="flex flex-wrap items-center gap-1.5 mb-4">
+          {!isCapMember && (<>
           {vsdList.map(v => (
             <button
               key={v}
@@ -598,6 +625,7 @@ export default function Targets() {
               className="h-8 w-[200px] text-[12px]"
             />
           </div>
+          </>)}
           <div className="flex-1" />
           <button
             onClick={() => setNeedsOnly(v => !v)}
@@ -674,6 +702,9 @@ export default function Targets() {
                             <div className="text-[10px] text-muted-foreground mt-0.5">
                               {d.id} · {d.bopm || "—"}{d.vsd && ` · VSD ${d.vsd}`}
                             </div>
+                            {!["Active Deal","New Deal in SLA/PO","Deal - Open and WIP","Deal in Renewal Process"].includes(d.deal_status) && (
+                              <Badge variant="outline" className="mt-1 text-[9px] py-0 px-1.5 h-4">{d.deal_status || "Completed"}</Badge>
+                            )}
                           </td>
                           <td className="py-2.5 px-2 text-right align-top">
                             <div className="font-semibold text-foreground tabular-nums">{formatINR(d.total_deal_value)}</div>
