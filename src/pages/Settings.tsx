@@ -41,6 +41,7 @@ const tabs = [
   "Users & Roles",
   "Access Controls",
   "Notifications",
+  "Data Sync",
 ] as const;
 type SettingsTab = typeof tabs[number];
 
