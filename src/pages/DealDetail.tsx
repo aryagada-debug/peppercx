@@ -258,14 +258,14 @@ function RGYTrendView({ rgyWeekly }: { rgyWeekly: RGYWeekly[] }) {
 }
 
 // ── Editable Cell ──
-function EditableCell({ value, onSave, type = "text", prefix = "", placeholder = "—" }: { value: string; onSave: (v: string) => void; type?: string; prefix?: string; placeholder?: string }) {
+function EditableCell({ value, onSave, type = "text", prefix = "", placeholder = "—", size = "default" }: { value: string; onSave: (v: string) => void; type?: string; prefix?: string; placeholder?: string; size?: "default" | "lg" }) {
   const [editing, setEditing] = useState(false);
   const [local, setLocal] = useState(value);
 
   if (editing) {
     return (
       <div className="flex items-center gap-1">
-        <Input value={local} onChange={e => setLocal(e.target.value)} type={type} className="h-7 text-sm w-full" autoFocus onKeyDown={e => { if (e.key === "Enter") { onSave(local); setEditing(false); } if (e.key === "Escape") { setLocal(value); setEditing(false); } }} />
+        <Input value={local} onChange={e => setLocal(e.target.value)} type={type} className={cn("w-full", size === "lg" ? "h-10 text-2xl font-semibold font-mono tabular-nums" : "h-7 text-sm")} autoFocus onKeyDown={e => { if (e.key === "Enter") { onSave(local); setEditing(false); } if (e.key === "Escape") { setLocal(value); setEditing(false); } }} />
         <button onClick={() => { onSave(local); setEditing(false); }} className="text-primary"><Check className="h-3.5 w-3.5" /></button>
         <button onClick={() => { setLocal(value); setEditing(false); }} className="text-muted-foreground"><X className="h-3.5 w-3.5" /></button>
       </div>
@@ -274,8 +274,11 @@ function EditableCell({ value, onSave, type = "text", prefix = "", placeholder =
 
   return (
     <div className="group flex items-center gap-1.5 cursor-pointer" onClick={() => setEditing(true)}>
-      <span className={cn("text-sm font-medium", value ? "text-foreground" : "text-muted-foreground")}>{prefix}{value || placeholder}</span>
-      <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+      <span className={cn(
+        size === "lg" ? "text-3xl font-semibold font-mono tabular-nums tracking-tight leading-tight" : "text-sm font-medium",
+        value ? "text-foreground" : "text-muted-foreground",
+      )}>{prefix}{value || placeholder}</span>
+      <Pencil className={cn("text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity", size === "lg" ? "h-3.5 w-3.5" : "h-3 w-3")} />
     </div>
   );
 }
@@ -1957,19 +1960,19 @@ export default function DealDetail() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <KpiTile
                   label="MRR" icon={IndianRupee} tone="primary" sublabel="Monthly recurring"
-                  editor={<EditableCell value={String(deal.mrr || "")} onSave={v => handleDealFieldSave("mrr", v)} type="number" prefix={currencySymbol} placeholder="—" />}
+                  editor={<EditableCell value={String(deal.mrr || "")} onSave={v => handleDealFieldSave("mrr", v)} type="number" prefix={currencySymbol} placeholder="—" size="lg" />}
                 />
                 <KpiTile
-                  label="Total Value" icon={Wallet} tone="primary" sublabel="Contract total"
-                  editor={<EditableCell value={String(deal.totalDealValue || "")} onSave={v => handleDealFieldSave("totalDealValue", v)} type="number" prefix={currencySymbol} placeholder="—" />}
+                  label="Total Value" icon={Wallet} tone="positive" sublabel="Contract total"
+                  editor={<EditableCell value={String(deal.totalDealValue || "")} onSave={v => handleDealFieldSave("totalDealValue", v)} type="number" prefix={currencySymbol} placeholder="—" size="lg" />}
                 />
                 <KpiTile
-                  label="Retainer Value" icon={Receipt} tone="neutral" sublabel="Of total value"
-                  editor={<EditableCell value={String(deal.retainerDealValue || "")} onSave={v => handleDealFieldSave("retainerDealValue", v)} type="number" prefix={currencySymbol} placeholder="—" />}
+                  label="Retainer Value" icon={Receipt} tone="warning" sublabel="Of total value"
+                  editor={<EditableCell value={String(deal.retainerDealValue || "")} onSave={v => handleDealFieldSave("retainerDealValue", v)} type="number" prefix={currencySymbol} placeholder="—" size="lg" />}
                 />
                 <KpiTile
-                  label="Non-Retainer" icon={Receipt} tone="neutral" sublabel="Non-retainer portion"
-                  editor={<EditableCell value={String(deal.nonRetainerDealValue || "")} onSave={v => handleDealFieldSave("nonRetainerDealValue", v)} type="number" prefix={currencySymbol} placeholder="—" />}
+                  label="Non-Retainer" icon={Receipt} tone="destructive" sublabel="Non-retainer portion"
+                  editor={<EditableCell value={String(deal.nonRetainerDealValue || "")} onSave={v => handleDealFieldSave("nonRetainerDealValue", v)} type="number" prefix={currencySymbol} placeholder="—" size="lg" />}
                 />
               </div>
             </div>
