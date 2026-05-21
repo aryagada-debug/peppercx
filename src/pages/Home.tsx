@@ -180,7 +180,7 @@ export default function HomePage() {
     isAdmin,
     isCapLead,
     aliases: profileData.aliases,
-    accessIds: accessDealIds,
+    accessIds: mergedAccessIds,
   });
   const {
     dealTasks, cxTasks, dealAssignmentsMap, allPeople,
@@ -192,7 +192,7 @@ export default function HomePage() {
     userId: user?.id,
     isAdmin,
     aliases: profileData.aliases,
-    accessIds: accessDealIds,
+    accessIds: mergedAccessIds,
   });
   const { rgyFlags, inactivity, expiringDeals, deals: flagsDeals } = flagsData;
 
@@ -237,7 +237,7 @@ export default function HomePage() {
     isCapLead,
     isCapMember,
     aliases: profileData.aliases,
-    accessIds: accessDealIds,
+    accessIds: mergedAccessIds,
   });
   const { myDeals, finByDeal, finSummary, finTargets } = myDealsData;
   const [finDrill, setFinDrill] = useState<null | "contraction" | "delivery" | "invoicing" | "receivables">(null);
@@ -324,7 +324,7 @@ export default function HomePage() {
     userId: user?.id,
     periodType,
     aliases: profileData.aliases,
-    accessIds: accessDealIds,
+    accessIds: mergedAccessIds,
     isAdmin,
   });
   const quota = quotaData?.quota ?? null;
@@ -342,7 +342,7 @@ export default function HomePage() {
   const { data: allActiveDeals = [] } = useHomeActiveDealsQuery({
     userId: user?.id,
     aliases: profileData.aliases,
-    accessIds: accessDealIds,
+    accessIds: mergedAccessIds,
     isAdmin,
   });
 
