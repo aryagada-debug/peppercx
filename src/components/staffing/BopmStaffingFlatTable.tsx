@@ -567,6 +567,7 @@ export function BopmStaffingFlatTable({
   const [bopmFilter, setBopmFilter] = useState<string>("All");
   const [vsdFilter, setVsdFilter] = useState<string>("All");
   const [activeOnly, setActiveOnly] = useState<boolean>(true);
+  const [dealTypeFilter, setDealTypeFilter] = useState<DealTypeFilterValue>("All");
   const { vsdForDeal } = useVsdHierarchy();
   const allPersonNames = useAllPersonNames();
   // "Request staffing" replaces the old direct-add flow. We capture the deal
