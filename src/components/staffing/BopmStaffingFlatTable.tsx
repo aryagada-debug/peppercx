@@ -1102,11 +1102,26 @@ export function BopmStaffingFlatTable({
       const tooltip = e.rawText
         ? "Tagged on the deal sheet but no matching profile in People — update Settings → People or the deal record to align."
         : "From the deal sheet (Principal/Senior BOPM). Edit the deal to change.";
+      const canClear = !!onUpdateDeal && ["principal_bopm","senior_bopm","bopm"].includes(roleKey);
+      const fieldKey = roleKey === "principal_bopm" ? "principalBopm"
+        : roleKey === "senior_bopm" ? "seniorBopm"
+        : roleKey === "bopm" ? "bopm" : "";
+      const tokenToRemove = (e.rawText || p?.name || "").trim();
+      const clearVirtual = async () => {
+        if (!canClear || !fieldKey || !tokenToRemove) return;
+        const currentText = String((deal as any)[fieldKey] || "");
+        const remaining = currentText
+          .split(/[,;/]|\band\b|&/i)
+          .map(s => s.trim())
+          .filter(Boolean)
+          .filter(t => t.toLowerCase() !== tokenToRemove.toLowerCase());
+        await onUpdateDeal!(deal.id, { [fieldKey]: remaining.join(", ") } as Partial<Deal>);
+      };
       return (
         <div
           key={e.assignmentId}
           className={cn(
-            "rounded-md border px-1.5 py-1 transition-colors",
+            "group/entry rounded-md border px-1.5 py-1 transition-colors",
             e.rawText
               ? "bg-muted/40 border-dashed border-muted-foreground/30"
               : "bg-primary/10 border-primary/25"
@@ -1123,6 +1138,14 @@ export function BopmStaffingFlatTable({
               {label}
             </span>
             <span className="text-[10px] text-muted-foreground/70 font-mono select-none">—</span>
+            {canClear && (
+              <button
+                type="button"
+                onClick={clearVirtual}
+                title="Remove from deal sheet"
+                className="h-4 w-4 inline-flex items-center justify-center rounded text-muted-foreground/60 opacity-0 group-hover/entry:opacity-100 hover:text-rose-600 transition-opacity"
+              ><X className="h-3 w-3" /></button>
+            )}
           </div>
         </div>
       );
