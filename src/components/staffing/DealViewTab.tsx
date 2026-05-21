@@ -4,7 +4,7 @@ import { ChevronDown, ChevronRight, Search, Users, UserPlus } from "lucide-react
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import type { Deal, StaffingAssignment, Person } from "@/data/staffingData";
-import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
+import { BopmFilter, dealMatchesBopm, dealsStaffedByName } from "@/components/access/BopmFilter";
 import { useAllPersonNames, VSD_NAMES, useVsdHierarchy } from "@/hooks/queries/legacy";
 
 const STAFFING_BUCKETS = ["Already Staffed", "No Staffing Needed", "Staffing Needed"] as const;
@@ -97,6 +97,12 @@ export function DealViewTab({ deals, people, assignments, onUpdateDeal, bopmFilt
     return m;
   }, [people]);
 
+  // Strict "is the selected BOPM actually staffed on this deal?" set.
+  const bopmStaffedDealIds = useMemo(
+    () => bopmFilter !== ALL ? dealsStaffedByName(bopmFilter, people, assignments) : undefined,
+    [bopmFilter, people, assignments],
+  );
+
   // Pre-compute set of dealIds that have at least one assignment — avoids O(deals × assignments) per render
   const dealIdsWithAssignments = useMemo(() => {
     const s = new Set<string>();
@@ -116,7 +122,7 @@ export function DealViewTab({ deals, people, assignments, onUpdateDeal, bopmFilt
           return false;
         }
       }
-      if (bopmFilter !== ALL && !dealMatchesBopm(d as any, bopmFilter, allPersonNames)) return false;
+      if (bopmFilter !== ALL && !dealMatchesBopm(d as any, bopmFilter, allPersonNames, bopmStaffedDealIds)) return false;
       if (search) {
         const q = search.toLowerCase();
         if (!(d.dealName.toLowerCase().includes(q) || d.account.toLowerCase().includes(q) || (d.vsd || "").toLowerCase().includes(q))) {
@@ -125,7 +131,7 @@ export function DealViewTab({ deals, people, assignments, onUpdateDeal, bopmFilt
       }
       return true;
     });
-  }, [deals, dealType, dealStatus, vsdFilter, bopmFilter, search, allPersonNames, vsdForDeal]);
+  }, [deals, dealType, dealStatus, vsdFilter, bopmFilter, search, allPersonNames, vsdForDeal, bopmStaffedDealIds]);
 
   // Only the 5 canonical VSDs (plus "Yet to be assigned" bucket).
   const vsdOptions = useMemo(() => {
@@ -157,8 +163,12 @@ export function DealViewTab({ deals, people, assignments, onUpdateDeal, bopmFilt
       const map = new Map<string, Deal[]>();
       pod.forEach(name => map.set(name, []));
       const unassigned: Deal[] = [];
+      // Pre-compute staffed-by-name sets for each BOPM in this pod so the
+      // grouping respects "actually staffed" semantics.
+      const podStaffed = new Map<string, Set<string>>();
+      pod.forEach(name => podStaffed.set(name, dealsStaffedByName(name, people, assignments)));
       filteredDeals.forEach(d => {
-        const matched = pod.find(name => dealMatchesBopm(d as any, name, allPersonNames));
+        const matched = pod.find(name => dealMatchesBopm(d as any, name, allPersonNames, podStaffed.get(name)));
         if (matched) map.get(matched)!.push(d);
         else unassigned.push(d);
       });
