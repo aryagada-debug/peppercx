@@ -154,20 +154,34 @@ interface PropsExtended extends Props {
 export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, canEdit = true, canAddMonth = true }: PropsExtended) {
   const [addOpen, setAddOpen] = useState(false);
 
+  // Rows from contract start month through current month (inclusive),
+  // used by the chart, monthly table and its totals.
+  const displayRows = useMemo(() => {
+    const start = deal?.startDate;
+    if (!start) return rows;
+    const startKey = start.slice(0, 7); // YYYY-MM
+    const now = new Date();
+    const curKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    return rows.filter(r => {
+      const k = String(r.month).slice(0, 7);
+      return k >= startKey && k <= curKey;
+    });
+  }, [rows, deal?.startDate]);
+
   const totals = useMemo(() => {
-    const contracted = rows.reduce((s, r) => s + r.contracted, 0);
-    const consumption = rows.reduce((s, r) => s + r.consumption, 0);
-    const invoiced = rows.reduce((s, r) => s + r.invoiced, 0);
-    const received = rows.reduce((s, r) => s + r.received, 0);
+    const contracted = displayRows.reduce((s, r) => s + r.contracted, 0);
+    const consumption = displayRows.reduce((s, r) => s + r.consumption, 0);
+    const invoiced = displayRows.reduce((s, r) => s + r.invoiced, 0);
+    const received = displayRows.reduce((s, r) => s + r.received, 0);
     const outstanding = invoiced - received;
-    const contractionTarget = rows.reduce((s, r) => s + (r.contractionTarget ?? r.contracted), 0);
-    const deliveryTarget = rows.reduce((s, r) => s + (r.deliveryTarget ?? 0), 0);
-    const deliveryActual = rows.reduce((s, r) => s + (r.deliveryActual ?? 0), 0);
-    const invoicingTarget = rows.reduce((s, r) => s + (r.invoicingTarget ?? 0), 0);
-    const receivablesTarget = rows.reduce((s, r) => s + (r.receivablesTarget ?? 0), 0);
+    const contractionTarget = displayRows.reduce((s, r) => s + (r.contractionTarget ?? r.contracted), 0);
+    const deliveryTarget = displayRows.reduce((s, r) => s + (r.deliveryTarget ?? 0), 0);
+    const deliveryActual = displayRows.reduce((s, r) => s + (r.deliveryActual ?? 0), 0);
+    const invoicingTarget = displayRows.reduce((s, r) => s + (r.invoicingTarget ?? 0), 0);
+    const receivablesTarget = displayRows.reduce((s, r) => s + (r.receivablesTarget ?? 0), 0);
     return { contracted, consumption, invoiced, received, outstanding,
       contractionTarget, deliveryTarget, deliveryActual, invoicingTarget, receivablesTarget };
-  }, [rows]);
+  }, [displayRows]);
 
   const netDealValue = deal?.totalDealValue || 0;
   const dealMrr = Number(deal?.mrr) || 0;
@@ -268,12 +282,14 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
     return {
       current: computePipeline(currentMonthRows, undefined, currentMrrTarget),
       ytd: computePipeline(ytdRows, undefined, ytdTarget),
-      lifetime: computePipeline(lifetimeRows, undefined, lifetimeTarget),
+      // Lifetime: contraction & delivery targets also use total deal value
+      // (MRR × total contract months) for retainer deals.
+      lifetime: computePipeline(lifetimeRows, lifetimeTarget, lifetimeTarget),
     };
   }, [rows, computePipeline, deal?.startDate, deal?.endDate, dealMrr, lifetimeMonths]);
 
   // Chart data
-  const chartData = useMemo(() => rows.map(r => ({
+  const chartData = useMemo(() => displayRows.map(r => ({
     month: fmtMonth(r.month),
     target: r.contractionTarget ?? r.contracted,
     attainment: r.consumption,
@@ -282,17 +298,7 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
     plannedGm: r.plannedGmPct,
     actualGm: r.actualGmPct,
     attColor: attColor((r.contractionTarget ?? r.contracted) > 0 ? (r.consumption / (r.contractionTarget ?? r.contracted)) * 100 : 0),
-  })), [rows]);
-
-  // Consumption bucket
-  const bucket = useMemo(() => {
-    const ytdMrr = totals.contracted;
-    const ytdConsumption = totals.consumption;
-    const under = Math.max(0, ytdMrr - ytdConsumption);
-    const over = Math.max(0, ytdConsumption - ytdMrr);
-    const pct = ytdMrr > 0 ? (ytdConsumption / ytdMrr) * 100 : 0;
-    return { ytdMrr, ytdConsumption, under, over, pct };
-  }, [totals]);
+  })), [displayRows]);
 
   return (
     <div className="animate-fade-in space-y-6">
@@ -406,7 +412,7 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
               </tr>
             </thead>
             <tbody>
-              {rows.length === 0 ? (
+              {displayRows.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="py-12 text-center text-muted-foreground text-sm">
                     No financial data recorded yet. Click 'Add month' to get started.
@@ -414,14 +420,14 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
                 </tr>
               ) : (
                 <>
-                  {rows.map((row, idx) => {
+                  {displayRows.map((row, idx) => {
                     const cTarget = row.contractionTarget ?? row.contracted;
                     const dTarget = row.deliveryTarget ?? 0;
                     const dActual = row.deliveryActual ?? 0;
                     const iTarget = row.invoicingTarget ?? 0;
                     const rTarget = row.receivablesTarget ?? 0;
                     return (
-                      <tr key={row.id} className={cn("group", idx < rows.length - 1 && "border-b border-border/50")}>
+                      <tr key={row.id} className={cn("group", idx < displayRows.length - 1 && "border-b border-border/50")}>
                         <td className="py-2.5 px-3 font-medium text-muted-foreground">{fmtMonth(row.month)}</td>
                         <EditableTableCell value={cTarget} field="contractionTarget" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} groupStart />
                         <ActualCell value={row.consumption} target={cTarget} field="consumption" rowId={row.id} onUpdate={onUpdate} disabled={!canEdit} />
@@ -454,30 +460,6 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
       </div>
 
       {/* ── Section 5: Contraction Bucket ── */}
-      <div>
-        <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground mb-3">Contraction Bucket</p>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="rounded-lg bg-muted p-3">
-            <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">YTD retainer MRR</p>
-            <p className="text-xl font-medium mt-1">{fmtCurrency(bucket.ytdMrr)}</p>
-          </div>
-          <div className="rounded-lg bg-muted p-3">
-            <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">YTD retainer contraction</p>
-            <p className="text-xl font-medium mt-1">{fmtCurrency(bucket.ytdConsumption)}</p>
-            <p className={cn("text-xs mt-0.5 font-medium", bucket.pct >= 100 ? "text-positive" : "text-warning")}>
-              {bucket.pct.toFixed(0)}% of target
-            </p>
-          </div>
-          <div className="rounded-lg bg-muted p-3">
-            <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Under-contraction</p>
-            <p className="text-xl font-medium mt-1 text-positive">{fmtCurrency(bucket.under)}</p>
-          </div>
-          <div className="rounded-lg bg-muted p-3">
-            <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Over-contraction</p>
-            <p className="text-xl font-medium mt-1 text-destructive">{bucket.over > 0 ? `-${fmtCurrency(bucket.over)}` : fmtCurrency(0)}</p>
-          </div>
-        </div>
-      </div>
 
       {/* ── Add Month Modal ── */}
       <AddMonthDialog open={addOpen} onOpenChange={setAddOpen} dealId={dealId} defaultMrr={deal?.mrr || 0} onAdd={onAdd} />
