@@ -924,7 +924,9 @@ export default function HomePage() {
                     {[
                       { key: "me", label: "Me" },
                       { key: "all", label: "All" },
-                      ...viewAsPeople.map(p => ({ key: p.id, label: p.name })),
+                      ...[...viewAsPeople]
+                        .sort((a, b) => (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" }))
+                        .map(p => ({ key: p.id, label: p.name })),
                     ].map(opt => (
                       <button
                         key={opt.key}
@@ -942,18 +944,46 @@ export default function HomePage() {
                   </div>
                 )}
                 {isAdmin && (
-                  <Select value={taskViewAs} onValueChange={setTaskViewAs}>
-                    <SelectTrigger className="h-7 w-[180px] text-[12px]">
-                      <SelectValue placeholder="View tasks for…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="me">Me</SelectItem>
-                      <SelectItem value="all">All</SelectItem>
-                      {viewAsPeople.map(p => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  (() => {
+                    const sorted = [...viewAsPeople].sort((a, b) =>
+                      (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" })
+                    );
+                    const currentLabel =
+                      taskViewAs === "me" ? "Me" :
+                      taskViewAs === "all" ? "All" :
+                      (sorted.find(p => p.id === taskViewAs)?.name || "View tasks for…");
+                    return (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" role="combobox" className="h-7 w-[200px] text-[12px] justify-between font-normal">
+                            <span className="truncate">{currentLabel}</span>
+                            <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[240px] p-0" align="end">
+                          <Command>
+                            <CommandInput placeholder="Search person…" className="h-8 text-[12px]" />
+                            <CommandList>
+                              <CommandEmpty>No matches.</CommandEmpty>
+                              <CommandGroup>
+                                {[{ id: "me", name: "Me" }, { id: "all", name: "All" }, ...sorted].map(opt => (
+                                  <CommandItem
+                                    key={opt.id}
+                                    value={opt.name}
+                                    onSelect={() => setTaskViewAs(opt.id)}
+                                    className="text-[12px]"
+                                  >
+                                    <Check className={cn("mr-2 h-3.5 w-3.5", taskViewAs === opt.id ? "opacity-100" : "opacity-0")} />
+                                    {opt.name}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    );
+                  })()
                 )}
                 <Input
                   value={taskSearch}
