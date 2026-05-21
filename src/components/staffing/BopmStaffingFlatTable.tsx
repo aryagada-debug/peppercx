@@ -8,7 +8,7 @@ import { uid, ROLE_SLOTS, ROLE_TO_PEOPLE_FILTER, ROLE_SENIORITY_PARENTS, getDesc
 import { submitStaffingBatch, type BatchItem } from "@/lib/approvals";
 import { AddStaffingMemberDialog } from "./AddStaffingMemberDialog";
 import { RequestStaffingDialog } from "./RequestStaffingDialog";
-import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
+import { BopmFilter, dealMatchesBopm, dealsStaffedByName } from "@/components/access/BopmFilter";
 import { DealTypeFilter, dealMatchesType, type DealTypeFilterValue } from "@/components/filters/DealTypeFilter";
 import { useAllPersonNames, dealCellMatchesPerson, useVsdHierarchy, VSD_NAMES } from "@/hooks/queries/legacy";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -621,6 +621,16 @@ export function BopmStaffingFlatTable({
   const allPersonById = useMemo(() => new Map(allPeople.map(p => [p.id, p])), [allPeople]);
   const dealById = useMemo(() => new Map(deals.map(d => [d.id, d])), [deals]);
 
+  // Set of deal IDs where the selected BOPM filter person is actively
+  // staffed (assignment-based). Falls back to text-field match inside
+  // `dealMatchesBopm` only when undefined.
+  const bopmStaffedDealIds = useMemo(
+    () => bopmFilter && bopmFilter !== "All"
+      ? dealsStaffedByName(bopmFilter, allPeople, assignments)
+      : undefined,
+    [bopmFilter, allPeople, assignments],
+  );
+
   // Index assignments by dealId once. Previously dealRoleMap did
   // assignments.filter(a => a.dealId === d.id) inside a loop over every
   // deal — O(deals × assignments) ≈ 780 k iterations on the live dataset
@@ -978,7 +988,7 @@ export function BopmStaffingFlatTable({
         })
       : typeFiltered;
     const bopmFiltered = bopmFilter && bopmFilter !== "All"
-      ? vsdFiltered.filter(d => dealMatchesBopm(d as any, bopmFilter, allPersonNames))
+      ? vsdFiltered.filter(d => dealMatchesBopm(d as any, bopmFilter, allPersonNames, bopmStaffedDealIds))
       : vsdFiltered;
     if (!q) return bopmFiltered;
     return bopmFiltered.filter(d => {
@@ -988,7 +998,7 @@ export function BopmStaffingFlatTable({
       const hay = `${d.account} ${d.dealName} ${d.dealId} ${personHay}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [deals, search, bopmFilter, vsdFilter, activeOnly, dealTypeFilter, vsdForDeal, dealRoleMap, allPersonById, allPersonNames]);
+  }, [deals, search, bopmFilter, vsdFilter, activeOnly, dealTypeFilter, vsdForDeal, dealRoleMap, allPersonById, allPersonNames, bopmStaffedDealIds]);
 
   const virtualRows = useMemo(() => {
     const total = filteredDeals.length;

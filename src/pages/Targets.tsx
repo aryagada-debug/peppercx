@@ -13,7 +13,7 @@ import { TargetsUploadDialog } from "@/components/targets/TargetsUploadDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { METRICS, METRIC_LABELS, attainmentPct, attainmentTone, formatINR, type Metric } from "@/lib/csvTargets";
-import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
+import { BopmFilter, dealMatchesBopm, useStaffedDealIdsByName } from "@/components/access/BopmFilter";
 import { useAllPersonNames } from "@/hooks/queries/legacy";
 import { useDealAccess } from "@/hooks/useDealAccess";
 import { Switch } from "@/components/ui/switch";
@@ -168,6 +168,7 @@ export default function Targets() {
   const [bopmFilter, setBopmFilter] = useState<string>("All");
   const [needsOnly, setNeedsOnly] = useState(false);
   const allPersonNames = useAllPersonNames();
+  const bopmStaffedDealIds = useStaffedDealIdsByName(bopmFilter);
 
   const [behindOnly, setBehindOnly] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -470,12 +471,12 @@ export default function Targets() {
       arr = arr.filter(d => vsdFilter === "Unassigned" ? !d.vsd : d.vsd === vsdFilter);
     }
     if (bopmFilter && bopmFilter !== "All") {
-      arr = arr.filter(d => dealMatchesBopm(d as any, bopmFilter, allPersonNames));
+      arr = arr.filter(d => dealMatchesBopm(d as any, bopmFilter, allPersonNames, bopmStaffedDealIds));
     }
     if (needsOnly) arr = arr.filter(d => !targets[d.id] || METRICS.every(m => !targets[d.id][`${m}_target` as keyof TargetRow]));
     if (behindOnly) arr = arr.filter(isBehindPace);
     return arr;
-  }, [deals, vsdFilter, bopmFilter, allPersonNames, needsOnly, behindOnly, targets, isBehindPace]);
+  }, [deals, vsdFilter, bopmFilter, allPersonNames, needsOnly, behindOnly, targets, isBehindPace, bopmStaffedDealIds]);
 
   // Summary totals (all deals, not filtered)
   const summary = useMemo(() => {

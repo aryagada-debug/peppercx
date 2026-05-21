@@ -44,7 +44,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ColHeader } from "@/components/table/ColHeader";
 import { useAppUsers, useVsdUsers, useBopmDirectory, nameKey, useAllPersonNames } from "@/hooks/queries/legacy";
 import { ReadOnlyBanner } from "@/components/access/ReadOnlyBanner";
-import { BopmFilter, dealMatchesBopm } from "@/components/access/BopmFilter";
+import { BopmFilter, dealMatchesBopm, dealsStaffedByName } from "@/components/access/BopmFilter";
 import { useAuth } from "@/components/auth/AuthProvider";
 // BopmClientsHeader removed per request — KPIs below now serve that role.
 import { useDealRgyRollup, type RgyLetter } from "@/hooks/useDealRgyRollup";
@@ -364,11 +364,12 @@ export default function Clients() {
       d = d.filter(deal => canonVsd(deal.vsd) === activeVsd);
     }
     if (activeBopm !== "All") {
-      d = d.filter(deal => dealMatchesBopm(deal as any, activeBopm, allPersonNames));
+      const staffed = dealsStaffedByName(activeBopm, people, assignments);
+      d = d.filter(deal => dealMatchesBopm(deal as any, activeBopm, allPersonNames, staffed));
     }
     if (search) d = d.filter(deal => deal.account.toLowerCase().includes(search.toLowerCase()) || deal.dealName.toLowerCase().includes(search.toLowerCase()));
     return d;
-  }, [deals, activeVsd, activeBopm, search, showClosed, allPersonNames]);
+  }, [deals, activeVsd, activeBopm, search, showClosed, allPersonNames, people, assignments]);
 
   // Build dropdown options from people actually assigned to the visible deals
   const peopleColOptions = useMemo(() => {

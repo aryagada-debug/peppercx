@@ -5,6 +5,10 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { usePeopleQuery } from "@/hooks/queries/usePeopleQuery";
+import { useAssignmentsQuery } from "@/hooks/queries/useAssignmentsQuery";
+import type { Person, StaffingAssignment } from "@/data/staffingData";
+import { isAssignmentExpired } from "@/data/staffingData";
 
 interface Props {
   value: string;            // "All" or a BOPM display name
@@ -95,11 +99,23 @@ export function BopmFilter({ value, onChange, scopedVsd, className }: Props) {
 /** Helper: does a deal's Principal/Senior BOPM fields match the selected BOPM filter? */
 export function dealMatchesBopm(
   deal: { principalBopm?: string | null; seniorBopm?: string | null; bopm?: string | null;
-          principal_bopm?: string | null; senior_bopm?: string | null; },
+          principal_bopm?: string | null; senior_bopm?: string | null;
+          id?: string; dealId?: string; deal_id?: string; },
   selected: string,
   registeredNames: string[] = [],
+  /**
+   * Optional set of deal IDs where the selected person is actually staffed
+   * (via staffing_assignments). When provided, this STRICT mode is used and
+   * the text fields are ignored — a deal only matches if it is in this set.
+   * Build it with `dealsStaffedByName(...)` or `useStaffedDealIdsByName(...)`.
+   */
+  staffedDealIds?: Set<string>,
 ): boolean {
   if (!selected || selected === "All") return true;
+  if (staffedDealIds) {
+    const id = (deal as any).id || (deal as any).dealId || (deal as any).deal_id;
+    return id ? staffedDealIds.has(id) : false;
+  }
   const fields: Array<string | null | undefined> = [
     (deal as any).principalBopm ?? (deal as any).principal_bopm,
     (deal as any).seniorBopm ?? (deal as any).senior_bopm,
@@ -109,4 +125,46 @@ export function dealMatchesBopm(
   // also satisfy that cell. Pass `registeredNames` from Settings → People
   // so the ambiguity guard works reliably across the app.
   return fields.some((v) => v && dealCellMatchesPerson(v, selected, registeredNames));
+}
+
+/**
+ * Compute the set of `deal.id`s where `selected` (a person display name) is
+ * actually staffed via `staffing_assignments`. Expired assignments are
+ * excluded so the filter reflects current staffing. Case-insensitive exact
+ * match on `person.name` — the dropdown emits canonical full names.
+ */
+export function dealsStaffedByName(
+  selected: string,
+  people: Pick<Person, "id" | "name">[],
+  assignments: Pick<StaffingAssignment, "dealId" | "personId" | "endDate">[],
+): Set<string> {
+  const out = new Set<string>();
+  const target = (selected || "").trim().toLowerCase();
+  if (!target || target === "all") return out;
+  const personIds = new Set<string>();
+  for (const p of people) {
+    if ((p.name || "").trim().toLowerCase() === target) personIds.add(p.id);
+  }
+  if (!personIds.size) return out;
+  for (const a of assignments) {
+    if (!personIds.has(a.personId)) continue;
+    if (isAssignmentExpired(a as StaffingAssignment)) continue;
+    if (a.dealId) out.add(a.dealId);
+  }
+  return out;
+}
+
+/**
+ * Hook variant of `dealsStaffedByName` for callers that already use React
+ * Query — pulls the latest people + assignments and memoises the set.
+ */
+export function useStaffedDealIdsByName(selected: string): Set<string> {
+  const peopleQ = usePeopleQuery();
+  const assignmentsQ = useAssignmentsQuery();
+  const people = peopleQ.data ?? [];
+  const assignments = assignmentsQ.data ?? [];
+  return useMemo(
+    () => dealsStaffedByName(selected, people, assignments),
+    [selected, people, assignments],
+  );
 }
