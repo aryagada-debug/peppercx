@@ -1,0 +1,304 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+
+const DEFAULT_CSV_URL =
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vQvdTYtkeRTrJ0oc1mzsChsI7PocauAP6VGjBxfLDkxW4aoA1Rb8X-JNCLAiu51h1Je3PuGGxVjXlpH/pub?gid=1189053191&single=true&output=csv";
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+// ---------- CSV parser (RFC 4180-ish, handles quoted fields, commas, newlines) ----------
+function parseCSV(text: string): string[][] {
+  const rows: string[][] = [];
+  let cur: string[] = [];
+  let field = "";
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ",") { cur.push(field); field = ""; }
+      else if (c === "\n") { cur.push(field); rows.push(cur); cur = []; field = ""; }
+      else if (c === "\r") { /* skip */ }
+      else field += c;
+    }
+  }
+  if (field.length || cur.length) { cur.push(field); rows.push(cur); }
+  return rows;
+}
+
+// ---------- helpers ----------
+function toNum(s: string | undefined): number | null {
+  if (s == null) return null;
+  const t = String(s).trim();
+  if (!t || t === "-" || t === "—") return null;
+  const cleaned = t.replace(/[,₹$\s]/g, "").replace(/[()]/g, (m) => m === "(" ? "-" : "");
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : null;
+}
+
+const MONTHS: Record<string, number> = {
+  jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+  jul: 6, aug: 7, sep: 8, sept: 8, oct: 9, nov: 10, dec: 11,
+};
+
+// Parse "Apr-2024" or "Apr-24" → "YYYY-MM-01"
+function parseMonthHeader(h: string): string | null {
+  const m = h.trim().match(/^([A-Za-z]{3,4})[-\s]?(\d{2}|\d{4})$/);
+  if (!m) return null;
+  const mon = MONTHS[m[1].toLowerCase()];
+  if (mon == null) return null;
+  let y = parseInt(m[2], 10);
+  if (m[2].length === 2) y = 2000 + y;
+  return `${y}-${String(mon + 1).padStart(2, "0")}-01`;
+}
+
+// Parse DD/MM/YYYY → YYYY-MM-DD (returns null on failure)
+function parseDDMMYYYY(s: string): string | null {
+  const t = (s || "").trim();
+  const m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return null;
+  const dd = m[1].padStart(2, "0");
+  const mm = m[2].padStart(2, "0");
+  return `${m[3]}-${mm}-${dd}`;
+}
+
+function colIdx(letter: string): number {
+  let n = 0;
+  for (const c of letter) n = n * 26 + (c.charCodeAt(0) - 64);
+  return n - 1;
+}
+
+// ---------- main sync ----------
+async function runSync(triggeredBy: string) {
+  const supa = createClient(SUPABASE_URL, SERVICE_KEY);
+  const csvUrl = Deno.env.get("DEAL_MASTER_CSV_URL") || DEFAULT_CSV_URL;
+
+  const { data: runRow, error: runErr } = await supa
+    .from("sync_runs")
+    .insert({ source: "deal_master_csv", status: "running", triggered_by: triggeredBy })
+    .select()
+    .single();
+  if (runErr) throw runErr;
+  const runId = runRow.id;
+
+  const errors: any[] = [];
+  let dealsUpserted = 0;
+  let financialsUpserted = 0;
+  let clientsCreated = 0;
+  let rowsSkipped = 0;
+
+  try {
+    const res = await fetch(csvUrl);
+    if (!res.ok) throw new Error(`CSV fetch failed ${res.status}`);
+    const text = await res.text();
+    const rows = parseCSV(text);
+
+    if (rows.length < 8) throw new Error("CSV too short");
+    const header = rows[6]; // row 7 (1-indexed)
+    const dataRows = rows.slice(7);
+
+    // Build month-column groups from real headers
+    const ranges = {
+      invoiced:    { start: colIdx("DI"), end: colIdx("ET") },
+      received:    { start: colIdx("FA"), end: colIdx("GL") },
+      contracted:  { start: colIdx("HS"), end: colIdx("IQ") },
+      consumption: { start: colIdx("JA"), end: colIdx("KL") },
+    };
+
+    function monthCols(start: number, end: number): Array<{ idx: number; month: string }> {
+      const out: Array<{ idx: number; month: string }> = [];
+      for (let i = start; i <= end; i++) {
+        const m = parseMonthHeader(header[i] || "");
+        if (m) out.push({ idx: i, month: m });
+      }
+      return out;
+    }
+    const invCols = monthCols(ranges.invoiced.start, ranges.invoiced.end);
+    const recCols = monthCols(ranges.received.start, ranges.received.end);
+    const conCols = monthCols(ranges.contracted.start, ranges.contracted.end);
+    const delCols = monthCols(ranges.consumption.start, ranges.consumption.end);
+
+    // Preload existing clients by pc_code
+    const { data: existingClients } = await supa.from("clients").select("id, pc_code, name");
+    const clientByPc = new Map<string, { id: string; name: string }>();
+    for (const c of existingClients || []) {
+      if (c.pc_code) clientByPc.set(String(c.pc_code).trim(), { id: c.id, name: c.name });
+    }
+
+    // Group financial rows by (deal_id, month)
+    type FinKey = string;
+    const finMap = new Map<FinKey, any>();
+
+    for (const row of dataRows) {
+      try {
+        const pc = (row[colIdx("B")] || "").trim();
+        const dealId = (row[colIdx("C")] || "").trim();
+        if (!dealId || !/^\d+$/.test(dealId)) { rowsSkipped++; continue; }
+
+        const clientName = (row[colIdx("D")] || "").trim();
+
+        // Ensure client
+        let clientId: string | null = null;
+        if (pc) {
+          const existing = clientByPc.get(pc);
+          if (existing) {
+            clientId = existing.id;
+            if (clientName && existing.name !== clientName) {
+              await supa.from("clients").update({ name: clientName }).eq("id", existing.id);
+              existing.name = clientName;
+            }
+          } else {
+            const { data: newC, error: cErr } = await supa
+              .from("clients")
+              .insert({ pc_code: pc, name: clientName || pc })
+              .select("id, pc_code, name")
+              .single();
+            if (cErr) throw cErr;
+            clientId = newC.id;
+            clientByPc.set(pc, { id: newC.id, name: newC.name });
+            clientsCreated++;
+          }
+        }
+
+        const id = `${pc}_${dealId}`;
+        const dealPayload: any = {
+          id,
+          pc_code: pc,
+          deal_id: dealId,
+          deal_name: (row[colIdx("E")] || "").trim(),
+          account: clientName,
+          client_id: clientId,
+          sales_leader: (row[colIdx("G")] || "").trim(),
+          sales_rep: (row[colIdx("H")] || "").trim(),
+          vsd: (row[colIdx("I")] || "").trim(),
+          principal_bopm: (row[colIdx("J")] || "").trim(),
+          senior_bopm: (row[colIdx("K")] || "").trim(),
+          bopm: (row[colIdx("L")] || "").trim(),
+          geo: (row[colIdx("N")] || "").trim(),
+          revenue_type: (row[colIdx("O")] || "").trim(),
+        };
+        const sd = parseDDMMYYYY(row[colIdx("F")] || "");
+        if (sd) dealPayload.start_date = sd;
+        const mrr = toNum(row[colIdx("P")]); if (mrr != null) dealPayload.mrr = mrr;
+        const dur = (row[colIdx("Q")] || "").trim(); if (dur) dealPayload.duration = dur;
+        const rdv = toNum(row[colIdx("R")]); if (rdv != null) dealPayload.retainer_deal_value = rdv;
+        const nrdv = toNum(row[colIdx("S")]); if (nrdv != null) dealPayload.non_retainer_deal_value = nrdv;
+        const tdv = toNum(row[colIdx("T")]); if (tdv != null) dealPayload.total_deal_value = tdv;
+        const ndv = toNum(row[colIdx("X")]); if (ndv != null) dealPayload.net_deal_value = ndv;
+
+        const { error: dErr } = await supa.from("staffing_deals").upsert(dealPayload, { onConflict: "id" });
+        if (dErr) throw dErr;
+        dealsUpserted++;
+
+        // Financials — only non-empty cells
+        function addFin(month: string, field: string, val: number) {
+          const key = `${id}__${month}`;
+          if (!finMap.has(key)) finMap.set(key, { deal_id: id, month });
+          finMap.get(key)[field] = val;
+        }
+        for (const { idx, month } of invCols) {
+          const v = toNum(row[idx]); if (v != null) addFin(month, "invoiced", v);
+        }
+        for (const { idx, month } of recCols) {
+          const v = toNum(row[idx]); if (v != null) addFin(month, "received", v);
+        }
+        for (const { idx, month } of conCols) {
+          const v = toNum(row[idx]); if (v != null) addFin(month, "contracted", v);
+        }
+        for (const { idx, month } of delCols) {
+          const v = toNum(row[idx]); if (v != null) addFin(month, "consumption", v);
+        }
+      } catch (rowErr: any) {
+        errors.push({ row: row.slice(0, 5), error: String(rowErr?.message || rowErr) });
+        if (errors.length > 50) errors.length = 50;
+      }
+    }
+
+    // Upsert financials in batches (need a unique constraint on (deal_id,month) — use manual upsert)
+    const finRows = Array.from(finMap.values());
+    const BATCH = 500;
+    for (let i = 0; i < finRows.length; i += BATCH) {
+      const slice = finRows.slice(i, i + BATCH);
+      // Compute outstanding when both present
+      for (const f of slice) {
+        if (typeof f.invoiced === "number" && typeof f.received === "number") {
+          f.outstanding = f.invoiced - f.received;
+        }
+      }
+      // Manual upsert via select-then-update/insert because no unique constraint exists.
+      const dealIds = [...new Set(slice.map((s) => s.deal_id))];
+      const months = [...new Set(slice.map((s) => s.month))];
+      const { data: existing } = await supa
+        .from("deal_financials")
+        .select("id, deal_id, month")
+        .in("deal_id", dealIds)
+        .in("month", months);
+      const existMap = new Map<string, string>();
+      for (const e of existing || []) existMap.set(`${e.deal_id}__${e.month}`, e.id);
+
+      const toUpdate: any[] = [];
+      const toInsert: any[] = [];
+      for (const f of slice) {
+        const key = `${f.deal_id}__${f.month}`;
+        const eid = existMap.get(key);
+        if (eid) toUpdate.push({ id: eid, ...f });
+        else toInsert.push(f);
+      }
+      for (const u of toUpdate) {
+        const { id: uid, ...rest } = u;
+        const { error: uErr } = await supa.from("deal_financials").update(rest).eq("id", uid);
+        if (uErr) errors.push({ stage: "fin_update", error: String(uErr.message) });
+        else financialsUpserted++;
+      }
+      if (toInsert.length) {
+        const { error: iErr } = await supa.from("deal_financials").insert(toInsert);
+        if (iErr) errors.push({ stage: "fin_insert", error: String(iErr.message) });
+        else financialsUpserted += toInsert.length;
+      }
+    }
+
+    const status = errors.length === 0 ? "success" : "partial";
+    await supa.from("sync_runs").update({
+      status, finished_at: new Date().toISOString(),
+      deals_upserted: dealsUpserted, financials_upserted: financialsUpserted,
+      clients_created: clientsCreated, rows_skipped: rowsSkipped,
+      error_log: errors,
+    }).eq("id", runId);
+
+    return { runId, status, dealsUpserted, financialsUpserted, clientsCreated, rowsSkipped, errorCount: errors.length };
+  } catch (e: any) {
+    await supa.from("sync_runs").update({
+      status: "failed", finished_at: new Date().toISOString(),
+      deals_upserted: dealsUpserted, financials_upserted: financialsUpserted,
+      clients_created: clientsCreated, rows_skipped: rowsSkipped,
+      error_log: [...errors, { fatal: String(e?.message || e) }],
+    }).eq("id", runId);
+    throw e;
+  }
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  try {
+    let triggeredBy = "manual";
+    try {
+      const body = await req.json();
+      if (body?.triggered_by) triggeredBy = String(body.triggered_by);
+    } catch { /* no body */ }
+    const result = await runSync(triggeredBy);
+    return new Response(JSON.stringify({ success: true, ...result }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (e: any) {
+    console.error("sheets-sync-deals failed", e);
+    return new Response(JSON.stringify({ success: false, error: String(e?.message || e) }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});
