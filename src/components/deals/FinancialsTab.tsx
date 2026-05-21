@@ -154,20 +154,34 @@ interface PropsExtended extends Props {
 export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, canEdit = true, canAddMonth = true }: PropsExtended) {
   const [addOpen, setAddOpen] = useState(false);
 
+  // Rows from contract start month through current month (inclusive),
+  // used by the chart, monthly table and its totals.
+  const displayRows = useMemo(() => {
+    const start = deal?.startDate;
+    if (!start) return rows;
+    const startKey = start.slice(0, 7); // YYYY-MM
+    const now = new Date();
+    const curKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    return rows.filter(r => {
+      const k = String(r.month).slice(0, 7);
+      return k >= startKey && k <= curKey;
+    });
+  }, [rows, deal?.startDate]);
+
   const totals = useMemo(() => {
-    const contracted = rows.reduce((s, r) => s + r.contracted, 0);
-    const consumption = rows.reduce((s, r) => s + r.consumption, 0);
-    const invoiced = rows.reduce((s, r) => s + r.invoiced, 0);
-    const received = rows.reduce((s, r) => s + r.received, 0);
+    const contracted = displayRows.reduce((s, r) => s + r.contracted, 0);
+    const consumption = displayRows.reduce((s, r) => s + r.consumption, 0);
+    const invoiced = displayRows.reduce((s, r) => s + r.invoiced, 0);
+    const received = displayRows.reduce((s, r) => s + r.received, 0);
     const outstanding = invoiced - received;
-    const contractionTarget = rows.reduce((s, r) => s + (r.contractionTarget ?? r.contracted), 0);
-    const deliveryTarget = rows.reduce((s, r) => s + (r.deliveryTarget ?? 0), 0);
-    const deliveryActual = rows.reduce((s, r) => s + (r.deliveryActual ?? 0), 0);
-    const invoicingTarget = rows.reduce((s, r) => s + (r.invoicingTarget ?? 0), 0);
-    const receivablesTarget = rows.reduce((s, r) => s + (r.receivablesTarget ?? 0), 0);
+    const contractionTarget = displayRows.reduce((s, r) => s + (r.contractionTarget ?? r.contracted), 0);
+    const deliveryTarget = displayRows.reduce((s, r) => s + (r.deliveryTarget ?? 0), 0);
+    const deliveryActual = displayRows.reduce((s, r) => s + (r.deliveryActual ?? 0), 0);
+    const invoicingTarget = displayRows.reduce((s, r) => s + (r.invoicingTarget ?? 0), 0);
+    const receivablesTarget = displayRows.reduce((s, r) => s + (r.receivablesTarget ?? 0), 0);
     return { contracted, consumption, invoiced, received, outstanding,
       contractionTarget, deliveryTarget, deliveryActual, invoicingTarget, receivablesTarget };
-  }, [rows]);
+  }, [displayRows]);
 
   const netDealValue = deal?.totalDealValue || 0;
   const dealMrr = Number(deal?.mrr) || 0;
@@ -268,12 +282,14 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
     return {
       current: computePipeline(currentMonthRows, undefined, currentMrrTarget),
       ytd: computePipeline(ytdRows, undefined, ytdTarget),
-      lifetime: computePipeline(lifetimeRows, undefined, lifetimeTarget),
+      // Lifetime: contraction & delivery targets also use total deal value
+      // (MRR × total contract months) for retainer deals.
+      lifetime: computePipeline(lifetimeRows, lifetimeTarget, lifetimeTarget),
     };
   }, [rows, computePipeline, deal?.startDate, deal?.endDate, dealMrr, lifetimeMonths]);
 
   // Chart data
-  const chartData = useMemo(() => rows.map(r => ({
+  const chartData = useMemo(() => displayRows.map(r => ({
     month: fmtMonth(r.month),
     target: r.contractionTarget ?? r.contracted,
     attainment: r.consumption,
@@ -282,17 +298,7 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
     plannedGm: r.plannedGmPct,
     actualGm: r.actualGmPct,
     attColor: attColor((r.contractionTarget ?? r.contracted) > 0 ? (r.consumption / (r.contractionTarget ?? r.contracted)) * 100 : 0),
-  })), [rows]);
-
-  // Consumption bucket
-  const bucket = useMemo(() => {
-    const ytdMrr = totals.contracted;
-    const ytdConsumption = totals.consumption;
-    const under = Math.max(0, ytdMrr - ytdConsumption);
-    const over = Math.max(0, ytdConsumption - ytdMrr);
-    const pct = ytdMrr > 0 ? (ytdConsumption / ytdMrr) * 100 : 0;
-    return { ytdMrr, ytdConsumption, under, over, pct };
-  }, [totals]);
+  })), [displayRows]);
 
   return (
     <div className="animate-fade-in space-y-6">
