@@ -470,12 +470,12 @@ export default function Targets() {
       arr = arr.filter(d => vsdFilter === "Unassigned" ? !d.vsd : d.vsd === vsdFilter);
     }
     if (bopmFilter && bopmFilter !== "All") {
-      arr = arr.filter(d => dealMatchesBopm(d as any, bopmFilter, allPersonNames));
+      arr = arr.filter(d => dealMatchesBopm(d as any, bopmFilter, allPersonNames, bopmStaffedDealIds));
     }
     if (needsOnly) arr = arr.filter(d => !targets[d.id] || METRICS.every(m => !targets[d.id][`${m}_target` as keyof TargetRow]));
     if (behindOnly) arr = arr.filter(isBehindPace);
     return arr;
-  }, [deals, vsdFilter, bopmFilter, allPersonNames, needsOnly, behindOnly, targets, isBehindPace]);
+  }, [deals, vsdFilter, bopmFilter, allPersonNames, needsOnly, behindOnly, targets, isBehindPace, bopmStaffedDealIds]);
 
   // Summary totals (all deals, not filtered)
   const summary = useMemo(() => {
