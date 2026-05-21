@@ -104,7 +104,14 @@ export function useVsdHierarchy() {
     queryFn: () => loadHierarchy(qc),
     staleTime: 60_000,
   });
-  const inv = useMemo(() => invalidatePatcher(key), [key]);
+  const inv = useMemo(() => {
+    const invHier = invalidatePatcher(key);
+    const invLite = invalidatePatcher(qk.dealsLite());
+    return (payload: any) => {
+      invLite(payload);
+      invHier(payload);
+    };
+  }, [key, qc]);
   useTableSubscription({ table: "staffing_deals", patcher: inv });
 
   const data = query.data ?? { map: new Map<string, string>(), bopmsByVsd: new Map<string, string[]>() };
