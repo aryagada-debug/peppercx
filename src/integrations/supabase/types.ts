@@ -1553,6 +1553,7 @@ export type Database = {
           deal_value_lost: number | null
           duration: string | null
           end_date: string | null
+          geo: string
           id: string
           input_currency: string
           invoiced_deal_value: number
@@ -1572,6 +1573,9 @@ export type Database = {
           projected_outcomes: Json | null
           rag: string
           retainer_deal_value: number | null
+          revenue_type: string
+          sales_leader: string
+          sales_rep: string
           senior_bopm: string
           seo_staffing: boolean
           service_line_tagging: string
@@ -1613,6 +1617,7 @@ export type Database = {
           deal_value_lost?: number | null
           duration?: string | null
           end_date?: string | null
+          geo?: string
           id: string
           input_currency?: string
           invoiced_deal_value?: number
@@ -1632,6 +1637,9 @@ export type Database = {
           projected_outcomes?: Json | null
           rag?: string
           retainer_deal_value?: number | null
+          revenue_type?: string
+          sales_leader?: string
+          sales_rep?: string
           senior_bopm?: string
           seo_staffing?: boolean
           service_line_tagging?: string
@@ -1673,6 +1681,7 @@ export type Database = {
           deal_value_lost?: number | null
           duration?: string | null
           end_date?: string | null
+          geo?: string
           id?: string
           input_currency?: string
           invoiced_deal_value?: number
@@ -1692,6 +1701,9 @@ export type Database = {
           projected_outcomes?: Json | null
           rag?: string
           retainer_deal_value?: number | null
+          revenue_type?: string
+          sales_leader?: string
+          sales_rep?: string
           senior_bopm?: string
           seo_staffing?: boolean
           service_line_tagging?: string
@@ -1949,6 +1961,51 @@ export type Database = {
           person_id?: string
           updated_at?: string
           week_start?: string
+        }
+        Relationships: []
+      }
+      sync_runs: {
+        Row: {
+          clients_created: number
+          created_at: string
+          deals_upserted: number
+          error_log: Json
+          financials_upserted: number
+          finished_at: string | null
+          id: string
+          rows_skipped: number
+          source: string
+          started_at: string
+          status: string
+          triggered_by: string
+        }
+        Insert: {
+          clients_created?: number
+          created_at?: string
+          deals_upserted?: number
+          error_log?: Json
+          financials_upserted?: number
+          finished_at?: string | null
+          id?: string
+          rows_skipped?: number
+          source?: string
+          started_at?: string
+          status?: string
+          triggered_by?: string
+        }
+        Update: {
+          clients_created?: number
+          created_at?: string
+          deals_upserted?: number
+          error_log?: Json
+          financials_upserted?: number
+          finished_at?: string | null
+          id?: string
+          rows_skipped?: number
+          source?: string
+          started_at?: string
+          status?: string
+          triggered_by?: string
         }
         Relationships: []
       }
