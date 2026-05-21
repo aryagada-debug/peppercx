@@ -460,30 +460,6 @@ export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, c
       </div>
 
       {/* ── Section 5: Contraction Bucket ── */}
-      <div>
-        <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground mb-3">Contraction Bucket</p>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="rounded-lg bg-muted p-3">
-            <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">YTD retainer MRR</p>
-            <p className="text-xl font-medium mt-1">{fmtCurrency(bucket.ytdMrr)}</p>
-          </div>
-          <div className="rounded-lg bg-muted p-3">
-            <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">YTD retainer contraction</p>
-            <p className="text-xl font-medium mt-1">{fmtCurrency(bucket.ytdConsumption)}</p>
-            <p className={cn("text-xs mt-0.5 font-medium", bucket.pct >= 100 ? "text-positive" : "text-warning")}>
-              {bucket.pct.toFixed(0)}% of target
-            </p>
-          </div>
-          <div className="rounded-lg bg-muted p-3">
-            <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Under-contraction</p>
-            <p className="text-xl font-medium mt-1 text-positive">{fmtCurrency(bucket.under)}</p>
-          </div>
-          <div className="rounded-lg bg-muted p-3">
-            <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Over-contraction</p>
-            <p className="text-xl font-medium mt-1 text-destructive">{bucket.over > 0 ? `-${fmtCurrency(bucket.over)}` : fmtCurrency(0)}</p>
-          </div>
-        </div>
-      </div>
 
       {/* ── Add Month Modal ── */}
       <AddMonthDialog open={addOpen} onOpenChange={setAddOpen} dealId={dealId} defaultMrr={deal?.mrr || 0} onAdd={onAdd} />
