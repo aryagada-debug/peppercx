@@ -578,6 +578,10 @@ export function BopmStaffingFlatTable({
 }: Props) {
   const [search, setSearch] = useState("");
   const [bopmFilter, setBopmFilter] = useState<string>("All");
+  const { isAdmin } = useUserRole();
+  const { deleteDeal: deleteDealMutation } = useClients();
+  const [deleteDealTarget, setDeleteDealTarget] = useState<{ id: string; account: string; dealName: string } | null>(null);
+  const [deletingDeal, setDeletingDeal] = useState(false);
   const [vsdFilter, setVsdFilter] = useState<string>("All");
   const [activeOnly, setActiveOnly] = useState<boolean>(true);
   const [dealTypeFilter, setDealTypeFilter] = useState<DealTypeFilterValue>("All");
