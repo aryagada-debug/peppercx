@@ -1543,15 +1543,32 @@ export function BopmStaffingFlatTable({
                 return (
                   <tr key={d.id} className="border-t border-border align-top hover:bg-accent/30 transition-colors group/row">
                      <td className="px-3 py-2 sticky left-0 bg-card group-hover/row:bg-accent/30 z-10 border-r border-border transition-colors">
-                       <Link
-                         to={`/deals/${d.id}?tab=Staffing`}
-                         className="block hover:underline"
-                         title={`Open ${d.account} — ${d.dealName} staffing`}
-                       >
-                         <div className="font-medium text-foreground truncate max-w-[220px]">{d.account}</div>
-                         <div className="text-[11px] text-muted-foreground truncate max-w-[220px]">{d.dealName}</div>
-                         <div className="font-mono text-[10px] text-muted-foreground">{d.dealId}</div>
-                       </Link>
+                       <div className="flex items-start justify-between gap-2">
+                         <Link
+                           to={`/deals/${d.id}?tab=Staffing`}
+                           className="block hover:underline flex-1 min-w-0"
+                           title={`Open ${d.account} — ${d.dealName} staffing`}
+                         >
+                           <div className="font-medium text-foreground truncate max-w-[220px]">{d.account}</div>
+                           <div className="text-[11px] text-muted-foreground truncate max-w-[220px]">{d.dealName}</div>
+                           <div className="font-mono text-[10px] text-muted-foreground">{d.dealId}</div>
+                         </Link>
+                         {isAdmin && (
+                           <button
+                             type="button"
+                             title="Delete deal (admin only)"
+                             aria-label={`Delete deal ${d.account} ${d.dealName}`}
+                             onClick={(e) => {
+                               e.preventDefault();
+                               e.stopPropagation();
+                               setDeleteDealTarget({ id: d.id, account: d.account, dealName: d.dealName });
+                             }}
+                             className="opacity-0 group-hover/row:opacity-100 transition-opacity p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                           >
+                             <Trash2 className="h-3.5 w-3.5" />
+                           </button>
+                         )}
+                       </div>
                      </td>
                     <td className="px-3 py-2 text-right font-mono text-foreground border-r border-border whitespace-nowrap">
                       {formatINR(d.mrr || 0)}
