@@ -42,6 +42,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { format as formatDate } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ColHeader } from "@/components/table/ColHeader";
 import { useAppUsers, useVsdUsers, useBopmDirectory, nameKey, useAllPersonNames } from "@/hooks/queries/legacy";
@@ -93,6 +95,38 @@ function InlineEditCell({ value, onSave, type = "text", prefix = "", placeholder
   const [editing, setEditing] = useState(false);
   const [local, setLocal] = useState(value);
 
+  if (type === "date") {
+    const parsed = value ? new Date(value + "T00:00:00") : undefined;
+    const display = parsed && !Number.isNaN(parsed.getTime())
+      ? formatDate(parsed, "dd MMM yyyy")
+      : (placeholder || "—");
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className={cn(
+              "group/edit inline-flex items-center gap-1 text-xs font-medium tabular-nums cursor-pointer",
+              parsed ? "text-foreground" : "text-muted-foreground"
+            )}
+          >
+            <span>{display}</span>
+            <Pencil className="h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover/edit:opacity-100 transition-opacity" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <CalendarComponent
+            mode="single"
+            selected={parsed}
+            onSelect={(d) => { if (d) onSave(formatDate(d, "yyyy-MM-dd")); }}
+            initialFocus
+            className={cn("p-3 pointer-events-auto")}
+          />
+        </PopoverContent>
+      </Popover>
+    );
+  }
+
   if (editing) {
     return (
       <div className="flex items-center gap-1">
@@ -101,10 +135,6 @@ function InlineEditCell({ value, onSave, type = "text", prefix = "", placeholder
           onChange={e => {
             const next = e.target.value;
             setLocal(next);
-            if (type === "date" && next) {
-              onSave(next);
-              setEditing(false);
-            }
           }}
           type={type}
           className="h-6 text-xs w-full min-w-[60px]"

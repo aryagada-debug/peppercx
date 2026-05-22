@@ -27,6 +27,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { submitApprovalRequest } from "@/lib/approvals";
 import { qk } from "@/lib/queryKeys";
+import { toast } from "sonner";
 import {
   personToDb,
   dealToDb,
@@ -222,10 +223,22 @@ export function useStaffingMutations() {
         return;
       }
       patch.assignments((prev) => [...prev, assignment]);
-      await supabase.from("staffing_assignments").insert(assignmentToDb(assignment));
+      const { error } = await supabase
+        .from("staffing_assignments")
+        .insert(assignmentToDb(assignment));
+      if (error) {
+        console.error("[addAssignment] insert failed", error);
+        patch.assignments((prev) => prev.filter((a) => a.id !== assignment.id));
+        toast.error("Couldn't add staffing — please retry");
+        return;
+      }
+      // Refresh assignments + deals so DB-side BOPM/VSD recompute triggers
+      // surface in the table without a manual page reload.
+      qc.invalidateQueries({ queryKey: qk.assignments() });
+      qc.invalidateQueries({ queryKey: qk.deals() });
       notifyStaffing(assignment.personId, assignment.dealId, assignment.roleKey, assignment.allocationPct);
     },
-    [notifyStaffing, canEditAll, patch],
+    [notifyStaffing, canEditAll, patch, qc],
   );
 
   const updateAssignment = useCallback(
@@ -242,6 +255,7 @@ export function useStaffingMutations() {
         });
         return;
       }
+      const prevSnapshot = getAssignments().find((a) => a.id === id);
       let next: StaffingAssignment | undefined;
       patch.assignments((prev) =>
         prev.map((a) => {
@@ -257,12 +271,22 @@ export function useStaffingMutations() {
       if (updates.dealId !== undefined) dbUpdates.deal_id = updates.dealId;
       if (updates.startDate !== undefined) dbUpdates.start_date = updates.startDate || null;
       if (updates.endDate !== undefined) dbUpdates.end_date = updates.endDate || null;
-      await supabase.from("staffing_assignments").update(dbUpdates).eq("id", id);
+      const { error } = await supabase.from("staffing_assignments").update(dbUpdates).eq("id", id);
+      if (error) {
+        console.error("[updateAssignment] failed", error);
+        if (prevSnapshot) {
+          patch.assignments((prev) => prev.map((a) => (a.id === id ? prevSnapshot : a)));
+        }
+        toast.error("Couldn't update staffing — please retry");
+        return;
+      }
+      qc.invalidateQueries({ queryKey: qk.assignments() });
+      qc.invalidateQueries({ queryKey: qk.deals() });
       if (next && updates.personId) {
         notifyStaffing(next.personId, next.dealId, next.roleKey, next.allocationPct);
       }
     },
-    [notifyStaffing, canEditAll, getAssignments, patch],
+    [notifyStaffing, canEditAll, getAssignments, patch, qc],
   );
 
   const deleteAssignment = useCallback(
@@ -279,10 +303,21 @@ export function useStaffingMutations() {
         });
         return;
       }
+      const prevSnapshot = getAssignments().find((a) => a.id === id);
       patch.assignments((prev) => prev.filter((a) => a.id !== id));
-      await softDelete("staffing_assignment", id);
+      try {
+        await softDelete("staffing_assignment", id);
+        qc.invalidateQueries({ queryKey: qk.assignments() });
+        qc.invalidateQueries({ queryKey: qk.deals() });
+      } catch (err) {
+        console.error("[deleteAssignment] failed", err);
+        if (prevSnapshot) {
+          patch.assignments((prev) => [...prev, prevSnapshot]);
+        }
+        toast.error("Couldn't remove staffing — please retry");
+      }
     },
-    [canEditAll, getAssignments, patch],
+    [canEditAll, getAssignments, patch, qc],
   );
 
   const upsertAssignmentByRole = useCallback(

@@ -262,6 +262,43 @@ function EditableCell({ value, onSave, type = "text", prefix = "", placeholder =
   const [local, setLocal] = useState(normalize(value));
   useEffect(() => { setLocal(normalize(value)); }, [value]);
 
+  // Date cells get a Shadcn calendar popover so the prev/next month arrows
+  // work reliably and we never auto-commit a half-typed value.
+  if (type === "date") {
+    const parsed = local ? new Date(local + "T00:00:00") : undefined;
+    const display = parsed && !Number.isNaN(parsed.getTime()) ? format(parsed, "dd MMM yyyy") : placeholder;
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className={cn(
+              "inline-flex items-center gap-1 rounded-md border border-transparent hover:border-border px-2 h-7 text-sm text-left",
+              !parsed && "text-muted-foreground"
+            )}
+          >
+            <Calendar className="h-3.5 w-3.5 opacity-70" />
+            <span>{display}</span>
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <CalendarComponent
+            mode="single"
+            selected={parsed}
+            onSelect={(d) => {
+              if (!d) return;
+              const iso = format(d, "yyyy-MM-dd");
+              setLocal(iso);
+              onSave(iso);
+            }}
+            initialFocus
+            className={cn("p-3 pointer-events-auto")}
+          />
+        </PopoverContent>
+      </Popover>
+    );
+  }
+
   if (editing) {
     return (
       <div className="flex items-center gap-1">
@@ -270,16 +307,9 @@ function EditableCell({ value, onSave, type = "text", prefix = "", placeholder =
           onChange={e => {
             const next = e.target.value;
             setLocal(next);
-            // For date inputs, the native picker fires change on selection.
-            // Commit immediately so opening the picker (which causes blur) doesn't
-            // wipe the value before the user picks.
-            if (type === "date" && next) {
-              onSave(next);
-              setEditing(false);
-            }
           }}
           type={type}
-          className={cn(size === "lg" ? "h-10 text-2xl font-semibold font-mono tabular-nums w-full" : type === "date" ? "h-7 text-sm w-[160px]" : "h-7 text-sm w-full")}
+          className={cn(size === "lg" ? "h-10 text-2xl font-semibold font-mono tabular-nums w-full" : "h-7 text-sm w-full")}
           autoFocus
           onKeyDown={e => {
             if (e.key === "Enter") { onSave(local); setEditing(false); }
@@ -2233,6 +2263,17 @@ export default function DealDetail() {
                     <div className="max-h-[360px] overflow-y-auto -mx-1 px-1">
                       <div className="divide-y divide-border">
                         {rows.map(r => <TeamAllocationRow key={r.key} row={r} />)}
+                      </div>
+                      <div className="pt-3 mt-2 border-t border-border">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full justify-center"
+                          onClick={() => (isAdmin ? setAddMemberOpen(true) : setRequestStaffingOpen(true))}
+                        >
+                          <Plus className="h-3.5 w-3.5 mr-1" />
+                          {isAdmin ? "Add team member" : "Request team member"}
+                        </Button>
                       </div>
                     </div>
                   );
