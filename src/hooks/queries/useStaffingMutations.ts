@@ -312,7 +312,7 @@ export function useStaffingMutations() {
       const dbUpdates: TablesUpdate<"staffing_assignments"> = {};
       if (updates.personId !== undefined) dbUpdates.person_id = updates.personId;
       if (updates.allocationPct !== undefined) dbUpdates.allocation_pct = updates.allocationPct;
-      if (updates.roleKey !== undefined) dbUpdates.role_key = updates.roleKey;
+      if (updates.roleKey !== undefined) dbUpdates.role_key = normalizeRoleKey(updates.roleKey);
       if (updates.dealId !== undefined) dbUpdates.deal_id = updates.dealId;
       if (updates.startDate !== undefined) dbUpdates.start_date = updates.startDate || null;
       if (updates.endDate !== undefined) dbUpdates.end_date = updates.endDate || null;
@@ -375,8 +375,9 @@ export function useStaffingMutations() {
       allocationPct: number,
       extras?: { startDate?: string; endDate?: string },
     ) => {
+      const normalizedRoleKey = normalizeRoleKey(roleKey);
       const assignments = getAssignments();
-      const existing = assignments.find((a) => a.dealId === dealId && a.roleKey === roleKey);
+      const existing = assignments.find((a) => a.dealId === dealId && normalizeRoleKey(a.roleKey) === normalizedRoleKey);
       if (!canEditAll) {
         if (!personId) {
           if (existing) {
@@ -402,7 +403,7 @@ export function useStaffingMutations() {
               id: existing.id,
               personId,
               allocationPct,
-              roleKey,
+              roleKey: normalizedRoleKey,
               startDate: extras?.startDate ?? existing.startDate,
               endDate: extras?.endDate ?? existing.endDate,
             },
@@ -417,7 +418,7 @@ export function useStaffingMutations() {
             payload: {
               id: newId,
               dealId,
-              roleKey,
+              roleKey: normalizedRoleKey,
               personId,
               allocationPct,
               startDate: extras?.startDate || undefined,
@@ -456,14 +457,14 @@ export function useStaffingMutations() {
         if (extras?.endDate !== undefined) upd.end_date = extras.endDate || null;
         await supabase.from("staffing_assignments").update(upd).eq("id", existing.id);
         if (existing.personId !== personId) {
-          notifyStaffing(personId, dealId, roleKey, allocationPct);
+          notifyStaffing(personId, dealId, normalizedRoleKey, allocationPct);
         }
       } else {
         const id = uid();
         const newAssignment: StaffingAssignment = {
           id,
           dealId,
-          roleKey,
+          roleKey: normalizedRoleKey,
           personId,
           allocationPct,
           startDate: extras?.startDate || undefined,
@@ -471,7 +472,7 @@ export function useStaffingMutations() {
         };
         patch.assignments((prev) => [...prev, newAssignment]);
         await supabase.from("staffing_assignments").insert(assignmentToDb(newAssignment));
-        notifyStaffing(personId, dealId, roleKey, allocationPct);
+        notifyStaffing(personId, dealId, normalizedRoleKey, allocationPct);
       }
     },
     [getAssignments, notifyStaffing, canEditAll, patch],
