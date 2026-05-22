@@ -1,7 +1,8 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { formatINR } from "@/lib/csvTargets";
 import { useCurrencyVersion, useCurrency } from "@/contexts/CurrencyContext";
-import { CURRENCY_SYMBOL } from "@/lib/currency";
+import { CURRENCY_SYMBOL, formatMoney } from "@/lib/currency";
+import { dealDisplayCurrency } from "@/lib/dealCurrency";
 import { useParams, Link, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Loader2, Plus, Trash2, Pencil, Check, X, Calendar, Users, Eye, Edit2, ExternalLink, AlertTriangle, ChevronDown, ChevronUp, ChevronRight, Upload, CalendarCheck, Smile, TrendingUp, MessageSquare, Sparkles, RefreshCw, Wallet, Receipt, BadgeCheck, AlertCircle, Activity, IndianRupee } from "lucide-react";
 import { getLinkLabel, getFileIcon } from "@/lib/fileLink";
@@ -51,9 +52,6 @@ import { toast } from "sonner";
 import { getWeekOptions } from "@/hooks/useMBRData";
 import type { MBREntry } from "@/hooks/useMBRData";
 
-const fmtCurrency = (n: number | undefined) => {
-  return formatINR(Number(n) || 0);
-};
 
 const fmtDate = (d: string | undefined) => {
   if (!d) return "Not set";
@@ -1700,13 +1698,26 @@ export default function DealDetail() {
   const deal = useMemo(() => deals.find(d => d.id === dealId), [deals, dealId]);
   // Default the display currency to the currency the deal was entered in.
   // Runs once per deal id; user (admin) can still toggle it manually.
-  const { setCurrency, currency } = useCurrency();
+  const { setCurrency, currency, fxRate } = useCurrency();
   const currencySymbol = CURRENCY_SYMBOL[currency];
+  // Deal-resolved display currency: Global geo + Neema's deals → USD;
+  // otherwise fall back to the user's global toggle / inputCurrency.
+  const dealCurrency = useMemo(
+    () => dealDisplayCurrency(deal ?? null, currency),
+    [deal, currency],
+  );
   useEffect(() => {
+    // Only auto-switch the global currency when there's no per-deal override.
     if (!deal?.inputCurrency) return;
+    if (dealDisplayCurrency(deal, currency) !== currency && deal?.geo?.toLowerCase() !== "global") {
+      // No-op: per-deal formatter will handle it.
+    }
     setCurrency(deal.inputCurrency);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deal?.id, deal?.inputCurrency]);
+  const fmtCurrency = useCallback((n: number | undefined) => {
+    return formatMoney(Number(n) || 0, dealCurrency, { compact: true }, fxRate);
+  }, [dealCurrency, fxRate]);
   const dealAssignments = useMemo(() => assignments.filter(a => a.dealId === dealId), [assignments, dealId]);
   const dealPeople = useMemo(() => {
     const personIds = new Set(dealAssignments.map(a => a.personId));
@@ -2589,7 +2600,27 @@ export default function DealDetail() {
 
         {/* ══════════ Financials ══════════ */}
         {activeTab === "Financials" && (
-          <FinancialsTab rows={financials} dealId={dealId!} deal={deal ? { totalDealValue: deal.totalDealValue, mrr: deal.mrr, startDate: deal.startDate, endDate: deal.endDate } : undefined} onAdd={addFinancial} onUpdate={updateFinancial} onDelete={deleteFinancial} canEdit={isAdmin} canAddMonth={isAdmin || isVsd} />
+          <FinancialsTab
+            rows={financials}
+            dealId={dealId!}
+            deal={deal ? {
+              totalDealValue: deal.totalDealValue,
+              mrr: deal.mrr,
+              startDate: deal.startDate,
+              endDate: deal.endDate,
+              geo: deal.geo,
+              vsd: deal.vsd,
+              principalBopm: deal.principalBopm,
+              seniorBopm: deal.seniorBopm,
+              bopm: deal.bopm,
+              inputCurrency: deal.inputCurrency,
+            } : undefined}
+            onAdd={addFinancial}
+            onUpdate={updateFinancial}
+            onDelete={deleteFinancial}
+            canEdit={isAdmin}
+            canAddMonth={isAdmin || isVsd}
+          />
         )}
 
         {/* ══════════ Tasks ══════════ */}

@@ -1,7 +1,8 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { formatINR } from "@/lib/csvTargets";
 import { useCurrency } from "@/contexts/CurrencyContext";
-import { CURRENCY_SYMBOL } from "@/lib/currency";
+import { CURRENCY_SYMBOL, formatMoney } from "@/lib/currency";
+import { dealDisplayCurrency, type DealCurrencyShape } from "@/lib/dealCurrency";
 import { toast } from "sonner";
 import { Plus, X, Check, FileCheck2, Truck, Receipt, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -52,6 +53,12 @@ interface DealInfo {
   mrr?: number | null;
   startDate?: string | null;
   endDate?: string | null;
+  geo?: string | null;
+  vsd?: string | null;
+  principalBopm?: string | null;
+  seniorBopm?: string | null;
+  bopm?: string | null;
+  inputCurrency?: "INR" | "USD" | null;
 }
 
 interface Props {
@@ -63,8 +70,16 @@ interface Props {
   onDelete: (id: string) => void;
 }
 
+// Module-level "current deal" override so the helper components defined
+// outside the main FinancialsTab function can format with the right
+// currency without prop-drilling. FinancialsTab sets this on every render.
+let _currentDeal: DealCurrencyShape | null = null;
+import { getGlobalCurrency, getGlobalFx } from "@/contexts/CurrencyContext";
 const fmtCurrency = (n: number) => {
-  return formatINR(Number(n) || 0);
+  const amt = Number(n) || 0;
+  if (!_currentDeal) return formatINR(amt);
+  const ccy = dealDisplayCurrency(_currentDeal, getGlobalCurrency());
+  return formatMoney(amt, ccy, { compact: true }, getGlobalFx());
 };
 
 const fmtMonth = (m: string) => {
@@ -153,6 +168,11 @@ interface PropsExtended extends Props {
 
 export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, canEdit = true, canAddMonth = true }: PropsExtended) {
   const [addOpen, setAddOpen] = useState(false);
+  // Subscribe to currency toggle so the table re-renders on changes,
+  // and update the module-level deal override every render so the helper
+  // formatter resolves to the per-deal currency (Global geo / Neema → USD).
+  useCurrency();
+  _currentDeal = (deal as DealCurrencyShape) ?? null;
 
   // Rows from contract start month through current month (inclusive),
   // used by the chart, monthly table and its totals.
@@ -668,7 +688,8 @@ function AddMonthDialog({ open, onOpenChange, dealId, defaultMrr, onAdd }: {
   onAdd: (row: Omit<FinancialRow, "id">) => void;
 }) {
   const { currency } = useCurrency();
-  const sym = CURRENCY_SYMBOL[currency];
+  const resolvedCcy = dealDisplayCurrency(_currentDeal, currency);
+  const sym = CURRENCY_SYMBOL[resolvedCcy];
   const [form, setForm] = useState({
     month: "", contracted: defaultMrr, consumption: 0,
     plannedGmPct: 0, actualGmPct: 0, invoiced: 0, received: 0,

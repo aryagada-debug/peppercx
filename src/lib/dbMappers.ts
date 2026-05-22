@@ -26,7 +26,7 @@ export const STAFFING_PEOPLE_SELECT =
   "id,name,role_category,role_title,pod,region,leaving,tbh,department,designation,reporting_manager,band,hourly_rate,email,slack_user_id,sub_team";
 
 export const STAFFING_DEALS_SELECT =
-  "id,pc_code,deal_id,business_unit,capability_line,account,deal_name,deal_type,deal_status,staffing_status,validation,deal_status_cx,vsd,seo_staffing,creative_staffing,mrr,duration,retainer_deal_value,non_retainer_deal_value,total_deal_value,principal_bopm,senior_bopm,bopm,customer_status,customer_type,service_line_tagging,deal_value_lost,net_deal_value,rag,pod,start_date,end_date,payment_terms,pepper_business_unit,projected_outcomes,success_metrics,baseline_metrics,client_id,new_deal_id_formulated,new_deal_id_temp,validation_central_cx,month_closed_won,deal_target_status,total_mis_recognition,total_pending_recognition,consumption_value,mis_vs_consumption,invoiced_deal_value,undelivered_funnel,tcv_usd,strategy_bandwidth_required,pepper_bu_l2,input_currency";
+  "id,pc_code,deal_id,business_unit,capability_line,account,deal_name,deal_type,deal_status,staffing_status,validation,deal_status_cx,vsd,seo_staffing,creative_staffing,mrr,duration,retainer_deal_value,non_retainer_deal_value,total_deal_value,principal_bopm,senior_bopm,bopm,customer_status,customer_type,service_line_tagging,deal_value_lost,net_deal_value,rag,pod,start_date,end_date,payment_terms,pepper_business_unit,projected_outcomes,success_metrics,baseline_metrics,client_id,new_deal_id_formulated,new_deal_id_temp,validation_central_cx,month_closed_won,deal_target_status,total_mis_recognition,total_pending_recognition,consumption_value,mis_vs_consumption,invoiced_deal_value,undelivered_funnel,tcv_usd,strategy_bandwidth_required,pepper_bu_l2,input_currency,geo";
 
 export const STAFFING_ASSIGNMENTS_SELECT =
   "id,deal_id,role_key,person_id,allocation_pct,start_date,end_date";
@@ -134,6 +134,7 @@ export function dbToDeal(row: any): Deal {
     strategyBandwidthRequired: row.strategy_bandwidth_required || "",
     pepperBuL2: row.pepper_bu_l2 || "",
     inputCurrency: (row.input_currency === "USD" ? "USD" : "INR") as "INR" | "USD",
+    geo: row.geo || "",
   };
 }
 

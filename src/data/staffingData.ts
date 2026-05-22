@@ -141,6 +141,7 @@ export interface Deal {
   strategyBandwidthRequired?: string;
   pepperBuL2?: string;
   inputCurrency?: "INR" | "USD";
+  geo?: string;
 }
 
 export interface BWRule {
