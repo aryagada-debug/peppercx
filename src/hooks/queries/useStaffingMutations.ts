@@ -324,6 +324,7 @@ export function useStaffingMutations() {
       }
       qc.invalidateQueries({ queryKey: qk.assignments() });
       qc.invalidateQueries({ queryKey: qk.deals() });
+      qc.invalidateQueries({ queryKey: ["deal-access"] });
       if (next && updates.personId) {
         notifyStaffing(next.personId, next.dealId, next.roleKey, next.allocationPct);
       }
