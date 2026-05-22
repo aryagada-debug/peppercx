@@ -251,6 +251,43 @@ export const ROLE_SLOTS: RoleSlot[] = [
   { roleKey: "perf_growth", roleLabel: "Performance & Growth", category: "Performance & Growth" },
 ];
 
+const ROLE_KEY_ALIASES: Record<string, string> = {
+  "vsd": "vsd",
+  "principal bopm": "principal_bopm",
+  "principal_bopm": "principal_bopm",
+  "senior bopm": "senior_bopm",
+  "sr bopm": "senior_bopm",
+  "senior_bopm": "senior_bopm",
+  "bopm": "bopm",
+  "managing editor": "managing_editor",
+  "managing_editor": "managing_editor",
+  "content lead": "content_lead",
+  "content_lead": "content_lead",
+  "senior editor": "senior_editor",
+  "senior_editor": "senior_editor",
+  "seo leader": "seo_leader",
+  "seo_leader": "seo_leader",
+  "group head": "seo_group_head",
+  "seo group head": "seo_group_head",
+  "seo_group_head": "seo_group_head",
+  "sr. seo manager": "sr_seo_manager",
+  "senior seo manager": "sr_seo_manager",
+  "sr_seo_manager": "sr_seo_manager",
+  "seo manager": "seo_manager",
+  "seo_manager": "seo_manager",
+  "sr. seo analyst": "sr_seo_analyst",
+  "senior seo analyst": "sr_seo_analyst",
+  "sr_seo_analyst": "sr_seo_analyst",
+  "seo analyst": "seo_analyst",
+  "seo_analyst": "seo_analyst",
+};
+
+export const normalizeRoleKey = (roleKey: string | undefined | null) => {
+  const raw = String(roleKey || "").trim();
+  const key = raw.toLowerCase();
+  return ROLE_KEY_ALIASES[key] || key.replace(/\s+/g, "_");
+};
+
 export const ROLE_CATEGORIES: RoleCategory[] = [
   "Operations", "Content", "Content Strategy", "SEO", "Creative Strategy", "Creative Copy", "Creative Art", "Video", "Performance & Growth", "Other"
 ];
