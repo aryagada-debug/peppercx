@@ -1,6 +1,8 @@
 import React from "react";
 import { formatINR } from "@/lib/csvTargets";
 import { useCurrency, useCurrencyVersion } from "@/contexts/CurrencyContext";
+import { dealDisplayCurrency } from "@/lib/dealCurrency";
+import { formatMoney } from "@/lib/currency";
 import { CURRENCY_SYMBOL, convertFromInr, convertToInr } from "@/lib/currency";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Link } from "react-router-dom";
