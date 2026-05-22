@@ -22,7 +22,7 @@ import { DealFormWizard } from "@/components/deals/DealFormWizard";
 import { DealDocsUpload } from "@/components/deals/DealDocsUpload";
 import { AddStaffingMemberDialog } from "@/components/staffing/AddStaffingMemberDialog";
 import { supabase } from "@/integrations/supabase/client";
-import { uid } from "@/data/staffingData";
+import { normalizeRoleKey, uid } from "@/data/staffingData";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -367,11 +367,16 @@ export default function Clients() {
   }), [people]);
 
   // Resolve Content / SEO leads per deal from assignments
+  const activeAssignments = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return assignments.filter((a) => !a.endDate || a.endDate >= today);
+  }, [assignments]);
+
   const leadByDeal = useMemo(() => {
     const map: Record<string, { content?: string; seo?: string; contentAssignmentId?: string; seoAssignmentId?: string }> = {};
     const peopleById = new Map(people.map(p => [p.id, p]));
     const grouped: Record<string, typeof assignments> = {};
-    for (const a of assignments) {
+    for (const a of activeAssignments) {
       (grouped[a.dealId] = grouped[a.dealId] || []).push(a);
     }
     for (const dealId of Object.keys(grouped)) {
@@ -393,7 +398,7 @@ export default function Clients() {
       };
     }
     return map;
-  }, [assignments, people]);
+  }, [activeAssignments, people]);
 
   const filteredDeals = useMemo(() => {
     let d = deals;
