@@ -907,6 +907,20 @@ export function BopmStaffingFlatTable({
         if (!byRole.has(key)) byRole.set(key, []);
         byRole.get(key)!.push(entry);
       }
+      // Defensively dedupe entries by assignmentId within each role so that any
+      // legacy duplicates in the dataset can never cause duplicate React keys
+      // (which previously caused render glitches / phantom rows).
+      byRole.forEach((list, role) => {
+        if (list.length < 2) return;
+        const seen = new Set<string>();
+        const deduped: CellEntry[] = [];
+        for (const e of list) {
+          if (seen.has(e.assignmentId)) continue;
+          seen.add(e.assignmentId);
+          deduped.push(e);
+        }
+        byRole.set(role, deduped);
+      });
       out.set(d.id, byRole);
     }
     return out;
@@ -1064,20 +1078,19 @@ export function BopmStaffingFlatTable({
     });
   }, [deals, search, bopmFilter, vsdFilter, activeOnly, dealTypeFilter, vsdForDeal, dealRoleMap, allPersonById, allPersonNames, bopmStaffedDealIds, recentlyTouched]);
 
-  const virtualRows = useMemo(() => {
-    const total = filteredDeals.length;
-    const first = Math.max(0, Math.floor(tableScrollTop / VIRTUAL_ROW_HEIGHT) - VIRTUAL_OVERSCAN_ROWS);
-    const last = Math.min(
-      total,
-      Math.ceil((tableScrollTop + tableViewportHeight) / VIRTUAL_ROW_HEIGHT) + VIRTUAL_OVERSCAN_ROWS
-    );
-    return {
-      start: first,
-      deals: filteredDeals.slice(first, last),
-      topPad: first * VIRTUAL_ROW_HEIGHT,
-      bottomPad: Math.max(0, (total - last) * VIRTUAL_ROW_HEIGHT),
-    };
-  }, [filteredDeals, tableScrollTop, tableViewportHeight]);
+  // Note: a fixed-height row virtualiser used to live here, but each row's
+  // actual height varies widely (depending on number of staffed people per
+  // role), so the assumed VIRTUAL_ROW_HEIGHT was always wrong. That made the
+  // top/bottom padders disagree with reality and caused the viewport to keep
+  // growing / jumping as the user scrolled ("continuously scrolling and
+  // glitching"). We now render all filtered deals directly — at our current
+  // dataset size this is comfortably fast and, more importantly, correct.
+  const virtualRows = useMemo(() => ({
+    start: 0,
+    deals: filteredDeals,
+    topPad: 0,
+    bottomPad: 0,
+  }), [filteredDeals]);
 
   useEffect(() => {
     setTableScrollTop(0);
@@ -1511,7 +1524,7 @@ export function BopmStaffingFlatTable({
               {virtualRows.deals.map(d => {
                 const byRole = dealRoleMap.get(d.id) || new Map<string, CellEntry[]>();
                 return (
-                  <tr key={d.id} className="border-t border-border align-top hover:bg-accent/30 transition-colors group/row" style={{ height: VIRTUAL_ROW_HEIGHT }}>
+                  <tr key={d.id} className="border-t border-border align-top hover:bg-accent/30 transition-colors group/row">
                      <td className="px-3 py-2 sticky left-0 bg-card group-hover/row:bg-accent/30 z-10 border-r border-border transition-colors">
                        <Link
                          to={`/deals/${d.id}?tab=Staffing`}
