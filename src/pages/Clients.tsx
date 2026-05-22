@@ -1094,28 +1094,39 @@ export default function Clients() {
                           </div>
                         </td>
                       )}
-                      {isVisible("mrr") && (
+                      {(() => null)()}
+                      {isVisible("mrr") && (() => {
+                        const dealCcy = dealDisplayCurrency(deal as any, currency);
+                        const sym = CURRENCY_SYMBOL[dealCcy];
+                        const displayVal = deal.mrr ? Math.round(convertFromInr(Number(deal.mrr), dealCcy, fxRate)) : 0;
+                        return (
                         <td className="py-2 px-3 text-right">
                           {isBopmViewOnly ? (
                             <span className="text-xs text-foreground">
-                              {deal.mrr ? `${CURRENCY_SYMBOL[currency]}${Math.round(convertFromInr(Number(deal.mrr), currency, fxRate)).toLocaleString()}` : "—"}
+                              {deal.mrr ? `${sym}${displayVal.toLocaleString()}` : "—"}
                             </span>
                           ) : (
-                            <InlineEditCell value={deal.mrr ? String(Math.round(convertFromInr(Number(deal.mrr), currency, fxRate))) : ""} onSave={v => handleMRRSave(deal.id, v)} type="number" prefix={CURRENCY_SYMBOL[currency]} placeholder="—" />
+                            <InlineEditCell value={deal.mrr ? String(displayVal) : ""} onSave={v => handleMRRSave(deal.id, v)} type="number" prefix={sym} placeholder="—" />
                           )}
                         </td>
-                      )}
-                      {isVisible("totalDealValue") && (
+                        );
+                      })()}
+                      {isVisible("totalDealValue") && (() => {
+                        const dealCcy = dealDisplayCurrency(deal as any, currency);
+                        const sym = CURRENCY_SYMBOL[dealCcy];
+                        const displayVal = deal.totalDealValue ? Math.round(convertFromInr(Number(deal.totalDealValue), dealCcy, fxRate)) : 0;
+                        return (
                         <td className="py-2 px-3 text-right">
                           {isBopmViewOnly ? (
                             <span className="text-xs text-foreground">
-                              {deal.totalDealValue ? `${CURRENCY_SYMBOL[currency]}${Math.round(convertFromInr(Number(deal.totalDealValue), currency, fxRate)).toLocaleString()}` : "—"}
+                              {deal.totalDealValue ? `${sym}${displayVal.toLocaleString()}` : "—"}
                             </span>
                           ) : (
-                            <InlineEditCell value={deal.totalDealValue ? String(Math.round(convertFromInr(Number(deal.totalDealValue), currency, fxRate))) : ""} onSave={v => handleTotalRevenueSave(deal.id, v)} type="number" prefix={CURRENCY_SYMBOL[currency]} placeholder="—" />
+                            <InlineEditCell value={deal.totalDealValue ? String(displayVal) : ""} onSave={v => handleTotalRevenueSave(deal.id, v)} type="number" prefix={sym} placeholder="—" />
                           )}
                         </td>
-                      )}
+                        );
+                      })()}
                       {isVisible("duration") && (
                         <td className="py-2 px-3 text-xs text-muted-foreground truncate" title={`${deal.startDate || "—"} → ${deal.endDate || "—"}`}>
                           {(() => {
