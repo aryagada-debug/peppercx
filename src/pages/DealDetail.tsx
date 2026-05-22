@@ -2589,7 +2589,27 @@ export default function DealDetail() {
 
         {/* ══════════ Financials ══════════ */}
         {activeTab === "Financials" && (
-          <FinancialsTab rows={financials} dealId={dealId!} deal={deal ? { totalDealValue: deal.totalDealValue, mrr: deal.mrr, startDate: deal.startDate, endDate: deal.endDate } : undefined} onAdd={addFinancial} onUpdate={updateFinancial} onDelete={deleteFinancial} canEdit={isAdmin} canAddMonth={isAdmin || isVsd} />
+          <FinancialsTab
+            rows={financials}
+            dealId={dealId!}
+            deal={deal ? {
+              totalDealValue: deal.totalDealValue,
+              mrr: deal.mrr,
+              startDate: deal.startDate,
+              endDate: deal.endDate,
+              geo: deal.geo,
+              vsd: deal.vsd,
+              principalBopm: deal.principalBopm,
+              seniorBopm: deal.seniorBopm,
+              bopm: deal.bopm,
+              inputCurrency: deal.inputCurrency,
+            } : undefined}
+            onAdd={addFinancial}
+            onUpdate={updateFinancial}
+            onDelete={deleteFinancial}
+            canEdit={isAdmin}
+            canAddMonth={isAdmin || isVsd}
+          />
         )}
 
         {/* ══════════ Tasks ══════════ */}
