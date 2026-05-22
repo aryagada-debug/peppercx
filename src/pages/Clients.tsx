@@ -677,19 +677,19 @@ export default function Clients() {
     toast.success(`${kind === "content" ? "Content" : "SEO"} lead removed from deal`);
   };
 
-  const handleMRRSave = (dealId: string, value: string) => {
+  const handleMRRSave = (dealId: string, value: string, ccy: "INR" | "USD" = currency) => {
     const entered = Number(value);
     const inInr = Number.isFinite(entered) && entered !== 0
-      ? Math.round(convertToInr(entered, currency, fxRate))
+      ? Math.round(convertToInr(entered, ccy, fxRate))
       : undefined;
     guardedUpdateDeal(dealId, { mrr: inInr });
     toast.success("MRR updated");
   };
 
-  const handleTotalRevenueSave = (dealId: string, value: string) => {
+  const handleTotalRevenueSave = (dealId: string, value: string, ccy: "INR" | "USD" = currency) => {
     const entered = Number(value);
     const inInr = Number.isFinite(entered) && entered !== 0
-      ? Math.round(convertToInr(entered, currency, fxRate))
+      ? Math.round(convertToInr(entered, ccy, fxRate))
       : undefined;
     guardedUpdateDeal(dealId, { totalDealValue: inInr });
     toast.success("Total Revenue updated");
