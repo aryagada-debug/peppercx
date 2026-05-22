@@ -265,7 +265,27 @@ function EditableCell({ value, onSave, type = "text", prefix = "", placeholder =
   if (editing) {
     return (
       <div className="flex items-center gap-1">
-        <Input value={local} onChange={e => setLocal(e.target.value)} type={type} className={cn(size === "lg" ? "h-10 text-2xl font-semibold font-mono tabular-nums w-full" : type === "date" ? "h-7 text-sm w-[160px]" : "h-7 text-sm w-full")} autoFocus onBlur={() => { if (type === "date") { onSave(local); setEditing(false); } }} onKeyDown={e => { if (e.key === "Enter") { onSave(local); setEditing(false); } if (e.key === "Escape") { setLocal(normalize(value)); setEditing(false); } }} />
+        <Input
+          value={local}
+          onChange={e => {
+            const next = e.target.value;
+            setLocal(next);
+            // For date inputs, the native picker fires change on selection.
+            // Commit immediately so opening the picker (which causes blur) doesn't
+            // wipe the value before the user picks.
+            if (type === "date" && next) {
+              onSave(next);
+              setEditing(false);
+            }
+          }}
+          type={type}
+          className={cn(size === "lg" ? "h-10 text-2xl font-semibold font-mono tabular-nums w-full" : type === "date" ? "h-7 text-sm w-[160px]" : "h-7 text-sm w-full")}
+          autoFocus
+          onKeyDown={e => {
+            if (e.key === "Enter") { onSave(local); setEditing(false); }
+            if (e.key === "Escape") { setLocal(normalize(value)); setEditing(false); }
+          }}
+        />
         <button onClick={() => { onSave(local); setEditing(false); }} className="text-primary"><Check className="h-3.5 w-3.5" /></button>
         <button onClick={() => { setLocal(normalize(value)); setEditing(false); }} className="text-muted-foreground"><X className="h-3.5 w-3.5" /></button>
       </div>
