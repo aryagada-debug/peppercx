@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { Search, Plus, RotateCcw, X, Send, Info, Columns3, Check, GripVertical } from "lucide-react";
+import { Search, Plus, RotateCcw, X, Send, Info, Columns3, Check, GripVertical, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatINR } from "@/lib/csvTargets";
 import type { Deal, Person, StaffingAssignment, RoleCategory } from "@/data/staffingData";
@@ -24,6 +24,19 @@ import {
   horizontalListSortingStrategy, verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { useUserRole } from "@/hooks/useUserRole";
+import { useClients } from "@/hooks/useClients";
+import { toast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // Pastel HSL palette per role category. Header gets a saturated swatch,
 // cells inherit a very subtle tint so the column groups are visually scannable
@@ -565,6 +578,10 @@ export function BopmStaffingFlatTable({
 }: Props) {
   const [search, setSearch] = useState("");
   const [bopmFilter, setBopmFilter] = useState<string>("All");
+  const { isAdmin } = useUserRole();
+  const { deleteDeal: deleteDealMutation } = useClients();
+  const [deleteDealTarget, setDeleteDealTarget] = useState<{ id: string; account: string; dealName: string } | null>(null);
+  const [deletingDeal, setDeletingDeal] = useState(false);
   const [vsdFilter, setVsdFilter] = useState<string>("All");
   const [activeOnly, setActiveOnly] = useState<boolean>(true);
   const [dealTypeFilter, setDealTypeFilter] = useState<DealTypeFilterValue>("All");
@@ -1526,15 +1543,32 @@ export function BopmStaffingFlatTable({
                 return (
                   <tr key={d.id} className="border-t border-border align-top hover:bg-accent/30 transition-colors group/row">
                      <td className="px-3 py-2 sticky left-0 bg-card group-hover/row:bg-accent/30 z-10 border-r border-border transition-colors">
-                       <Link
-                         to={`/deals/${d.id}?tab=Staffing`}
-                         className="block hover:underline"
-                         title={`Open ${d.account} — ${d.dealName} staffing`}
-                       >
-                         <div className="font-medium text-foreground truncate max-w-[220px]">{d.account}</div>
-                         <div className="text-[11px] text-muted-foreground truncate max-w-[220px]">{d.dealName}</div>
-                         <div className="font-mono text-[10px] text-muted-foreground">{d.dealId}</div>
-                       </Link>
+                       <div className="flex items-start justify-between gap-2">
+                         <Link
+                           to={`/deals/${d.id}?tab=Staffing`}
+                           className="block hover:underline flex-1 min-w-0"
+                           title={`Open ${d.account} — ${d.dealName} staffing`}
+                         >
+                           <div className="font-medium text-foreground truncate max-w-[220px]">{d.account}</div>
+                           <div className="text-[11px] text-muted-foreground truncate max-w-[220px]">{d.dealName}</div>
+                           <div className="font-mono text-[10px] text-muted-foreground">{d.dealId}</div>
+                         </Link>
+                         {isAdmin && (
+                           <button
+                             type="button"
+                             title="Delete deal (admin only)"
+                             aria-label={`Delete deal ${d.account} ${d.dealName}`}
+                             onClick={(e) => {
+                               e.preventDefault();
+                               e.stopPropagation();
+                               setDeleteDealTarget({ id: d.id, account: d.account, dealName: d.dealName });
+                             }}
+                             className="opacity-0 group-hover/row:opacity-100 transition-opacity p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                           >
+                             <Trash2 className="h-3.5 w-3.5" />
+                           </button>
+                         )}
+                       </div>
                      </td>
                     <td className="px-3 py-2 text-right font-mono text-foreground border-r border-border whitespace-nowrap">
                       {formatINR(d.mrr || 0)}
@@ -1792,6 +1826,46 @@ export function BopmStaffingFlatTable({
           }}
         />
       )}
+
+      <AlertDialog open={!!deleteDealTarget} onOpenChange={(open) => { if (!open && !deletingDeal) setDeleteDealTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this deal?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteDealTarget && (
+                <>
+                  <span className="font-medium text-foreground">{deleteDealTarget.account}</span> — {deleteDealTarget.dealName}
+                  <br />
+                  This moves the deal and its staffing assignments to Trash. You can restore from Settings → Trash within 30 days.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingDeal}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deletingDeal}
+              onClick={async (e) => {
+                e.preventDefault();
+                if (!deleteDealTarget) return;
+                setDeletingDeal(true);
+                try {
+                  await deleteDealMutation(deleteDealTarget.id);
+                  toast({ title: "Deal moved to Trash", description: `${deleteDealTarget.account} — ${deleteDealTarget.dealName}` });
+                  setDeleteDealTarget(null);
+                } catch (err: any) {
+                  toast({ title: "Failed to delete deal", description: err?.message || "Please try again.", variant: "destructive" });
+                } finally {
+                  setDeletingDeal(false);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deletingDeal ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }
