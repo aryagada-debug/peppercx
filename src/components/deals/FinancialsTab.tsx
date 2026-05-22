@@ -688,7 +688,8 @@ function AddMonthDialog({ open, onOpenChange, dealId, defaultMrr, onAdd }: {
   onAdd: (row: Omit<FinancialRow, "id">) => void;
 }) {
   const { currency } = useCurrency();
-  const sym = CURRENCY_SYMBOL[currency];
+  const resolvedCcy = dealDisplayCurrency(_currentDeal, currency);
+  const sym = CURRENCY_SYMBOL[resolvedCcy];
   const [form, setForm] = useState({
     month: "", contracted: defaultMrr, consumption: 0,
     plannedGmPct: 0, actualGmPct: 0, invoiced: 0, received: 0,
