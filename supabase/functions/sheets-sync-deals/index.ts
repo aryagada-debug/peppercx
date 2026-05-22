@@ -131,6 +131,13 @@ async function runSync(triggeredBy: string) {
       if (c.pc_code) clientByPc.set(String(c.pc_code).trim(), { id: c.id, name: c.name });
     }
 
+    const { data: deletedDeals } = await supa
+      .from("trash_items")
+      .select("entity_id")
+      .eq("entity_type", "staffing_deal")
+      .is("restored_at", null);
+    const deletedDealIds = new Set((deletedDeals || []).map((d: any) => String(d.entity_id)));
+
     // Collect new clients to insert in bulk, deals to upsert in bulk
     const newClientsByPc = new Map<string, string>(); // pc -> name
     const dealsToUpsert: any[] = [];
@@ -147,6 +154,7 @@ async function runSync(triggeredBy: string) {
           newClientsByPc.set(pc, clientName || pc);
         }
         const id = `${pc}_${dealId}`;
+        if (deletedDealIds.has(id)) { rowsSkipped++; continue; }
         const dealPayload: any = {
           id,
           pc_code: pc,
