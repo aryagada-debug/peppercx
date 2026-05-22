@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { qk } from "@/lib/queryKeys";
-import { useTableSubscription, defaultListPatcher } from "@/lib/realtime";
+import { useTableSubscription, mappedListPatcher } from "@/lib/realtime";
 import { dbToHiring, hiringToDb } from "@/lib/dbMappers";
 import type { HiringNeed } from "@/data/staffingData";
 
@@ -18,7 +18,10 @@ async function fetchHiring(): Promise<HiringNeed[]> {
 export function useHiringQuery() {
   const key = qk.hiringNeeds();
   const query = useQuery({ queryKey: key, queryFn: fetchHiring });
-  const patcher = useMemo(() => defaultListPatcher<HiringNeed>(key), [key]);
+  const patcher = useMemo(
+    () => mappedListPatcher<any, HiringNeed>(key, dbToHiring),
+    [key],
+  );
   useTableSubscription({ table: "staffing_hiring_needs", patcher });
   return query;
 }

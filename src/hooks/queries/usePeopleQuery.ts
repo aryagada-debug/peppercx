@@ -6,7 +6,7 @@ import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { qk } from "@/lib/queryKeys";
-import { useTableSubscription, defaultListPatcher } from "@/lib/realtime";
+import { useTableSubscription, mappedListPatcher } from "@/lib/realtime";
 import {
   dbToPerson,
   personToDb,
@@ -46,7 +46,10 @@ function personUpdatesToDb(updates: Partial<Person>): TablesUpdate<"staffing_peo
 export function usePeopleQuery() {
   const key = qk.people();
   const query = useQuery({ queryKey: key, queryFn: fetchPeople });
-  const patcher = useMemo(() => defaultListPatcher<Person>(key), [key]);
+  const patcher = useMemo(
+    () => mappedListPatcher<any, Person>(key, dbToPerson),
+    [key],
+  );
   useTableSubscription({ table: "staffing_people", patcher });
   return query;
 }

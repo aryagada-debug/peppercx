@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { qk } from "@/lib/queryKeys";
-import { useTableSubscription, defaultListPatcher } from "@/lib/realtime";
+import { useTableSubscription, mappedListPatcher } from "@/lib/realtime";
 import {
   dbToAssignment,
   assignmentToDb,
@@ -25,7 +25,10 @@ async function fetchAssignments(): Promise<StaffingAssignment[]> {
 export function useAssignmentsQuery() {
   const key = qk.assignments();
   const query = useQuery({ queryKey: key, queryFn: fetchAssignments });
-  const patcher = useMemo(() => defaultListPatcher<StaffingAssignment>(key), [key]);
+  const patcher = useMemo(
+    () => mappedListPatcher<any, StaffingAssignment>(key, dbToAssignment),
+    [key],
+  );
   useTableSubscription({ table: "staffing_assignments", patcher });
   return query;
 }

@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { qk } from "@/lib/queryKeys";
-import { useTableSubscription, defaultListPatcher } from "@/lib/realtime";
+import { useTableSubscription, mappedListPatcher } from "@/lib/realtime";
 import { dbToBWRule, bwRuleToDb } from "@/lib/dbMappers";
 import type { BWRule } from "@/data/staffingData";
 
@@ -18,7 +18,10 @@ async function fetchRules(): Promise<BWRule[]> {
 export function useBWRulesQuery() {
   const key = qk.bwRules();
   const query = useQuery({ queryKey: key, queryFn: fetchRules });
-  const patcher = useMemo(() => defaultListPatcher<BWRule>(key), [key]);
+  const patcher = useMemo(
+    () => mappedListPatcher<any, BWRule>(key, dbToBWRule),
+    [key],
+  );
   useTableSubscription({ table: "staffing_bw_rules", patcher });
   return query;
 }
