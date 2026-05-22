@@ -351,6 +351,7 @@ export function useStaffingMutations() {
         await softDelete("staffing_assignment", id);
         qc.invalidateQueries({ queryKey: qk.assignments() });
         qc.invalidateQueries({ queryKey: qk.deals() });
+        qc.invalidateQueries({ queryKey: ["deal-access"] });
       } catch (err) {
         console.error("[deleteAssignment] failed", err);
         if (prevSnapshot) {
