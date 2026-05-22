@@ -1524,7 +1524,7 @@ export function BopmStaffingFlatTable({
               {virtualRows.deals.map(d => {
                 const byRole = dealRoleMap.get(d.id) || new Map<string, CellEntry[]>();
                 return (
-                  <tr key={d.id} className="border-t border-border align-top hover:bg-accent/30 transition-colors group/row" style={{ height: VIRTUAL_ROW_HEIGHT }}>
+                  <tr key={d.id} className="border-t border-border align-top hover:bg-accent/30 transition-colors group/row">
                      <td className="px-3 py-2 sticky left-0 bg-card group-hover/row:bg-accent/30 z-10 border-r border-border transition-colors">
                        <Link
                          to={`/deals/${d.id}?tab=Staffing`}
