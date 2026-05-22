@@ -14,6 +14,7 @@ import {
   DEFAULT_ASSIGNMENTS,
   DEFAULT_HIRING_NEEDS,
   DEFAULT_REVENUE_TARGETS,
+  normalizeRoleKey,
   type Deal,
   type Person,
   type StaffingAssignment,
@@ -226,18 +227,20 @@ export function useStaffingMutations() {
       // staffed, merge the new allocation/dates onto the existing row
       // instead of inserting a duplicate. This makes repeated quick-add
       // clicks safe and prevents stale rows piling up in the cache.
+      const normalizedAssignment = { ...assignment, roleKey: normalizeRoleKey(assignment.roleKey) };
       const existing = getAssignments().find(
         (a) =>
-          a.dealId === assignment.dealId &&
-          a.roleKey === assignment.roleKey &&
-          a.personId === assignment.personId,
+          a.dealId === normalizedAssignment.dealId &&
+          normalizeRoleKey(a.roleKey) === normalizedAssignment.roleKey &&
+          a.personId === normalizedAssignment.personId,
       );
       if (existing) {
         const merged: StaffingAssignment = {
           ...existing,
-          allocationPct: assignment.allocationPct,
-          startDate: assignment.startDate ?? existing.startDate,
-          endDate: assignment.endDate ?? existing.endDate,
+          roleKey: normalizedAssignment.roleKey,
+          allocationPct: normalizedAssignment.allocationPct,
+          startDate: normalizedAssignment.startDate ?? existing.startDate,
+          endDate: normalizedAssignment.endDate ?? existing.endDate,
         };
         patch.assignments((prev) => prev.map((a) => (a.id === existing.id ? merged : a)));
         const upd: TablesUpdate<"staffing_assignments"> = {
@@ -261,13 +264,13 @@ export function useStaffingMutations() {
         notifyStaffing(merged.personId, merged.dealId, merged.roleKey, merged.allocationPct);
         return;
       }
-      patch.assignments((prev) => [...prev, assignment]);
+      patch.assignments((prev) => [...prev, normalizedAssignment]);
       const { error } = await supabase
         .from("staffing_assignments")
-        .insert(assignmentToDb(assignment));
+        .insert(assignmentToDb(normalizedAssignment));
       if (error) {
         console.error("[addAssignment] insert failed", error);
-        patch.assignments((prev) => prev.filter((a) => a.id !== assignment.id));
+        patch.assignments((prev) => prev.filter((a) => a.id !== normalizedAssignment.id));
         toast.error("Couldn't add staffing — please retry");
         return;
       }
@@ -278,7 +281,7 @@ export function useStaffingMutations() {
       void qc.refetchQueries({ queryKey: qk.assignments(), type: "active" });
       void qc.refetchQueries({ queryKey: qk.deals(), type: "active" });
       void qc.invalidateQueries({ queryKey: ["deal-access"] });
-      notifyStaffing(assignment.personId, assignment.dealId, assignment.roleKey, assignment.allocationPct);
+      notifyStaffing(normalizedAssignment.personId, normalizedAssignment.dealId, normalizedAssignment.roleKey, normalizedAssignment.allocationPct);
     },
     [notifyStaffing, canEditAll, patch, qc, getAssignments],
   );
