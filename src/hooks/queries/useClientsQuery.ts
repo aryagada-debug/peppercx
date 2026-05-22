@@ -8,7 +8,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { qk } from "@/lib/queryKeys";
-import { useTableSubscription, defaultListPatcher } from "@/lib/realtime";
+import { useTableSubscription, mappedListPatcher } from "@/lib/realtime";
 
 export interface ClientRow {
   id: string;
@@ -42,7 +42,10 @@ async function fetchClients(): Promise<ClientRow[]> {
 export function useClientsQuery() {
   const key = qk.clients();
   const query = useQuery({ queryKey: key, queryFn: fetchClients });
-  const patcher = useMemo(() => defaultListPatcher<ClientRow>(key), [key]);
+  const patcher = useMemo(
+    () => mappedListPatcher<any, ClientRow>(key, dbToClient),
+    [key],
+  );
   useTableSubscription({ table: "clients", patcher });
   return query;
 }

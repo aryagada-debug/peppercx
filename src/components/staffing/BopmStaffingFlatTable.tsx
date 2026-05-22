@@ -4,7 +4,7 @@ import { Search, Plus, RotateCcw, X, Send, Info, Columns3, Check, GripVertical }
 import { cn } from "@/lib/utils";
 import { formatINR } from "@/lib/csvTargets";
 import type { Deal, Person, StaffingAssignment, RoleCategory } from "@/data/staffingData";
-import { uid, ROLE_SLOTS, ROLE_TO_PEOPLE_FILTER, ROLE_SENIORITY_PARENTS, getDescendantPersonIds, isAssignmentExpired } from "@/data/staffingData";
+import { uid, ROLE_SLOTS, ROLE_TO_PEOPLE_FILTER, ROLE_SENIORITY_PARENTS, getDescendantPersonIds, isAssignmentExpired, ACTIVE_DEAL_STATUSES } from "@/data/staffingData";
 import { submitStaffingBatch, type BatchItem } from "@/lib/approvals";
 import { AddStaffingMemberDialog } from "./AddStaffingMemberDialog";
 import { RequestStaffingDialog } from "./RequestStaffingDialog";
@@ -645,6 +645,48 @@ export function BopmStaffingFlatTable({
     [bopmFilter, allPeople, assignments],
   );
 
+  // Build the VSD pill row from the data itself: union of the canonical
+  // VSD_NAMES + any distinct VSD value `vsdForDeal` resolves for deals in
+  // scope. With the hardcoded-only list, any deal whose VSD wasn't one of
+  // the five canonical names silently collapsed into "Unassigned" — making
+  // many deals appear to vanish when a user picked a VSD pill.
+  const vsdPillOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    counts.set("All", deals.length);
+    let unassigned = 0;
+    for (const d of deals) {
+      const v = vsdForDeal(d as any);
+      if (!v) { unassigned++; continue; }
+      counts.set(v, (counts.get(v) || 0) + 1);
+    }
+    counts.set("Yet to be assigned", unassigned);
+    // Make sure the canonical names always show up even if zero deals match.
+    for (const v of VSD_NAMES) if (!counts.has(v)) counts.set(v, 0);
+    const names = Array.from(counts.keys())
+      .filter(k => k !== "All" && k !== "Yet to be assigned")
+      .sort((a, b) => a.localeCompare(b));
+    return {
+      counts,
+      list: [
+        { key: "All", label: "All" },
+        ...names.map(v => ({ key: v, label: v })),
+        { key: "Yet to be assigned", label: "Unassigned" },
+      ],
+    };
+  }, [deals, vsdForDeal]);
+
+  const hasActiveFilters =
+    !!search ||
+    bopmFilter !== "All" ||
+    vsdFilter !== "All" ||
+    dealTypeFilter !== "All";
+  const clearAllFilters = useCallback(() => {
+    setSearch("");
+    setBopmFilter("All");
+    setVsdFilter("All");
+    setDealTypeFilter("All");
+  }, []);
+
   // Index assignments by dealId once. Previously dealRoleMap did
   // assignments.filter(a => a.dealId === d.id) inside a loop over every
   // deal — O(deals × assignments) ≈ 780 k iterations on the live dataset
@@ -995,9 +1037,8 @@ export function BopmStaffingFlatTable({
         .filter(([, exp]) => exp > now)
         .map(([id]) => id)
     );
-    const ACTIVE_STATUSES = new Set(["Active Deal", "Deal Disputed", "New Deal in SLA/PO"]);
     const activeFiltered = activeOnly
-      ? sorted.filter(d => stickyIds.has(d.id) || ACTIVE_STATUSES.has((d as any).dealStatus || ""))
+      ? sorted.filter(d => stickyIds.has(d.id) || ACTIVE_DEAL_STATUSES.has((d as any).dealStatus || ""))
       : sorted;
     const typeFiltered = dealTypeFilter === "All"
       ? activeFiltered
@@ -1254,9 +1295,12 @@ export function BopmStaffingFlatTable({
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground"
                 )}
-                title="Show only Active Deal, Deal Disputed, New Deal in SLA/PO"
+                title="Show only Active Deal, Deal Disputed, New Deal in SLA/PO, Deal in Renewal Process"
               >
-                Active
+                Active{" "}
+                <span className="opacity-70 ml-0.5">
+                  {deals.filter(d => ACTIVE_DEAL_STATUSES.has((d as any).dealStatus || "")).length}
+                </span>
               </button>
               <button
                 onClick={() => setActiveOnly(false)}
@@ -1268,7 +1312,7 @@ export function BopmStaffingFlatTable({
                 )}
                 title="Include closed/churned deals"
               >
-                All deals
+                All deals <span className="opacity-70 ml-0.5">{deals.length}</span>
               </button>
             </div>
             <DealTypeFilter value={dealTypeFilter} onChange={setDealTypeFilter} />
@@ -1283,29 +1327,24 @@ export function BopmStaffingFlatTable({
             </div>
             {enableBopmFilter && (
               <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5 overflow-x-auto max-w-full">
-                {([
-                  { key: "All", label: "All" },
-                  ...[...VSD_NAMES].sort((a, b) => a.localeCompare(b)).map(v => ({ key: v, label: v })),
-                  { key: "Yet to be assigned", label: "Unassigned" },
-                ]).map(v => (
-                  <button
-                    key={v.key}
-                    onClick={() => {
-                      setVsdFilter(v.key);
-                      if (v.key !== "All" && v.key !== "Yet to be assigned") {
-                        setBopmFilter("All");
-                      }
-                    }}
-                    className={cn(
-                      "px-2.5 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
-                      vsdFilter === v.key
-                        ? "bg-primary text-primary-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    {v.label}
-                  </button>
-                ))}
+                {vsdPillOptions.list.map(v => {
+                  const c = vsdPillOptions.counts.get(v.key) ?? 0;
+                  return (
+                    <button
+                      key={v.key}
+                      onClick={() => setVsdFilter(v.key)}
+                      title={`${v.label} · ${c} deal${c === 1 ? "" : "s"}`}
+                      className={cn(
+                        "px-2.5 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
+                        vsdFilter === v.key
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {v.label} <span className="opacity-70 ml-0.5">{c}</span>
+                    </button>
+                  );
+                })}
               </div>
             )}
             {enableBopmFilter && (
@@ -1450,7 +1489,18 @@ export function BopmStaffingFlatTable({
             <tbody>
               {filteredDeals.length === 0 && (
                 <tr><td colSpan={2 + Math.max(1, visibleRoleKeys.length)} className="px-3 py-6 text-center text-muted-foreground text-xs">
-                  {search ? "No deals match your search." : "No active deals to staff."}
+                  {hasActiveFilters || !activeOnly ? (
+                    <span className="inline-flex items-center gap-2">
+                      No deals match these filters.
+                      <button
+                        type="button"
+                        onClick={() => { clearAllFilters(); setActiveOnly(true); }}
+                        className="text-primary hover:underline"
+                      >Clear filters</button>
+                    </span>
+                  ) : (
+                    "No active deals to staff."
+                  )}
                 </td></tr>
               )}
               {virtualRows.topPad > 0 && (

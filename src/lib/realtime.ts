@@ -132,10 +132,61 @@ export function defaultListPatcher<T extends { id: string }>(queryKey: QueryKey)
     const data = qc.getQueryData<T[] | undefined>(queryKey);
     if (!data) return; // nothing cached yet, next fetch will pick it up
     if (payload.eventType === "INSERT") {
-      qc.setQueryData<T[]>(queryKey, [...data, payload.new as T]);
+      const incoming = payload.new as T;
+      const idx = data.findIndex((r) => r.id === incoming.id);
+      if (idx === -1) {
+        qc.setQueryData<T[]>(queryKey, [...data, incoming]);
+      } else {
+        // Duplicate INSERT (we already added it optimistically) — treat as UPDATE.
+        const next = data.slice();
+        next[idx] = incoming;
+        qc.setQueryData<T[]>(queryKey, next);
+      }
     } else if (payload.eventType === "UPDATE") {
       const next = payload.new as T;
       qc.setQueryData<T[]>(queryKey, data.map((row) => (row.id === next.id ? next : row)));
+    } else if (payload.eventType === "DELETE") {
+      const oldId = (payload.old as { id?: string }).id;
+      if (oldId) qc.setQueryData<T[]>(queryKey, data.filter((row) => row.id !== oldId));
+    }
+  };
+}
+
+/**
+ * Like `defaultListPatcher` but runs the supplied `mapRow` function over the
+ * raw Postgres payload before touching the cache. Use this whenever the
+ * cached query shape is NOT the raw snake_case row (which is almost
+ * always — we normalise to camelCase via `dbToX` helpers).
+ *
+ * Without this, realtime INSERT/UPDATE events would overwrite cleanly mapped
+ * rows with raw `snake_case` payloads, which makes everything downstream
+ * (filters, selectors, lookups by `dealId` / `personId`) silently fail.
+ */
+export function mappedListPatcher<DbRow, T extends { id: string }>(
+  queryKey: QueryKey,
+  mapRow: (row: DbRow) => T,
+): RealtimePatcher {
+  return (payload, qc) => {
+    const data = qc.getQueryData<T[] | undefined>(queryKey);
+    if (!data) return;
+    if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
+      let mapped: T;
+      try {
+        mapped = mapRow(payload.new as DbRow);
+      } catch (err) {
+        console.warn("[mappedListPatcher] map failed; falling back to invalidate", err);
+        qc.invalidateQueries({ queryKey });
+        return;
+      }
+      if (!mapped || !mapped.id) return;
+      const idx = data.findIndex((r) => r.id === mapped.id);
+      if (idx === -1) {
+        qc.setQueryData<T[]>(queryKey, [...data, mapped]);
+      } else {
+        const next = data.slice();
+        next[idx] = mapped;
+        qc.setQueryData<T[]>(queryKey, next);
+      }
     } else if (payload.eventType === "DELETE") {
       const oldId = (payload.old as { id?: string }).id;
       if (oldId) qc.setQueryData<T[]>(queryKey, data.filter((row) => row.id !== oldId));

@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { qk } from "@/lib/queryKeys";
-import { useTableSubscription, defaultListPatcher } from "@/lib/realtime";
+import { useTableSubscription, mappedListPatcher } from "@/lib/realtime";
 import { dbToDeal, dealToDb, STAFFING_DEALS_SELECT } from "@/lib/dbMappers";
 import type { Deal } from "@/data/staffingData";
 import { softDelete } from "@/lib/trash";
@@ -19,7 +19,10 @@ async function fetchDeals(): Promise<Deal[]> {
 export function useDealsQuery() {
   const key = qk.deals();
   const query = useQuery({ queryKey: key, queryFn: fetchDeals });
-  const patcher = useMemo(() => defaultListPatcher<Deal>(key), [key]);
+  const patcher = useMemo(
+    () => mappedListPatcher<any, Deal>(key, dbToDeal),
+    [key],
+  );
   useTableSubscription({ table: "staffing_deals", patcher });
   return query;
 }

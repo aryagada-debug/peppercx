@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { Loader2, Eye } from "lucide-react";
 import { useStaffingQueries } from "@/hooks/queries/useStaffingQueries";
 import { useStaffingMutations } from "@/hooks/queries/useStaffingMutations";
+import { ACTIVE_DEAL_STATUSES } from "@/data/staffingData";
 import { useCurrencyVersion } from "@/contexts/CurrencyContext";
 import { DealViewTab } from "@/components/staffing/DealViewTab";
 import { PeopleViewTab } from "@/components/staffing/PeopleViewTab";
@@ -22,15 +23,6 @@ import { useVsdUsers } from "@/hooks/queries/legacy";
 import { supabase } from "@/integrations/supabase/client";
 
 type Tab = "deals" | "people" | "table" | "requests";
-
-// Deal statuses considered "active" for the BOPM staffing view.
-// Closed deals (Completed / Churned) are hidden.
-const ACTIVE_DEAL_STATUSES = new Set([
-  "Active Deal",
-  "New Deal in SLA/PO",
-  "Deal Disputed",
-  "Deal in Renewal Process",
-]);
 
 export default function Staffing() {
   useCurrencyVersion();
