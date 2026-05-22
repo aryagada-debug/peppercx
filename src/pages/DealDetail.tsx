@@ -2264,6 +2264,17 @@ export default function DealDetail() {
                       <div className="divide-y divide-border">
                         {rows.map(r => <TeamAllocationRow key={r.key} row={r} />)}
                       </div>
+                      <div className="pt-3 mt-2 border-t border-border">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full justify-center"
+                          onClick={() => (isAdmin ? setAddMemberOpen(true) : setRequestStaffingOpen(true))}
+                        >
+                          <Plus className="h-3.5 w-3.5 mr-1" />
+                          {isAdmin ? "Add team member" : "Request team member"}
+                        </Button>
+                      </div>
                     </div>
                   );
                 })()}
