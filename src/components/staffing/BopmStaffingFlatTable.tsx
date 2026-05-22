@@ -736,6 +736,7 @@ export function BopmStaffingFlatTable({
   };
   const stageAdd = (dealId: string, a: StaffingAssignment) => {
     if (directEdit && onAddAssignment) {
+      markTouched(dealId);
       onAddAssignment(a);
       return;
     }
@@ -744,6 +745,7 @@ export function BopmStaffingFlatTable({
   };
   const stageRemove = (dealId: string, assignmentId: string) => {
     if (directEdit && onDeleteAssignment) {
+      markTouched(dealId);
       onDeleteAssignment(assignmentId);
       return;
     }
