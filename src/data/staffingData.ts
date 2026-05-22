@@ -30,6 +30,19 @@ export const DEPARTMENTS = [
 
 export const BANDS = ["L0", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8"] as const;
 
+/**
+ * Canonical set of deal statuses we consider "active" across the app.
+ * Keep in lock-step between Staffing.tsx, BopmStaffingFlatTable, Dashboard, etc.
+ * so the same deal can never appear in a header count but be hidden from the
+ * underlying table.
+ */
+export const ACTIVE_DEAL_STATUSES: ReadonlySet<string> = new Set([
+  "Active Deal",
+  "New Deal in SLA/PO",
+  "Deal Disputed",
+  "Deal in Renewal Process",
+]);
+
 export type RoleCategory =
   | "Operations"
   | "Content"
