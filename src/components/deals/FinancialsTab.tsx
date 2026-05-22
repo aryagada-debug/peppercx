@@ -70,8 +70,16 @@ interface Props {
   onDelete: (id: string) => void;
 }
 
+// Module-level "current deal" override so the helper components defined
+// outside the main FinancialsTab function can format with the right
+// currency without prop-drilling. FinancialsTab sets this on every render.
+let _currentDeal: DealCurrencyShape | null = null;
+import { getGlobalCurrency, getGlobalFx } from "@/contexts/CurrencyContext";
 const fmtCurrency = (n: number) => {
-  return formatINR(Number(n) || 0);
+  const amt = Number(n) || 0;
+  if (!_currentDeal) return formatINR(amt);
+  const ccy = dealDisplayCurrency(_currentDeal, getGlobalCurrency());
+  return formatMoney(amt, ccy, { compact: true }, getGlobalFx());
 };
 
 const fmtMonth = (m: string) => {
