@@ -2459,6 +2459,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      normalize_staffing_role_key: {
+        Args: { _role_key: string }
+        Returns: string
+      }
       resolve_assignee_user_id: {
         Args: { _staffing_person_id: string }
         Returns: {
