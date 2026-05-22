@@ -1078,20 +1078,19 @@ export function BopmStaffingFlatTable({
     });
   }, [deals, search, bopmFilter, vsdFilter, activeOnly, dealTypeFilter, vsdForDeal, dealRoleMap, allPersonById, allPersonNames, bopmStaffedDealIds, recentlyTouched]);
 
-  const virtualRows = useMemo(() => {
-    const total = filteredDeals.length;
-    const first = Math.max(0, Math.floor(tableScrollTop / VIRTUAL_ROW_HEIGHT) - VIRTUAL_OVERSCAN_ROWS);
-    const last = Math.min(
-      total,
-      Math.ceil((tableScrollTop + tableViewportHeight) / VIRTUAL_ROW_HEIGHT) + VIRTUAL_OVERSCAN_ROWS
-    );
-    return {
-      start: first,
-      deals: filteredDeals.slice(first, last),
-      topPad: first * VIRTUAL_ROW_HEIGHT,
-      bottomPad: Math.max(0, (total - last) * VIRTUAL_ROW_HEIGHT),
-    };
-  }, [filteredDeals, tableScrollTop, tableViewportHeight]);
+  // Note: a fixed-height row virtualiser used to live here, but each row's
+  // actual height varies widely (depending on number of staffed people per
+  // role), so the assumed VIRTUAL_ROW_HEIGHT was always wrong. That made the
+  // top/bottom padders disagree with reality and caused the viewport to keep
+  // growing / jumping as the user scrolled ("continuously scrolling and
+  // glitching"). We now render all filtered deals directly — at our current
+  // dataset size this is comfortably fast and, more importantly, correct.
+  const virtualRows = useMemo(() => ({
+    start: 0,
+    deals: filteredDeals,
+    topPad: 0,
+    bottomPad: 0,
+  }), [filteredDeals]);
 
   useEffect(() => {
     setTableScrollTop(0);
