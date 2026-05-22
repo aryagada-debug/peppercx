@@ -4,7 +4,7 @@ import { Search, Plus, RotateCcw, X, Send, Info, Columns3, Check, GripVertical }
 import { cn } from "@/lib/utils";
 import { formatINR } from "@/lib/csvTargets";
 import type { Deal, Person, StaffingAssignment, RoleCategory } from "@/data/staffingData";
-import { uid, ROLE_SLOTS, ROLE_TO_PEOPLE_FILTER, ROLE_SENIORITY_PARENTS, getDescendantPersonIds, isAssignmentExpired } from "@/data/staffingData";
+import { uid, ROLE_SLOTS, ROLE_TO_PEOPLE_FILTER, ROLE_SENIORITY_PARENTS, getDescendantPersonIds, isAssignmentExpired, ACTIVE_DEAL_STATUSES } from "@/data/staffingData";
 import { submitStaffingBatch, type BatchItem } from "@/lib/approvals";
 import { AddStaffingMemberDialog } from "./AddStaffingMemberDialog";
 import { RequestStaffingDialog } from "./RequestStaffingDialog";
@@ -995,9 +995,8 @@ export function BopmStaffingFlatTable({
         .filter(([, exp]) => exp > now)
         .map(([id]) => id)
     );
-    const ACTIVE_STATUSES = new Set(["Active Deal", "Deal Disputed", "New Deal in SLA/PO"]);
     const activeFiltered = activeOnly
-      ? sorted.filter(d => stickyIds.has(d.id) || ACTIVE_STATUSES.has((d as any).dealStatus || ""))
+      ? sorted.filter(d => stickyIds.has(d.id) || ACTIVE_DEAL_STATUSES.has((d as any).dealStatus || ""))
       : sorted;
     const typeFiltered = dealTypeFilter === "All"
       ? activeFiltered
