@@ -168,6 +168,11 @@ interface PropsExtended extends Props {
 
 export function FinancialsTab({ rows, dealId, deal, onAdd, onUpdate, onDelete, canEdit = true, canAddMonth = true }: PropsExtended) {
   const [addOpen, setAddOpen] = useState(false);
+  // Subscribe to currency toggle so the table re-renders on changes,
+  // and update the module-level deal override every render so the helper
+  // formatter resolves to the per-deal currency (Global geo / Neema → USD).
+  useCurrency();
+  _currentDeal = (deal as DealCurrencyShape) ?? null;
 
   // Rows from contract start month through current month (inclusive),
   // used by the chart, monthly table and its totals.
