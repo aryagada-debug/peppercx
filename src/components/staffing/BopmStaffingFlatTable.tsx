@@ -645,6 +645,48 @@ export function BopmStaffingFlatTable({
     [bopmFilter, allPeople, assignments],
   );
 
+  // Build the VSD pill row from the data itself: union of the canonical
+  // VSD_NAMES + any distinct VSD value `vsdForDeal` resolves for deals in
+  // scope. With the hardcoded-only list, any deal whose VSD wasn't one of
+  // the five canonical names silently collapsed into "Unassigned" — making
+  // many deals appear to vanish when a user picked a VSD pill.
+  const vsdPillOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    counts.set("All", deals.length);
+    let unassigned = 0;
+    for (const d of deals) {
+      const v = vsdForDeal(d as any);
+      if (!v) { unassigned++; continue; }
+      counts.set(v, (counts.get(v) || 0) + 1);
+    }
+    counts.set("Yet to be assigned", unassigned);
+    // Make sure the canonical names always show up even if zero deals match.
+    for (const v of VSD_NAMES) if (!counts.has(v)) counts.set(v, 0);
+    const names = Array.from(counts.keys())
+      .filter(k => k !== "All" && k !== "Yet to be assigned")
+      .sort((a, b) => a.localeCompare(b));
+    return {
+      counts,
+      list: [
+        { key: "All", label: "All" },
+        ...names.map(v => ({ key: v, label: v })),
+        { key: "Yet to be assigned", label: "Unassigned" },
+      ],
+    };
+  }, [deals, vsdForDeal]);
+
+  const hasActiveFilters =
+    !!search ||
+    bopmFilter !== "All" ||
+    vsdFilter !== "All" ||
+    dealTypeFilter !== "All";
+  const clearAllFilters = useCallback(() => {
+    setSearch("");
+    setBopmFilter("All");
+    setVsdFilter("All");
+    setDealTypeFilter("All");
+  }, []);
+
   // Index assignments by dealId once. Previously dealRoleMap did
   // assignments.filter(a => a.dealId === d.id) inside a loop over every
   // deal — O(deals × assignments) ≈ 780 k iterations on the live dataset
