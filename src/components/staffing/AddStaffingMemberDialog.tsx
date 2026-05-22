@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { ArrowLeft, ChevronDown, ChevronUp, AlertTriangle, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { uid } from "@/data/staffingData";
+import { normalizeRoleKey, uid } from "@/data/staffingData";
 import type { StaffingAssignment, Person, Deal, RoleCategory } from "@/data/staffingData";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -151,7 +151,7 @@ export function AddStaffingMemberDialog({
           setAllocationInput(formatAllocationPct(nextPct));
           setStartDate(cur.startDate || dealForDates?.startDate || "");
           setEndDate(cur.endDate || dealForDates?.endDate || "");
-          setRoleOnDeal(cur.roleKey || initialRoleKey || curPerson?.roleTitle || "");
+          setRoleOnDeal(normalizeRoleKey(cur.roleKey || initialRoleKey || curPerson?.roleTitle || ""));
         }
         setStep(curPerson ? 3 : (initialCategory ? 2 : 1));
         return;
@@ -161,7 +161,7 @@ export function AddStaffingMemberDialog({
         if (p) {
           const nextPct = initialAllocationPct ?? 10;
           setSelectedPerson(p);
-          setRoleOnDeal(p.roleTitle || p.roleCategory);
+          setRoleOnDeal(normalizeRoleKey(p.roleTitle || p.roleCategory));
           setSelectedCategory(p.roleCategory as RoleCategory);
           setAllocationPct(nextPct);
           setAllocationInput(formatAllocationPct(nextPct));
@@ -184,7 +184,7 @@ export function AddStaffingMemberDialog({
     if (isEditMode && editingAssignmentId && onUpdate) {
       onUpdate(editingAssignmentId, {
         personId: selectedPerson.id,
-        roleKey: roleOnDeal || selectedPerson.roleTitle || selectedPerson.roleCategory,
+        roleKey: normalizeRoleKey(roleOnDeal || selectedPerson.roleTitle || selectedPerson.roleCategory),
         allocationPct: finalAllocationPct,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
@@ -197,7 +197,7 @@ export function AddStaffingMemberDialog({
     onAdd({
       id: uid(),
       dealId,
-      roleKey: roleOnDeal || selectedPerson.roleTitle || selectedPerson.roleCategory,
+      roleKey: normalizeRoleKey(roleOnDeal || selectedPerson.roleTitle || selectedPerson.roleCategory),
       personId: selectedPerson.id,
       allocationPct: finalAllocationPct,
       startDate: startDate || undefined,

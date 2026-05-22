@@ -14,6 +14,7 @@ import {
   DEFAULT_ASSIGNMENTS,
   DEFAULT_HIRING_NEEDS,
   DEFAULT_REVENUE_TARGETS,
+  normalizeRoleKey,
   type Deal,
   type Person,
   type StaffingAssignment,
@@ -226,18 +227,20 @@ export function useStaffingMutations() {
       // staffed, merge the new allocation/dates onto the existing row
       // instead of inserting a duplicate. This makes repeated quick-add
       // clicks safe and prevents stale rows piling up in the cache.
+      const normalizedAssignment = { ...assignment, roleKey: normalizeRoleKey(assignment.roleKey) };
       const existing = getAssignments().find(
         (a) =>
-          a.dealId === assignment.dealId &&
-          a.roleKey === assignment.roleKey &&
-          a.personId === assignment.personId,
+          a.dealId === normalizedAssignment.dealId &&
+          normalizeRoleKey(a.roleKey) === normalizedAssignment.roleKey &&
+          a.personId === normalizedAssignment.personId,
       );
       if (existing) {
         const merged: StaffingAssignment = {
           ...existing,
-          allocationPct: assignment.allocationPct,
-          startDate: assignment.startDate ?? existing.startDate,
-          endDate: assignment.endDate ?? existing.endDate,
+          roleKey: normalizedAssignment.roleKey,
+          allocationPct: normalizedAssignment.allocationPct,
+          startDate: normalizedAssignment.startDate ?? existing.startDate,
+          endDate: normalizedAssignment.endDate ?? existing.endDate,
         };
         patch.assignments((prev) => prev.map((a) => (a.id === existing.id ? merged : a)));
         const upd: TablesUpdate<"staffing_assignments"> = {
@@ -261,13 +264,13 @@ export function useStaffingMutations() {
         notifyStaffing(merged.personId, merged.dealId, merged.roleKey, merged.allocationPct);
         return;
       }
-      patch.assignments((prev) => [...prev, assignment]);
+      patch.assignments((prev) => [...prev, normalizedAssignment]);
       const { error } = await supabase
         .from("staffing_assignments")
-        .insert(assignmentToDb(assignment));
+        .insert(assignmentToDb(normalizedAssignment));
       if (error) {
         console.error("[addAssignment] insert failed", error);
-        patch.assignments((prev) => prev.filter((a) => a.id !== assignment.id));
+        patch.assignments((prev) => prev.filter((a) => a.id !== normalizedAssignment.id));
         toast.error("Couldn't add staffing — please retry");
         return;
       }
@@ -278,7 +281,7 @@ export function useStaffingMutations() {
       void qc.refetchQueries({ queryKey: qk.assignments(), type: "active" });
       void qc.refetchQueries({ queryKey: qk.deals(), type: "active" });
       void qc.invalidateQueries({ queryKey: ["deal-access"] });
-      notifyStaffing(assignment.personId, assignment.dealId, assignment.roleKey, assignment.allocationPct);
+      notifyStaffing(normalizedAssignment.personId, normalizedAssignment.dealId, normalizedAssignment.roleKey, normalizedAssignment.allocationPct);
     },
     [notifyStaffing, canEditAll, patch, qc, getAssignments],
   );
@@ -309,7 +312,7 @@ export function useStaffingMutations() {
       const dbUpdates: TablesUpdate<"staffing_assignments"> = {};
       if (updates.personId !== undefined) dbUpdates.person_id = updates.personId;
       if (updates.allocationPct !== undefined) dbUpdates.allocation_pct = updates.allocationPct;
-      if (updates.roleKey !== undefined) dbUpdates.role_key = updates.roleKey;
+      if (updates.roleKey !== undefined) dbUpdates.role_key = normalizeRoleKey(updates.roleKey);
       if (updates.dealId !== undefined) dbUpdates.deal_id = updates.dealId;
       if (updates.startDate !== undefined) dbUpdates.start_date = updates.startDate || null;
       if (updates.endDate !== undefined) dbUpdates.end_date = updates.endDate || null;
@@ -372,8 +375,9 @@ export function useStaffingMutations() {
       allocationPct: number,
       extras?: { startDate?: string; endDate?: string },
     ) => {
+      const normalizedRoleKey = normalizeRoleKey(roleKey);
       const assignments = getAssignments();
-      const existing = assignments.find((a) => a.dealId === dealId && a.roleKey === roleKey);
+      const existing = assignments.find((a) => a.dealId === dealId && normalizeRoleKey(a.roleKey) === normalizedRoleKey);
       if (!canEditAll) {
         if (!personId) {
           if (existing) {
@@ -399,7 +403,7 @@ export function useStaffingMutations() {
               id: existing.id,
               personId,
               allocationPct,
-              roleKey,
+              roleKey: normalizedRoleKey,
               startDate: extras?.startDate ?? existing.startDate,
               endDate: extras?.endDate ?? existing.endDate,
             },
@@ -414,7 +418,7 @@ export function useStaffingMutations() {
             payload: {
               id: newId,
               dealId,
-              roleKey,
+              roleKey: normalizedRoleKey,
               personId,
               allocationPct,
               startDate: extras?.startDate || undefined,
@@ -453,14 +457,14 @@ export function useStaffingMutations() {
         if (extras?.endDate !== undefined) upd.end_date = extras.endDate || null;
         await supabase.from("staffing_assignments").update(upd).eq("id", existing.id);
         if (existing.personId !== personId) {
-          notifyStaffing(personId, dealId, roleKey, allocationPct);
+          notifyStaffing(personId, dealId, normalizedRoleKey, allocationPct);
         }
       } else {
         const id = uid();
         const newAssignment: StaffingAssignment = {
           id,
           dealId,
-          roleKey,
+          roleKey: normalizedRoleKey,
           personId,
           allocationPct,
           startDate: extras?.startDate || undefined,
@@ -468,7 +472,7 @@ export function useStaffingMutations() {
         };
         patch.assignments((prev) => [...prev, newAssignment]);
         await supabase.from("staffing_assignments").insert(assignmentToDb(newAssignment));
-        notifyStaffing(personId, dealId, roleKey, allocationPct);
+        notifyStaffing(personId, dealId, normalizedRoleKey, allocationPct);
       }
     },
     [getAssignments, notifyStaffing, canEditAll, patch],

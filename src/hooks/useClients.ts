@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { softDelete } from "@/lib/trash";
+import { qk } from "@/lib/queryKeys";
 
 export interface Client {
   id: string;
@@ -159,8 +160,15 @@ export function useClients() {
   }, [setClients]);
 
   const deleteDeal = useCallback(async (dealId: string) => {
-    return await softDelete("staffing_deal", dealId);
-  }, []);
+    const ok = await softDelete("staffing_deal", dealId);
+    if (ok) {
+      qc.setQueryData<any[]>(qk.deals(), (prev) => prev?.filter((d) => d.id !== dealId));
+      qc.setQueryData<any[]>(qk.assignments(), (prev) => prev?.filter((a) => a.dealId !== dealId));
+      qc.invalidateQueries({ queryKey: qk.dealsLite() });
+      qc.invalidateQueries({ queryKey: ["deal-access"] });
+    }
+    return ok;
+  }, [qc]);
 
   return {
     clients,

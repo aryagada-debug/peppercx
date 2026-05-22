@@ -22,7 +22,7 @@ import { DealFormWizard } from "@/components/deals/DealFormWizard";
 import { DealDocsUpload } from "@/components/deals/DealDocsUpload";
 import { AddStaffingMemberDialog } from "@/components/staffing/AddStaffingMemberDialog";
 import { supabase } from "@/integrations/supabase/client";
-import { uid } from "@/data/staffingData";
+import { normalizeRoleKey, uid } from "@/data/staffingData";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -367,11 +367,16 @@ export default function Clients() {
   }), [people]);
 
   // Resolve Content / SEO leads per deal from assignments
+  const activeAssignments = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return assignments.filter((a) => !a.endDate || a.endDate >= today);
+  }, [assignments]);
+
   const leadByDeal = useMemo(() => {
     const map: Record<string, { content?: string; seo?: string; contentAssignmentId?: string; seoAssignmentId?: string }> = {};
     const peopleById = new Map(people.map(p => [p.id, p]));
     const grouped: Record<string, typeof assignments> = {};
-    for (const a of assignments) {
+    for (const a of activeAssignments) {
       (grouped[a.dealId] = grouped[a.dealId] || []).push(a);
     }
     for (const dealId of Object.keys(grouped)) {
@@ -393,7 +398,7 @@ export default function Clients() {
       };
     }
     return map;
-  }, [assignments, people]);
+  }, [activeAssignments, people]);
 
   const filteredDeals = useMemo(() => {
     let d = deals;
@@ -648,11 +653,11 @@ export default function Clients() {
     // Find or create staffing assignment
     const person = people.find(p => p.name === personName);
     if (person) {
-      const existing = assignments.find(a => a.dealId === dealId && a.roleKey === "VSD");
+      const existing = assignments.find(a => a.dealId === dealId && normalizeRoleKey(a.roleKey) === "vsd");
       if (existing) {
         updateAssignment(existing.id, { personId: person.id });
       } else {
-        addAssignment({ id: uid(), dealId, roleKey: "VSD", personId: person.id, allocationPct: 10 });
+        addAssignment({ id: uid(), dealId, roleKey: "vsd", personId: person.id, allocationPct: 10 });
       }
     }
     toast.success("VSD updated");
@@ -667,11 +672,12 @@ export default function Clients() {
       guardedUpdateDeal(dealId, { seniorBopm: personName });
     }
     if (person) {
-      const existing = assignments.find(a => a.dealId === dealId && (a.roleKey === "Principal BOPM" || a.roleKey === "Senior BOPM"));
+      const targetRoleKey = rt.includes("principal") ? "principal_bopm" : "senior_bopm";
+      const existing = assignments.find(a => a.dealId === dealId && ["principal_bopm", "senior_bopm"].includes(normalizeRoleKey(a.roleKey)));
       if (existing) {
-        updateAssignment(existing.id, { personId: person.id, roleKey: person.roleTitle || "Senior BOPM" });
+        updateAssignment(existing.id, { personId: person.id, roleKey: targetRoleKey });
       } else {
-        addAssignment({ id: uid(), dealId, roleKey: person.roleTitle || "Senior BOPM", personId: person.id, allocationPct: 10 });
+        addAssignment({ id: uid(), dealId, roleKey: targetRoleKey, personId: person.id, allocationPct: 10 });
       }
     }
     toast.success("BOPM updated");
@@ -686,9 +692,9 @@ export default function Clients() {
       return ((p?.roleCategory || "").toLowerCase() === kind.toLowerCase());
     });
     if (existing) {
-      await updateAssignment(existing.id, { personId: person.id, roleKey: person.roleTitle || kind });
+      await updateAssignment(existing.id, { personId: person.id, roleKey: normalizeRoleKey(person.roleTitle || kind) });
     } else {
-      await addAssignment({ id: uid(), dealId, roleKey: person.roleTitle || kind, personId: person.id, allocationPct: 10 });
+      await addAssignment({ id: uid(), dealId, roleKey: normalizeRoleKey(person.roleTitle || kind), personId: person.id, allocationPct: 10 });
     }
     toast.success(`${kind} lead updated`);
   };
@@ -700,7 +706,7 @@ export default function Clients() {
     }
     await guardedUpdateDeal(dealId, { principalBopm: "", seniorBopm: "", bopm: "" });
     const existing = assignments.filter(
-      a => a.dealId === dealId && (a.roleKey === "Principal BOPM" || a.roleKey === "Senior BOPM")
+      a => a.dealId === dealId && ["principal_bopm", "senior_bopm", "bopm"].includes(normalizeRoleKey(a.roleKey))
     );
     for (const a of existing) {
       await deleteAssignment(a.id);

@@ -16,6 +16,7 @@ import type {
   RevenueCapacityTarget,
   BWRule,
 } from "@/data/staffingData";
+import { normalizeRoleKey } from "@/data/staffingData";
 import type { TablesInsert } from "@/integrations/supabase/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -178,7 +179,7 @@ export function dbToAssignment(row: any): StaffingAssignment {
   return {
     id: row.id,
     dealId: row.deal_id,
-    roleKey: row.role_key,
+    roleKey: normalizeRoleKey(row.role_key),
     personId: row.person_id,
     allocationPct: Number(row.allocation_pct),
     startDate: row.start_date || undefined,
@@ -190,7 +191,7 @@ export function assignmentToDb(a: StaffingAssignment): TablesInsert<"staffing_as
   return {
     id: a.id,
     deal_id: a.dealId,
-    role_key: a.roleKey,
+    role_key: normalizeRoleKey(a.roleKey),
     person_id: a.personId,
     allocation_pct: a.allocationPct,
     start_date: a.startDate || null,
