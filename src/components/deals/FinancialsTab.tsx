@@ -1,7 +1,8 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { formatINR } from "@/lib/csvTargets";
 import { useCurrency } from "@/contexts/CurrencyContext";
-import { CURRENCY_SYMBOL } from "@/lib/currency";
+import { CURRENCY_SYMBOL, formatMoney } from "@/lib/currency";
+import { dealDisplayCurrency, type DealCurrencyShape } from "@/lib/dealCurrency";
 import { toast } from "sonner";
 import { Plus, X, Check, FileCheck2, Truck, Receipt, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -52,6 +53,12 @@ interface DealInfo {
   mrr?: number | null;
   startDate?: string | null;
   endDate?: string | null;
+  geo?: string | null;
+  vsd?: string | null;
+  principalBopm?: string | null;
+  seniorBopm?: string | null;
+  bopm?: string | null;
+  inputCurrency?: "INR" | "USD" | null;
 }
 
 interface Props {
