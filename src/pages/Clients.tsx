@@ -96,8 +96,21 @@ function InlineEditCell({ value, onSave, type = "text", prefix = "", placeholder
   if (editing) {
     return (
       <div className="flex items-center gap-1">
-        <Input value={local} onChange={e => setLocal(e.target.value)} type={type} className="h-6 text-xs w-full min-w-[60px]" autoFocus
-          onKeyDown={e => { if (e.key === "Enter") { onSave(local); setEditing(false); } if (e.key === "Escape") { setLocal(value); setEditing(false); } }} />
+        <Input
+          value={local}
+          onChange={e => {
+            const next = e.target.value;
+            setLocal(next);
+            if (type === "date" && next) {
+              onSave(next);
+              setEditing(false);
+            }
+          }}
+          type={type}
+          className="h-6 text-xs w-full min-w-[60px]"
+          autoFocus
+          onKeyDown={e => { if (e.key === "Enter") { onSave(local); setEditing(false); } if (e.key === "Escape") { setLocal(value); setEditing(false); } }}
+        />
         <button onClick={() => { onSave(local); setEditing(false); }} className="text-primary"><Check className="h-3 w-3" /></button>
         <button onClick={() => { setLocal(value); setEditing(false); }} className="text-muted-foreground"><X className="h-3 w-3" /></button>
       </div>
