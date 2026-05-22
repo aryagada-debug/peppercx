@@ -907,6 +907,20 @@ export function BopmStaffingFlatTable({
         if (!byRole.has(key)) byRole.set(key, []);
         byRole.get(key)!.push(entry);
       }
+      // Defensively dedupe entries by assignmentId within each role so that any
+      // legacy duplicates in the dataset can never cause duplicate React keys
+      // (which previously caused render glitches / phantom rows).
+      byRole.forEach((list, role) => {
+        if (list.length < 2) return;
+        const seen = new Set<string>();
+        const deduped: CellEntry[] = [];
+        for (const e of list) {
+          if (seen.has(e.assignmentId)) continue;
+          seen.add(e.assignmentId);
+          deduped.push(e);
+        }
+        byRole.set(role, deduped);
+      });
       out.set(d.id, byRole);
     }
     return out;
