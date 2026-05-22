@@ -989,22 +989,29 @@ export function BopmStaffingFlatTable({
       (a.account || "").localeCompare(b.account || "") ||
       (a.dealName || "").localeCompare(b.dealName || "")
     );
+    const now = Date.now();
+    const stickyIds = new Set(
+      Object.entries(recentlyTouched)
+        .filter(([, exp]) => exp > now)
+        .map(([id]) => id)
+    );
     const ACTIVE_STATUSES = new Set(["Active Deal", "Deal Disputed", "New Deal in SLA/PO"]);
     const activeFiltered = activeOnly
-      ? sorted.filter(d => ACTIVE_STATUSES.has((d as any).dealStatus || ""))
+      ? sorted.filter(d => stickyIds.has(d.id) || ACTIVE_STATUSES.has((d as any).dealStatus || ""))
       : sorted;
     const typeFiltered = dealTypeFilter === "All"
       ? activeFiltered
-      : activeFiltered.filter(d => dealMatchesType((d as any).dealType, dealTypeFilter));
+      : activeFiltered.filter(d => stickyIds.has(d.id) || dealMatchesType((d as any).dealType, dealTypeFilter));
     const vsdFiltered = vsdFilter && vsdFilter !== "All"
       ? typeFiltered.filter(d => {
+          if (stickyIds.has(d.id)) return true;
           const resolved = vsdForDeal(d as any);
           if (vsdFilter === "Yet to be assigned") return !resolved;
           return resolved === vsdFilter;
         })
       : typeFiltered;
     const bopmFiltered = bopmFilter && bopmFilter !== "All"
-      ? vsdFiltered.filter(d => dealMatchesBopm(d as any, bopmFilter, allPersonNames, bopmStaffedDealIds))
+      ? vsdFiltered.filter(d => stickyIds.has(d.id) || dealMatchesBopm(d as any, bopmFilter, allPersonNames, bopmStaffedDealIds))
       : vsdFiltered;
     if (!q) return bopmFiltered;
     return bopmFiltered.filter(d => {
@@ -1014,7 +1021,7 @@ export function BopmStaffingFlatTable({
       const hay = `${d.account} ${d.dealName} ${d.dealId} ${personHay}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [deals, search, bopmFilter, vsdFilter, activeOnly, dealTypeFilter, vsdForDeal, dealRoleMap, allPersonById, allPersonNames, bopmStaffedDealIds]);
+  }, [deals, search, bopmFilter, vsdFilter, activeOnly, dealTypeFilter, vsdForDeal, dealRoleMap, allPersonById, allPersonNames, bopmStaffedDealIds, recentlyTouched]);
 
   const virtualRows = useMemo(() => {
     const total = filteredDeals.length;
