@@ -10,10 +10,23 @@ import { dbToDeal, dealToDb, STAFFING_DEALS_SELECT } from "@/lib/dbMappers";
 import type { Deal } from "@/data/staffingData";
 import { softDelete } from "@/lib/trash";
 
+const PAGE_SIZE = 1000;
+
 async function fetchDeals(): Promise<Deal[]> {
-  const { data, error } = await supabase.from("staffing_deals").select(STAFFING_DEALS_SELECT);
-  if (error) throw error;
-  return (data || []).map(dbToDeal);
+  const out: Deal[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const to = from + PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .from("staffing_deals")
+      .select(STAFFING_DEALS_SELECT)
+      .order("id", { ascending: true })
+      .range(from, to);
+    if (error) throw error;
+    const rows = data || [];
+    for (const r of rows) out.push(dbToDeal(r));
+    if (rows.length < PAGE_SIZE) break;
+  }
+  return out;
 }
 
 export function useDealsQuery() {

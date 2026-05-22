@@ -222,6 +222,45 @@ export function useStaffingMutations() {
         });
         return;
       }
+      // Idempotent add: if the same (deal, role, person) is already
+      // staffed, merge the new allocation/dates onto the existing row
+      // instead of inserting a duplicate. This makes repeated quick-add
+      // clicks safe and prevents stale rows piling up in the cache.
+      const existing = getAssignments().find(
+        (a) =>
+          a.dealId === assignment.dealId &&
+          a.roleKey === assignment.roleKey &&
+          a.personId === assignment.personId,
+      );
+      if (existing) {
+        const merged: StaffingAssignment = {
+          ...existing,
+          allocationPct: assignment.allocationPct,
+          startDate: assignment.startDate ?? existing.startDate,
+          endDate: assignment.endDate ?? existing.endDate,
+        };
+        patch.assignments((prev) => prev.map((a) => (a.id === existing.id ? merged : a)));
+        const upd: TablesUpdate<"staffing_assignments"> = {
+          allocation_pct: merged.allocationPct,
+          start_date: merged.startDate || null,
+          end_date: merged.endDate || null,
+        };
+        const { error } = await supabase
+          .from("staffing_assignments")
+          .update(upd)
+          .eq("id", existing.id);
+        if (error) {
+          console.error("[addAssignment] merge update failed", error);
+          patch.assignments((prev) => prev.map((a) => (a.id === existing.id ? existing : a)));
+          toast.error("Couldn't update staffing — please retry");
+          return;
+        }
+        void qc.refetchQueries({ queryKey: qk.assignments(), type: "active" });
+        void qc.refetchQueries({ queryKey: qk.deals(), type: "active" });
+        void qc.invalidateQueries({ queryKey: ["deal-access"] });
+        notifyStaffing(merged.personId, merged.dealId, merged.roleKey, merged.allocationPct);
+        return;
+      }
       patch.assignments((prev) => [...prev, assignment]);
       const { error } = await supabase
         .from("staffing_assignments")
@@ -238,9 +277,10 @@ export function useStaffingMutations() {
       // immediately — invalidate-only can leave stale renders in flight.
       void qc.refetchQueries({ queryKey: qk.assignments(), type: "active" });
       void qc.refetchQueries({ queryKey: qk.deals(), type: "active" });
+      void qc.invalidateQueries({ queryKey: ["deal-access"] });
       notifyStaffing(assignment.personId, assignment.dealId, assignment.roleKey, assignment.allocationPct);
     },
-    [notifyStaffing, canEditAll, patch, qc],
+    [notifyStaffing, canEditAll, patch, qc, getAssignments],
   );
 
   const updateAssignment = useCallback(
@@ -284,6 +324,7 @@ export function useStaffingMutations() {
       }
       qc.invalidateQueries({ queryKey: qk.assignments() });
       qc.invalidateQueries({ queryKey: qk.deals() });
+      qc.invalidateQueries({ queryKey: ["deal-access"] });
       if (next && updates.personId) {
         notifyStaffing(next.personId, next.dealId, next.roleKey, next.allocationPct);
       }
@@ -311,6 +352,7 @@ export function useStaffingMutations() {
         await softDelete("staffing_assignment", id);
         qc.invalidateQueries({ queryKey: qk.assignments() });
         qc.invalidateQueries({ queryKey: qk.deals() });
+        qc.invalidateQueries({ queryKey: ["deal-access"] });
       } catch (err) {
         console.error("[deleteAssignment] failed", err);
         if (prevSnapshot) {

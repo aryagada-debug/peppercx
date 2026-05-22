@@ -14,12 +14,26 @@ import {
 import type { StaffingAssignment } from "@/data/staffingData";
 import { softDelete } from "@/lib/trash";
 
+const PAGE_SIZE = 1000;
+
 async function fetchAssignments(): Promise<StaffingAssignment[]> {
-  const { data, error } = await supabase
-    .from("staffing_assignments")
-    .select(STAFFING_ASSIGNMENTS_SELECT);
-  if (error) throw error;
-  return (data || []).map(dbToAssignment);
+  // Page through the full assignments table. Supabase caps any single
+  // select at 1000 rows, so without pagination newly-added assignments
+  // sitting past the first page silently disappear from the cache.
+  const out: StaffingAssignment[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const to = from + PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .from("staffing_assignments")
+      .select(STAFFING_ASSIGNMENTS_SELECT)
+      .order("id", { ascending: true })
+      .range(from, to);
+    if (error) throw error;
+    const rows = data || [];
+    for (const r of rows) out.push(dbToAssignment(r));
+    if (rows.length < PAGE_SIZE) break;
+  }
+  return out;
 }
 
 export function useAssignmentsQuery() {
