@@ -2222,18 +2222,18 @@ export default function DealDetail() {
                     pct: number;
                     pickable?: { roleKey: string; people: typeof people; onPick: (name: string) => void };
                   };
-                  const coreRoleKeys = ["vsd", "principal_bopm", "senior_bopm", "bopm", "VSD", "Principal BOPM", "Senior BOPM", "BOPM"] as const;
+                  const coreRoleKeys = ["vsd", "principal_bopm", "senior_bopm", "bopm"] as const;
                   const allocFor = (roleKey: string) =>
-                    assignments.find(a => a.dealId === dealId && a.roleKey === roleKey)?.allocationPct ?? 0;
+                    dealAssignments.find(a => normalizeRoleKey(a.roleKey) === roleKey)?.allocationPct ?? 0;
                   const makeOnPick = (roleKey: string, field: "vsd" | "principalBopm" | "seniorBopm" | "bopm") => (name: string) => {
                     handleDealFieldSave(field, name);
                     if (!name) {
-                      const existing = assignments.find(a => a.dealId === dealId && a.roleKey === roleKey);
+                      const existing = dealAssignments.find(a => normalizeRoleKey(a.roleKey) === roleKey);
                       if (existing) deleteAssignment(existing.id);
                     } else {
                       const person = people.find(p => p.name === name);
                       if (person) {
-                        const existing = assignments.find(a => a.dealId === dealId && a.roleKey === roleKey);
+                        const existing = dealAssignments.find(a => normalizeRoleKey(a.roleKey) === roleKey);
                         if (existing) updateAssignment(existing.id, { personId: person.id });
                         else addAssignment({ id: uid(), dealId: dealId!, roleKey, personId: person.id, allocationPct: 10 });
                       }
@@ -2251,7 +2251,7 @@ export default function DealDetail() {
                   ];
                   const coreSet = new Set<string>(coreRoleKeys);
                   const extraRows: Row[] = dealAssignments
-                    .filter(a => !coreSet.has(a.roleKey))
+                    .filter(a => !coreSet.has(normalizeRoleKey(a.roleKey)))
                     .map(a => {
                       const p = people.find(pp => pp.id === a.personId);
                       return {
