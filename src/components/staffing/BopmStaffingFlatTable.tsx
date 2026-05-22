@@ -1826,6 +1826,46 @@ export function BopmStaffingFlatTable({
           }}
         />
       )}
+
+      <AlertDialog open={!!deleteDealTarget} onOpenChange={(open) => { if (!open && !deletingDeal) setDeleteDealTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this deal?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteDealTarget && (
+                <>
+                  <span className="font-medium text-foreground">{deleteDealTarget.account}</span> — {deleteDealTarget.dealName}
+                  <br />
+                  This moves the deal and its staffing assignments to Trash. You can restore from Settings → Trash within 30 days.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingDeal}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deletingDeal}
+              onClick={async (e) => {
+                e.preventDefault();
+                if (!deleteDealTarget) return;
+                setDeletingDeal(true);
+                try {
+                  await deleteDealMutation(deleteDealTarget.id);
+                  toast({ title: "Deal moved to Trash", description: `${deleteDealTarget.account} — ${deleteDealTarget.dealName}` });
+                  setDeleteDealTarget(null);
+                } catch (err: any) {
+                  toast({ title: "Failed to delete deal", description: err?.message || "Please try again.", variant: "destructive" });
+                } finally {
+                  setDeletingDeal(false);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deletingDeal ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }
