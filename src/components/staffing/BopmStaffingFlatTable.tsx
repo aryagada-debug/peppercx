@@ -584,6 +584,20 @@ export function BopmStaffingFlatTable({
   const [drafts, setDrafts] = useState<Record<string, DealDraft>>({});
   const [submitting, setSubmitting] = useState<Record<string, boolean>>({});
   const [noteByDeal, setNoteByDeal] = useState<Record<string, string>>({});
+  // Deals the user just edited (added/removed staffing). Kept visible for a
+  // few seconds so filter recomputation can't make the row vanish before
+  // the next refetch finishes.
+  const [recentlyTouched, setRecentlyTouched] = useState<Record<string, number>>({});
+  const markTouched = useCallback((dealId: string) => {
+    setRecentlyTouched((prev) => ({ ...prev, [dealId]: Date.now() + 8000 }));
+    setTimeout(() => {
+      setRecentlyTouched((prev) => {
+        const next = { ...prev };
+        if ((next[dealId] || 0) <= Date.now()) delete next[dealId];
+        return next;
+      });
+    }, 8500);
+  }, []);
   const [colWidths, setColWidths] = useState<Record<string, number>>({});
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set());
   const [pickerOpen, setPickerOpen] = useState(false);
