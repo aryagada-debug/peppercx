@@ -1595,6 +1595,15 @@ function AddTaskDialog({
     ).slice(0, 200);
   }, [deals, dealQuery]);
 
+  const filteredAssignees = useMemo(() => {
+    const q = iSearch.trim().toLowerCase();
+    if (!q) return assignees.slice(0, 100);
+    return assignees.filter(p =>
+      p.name.toLowerCase().includes(q) || (p.designation || "").toLowerCase().includes(q)
+    ).slice(0, 100);
+  }, [assignees, iSearch]);
+  const pickedAssignee = assignees.find(p => p.id === iAssigneeId);
+
   // If a deal is picked, defer to the existing TaskFormDialog so the form
   // matches the rest of the app exactly.
   if (mode === "deal" && dealId) {
@@ -1623,15 +1632,6 @@ function AddTaskDialog({
       />
     );
   }
-
-  const filteredAssignees = useMemo(() => {
-    const q = iSearch.trim().toLowerCase();
-    if (!q) return assignees.slice(0, 100);
-    return assignees.filter(p =>
-      p.name.toLowerCase().includes(q) || (p.designation || "").toLowerCase().includes(q)
-    ).slice(0, 100);
-  }, [assignees, iSearch]);
-  const pickedAssignee = assignees.find(p => p.id === iAssigneeId);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
