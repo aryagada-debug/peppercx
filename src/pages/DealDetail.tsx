@@ -15,7 +15,7 @@ import { useStaffingMutations } from "@/hooks/queries/useStaffingMutations";
 import { useDealAccess } from "@/hooks/useDealAccess";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useNavigate } from "react-router-dom";
-import { uid } from "@/data/staffingData";
+import { normalizeRoleKey, uid } from "@/data/staffingData";
 import type { StaffingAssignment, Person, Deal, RoleCategory } from "@/data/staffingData";
 import { useDealDetail } from "@/hooks/useDealDetail";
 import { EditableRGY } from "@/components/deals/EditableRGY";
@@ -1768,7 +1768,10 @@ export default function DealDetail() {
   const fmtCurrency = useCallback((n: number | undefined) => {
     return formatMoney(Number(n) || 0, dealCurrency, { compact: true }, fxRate);
   }, [dealCurrency, fxRate]);
-  const dealAssignments = useMemo(() => assignments.filter(a => a.dealId === dealId), [assignments, dealId]);
+  const dealAssignments = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return assignments.filter(a => a.dealId === dealId && (!a.endDate || a.endDate >= today));
+  }, [assignments, dealId]);
   const dealPeople = useMemo(() => {
     const personIds = new Set(dealAssignments.map(a => a.personId));
     return people.filter(p => personIds.has(p.id));
