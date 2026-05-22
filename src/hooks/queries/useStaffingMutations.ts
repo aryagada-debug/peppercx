@@ -233,9 +233,11 @@ export function useStaffingMutations() {
         return;
       }
       // Refresh assignments + deals so DB-side BOPM/VSD recompute triggers
-      // surface in the table without a manual page reload.
-      qc.invalidateQueries({ queryKey: qk.assignments() });
-      qc.invalidateQueries({ queryKey: qk.deals() });
+      // surface in the table without a manual page reload. Use refetch
+      // (not invalidate) so the cache is overwritten with mapped data
+      // immediately — invalidate-only can leave stale renders in flight.
+      void qc.refetchQueries({ queryKey: qk.assignments(), type: "active" });
+      void qc.refetchQueries({ queryKey: qk.deals(), type: "active" });
       notifyStaffing(assignment.personId, assignment.dealId, assignment.roleKey, assignment.allocationPct);
     },
     [notifyStaffing, canEditAll, patch, qc],
