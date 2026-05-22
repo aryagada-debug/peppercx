@@ -1698,13 +1698,26 @@ export default function DealDetail() {
   const deal = useMemo(() => deals.find(d => d.id === dealId), [deals, dealId]);
   // Default the display currency to the currency the deal was entered in.
   // Runs once per deal id; user (admin) can still toggle it manually.
-  const { setCurrency, currency } = useCurrency();
+  const { setCurrency, currency, fxRate } = useCurrency();
   const currencySymbol = CURRENCY_SYMBOL[currency];
+  // Deal-resolved display currency: Global geo + Neema's deals → USD;
+  // otherwise fall back to the user's global toggle / inputCurrency.
+  const dealCurrency = useMemo(
+    () => dealDisplayCurrency(deal ?? null, currency),
+    [deal, currency],
+  );
   useEffect(() => {
+    // Only auto-switch the global currency when there's no per-deal override.
     if (!deal?.inputCurrency) return;
+    if (dealDisplayCurrency(deal, currency) !== currency && deal?.geo?.toLowerCase() !== "global") {
+      // No-op: per-deal formatter will handle it.
+    }
     setCurrency(deal.inputCurrency);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deal?.id, deal?.inputCurrency]);
+  const fmtCurrency = useCallback((n: number | undefined) => {
+    return formatMoney(Number(n) || 0, dealCurrency, { compact: true }, fxRate);
+  }, [dealCurrency, fxRate]);
   const dealAssignments = useMemo(() => assignments.filter(a => a.dealId === dealId), [assignments, dealId]);
   const dealPeople = useMemo(() => {
     const personIds = new Set(dealAssignments.map(a => a.personId));
