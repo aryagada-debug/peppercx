@@ -1699,7 +1699,12 @@ export function BopmStaffingFlatTable({
           initialCategory={quickAdd.category as RoleCategory}
           initialRoleKey={quickAdd.roleKey}
           onAdd={(assignment) => {
-            onAddAssignment({ ...assignment, roleKey: quickAdd.roleKey });
+            // Strip the dialog-only `category` field — `staffing_assignments`
+            // has no such column and a stray key was making the insert payload
+            // diverge from `StaffingAssignment`.
+            const { category: _omit, ...clean } = assignment as StaffingAssignment & { category?: unknown };
+            markTouched(quickAdd.dealId);
+            onAddAssignment({ ...clean, roleKey: quickAdd.roleKey });
             setQuickAdd(null);
           }}
         />
