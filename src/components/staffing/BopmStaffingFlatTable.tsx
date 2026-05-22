@@ -1295,9 +1295,12 @@ export function BopmStaffingFlatTable({
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground"
                 )}
-                title="Show only Active Deal, Deal Disputed, New Deal in SLA/PO"
+                title="Show only Active Deal, Deal Disputed, New Deal in SLA/PO, Deal in Renewal Process"
               >
-                Active
+                Active{" "}
+                <span className="opacity-70 ml-0.5">
+                  {deals.filter(d => ACTIVE_DEAL_STATUSES.has((d as any).dealStatus || "")).length}
+                </span>
               </button>
               <button
                 onClick={() => setActiveOnly(false)}
@@ -1309,7 +1312,7 @@ export function BopmStaffingFlatTable({
                 )}
                 title="Include closed/churned deals"
               >
-                All deals
+                All deals <span className="opacity-70 ml-0.5">{deals.length}</span>
               </button>
             </div>
             <DealTypeFilter value={dealTypeFilter} onChange={setDealTypeFilter} />
@@ -1324,29 +1327,24 @@ export function BopmStaffingFlatTable({
             </div>
             {enableBopmFilter && (
               <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5 overflow-x-auto max-w-full">
-                {([
-                  { key: "All", label: "All" },
-                  ...[...VSD_NAMES].sort((a, b) => a.localeCompare(b)).map(v => ({ key: v, label: v })),
-                  { key: "Yet to be assigned", label: "Unassigned" },
-                ]).map(v => (
-                  <button
-                    key={v.key}
-                    onClick={() => {
-                      setVsdFilter(v.key);
-                      if (v.key !== "All" && v.key !== "Yet to be assigned") {
-                        setBopmFilter("All");
-                      }
-                    }}
-                    className={cn(
-                      "px-2.5 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
-                      vsdFilter === v.key
-                        ? "bg-primary text-primary-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    {v.label}
-                  </button>
-                ))}
+                {vsdPillOptions.list.map(v => {
+                  const c = vsdPillOptions.counts.get(v.key) ?? 0;
+                  return (
+                    <button
+                      key={v.key}
+                      onClick={() => setVsdFilter(v.key)}
+                      title={`${v.label} · ${c} deal${c === 1 ? "" : "s"}`}
+                      className={cn(
+                        "px-2.5 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
+                        vsdFilter === v.key
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {v.label} <span className="opacity-70 ml-0.5">{c}</span>
+                    </button>
+                  );
+                })}
               </div>
             )}
             {enableBopmFilter && (
