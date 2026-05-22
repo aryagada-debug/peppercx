@@ -96,8 +96,21 @@ function InlineEditCell({ value, onSave, type = "text", prefix = "", placeholder
   if (editing) {
     return (
       <div className="flex items-center gap-1">
-        <Input value={local} onChange={e => setLocal(e.target.value)} type={type} className="h-6 text-xs w-full min-w-[60px]" autoFocus
-          onKeyDown={e => { if (e.key === "Enter") { onSave(local); setEditing(false); } if (e.key === "Escape") { setLocal(value); setEditing(false); } }} />
+        <Input
+          value={local}
+          onChange={e => {
+            const next = e.target.value;
+            setLocal(next);
+            if (type === "date" && next) {
+              onSave(next);
+              setEditing(false);
+            }
+          }}
+          type={type}
+          className="h-6 text-xs w-full min-w-[60px]"
+          autoFocus
+          onKeyDown={e => { if (e.key === "Enter") { onSave(local); setEditing(false); } if (e.key === "Escape") { setLocal(value); setEditing(false); } }}
+        />
         <button onClick={() => { onSave(local); setEditing(false); }} className="text-primary"><Check className="h-3 w-3" /></button>
         <button onClick={() => { setLocal(value); setEditing(false); }} className="text-muted-foreground"><X className="h-3 w-3" /></button>
       </div>
@@ -1129,16 +1142,34 @@ export default function Clients() {
                       })()}
                       {isVisible("duration") && (
                         <td className="py-2 px-3 text-xs text-muted-foreground truncate" title={`${deal.startDate || "—"} → ${deal.endDate || "—"}`}>
-                          {(() => {
-                            const sd = deal.startDate ? new Date(deal.startDate) : null;
-                            const ed = deal.endDate ? new Date(deal.endDate) : null;
-                            if (sd && ed && !isNaN(sd.getTime()) && !isNaN(ed.getTime())) {
-                              const months = Math.max(0, Math.round((ed.getTime() - sd.getTime()) / (1000 * 60 * 60 * 24 * 30.44)));
-                              return <span className="text-foreground">{months} mo</span>;
-                            }
-                            if (ed && !isNaN(ed.getTime())) return <span>ends {ed.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>;
-                            return <span className="text-muted-foreground">—</span>;
-                          })()}
+                          {isBopmViewOnly ? (
+                            (() => {
+                              const sd = deal.startDate ? new Date(deal.startDate) : null;
+                              const ed = deal.endDate ? new Date(deal.endDate) : null;
+                              if (sd && ed && !isNaN(sd.getTime()) && !isNaN(ed.getTime())) {
+                                const months = Math.max(0, Math.round((ed.getTime() - sd.getTime()) / (1000 * 60 * 60 * 24 * 30.44)));
+                                return <span className="text-foreground">{months} mo</span>;
+                              }
+                              if (ed && !isNaN(ed.getTime())) return <span>ends {ed.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>;
+                              return <span className="text-muted-foreground">—</span>;
+                            })()
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <InlineEditCell
+                                value={deal.startDate ? String(deal.startDate).slice(0, 10) : ""}
+                                onSave={v => { updateDeal(deal.id, { startDate: v || undefined } as any); toast.success("Updated"); }}
+                                type="date"
+                                placeholder="start"
+                              />
+                              <span className="text-muted-foreground">→</span>
+                              <InlineEditCell
+                                value={deal.endDate ? String(deal.endDate).slice(0, 10) : ""}
+                                onSave={v => { updateDeal(deal.id, { endDate: v || undefined } as any); toast.success("Updated"); }}
+                                type="date"
+                                placeholder="end"
+                              />
+                            </div>
+                          )}
                         </td>
                       )}
                       {isVisible("rag") && <td className="py-2 px-3 text-center"><RgyBlock letter={rgyRollup.get(deal.id)} /></td>}
