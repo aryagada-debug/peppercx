@@ -1106,7 +1106,7 @@ export default function Clients() {
                               {deal.mrr ? `${sym}${displayVal.toLocaleString()}` : "—"}
                             </span>
                           ) : (
-                            <InlineEditCell value={deal.mrr ? String(displayVal) : ""} onSave={v => handleMRRSave(deal.id, v)} type="number" prefix={sym} placeholder="—" />
+                            <InlineEditCell value={deal.mrr ? String(displayVal) : ""} onSave={v => handleMRRSave(deal.id, v, dealCcy)} type="number" prefix={sym} placeholder="—" />
                           )}
                         </td>
                         );
@@ -1122,7 +1122,7 @@ export default function Clients() {
                               {deal.totalDealValue ? `${sym}${displayVal.toLocaleString()}` : "—"}
                             </span>
                           ) : (
-                            <InlineEditCell value={deal.totalDealValue ? String(displayVal) : ""} onSave={v => handleTotalRevenueSave(deal.id, v)} type="number" prefix={sym} placeholder="—" />
+                            <InlineEditCell value={deal.totalDealValue ? String(displayVal) : ""} onSave={v => handleTotalRevenueSave(deal.id, v, dealCcy)} type="number" prefix={sym} placeholder="—" />
                           )}
                         </td>
                         );
