@@ -1489,7 +1489,18 @@ export function BopmStaffingFlatTable({
             <tbody>
               {filteredDeals.length === 0 && (
                 <tr><td colSpan={2 + Math.max(1, visibleRoleKeys.length)} className="px-3 py-6 text-center text-muted-foreground text-xs">
-                  {search ? "No deals match your search." : "No active deals to staff."}
+                  {hasActiveFilters || !activeOnly ? (
+                    <span className="inline-flex items-center gap-2">
+                      No deals match these filters.
+                      <button
+                        type="button"
+                        onClick={() => { clearAllFilters(); setActiveOnly(true); }}
+                        className="text-primary hover:underline"
+                      >Clear filters</button>
+                    </span>
+                  ) : (
+                    "No active deals to staff."
+                  )}
                 </td></tr>
               )}
               {virtualRows.topPad > 0 && (
