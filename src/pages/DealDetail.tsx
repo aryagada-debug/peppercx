@@ -1,7 +1,8 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { formatINR } from "@/lib/csvTargets";
 import { useCurrencyVersion, useCurrency } from "@/contexts/CurrencyContext";
-import { CURRENCY_SYMBOL } from "@/lib/currency";
+import { CURRENCY_SYMBOL, formatMoney } from "@/lib/currency";
+import { dealDisplayCurrency } from "@/lib/dealCurrency";
 import { useParams, Link, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Loader2, Plus, Trash2, Pencil, Check, X, Calendar, Users, Eye, Edit2, ExternalLink, AlertTriangle, ChevronDown, ChevronUp, ChevronRight, Upload, CalendarCheck, Smile, TrendingUp, MessageSquare, Sparkles, RefreshCw, Wallet, Receipt, BadgeCheck, AlertCircle, Activity, IndianRupee } from "lucide-react";
 import { getLinkLabel, getFileIcon } from "@/lib/fileLink";
@@ -51,9 +52,6 @@ import { toast } from "sonner";
 import { getWeekOptions } from "@/hooks/useMBRData";
 import type { MBREntry } from "@/hooks/useMBRData";
 
-const fmtCurrency = (n: number | undefined) => {
-  return formatINR(Number(n) || 0);
-};
 
 const fmtDate = (d: string | undefined) => {
   if (!d) return "Not set";
