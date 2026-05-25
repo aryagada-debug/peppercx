@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { formatINR } from "@/lib/csvTargets";
 import { useCurrencyVersion } from "@/contexts/CurrencyContext";
 import { Link, useNavigate } from "react-router-dom";
@@ -259,7 +259,7 @@ export default function HomePage() {
     if (!calConnected) { setCalEvents([]); return; }
     const tMin = startOfDay(new Date()).toISOString();
     const tMax = addDays(new Date(), 1).toISOString();
-    calListEvents({ timeMin: tMin, timeMax: tMax, maxResults: 50 }).then(setCalEvents);
+    calListEvents({ timeMin: tMin, timeMax: tMax, maxResults: 250 }).then(setCalEvents);
   }, [calConnected, calListEvents]);
   useEffect(() => { refreshCalendar(); }, [refreshCalendar]);
   useEffect(() => {
@@ -842,6 +842,27 @@ export default function HomePage() {
       .sort((a, b) => (a.start || "").localeCompare(b.start || ""));
   }, [calEvents]);
 
+  // Auto-scroll the today's-calendar list to the live (or next upcoming) meeting
+  const calListRef = useRef<HTMLDivElement | null>(null);
+  const activeMeetingId = useMemo(() => {
+    const live = todaysMeetings.find(ev => {
+      if (!ev.start || !ev.end) return false;
+      const s = parseISO(ev.start); const e = parseISO(ev.end);
+      return s <= now && e >= now;
+    });
+    if (live) return live.id;
+    const next = todaysMeetings.find(ev => ev.start && parseISO(ev.start) > now);
+    return next?.id || null;
+  }, [todaysMeetings, now]);
+  useEffect(() => {
+    if (!activeMeetingId || !calListRef.current) return;
+    const container = calListRef.current;
+    const el = container.querySelector<HTMLDivElement>(`[data-meeting-id="${activeMeetingId}"]`);
+    if (!el) return;
+    const top = el.offsetTop - container.clientHeight / 2 + el.clientHeight / 2;
+    container.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+  }, [activeMeetingId, todaysMeetings.length]);
+
   // Combined flags
   const allFlags = useMemo(() => {
     const f: { id: string; severity: "critical" | "warning" | "info"; type: string; title: string; sub: string; href: string }[] = [];
@@ -1154,7 +1175,8 @@ export default function HomePage() {
               ) : todaysMeetings.length === 0 ? (
                 <p className="text-xs text-muted-foreground py-4 text-center">No meetings today — a good day for deep work 🌱</p>
               ) : (
-                todaysMeetings.slice(0, 4).map(ev => {
+                <div ref={calListRef} className="max-h-[420px] overflow-y-auto pr-1 space-y-2">
+                {todaysMeetings.map(ev => {
                   const startD = parseISO(ev.start);
                   const endD = ev.end ? parseISO(ev.end) : null;
                   const minsTo = differenceInMinutes(startD, now);
@@ -1162,13 +1184,17 @@ export default function HomePage() {
                   const isSoon = minsTo > 0 && minsTo <= 30;
                   const isCustomer = (ev.attendees || []).some(a => a.email && !a.email.includes("@pepper"));
                   const barCls = isCustomer ? "bg-primary" : "bg-positive";
+                  const isLive = !!(endD && startD <= now && endD >= now);
                   return (
                     <div key={ev.id}
+                      data-meeting-id={ev.id}
                       className={cn("flex gap-3 rounded-md border border-border bg-card hover:bg-secondary/40 transition-colors p-2.5 group",
-                        isPastMeeting && "opacity-60")}>
+                        isPastMeeting && "opacity-60",
+                        isLive && "ring-1 ring-primary/60")}>
                       <button type="button" onClick={() => setCalEditing(ev)} className="flex gap-3 flex-1 min-w-0 text-left">
                       <div className="w-[68px] shrink-0">
                         {isSoon && <div className="text-[9px] font-bold text-primary mb-0.5">IN {minsTo}M</div>}
+                        {isLive && <div className="text-[9px] font-bold text-primary mb-0.5">LIVE</div>}
                         <div className="text-[11px] font-mono text-muted-foreground">
                           {isPastMeeting ? "✓ " : ""}{format(startD, "h:mm a")}
                         </div>
@@ -1213,7 +1239,8 @@ export default function HomePage() {
                       })()}
                     </div>
                   );
-                })
+                })}
+                </div>
               )}
             </CardContent>
           </Card>

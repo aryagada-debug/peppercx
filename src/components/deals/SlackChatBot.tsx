@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { getSlackMentionLabels, normalizeSlackMentionsForSend, renderSlackText, slackMentionToken } from "@/components/slack/SlackText";
+import { loadSlackChannels } from "@/lib/slackChannels";
 
 interface SlackChatBotProps {
   dealId: string;
@@ -146,13 +147,14 @@ export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
 
   const loadChannels = async () => {
     setLoadingChannels(true);
-    const { data, error } = await supabase.functions.invoke<ChannelListResponse>("slack-list-channels");
-    setLoadingChannels(false);
-    if (error || data?.error) {
-      toast.error("Failed to load Slack channels. Check SLACK_BOT_TOKEN.");
-      return;
+    try {
+      const channels = await loadSlackChannels();
+      setChannels(channels);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to load Slack channels.");
+    } finally {
+      setLoadingChannels(false);
     }
-    setChannels(data?.channels || []);
   };
 
   // Auto-load channels when picker opens
