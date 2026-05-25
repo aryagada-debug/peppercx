@@ -64,6 +64,14 @@ function RichTextEditor({ value, onChange }: { value: string; onChange: (v: stri
         contentEditable
         className="min-h-[120px] max-h-[250px] overflow-y-auto px-3 py-2 text-sm text-foreground bg-background focus:outline-none prose prose-sm max-w-none [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:text-primary [&_a]:underline"
         onInput={() => { if (editorRef.current) onChange(editorRef.current.innerHTML); }}
+        onClick={(e) => {
+          const target = e.target as HTMLElement;
+          const anchor = target.closest("a") as HTMLAnchorElement | null;
+          if (anchor && anchor.href) {
+            e.preventDefault();
+            window.open(anchor.href, anchor.target || "_blank", "noopener,noreferrer");
+          }
+        }}
       />
     </div>
   );

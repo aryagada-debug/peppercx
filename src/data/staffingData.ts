@@ -87,16 +87,15 @@ export interface StaffingAssignment {
 /**
  * Returns true when a staffing assignment has an end_date in the past
  * (i.e. the person is no longer actively staffed on this deal).
- * Active totals/capacity should exclude these; UI keeps them visible
- * but ghosted so VSDs/BOPMs can see historical staffing if a deal is later extended.
+ *
+ * NOTE: Per product decision, staffing assignments are NEVER auto-expired by
+ * a past end_date. Users stay on accounts until explicitly removed in the app.
+ * This prevents deals from appearing "unassigned" when end dates lapse but
+ * the team is still actively working on them. Kept as a function so callers
+ * compile, but it always returns false.
  */
-export function isAssignmentExpired(a: { endDate?: string | null } | null | undefined): boolean {
-  if (!a || !a.endDate) return false;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const end = new Date(a.endDate);
-  if (isNaN(end.getTime())) return false;
-  return end < today;
+export function isAssignmentExpired(_a: { endDate?: string | null } | null | undefined): boolean {
+  return false;
 }
 
 export interface Deal {
