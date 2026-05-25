@@ -163,10 +163,6 @@ async function runSync(triggeredBy: string) {
           account: clientName,
           sales_leader: (row[colIdx("G")] || "").trim(),
           sales_rep: (row[colIdx("H")] || "").trim(),
-          vsd: (row[colIdx("I")] || "").trim(),
-          principal_bopm: (row[colIdx("J")] || "").trim(),
-          senior_bopm: (row[colIdx("K")] || "").trim(),
-          bopm: (row[colIdx("L")] || "").trim(),
           geo: (row[colIdx("N")] || "").trim(),
           revenue_type: (row[colIdx("O")] || "").trim(),
         };
