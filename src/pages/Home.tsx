@@ -842,6 +842,27 @@ export default function HomePage() {
       .sort((a, b) => (a.start || "").localeCompare(b.start || ""));
   }, [calEvents]);
 
+  // Auto-scroll the today's-calendar list to the live (or next upcoming) meeting
+  const calListRef = useRef<HTMLDivElement | null>(null);
+  const activeMeetingId = useMemo(() => {
+    const live = todaysMeetings.find(ev => {
+      if (!ev.start || !ev.end) return false;
+      const s = parseISO(ev.start); const e = parseISO(ev.end);
+      return s <= now && e >= now;
+    });
+    if (live) return live.id;
+    const next = todaysMeetings.find(ev => ev.start && parseISO(ev.start) > now);
+    return next?.id || null;
+  }, [todaysMeetings, now]);
+  useEffect(() => {
+    if (!activeMeetingId || !calListRef.current) return;
+    const container = calListRef.current;
+    const el = container.querySelector<HTMLDivElement>(`[data-meeting-id="${activeMeetingId}"]`);
+    if (!el) return;
+    const top = el.offsetTop - container.clientHeight / 2 + el.clientHeight / 2;
+    container.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+  }, [activeMeetingId, todaysMeetings.length]);
+
   // Combined flags
   const allFlags = useMemo(() => {
     const f: { id: string; severity: "critical" | "warning" | "info"; type: string; title: string; sub: string; href: string }[] = [];
