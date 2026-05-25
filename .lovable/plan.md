@@ -1,47 +1,24 @@
-# Plan
+## Problem
 
-## 1. Make Home the default landing route
+`sheets-sync-deals` overwrites `vsd / principal_bopm / senior_bopm / bopm` on `staffing_deals` from columns I–L of the master sheet every run. The app's "Add Staffing Member" flow writes the same fields via the `sync_bopm_fields_from_assignment` trigger. Whoever runs last wins, so in-app assignments (e.g. Simran as Senior BOPM) get clobbered back to the sheet value (Karna), and `useDealAccess` then hides the deal from Simran.
 
-**File:** `src/App.tsx`
+Per your direction: the sheet is for **financials + deal metadata only**, not staffing.
 
-- Change the `"/"` protected route to redirect to `/home` (using `<Navigate to="/home" replace />`), and keep the existing dashboard reachable at a dedicated path (e.g. `/dashboard`) so nothing else breaks.
-- Update `Login.tsx` / any post-auth redirect that currently sends users to `"/"` so it explicitly targets `/home` (verify, change only if needed).
+## Changes
 
-Result: after sign-in the user lands on Home, and the URL `/` also takes them to Home.
+### 1. `supabase/functions/sheets-sync-deals/index.ts`
+Remove the four staffing columns from the deal upsert payload (lines 166–169):
+- Drop `vsd`, `principal_bopm`, `senior_bopm`, `bopm` from `dealPayload`.
+- Keep everything else (pc_code, deal_id, deal_name, account, sales_leader, sales_rep, geo, revenue_type, dates, MRR, deal values, financials) unchanged.
 
-## 2. Today's calendar — show all meetings, scrollable, auto-scroll to "now"
+Result: future syncs never touch staffing columns. `staffing_assignments` + the existing recompute trigger become the sole writer.
 
-**File:** `src/pages/Home.tsx` (the "Today's calendar" card around lines 1128–1220)
+### 2. One-shot reconcile migration
+For every existing `staffing_deals` row, re-derive `vsd / principal_bopm / senior_bopm / bopm` from currently-active `staffing_assignments` (matching role_key, `end_date IS NULL OR end_date >= CURRENT_DATE`). This fixes rows already corrupted by past syncs (incl. Simran's deals) in one pass. Where no active assignment exists for a role, leave the existing text value untouched so we don't blank out deals that were only ever populated from the sheet.
 
-Currently the card renders `todaysMeetings.slice(0, 4)` inside a normal `CardContent`, so anything past meeting #4 is hidden and there's no scroll.
-
-Changes:
-- Remove the `.slice(0, 4)` cap — render the full `todaysMeetings` list.
-- Wrap the meeting list in a fixed-height scroll container (e.g. `max-h-[420px] overflow-y-auto pr-1` on the wrapping div) so the card height stays consistent with the Smart Nudges card next to it and the list scrolls internally.
-- Tag each meeting row with `data-meeting-id={ev.id}` and a `data-live` flag when the meeting is currently in progress (`startD <= now <= endD`). If none is live, mark the next upcoming meeting as the scroll target.
-- Add a `useEffect` that runs when `todaysMeetings` or `calConnected` changes: find the live (or next upcoming) row inside the scroll container and call `el.scrollIntoView({ block: "center", behavior: "smooth" })` scoped to the container (use the ref to the container and compute scrollTop so the page itself doesn't jump).
-- Re-run the auto-scroll on a light interval (e.g. every 60s using the existing `now` tick if one exists, otherwise add a small `setInterval`) so the highlight/scroll position follows the clock through the day.
-- Keep the existing "IN xM", past-meeting opacity, Join button, and customer/internal colour bar logic untouched.
-
-Result: card shows the full day, scrolls internally, and on mount/refresh auto-centers on the meeting that is in progress (or up next), updating as time passes.
-
-## 3. Slack — "can't link 3-4 channels in a row, token expired"
-
-**Diagnosis:** The bot token doesn't actually expire (Slack bot tokens are long-lived). What happens when a user opens the channel picker on several deals back-to-back is that `slack-list-channels` re-runs `conversations.list` from scratch each time, paginating ~200 channels per page through every public + private channel. Slack's `conversations.list` is tier 2 (≈20 req/min); a few rapid opens trip `ratelimited`, and the generic error surfaces in the UI as "expired token". A secondary contributor is that the function throws a plain `Error(j.error)` so any Slack error string (`ratelimited`, `token_revoked`, etc.) ends up in the same toast.
-
-**Changes:**
-
-- `supabase/functions/slack-list-channels/index.ts`
-  - Add a simple in-memory cache keyed by token with a ~5 min TTL so repeated calls within a session reuse the same list instead of re-paginating Slack.
-  - Handle `429` responses explicitly: read `Retry-After`, return `{ error: "rate_limited", retryAfter }` with HTTP 429 instead of a 500 + opaque message.
-  - Distinguish `token_revoked` / `invalid_auth` (real token issues) from `ratelimited` in the response payload.
-
-- `src/components/deals/SlackChatBot.tsx` (and `SlackHomeBubble.tsx` if it shares the same picker)
-  - Cache the channel list on the client for the session (module-level memo or React Query) so opening the picker on multiple deals only triggers one network call.
-  - Map the new error shape to friendlier toasts: `rate_limited → "Slack is rate-limiting channel lookups, retrying in Ns"` with an auto-retry after `retryAfter`; `token_revoked / invalid_auth → "Slack connection needs to be re-authorized"`.
-
-Result: linking channels on several deals in quick succession no longer hits Slack's rate limit, and on the rare real auth failure the user gets an accurate message instead of "expired token".
+### 3. No frontend change required
+With staffing columns now authoritative from assignments, `useDealAccess`'s current name-match logic will correctly grant Simran access. (We can still harden it to also check `staffing_assignments` directly as a later defense-in-depth pass — flag for follow-up, not in this plan.)
 
 ## Out of scope
-- No redesign of the Home layout or Smart Nudges card.
-- No changes to Slack scopes / OAuth flow itself.
+- Realtime/RLS hardening from the earlier audit.
+- Backfilling deals whose staffing was *only* ever in the sheet and never reassigned in-app (those keep their current sheet-sourced names).
