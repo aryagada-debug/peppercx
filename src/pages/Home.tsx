@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { formatINR } from "@/lib/csvTargets";
 import { useCurrencyVersion } from "@/contexts/CurrencyContext";
 import { Link, useNavigate } from "react-router-dom";
@@ -259,7 +259,7 @@ export default function HomePage() {
     if (!calConnected) { setCalEvents([]); return; }
     const tMin = startOfDay(new Date()).toISOString();
     const tMax = addDays(new Date(), 1).toISOString();
-    calListEvents({ timeMin: tMin, timeMax: tMax, maxResults: 50 }).then(setCalEvents);
+    calListEvents({ timeMin: tMin, timeMax: tMax, maxResults: 250 }).then(setCalEvents);
   }, [calConnected, calListEvents]);
   useEffect(() => { refreshCalendar(); }, [refreshCalendar]);
   useEffect(() => {
