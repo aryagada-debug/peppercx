@@ -56,21 +56,44 @@ export async function invokeCalendarFunction<T = any>(
   body: unknown,
   accessToken?: string,
 ): Promise<T> {
-  // Always pull the freshest session token. Supabase auto-refreshes it on demand,
-  // so this avoids passing a captured (potentially expired) access_token from React state.
-  const { data: sessionData } = await supabase.auth.getSession();
-  const token = sessionData.session?.access_token ?? accessToken;
-  if (!token) throw new Error("auth_required");
+  const getToken = async (forceRefresh: boolean) => {
+    if (forceRefresh) {
+      const { data: refreshed } = await supabase.auth.refreshSession();
+      if (refreshed.session?.access_token) return refreshed.session.access_token;
+    }
+    const { data: sessionData } = await supabase.auth.getSession();
+    const sess = sessionData.session;
+    // If token expires within 60s, refresh proactively.
+    if (sess?.expires_at && sess.expires_at * 1000 - Date.now() < 60_000) {
+      const { data: refreshed } = await supabase.auth.refreshSession();
+      if (refreshed.session?.access_token) return refreshed.session.access_token;
+    }
+    return sess?.access_token ?? accessToken;
+  };
 
-  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${functionName}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-    },
-    body: JSON.stringify(body),
-  });
+  const doFetch = async (token: string) =>
+    fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${functionName}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      },
+      body: JSON.stringify(body),
+    });
+
+  let token = await getToken(false);
+  if (!token) throw new Error("auth_required");
+  let response = await doFetch(token);
+
+  // If unauthorized, force-refresh once and retry.
+  if (response.status === 401) {
+    const refreshedToken = await getToken(true);
+    if (refreshedToken && refreshedToken !== token) {
+      token = refreshedToken;
+      response = await doFetch(token);
+    }
+  }
 
   const text = await response.text();
   const data = text
