@@ -577,9 +577,9 @@ export default function HomePage() {
   const filteredKanbanTasks = useMemo(() => {
     const q = taskSearch.trim().toLowerCase();
     let list = myKanbanTasks;
-    if (taskFilter === "overdue") list = list.filter(t => isOverdue(t.due));
-    else if (taskFilter === "today") list = list.filter(t => isDueToday(t.due));
-    else if (taskFilter === "upcoming") list = list.filter(t => !isOverdue(t.due) && !isDueToday(t.due) && isDueWithin(t.due, 7));
+    if (taskFilter === "overdue") list = list.filter(t => isOverdue(t.endDate || null));
+    else if (taskFilter === "today") list = list.filter(t => isDueToday(t.endDate || null));
+    else if (taskFilter === "upcoming") list = list.filter(t => !isOverdue(t.endDate || null) && !isDueToday(t.endDate || null) && isDueWithin(t.endDate || null, 7));
     if (!q) return list;
     return list.filter(t => {
       const d = deals[t.dealId];
