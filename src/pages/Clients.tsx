@@ -421,7 +421,8 @@ export default function Clients() {
       const q = search.toLowerCase();
       d = d.filter(deal =>
         (deal.account || "").toLowerCase().includes(q) ||
-        (deal.dealName || "").toLowerCase().includes(q)
+        (deal.dealName || "").toLowerCase().includes(q) ||
+        String((deal as any).id || "").toLowerCase().includes(q)
       );
     }
     return d;
