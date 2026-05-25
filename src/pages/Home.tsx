@@ -209,7 +209,7 @@ export default function HomePage() {
   const [addingTask, setAddingTask] = useState(false);
   const [addTaskDealId, setAddTaskDealId] = useState<string>("");
   const [periodType, setPeriodType] = useState<"year">("year");
-  const [taskFilter, setTaskFilter] = useState<"all" | "overdue" | "today" | "upcoming">("today");
+  const [taskFilter, setTaskFilter] = useState<"all" | "overdue" | "today" | "upcoming">("all");
   // View-as filter (mirrors Clients & Deals): "me" by default; admins / VSDs
   // can pick "all" or a specific person to see other people's tasks.
   const [taskViewAs, setTaskViewAs] = useState<string>("me"); // "me" | "all" | "created" | personId
@@ -576,8 +576,12 @@ export default function HomePage() {
   const [taskSearch, setTaskSearch] = useState("");
   const filteredKanbanTasks = useMemo(() => {
     const q = taskSearch.trim().toLowerCase();
-    if (!q) return myKanbanTasks;
-    return myKanbanTasks.filter(t => {
+    let list = myKanbanTasks;
+    if (taskFilter === "overdue") list = list.filter(t => isOverdue(t.endDate || null));
+    else if (taskFilter === "today") list = list.filter(t => isDueToday(t.endDate || null));
+    else if (taskFilter === "upcoming") list = list.filter(t => !isOverdue(t.endDate || null) && !isDueToday(t.endDate || null) && isDueWithin(t.endDate || null, 7));
+    if (!q) return list;
+    return list.filter(t => {
       const d = deals[t.dealId];
       return (
         (d?.deal_name || "").toLowerCase().includes(q) ||
@@ -585,7 +589,7 @@ export default function HomePage() {
         (t.title || "").toLowerCase().includes(q)
       );
     });
-  }, [myKanbanTasks, taskSearch, deals]);
+  }, [myKanbanTasks, taskSearch, deals, taskFilter]);
 
   const handleKanbanUpdate = useCallback(async (id: string, updates: Partial<DealTask>) => {
     const todoId = fromTodoTaskId(id);
@@ -915,11 +919,14 @@ export default function HomePage() {
           </div>
           <div className="grid grid-cols-4 gap-2">
             <KpiPill label="Overdue" value={overdue.length} tone="destructive" icon={AlertTriangle}
-              onClick={() => { setTaskFilter("overdue"); document.getElementById("my-tasks-card")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} />
+              active={taskFilter === "overdue"}
+              onClick={() => { setTaskFilter(f => f === "overdue" ? "all" : "overdue"); document.getElementById("my-tasks-card")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} />
             <KpiPill label="Due Today" value={today.length} tone="warning" icon={Clock}
-              onClick={() => { setTaskFilter("today"); document.getElementById("my-tasks-card")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} />
+              active={taskFilter === "today"}
+              onClick={() => { setTaskFilter(f => f === "today" ? "all" : "today"); document.getElementById("my-tasks-card")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} />
             <KpiPill label="This Week" value={upcoming.length} tone="primary" icon={CalendarDays}
-              onClick={() => { setTaskFilter("upcoming"); document.getElementById("my-tasks-card")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} />
+              active={taskFilter === "upcoming"}
+              onClick={() => { setTaskFilter(f => f === "upcoming" ? "all" : "upcoming"); document.getElementById("my-tasks-card")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} />
             <KpiPill label="Open Flags" value={totalFlags} tone="destructive" icon={Flag}
               onClick={() => { document.getElementById("flags-card")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} />
           </div>
@@ -1556,7 +1563,7 @@ export default function HomePage() {
   );
 }
 
-function KpiPill({ label, value, tone, icon: Icon, onClick }: { label: string; value: number; tone: "destructive" | "warning" | "primary"; icon: any; onClick?: () => void }) {
+function KpiPill({ label, value, tone, icon: Icon, onClick, active }: { label: string; value: number; tone: "destructive" | "warning" | "primary"; icon: any; onClick?: () => void; active?: boolean }) {
   const toneCls =
     tone === "destructive" ? "border-destructive/30 bg-destructive/10 text-destructive"
     : tone === "warning" ? "border-warning/30 bg-warning/10 text-warning"
@@ -1565,7 +1572,8 @@ function KpiPill({ label, value, tone, icon: Icon, onClick }: { label: string; v
   return (
     <Wrap onClick={onClick} type={onClick ? "button" : undefined}
       className={cn("rounded-lg border px-3 py-2 flex items-center gap-2 text-left", toneCls,
-        onClick && "hover:brightness-105 cursor-pointer transition-all")}>
+        onClick && "hover:brightness-105 cursor-pointer transition-all",
+        active && "ring-2 ring-current ring-offset-1 ring-offset-background")}>
       <Icon className="h-4 w-4 shrink-0" />
       <div className="leading-tight">
         <div className="text-base font-semibold tabular-nums font-mono">{value}</div>
