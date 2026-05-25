@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { getSlackMentionLabels, normalizeSlackMentionsForSend, renderSlackText, slackMentionToken } from "@/components/slack/SlackText";
+import { loadSlackChannels } from "@/lib/slackChannels";
 
 interface SlackChatBotProps {
   dealId: string;
