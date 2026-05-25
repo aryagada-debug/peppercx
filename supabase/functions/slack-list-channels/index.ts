@@ -6,12 +6,25 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// In-memory cache to avoid re-paginating Slack's conversations.list on every
+// channel picker open. Slack tier-2 rate limits (~20 req/min) get hit easily
+// when a user links channels on several deals back-to-back.
+type Channel = { id: string; name: string; is_private: boolean };
+const CACHE_TTL_MS = 5 * 60 * 1000;
+let cache: { token: string; at: number; channels: Channel[] } | null = null;
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     if (!SLACK_BOT_TOKEN) throw new Error("SLACK_BOT_TOKEN not configured");
 
-    const all: Array<{ id: string; name: string; is_private: boolean }> = [];
+    if (cache && cache.token === SLACK_BOT_TOKEN && Date.now() - cache.at < CACHE_TTL_MS) {
+      return new Response(JSON.stringify({ channels: cache.channels, cached: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const all: Channel[] = [];
     let cursor = "";
     do {
       const url = new URL("https://slack.com/api/conversations.list");
@@ -20,8 +33,30 @@ Deno.serve(async (req) => {
       url.searchParams.set("exclude_archived", "true");
       if (cursor) url.searchParams.set("cursor", cursor);
       const r = await fetch(url, { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } });
+      if (r.status === 429) {
+        const retryAfter = Number(r.headers.get("retry-after") || "30");
+        return new Response(JSON.stringify({ error: "rate_limited", retryAfter }), {
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(retryAfter) },
+        });
+      }
       const j = await r.json();
-      if (!j.ok) throw new Error(j.error || "slack_error");
+      if (!j.ok) {
+        const code = j.error || "slack_error";
+        if (code === "ratelimited") {
+          return new Response(JSON.stringify({ error: "rate_limited", retryAfter: 30 }), {
+            status: 429,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        if (code === "token_revoked" || code === "invalid_auth" || code === "account_inactive") {
+          return new Response(JSON.stringify({ error: "auth_failed", slackError: code }), {
+            status: 401,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        throw new Error(code);
+      }
       for (const c of j.channels || []) {
         all.push({ id: c.id, name: c.name, is_private: !!c.is_private });
       }
@@ -29,6 +64,7 @@ Deno.serve(async (req) => {
     } while (cursor);
 
     all.sort((a, b) => a.name.localeCompare(b.name));
+    cache = { token: SLACK_BOT_TOKEN, at: Date.now(), channels: all };
     return new Response(JSON.stringify({ channels: all }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
