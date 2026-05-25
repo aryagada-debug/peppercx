@@ -897,7 +897,7 @@ export default function Clients() {
           ) : (
             <div className="relative max-w-[220px] flex-1">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <input type="text" placeholder="Search clients or deals..." value={search} onChange={e => setSearch(e.target.value)}
+              <input type="text" placeholder="Search clients, deals or deal ID..." value={search} onChange={e => setSearch(e.target.value)}
                 className="w-full h-8 pl-8 pr-2 rounded-lg bg-card border border-border text-[12px] text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all" />
             </div>
           )}
