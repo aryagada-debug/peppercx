@@ -27,7 +27,7 @@ export default function Login() {
     if (error) {
       toast.error(error.message);
     } else {
-      navigate("/");
+      navigate("/home");
     }
   };
 
@@ -42,7 +42,7 @@ export default function Login() {
       return;
     }
     if (result.redirected) return;
-    navigate("/");
+    navigate("/home");
   };
 
   return (
