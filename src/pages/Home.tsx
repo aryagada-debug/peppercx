@@ -1563,7 +1563,7 @@ export default function HomePage() {
   );
 }
 
-function KpiPill({ label, value, tone, icon: Icon, onClick }: { label: string; value: number; tone: "destructive" | "warning" | "primary"; icon: any; onClick?: () => void }) {
+function KpiPill({ label, value, tone, icon: Icon, onClick, active }: { label: string; value: number; tone: "destructive" | "warning" | "primary"; icon: any; onClick?: () => void; active?: boolean }) {
   const toneCls =
     tone === "destructive" ? "border-destructive/30 bg-destructive/10 text-destructive"
     : tone === "warning" ? "border-warning/30 bg-warning/10 text-warning"
@@ -1572,7 +1572,8 @@ function KpiPill({ label, value, tone, icon: Icon, onClick }: { label: string; v
   return (
     <Wrap onClick={onClick} type={onClick ? "button" : undefined}
       className={cn("rounded-lg border px-3 py-2 flex items-center gap-2 text-left", toneCls,
-        onClick && "hover:brightness-105 cursor-pointer transition-all")}>
+        onClick && "hover:brightness-105 cursor-pointer transition-all",
+        active && "ring-2 ring-current ring-offset-1 ring-offset-background")}>
       <Icon className="h-4 w-4 shrink-0" />
       <div className="leading-tight">
         <div className="text-base font-semibold tabular-nums font-mono">{value}</div>
