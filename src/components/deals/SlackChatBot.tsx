@@ -146,13 +146,14 @@ export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
 
   const loadChannels = async () => {
     setLoadingChannels(true);
-    const { data, error } = await supabase.functions.invoke<ChannelListResponse>("slack-list-channels");
-    setLoadingChannels(false);
-    if (error || data?.error) {
-      toast.error("Failed to load Slack channels. Check SLACK_BOT_TOKEN.");
-      return;
+    try {
+      const channels = await loadSlackChannels();
+      setChannels(channels);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to load Slack channels.");
+    } finally {
+      setLoadingChannels(false);
     }
-    setChannels(data?.channels || []);
   };
 
   // Auto-load channels when picker opens
