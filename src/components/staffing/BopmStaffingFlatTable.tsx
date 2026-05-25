@@ -668,10 +668,29 @@ export function BopmStaffingFlatTable({
   // the five canonical names silently collapsed into "Unassigned" — making
   // many deals appear to vanish when a user picked a VSD pill.
   const vsdPillOptions = useMemo(() => {
+    // Pill counts must reflect the same base filters that gate the table
+    // (Active-only toggle + Deal Type filter), otherwise the pills lie:
+    // e.g. a VSD pill says "12" but selecting it shows only 3 rows because
+    // 9 of those deals are closed/won-lost. We deliberately do NOT apply
+    // the search / BOPM / VSD filters here — pill counts should describe
+    // what would happen if the user clicked the pill, not the current
+    // already-narrowed view.
+    const now = Date.now();
+    const stickyIds = new Set(
+      Object.entries(recentlyTouched)
+        .filter(([, exp]) => exp > now)
+        .map(([id]) => id)
+    );
+    const baseDeals = deals.filter(d => {
+      if (stickyIds.has(d.id)) return true;
+      if (activeOnly && !ACTIVE_DEAL_STATUSES.has((d as any).dealStatus || "")) return false;
+      if (dealTypeFilter !== "All" && !dealMatchesType((d as any).dealType, dealTypeFilter)) return false;
+      return true;
+    });
     const counts = new Map<string, number>();
-    counts.set("All", deals.length);
+    counts.set("All", baseDeals.length);
     let unassigned = 0;
-    for (const d of deals) {
+    for (const d of baseDeals) {
       const v = vsdForDeal(d as any);
       if (!v) { unassigned++; continue; }
       counts.set(v, (counts.get(v) || 0) + 1);
@@ -690,7 +709,7 @@ export function BopmStaffingFlatTable({
         { key: "Yet to be assigned", label: "Unassigned" },
       ],
     };
-  }, [deals, vsdForDeal]);
+  }, [deals, vsdForDeal, activeOnly, dealTypeFilter, recentlyTouched]);
 
   const hasActiveFilters =
     !!search ||
