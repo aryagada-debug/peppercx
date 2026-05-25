@@ -1175,7 +1175,8 @@ export default function HomePage() {
               ) : todaysMeetings.length === 0 ? (
                 <p className="text-xs text-muted-foreground py-4 text-center">No meetings today — a good day for deep work 🌱</p>
               ) : (
-                todaysMeetings.slice(0, 4).map(ev => {
+                <div ref={calListRef} className="max-h-[420px] overflow-y-auto pr-1 space-y-2">
+                {todaysMeetings.map(ev => {
                   const startD = parseISO(ev.start);
                   const endD = ev.end ? parseISO(ev.end) : null;
                   const minsTo = differenceInMinutes(startD, now);
@@ -1183,13 +1184,17 @@ export default function HomePage() {
                   const isSoon = minsTo > 0 && minsTo <= 30;
                   const isCustomer = (ev.attendees || []).some(a => a.email && !a.email.includes("@pepper"));
                   const barCls = isCustomer ? "bg-primary" : "bg-positive";
+                  const isLive = !!(endD && startD <= now && endD >= now);
                   return (
                     <div key={ev.id}
+                      data-meeting-id={ev.id}
                       className={cn("flex gap-3 rounded-md border border-border bg-card hover:bg-secondary/40 transition-colors p-2.5 group",
-                        isPastMeeting && "opacity-60")}>
+                        isPastMeeting && "opacity-60",
+                        isLive && "ring-1 ring-primary/60")}>
                       <button type="button" onClick={() => setCalEditing(ev)} className="flex gap-3 flex-1 min-w-0 text-left">
                       <div className="w-[68px] shrink-0">
                         {isSoon && <div className="text-[9px] font-bold text-primary mb-0.5">IN {minsTo}M</div>}
+                        {isLive && <div className="text-[9px] font-bold text-primary mb-0.5">LIVE</div>}
                         <div className="text-[11px] font-mono text-muted-foreground">
                           {isPastMeeting ? "✓ " : ""}{format(startD, "h:mm a")}
                         </div>
@@ -1234,7 +1239,8 @@ export default function HomePage() {
                       })()}
                     </div>
                   );
-                })
+                })}
+                </div>
               )}
             </CardContent>
           </Card>
