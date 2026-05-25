@@ -318,6 +318,15 @@ function RichTextEditor({ value, onChange }: { value: string; onChange: (v: stri
         onInput={() => {
           if (editorRef.current) onChange(editorRef.current.innerHTML);
         }}
+        onClick={(e) => {
+          // Make links inside contentEditable clickable (default behavior swallows the click)
+          const target = e.target as HTMLElement;
+          const anchor = target.closest("a") as HTMLAnchorElement | null;
+          if (anchor && anchor.href) {
+            e.preventDefault();
+            window.open(anchor.href, anchor.target || "_blank", "noopener,noreferrer");
+          }
+        }}
       />
     </div>
   );
