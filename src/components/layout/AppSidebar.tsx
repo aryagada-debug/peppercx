@@ -18,14 +18,11 @@ const routePrefetch: Record<string, () => Promise<unknown>> = {
   "/": () => import("@/pages/Index"),
   "/clients": () => import("@/pages/Clients"),
   "/staffing": () => import("@/pages/Staffing"),
-  "/revenue": () => import("@/pages/Revenue"),
   "/targets": () => import("@/pages/Targets"),
   "/central-cx": () => import("@/pages/CentralCx"),
   "/rgy-health": () => import("@/pages/RGYHealth"),
   "/mbr-tracker": () => import("@/pages/MBRTracker"),
-  "/slack-health": () => import("@/pages/SlackHealth"),
   "/deal-desk": () => import("@/pages/DealDesk"),
-  "/seo-staffing": () => import("@/pages/SEOStaffing"),
   "/gm2-calculator": () => import("@/pages/GM2Calculator"),
   "/settings": () => import("@/pages/Settings"),
   "/trash": () => import("@/pages/Trash"),
@@ -52,7 +49,6 @@ const navSections = [
     label: "Operations",
     items: [
       { to: "/staffing", icon: UserCheck, label: "Staffing & Capacity", routeKey: "staffing" },
-      { to: "/revenue", icon: DollarSign, label: "Revenue", routeKey: "revenue" },
       { to: "/targets", icon: Target, label: "Targets", routeKey: "targets" },
       { to: "/central-cx", icon: ShieldCheck, label: "Central Cx", routeKey: "central-cx" },
     ],
@@ -62,14 +58,12 @@ const navSections = [
     items: [
       { to: "/rgy-health", icon: Activity, label: "RGY Health", routeKey: "rgy-health" },
       { to: "/mbr-tracker", icon: FileText, label: "MBR Tracker", routeKey: "mbr-tracker" },
-      { to: "/slack-health", icon: MessageSquare, label: "Slack Health", routeKey: "slack-health" },
     ],
   },
   {
     label: "Tools",
     items: [
       { to: "/deal-desk", icon: BarChart3, label: "Deal Desk", routeKey: "deal-desk" },
-      { to: "/seo-staffing", icon: Users, label: "SEO Staffing", routeKey: "seo-staffing" },
       { to: "/gm2-calculator", icon: Calculator, label: "GM2 Calculator", routeKey: "gm2-calculator" },
     ],
   },
