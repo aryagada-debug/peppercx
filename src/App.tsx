@@ -26,14 +26,11 @@ const Home = lazy(() => import("./pages/Home"));
 const Clients = lazy(() => import("./pages/Clients"));
 const DealDetail = lazy(() => import("./pages/DealDetail"));
 const Staffing = lazy(() => import("./pages/Staffing"));
-const Revenue = lazy(() => import("./pages/Revenue"));
 const Targets = lazy(() => import("./pages/Targets"));
 const RGYHealth = lazy(() => import("./pages/RGYHealth"));
 const MBRTracker = lazy(() => import("./pages/MBRTracker"));
-const SlackHealth = lazy(() => import("./pages/SlackHealth"));
 const Onboarding = lazy(() => import("./pages/Onboarding"));
 const DealDesk = lazy(() => import("./pages/DealDesk"));
-const SEOStaffing = lazy(() => import("./pages/SEOStaffing"));
 const GM2Calculator = lazy(() => import("./pages/GM2Calculator"));
 const SettingsPage = lazy(() => import("./pages/Settings"));
 const CentralCx = lazy(() => import("./pages/CentralCx"));
@@ -89,14 +86,11 @@ const App = () => (
             <Route path="/deals" element={<Navigate to="/clients" replace />} />
             <Route path="/deals/:dealId" element={<ProtectedRoute routeKey="clients"><DealDetail /></ProtectedRoute>} />
             <Route path="/staffing" element={<ProtectedRoute routeKey="staffing"><Staffing /></ProtectedRoute>} />
-            <Route path="/revenue" element={<ProtectedRoute routeKey="revenue"><Revenue /></ProtectedRoute>} />
             <Route path="/targets" element={<ProtectedRoute routeKey="targets"><Targets /></ProtectedRoute>} />
             <Route path="/rgy-health" element={<ProtectedRoute routeKey="rgy-health"><RGYHealth /></ProtectedRoute>} />
             <Route path="/mbr-tracker" element={<ProtectedRoute routeKey="mbr-tracker"><MBRTracker /></ProtectedRoute>} />
-            <Route path="/slack-health" element={<ProtectedRoute routeKey="slack-health"><SlackHealth /></ProtectedRoute>} />
             <Route path="/onboarding" element={<ProtectedRoute routeKey="onboarding"><Onboarding /></ProtectedRoute>} />
             <Route path="/deal-desk" element={<ProtectedRoute routeKey="deal-desk"><DealDesk /></ProtectedRoute>} />
-            <Route path="/seo-staffing" element={<ProtectedRoute routeKey="seo-staffing"><SEOStaffing /></ProtectedRoute>} />
             <Route path="/gm2-calculator" element={<ProtectedRoute routeKey="gm2-calculator"><GM2Calculator /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute routeKey="settings"><SettingsPage /></ProtectedRoute>} />
             <Route path="/central-cx" element={<ProtectedRoute routeKey="central-cx"><CentralCx /></ProtectedRoute>} />

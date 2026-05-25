@@ -265,8 +265,6 @@ function LegacyDashboard() {
         text: `${redCount} deal${redCount === 1 ? "" : "s"} have a Red RGY status`, actionLabel: "View →", actionHref: "/rgy-health" });
       if (overdueMbrCount > 0) builtAlerts.push({ id: "a2", icon: Clock, severity: "warning",
         text: `${overdueMbrCount} MBR${overdueMbrCount === 1 ? "" : "s"} overdue (>35 days)`, actionLabel: "View →", actionHref: "/mbr-tracker" });
-      if (inactiveChannels > 0) builtAlerts.push({ id: "a3", icon: MessageSquare, severity: "warning",
-        text: `${inactiveChannels} Slack channel${inactiveChannels === 1 ? "" : "s"} inactive in last 7 days`, actionLabel: "View →", actionHref: "/slack-health" });
       if (unstaffedCount > 0) builtAlerts.push({ id: "a4", icon: UserMinus, severity: "destructive",
         text: `${unstaffedCount} active deal${unstaffedCount === 1 ? "" : "s"} unstaffed`, actionLabel: "View →", actionHref: "/staffing" });
       setAlerts(builtAlerts);
