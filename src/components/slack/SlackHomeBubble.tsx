@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { SlackDmPanel } from "./SlackDmPanel";
 import { getSlackMentionLabels, normalizeSlackMentionsForSend, renderSlackText, slackMentionToken } from "./SlackText";
+import { loadSlackChannels } from "@/lib/slackChannels";
 
 interface Channel { id: string; name: string; is_private: boolean }
 interface ChannelMsg { id: string; user_name: string; text: string; source: string; created_at: string; slack_ts: string; dm_thread_id?: string | null }
@@ -96,13 +97,13 @@ function ChannelChat() {
 
   const loadChannels = async () => {
     setLoadingChannels(true);
-    const { data, error } = await supabase.functions.invoke<ChannelListResponse>("slack-list-channels");
-    setLoadingChannels(false);
-    if (error || data?.error) {
-      toast.error("Failed to load Slack channels");
-      return;
+    try {
+      setChannels(await loadSlackChannels());
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to load Slack channels");
+    } finally {
+      setLoadingChannels(false);
     }
-    setChannels(data?.channels || []);
   };
 
   useEffect(() => {
