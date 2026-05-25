@@ -182,15 +182,12 @@ export function useHomeTasksQuery(opts: {
         });
       }
 
-      let allPeople: PersonLite[] = [];
-      if (isAdmin || isVsdViewer) {
-        const { data: peopleRows } = await supabase
-          .from("staffing_people")
-          .select("id, name, designation, tbh")
-          .eq("tbh", false)
-          .eq("leaving", false);
-        allPeople = (peopleRows as PersonLite[]) || [];
-      }
+      const { data: peopleRows } = await supabase
+        .from("staffing_people")
+        .select("id, name, designation, tbh")
+        .eq("tbh", false)
+        .eq("leaving", false);
+      const allPeople = (peopleRows as PersonLite[]) || [];
 
       return {
         dealTasks: dt, cxTasks: ct, deals, dealAssignmentsMap, allPeople,
