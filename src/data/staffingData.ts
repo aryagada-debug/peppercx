@@ -302,34 +302,78 @@ export const DEPARTMENT_LABELS: Record<string, string> = {
 };
 
 const ROLE_KEY_ALIASES: Record<string, string> = {
-  "vsd": "vsd",
-  "principal bopm": "principal_bopm",
-  "principal_bopm": "principal_bopm",
-  "senior bopm": "senior_bopm",
-  "sr bopm": "senior_bopm",
-  "senior_bopm": "senior_bopm",
-  "bopm": "bopm",
-  "managing editor": "managing_editor",
-  "managing_editor": "managing_editor",
-  "content lead": "content_lead",
-  "content_lead": "content_lead",
-  "senior editor": "senior_editor",
-  "senior_editor": "senior_editor",
-  "seo leader": "seo_leader",
-  "seo_leader": "seo_leader",
-  "group head": "seo_group_head",
-  "seo group head": "seo_group_head",
-  "seo_group_head": "seo_group_head",
-  "sr. seo manager": "sr_seo_manager",
-  "senior seo manager": "sr_seo_manager",
-  "sr_seo_manager": "sr_seo_manager",
-  "seo manager": "seo_manager",
-  "seo_manager": "seo_manager",
-  "sr. seo analyst": "sr_seo_analyst",
-  "senior seo analyst": "sr_seo_analyst",
-  "sr_seo_analyst": "sr_seo_analyst",
-  "seo analyst": "seo_analyst",
-  "seo_analyst": "seo_analyst",
+  // New taxonomy keys pass through.
+  "rt_vsd": "rt_vsd",
+  "rt_group_bopm": "rt_group_bopm",
+  "rt_senior_bopm": "rt_senior_bopm",
+  "rt_bopm": "rt_bopm",
+  "rt_content_capability_leader": "rt_content_capability_leader",
+  "rt_content_lead": "rt_content_lead",
+  "rt_content_editor": "rt_content_editor",
+  "rt_seo_capability_leader": "rt_seo_capability_leader",
+  "rt_seo_growth_lead": "rt_seo_growth_lead",
+  "rt_seo_operations": "rt_seo_operations",
+  "rt_cd_scd_strategy": "rt_cd_scd_strategy",
+  "rt_acd_agh_strategy": "rt_acd_agh_strategy",
+  "rt_creative_strategist": "rt_creative_strategist",
+  "rt_cd_scd_copy": "rt_cd_scd_copy",
+  "rt_acd_agh_copy": "rt_acd_agh_copy",
+  "rt_copywriter": "rt_copywriter",
+  "rt_video_capability_leader": "rt_video_capability_leader",
+  "rt_ad_creative_producer": "rt_ad_creative_producer",
+  "rt_creative_producer": "rt_creative_producer",
+  "rt_video_editor": "rt_video_editor",
+  "rt_cd_scd_design": "rt_cd_scd_design",
+  "rt_acd_agh_design": "rt_acd_agh_design",
+  "rt_graphic_designer": "rt_graphic_designer",
+  // Legacy → new mapping (so any imported old role_key normalises to the new key).
+  "vsd": "rt_vsd",
+  "principal bopm": "rt_group_bopm",
+  "principal_bopm": "rt_group_bopm",
+  "group bopm": "rt_group_bopm",
+  "group_bopm": "rt_group_bopm",
+  "senior bopm": "rt_senior_bopm",
+  "sr bopm": "rt_senior_bopm",
+  "senior_bopm": "rt_senior_bopm",
+  "bopm": "rt_bopm",
+  "managing editor": "rt_content_capability_leader",
+  "managing_editor": "rt_content_capability_leader",
+  "content lead": "rt_content_lead",
+  "content_lead": "rt_content_lead",
+  "senior editor": "rt_content_editor",
+  "senior_editor": "rt_content_editor",
+  "seo leader": "rt_seo_capability_leader",
+  "seo_leader": "rt_seo_capability_leader",
+  "group head": "rt_seo_growth_lead",
+  "seo group head": "rt_seo_growth_lead",
+  "seo_group_head": "rt_seo_growth_lead",
+  "sr. seo manager": "rt_seo_operations",
+  "senior seo manager": "rt_seo_operations",
+  "sr_seo_manager": "rt_seo_operations",
+  "seo manager": "rt_seo_operations",
+  "seo_manager": "rt_seo_operations",
+  "sr. seo analyst": "rt_seo_operations",
+  "senior seo analyst": "rt_seo_operations",
+  "sr_seo_analyst": "rt_seo_operations",
+  "seo analyst": "rt_seo_operations",
+  "seo_analyst": "rt_seo_operations",
+  "strategy_cd": "rt_cd_scd_strategy",
+  "strategy_acd": "rt_acd_agh_strategy",
+  "strategy_sr": "rt_creative_strategist",
+  "cd_copy": "rt_cd_scd_copy",
+  "acd_copy": "rt_acd_agh_copy",
+  "sr_copywriter": "rt_copywriter",
+  "jr_copywriter": "rt_copywriter",
+  "sr_cd_art": "rt_cd_scd_design",
+  "acd_art": "rt_acd_agh_design",
+  "art_director": "rt_graphic_designer",
+  "sr_designer": "rt_graphic_designer",
+  "jr_designer": "rt_graphic_designer",
+  "production_head": "rt_video_capability_leader",
+  "ad_video_pm": "rt_ad_creative_producer",
+  "video_pm": "rt_creative_producer",
+  "video_editor_1": "rt_video_editor",
+  "video_editor_2": "rt_video_editor",
 };
 
 export const normalizeRoleKey = (roleKey: string | undefined | null) => {
@@ -339,14 +383,14 @@ export const normalizeRoleKey = (roleKey: string | undefined | null) => {
 };
 
 export const ROLE_CATEGORIES: RoleCategory[] = [
-  "Operations", "Content", "Content Strategy", "SEO", "Creative Strategy", "Creative Copy", "Creative Art", "Video", "Performance & Growth", "Other"
+  "Delivery Ops", "Content", "SEO", "Creative Strategy", "Creative Copy", "Creative Video", "Creative Design"
 ];
 
 export const BU_ROLE_CATEGORIES: Record<string, RoleCategory[]> = {
-  "Pepper Creative": ["Operations", "Creative Strategy", "Creative Copy", "Creative Art", "Video"],
-  "Pepper SEO/GEO + Content": ["Operations", "Content", "SEO"],
+  "Pepper Creative": ["Delivery Ops", "Creative Strategy", "Creative Copy", "Creative Video", "Creative Design"],
+  "Pepper SEO/GEO + Content": ["Delivery Ops", "Content", "SEO"],
   "Integrated": ROLE_CATEGORIES,
-  "Content Studios": ["Operations", "Content", "Video"],
+  "Content Studios": ["Delivery Ops", "Content", "Creative Video"],
   "Others": ROLE_CATEGORIES,
 };
 
@@ -355,17 +399,29 @@ export const getBUCategories = (bu: string): RoleCategory[] => {
 };
 
 export const ROLE_TO_PEOPLE_FILTER: Record<string, string[]> = {
-  vsd: ["VSD"], principal_bopm: ["Principal BOPM"], senior_bopm: ["Senior BOPM"], bopm: ["BOPM"],
-  managing_editor: ["Managing Editor"], content_lead: ["Content Lead"], senior_editor: ["Senior Editor"],
-  seo_leader: ["SEO Leader"], seo_group_head: ["Group Head"], sr_seo_manager: ["Sr. SEO Manager"],
-  seo_manager: ["SEO Manager"], sr_seo_analyst: ["Sr. SEO Analyst"], seo_analyst: ["SEO Analyst"],
-  strategy_cd: ["Strategy CD"], strategy_acd: ["Strategy ACD"], strategy_sr: ["Sr. Strategist"],
-  cd_copy: ["CD - Copy"], acd_copy: ["ACD - Copy"], sr_copywriter: ["Sr. Copywriter"], jr_copywriter: ["Jr. Copywriter"],
-  sr_cd_art: ["Sr. CD - Art"], acd_art: ["ACD - Art"], art_director: ["Art Director"],
-  sr_designer: ["Sr. Designer"], jr_designer: ["Jr. Designer"],
-  production_head: ["Production Head"], ad_video_pm: ["AD - Video PM"], video_pm: ["Video PM/ACP"],
-  video_editor_1: ["Video Editor 1"], video_editor_2: ["Video Editor 2"],
-  influencer: ["Influencer Team"], perf_growth: ["Performance & Growth"],
+  rt_vsd: ["VSD"],
+  rt_group_bopm: ["Group BOPM"],
+  rt_senior_bopm: ["Senior BOPM"],
+  rt_bopm: ["BOPM"],
+  rt_content_capability_leader: ["Content Capability Leader"],
+  rt_content_lead: ["Content Lead"],
+  rt_content_editor: ["Content Editor"],
+  rt_seo_capability_leader: ["SEO Capability Leader"],
+  rt_seo_growth_lead: ["SEO Growth Lead"],
+  rt_seo_operations: ["SEO Operations"],
+  rt_cd_scd_strategy: ["CD/SCD - Strategy"],
+  rt_acd_agh_strategy: ["ACD/AGH - Strategy"],
+  rt_creative_strategist: ["Creative Strategist"],
+  rt_cd_scd_copy: ["CD/SCD - Copy"],
+  rt_acd_agh_copy: ["ACD/AGH - Copy"],
+  rt_copywriter: ["Copywriter"],
+  rt_video_capability_leader: ["Video Capability Leader"],
+  rt_ad_creative_producer: ["AD - Creative Producer"],
+  rt_creative_producer: ["Creative Producer"],
+  rt_video_editor: ["Video Editor"],
+  rt_cd_scd_design: ["CD/SCD - Design"],
+  rt_acd_agh_design: ["ACD/AGH - Design"],
+  rt_graphic_designer: ["Graphic Designer"],
 };
 
 /**
@@ -376,36 +432,29 @@ export const ROLE_TO_PEOPLE_FILTER: Record<string, string[]> = {
  * Top-of-tree roles (vsd, principal_bopm, seo_leader, etc.) have no parents.
  */
 export const ROLE_SENIORITY_PARENTS: Record<string, string[]> = {
-  // Operations
-  bopm: ["senior_bopm", "principal_bopm", "vsd"],
-  senior_bopm: ["principal_bopm", "vsd"],
-  principal_bopm: ["vsd"],
+  // Delivery Ops
+  rt_bopm: ["rt_senior_bopm", "rt_group_bopm", "rt_vsd"],
+  rt_senior_bopm: ["rt_group_bopm", "rt_vsd"],
+  rt_group_bopm: ["rt_vsd"],
   // Content
-  content_lead: ["managing_editor"],
-  senior_editor: ["content_lead", "managing_editor"],
+  rt_content_lead: ["rt_content_capability_leader"],
+  rt_content_editor: ["rt_content_lead", "rt_content_capability_leader"],
   // SEO
-  seo_group_head: ["seo_leader"],
-  sr_seo_manager: ["seo_group_head", "seo_leader"],
-  seo_manager: ["sr_seo_manager", "seo_group_head", "seo_leader"],
-  sr_seo_analyst: ["seo_manager", "sr_seo_manager", "seo_group_head", "seo_leader"],
-  seo_analyst: ["seo_manager", "sr_seo_manager", "seo_group_head", "seo_leader"],
+  rt_seo_growth_lead: ["rt_seo_capability_leader"],
+  rt_seo_operations: ["rt_seo_growth_lead", "rt_seo_capability_leader"],
   // Creative Strategy
-  strategy_acd: ["strategy_cd"],
-  strategy_sr: ["strategy_acd", "strategy_cd"],
-  // Creative Copy
-  acd_copy: ["cd_copy"],
-  sr_copywriter: ["acd_copy", "cd_copy"],
-  jr_copywriter: ["sr_copywriter", "acd_copy", "cd_copy"],
-  // Creative Art
-  acd_art: ["sr_cd_art"],
-  art_director: ["acd_art", "sr_cd_art"],
-  sr_designer: ["art_director", "acd_art", "sr_cd_art"],
-  jr_designer: ["sr_designer", "art_director", "acd_art", "sr_cd_art"],
+  rt_acd_agh_strategy: ["rt_cd_scd_strategy"],
+  rt_creative_strategist: ["rt_acd_agh_strategy", "rt_cd_scd_strategy"],
+  // Copy
+  rt_acd_agh_copy: ["rt_cd_scd_copy"],
+  rt_copywriter: ["rt_acd_agh_copy", "rt_cd_scd_copy"],
   // Video
-  ad_video_pm: ["production_head"],
-  video_pm: ["ad_video_pm", "production_head"],
-  video_editor_1: ["video_pm", "ad_video_pm", "production_head"],
-  video_editor_2: ["video_pm", "ad_video_pm", "production_head"],
+  rt_ad_creative_producer: ["rt_video_capability_leader"],
+  rt_creative_producer: ["rt_ad_creative_producer", "rt_video_capability_leader"],
+  rt_video_editor: ["rt_creative_producer", "rt_ad_creative_producer", "rt_video_capability_leader"],
+  // Design
+  rt_acd_agh_design: ["rt_cd_scd_design"],
+  rt_graphic_designer: ["rt_acd_agh_design", "rt_cd_scd_design"],
 };
 
 /**
