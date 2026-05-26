@@ -491,7 +491,8 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
             <col style={{ width: widths.email }} />
             <col style={{ width: widths.reportsTo }} />
             <col style={{ width: widths.revType }} />
-            <col style={{ width: widths.utilisation }} />
+            <col style={{ width: widths.timeUtil }} />
+            <col style={{ width: widths.revUtil }} />
             <col style={{ width: 40 }} />
           </colgroup>
           <thead className="bg-secondary/40 text-muted-foreground">
@@ -502,8 +503,9 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                   ["designation", "Designation"],
                   ["email", "Email"],
                   ["reportsTo", "Reports to"],
-                  ["revType", "Rev type"],
-                  ["utilisation", "Utilisation"],
+                  ["revType", "Revenue capacity"],
+                  ["timeUtil", "Time utilisation"],
+                  ["revUtil", "Revenue utilisation"],
                 ] as [ColKey, string][]
               ).map(([k, label]) => (
                 <th
