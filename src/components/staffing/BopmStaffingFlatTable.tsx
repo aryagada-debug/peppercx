@@ -28,6 +28,10 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useClients } from "@/hooks/useClients";
 import { toast } from "@/hooks/use-toast";
 import { useStaffingMutations } from "@/hooks/queries/useStaffingMutations";
+import { DealApplicabilityPopover } from "./DealApplicabilityPopover";
+import { useDealApplicabilityQuery } from "@/hooks/queries/useDealApplicabilityQuery";
+import { buildApplicabilityIndex, isApplicableFromIndex } from "@/lib/applicability";
+import { ROLE_TYPE_TO_DEPT } from "@/data/staffingData";
 import {
   AlertDialog,
   AlertDialogAction,
