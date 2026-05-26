@@ -3,6 +3,8 @@ import { ArrowLeft, ChevronDown, ChevronUp, AlertTriangle, Search } from "lucide
 import { cn } from "@/lib/utils";
 import { normalizeRoleKey, uid } from "@/data/staffingData";
 import type { StaffingAssignment, Person, Deal, RoleCategory } from "@/data/staffingData";
+import { useTaxonomyQuery } from "@/hooks/queries/useTaxonomyQuery";
+import { resolvePersonRoleTypeId, countAvailableForRole } from "@/lib/peopleGrouping";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -51,6 +53,7 @@ export function AddStaffingMemberDialog({
   const requiresApproval = !canEditAll;
   const canViewCurrentEngagements = canEditAll;
   const isEditMode = !!editingAssignmentId;
+  // Steps: 1=Department, 2=Role Type, 3=Person + Allocation
   const getInitialStep = (): 1 | 2 | 3 => {
     if (initialPersonName) return 3;
     if (initialCategory) return 2;
@@ -59,6 +62,8 @@ export function AddStaffingMemberDialog({
 
   const [step, setStep] = useState<1 | 2 | 3>(getInitialStep());
   const [selectedCategory, setSelectedCategory] = useState<RoleCategory | null>(initialCategory || null);
+  const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null);
+  const [selectedRoleTypeId, setSelectedRoleTypeId] = useState<string | null>(null);
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(() => {
     if (initialPersonName) return people.find(p => p.name === initialPersonName) || null;
     return null;
@@ -83,13 +88,18 @@ export function AddStaffingMemberDialog({
   });
   const [assignmentType, setAssignmentType] = useState<"Internal" | "External" | "Freelance">("Internal");
   const [expandedOpsGroup, setExpandedOpsGroup] = useState<string | null>(null);
+  const { data: taxonomy } = useTaxonomyQuery();
   const alreadyAssigned = useMemo(() => new Set(assignments.filter(a => a.dealId === dealId).map(a => a.personId)), [assignments, dealId]);
   const [searchQuery, setSearchQuery] = useState("");
 
+  // People filtered by the selected Role Type (preferred) or legacy category.
   const filteredPeople = useMemo(() => {
-    if (!selectedCategory) return [];
-    return people.filter(p => p.roleCategory === selectedCategory);
-  }, [people, selectedCategory]);
+    if (selectedRoleTypeId) {
+      return people.filter(p => resolvePersonRoleTypeId(p, taxonomy) === selectedRoleTypeId);
+    }
+    if (selectedCategory) return people.filter(p => p.roleCategory === selectedCategory);
+    return [];
+  }, [people, selectedRoleTypeId, selectedCategory, taxonomy]);
 
   // Global search across ALL people, regardless of selected category.
   // Activates whenever the user types in the search box on step 2.
@@ -117,6 +127,8 @@ export function AddStaffingMemberDialog({
     const initialPct = initialAllocationPct ?? 10;
     setStep(initialCategory ? 2 : 1);
     setSelectedCategory(initialCategory || null);
+    setSelectedDeptId(null);
+    setSelectedRoleTypeId(null);
     setSelectedPerson(null);
     setAllocationPct(initialPct);
     setAllocationInput(formatAllocationPct(initialPct));
@@ -215,13 +227,17 @@ export function AddStaffingMemberDialog({
       <AlertDialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
         <AlertDialogHeader>
           <AlertDialogTitle>
-            {step === 1 && "Select Team"}
-            {step === 2 && `Select Member — ${selectedCategory}`}
+            {step === 1 && "Select Department"}
+            {step === 2 && (selectedDeptId
+              ? `Select Role Type — ${taxonomy?.departmentById.get(selectedDeptId)?.name ?? ""}`
+              : `Select Member — ${selectedCategory}`)}
             {step === 3 && `${isEditMode ? "Update Assignment" : "Set Allocation"} — ${selectedPerson?.name}`}
           </AlertDialogTitle>
           <AlertDialogDescription>
-            {step === 1 && "Choose a team/capability to browse available members."}
-            {step === 2 && "Pick a team member to assign. Click the arrow to see their current deals."}
+            {step === 1 && "Choose a department to drill into its role types."}
+            {step === 2 && (selectedDeptId
+              ? "Pick a role type to see available members."
+              : "Pick a team member to assign. Click the arrow to see their current deals.")}
             {step === 3 && "Set the allocation percentage for this deal."}
           </AlertDialogDescription>
         </AlertDialogHeader>
@@ -229,23 +245,53 @@ export function AddStaffingMemberDialog({
         <div className="flex-1 overflow-y-auto py-2 space-y-2">
           {step === 1 && (
             <div className="grid grid-cols-2 gap-2">
-              {ROLE_CATEGORIES.map(cat => {
-                const count = people.filter(p => p.roleCategory === cat).length;
+              {(taxonomy?.departments ?? []).map(dept => {
+                const roles = taxonomy?.roleTypesByDept.get(dept.id) || [];
+                const count = people.filter(p =>
+                  !p.tbh && !p.leaving && roles.some(r => r.id === resolvePersonRoleTypeId(p, taxonomy))
+                ).length;
                 return (
                   <button
-                    key={cat}
-                    onClick={() => { setSelectedCategory(cat); setStep(2); }}
+                    key={dept.id}
+                    onClick={() => { setSelectedDeptId(dept.id); setSelectedRoleTypeId(null); setSelectedCategory(null); setStep(2); }}
                     className="rounded-lg border border-border p-3 text-left hover:bg-accent/20 transition-colors"
                   >
-                    <span className="text-sm font-medium text-foreground">{cat}</span>
-                    <span className="block text-xs text-muted-foreground mt-0.5">{count} available</span>
+                    <span className="text-sm font-medium text-foreground">{dept.name}</span>
+                    <span className="block text-xs text-muted-foreground mt-0.5">
+                      {roles.length} role type{roles.length === 1 ? "" : "s"} · {count} available
+                    </span>
                   </button>
                 );
               })}
             </div>
           )}
 
-          {step === 2 && (
+          {step === 2 && selectedDeptId && !selectedRoleTypeId && (
+            <div className="grid grid-cols-2 gap-2">
+              {(taxonomy?.roleTypesByDept.get(selectedDeptId) || []).map(rt => {
+                const count = countAvailableForRole(people, rt.id, taxonomy);
+                return (
+                  <button
+                    key={rt.id}
+                    onClick={() => { setSelectedRoleTypeId(rt.id); }}
+                    className="rounded-lg border border-border p-3 text-left hover:bg-accent/20 transition-colors"
+                  >
+                    <span className="text-sm font-medium text-foreground">{rt.name}</span>
+                    <span className="block text-xs text-muted-foreground mt-0.5">{count} available</span>
+                  </button>
+                );
+              })}
+              <Button
+                variant="ghost" size="sm"
+                onClick={() => { setSelectedDeptId(null); setStep(1); }}
+                className="col-span-2 justify-start"
+              >
+                <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back to departments
+              </Button>
+            </div>
+          )}
+
+          {step === 2 && (selectedRoleTypeId || (!selectedDeptId && selectedCategory)) && (
             <>
               <div className="relative mb-2">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -416,8 +462,16 @@ export function AddStaffingMemberDialog({
                   );
                 })
               )}
-              <Button variant="ghost" size="sm" onClick={() => { setSelectedCategory(null); setStep(1); setExpandedOpsGroup(null); }} className="mt-2">
-                <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back to teams
+              <Button
+                variant="ghost" size="sm"
+                onClick={() => {
+                  if (selectedRoleTypeId) { setSelectedRoleTypeId(null); }
+                  else { setSelectedCategory(null); setStep(1); }
+                  setExpandedOpsGroup(null);
+                }}
+                className="mt-2"
+              >
+                <ArrowLeft className="h-3.5 w-3.5 mr-1" /> {selectedRoleTypeId ? "Back to role types" : "Back to departments"}
               </Button>
             </>
           )}
