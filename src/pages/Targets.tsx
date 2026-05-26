@@ -149,7 +149,7 @@ function TargetCell({ value, prevValue, onSave, disabled, prevLabel, asTd = true
   );
 }
 
-export default function Targets() {
+export default function Targets({ embedded = false }: { embedded?: boolean } = {}) {
   useCurrencyVersion();
   const { isAdmin, role } = useUserRole();
   const access = useDealAccess();
