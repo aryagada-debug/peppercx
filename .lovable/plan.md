@@ -1,44 +1,46 @@
-## Goal
-Add the 115 people from the pasted list to `staffing_people`, then create matching app users — without overwriting any record that already exists.
+# Restrict app to deals listed in `Deal ID (2).xlsx`
 
-## Step 1 — Upsert into `staffing_people` (insert-only)
+## What's in the sheet
+- 171 unique deal IDs across two formats:
+  - Numeric (e.g. `100853`, `101104`) — match `staffing_deals.deal_id`
+  - Temp deal IDs (e.g. `TT12031`, `TT04116`) — also stored in `staffing_deals.deal_id`
+- Of these, **116 currently exist** in `staffing_deals`; the remaining 55 are not present yet (likely new/temp deals not yet synced — they will simply stay absent, no action needed).
 
-Build one `INSERT … ON CONFLICT (id) DO NOTHING` for all 115 rows. For each row we set:
+## Current DB state
+- `staffing_deals`: 936 rows
+- Target after cleanup: **116 rows** (all rows whose `deal_id` is in the sheet)
+- 820 deals will be removed, along with their child data via the existing `softDelete` cascade registry.
 
-| Column | Source |
-|---|---|
-| `id` | P-code (e.g. `P001`) |
-| `name` | Full name |
-| `email` | Email |
-| `department` | Department string as provided (`Leadership`, `Delivery Ops and CS`, `Capability - Quality Team`, `Capability - SEO Team`, `Capability - Digital Strategy`, `Capability - Creative Team`, `Capability - Video Production Team`, `Central COE & Planning`, `SEO Capability`) |
-| `reporting_manager` | Name string as provided (blank/`-` → `''`) |
-| `designation` | Role text as provided (blank when empty) |
-| `role_category` | Derived from department: `SEO` for SEO teams, `Creative` for Creative/Video, `Quality` for Quality, `Strategy` for Digital Strategy, `BOPM` for Delivery Ops and CS, `Leadership` for Leadership, `Central` for Central COE |
-| `role_title` | Same as `designation` (kept consistent with how existing rows are populated) |
-| `leaving` | `false` |
-| `tbh` | `false` |
-| `region` | `'India'` (default — matches existing rows) |
+## What gets removed (cascading per `src/lib/trash.ts` TRASH_REGISTRY)
+For every removed deal, child rows are also snapshotted to `trash_items` and deleted from:
+- `staffing_assignments`
+- `deal_financials`
+- `deal_sow_items`
+- `deal_tasks`
+- `deal_onboarding_steps`
+- `deal_rgy_weekly`
+- `deal_revenue_monthly`
+- `deal_targets_monthly`
+- `mbr_entries`
+- `deal_stakeholders`
 
-`ON CONFLICT (id) DO NOTHING` means every P-code already in the table (≈half the list, per my spot-check) is left completely untouched — no department, manager, or email is overwritten.
+This is the same path the Clients & Deals UI uses for deletion, so the Staffing, Capacity, MBR, Financials, and Dashboard views all stay consistent.
 
-## Step 2 — Provision auth users
+## Why soft-delete (trash) instead of hard-delete
+The Google Sheet sync edge function (`sheets-sync-deals`) reads `trash_items` and **skips re-inserting** any deal whose id is in the trash. Hard-deleting would let the next sync re-create them. Trash-routing both prevents re-import and lets an admin restore from the Trash page within 7 days if needed.
 
-Call the existing `admin-user-mgmt` edge function with `{ action: "bulk_provision", send_invite: true }` (the same call the Users tab makes from the "Provision missing users" button). It will:
+## Execution
 
-- Walk `staffing_people` and create an `auth.users` row for every email that doesn't already exist.
-- Fire `handle_new_user`, which links the new auth user to its staffing record, creates a `profiles` row, and inserts a default `user` entry in `user_roles`.
-- Skip people whose email already maps to an auth user (no duplicate accounts).
+1. Build the keep-set of 171 `deal_id` values in SQL.
+2. For each `staffing_deals` row whose `deal_id` is NOT in the keep-set:
+   - Insert a row into `trash_items` with `entity_type='staffing_deal'`, a snapshot of the parent row and all child rows from the 10 child tables above, `deleted_by_name='System (Sheet trim)'`.
+   - Delete child rows from all 10 child tables.
+   - Delete the parent `staffing_deals` row.
+3. Verify: `SELECT count(*) FROM staffing_deals` returns 116; same query restricted to the keep-set also returns 116.
 
-I'll invoke this from a one-off script using the service-role key so it runs unattended.
+Done entirely via `supabase--insert` SQL (CTE + insert-into-trash + deletes). No code or schema changes.
 
-## Step 3 — Verify
-
-- `SELECT COUNT(*) FROM staffing_people WHERE id = ANY(<list of 115 ids>)` — should be 115.
-- Spot-check 3 newly inserted rows to confirm department / reporting_manager / designation are set.
-- Spot-check that an auth user now exists for one new email (e.g. `rishabh@peppercontent.io`).
-
-## Notes / non-goals
-
-- I will not modify any pre-existing `staffing_people` row, even if the pasted data differs (e.g. P028 already has designation "Managing Editor" while the paste leaves it blank — existing row wins, per your instruction).
-- No edits to roles in `user_roles` beyond what `handle_new_user` assigns (default `user`). Promoting anyone to admin/member stays a manual action in the Users tab.
-- I will not touch the route_visibility / overrides tables.
+## Notes / out of scope
+- `clients` rows are not touched (deals can drop without removing the client).
+- The 55 sheet IDs that aren't in the DB are left as-is; if you want them auto-created as empty/placeholder deals, say the word and I'll add a creation step.
+- After approval and execution, the React Query caches refresh automatically via the existing realtime subscriptions on `staffing_deals` / `staffing_assignments`.
