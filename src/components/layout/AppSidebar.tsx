@@ -2,8 +2,8 @@ import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Briefcase, Users, UserCheck, DollarSign,
   Target, Activity, FileText, MessageSquare, Clock,
-  CheckSquare, Settings, Building2, Calculator, BarChart3,
-  ChevronDown, ShieldCheck, Home, ChevronsLeft, ChevronsRight,
+  CheckSquare, Settings, Building2, Calculator,
+  ChevronDown, Home, ChevronsLeft, ChevronsRight,
   Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
