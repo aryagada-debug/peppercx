@@ -510,7 +510,7 @@ export default function HomePage() {
     }));
     const ct = visibleCxTasks.filter(t => t.status !== "Done" && t.status !== "Closed").map(t => ({
       kind: "cx" as const, id: t.id, title: t.title, due: t.end_date, urgency: t.urgency, stage: t.status,
-      parentLabel: "CX Task", href: `/central-cx`, raw: t,
+      parentLabel: "CX Task", href: `/home`, raw: t,
     }));
     return [...dt, ...ct];
   }, [visibleDealTasks, visibleCxTasks, deals]);

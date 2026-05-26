@@ -72,7 +72,6 @@ export function CapabilityMemberDashboard() {
           <Card className="p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2"><ListTodo className="h-4 w-4 text-muted-foreground" /><h2 className="text-sm font-medium">My open tasks</h2></div>
-              <Link to="/central-cx" className="text-xs text-primary hover:underline inline-flex items-center gap-1">Open Cx <ArrowRight className="h-3 w-3" /></Link>
             </div>
             <div className="divide-y divide-border max-h-[420px] overflow-y-auto">
               {tasks.length === 0 && <div className="text-xs text-muted-foreground py-6 text-center">No open tasks.</div>}
