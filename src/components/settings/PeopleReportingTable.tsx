@@ -187,13 +187,14 @@ function classifyPerson(
 /* Resizable column hook                                               */
 /* ------------------------------------------------------------------ */
 
-type ColKey = "name" | "designation" | "email" | "reportsTo" | "revType";
+type ColKey = "name" | "designation" | "email" | "reportsTo" | "revType" | "utilisation";
 const DEFAULT_WIDTHS: Record<ColKey, number> = {
   name: 220,
   designation: 220,
   email: 240,
   reportsTo: 180,
   revType: 360,
+  utilisation: 160,
 };
 
 function useResizableColumns() {
