@@ -1638,6 +1638,24 @@ export function BopmStaffingFlatTable({
                       const cat = roleCategory.get(rk) || "Other";
                       const s = styleFor(cat);
                       const w = colWidths[rk] ?? 200;
+                      const deptId = ROLE_TYPE_TO_DEPT[rk] || "";
+                      const applicable = deptId
+                        ? isApplicableFromIndex(applicabilityIndex, d.id, deptId, rk)
+                        : true;
+                      if (!applicable) {
+                        return (
+                          <td
+                            key={rk}
+                            style={{ width: w, minWidth: w, maxWidth: w }}
+                            className={cn(
+                              "px-1.5 py-1.5 border-r border-border/60 align-top text-center text-muted-foreground/40 text-[10px] bg-muted/20",
+                            )}
+                            title="Not applicable to this deal"
+                          >
+                            —
+                          </td>
+                        );
+                      }
                       if (directEdit && onAddAssignment) {
                         return (
                           <td
