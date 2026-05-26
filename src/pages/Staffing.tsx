@@ -174,7 +174,6 @@ export default function Staffing() {
       ]
     : [
         { key: "deals", label: "Deal view" },
-        { key: "people", label: "People view" },
         { key: "table", label: "Staffing" },
       ];
 
