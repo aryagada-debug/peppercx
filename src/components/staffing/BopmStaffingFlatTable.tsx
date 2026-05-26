@@ -28,6 +28,10 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useClients } from "@/hooks/useClients";
 import { toast } from "@/hooks/use-toast";
 import { useStaffingMutations } from "@/hooks/queries/useStaffingMutations";
+import { DealApplicabilityPopover } from "./DealApplicabilityPopover";
+import { useDealApplicabilityQuery } from "@/hooks/queries/useDealApplicabilityQuery";
+import { buildApplicabilityIndex, isApplicableFromIndex } from "@/lib/applicability";
+import { ROLE_TYPE_TO_DEPT } from "@/data/staffingData";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -582,6 +586,11 @@ export function BopmStaffingFlatTable({
   const { isAdmin } = useUserRole();
   const { deleteDeal: deleteDealMutation } = useClients();
   const { lockStaffing } = useStaffingMutations();
+  const { data: applicabilityRows } = useDealApplicabilityQuery();
+  const applicabilityIndex = useMemo(
+    () => buildApplicabilityIndex(applicabilityRows),
+    [applicabilityRows],
+  );
   const [lockBusy, setLockBusy] = useState<Record<string, boolean>>({});
   const toggleLock = useCallback(async (dealId: string, lock: boolean) => {
     if (lockBusy[dealId]) return;
@@ -1603,6 +1612,14 @@ export function BopmStaffingFlatTable({
                           busy={!!lockBusy[d.id]}
                           onToggle={(lock) => toggleLock(d.id, lock)}
                         />
+                        {isAdmin && (
+                          <div className="mt-1">
+                            <DealApplicabilityPopover
+                              dealId={d.id}
+                              dealLabel={`${d.account} — ${d.dealName}`}
+                            />
+                          </div>
+                        )}
                      </td>
                     <td className="px-3 py-2 text-right font-mono text-foreground border-r border-border whitespace-nowrap">
                       {formatINR(d.mrr || 0)}
@@ -1621,6 +1638,24 @@ export function BopmStaffingFlatTable({
                       const cat = roleCategory.get(rk) || "Other";
                       const s = styleFor(cat);
                       const w = colWidths[rk] ?? 200;
+                      const deptId = ROLE_TYPE_TO_DEPT[rk] || "";
+                      const applicable = deptId
+                        ? isApplicableFromIndex(applicabilityIndex, d.id, deptId, rk)
+                        : true;
+                      if (!applicable) {
+                        return (
+                          <td
+                            key={rk}
+                            style={{ width: w, minWidth: w, maxWidth: w }}
+                            className={cn(
+                              "px-1.5 py-1.5 border-r border-border/60 align-top text-center text-muted-foreground/40 text-[10px] bg-muted/20",
+                            )}
+                            title="Not applicable to this deal"
+                          >
+                            —
+                          </td>
+                        );
+                      }
                       if (directEdit && onAddAssignment) {
                         return (
                           <td

@@ -22,6 +22,13 @@ export const qk = {
   revenueTargets: () => ["staffing-revenue-targets"] as const,
   bwRules: () => ["staffing-bw-rules"] as const,
 
+  // taxonomy (departments + role types)
+  taxonomy: () => ["staffing-taxonomy"] as const,
+
+  // per-deal applicability (which depts/role-types apply to which deals)
+  dealApplicability: () => ["deal-applicability"] as const,
+  dealApplicabilityForDeal: (dealId: string) => ["deal-applicability", dealId] as const,
+
   // clients
   clients: () => ["clients"] as const,
 
