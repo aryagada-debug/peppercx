@@ -1903,3 +1903,55 @@ export function BopmStaffingFlatTable({
     </section>
   );
 }
+
+// Compact "Staffing locked / unlocked" chip rendered inside the sticky
+// Account · Deal cell. Admins (Central CX) can click to toggle; everyone
+// else sees a read-only chip. Uses semantic green (locked = Staffed) and
+// amber (unlocked = Unstaffed) per the project design memory.
+function StaffingLockChip({
+  deal, isAdmin, busy, onToggle,
+}: {
+  deal: Deal;
+  isAdmin: boolean;
+  busy: boolean;
+  onToggle: (lock: boolean) => void;
+}) {
+  const locked = !!deal.staffingLockedAt;
+  const lockedDate = locked && deal.staffingLockedAt
+    ? new Date(deal.staffingLockedAt).toLocaleDateString()
+    : "";
+  const baseChip = "inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium border";
+  const lockedStyle = "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-400";
+  const unlockedStyle = "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400";
+  if (!isAdmin) {
+    return (
+      <span
+        className={cn(baseChip, locked ? lockedStyle : unlockedStyle)}
+        title={locked
+          ? `Staffed${deal.staffingLockedByName ? ` · locked by ${deal.staffingLockedByName}` : ""}${lockedDate ? ` · ${lockedDate}` : ""}`
+          : "Unstaffed — awaiting Central CX lock"}
+      >
+        {locked ? <Lock className="h-2.5 w-2.5" /> : <Unlock className="h-2.5 w-2.5" />}
+        {locked ? "Staffed" : "Unstaffed"}
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggle(!locked); }}
+      className={cn(
+        baseChip,
+        locked ? lockedStyle : unlockedStyle,
+        "hover:opacity-80 disabled:opacity-50 cursor-pointer",
+      )}
+      title={locked
+        ? `Staffed${deal.staffingLockedByName ? ` · locked by ${deal.staffingLockedByName}` : ""}${lockedDate ? ` · ${lockedDate}` : ""} — click to unlock`
+        : "Click to lock staffing (mark as Staffed)"}
+    >
+      {locked ? <Lock className="h-2.5 w-2.5" /> : <Unlock className="h-2.5 w-2.5" />}
+      {locked ? "Staffed" : "Unstaffed"}
+    </button>
+  );
+}
