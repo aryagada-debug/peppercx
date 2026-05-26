@@ -1612,6 +1612,14 @@ export function BopmStaffingFlatTable({
                           busy={!!lockBusy[d.id]}
                           onToggle={(lock) => toggleLock(d.id, lock)}
                         />
+                        {isAdmin && (
+                          <div className="mt-1">
+                            <DealApplicabilityPopover
+                              dealId={d.id}
+                              dealLabel={`${d.account} — ${d.dealName}`}
+                            />
+                          </div>
+                        )}
                      </td>
                     <td className="px-3 py-2 text-right font-mono text-foreground border-r border-border whitespace-nowrap">
                       {formatINR(d.mrr || 0)}
