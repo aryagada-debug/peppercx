@@ -13,7 +13,7 @@ import { toast } from "sonner";
 
 export default function PeopleOps() {
   useCurrencyVersion();
-  const { people, assignments, loading } = useStaffingQueries();
+  const { people, assignments, deals, loading } = useStaffingQueries();
   const { addPerson, updatePerson, deletePerson } = useStaffingMutations();
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
 
@@ -51,6 +51,7 @@ export default function PeopleOps() {
         <PeopleReportingTable
           people={people}
           assignments={assignments}
+          deals={deals}
           onAdd={addPerson}
           onUpdate={updatePerson}
           onRequestDelete={(p) => setConfirmDelete({ id: p.id, name: p.name })}
