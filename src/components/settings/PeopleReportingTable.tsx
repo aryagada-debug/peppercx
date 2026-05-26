@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import type { Person, StaffingAssignment } from "@/data/staffingData";
+import type { Deal, Person, StaffingAssignment } from "@/data/staffingData";
 import { Input } from "@/components/ui/input";
 import { Search, Trash2, Plus, Check, X, Pencil, ChevronRight, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -16,6 +16,7 @@ import { AddTeamDialog } from "@/components/settings/AddTeamDialog";
 interface Props {
   people: Person[];
   assignments?: StaffingAssignment[];
+  deals?: Deal[];
   onAdd: (p: Person) => void | Promise<void>;
   onUpdate: (id: string, updates: Partial<Person>) => void | Promise<void>;
   onRequestDelete: (p: Person) => void;
@@ -103,8 +104,8 @@ const USD = (n: number) =>
 /* Team derivation                                                     */
 /* ------------------------------------------------------------------ */
 
-const TEAM_ORDER = ["VSD", "Content team", "SEO team", "Creative team", "Other"] as const;
-type TeamName = (typeof TEAM_ORDER)[number];
+const BUILT_IN_TEAMS = ["VSD", "Content team", "SEO team", "Creative team", "Other"] as const;
+type TeamName = string;
 
 const VSD_SUBTEAM_ORDER = [
   "Aamir Khan",
@@ -187,14 +188,15 @@ function classifyPerson(
 /* Resizable column hook                                               */
 /* ------------------------------------------------------------------ */
 
-type ColKey = "name" | "designation" | "email" | "reportsTo" | "revType" | "utilisation";
+type ColKey = "name" | "designation" | "email" | "reportsTo" | "revType" | "timeUtil" | "revUtil";
 const DEFAULT_WIDTHS: Record<ColKey, number> = {
   name: 220,
   designation: 220,
   email: 240,
   reportsTo: 180,
   revType: 360,
-  utilisation: 160,
+  timeUtil: 180,
+  revUtil: 180,
 };
 
 function useResizableColumns() {
@@ -242,22 +244,95 @@ function ResizeHandle({ onMouseDown }: { onMouseDown: (e: React.MouseEvent) => v
   );
 }
 
-export function PeopleReportingTable({ people, assignments = [], onAdd, onUpdate, onRequestDelete }: Props) {
+function UtilBar({ value, hint }: { value: number; hint?: string }) {
+  const v = Math.max(0, Math.round(value));
+  const capped = Math.min(v, 100);
+  const color =
+    v > 100 ? "bg-destructive"
+    : v >= 85 ? "bg-warning"
+    : v >= 30 ? "bg-positive"
+    : v > 0 ? "bg-info"
+    : "bg-muted";
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <div className="flex-1 h-2 rounded-sm overflow-hidden bg-muted min-w-[80px]">
+          <div className={cn("h-full rounded-sm", color)} style={{ width: `${capped}%` }} />
+        </div>
+        <span className="text-xs font-medium tabular-nums w-10 text-right">{v}%</span>
+      </div>
+      {hint && <div className="text-[10px] text-muted-foreground tabular-nums">{hint}</div>}
+    </div>
+  );
+}
+
+export function PeopleReportingTable({ people, assignments = [], deals = [], onAdd, onUpdate, onRequestDelete }: Props) {
   const [search, setSearch] = useState("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
   const [addDefaults, setAddDefaults] = useState<{ department?: string; subTeam?: string }>({});
   const [teamDialog, setTeamDialog] = useState<{ mode: "team" | "subteam"; parent?: string } | null>(null);
+  const [customBump, setCustomBump] = useState(0);
   const { widths, onMouseDown } = useResizableColumns();
 
-  // Utilisation map: sum of allocation % per person id.
-  const utilByPerson = useMemo(() => {
-    const m: Record<string, number> = {};
+  // Build a lookup of deals + per-person assignment lists.
+  const dealById = useMemo(() => {
+    const m = new Map<string, Deal>();
+    deals.forEach((d) => m.set(d.id, d));
+    return m;
+  }, [deals]);
+
+  const assignmentsByPerson = useMemo(() => {
+    const m: Record<string, StaffingAssignment[]> = {};
     assignments.forEach((a) => {
-      m[a.personId] = (m[a.personId] || 0) + (a.allocationPct || 0);
+      (m[a.personId] = m[a.personId] || []).push(a);
     });
     return m;
   }, [assignments]);
+
+  // Time utilisation = sum allocation %. Revenue utilisation = allocated MRR
+  // from RETAINER deals divided by the person's revenue capacity.
+  const utilByPerson = useMemo(() => {
+    const m: Record<string, { time: number; revenue: number; allocatedMrr: number }> = {};
+    for (const p of people) {
+      const rows = assignmentsByPerson[p.id] || [];
+      const time = rows.reduce((n, a) => n + (a.allocationPct || 0), 0);
+      let allocatedMrr = 0;
+      for (const a of rows) {
+        const d = dealById.get(a.dealId);
+        if (!d || d.dealType !== "Retainer") continue;
+        allocatedMrr += (d.mrr || 0) * (a.allocationPct || 0) / 100;
+      }
+      const cap = p.revenueTargetPerPerson || 0;
+      const revenue = cap > 0 ? (allocatedMrr / cap) * 100 : 0;
+      m[p.id] = { time, revenue, allocatedMrr };
+    }
+    return m;
+  }, [people, assignmentsByPerson, dealById]);
+
+  // Custom teams + sub-teams persisted in localStorage.
+  const customTeams = useMemo<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem("people-ops.custom-teams") || "[]"); }
+    catch { return []; }
+  }, [customBump]);
+  const customSubsByTeam = useMemo<Record<string, string[]>>(() => {
+    const out: Record<string, string[]> = {};
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || !k.startsWith("people-ops.custom-subs:")) continue;
+        const parent = k.slice("people-ops.custom-subs:".length);
+        out[parent] = JSON.parse(localStorage.getItem(k) || "[]");
+      }
+    } catch {}
+    return out;
+  }, [customBump]);
+
+  const TEAM_ORDER = useMemo(
+    () => Array.from(new Set([...BUILT_IN_TEAMS, ...customTeams])),
+    [customTeams],
+  );
 
   const byName = useMemo(() => {
     const m = new Map<string, Person>();
@@ -284,16 +359,22 @@ export function PeopleReportingTable({ people, assignments = [], onAdd, onUpdate
     for (const t of TEAM_ORDER) teams.set(t, new Map());
     for (const p of filtered) {
       const { team, subTeam } = classifyPerson(p, byName);
-      const subMap = teams.get(team)!;
+      const subMap = teams.get(team) || teams.set(team, new Map()).get(team)!;
       const key = subTeam || "";
       if (!subMap.has(key)) subMap.set(key, []);
       subMap.get(key)!.push(p);
+    }
+    // Ensure custom sub-teams have a bucket even when empty.
+    for (const [parent, subs] of Object.entries(customSubsByTeam)) {
+      const subMap = teams.get(parent) || teams.set(parent, new Map()).get(parent)!;
+      for (const s of subs) if (!subMap.has(s)) subMap.set(s, []);
     }
     // Order sub-teams
     const ordered: { team: TeamName; subs: { sub: string; rows: Person[] }[]; total: number }[] = [];
     for (const t of TEAM_ORDER) {
       const subMap = teams.get(t)!;
-      if (subMap.size === 0) continue;
+      // Show empty custom teams too.
+      if (subMap.size === 0 && !customTeams.includes(t)) continue;
       const order =
         t === "VSD" ? VSD_SUBTEAM_ORDER : t === "Creative team" ? CREATIVE_SUBTEAM_ORDER : [];
       const subs = Array.from(subMap.entries())
@@ -317,7 +398,7 @@ export function PeopleReportingTable({ people, assignments = [], onAdd, onUpdate
       ordered.push({ team: t, subs, total });
     }
     return ordered;
-  }, [filtered, byName]);
+  }, [filtered, byName, TEAM_ORDER, customTeams, customSubsByTeam]);
 
   const toggle = (key: string) =>
     setCollapsed((s) => {
@@ -347,6 +428,7 @@ export function PeopleReportingTable({ people, assignments = [], onAdd, onUpdate
       const list: string[] = JSON.parse(localStorage.getItem(key) || "[]");
       if (!list.includes(name)) localStorage.setItem(key, JSON.stringify([...list, name]));
     } catch {}
+    setCustomBump((n) => n + 1);
     toast.success(`Team "${name}" added. Assign people to keep it.`);
   };
   const persistCustomSubTeam = (parent: string, name: string) => {
@@ -355,6 +437,7 @@ export function PeopleReportingTable({ people, assignments = [], onAdd, onUpdate
       const list: string[] = JSON.parse(localStorage.getItem(key) || "[]");
       if (!list.includes(name)) localStorage.setItem(key, JSON.stringify([...list, name]));
     } catch {}
+    setCustomBump((n) => n + 1);
     toast.success(`Sub-team "${name}" added under ${parent}.`);
   };
 
@@ -391,7 +474,7 @@ export function PeopleReportingTable({ people, assignments = [], onAdd, onUpdate
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-44">
             <DropdownMenuItem onClick={() => openAdd()}>Add person</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTeamDialog({ mode: "subteam", parent: "VSD" })}>
+            <DropdownMenuItem onClick={() => setTeamDialog({ mode: "subteam" })}>
               Add sub-team
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setTeamDialog({ mode: "team" })}>
@@ -415,9 +498,10 @@ export function PeopleReportingTable({ people, assignments = [], onAdd, onUpdate
         onOpenChange={(o) => !o && setTeamDialog(null)}
         mode={teamDialog?.mode || "team"}
         parentTeam={teamDialog?.parent}
-        onCreate={async (name) => {
+        availableTeams={TEAM_ORDER}
+        onCreate={async (name, parent) => {
           if (teamDialog?.mode === "team") persistCustomTeam(name);
-          else if (teamDialog?.parent) persistCustomSubTeam(teamDialog.parent, name);
+          else if (parent) persistCustomSubTeam(parent, name);
         }}
       />
 
@@ -429,7 +513,8 @@ export function PeopleReportingTable({ people, assignments = [], onAdd, onUpdate
             <col style={{ width: widths.email }} />
             <col style={{ width: widths.reportsTo }} />
             <col style={{ width: widths.revType }} />
-            <col style={{ width: widths.utilisation }} />
+            <col style={{ width: widths.timeUtil }} />
+            <col style={{ width: widths.revUtil }} />
             <col style={{ width: 40 }} />
           </colgroup>
           <thead className="bg-secondary/40 text-muted-foreground">
@@ -440,8 +525,9 @@ export function PeopleReportingTable({ people, assignments = [], onAdd, onUpdate
                   ["designation", "Designation"],
                   ["email", "Email"],
                   ["reportsTo", "Reports to"],
-                  ["revType", "Rev type"],
-                  ["utilisation", "Utilisation"],
+                  ["revType", "Revenue capacity"],
+                  ["timeUtil", "Time utilisation"],
+                  ["revUtil", "Revenue utilisation"],
                 ] as [ColKey, string][]
               ).map(([k, label]) => (
                 <th
@@ -461,8 +547,8 @@ export function PeopleReportingTable({ people, assignments = [], onAdd, onUpdate
               const teamCollapsed = collapsed.has(teamKey);
               return (
                 <Fragment key={teamKey}>
-                  <tr className="border-t border-border bg-secondary/30">
-                    <td colSpan={7} className="px-3 py-2">
+                   <tr className="border-t border-border bg-secondary/30">
+                     <td colSpan={8} className="px-3 py-2">
                       <button
                         type="button"
                         onClick={() => toggle(teamKey)}
@@ -486,9 +572,9 @@ export function PeopleReportingTable({ people, assignments = [], onAdd, onUpdate
                       const subCollapsed = collapsed.has(subKey);
                       return (
                         <Fragment key={subKey}>
-                          {hasSub && (
-                            <tr className="border-t border-border/50 bg-secondary/10">
-                              <td colSpan={7} className="px-3 py-1.5 pl-8">
+                           {hasSub && (
+                             <tr className="border-t border-border/50 bg-secondary/10">
+                               <td colSpan={8} className="px-3 py-1.5 pl-8">
                                 <button
                                   type="button"
                                   onClick={() => toggle(subKey)}
@@ -512,24 +598,43 @@ export function PeopleReportingTable({ people, assignments = [], onAdd, onUpdate
                               const currency = p.revenueTargetCurrency || "INR";
                               const symbol = currency === "USD" ? "$" : "₹";
                               const fmt = currency === "USD" ? USD : INR;
+                              const u = utilByPerson[p.id] || { time: 0, revenue: 0, allocatedMrr: 0 };
+                              const isExpanded = expanded.has(p.id);
+                              const personDeals = (assignmentsByPerson[p.id] || [])
+                                .map((a) => ({ a, d: dealById.get(a.dealId) }))
+                                .filter((x) => x.d);
                               return (
+                                <Fragment key={p.id}>
                                 <tr
-                                  key={p.id}
-                                  className="border-t border-border/40 hover:bg-secondary/20"
+                                  className="border-t border-border/40 hover:bg-secondary/20 cursor-pointer"
+                                  onClick={() =>
+                                    setExpanded((s) => {
+                                      const n = new Set(s);
+                                      n.has(p.id) ? n.delete(p.id) : n.add(p.id);
+                                      return n;
+                                    })
+                                  }
                                 >
-                                  <td className="px-3 py-1.5 pl-10">
-                                    <InlineText
+                                  <td className="px-3 py-1.5 pl-10" onClick={(e) => e.stopPropagation()}>
+                                    <div className="flex items-center gap-1.5">
+                                      {isExpanded
+                                        ? <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
+                                        : <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />}
+                                      <div className="flex-1 min-w-0">
+                                        <InlineText
                                       value={p.name}
                                       onSave={(v) => v && onUpdate(p.id, { name: v })}
                                     />
+                                      </div>
+                                    </div>
                                   </td>
-                                  <td className="px-3 py-1.5">
+                                  <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
                                     <InlineText
                                       value={p.designation || ""}
                                       onSave={(v) => onUpdate(p.id, { designation: v })}
                                     />
                                   </td>
-                                  <td className="px-3 py-1.5">
+                                  <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
                                     <InlineText
                                       value={p.email || ""}
                                       onSave={(v) => onUpdate(p.id, { email: v })}
@@ -537,7 +642,7 @@ export function PeopleReportingTable({ people, assignments = [], onAdd, onUpdate
                                       type="email"
                                     />
                                   </td>
-                                  <td className="px-3 py-1.5">
+                                  <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
                                     <InlineText
                                       value={p.reportingManager || ""}
                                       onSave={(v) => {
@@ -551,7 +656,7 @@ export function PeopleReportingTable({ people, assignments = [], onAdd, onUpdate
                                       placeholder="—"
                                     />
                                   </td>
-                                  <td className="px-3 py-1.5">
+                                  <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
                                     <div className="flex items-center gap-1.5">
                                       <select
                                         value={currency}
@@ -593,22 +698,19 @@ export function PeopleReportingTable({ people, assignments = [], onAdd, onUpdate
                                     </div>
                                   </td>
                                   <td className="px-3 py-1.5">
-                                    {(() => {
-                                      const u = Math.round(utilByPerson[p.id] || 0);
-                                      const tone =
-                                        u > 100 ? "bg-destructive/15 text-destructive"
-                                        : u >= 85 ? "bg-warning/15 text-warning"
-                                        : u >= 30 ? "bg-positive/15 text-positive"
-                                        : u > 0 ? "bg-info/15 text-info"
-                                        : "bg-secondary text-muted-foreground";
-                                      return (
-                                        <span className={cn("inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium tabular-nums", tone)}>
-                                          {u === 0 ? "—" : `${u}%`}
-                                        </span>
-                                      );
-                                    })()}
+                                    <UtilBar value={u.time} hint={`${Math.round((u.time / 100) * 160)}h / 160h`} />
                                   </td>
-                                  <td className="px-2 py-1.5 text-right">
+                                  <td className="px-3 py-1.5">
+                                    <UtilBar
+                                      value={u.revenue}
+                                      hint={
+                                        (p.revenueTargetPerPerson || 0) > 0
+                                          ? `${symbol}${fmt(Math.round(u.allocatedMrr))} / ${symbol}${fmt(p.revenueTargetPerPerson || 0)}`
+                                          : "No capacity set"
+                                      }
+                                    />
+                                  </td>
+                                  <td className="px-2 py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
                                     <button
                                       type="button"
                                       onClick={() => onRequestDelete(p)}
@@ -619,6 +721,50 @@ export function PeopleReportingTable({ people, assignments = [], onAdd, onUpdate
                                     </button>
                                   </td>
                                 </tr>
+                                {isExpanded && (
+                                  <tr className="bg-secondary/10 border-t border-border/30">
+                                    <td colSpan={8} className="px-3 py-2 pl-16">
+                                      {personDeals.length === 0 ? (
+                                        <div className="text-xs text-muted-foreground">
+                                          Not staffed on any deals.
+                                        </div>
+                                      ) : (
+                                        <div className="space-y-1">
+                                          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                                            Deals tagged ({personDeals.length})
+                                          </div>
+                                          <table className="text-xs w-full">
+                                            <thead className="text-muted-foreground">
+                                              <tr>
+                                                <th className="text-left font-medium py-1 pr-3">Deal</th>
+                                                <th className="text-left font-medium py-1 pr-3">Type</th>
+                                                <th className="text-left font-medium py-1 pr-3">Role</th>
+                                                <th className="text-right font-medium py-1 pr-3">Alloc %</th>
+                                                <th className="text-right font-medium py-1">MRR</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody>
+                                              {personDeals.map(({ a, d }) => (
+                                                <tr key={a.id} className="border-t border-border/30">
+                                                  <td className="py-1 pr-3">{d!.dealName || d!.account}</td>
+                                                  <td className="py-1 pr-3">{d!.dealType}</td>
+                                                  <td className="py-1 pr-3 text-muted-foreground">{a.roleKey || "—"}</td>
+                                                  <td className="py-1 pr-3 text-right tabular-nums">{a.allocationPct}%</td>
+                                                  <td className="py-1 text-right tabular-nums">
+                                                    {d!.dealType === "Retainer" && d!.mrr
+                                                      ? `₹${INR(d!.mrr)}`
+                                                      : "—"}
+                                                  </td>
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        </div>
+                                      )}
+                                    </td>
+                                  </tr>
+                                )}
+                                </Fragment>
                               );
                             })}
                         </Fragment>
@@ -629,7 +775,7 @@ export function PeopleReportingTable({ people, assignments = [], onAdd, onUpdate
             })}
             {grouped.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
+                <td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">
                   No people match "{search}".
                 </td>
               </tr>
