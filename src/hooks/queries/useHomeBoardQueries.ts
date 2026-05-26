@@ -360,8 +360,28 @@ export function useHomeMyDealsQuery(opts: {
       const ids = myDeals.map((d) => d.id);
       if (!ids.length) return { myDeals, finByDeal: {}, finSummary: { ...ZERO_FIN }, finTargets: { ...ZERO_FIN } };
 
-      const { data: fins } = await supabase.from("deal_financials")
-        .select("deal_id, consumption, invoiced, received").in("deal_id", ids);
+      // Resolve the month to display: current month if any rows exist for the
+      // visible deals, else the latest month ≤ today that has rows. Used for
+      // BOTH actuals and targets so the tiles align with the "MMM yyyy" label.
+      let monthStart = format(startOfMonth(new Date()), "yyyy-MM-dd");
+      let { data: fins } = await supabase.from("deal_financials")
+        .select("deal_id, consumption, invoiced, received, month")
+        .eq("month", monthStart)
+        .in("deal_id", ids);
+      if (!fins || fins.length === 0) {
+        const { data: latestFin } = await supabase.from("deal_financials")
+          .select("month").in("deal_id", ids).lte("month", monthStart)
+          .order("month", { ascending: false }).limit(1);
+        const fallbackMonth = latestFin?.[0]?.month;
+        if (fallbackMonth) {
+          monthStart = fallbackMonth;
+          const res = await supabase.from("deal_financials")
+            .select("deal_id, consumption, invoiced, received, month")
+            .eq("month", fallbackMonth)
+            .in("deal_id", ids);
+          fins = res.data || [];
+        }
+      }
       const finByDeal: Record<string, FinBucket> = {};
       (fins || []).forEach((r: any) => {
         const cur = finByDeal[r.deal_id] || { ...ZERO_FIN };
@@ -381,7 +401,6 @@ export function useHomeMyDealsQuery(opts: {
         receivables: s.receivables + v.receivables,
       }), { ...ZERO_FIN });
 
-      let monthStart = format(startOfMonth(new Date()), "yyyy-MM-dd");
       let { data: tgts } = await supabase.from("deal_financial_targets")
         .select("deal_id, month, contraction_target, delivery_target, invoicing_target, receivables_target")
         .eq("month", monthStart)
