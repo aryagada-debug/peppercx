@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { Person } from "@/data/staffingData";
 import { Input } from "@/components/ui/input";
 import { Search, Trash2, Plus, Check, X, Pencil, ChevronRight, ChevronDown } from "lucide-react";
@@ -382,8 +382,8 @@ export function PeopleReportingTable({ people, onAdd, onUpdate, onRequestDelete 
               const teamKey = `team:${team}`;
               const teamCollapsed = collapsed.has(teamKey);
               return (
-                <>
-                  <tr key={teamKey} className="border-t border-border bg-secondary/30">
+                <Fragment key={teamKey}>
+                  <tr className="border-t border-border bg-secondary/30">
                     <td colSpan={6} className="px-3 py-2">
                       <button
                         type="button"
@@ -407,9 +407,9 @@ export function PeopleReportingTable({ people, onAdd, onUpdate, onRequestDelete 
                       const hasSub = sub !== "";
                       const subCollapsed = collapsed.has(subKey);
                       return (
-                        <>
+                        <Fragment key={subKey}>
                           {hasSub && (
-                            <tr key={subKey} className="border-t border-border/50 bg-secondary/10">
+                            <tr className="border-t border-border/50 bg-secondary/10">
                               <td colSpan={6} className="px-3 py-1.5 pl-8">
                                 <button
                                   type="button"
@@ -527,10 +527,10 @@ export function PeopleReportingTable({ people, onAdd, onUpdate, onRequestDelete 
                                 </tr>
                               );
                             })}
-                        </>
+                        </Fragment>
                       );
                     })}
-                </>
+                </Fragment>
               );
             })}
             {grouped.length === 0 && (
