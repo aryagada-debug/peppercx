@@ -36,6 +36,7 @@ export const ALL_ROUTE_KEYS = [
   "dashboard",
   "clients",
   "staffing",
+  "people-ops",
   "targets",
   "rgy-health",
   "mbr-tracker",
