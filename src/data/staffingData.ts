@@ -16,6 +16,8 @@ export interface Person {
   email?: string;
   slackUserId?: string;
   subTeam?: string;
+  revenueTargetPerPerson?: number;
+  revenueTargetCurrency?: "INR" | "USD";
 }
 
 export const DEPARTMENTS = [
