@@ -429,6 +429,7 @@ export function PeopleReportingTable({ people, assignments = [], onAdd, onUpdate
             <col style={{ width: widths.email }} />
             <col style={{ width: widths.reportsTo }} />
             <col style={{ width: widths.revType }} />
+            <col style={{ width: widths.utilisation }} />
             <col style={{ width: 40 }} />
           </colgroup>
           <thead className="bg-secondary/40 text-muted-foreground">
@@ -440,6 +441,7 @@ export function PeopleReportingTable({ people, assignments = [], onAdd, onUpdate
                   ["email", "Email"],
                   ["reportsTo", "Reports to"],
                   ["revType", "Rev type"],
+                  ["utilisation", "Utilisation"],
                 ] as [ColKey, string][]
               ).map(([k, label]) => (
                 <th
@@ -460,7 +462,7 @@ export function PeopleReportingTable({ people, assignments = [], onAdd, onUpdate
               return (
                 <Fragment key={teamKey}>
                   <tr className="border-t border-border bg-secondary/30">
-                    <td colSpan={6} className="px-3 py-2">
+                    <td colSpan={7} className="px-3 py-2">
                       <button
                         type="button"
                         onClick={() => toggle(teamKey)}
@@ -486,7 +488,7 @@ export function PeopleReportingTable({ people, assignments = [], onAdd, onUpdate
                         <Fragment key={subKey}>
                           {hasSub && (
                             <tr className="border-t border-border/50 bg-secondary/10">
-                              <td colSpan={6} className="px-3 py-1.5 pl-8">
+                              <td colSpan={7} className="px-3 py-1.5 pl-8">
                                 <button
                                   type="button"
                                   onClick={() => toggle(subKey)}
@@ -590,6 +592,22 @@ export function PeopleReportingTable({ people, assignments = [], onAdd, onUpdate
                                       </span>
                                     </div>
                                   </td>
+                                  <td className="px-3 py-1.5">
+                                    {(() => {
+                                      const u = Math.round(utilByPerson[p.id] || 0);
+                                      const tone =
+                                        u > 100 ? "bg-destructive/15 text-destructive"
+                                        : u >= 85 ? "bg-warning/15 text-warning"
+                                        : u >= 30 ? "bg-positive/15 text-positive"
+                                        : u > 0 ? "bg-info/15 text-info"
+                                        : "bg-secondary text-muted-foreground";
+                                      return (
+                                        <span className={cn("inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium tabular-nums", tone)}>
+                                          {u === 0 ? "—" : `${u}%`}
+                                        </span>
+                                      );
+                                    })()}
+                                  </td>
                                   <td className="px-2 py-1.5 text-right">
                                     <button
                                       type="button"
@@ -611,7 +629,7 @@ export function PeopleReportingTable({ people, assignments = [], onAdd, onUpdate
             })}
             {grouped.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
+                <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
                   No people match "{search}".
                 </td>
               </tr>
