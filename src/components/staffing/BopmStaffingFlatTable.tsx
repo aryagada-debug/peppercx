@@ -1580,6 +1580,12 @@ export function BopmStaffingFlatTable({
                            <div className="font-medium text-foreground truncate max-w-[220px]">{d.account}</div>
                            <div className="text-[11px] text-muted-foreground truncate max-w-[220px]">{d.dealName}</div>
                            <div className="font-mono text-[10px] text-muted-foreground">{d.dealId}</div>
+                            <StaffingLockChip
+                              deal={d}
+                              isAdmin={isAdmin}
+                              busy={!!lockBusy[d.id]}
+                              onToggle={(lock) => toggleLock(d.id, lock)}
+                            />
                          </Link>
                          {isAdmin && (
                            <button
