@@ -9,7 +9,6 @@ import { useStaffingMutations } from "@/hooks/queries/useStaffingMutations";
 import { ACTIVE_DEAL_STATUSES } from "@/data/staffingData";
 import { useCurrencyVersion } from "@/contexts/CurrencyContext";
 import { DealViewTab } from "@/components/staffing/DealViewTab";
-import { PeopleViewTab } from "@/components/staffing/PeopleViewTab";
 import { useUserRole } from "@/hooks/useUserRole";
 import { ReadOnlyBanner } from "@/components/access/ReadOnlyBanner";
 import { useDealAccess } from "@/hooks/useDealAccess";
@@ -174,7 +173,6 @@ export default function Staffing() {
       ]
     : [
         { key: "deals", label: "Deal view" },
-        { key: "people", label: "People view" },
         { key: "table", label: "Staffing" },
       ];
 
@@ -260,19 +258,6 @@ export default function Staffing() {
                   people={people}
                   assignments={scopedAssignments}
                   onUpdateDeal={updateDeal}
-                  bopmFilterScopedVsd={myVsdName}
-                />
-              )}
-            </div>
-            <div className={cn(tab !== "people" && "hidden")}>
-              {hasVisited("people") && (
-                <PeopleViewTab
-                  people={people}
-                  deals={scopedDeals}
-                  assignments={scopedAssignments}
-                  revenueTargets={revenueTargets}
-                  onUpdateAssignment={updateAssignment}
-                  enableBopmFilter
                   bopmFilterScopedVsd={myVsdName}
                 />
               )}

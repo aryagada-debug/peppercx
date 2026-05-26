@@ -1,32 +1,18 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
-import { useStaffingQueries } from "@/hooks/queries/useStaffingQueries";
-import { useStaffingMutations } from "@/hooks/queries/useStaffingMutations";
 import { Loader2 } from "lucide-react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { UsersTab } from "@/pages/admin/UsersTab";
 import { AccessControlsTab } from "@/pages/admin/AccessControlsTab";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useCurrencyVersion } from "@/contexts/CurrencyContext";
-import { PeopleReportingTable } from "@/components/settings/PeopleReportingTable";
 import { useEffect } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
 import { Switch } from "@/components/ui/switch";
 
 const tabs = [
-  "People & Reporting",
   "Users & Roles",
   "Access Controls",
   "Notifications",
@@ -36,33 +22,8 @@ type SettingsTab = typeof tabs[number];
 
 export default function SettingsPage() {
   useCurrencyVersion();
-  const [activeTab, setActiveTab] = useState<SettingsTab>("People & Reporting");
-  const { people, loading } = useStaffingQueries();
-  const { addPerson, updatePerson, deletePerson } = useStaffingMutations();
+  const [activeTab, setActiveTab] = useState<SettingsTab>("Users & Roles");
   const { isActuallyAdmin } = useUserRole();
-  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
-
-  const handleDeletePerson = async () => {
-    if (!confirmDelete) return;
-    try {
-      await deletePerson(confirmDelete.id);
-      toast.success(`${confirmDelete.name} removed`);
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to delete");
-    } finally {
-      setConfirmDelete(null);
-    }
-  };
-
-  if (loading) {
-    return (
-      <AppLayout>
-        <div className="flex min-h-[60vh] items-center justify-center p-8">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
-      </AppLayout>
-    );
-  }
 
   return (
     <AppLayout>
@@ -86,15 +47,6 @@ export default function SettingsPage() {
             ))}
           </div>
         </div>
-
-        {activeTab === "People & Reporting" && (
-          <PeopleReportingTable
-            people={people}
-            onAdd={addPerson}
-            onUpdate={updatePerson}
-            onRequestDelete={(p) => setConfirmDelete({ id: p.id, name: p.name })}
-          />
-        )}
 
         {activeTab === "Users & Roles" && (
           isActuallyAdmin ? (
@@ -130,27 +82,6 @@ export default function SettingsPage() {
           )
         )}
       </div>
-
-      <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {confirmDelete?.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This removes the person from People &amp; Reporting. Their staffing assignments
-              will be unlinked. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeletePerson}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </AppLayout>
   );
 }

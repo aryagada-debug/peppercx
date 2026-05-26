@@ -18,6 +18,7 @@ const routePrefetch: Record<string, () => Promise<unknown>> = {
   "/": () => import("@/pages/Index"),
   "/clients": () => import("@/pages/Clients"),
   "/staffing": () => import("@/pages/Staffing"),
+  "/people-ops": () => import("@/pages/PeopleOps"),
   "/targets": () => import("@/pages/Targets"),
   "/rgy-health": () => import("@/pages/RGYHealth"),
   "/mbr-tracker": () => import("@/pages/MBRTracker"),
@@ -47,6 +48,7 @@ const navSections = [
     label: "Operations",
     items: [
       { to: "/staffing", icon: UserCheck, label: "Staffing & Capacity", routeKey: "staffing" },
+      { to: "/people-ops", icon: Users, label: "People Ops", routeKey: "people-ops" },
       { to: "/targets", icon: Target, label: "Targets", routeKey: "targets" },
     ],
   },

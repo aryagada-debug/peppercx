@@ -3,8 +3,14 @@ import type { Person } from "@/data/staffingData";
 import { Input } from "@/components/ui/input";
 import { Search, Trash2, Plus, Check, X, Pencil, ChevronRight, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { uid } from "@/data/staffingData";
 import { toast } from "sonner";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { AddPersonDialog } from "@/components/settings/AddPersonDialog";
 
 interface Props {
   people: Person[];
@@ -42,7 +48,7 @@ function InlineText({
           onChange={(e) => setLocal(e.target.value)}
           list={list}
           type={type}
-          className="h-7 text-xs"
+          className="h-8 text-sm"
           autoFocus
           placeholder={placeholder}
           onKeyDown={(e) => {
@@ -78,7 +84,7 @@ function InlineText({
       }}
       className={cn("group/edit flex items-center gap-1 text-left w-full", className)}
     >
-      <span className={cn("text-xs truncate", value ? "text-foreground" : "text-muted-foreground")}>
+      <span className={cn("text-sm truncate", value ? "text-foreground" : "text-muted-foreground")}>
         {value || placeholder}
       </span>
       <Pencil className="h-2.5 w-2.5 text-muted-foreground opacity-0 transition-opacity group-hover/edit:opacity-100 shrink-0" />
@@ -236,6 +242,8 @@ function ResizeHandle({ onMouseDown }: { onMouseDown: (e: React.MouseEvent) => v
 export function PeopleReportingTable({ people, onAdd, onUpdate, onRequestDelete }: Props) {
   const [search, setSearch] = useState("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [addOpen, setAddOpen] = useState(false);
+  const [addDefaults, setAddDefaults] = useState<{ department?: string; subTeam?: string }>({});
   const { widths, onMouseDown } = useResizableColumns();
 
   const byName = useMemo(() => {
@@ -313,31 +321,9 @@ export function PeopleReportingTable({ people, onAdd, onUpdate, onRequestDelete 
     [people],
   );
 
-  const handleAdd = async () => {
-    const name = prompt("New person name?")?.trim();
-    if (!name) return;
-    const newPerson: Person = {
-      id: uid(),
-      name,
-      roleCategory: "BOPM" as any,
-      roleTitle: "",
-      pod: "",
-      region: "India",
-      leaving: false,
-      tbh: false,
-      department: "",
-      designation: "",
-      reportingManager: "",
-      band: "",
-      hourlyRate: 0,
-      email: "",
-      slackUserId: "",
-      subTeam: "",
-      revenueTargetPerPerson: 0,
-      revenueTargetCurrency: "INR",
-    };
-    await onAdd(newPerson);
-    toast.success(`Added ${name}`);
+  const openAdd = (defaults: { department?: string; subTeam?: string } = {}) => {
+    setAddDefaults(defaults);
+    setAddOpen(true);
   };
 
   return (
@@ -361,17 +347,39 @@ export function PeopleReportingTable({ people, onAdd, onUpdate, onRequestDelete 
         <div className="text-xs text-muted-foreground">
           {filtered.length} of {people.length}
         </div>
-        <button
-          onClick={handleAdd}
-          type="button"
-          className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90"
-        >
-          <Plus className="h-3.5 w-3.5" /> Add person
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90"
+            >
+              <Plus className="h-3.5 w-3.5" /> Add
+              <ChevronDown className="h-3 w-3" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuItem onClick={() => openAdd()}>Add person</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => openAdd({ department: "Delivery Ops and CS" })}>
+              Add sub-team (VSD)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => openAdd({ department: "" })}>
+              Add team
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
+      <AddPersonDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        people={people}
+        defaultDepartment={addDefaults.department}
+        defaultSubTeam={addDefaults.subTeam}
+        onAdd={onAdd}
+      />
+
       <div className="overflow-auto rounded-xl border border-border bg-card">
-        <table className="text-xs" style={{ tableLayout: "fixed", width: "max-content", minWidth: "100%" }}>
+        <table className="text-sm" style={{ tableLayout: "fixed", width: "max-content", minWidth: "100%" }}>
           <colgroup>
             <col style={{ width: widths.name }} />
             <col style={{ width: widths.designation }} />
@@ -421,8 +429,8 @@ export function PeopleReportingTable({ people, onAdd, onUpdate, onRequestDelete 
                           <ChevronDown className="h-3.5 w-3.5" />
                         )}
                         <span className="h-2 w-2 rounded-full bg-primary" />
-                        <span className="text-xs font-medium">{team}</span>
-                        <span className="text-[10px] text-muted-foreground">({total})</span>
+                        <span className="text-sm font-medium">{team}</span>
+                        <span className="text-xs text-muted-foreground">({total})</span>
                       </button>
                     </td>
                   </tr>
@@ -446,8 +454,8 @@ export function PeopleReportingTable({ people, onAdd, onUpdate, onRequestDelete 
                                   ) : (
                                     <ChevronDown className="h-3 w-3" />
                                   )}
-                                  <span className="text-[11px] text-foreground/80">{sub}</span>
-                                  <span className="text-[10px] text-muted-foreground">
+                                  <span className="text-sm text-foreground/80">{sub}</span>
+                                  <span className="text-xs text-muted-foreground">
                                     ({rows.length})
                                   </span>
                                 </button>
@@ -509,13 +517,13 @@ export function PeopleReportingTable({ people, onAdd, onUpdate, onRequestDelete 
                                               | "USD",
                                           })
                                         }
-                                        className="h-7 shrink-0 rounded border border-input bg-background px-1 text-[11px] focus:outline-none focus:ring-1 focus:ring-ring"
+                                        className="h-8 shrink-0 rounded border border-input bg-background px-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
                                       >
                                         <option value="INR">₹ INR</option>
                                         <option value="USD">$ USD</option>
                                       </select>
                                       <div className="relative w-32 shrink-0">
-                                        <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">
+                                        <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
                                           {symbol}
                                         </span>
                                         <Input
@@ -529,11 +537,11 @@ export function PeopleReportingTable({ people, onAdd, onUpdate, onRequestDelete 
                                                 Number(e.target.value) || 0,
                                             })
                                           }
-                                          className="h-7 pl-5 pr-2 text-xs tabular-nums"
+                                          className="h-8 pl-5 pr-2 text-sm tabular-nums"
                                           placeholder="0"
                                         />
                                       </div>
-                                      <span className="text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">
+                                      <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
                                         = {symbol}
                                         {fmt(p.revenueTargetPerPerson || 0)}
                                       </span>
