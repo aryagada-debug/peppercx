@@ -1,7 +1,8 @@
 import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { uid, type Person, type RoleCategory } from "@/data/staffingData";
+import { uid, type Person, type RoleCategory, ROLE_SLOTS, ROLE_TYPE_TO_DEPT, DEPARTMENT_LABELS } from "@/data/staffingData";
+import { useTaxonomyQuery } from "@/hooks/queries/useTaxonomyQuery";
 import { toast } from "sonner";
 
 interface Props {
@@ -22,6 +23,9 @@ export function AddPersonDialog({ open, onOpenChange, people, defaultDepartment,
   const [band, setBand] = useState("");
   const [reportsTo, setReportsTo] = useState("");
   const [saving, setSaving] = useState(false);
+  const [taxDeptId, setTaxDeptId] = useState<string>("");
+  const [taxRoleTypeId, setTaxRoleTypeId] = useState<string>("");
+  const { data: taxonomy } = useTaxonomyQuery();
 
   const departments = useMemo(
     () => Array.from(new Set(people.map(p => p.department || "").filter(Boolean))).sort(),
@@ -41,6 +45,7 @@ export function AddPersonDialog({ open, onOpenChange, people, defaultDepartment,
   const reset = () => {
     setName(""); setEmail(""); setDesignation(""); setBand(""); setReportsTo("");
     setDepartment(defaultDepartment || ""); setSubTeam(defaultSubTeam || "");
+    setTaxDeptId(""); setTaxRoleTypeId("");
   };
 
   const submit = async () => {
@@ -48,21 +53,24 @@ export function AddPersonDialog({ open, onOpenChange, people, defaultDepartment,
     if (email && !/^\S+@\S+\.\S+$/.test(email)) { toast.error("Email looks invalid"); return; }
     setSaving(true);
     try {
+      const rt = ROLE_SLOTS.find(s => s.roleKey === taxRoleTypeId);
       const newPerson: Person = {
         id: uid(),
         name: name.trim(),
-        roleCategory: "Other" as RoleCategory,
-        roleTitle: designation.trim(),
+        roleCategory: (rt?.category ?? "Other") as RoleCategory,
+        roleTitle: designation.trim() || rt?.roleLabel || "",
         pod: "",
         region: "India",
         leaving: false,
         tbh: false,
         department: department.trim(),
-        designation: designation.trim(),
+        designation: designation.trim() || rt?.roleLabel || "",
         reportingManager: reportsTo.trim(),
         band: band.trim(),
         email: email.trim(),
         subTeam: subTeam.trim(),
+        departmentId: taxDeptId || null,
+        roleTypeId: taxRoleTypeId || null,
       };
       await onAdd(newPerson);
       toast.success(`${newPerson.name} added`);
@@ -74,6 +82,11 @@ export function AddPersonDialog({ open, onOpenChange, people, defaultDepartment,
       setSaving(false);
     }
   };
+
+  const taxDepartments = taxonomy?.departments ?? [];
+  const taxRoleTypes = taxDeptId
+    ? (taxonomy?.roleTypesByDept.get(taxDeptId) ?? [])
+    : [];
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
@@ -97,7 +110,28 @@ export function AddPersonDialog({ open, onOpenChange, people, defaultDepartment,
           <Field label="Email">
             <Input type="email" value={email} onChange={e => setEmail(e.target.value)} className="h-8" placeholder="name@pepper.in" />
           </Field>
-          <Field label="Team">
+          <Field label="Department *">
+            <select
+              value={taxDeptId}
+              onChange={(e) => { setTaxDeptId(e.target.value); setTaxRoleTypeId(""); }}
+              className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
+            >
+              <option value="">— Select department —</option>
+              {taxDepartments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+          </Field>
+          <Field label="Role type *">
+            <select
+              value={taxRoleTypeId}
+              onChange={(e) => setTaxRoleTypeId(e.target.value)}
+              disabled={!taxDeptId}
+              className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs disabled:opacity-50"
+            >
+              <option value="">— Select role type —</option>
+              {taxRoleTypes.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+            </select>
+          </Field>
+          <Field label="Legacy team">
             <Input list="add-person-departments" value={department} onChange={e => setDepartment(e.target.value)} className="h-8" placeholder="e.g. Capability — Creative Team" />
           </Field>
           <Field label="Sub-team">
