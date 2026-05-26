@@ -24,7 +24,7 @@ import type { TablesInsert } from "@/integrations/supabase/types";
 // new column on a Person also lands in STAFFING_PEOPLE_SELECT.
 
 export const STAFFING_PEOPLE_SELECT =
-  "id,name,role_category,role_title,pod,region,leaving,tbh,department,designation,reporting_manager,band,hourly_rate,email,slack_user_id,sub_team,revenue_target_per_person,revenue_target_currency";
+  "id,name,role_category,role_title,pod,region,leaving,tbh,department,designation,reporting_manager,band,hourly_rate,email,slack_user_id,sub_team,revenue_target_per_person,revenue_target_currency,department_id,role_type_id";
 
 export const STAFFING_DEALS_SELECT =
   "id,pc_code,deal_id,business_unit,capability_line,account,deal_name,deal_type,deal_status,staffing_status,validation,deal_status_cx,vsd,seo_staffing,creative_staffing,mrr,duration,retainer_deal_value,non_retainer_deal_value,total_deal_value,principal_bopm,senior_bopm,bopm,customer_status,customer_type,service_line_tagging,deal_value_lost,net_deal_value,rag,pod,start_date,end_date,payment_terms,pepper_business_unit,projected_outcomes,success_metrics,baseline_metrics,client_id,new_deal_id_formulated,new_deal_id_temp,validation_central_cx,month_closed_won,deal_target_status,total_mis_recognition,total_pending_recognition,consumption_value,mis_vs_consumption,invoiced_deal_value,undelivered_funnel,tcv_usd,strategy_bandwidth_required,pepper_bu_l2,input_currency,geo,staffing_locked_at,staffing_locked_by,staffing_locked_by_name";
@@ -55,6 +55,8 @@ export function dbToPerson(row: any): Person {
     subTeam: row.sub_team || "",
     revenueTargetPerPerson: row.revenue_target_per_person ? Number(row.revenue_target_per_person) : 0,
     revenueTargetCurrency: (row.revenue_target_currency as "INR" | "USD") || "INR",
+    departmentId: row.department_id ?? null,
+    roleTypeId: row.role_type_id ?? null,
   };
 }
 
