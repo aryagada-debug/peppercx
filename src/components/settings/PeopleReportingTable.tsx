@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import type { Person } from "@/data/staffingData";
+import type { Person, StaffingAssignment } from "@/data/staffingData";
 import { Input } from "@/components/ui/input";
 import { Search, Trash2, Plus, Check, X, Pencil, ChevronRight, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -11,9 +11,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { AddPersonDialog } from "@/components/settings/AddPersonDialog";
+import { AddTeamDialog } from "@/components/settings/AddTeamDialog";
 
 interface Props {
   people: Person[];
+  assignments?: StaffingAssignment[];
   onAdd: (p: Person) => void | Promise<void>;
   onUpdate: (id: string, updates: Partial<Person>) => void | Promise<void>;
   onRequestDelete: (p: Person) => void;
@@ -185,13 +187,14 @@ function classifyPerson(
 /* Resizable column hook                                               */
 /* ------------------------------------------------------------------ */
 
-type ColKey = "name" | "designation" | "email" | "reportsTo" | "revType";
+type ColKey = "name" | "designation" | "email" | "reportsTo" | "revType" | "utilisation";
 const DEFAULT_WIDTHS: Record<ColKey, number> = {
   name: 220,
   designation: 220,
   email: 240,
   reportsTo: 180,
   revType: 360,
+  utilisation: 160,
 };
 
 function useResizableColumns() {
@@ -239,12 +242,22 @@ function ResizeHandle({ onMouseDown }: { onMouseDown: (e: React.MouseEvent) => v
   );
 }
 
-export function PeopleReportingTable({ people, onAdd, onUpdate, onRequestDelete }: Props) {
+export function PeopleReportingTable({ people, assignments = [], onAdd, onUpdate, onRequestDelete }: Props) {
   const [search, setSearch] = useState("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
   const [addDefaults, setAddDefaults] = useState<{ department?: string; subTeam?: string }>({});
+  const [teamDialog, setTeamDialog] = useState<{ mode: "team" | "subteam"; parent?: string } | null>(null);
   const { widths, onMouseDown } = useResizableColumns();
+
+  // Utilisation map: sum of allocation % per person id.
+  const utilByPerson = useMemo(() => {
+    const m: Record<string, number> = {};
+    assignments.forEach((a) => {
+      m[a.personId] = (m[a.personId] || 0) + (a.allocationPct || 0);
+    });
+    return m;
+  }, [assignments]);
 
   const byName = useMemo(() => {
     const m = new Map<string, Person>();
@@ -326,6 +339,25 @@ export function PeopleReportingTable({ people, onAdd, onUpdate, onRequestDelete 
     setAddOpen(true);
   };
 
+  // Persist custom (empty) teams / sub-teams in localStorage so headers
+  // appear in the grouped view even before any person is assigned.
+  const persistCustomTeam = (name: string) => {
+    try {
+      const key = "people-ops.custom-teams";
+      const list: string[] = JSON.parse(localStorage.getItem(key) || "[]");
+      if (!list.includes(name)) localStorage.setItem(key, JSON.stringify([...list, name]));
+    } catch {}
+    toast.success(`Team "${name}" added. Assign people to keep it.`);
+  };
+  const persistCustomSubTeam = (parent: string, name: string) => {
+    try {
+      const key = `people-ops.custom-subs:${parent}`;
+      const list: string[] = JSON.parse(localStorage.getItem(key) || "[]");
+      if (!list.includes(name)) localStorage.setItem(key, JSON.stringify([...list, name]));
+    } catch {}
+    toast.success(`Sub-team "${name}" added under ${parent}.`);
+  };
+
   return (
     <div className="space-y-3">
       <datalist id="people-reporting-managers">
@@ -359,10 +391,10 @@ export function PeopleReportingTable({ people, onAdd, onUpdate, onRequestDelete 
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-44">
             <DropdownMenuItem onClick={() => openAdd()}>Add person</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => openAdd({ department: "Delivery Ops and CS" })}>
-              Add sub-team (VSD)
+            <DropdownMenuItem onClick={() => setTeamDialog({ mode: "subteam", parent: "VSD" })}>
+              Add sub-team
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => openAdd({ department: "" })}>
+            <DropdownMenuItem onClick={() => setTeamDialog({ mode: "team" })}>
               Add team
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -378,6 +410,17 @@ export function PeopleReportingTable({ people, onAdd, onUpdate, onRequestDelete 
         onAdd={onAdd}
       />
 
+      <AddTeamDialog
+        open={!!teamDialog}
+        onOpenChange={(o) => !o && setTeamDialog(null)}
+        mode={teamDialog?.mode || "team"}
+        parentTeam={teamDialog?.parent}
+        onCreate={async (name) => {
+          if (teamDialog?.mode === "team") persistCustomTeam(name);
+          else if (teamDialog?.parent) persistCustomSubTeam(teamDialog.parent, name);
+        }}
+      />
+
       <div className="overflow-auto rounded-xl border border-border bg-card">
         <table className="text-sm" style={{ tableLayout: "fixed", width: "max-content", minWidth: "100%" }}>
           <colgroup>
@@ -386,6 +429,7 @@ export function PeopleReportingTable({ people, onAdd, onUpdate, onRequestDelete 
             <col style={{ width: widths.email }} />
             <col style={{ width: widths.reportsTo }} />
             <col style={{ width: widths.revType }} />
+            <col style={{ width: widths.utilisation }} />
             <col style={{ width: 40 }} />
           </colgroup>
           <thead className="bg-secondary/40 text-muted-foreground">
@@ -397,6 +441,7 @@ export function PeopleReportingTable({ people, onAdd, onUpdate, onRequestDelete 
                   ["email", "Email"],
                   ["reportsTo", "Reports to"],
                   ["revType", "Rev type"],
+                  ["utilisation", "Utilisation"],
                 ] as [ColKey, string][]
               ).map(([k, label]) => (
                 <th
@@ -417,7 +462,7 @@ export function PeopleReportingTable({ people, onAdd, onUpdate, onRequestDelete 
               return (
                 <Fragment key={teamKey}>
                   <tr className="border-t border-border bg-secondary/30">
-                    <td colSpan={6} className="px-3 py-2">
+                    <td colSpan={7} className="px-3 py-2">
                       <button
                         type="button"
                         onClick={() => toggle(teamKey)}
@@ -443,7 +488,7 @@ export function PeopleReportingTable({ people, onAdd, onUpdate, onRequestDelete 
                         <Fragment key={subKey}>
                           {hasSub && (
                             <tr className="border-t border-border/50 bg-secondary/10">
-                              <td colSpan={6} className="px-3 py-1.5 pl-8">
+                              <td colSpan={7} className="px-3 py-1.5 pl-8">
                                 <button
                                   type="button"
                                   onClick={() => toggle(subKey)}
@@ -547,6 +592,22 @@ export function PeopleReportingTable({ people, onAdd, onUpdate, onRequestDelete 
                                       </span>
                                     </div>
                                   </td>
+                                  <td className="px-3 py-1.5">
+                                    {(() => {
+                                      const u = Math.round(utilByPerson[p.id] || 0);
+                                      const tone =
+                                        u > 100 ? "bg-destructive/15 text-destructive"
+                                        : u >= 85 ? "bg-warning/15 text-warning"
+                                        : u >= 30 ? "bg-positive/15 text-positive"
+                                        : u > 0 ? "bg-info/15 text-info"
+                                        : "bg-secondary text-muted-foreground";
+                                      return (
+                                        <span className={cn("inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium tabular-nums", tone)}>
+                                          {u === 0 ? "—" : `${u}%`}
+                                        </span>
+                                      );
+                                    })()}
+                                  </td>
                                   <td className="px-2 py-1.5 text-right">
                                     <button
                                       type="button"
@@ -568,7 +629,7 @@ export function PeopleReportingTable({ people, onAdd, onUpdate, onRequestDelete 
             })}
             {grouped.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
+                <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
                   No people match "{search}".
                 </td>
               </tr>

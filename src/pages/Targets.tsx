@@ -149,7 +149,7 @@ function TargetCell({ value, prevValue, onSave, disabled, prevLabel, asTd = true
   );
 }
 
-export default function Targets() {
+export default function Targets({ embedded = false }: { embedded?: boolean } = {}) {
   useCurrencyVersion();
   const { isAdmin, role } = useUserRole();
   const access = useDealAccess();
@@ -505,9 +505,8 @@ export default function Targets() {
 
   const bopmCount = useMemo(() => new Set(deals.map(d => d.bopm).filter(Boolean)).size, [deals]);
 
-  return (
-    <AppLayout>
-      <div className="p-4 md:p-8 max-w-[1400px] mx-auto">
+  const body = (
+    <div className="p-4 md:p-8 max-w-[1400px] mx-auto">
 
         {/* Header */}
         <div className="mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
@@ -875,7 +874,8 @@ export default function Targets() {
         )}
 
         <TargetsUploadDialog open={uploadOpen} onOpenChange={setUploadOpen} onUploaded={load} defaultMonth={month} />
-      </div>
-    </AppLayout>
+    </div>
   );
+  if (embedded) return body;
+  return <AppLayout>{body}</AppLayout>;
 }

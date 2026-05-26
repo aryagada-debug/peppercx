@@ -7,6 +7,7 @@ import { UsersTab } from "@/pages/admin/UsersTab";
 import { AccessControlsTab } from "@/pages/admin/AccessControlsTab";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useCurrencyVersion } from "@/contexts/CurrencyContext";
+import Targets from "@/pages/Targets";
 import { useEffect } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,6 +16,7 @@ import { Switch } from "@/components/ui/switch";
 const tabs = [
   "Users & Roles",
   "Access Controls",
+  "Targets",
   "Notifications",
   "Data Sync",
 ] as const;
@@ -70,6 +72,10 @@ export default function SettingsPage() {
 
         {activeTab === "Notifications" && (
           <NotificationsPanel />
+        )}
+
+        {activeTab === "Targets" && (
+          <Targets embedded />
         )}
 
         {activeTab === "Data Sync" && (

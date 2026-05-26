@@ -80,7 +80,7 @@ const App = () => (
             {/* Protected routes */}
             <Route path="/home" element={<ProtectedRoute routeKey="home"><Home /></ProtectedRoute>} />
             <Route path="/" element={<Navigate to="/home" replace />} />
-            <Route path="/dashboard" element={<ProtectedRoute routeKey="dashboard"><Index /></ProtectedRoute>} />
+            <Route path="/dashboard" element={<Navigate to="/home" replace />} />
             <Route path="/clients" element={<ProtectedRoute routeKey="clients"><Clients /></ProtectedRoute>} />
             <Route path="/deals" element={<Navigate to="/clients" replace />} />
             <Route path="/deals/:dealId" element={<ProtectedRoute routeKey="clients"><DealDetail /></ProtectedRoute>} />
