@@ -33,6 +33,7 @@ const Onboarding = lazy(() => import("./pages/Onboarding"));
 const GM2Calculator = lazy(() => import("./pages/GM2Calculator"));
 const SettingsPage = lazy(() => import("./pages/Settings"));
 const Trash = lazy(() => import("./pages/Trash"));
+const PeopleOps = lazy(() => import("./pages/PeopleOps"));
 
 // Mounts the one-shot seeder under the auth provider so it can read the
 // session and only fire when staffing_people is empty.
@@ -84,6 +85,7 @@ const App = () => (
             <Route path="/deals" element={<Navigate to="/clients" replace />} />
             <Route path="/deals/:dealId" element={<ProtectedRoute routeKey="clients"><DealDetail /></ProtectedRoute>} />
             <Route path="/staffing" element={<ProtectedRoute routeKey="staffing"><Staffing /></ProtectedRoute>} />
+            <Route path="/people-ops" element={<ProtectedRoute routeKey="people-ops"><PeopleOps /></ProtectedRoute>} />
             <Route path="/targets" element={<ProtectedRoute routeKey="targets"><Targets /></ProtectedRoute>} />
             <Route path="/rgy-health" element={<ProtectedRoute routeKey="rgy-health"><RGYHealth /></ProtectedRoute>} />
             <Route path="/mbr-tracker" element={<ProtectedRoute routeKey="mbr-tracker"><MBRTracker /></ProtectedRoute>} />
