@@ -581,6 +581,14 @@ export function BopmStaffingFlatTable({
   const [bopmFilter, setBopmFilter] = useState<string>("All");
   const { isAdmin } = useUserRole();
   const { deleteDeal: deleteDealMutation } = useClients();
+  const { lockStaffing } = useStaffingMutations();
+  const [lockBusy, setLockBusy] = useState<Record<string, boolean>>({});
+  const toggleLock = useCallback(async (dealId: string, lock: boolean) => {
+    if (lockBusy[dealId]) return;
+    setLockBusy(p => ({ ...p, [dealId]: true }));
+    try { await lockStaffing(dealId, lock); } catch { /* toast handled */ }
+    finally { setLockBusy(p => { const n = { ...p }; delete n[dealId]; return n; }); }
+  }, [lockStaffing, lockBusy]);
   const [deleteDealTarget, setDeleteDealTarget] = useState<{ id: string; account: string; dealName: string } | null>(null);
   const [deletingDeal, setDeletingDeal] = useState(false);
   const [vsdFilter, setVsdFilter] = useState<string>("All");
