@@ -406,6 +406,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
       const list: string[] = JSON.parse(localStorage.getItem(key) || "[]");
       if (!list.includes(name)) localStorage.setItem(key, JSON.stringify([...list, name]));
     } catch {}
+    setCustomBump((n) => n + 1);
     toast.success(`Team "${name}" added. Assign people to keep it.`);
   };
   const persistCustomSubTeam = (parent: string, name: string) => {
@@ -414,6 +415,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
       const list: string[] = JSON.parse(localStorage.getItem(key) || "[]");
       if (!list.includes(name)) localStorage.setItem(key, JSON.stringify([...list, name]));
     } catch {}
+    setCustomBump((n) => n + 1);
     toast.success(`Sub-team "${name}" added under ${parent}.`);
   };
 
@@ -450,7 +452,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-44">
             <DropdownMenuItem onClick={() => openAdd()}>Add person</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTeamDialog({ mode: "subteam", parent: "VSD" })}>
+            <DropdownMenuItem onClick={() => setTeamDialog({ mode: "subteam" })}>
               Add sub-team
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setTeamDialog({ mode: "team" })}>
@@ -474,9 +476,10 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
         onOpenChange={(o) => !o && setTeamDialog(null)}
         mode={teamDialog?.mode || "team"}
         parentTeam={teamDialog?.parent}
-        onCreate={async (name) => {
+        availableTeams={TEAM_ORDER}
+        onCreate={async (name, parent) => {
           if (teamDialog?.mode === "team") persistCustomTeam(name);
-          else if (teamDialog?.parent) persistCustomSubTeam(teamDialog.parent, name);
+          else if (parent) persistCustomSubTeam(parent, name);
         }}
       />
 
