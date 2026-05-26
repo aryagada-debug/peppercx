@@ -8,26 +8,31 @@ interface Props {
   onOpenChange: (o: boolean) => void;
   mode: "team" | "subteam";
   parentTeam?: string; // when mode === "subteam"
+  availableTeams?: string[]; // when mode === "subteam" and no parentTeam fixed
   /**
    * Called with the new team / sub-team name. Caller is responsible for
    * persisting it (typically by adding a placeholder person OR by tracking
    * the empty bucket in local UI state).
    */
-  onCreate: (name: string) => Promise<void> | void;
+  onCreate: (name: string, parent?: string) => Promise<void> | void;
 }
 
-export function AddTeamDialog({ open, onOpenChange, mode, parentTeam, onCreate }: Props) {
+export function AddTeamDialog({ open, onOpenChange, mode, parentTeam, availableTeams = [], onCreate }: Props) {
   const [name, setName] = useState("");
+  const [parent, setParent] = useState(parentTeam || "");
   const [saving, setSaving] = useState(false);
 
   const submit = async () => {
     const v = name.trim();
     if (!v) { toast.error("Name is required"); return; }
+    const p = (parentTeam || parent).trim();
+    if (mode === "subteam" && !p) { toast.error("Please pick a parent team"); return; }
     setSaving(true);
     try {
-      await onCreate(v);
+      await onCreate(v, mode === "subteam" ? p : undefined);
       toast.success(mode === "team" ? `Team "${v}" added` : `Sub-team "${v}" added`);
       setName("");
+      if (!parentTeam) setParent("");
       onOpenChange(false);
     } catch (e: any) {
       toast.error(e?.message || "Failed to create");
@@ -36,7 +41,11 @@ export function AddTeamDialog({ open, onOpenChange, mode, parentTeam, onCreate }
     }
   };
 
-  const title = mode === "team" ? "Add a team" : `Add a sub-team to ${parentTeam || "team"}`;
+  const title = mode === "team"
+    ? "Add a team"
+    : parentTeam
+    ? `Add a sub-team to ${parentTeam}`
+    : "Add a sub-team";
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) setName(""); onOpenChange(o); }}>
@@ -44,6 +53,21 @@ export function AddTeamDialog({ open, onOpenChange, mode, parentTeam, onCreate }
         <DialogHeader>
           <DialogTitle className="text-base">{title}</DialogTitle>
         </DialogHeader>
+        {mode === "subteam" && !parentTeam && (
+          <label className="space-y-1">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Parent team</div>
+            <select
+              value={parent}
+              onChange={(e) => setParent(e.target.value)}
+              className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="">Select a team…</option>
+              {availableTeams.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="space-y-1">
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Name</div>
           <Input value={name} onChange={e => setName(e.target.value)} autoFocus
