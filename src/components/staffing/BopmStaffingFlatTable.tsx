@@ -88,6 +88,38 @@ const CATEGORY_STYLES: Record<string, { head: string; cell: string; dot: string;
                            chip: "bg-slate-500/15 dark:bg-slate-500/25 border-slate-500/40 text-slate-900 dark:text-slate-100",
                            add:  "border-slate-500/40 text-slate-700/80 dark:text-slate-200/70 hover:bg-slate-500/15 hover:text-slate-900 dark:hover:text-slate-100 hover:border-slate-500/60" },
 };
+
+// Aliases for the new role-slot categories (so they get the same swatches as
+// their legacy equivalents). Order in this map is intentional: Delivery Ops
+// first, then capability teams. `Object.keys(CATEGORY_STYLES)` later drives
+// the default left-to-right column-group order in the Sheet view.
+const NEW_CATEGORY_STYLES: typeof CATEGORY_STYLES = {
+  "Delivery Ops":    { ...CATEGORY_STYLES["Operations"], label: "Delivery Ops and CS" },
+  "Creative Video":  { ...CATEGORY_STYLES["Video"],      label: "Creative — Video" },
+  "Creative Design": { ...CATEGORY_STYLES["Creative Art"], label: "Creative — Design" },
+};
+// Prepend Delivery Ops + content/SEO so they always render first, before the
+// legacy entries (which we keep for back-compat with old assignments).
+const ORDERED_CATEGORY_STYLES: typeof CATEGORY_STYLES = {
+  "Delivery Ops":     NEW_CATEGORY_STYLES["Delivery Ops"],
+  "Content":          CATEGORY_STYLES["Content"],
+  "Content Strategy": CATEGORY_STYLES["Content Strategy"],
+  "SEO":              CATEGORY_STYLES["SEO"],
+  "Creative Strategy": CATEGORY_STYLES["Creative Strategy"],
+  "Creative Copy":    CATEGORY_STYLES["Creative Copy"],
+  "Creative Design":  NEW_CATEGORY_STYLES["Creative Design"],
+  "Creative Art":     CATEGORY_STYLES["Creative Art"],
+  "Creative Video":   NEW_CATEGORY_STYLES["Creative Video"],
+  "Video":            CATEGORY_STYLES["Video"],
+  "Operations":       CATEGORY_STYLES["Operations"],
+  "Performance & Growth": CATEGORY_STYLES["Performance & Growth"],
+  "Other":            CATEGORY_STYLES["Other"],
+};
+// Re-export the ordered map under the original name so the rest of the file
+// (which already references `CATEGORY_STYLES`) inherits the new default
+// ordering and the new entries automatically.
+Object.keys(CATEGORY_STYLES).forEach(k => delete (CATEGORY_STYLES as any)[k]);
+Object.assign(CATEGORY_STYLES, ORDERED_CATEGORY_STYLES);
 const styleFor = (cat?: string) => CATEGORY_STYLES[cat || "Other"] || CATEGORY_STYLES["Other"];
 const VIRTUAL_ROW_HEIGHT = 72;
 const VIRTUAL_OVERSCAN_ROWS = 8;

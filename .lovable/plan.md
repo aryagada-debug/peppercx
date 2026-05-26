@@ -1,117 +1,85 @@
+## Goal
 
-# Goal
+Adopt the per-deal **Staffing tab** flow (the one inside Clients & Deals → Deal Detail) as the **default/primary view** of the `Staffing & Capacity` module. The current flat spreadsheet (`BopmStaffingFlatTable`) becomes a secondary "Sheet view". Both views group columns/sections by **Department**, with Delivery Ops and CS first.
 
-Make the new **Department → Role Type** taxonomy the single source of truth for **People Ops**, **Staffing & Capacity**, and **Deal Staffing** (inside Clients & Deals). All three surfaces use the same data model, the same group/segment framework, and the same add-staffing flow.
-
-Reference framework: the **Content Capability App** treats People and Capacity as two pivots over one roster — every person has a role, and every account/deal pulls from that same roster via a single dialog. We mirror that idea here, but with **Department (7) → Role Type (23)** as the grouping spine instead of a flat role list.
+No backend, schema, or business-logic changes — purely a frontend reshape.
 
 ---
 
-# 1. Single Add-Staffing flow (used everywhere)
+## What the new default view looks like
 
-Today there are two entry points (`AddStaffingMemberDialog` from Deal Staffing, and the people picker inside `BopmStaffingFlatTable`'s Staffing & Capacity table). We consolidate to **one shared dialog** mounted from both surfaces.
-
-New flow inside `AddStaffingMemberDialog`:
+A scrollable list of **deal cards**, each card mirroring the per-deal Staffing tab layout:
 
 ```text
-Step 1: Select Department          (7 cards: Operations, SEO, Content,
-                                    Content Strategy, Creative Strategy,
-                                    Creative Art, Creative Copy, Video,
-                                    Performance & Growth — driven by
-                                    staffing_departments)
-Step 2: Select Role Type           (cards filtered to dept; driven by
-                                    staffing_role_types)
-Step 3: Select Member              (people filtered to role_type_id;
-                                    with utilization + current deals,
-                                    same UI as today)
-Step 4: Set Allocation             (unchanged)
+┌─ Deal: <Account> — <Deal Name>   [Add Staffing] [Request] [⋯] ┐
+│  KPI strip: Team Size · Hrs/Wk · Cost/Wk (admin) · Rev Managed │
+│                                                                │
+│  ── Delivery Ops ───────────────────────  3 members ──         │
+│   Name | Role | Pod | Allocation | Hrs/Wk | Rate | Cost | Rev  │
+│   …                                                            │
+│                                                                │
+│  ── CS (Content Strategy) ──────────────  2 members ──         │
+│   …                                                            │
+│                                                                │
+│  ── Content / SEO / Creative … ──                              │
+└────────────────────────────────────────────────────────────────┘
 ```
 
-Search box on every step searches the full roster (department, role type, name, pod, region, email).
+Rules:
+- Department-first grouping (replacing the old per-deal `roleCategory` grouping). **Order:** Delivery Ops → CS (Content Strategy) → Content → SEO → Creative Strategy → Creative Copy → Creative Art → Video → Performance & Growth → Other / Unassigned. Use `useTaxonomyQuery` + the per-deal applicability index so hidden departments don't render.
+- Per-row controls (allocation inline-edit, remove, rate edit) reuse the exact JSX already in `DealDetail` Staffing tab.
+- "Add Staffing" / "Request Staffing" open the existing shared `AddStaffingMemberDialog` / `RequestStaffingDialog`, prefilled with the card's `dealId`.
+- Card header carries the admin gear (`DealApplicabilityPopover`) and the deal lock control already used today.
+- Top-of-page controls: deal search box, `BopmFilter`, `DealTypeFilter`, and a status toggle (active / all). Same filters the current Sheet view already exposes — reuse the same handlers.
 
-The screenshot's "Select Team" grid is replaced by a Department grid populated from `staffing_departments` (sorted by `sort_order`); selecting a card advances to a Role Type grid populated from `staffing_role_types` for that dept. "0 available" counts come from the live `people` array filtered by `departmentId` / `roleTypeId`.
+## What changes in Staffing & Capacity tabs
 
----
+`src/pages/Staffing.tsx`:
+- Replace the current admin tab set with: **`Staffing` (new default cards) · `Sheet view` (the existing flat table) · `Deal view` · `Lock Analytics`**.
+- `tab` default becomes `"staffing"` (was `"table"`). URL param `?tab=table` keeps working via the existing normalizer, but now resolves to **Sheet view**.
+- BOPM persona: default also becomes the new Staffing cards (read-only); "Sheet view" remains hidden for them, "Change requests" stays.
+- Keep the lazy-mount / `hidden`-class pattern already in `Staffing.tsx` so switching tabs preserves drafts.
 
-# 2. People Ops rebuild
+## Sheet view (existing flat table) — column re-ordering only
 
-`PeopleReportingTable` is restructured to use the same Department → Role Type spine.
+`src/components/staffing/BopmStaffingFlatTable.tsx`:
+- The column groups today are derived from `ROLE_SLOTS` (category → roles). Re-sort the *group order* so **Delivery Ops first, then CS, then the rest** (same explicit order as above). Within each group, role columns keep their current order.
+- No structural / write-path changes; only the `ROLE_SLOTS` traversal that builds visible column groups is reordered (use a `DEPT_ORDER` array keyed by `ROLE_TYPE_TO_DEPT`).
 
-- Top-level groups: **Department** (with count + total FTE + avg utilization).
-- Nested groups inside each dept: **Role Type** (with count + avg utilization).
-- Inside each role type: existing person rows (inline-edit fields, deals, utilization).
-- Header chips: All Departments / All Role Types / Active / TBH / Leaving filters.
-- "Add Person" dialog (`AddPersonDialog`) gets **Department first, Role Type filtered to that dept** — writes `department_id` + `role_type_id`. Legacy `role_category`/`role_title` columns are kept in sync for back-compat reads only.
+## New shared component
 
-This matches the Content Capability App framework: one roster, segmented by the official taxonomy, with capacity rolled up at every level.
+`src/components/staffing/DealStaffingCard.tsx` (new):
+- Props: `deal`, `dealPeople`, `dealAssignments`, `people`, `assignments`, `isAdmin`, mutation callbacks (`addAssignment`, `updateAssignment`, `deleteAssignment`, `updatePerson`, `updateDeal`).
+- Renders the KPI strip + department-grouped tables exactly like `DealDetail` Staffing tab (lifted out so both places share code).
+- Uses `useTaxonomyQuery` + `useDealApplicabilityQuery` (per-deal) to drive group order/visibility.
 
----
+Then `DealDetail.tsx` Staffing tab body (lines ~2475–2620) is replaced with `<DealStaffingCard … />` so the per-deal page and the module page stay byte-identical visually.
 
-# 3. Staffing & Capacity views
+## New container
 
-`BopmStaffingFlatTable` (already partially migrated):
+`src/components/staffing/StaffingDealsList.tsx` (new):
+- Receives the already-scoped `deals/people/assignments` from `Staffing.tsx`.
+- Owns the top filter bar (search, BopmFilter, DealTypeFilter, status toggle, sort) and renders `<DealStaffingCard>` per deal.
+- Virtualises with a simple "show 20 / load more" pager (cheap) — Staffing & Capacity can have 500+ deals; mounting them all eagerly would crash like the historical issue called out in `Staffing.tsx`.
 
-- Column groups in the header become **Department → Role Type** (matches People Ops and the new dialog).
-- People dropdown in each cell uses the shared `AddStaffingMemberDialog` (4-step Dept → Role Type → Person → Allocation), instead of the inline people list.
-- "Add Staffing Member" button opens the same shared dialog with no pre-selection.
-
-Other tabs (`DealViewTab`, `LockAnalyticsTab`) keep their current visualization but re-label "Capability" → "Department" and break out a sub-row for "Role Type" where they used to show flat role keys.
-
----
-
-# 4. Deal Staffing inside Clients & Deals
-
-`DealDetail` → Staffing tab:
-
-- "Team Members" section gets the same Department → Role Type grouping rendered above the existing per-role staffing cards.
-- "Add Staffing" button opens the shared `AddStaffingMemberDialog` (so the screenshot's broken "Select Team" modal is automatically fixed — it now reads from `staffing_departments` and shows real counts).
-- Request Staffing (non-admin) flow uses the same Dept → Role Type picker so requests carry `department_id` + `role_type_id`.
-- The Staffing lock (admin-only) behaviour is unchanged.
-
----
-
-# 5. Shared building blocks (new)
-
-- `src/components/staffing/DepartmentRoleTypePicker.tsx` — 2-step cards (Dept → Role Type) used by `AddStaffingMemberDialog`, `AddPersonDialog`, and `RequestStaffingDialog`.
-- `src/lib/peopleGrouping.ts` — pure helpers: `groupPeopleByDeptRole(people, taxonomy)`, `countByDept`, `countByRoleType`, `peopleForRoleType(id)`.
-- Extends `useTaxonomyQuery` consumers; no new hooks required (taxonomy + applicability already exist).
-
----
-
-# 6. Files touched
+## Files
 
 **New**
-- `src/components/staffing/DepartmentRoleTypePicker.tsx`
-- `src/lib/peopleGrouping.ts`
+- `src/components/staffing/DealStaffingCard.tsx`
+- `src/components/staffing/StaffingDealsList.tsx`
 
 **Edited**
-- `src/components/staffing/AddStaffingMemberDialog.tsx` — replace step 1/2 with the new picker; keep step 3/4 logic.
-- `src/components/staffing/BopmStaffingFlatTable.tsx` — re-group columns by Dept → Role Type; route "add" through the shared dialog.
-- `src/components/staffing/DealViewTab.tsx`, `LockAnalyticsTab.tsx` — re-label and re-group by Department.
-- `src/components/settings/PeopleReportingTable.tsx` — Department → Role Type grouping, counts, utilization rollups.
-- `src/components/settings/AddPersonDialog.tsx` — Dept → Role Type cascading select; persist `department_id` + `role_type_id`.
-- `src/components/staffing/RequestStaffingDialog.tsx` — Dept → Role Type picker.
-- `src/pages/DealDetail.tsx` — Staffing tab consumes the shared dialog; group "Team Members" by Department.
+- `src/pages/Staffing.tsx` — new tab set, default = `staffing`, mount `StaffingDealsList`.
+- `src/components/staffing/BopmStaffingFlatTable.tsx` — reorder column groups by department (Delivery Ops + CS first).
+- `src/pages/DealDetail.tsx` — Staffing tab body swapped to `<DealStaffingCard />`.
 
 **Unchanged**
-- DB schema (already in place from earlier migrations).
-- Applicability popover, lock RPC, mutations, query keys.
+- DB schema, mutations, applicability/lock RPCs, query keys, `AddStaffingMemberDialog`, `RequestStaffingDialog`, `WeeklyStaffingGrid`, `DealViewTab`, `LockAnalyticsTab`, `BopmStaffingSummary`.
 
----
+## Out of scope
+- Re-skinning Deal view / Lock Analytics / People Ops.
+- Changing what data is shown per row (same columns as the deal page today).
+- Any change to capacity / utilisation calculations.
 
-# 7. Out of scope
-
-- New per-department locks (single deal-level lock stays).
-- Dashboard/Financials/MBR re-skin.
-- CSV re-import of roster (already wiped & seeded).
-- Realtime channel changes.
-
----
-
-# Technical notes
-
-- Taxonomy comes from `useTaxonomyQuery` (already has static fallback) — both `departments[]` and `roleTypesByDept` are ready.
-- People filtering uses `person.departmentId` / `person.roleTypeId` (already on the `Person` interface) and falls back to the legacy `roleCategory` → dept alias map in `staffingData.ts` for any record not yet remapped.
-- Counts use `peopleForRoleType(id).filter(p => !p.tbh && !p.leaving).length` so "0 available" reflects real bench, not raw rows.
-- All writes go through existing mutations (`addPerson`, `updatePerson`, `addAssignment`) — they already accept `department_id` / `role_type_id` after the Phase 1 migration.
-- No design-token changes; reuse current flat-UI palette and the two-weight typography rule.
+## Open question (will assume "yes" unless told otherwise)
+- Should the **BOPM persona** also see the new cards as their default (read-only, no Add/Request buttons)? Plan above assumes **yes**.
