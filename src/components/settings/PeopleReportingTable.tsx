@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import type { Person } from "@/data/staffingData";
+import type { Person, StaffingAssignment } from "@/data/staffingData";
 import { Input } from "@/components/ui/input";
 import { Search, Trash2, Plus, Check, X, Pencil, ChevronRight, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -11,9 +11,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { AddPersonDialog } from "@/components/settings/AddPersonDialog";
+import { AddTeamDialog } from "@/components/settings/AddTeamDialog";
 
 interface Props {
   people: Person[];
+  assignments?: StaffingAssignment[];
   onAdd: (p: Person) => void | Promise<void>;
   onUpdate: (id: string, updates: Partial<Person>) => void | Promise<void>;
   onRequestDelete: (p: Person) => void;
