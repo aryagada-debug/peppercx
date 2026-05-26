@@ -145,15 +145,6 @@ export function CapabilityLeaderDashboard() {
           </Card>
         </div>
 
-        <Card className="p-4 border-dashed">
-          <div className="flex items-start gap-2">
-            <AlertTriangle className="h-4 w-4 text-warning mt-0.5" />
-            <div className="text-xs text-muted-foreground">
-              Staffing requests from BOPMs land in <Link to="/deal-desk" className="text-primary hover:underline">Deal Desk</Link>.
-              Approve, assign one of your team, and the request routes to Central CX for final sign-off.
-            </div>
-          </div>
-        </Card>
       </div>
     </AppLayout>
   );
