@@ -244,22 +244,73 @@ function ResizeHandle({ onMouseDown }: { onMouseDown: (e: React.MouseEvent) => v
   );
 }
 
-export function PeopleReportingTable({ people, assignments = [], onAdd, onUpdate, onRequestDelete }: Props) {
+export function PeopleReportingTable({ people, assignments = [], deals = [], onAdd, onUpdate, onRequestDelete }: Props) {
   const [search, setSearch] = useState("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
   const [addDefaults, setAddDefaults] = useState<{ department?: string; subTeam?: string }>({});
   const [teamDialog, setTeamDialog] = useState<{ mode: "team" | "subteam"; parent?: string } | null>(null);
+  const [customBump, setCustomBump] = useState(0);
   const { widths, onMouseDown } = useResizableColumns();
 
-  // Utilisation map: sum of allocation % per person id.
-  const utilByPerson = useMemo(() => {
-    const m: Record<string, number> = {};
+  // Build a lookup of deals + per-person assignment lists.
+  const dealById = useMemo(() => {
+    const m = new Map<string, Deal>();
+    deals.forEach((d) => m.set(d.id, d));
+    return m;
+  }, [deals]);
+
+  const assignmentsByPerson = useMemo(() => {
+    const m: Record<string, StaffingAssignment[]> = {};
     assignments.forEach((a) => {
-      m[a.personId] = (m[a.personId] || 0) + (a.allocationPct || 0);
+      (m[a.personId] = m[a.personId] || []).push(a);
     });
     return m;
   }, [assignments]);
+
+  // Time utilisation = sum allocation %. Revenue utilisation = allocated MRR
+  // from RETAINER deals divided by the person's revenue capacity.
+  const utilByPerson = useMemo(() => {
+    const m: Record<string, { time: number; revenue: number; allocatedMrr: number }> = {};
+    for (const p of people) {
+      const rows = assignmentsByPerson[p.id] || [];
+      const time = rows.reduce((n, a) => n + (a.allocationPct || 0), 0);
+      let allocatedMrr = 0;
+      for (const a of rows) {
+        const d = dealById.get(a.dealId);
+        if (!d || d.dealType !== "Retainer") continue;
+        allocatedMrr += (d.mrr || 0) * (a.allocationPct || 0) / 100;
+      }
+      const cap = p.revenueTargetPerPerson || 0;
+      const revenue = cap > 0 ? (allocatedMrr / cap) * 100 : 0;
+      m[p.id] = { time, revenue, allocatedMrr };
+    }
+    return m;
+  }, [people, assignmentsByPerson, dealById]);
+
+  // Custom teams + sub-teams persisted in localStorage.
+  const customTeams = useMemo<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem("people-ops.custom-teams") || "[]"); }
+    catch { return []; }
+  }, [customBump]);
+  const customSubsByTeam = useMemo<Record<string, string[]>>(() => {
+    const out: Record<string, string[]> = {};
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || !k.startsWith("people-ops.custom-subs:")) continue;
+        const parent = k.slice("people-ops.custom-subs:".length);
+        out[parent] = JSON.parse(localStorage.getItem(k) || "[]");
+      }
+    } catch {}
+    return out;
+  }, [customBump]);
+
+  const TEAM_ORDER = useMemo(
+    () => Array.from(new Set([...BUILT_IN_TEAMS, ...customTeams])),
+    [customTeams],
+  );
 
   const byName = useMemo(() => {
     const m = new Map<string, Person>();
@@ -286,16 +337,22 @@ export function PeopleReportingTable({ people, assignments = [], onAdd, onUpdate
     for (const t of TEAM_ORDER) teams.set(t, new Map());
     for (const p of filtered) {
       const { team, subTeam } = classifyPerson(p, byName);
-      const subMap = teams.get(team)!;
+      const subMap = teams.get(team) || teams.set(team, new Map()).get(team)!;
       const key = subTeam || "";
       if (!subMap.has(key)) subMap.set(key, []);
       subMap.get(key)!.push(p);
+    }
+    // Ensure custom sub-teams have a bucket even when empty.
+    for (const [parent, subs] of Object.entries(customSubsByTeam)) {
+      const subMap = teams.get(parent) || teams.set(parent, new Map()).get(parent)!;
+      for (const s of subs) if (!subMap.has(s)) subMap.set(s, []);
     }
     // Order sub-teams
     const ordered: { team: TeamName; subs: { sub: string; rows: Person[] }[]; total: number }[] = [];
     for (const t of TEAM_ORDER) {
       const subMap = teams.get(t)!;
-      if (subMap.size === 0) continue;
+      // Show empty custom teams too.
+      if (subMap.size === 0 && !customTeams.includes(t)) continue;
       const order =
         t === "VSD" ? VSD_SUBTEAM_ORDER : t === "Creative team" ? CREATIVE_SUBTEAM_ORDER : [];
       const subs = Array.from(subMap.entries())
@@ -319,7 +376,7 @@ export function PeopleReportingTable({ people, assignments = [], onAdd, onUpdate
       ordered.push({ team: t, subs, total });
     }
     return ordered;
-  }, [filtered, byName]);
+  }, [filtered, byName, TEAM_ORDER, customTeams, customSubsByTeam]);
 
   const toggle = (key: string) =>
     setCollapsed((s) => {
