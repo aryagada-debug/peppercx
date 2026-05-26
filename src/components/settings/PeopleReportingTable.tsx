@@ -244,6 +244,28 @@ function ResizeHandle({ onMouseDown }: { onMouseDown: (e: React.MouseEvent) => v
   );
 }
 
+function UtilBar({ value, hint }: { value: number; hint?: string }) {
+  const v = Math.max(0, Math.round(value));
+  const capped = Math.min(v, 100);
+  const color =
+    v > 100 ? "bg-destructive"
+    : v >= 85 ? "bg-warning"
+    : v >= 30 ? "bg-positive"
+    : v > 0 ? "bg-info"
+    : "bg-muted";
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <div className="flex-1 h-2 rounded-sm overflow-hidden bg-muted min-w-[80px]">
+          <div className={cn("h-full rounded-sm", color)} style={{ width: `${capped}%` }} />
+        </div>
+        <span className="text-xs font-medium tabular-nums w-10 text-right">{v}%</span>
+      </div>
+      {hint && <div className="text-[10px] text-muted-foreground tabular-nums">{hint}</div>}
+    </div>
+  );
+}
+
 export function PeopleReportingTable({ people, assignments = [], deals = [], onAdd, onUpdate, onRequestDelete }: Props) {
   const [search, setSearch] = useState("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
