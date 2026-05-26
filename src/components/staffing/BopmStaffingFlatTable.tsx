@@ -1597,6 +1597,12 @@ export function BopmStaffingFlatTable({
                            </button>
                          )}
                        </div>
+                        <StaffingLockChip
+                          deal={d}
+                          isAdmin={isAdmin}
+                          busy={!!lockBusy[d.id]}
+                          onToggle={(lock) => toggleLock(d.id, lock)}
+                        />
                      </td>
                     <td className="px-3 py-2 text-right font-mono text-foreground border-r border-border whitespace-nowrap">
                       {formatINR(d.mrr || 0)}
