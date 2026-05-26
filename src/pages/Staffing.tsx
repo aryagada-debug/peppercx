@@ -16,13 +16,14 @@ import { BopmEmptyState } from "@/components/access/BopmEmptyState";
 import { StaffingReviewRequestsButton } from "@/components/staffing/StaffingReviewRequests";
 import { BopmStaffingSummary } from "@/components/staffing/BopmStaffingSummary";
 import { BopmStaffingFlatTable } from "@/components/staffing/BopmStaffingFlatTable";
+import { StaffingDealsList } from "@/components/staffing/StaffingDealsList";
 import { MyStaffingRequests } from "@/components/staffing/MyStaffingRequests";
 import { LockAnalyticsTab } from "@/components/staffing/LockAnalyticsTab";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useVsdUsers } from "@/hooks/queries/legacy";
 import { supabase } from "@/integrations/supabase/client";
 
-type Tab = "deals" | "people" | "table" | "requests" | "lock";
+type Tab = "staffing" | "deals" | "people" | "table" | "requests" | "lock";
 
 export default function Staffing() {
   useCurrencyVersion();
@@ -72,7 +73,7 @@ export default function Staffing() {
     tabParam === ("matrix" as any) || tabParam === ("tables" as any)
       ? "table"
       : (tabParam as Tab | null);
-  const [tab, setTab] = useState<Tab>(normalizedTabParam || "table");
+  const [tab, setTab] = useState<Tab>(normalizedTabParam || "staffing");
 
   // Track which tabs have ever been opened. We mount each panel lazily the
   // first time the user visits it and keep it mounted afterwards so column
@@ -85,7 +86,7 @@ export default function Staffing() {
 
   // BOPM persona: only Table view + Change requests are valid.
   useEffect(() => {
-    if (isBopmPersona && tab !== "table" && tab !== "requests") setTab("table");
+    if (isBopmPersona && tab !== "staffing" && tab !== "requests") setTab("staffing");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isBopmPersona]);
 
@@ -98,7 +99,7 @@ export default function Staffing() {
     setTab(t);
     const next = new URLSearchParams(searchParams);
     next.set("tab", t);
-    if (t !== "table") next.delete("deal");
+    if (t !== "table" && t !== "staffing") next.delete("deal");
     setSearchParams(next, { replace: true });
   };
 
@@ -169,13 +170,15 @@ export default function Staffing() {
 
   const TABS: { key: Tab; label: string }[] = isBopmPersona
     ? [
-        { key: "table",    label: "Table view" },
+        { key: "staffing", label: "Staffing" },
+        { key: "table",    label: "Sheet view" },
         { key: "requests", label: "Change requests" },
       ]
     : [
-        { key: "table", label: "Staffing" },
-        { key: "deals", label: "Deal view" },
-        { key: "lock",  label: "Lock Analytics" },
+        { key: "staffing", label: "Staffing" },
+        { key: "table",    label: "Sheet view" },
+        { key: "deals",    label: "Deal view" },
+        { key: "lock",     label: "Lock Analytics" },
       ];
 
   const showBopmEmpty = isBopmPersona && !accessLoading && activeBopmDeals.length === 0;
