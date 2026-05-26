@@ -3,8 +3,14 @@ import type { Person } from "@/data/staffingData";
 import { Input } from "@/components/ui/input";
 import { Search, Trash2, Plus, Check, X, Pencil, ChevronRight, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { uid } from "@/data/staffingData";
 import { toast } from "sonner";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { AddPersonDialog } from "@/components/settings/AddPersonDialog";
 
 interface Props {
   people: Person[];
@@ -42,7 +48,7 @@ function InlineText({
           onChange={(e) => setLocal(e.target.value)}
           list={list}
           type={type}
-          className="h-7 text-xs"
+          className="h-8 text-sm"
           autoFocus
           placeholder={placeholder}
           onKeyDown={(e) => {
@@ -78,7 +84,7 @@ function InlineText({
       }}
       className={cn("group/edit flex items-center gap-1 text-left w-full", className)}
     >
-      <span className={cn("text-xs truncate", value ? "text-foreground" : "text-muted-foreground")}>
+      <span className={cn("text-sm truncate", value ? "text-foreground" : "text-muted-foreground")}>
         {value || placeholder}
       </span>
       <Pencil className="h-2.5 w-2.5 text-muted-foreground opacity-0 transition-opacity group-hover/edit:opacity-100 shrink-0" />
