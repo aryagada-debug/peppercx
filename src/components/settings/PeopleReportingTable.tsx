@@ -429,8 +429,8 @@ export function PeopleReportingTable({ people, onAdd, onUpdate, onRequestDelete 
                           <ChevronDown className="h-3.5 w-3.5" />
                         )}
                         <span className="h-2 w-2 rounded-full bg-primary" />
-                        <span className="text-xs font-medium">{team}</span>
-                        <span className="text-[10px] text-muted-foreground">({total})</span>
+                        <span className="text-sm font-medium">{team}</span>
+                        <span className="text-xs text-muted-foreground">({total})</span>
                       </button>
                     </td>
                   </tr>
@@ -454,8 +454,8 @@ export function PeopleReportingTable({ people, onAdd, onUpdate, onRequestDelete 
                                   ) : (
                                     <ChevronDown className="h-3 w-3" />
                                   )}
-                                  <span className="text-[11px] text-foreground/80">{sub}</span>
-                                  <span className="text-[10px] text-muted-foreground">
+                                  <span className="text-sm text-foreground/80">{sub}</span>
+                                  <span className="text-xs text-muted-foreground">
                                     ({rows.length})
                                   </span>
                                 </button>
@@ -517,13 +517,13 @@ export function PeopleReportingTable({ people, onAdd, onUpdate, onRequestDelete 
                                               | "USD",
                                           })
                                         }
-                                        className="h-7 shrink-0 rounded border border-input bg-background px-1 text-[11px] focus:outline-none focus:ring-1 focus:ring-ring"
+                                        className="h-8 shrink-0 rounded border border-input bg-background px-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
                                       >
                                         <option value="INR">₹ INR</option>
                                         <option value="USD">$ USD</option>
                                       </select>
                                       <div className="relative w-32 shrink-0">
-                                        <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">
+                                        <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
                                           {symbol}
                                         </span>
                                         <Input
@@ -537,11 +537,11 @@ export function PeopleReportingTable({ people, onAdd, onUpdate, onRequestDelete 
                                                 Number(e.target.value) || 0,
                                             })
                                           }
-                                          className="h-7 pl-5 pr-2 text-xs tabular-nums"
+                                          className="h-8 pl-5 pr-2 text-sm tabular-nums"
                                           placeholder="0"
                                         />
                                       </div>
-                                      <span className="text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">
+                                      <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
                                         = {symbol}
                                         {fmt(p.revenueTargetPerPerson || 0)}
                                       </span>
