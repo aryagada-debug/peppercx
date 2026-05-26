@@ -37,11 +37,9 @@ export const ALL_ROUTE_KEYS = [
   "clients",
   "staffing",
   "targets",
-  "central-cx",
   "rgy-health",
   "mbr-tracker",
   "onboarding",
-  "deal-desk",
   "gm2-calculator",
   "settings",
 ] as const;

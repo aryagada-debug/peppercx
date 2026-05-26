@@ -15,11 +15,9 @@ const ROUTE_LABELS: Record<string, string> = {
   "clients": "Clients & Deals",
   "staffing": "Staffing & Capacity",
   "targets": "Targets",
-  "central-cx": "Central Cx",
   "rgy-health": "RGY Health",
   "mbr-tracker": "MBR Tracker",
   "onboarding": "Onboarding",
-  "deal-desk": "Deal Desk",
   "gm2-calculator": "GM2 Calculator",
   "settings": "Settings",
 };
