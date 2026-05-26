@@ -156,6 +156,11 @@ export interface Deal {
   pepperBuL2?: string;
   inputCurrency?: "INR" | "USD";
   geo?: string;
+  // Staffing lock — owned by Central CX (admin). A deal is "Staffed" when
+  // staffingLockedAt is set; otherwise it counts as "Unstaffed".
+  staffingLockedAt?: string | null;
+  staffingLockedBy?: string | null;
+  staffingLockedByName?: string;
 }
 
 export interface BWRule {

@@ -1581,6 +1581,9 @@ export type Database = {
           service_line_tagging: string
           slack_channel_id: string
           sow_file_path: string | null
+          staffing_locked_at: string | null
+          staffing_locked_by: string | null
+          staffing_locked_by_name: string
           staffing_status: string
           start_date: string | null
           strategy_bandwidth_required: string
@@ -1645,6 +1648,9 @@ export type Database = {
           service_line_tagging?: string
           slack_channel_id?: string
           sow_file_path?: string | null
+          staffing_locked_at?: string | null
+          staffing_locked_by?: string | null
+          staffing_locked_by_name?: string
           staffing_status?: string
           start_date?: string | null
           strategy_bandwidth_required?: string
@@ -1709,6 +1715,9 @@ export type Database = {
           service_line_tagging?: string
           slack_channel_id?: string
           sow_file_path?: string | null
+          staffing_locked_at?: string | null
+          staffing_locked_by?: string | null
+          staffing_locked_by_name?: string
           staffing_status?: string
           start_date?: string | null
           strategy_bandwidth_required?: string
@@ -2475,6 +2484,82 @@ export type Database = {
           display_name: string
           user_id: string
         }[]
+      }
+      toggle_staffing_lock: {
+        Args: { _deal_id: string; _lock: boolean }
+        Returns: {
+          account: string
+          baseline_metrics: string
+          bopm: string
+          business_unit: string
+          capability_line: string
+          client_id: string | null
+          consumption_value: number
+          contract_file_path: string | null
+          created_at: string
+          creative_staffing: boolean
+          customer_status: string
+          customer_type: string
+          deal_id: string
+          deal_name: string
+          deal_status: string
+          deal_status_cx: string
+          deal_target_status: string
+          deal_type: string
+          deal_value_lost: number | null
+          duration: string | null
+          end_date: string | null
+          geo: string
+          id: string
+          input_currency: string
+          invoiced_deal_value: number
+          mis_vs_consumption: number
+          month_closed_won: string
+          mrr: number | null
+          net_deal_value: number | null
+          new_deal_id_formulated: string
+          new_deal_id_temp: string
+          non_retainer_deal_value: number | null
+          payment_terms: string
+          pc_code: string
+          pepper_bu_l2: string
+          pepper_business_unit: string
+          pod: string
+          principal_bopm: string
+          projected_outcomes: Json | null
+          rag: string
+          retainer_deal_value: number | null
+          revenue_type: string
+          sales_leader: string
+          sales_rep: string
+          senior_bopm: string
+          seo_staffing: boolean
+          service_line_tagging: string
+          slack_channel_id: string
+          sow_file_path: string | null
+          staffing_locked_at: string | null
+          staffing_locked_by: string | null
+          staffing_locked_by_name: string
+          staffing_status: string
+          start_date: string | null
+          strategy_bandwidth_required: string
+          success_metrics: Json | null
+          tcv_usd: number
+          total_deal_value: number | null
+          total_mis_recognition: number
+          total_pending_recognition: number
+          undelivered_funnel: number
+          updated_at: string
+          validation: string
+          validation_central_cx: string
+          vsd: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "staffing_deals"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
     }
     Enums: {

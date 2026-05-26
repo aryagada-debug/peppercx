@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { Search, Plus, RotateCcw, X, Send, Info, Columns3, Check, GripVertical, Trash2 } from "lucide-react";
+import { Search, Plus, RotateCcw, X, Send, Info, Columns3, Check, GripVertical, Trash2, Lock, Unlock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatINR } from "@/lib/csvTargets";
 import type { Deal, Person, StaffingAssignment, RoleCategory } from "@/data/staffingData";
@@ -27,6 +27,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useClients } from "@/hooks/useClients";
 import { toast } from "@/hooks/use-toast";
+import { useStaffingMutations } from "@/hooks/queries/useStaffingMutations";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -580,6 +581,14 @@ export function BopmStaffingFlatTable({
   const [bopmFilter, setBopmFilter] = useState<string>("All");
   const { isAdmin } = useUserRole();
   const { deleteDeal: deleteDealMutation } = useClients();
+  const { lockStaffing } = useStaffingMutations();
+  const [lockBusy, setLockBusy] = useState<Record<string, boolean>>({});
+  const toggleLock = useCallback(async (dealId: string, lock: boolean) => {
+    if (lockBusy[dealId]) return;
+    setLockBusy(p => ({ ...p, [dealId]: true }));
+    try { await lockStaffing(dealId, lock); } catch { /* toast handled */ }
+    finally { setLockBusy(p => { const n = { ...p }; delete n[dealId]; return n; }); }
+  }, [lockStaffing, lockBusy]);
   const [deleteDealTarget, setDeleteDealTarget] = useState<{ id: string; account: string; dealName: string } | null>(null);
   const [deletingDeal, setDeletingDeal] = useState(false);
   const [vsdFilter, setVsdFilter] = useState<string>("All");
@@ -1588,6 +1597,12 @@ export function BopmStaffingFlatTable({
                            </button>
                          )}
                        </div>
+                        <StaffingLockChip
+                          deal={d}
+                          isAdmin={isAdmin}
+                          busy={!!lockBusy[d.id]}
+                          onToggle={(lock) => toggleLock(d.id, lock)}
+                        />
                      </td>
                     <td className="px-3 py-2 text-right font-mono text-foreground border-r border-border whitespace-nowrap">
                       {formatINR(d.mrr || 0)}
@@ -1886,5 +1901,57 @@ export function BopmStaffingFlatTable({
         </AlertDialogContent>
       </AlertDialog>
     </section>
+  );
+}
+
+// Compact "Staffing locked / unlocked" chip rendered inside the sticky
+// Account · Deal cell. Admins (Central CX) can click to toggle; everyone
+// else sees a read-only chip. Uses semantic green (locked = Staffed) and
+// amber (unlocked = Unstaffed) per the project design memory.
+function StaffingLockChip({
+  deal, isAdmin, busy, onToggle,
+}: {
+  deal: Deal;
+  isAdmin: boolean;
+  busy: boolean;
+  onToggle: (lock: boolean) => void;
+}) {
+  const locked = !!deal.staffingLockedAt;
+  const lockedDate = locked && deal.staffingLockedAt
+    ? new Date(deal.staffingLockedAt).toLocaleDateString()
+    : "";
+  const baseChip = "inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium border";
+  const lockedStyle = "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-400";
+  const unlockedStyle = "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400";
+  if (!isAdmin) {
+    return (
+      <span
+        className={cn(baseChip, locked ? lockedStyle : unlockedStyle)}
+        title={locked
+          ? `Staffed${deal.staffingLockedByName ? ` · locked by ${deal.staffingLockedByName}` : ""}${lockedDate ? ` · ${lockedDate}` : ""}`
+          : "Unstaffed — awaiting Central CX lock"}
+      >
+        {locked ? <Lock className="h-2.5 w-2.5" /> : <Unlock className="h-2.5 w-2.5" />}
+        {locked ? "Staffed" : "Unstaffed"}
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggle(!locked); }}
+      className={cn(
+        baseChip,
+        locked ? lockedStyle : unlockedStyle,
+        "hover:opacity-80 disabled:opacity-50 cursor-pointer",
+      )}
+      title={locked
+        ? `Staffed${deal.staffingLockedByName ? ` · locked by ${deal.staffingLockedByName}` : ""}${lockedDate ? ` · ${lockedDate}` : ""} — click to unlock`
+        : "Click to lock staffing (mark as Staffed)"}
+    >
+      {locked ? <Lock className="h-2.5 w-2.5" /> : <Unlock className="h-2.5 w-2.5" />}
+      {locked ? "Staffed" : "Unstaffed"}
+    </button>
   );
 }

@@ -17,11 +17,12 @@ import { StaffingReviewRequestsButton } from "@/components/staffing/StaffingRevi
 import { BopmStaffingSummary } from "@/components/staffing/BopmStaffingSummary";
 import { BopmStaffingFlatTable } from "@/components/staffing/BopmStaffingFlatTable";
 import { MyStaffingRequests } from "@/components/staffing/MyStaffingRequests";
+import { LockAnalyticsTab } from "@/components/staffing/LockAnalyticsTab";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useVsdUsers } from "@/hooks/queries/legacy";
 import { supabase } from "@/integrations/supabase/client";
 
-type Tab = "deals" | "people" | "table" | "requests";
+type Tab = "deals" | "people" | "table" | "requests" | "lock";
 
 export default function Staffing() {
   useCurrencyVersion();
@@ -174,6 +175,7 @@ export default function Staffing() {
     : [
         { key: "table", label: "Staffing" },
         { key: "deals", label: "Deal view" },
+        { key: "lock",  label: "Lock Analytics" },
       ];
 
   const showBopmEmpty = isBopmPersona && !accessLoading && activeBopmDeals.length === 0;
@@ -276,6 +278,11 @@ export default function Staffing() {
                   enableBopmFilter
                   bopmFilterScopedVsd={myVsdName}
                 />
+              )}
+            </div>
+            <div className={cn(tab !== "lock" && "hidden")}>
+              {hasVisited("lock") && (
+                <LockAnalyticsTab deals={scopedDeals} />
               )}
             </div>
           </>
