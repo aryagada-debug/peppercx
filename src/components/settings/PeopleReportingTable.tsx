@@ -236,20 +236,29 @@ export function PeopleReportingTable({ people, onAdd, onUpdate, onRequestDelete 
                             revenueTargetCurrency: e.target.value as "INR" | "USD",
                           })
                         }
-                        className="h-6 rounded border border-input bg-background px-1 text-[11px] focus:outline-none focus:ring-1 focus:ring-ring"
+                        className="h-7 rounded border border-input bg-background px-1 text-[11px] focus:outline-none focus:ring-1 focus:ring-ring"
                       >
                         <option value="INR">₹ INR</option>
                         <option value="USD">$ USD</option>
                       </select>
-                      <InlineText
-                        value={String(p.revenueTargetPerPerson || 0)}
-                        onSave={(v) =>
-                          onUpdate(p.id, { revenueTargetPerPerson: Number(v) || 0 })
-                        }
-                        type="number"
-                        className="tabular-nums"
-                        placeholder="0"
-                      />
+                      <div className="relative flex-1">
+                        <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">
+                          {symbol}
+                        </span>
+                        <Input
+                          type="number"
+                          min={0}
+                          step={1000}
+                          value={p.revenueTargetPerPerson ?? 0}
+                          onChange={(e) =>
+                            onUpdate(p.id, {
+                              revenueTargetPerPerson: Number(e.target.value) || 0,
+                            })
+                          }
+                          className="h-7 pl-5 pr-2 text-xs tabular-nums"
+                          placeholder="0"
+                        />
+                      </div>
                       <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap">
                         {symbol}
                         {fmt(p.revenueTargetPerPerson || 0)}
