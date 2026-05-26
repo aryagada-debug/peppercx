@@ -71,7 +71,7 @@ export default function Staffing() {
     tabParam === ("matrix" as any) || tabParam === ("tables" as any)
       ? "table"
       : (tabParam as Tab | null);
-  const [tab, setTab] = useState<Tab>(normalizedTabParam || (isBopmPersona ? "table" : "deals"));
+  const [tab, setTab] = useState<Tab>(normalizedTabParam || "table");
 
   // Track which tabs have ever been opened. We mount each panel lazily the
   // first time the user visits it and keep it mounted afterwards so column
@@ -172,8 +172,8 @@ export default function Staffing() {
         { key: "requests", label: "Change requests" },
       ]
     : [
-        { key: "deals", label: "Deal view" },
         { key: "table", label: "Staffing" },
+        { key: "deals", label: "Deal view" },
       ];
 
   const showBopmEmpty = isBopmPersona && !accessLoading && activeBopmDeals.length === 0;
