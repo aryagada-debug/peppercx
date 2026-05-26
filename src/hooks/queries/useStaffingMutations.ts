@@ -494,6 +494,59 @@ export function useStaffingMutations() {
     [patch],
   );
 
+  // ── Staffing Lock (admin-only RPC) ──
+  // Locking a deal marks it as "Staffed". Unlocking reverts it to "Unstaffed".
+  // The DB function enforces the admin check; we still optimistically patch
+  // the cache so the UI feels instant.
+  const lockStaffing = useCallback(
+    async (dealId: string, lock: boolean) => {
+      const prevSnapshot = qc.getQueryData<Deal[]>(qk.deals());
+      const optimisticAt = lock ? new Date().toISOString() : null;
+      patch.deals((prev) =>
+        prev.map((d) =>
+          d.id === dealId
+            ? {
+                ...d,
+                staffingLockedAt: optimisticAt,
+                staffingLockedBy: lock ? d.staffingLockedBy ?? null : null,
+                staffingLockedByName: lock ? d.staffingLockedByName || "" : "",
+              }
+            : d,
+        ),
+      );
+      const { data, error } = await (supabase as any).rpc("toggle_staffing_lock", {
+        _deal_id: dealId,
+        _lock: lock,
+      });
+      if (error) {
+        if (prevSnapshot) qc.setQueryData<Deal[]>(qk.deals(), prevSnapshot);
+        const msg = /permission denied/i.test(error.message)
+          ? "Only Central CX (admin) can lock staffing."
+          : error.message || "Failed to update staffing lock.";
+        toast.error(msg);
+        throw error;
+      }
+      // Reconcile with server-truth row (in case the snapshot of name/at differs).
+      if (data) {
+        const row = data as any;
+        patch.deals((prev) =>
+          prev.map((d) =>
+            d.id === dealId
+              ? {
+                  ...d,
+                  staffingLockedAt: row.staffing_locked_at ?? null,
+                  staffingLockedBy: row.staffing_locked_by ?? null,
+                  staffingLockedByName: row.staffing_locked_by_name || "",
+                }
+              : d,
+          ),
+        );
+      }
+      toast.success(lock ? "Staffing locked" : "Staffing unlocked");
+    },
+    [patch, qc],
+  );
+
   // ── Hiring Needs ──
   const setHiringNeeds = useCallback(
     async (newNeeds: HiringNeed[]) => {
