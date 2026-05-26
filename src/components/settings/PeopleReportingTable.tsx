@@ -242,12 +242,22 @@ function ResizeHandle({ onMouseDown }: { onMouseDown: (e: React.MouseEvent) => v
   );
 }
 
-export function PeopleReportingTable({ people, onAdd, onUpdate, onRequestDelete }: Props) {
+export function PeopleReportingTable({ people, assignments = [], onAdd, onUpdate, onRequestDelete }: Props) {
   const [search, setSearch] = useState("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
   const [addDefaults, setAddDefaults] = useState<{ department?: string; subTeam?: string }>({});
+  const [teamDialog, setTeamDialog] = useState<{ mode: "team" | "subteam"; parent?: string } | null>(null);
   const { widths, onMouseDown } = useResizableColumns();
+
+  // Utilisation map: sum of allocation % per person id.
+  const utilByPerson = useMemo(() => {
+    const m: Record<string, number> = {};
+    assignments.forEach((a) => {
+      m[a.personId] = (m[a.personId] || 0) + (a.allocationPct || 0);
+    });
+    return m;
+  }, [assignments]);
 
   const byName = useMemo(() => {
     const m = new Map<string, Person>();
