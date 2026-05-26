@@ -1,25 +1,11 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
-import { useStaffingQueries } from "@/hooks/queries/useStaffingQueries";
-import { useStaffingMutations } from "@/hooks/queries/useStaffingMutations";
-import { Loader2 } from "lucide-react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { UsersTab } from "@/pages/admin/UsersTab";
 import { AccessControlsTab } from "@/pages/admin/AccessControlsTab";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useCurrencyVersion } from "@/contexts/CurrencyContext";
-import { PeopleReportingTable } from "@/components/settings/PeopleReportingTable";
 import { useEffect } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
