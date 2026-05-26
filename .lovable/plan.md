@@ -1,46 +1,44 @@
 ## Goal
+Add the 115 people from the pasted list to `staffing_people`, then create matching app users — without overwriting any record that already exists.
 
-Replace the People & Reporting (Tree / Org chart / Email mapping) and the Revenue Capacity tabs in **Settings** with a single, inline‑editable table containing exactly the 80 people you listed. Drop the other 180 people and their staffing assignments.
+## Step 1 — Upsert into `staffing_people` (insert-only)
 
-## Final table
+Build one `INSERT … ON CONFLICT (id) DO NOTHING` for all 115 rows. For each row we set:
 
-One tab in Settings (`People & Reporting`) — Revenue Capacity tab and the Tree / Org / Email sub‑views are removed.
+| Column | Source |
+|---|---|
+| `id` | P-code (e.g. `P001`) |
+| `name` | Full name |
+| `email` | Email |
+| `department` | Department string as provided (`Leadership`, `Delivery Ops and CS`, `Capability - Quality Team`, `Capability - SEO Team`, `Capability - Digital Strategy`, `Capability - Creative Team`, `Capability - Video Production Team`, `Central COE & Planning`, `SEO Capability`) |
+| `reporting_manager` | Name string as provided (blank/`-` → `''`) |
+| `designation` | Role text as provided (blank when empty) |
+| `role_category` | Derived from department: `SEO` for SEO teams, `Creative` for Creative/Video, `Quality` for Quality, `Strategy` for Digital Strategy, `BOPM` for Delivery Ops and CS, `Leadership` for Leadership, `Central` for Central COE |
+| `role_title` | Same as `designation` (kept consistent with how existing rows are populated) |
+| `leaving` | `false` |
+| `tbh` | `false` |
+| `region` | `'India'` (default — matches existing rows) |
 
+`ON CONFLICT (id) DO NOTHING` means every P-code already in the table (≈half the list, per my spot-check) is left completely untouched — no department, manager, or email is overwritten.
 
-| Column              | Editable                                    | Notes                                                           |
-| ------------------- | ------------------------------------------- | --------------------------------------------------------------- |
-| Name                | Inline text                                 | &nbsp;                                                          |
-| Designation         | Inline text                                 | Stored verbatim (e.g. `Content Lead (2026) / Managing Editor*`) |
-| Email               | Inline text                                 | &nbsp;                                                          |
-| Reports to          | Inline combobox of other people in the list | Preserves existing `reporting_manager` where present            |
-| Rev type (₹/person) | Inline number, INR formatted                | Per‑person revenue target -> Here give option to add in $ or ₹  |
+## Step 2 — Provision auth users
 
+Call the existing `admin-user-mgmt` edge function with `{ action: "bulk_provision", send_invite: true }` (the same call the Users tab makes from the "Provision missing users" button). It will:
 
-Header row gets a search box and an "Add person" button. Each row gets a delete (trash) action with the existing confirm dialog.
+- Walk `staffing_people` and create an `auth.users` row for every email that doesn't already exist.
+- Fire `handle_new_user`, which links the new auth user to its staffing record, creates a `profiles` row, and inserts a default `user` entry in `user_roles`.
+- Skip people whose email already maps to an auth user (no duplicate accounts).
 
-## Data changes
+I'll invoke this from a one-off script using the service-role key so it runs unattended.
 
-1. **Schema migration** — add `revenue_target_per_person numeric NOT NULL DEFAULT 0` to `staffing_people` (per‑person, replacing the per‑designation `revenue_targets` model for this view).
-2. **Data seed/clean** (separate insert step, run after migration approval):
-  - Upsert the 80 listed people by name. If a row with the same name already exists, keep its `id`, `email`, `reporting_manager`, and other fields; only set `designation` from the list and clear `leaving`/`tbh`.
-  - Hard‑delete every `staffing_people` row not in the 80‑name list. `staffing_assignments.person_id` rows pointing at deleted people are removed (unlinks staffing on those deals — your confirmation).
-3. Existing `revenue_targets` table is left in place but no longer surfaced in the UI (kept to avoid breaking other reports).
+## Step 3 — Verify
 
-## UI changes
+- `SELECT COUNT(*) FROM staffing_people WHERE id = ANY(<list of 115 ids>)` — should be 115.
+- Spot-check 3 newly inserted rows to confirm department / reporting_manager / designation are set.
+- Spot-check that an auth user now exists for one new email (e.g. `rishabh@peppercontent.io`).
 
-- `src/pages/Settings.tsx`
-  - Remove `Revenue Capacity` from the `tabs` array and delete `RevenueCapacityPanel` along with its drag‑drop helpers and imports (`@dnd-kit/*`, `formatINR`, `GripVertical`, `peopleByGroup`, `draggingPerson`, `handleDragStart/End`).
-  - Remove the Tree / Org chart / Email mapping switcher and the `PeopleTreeView`, `OrgChartView`, `EmailMappingTable` imports/usages.
-  - Render the new unified table directly in the `People & Reporting` tab.
-- New component `src/components/settings/PeopleReportingTable.tsx`
-  - 5 inline‑editable columns above, sticky header, search, Add Person, delete confirm.
-  - Uses existing `useStaffingMutations.updatePerson` / `addPerson` / `deletePerson`.
-  - `revenueTargetPerPerson` wired through a new mutation helper.
-- Delete now‑unused files: `PeopleTreeView.tsx`, `OrgChartView.tsx`, `EmailMappingTable.tsx`, `RevenueCapacityTab.tsx` (and any other components only referenced by them).
+## Notes / non-goals
 
-## Out of scope
-
-- Other Staffing pages (Deal view, People view, Capacity, BW rules, Hiring) keep using `staffing_people` as‑is; they'll simply show fewer people.
-- Existing per‑designation `revenue_targets` data and any dashboards reading it stay untouched.
-
-Proceed?
+- I will not modify any pre-existing `staffing_people` row, even if the pasted data differs (e.g. P028 already has designation "Managing Editor" while the paste leaves it blank — existing row wins, per your instruction).
+- No edits to roles in `user_roles` beyond what `handle_new_user` assigns (default `user`). Promoting anyone to admin/member stays a manual action in the Users tab.
+- I will not touch the route_visibility / overrides tables.
