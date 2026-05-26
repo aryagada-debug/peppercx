@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, Users, AlertTriangle, ArrowRight, Activity } from "lucide-react";
+import { Sparkles, Users, ArrowRight, Activity } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCapability } from "@/hooks/useCapability";
 import { useDealAccess } from "@/hooks/useDealAccess";
