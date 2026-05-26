@@ -1,43 +1,39 @@
-## Why assignees disappeared for non-admins
+## Problem
 
-In `src/hooks/queries/useHomeBoardQueries.ts` (line ~186) the staffing-people fetch is gated:
+On `/home`, every user sees the **Financial Summary** card with all four tiles (Contraction, Delivery, Invoicing, Receivables) showing **₹0**, even though `deal_financials` has data and active deals sum to ~₹30 Cr / ₹49 Cr / ₹44 Cr.
+
+## Root cause
+
+`useHomeMyDealsQuery` (in `src/hooks/queries/useHomeBoardQueries.ts`) builds the financial summary by calling:
 
 ```ts
-let allPeople: PersonLite[] = [];
-if (isAdmin || isVsdViewer) {
-  const { data: peopleRows } = await supabase
-    .from("staffing_people").select("id, name, designation, tbh")
-    .eq("tbh", false).eq("leaving", false);
-  allPeople = (peopleRows as PersonLite[]) || [];
-}
+supabase.from("deal_financials")
+  .select("deal_id, consumption, invoiced, received")
+  .in("deal_id", ids)              // ~150–200 UUIDs for admins
 ```
 
-For a regular BOPM (not admin, not a VSD viewer) `allPeople` stays `[]`. Home then passes that empty list as the `assignees` prop into `TaskFormDialog`, so its searchable combobox shows "No people found." — matching exactly what's in the screenshot.
+Two compounding issues:
 
-This gate was added during a recent perf pass to avoid loading the full people table for users who didn't need it on their dashboard. The side-effect: the task-edit dialog on Home loses its picker for everyone except admins/VSDs.
+1. **No month filter on actuals.** The card header says `{currentMonth yyyy}`, but actuals are summed across **all months ever recorded** (~5–6k rows for admins). With ~150 active deals × ~36 months, the request exceeds PostgREST's default 1000-row cap and the long `id.in.(...)` URL — the JS client returns no data and the reducer sums to 0.
+2. **Targets use current-month-with-fallback, actuals don't.** Targets already query `month = startOfMonth(today)` with a fallback to the latest month that has rows. Actuals do not, so even if (1) is fixed, numbers wouldn't align with the displayed month.
 
 ## Fix
 
-Drop the role gate and always load the lightweight people list (id/name/designation, active only). It's the same shape used by `TaskFormDialog` elsewhere in the app for all users (e.g. Deal Detail), so there's no new exposure — `staffing_people` RLS already permits authenticated reads of these public-ish columns.
+Scope the actuals query in `useHomeMyDealsQuery` to a single month using the **same month resolution** as targets:
 
-### Change
+1. Query `deal_financials` for `month = startOfMonth(today)` only (one row per deal max → fits well under any limits and the URL stays short).
+2. If that returns zero rows for the visible deals, fall back to the latest month ≤ today that has any rows for those deals (same pattern as the targets fallback already in the hook).
+3. Use that resolved month for **both** actuals and targets so the tiles and the `MMM yyyy` label in the card header are consistent.
+4. Keep the existing reducer logic (`contraction += consumption`, `delivery += consumption`, `invoicing += invoiced`, `receivables += max(0, invoiced − received)`).
 
-`src/hooks/queries/useHomeBoardQueries.ts`:
+No UI/markup changes in `Home.tsx`. No schema changes. No RLS changes (table is already public-read).
 
-```ts
-const { data: peopleRows } = await supabase
-  .from("staffing_people")
-  .select("id, name, designation, tbh")
-  .eq("tbh", false)
-  .eq("leaving", false);
-const allPeople = (peopleRows as PersonLite[]) || [];
-```
+## Files touched
 
-(Remove the `if (isAdmin || isVsdViewer)` wrapper; keep the rest of the function untouched.)
+- `src/hooks/queries/useHomeBoardQueries.ts` — update `useHomeMyDealsQuery` to fetch month-scoped actuals with the same fallback logic targets already use.
 
-No other files need editing — `dialogAssignees` in `Home.tsx` already builds the staffed/others split from `allPeople` + `dealAssignmentsMap`.
+## Verification
 
-## Out of scope
-
-- Re-introducing a role-scoped variant for the "view as" dropdown — that path uses `viewAsPeople` which has its own filter and is unaffected.
-- Any RLS changes on `staffing_people`.
+- Admin user: tiles populate with current-month (or latest available month) Contraction / Delivery / Invoicing / Receivables, and clicking a tile lists the contributing deals.
+- VSD/BOPM user with active deals: tiles reflect only their scoped deals.
+- User with no active deals: tiles stay at ₹0 with `—` target (unchanged behavior).
