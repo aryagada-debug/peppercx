@@ -106,7 +106,7 @@ export default function Staffing() {
   const { people, deals, assignments, revenueTargets, loading } = useStaffingQueries();
   const {
     updateAssignment, updateDeal, upsertAssignmentByRole,
-    addAssignment, deleteAssignment,
+    addAssignment, deleteAssignment, updatePerson,
   } = useStaffingMutations();
 
   // For BOPM and VSD personas, narrow deals + assignments to their tagged
@@ -234,6 +234,23 @@ export default function Staffing() {
         <StaffingErrorBoundary>
         {isBopmPersona ? (
           <>
+            <div className={cn(tab !== "staffing" && "hidden")}>
+              {showBopmEmpty
+                ? <BopmEmptyState section="Staffing & Capacity" />
+                : hasVisited("staffing") ? (
+                  <StaffingDealsList
+                    deals={activeBopmDeals}
+                    people={people}
+                    assignments={bopmActiveAssignments}
+                    isAdmin={false}
+                    enableBopmFilter={false}
+                    onAddAssignment={addAssignment}
+                    onUpdateAssignment={updateAssignment}
+                    onDeleteAssignment={deleteAssignment}
+                  />
+                ) : null
+              }
+            </div>
             <div className={cn(tab !== "table" && "hidden")}>
               {showBopmEmpty
                 ? <BopmEmptyState section="Staffing & Capacity" />
@@ -256,6 +273,22 @@ export default function Staffing() {
           </>
         ) : (
           <>
+            <div className={cn(tab !== "staffing" && "hidden")}>
+              {hasVisited("staffing") && (
+                <StaffingDealsList
+                  deals={scopedDeals}
+                  people={people}
+                  assignments={scopedAssignments}
+                  isAdmin={isActuallyAdmin}
+                  enableBopmFilter
+                  bopmFilterScopedVsd={myVsdName}
+                  onAddAssignment={addAssignment}
+                  onUpdateAssignment={updateAssignment}
+                  onDeleteAssignment={deleteAssignment}
+                  onUpdatePerson={updatePerson}
+                />
+              )}
+            </div>
             <div className={cn(tab !== "deals" && "hidden")}>
               {hasVisited("deals") && (
                 <DealViewTab
