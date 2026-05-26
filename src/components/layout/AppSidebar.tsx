@@ -19,10 +19,8 @@ const routePrefetch: Record<string, () => Promise<unknown>> = {
   "/clients": () => import("@/pages/Clients"),
   "/staffing": () => import("@/pages/Staffing"),
   "/targets": () => import("@/pages/Targets"),
-  "/central-cx": () => import("@/pages/CentralCx"),
   "/rgy-health": () => import("@/pages/RGYHealth"),
   "/mbr-tracker": () => import("@/pages/MBRTracker"),
-  "/deal-desk": () => import("@/pages/DealDesk"),
   "/gm2-calculator": () => import("@/pages/GM2Calculator"),
   "/settings": () => import("@/pages/Settings"),
   "/trash": () => import("@/pages/Trash"),
@@ -50,7 +48,6 @@ const navSections = [
     items: [
       { to: "/staffing", icon: UserCheck, label: "Staffing & Capacity", routeKey: "staffing" },
       { to: "/targets", icon: Target, label: "Targets", routeKey: "targets" },
-      { to: "/central-cx", icon: ShieldCheck, label: "Central Cx", routeKey: "central-cx" },
     ],
   },
   {
@@ -63,7 +60,6 @@ const navSections = [
   {
     label: "Tools",
     items: [
-      { to: "/deal-desk", icon: BarChart3, label: "Deal Desk", routeKey: "deal-desk" },
       { to: "/gm2-calculator", icon: Calculator, label: "GM2 Calculator", routeKey: "gm2-calculator" },
     ],
   },
