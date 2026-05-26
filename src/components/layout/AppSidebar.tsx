@@ -40,7 +40,6 @@ const navSections = [
     label: "Core",
     items: [
       { to: "/home", icon: Home, label: "Home", routeKey: "home" },
-      { to: "/", icon: LayoutDashboard, label: "Dashboard", routeKey: "dashboard" },
       { to: "/clients", icon: Building2, label: "Clients & Deals", routeKey: "clients" },
     ],
   },
@@ -49,7 +48,6 @@ const navSections = [
     items: [
       { to: "/staffing", icon: UserCheck, label: "Staffing & Capacity", routeKey: "staffing" },
       { to: "/people-ops", icon: Users, label: "People Ops", routeKey: "people-ops" },
-      { to: "/targets", icon: Target, label: "Targets", routeKey: "targets" },
     ],
   },
   {
