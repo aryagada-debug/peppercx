@@ -12,6 +12,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { AddPersonDialog } from "@/components/settings/AddPersonDialog";
 import { AddTeamDialog } from "@/components/settings/AddTeamDialog";
+import { useTaxonomyQuery } from "@/hooks/queries/useTaxonomyQuery";
+import { resolvePersonRoleTypeId } from "@/lib/peopleGrouping";
+import { ROLE_TYPE_TO_DEPT, DEPARTMENT_LABELS, ROLE_SLOTS } from "@/data/staffingData";
 
 interface Props {
   people: Person[];
@@ -275,6 +278,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
   const [teamDialog, setTeamDialog] = useState<{ mode: "team" | "subteam"; parent?: string } | null>(null);
   const [customBump, setCustomBump] = useState(0);
   const { widths, onMouseDown } = useResizableColumns();
+  const { data: taxonomy } = useTaxonomyQuery();
 
   // Build a lookup of deals + per-person assignment lists.
   const dealById = useMemo(() => {
@@ -355,47 +359,62 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
 
   // Group filtered people by team -> sub-team
   const grouped = useMemo(() => {
-    const teams = new Map<TeamName, Map<string, Person[]>>();
-    for (const t of TEAM_ORDER) teams.set(t, new Map());
+    // Group by Department → Role Type using the new taxonomy.
+    // Falls back to legacy classification only for people with no resolvable role.
+    const departments = taxonomy?.departments ?? [];
+    const roleTypesByDept = taxonomy?.roleTypesByDept;
+    const roleTypeById = taxonomy?.roleTypeById;
+
+    // bucket: deptName -> roleTypeName -> Person[]
+    const buckets = new Map<string, Map<string, Person[]>>();
+    const unmapped: Person[] = [];
+
     for (const p of filtered) {
-      const { team, subTeam } = classifyPerson(p, byName);
-      const subMap = teams.get(team) || teams.set(team, new Map()).get(team)!;
-      const key = subTeam || "";
-      if (!subMap.has(key)) subMap.set(key, []);
-      subMap.get(key)!.push(p);
+      const rtId = resolvePersonRoleTypeId(p, taxonomy);
+      if (!rtId) { unmapped.push(p); continue; }
+      const rt = roleTypeById?.get(rtId);
+      const deptId = rt?.departmentId ?? ROLE_TYPE_TO_DEPT[rtId];
+      const deptName = (deptId && (taxonomy?.departmentById.get(deptId)?.name ?? DEPARTMENT_LABELS[deptId])) || "Unassigned";
+      const roleName = rt?.name ?? (ROLE_SLOTS.find(s => s.roleKey === rtId)?.roleLabel ?? rtId);
+      if (!buckets.has(deptName)) buckets.set(deptName, new Map());
+      const m = buckets.get(deptName)!;
+      if (!m.has(roleName)) m.set(roleName, []);
+      m.get(roleName)!.push(p);
     }
-    // Ensure custom sub-teams have a bucket even when empty.
-    for (const [parent, subs] of Object.entries(customSubsByTeam)) {
-      const subMap = teams.get(parent) || teams.set(parent, new Map()).get(parent)!;
-      for (const s of subs) if (!subMap.has(s)) subMap.set(s, []);
-    }
-    // Order sub-teams
+
     const ordered: { team: TeamName; subs: { sub: string; rows: Person[] }[]; total: number }[] = [];
-    for (const t of TEAM_ORDER) {
-      const subMap = teams.get(t)!;
-      // Show empty custom teams too.
-      if (subMap.size === 0 && !customTeams.includes(t)) continue;
-      const order =
-        t === "VSD" ? VSD_SUBTEAM_ORDER : t === "Creative team" ? CREATIVE_SUBTEAM_ORDER : [];
-      const subs = Array.from(subMap.entries())
-        .map(([sub, rows]) => ({
-          sub,
-          rows: rows.sort((a, b) => {
-            const ra = seniorityRank(t, a.designation || "");
-            const rb = seniorityRank(t, b.designation || "");
-            if (ra !== rb) return ra - rb;
-            return a.name.localeCompare(b.name);
-          }),
-        }))
+    const seen = new Set<string>();
+
+    for (const d of departments) {
+      const m = buckets.get(d.name);
+      if (!m) continue;
+      const order = (roleTypesByDept?.get(d.id) || []).map(r => r.name);
+      const subs = Array.from(m.entries())
+        .map(([sub, rows]) => ({ sub, rows: rows.sort((a, b) => a.name.localeCompare(b.name)) }))
         .sort((a, b) => {
           const ai = order.indexOf(a.sub);
           const bi = order.indexOf(b.sub);
-          if (ai !== -1 || bi !== -1)
-            return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+          if (ai !== -1 || bi !== -1) return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
           return a.sub.localeCompare(b.sub);
         });
       const total = subs.reduce((n, s) => n + s.rows.length, 0);
-      ordered.push({ team: t, subs, total });
+      ordered.push({ team: d.name, subs, total });
+      seen.add(d.name);
+    }
+    // Any extra dept names not in taxonomy (defensive).
+    for (const [name, m] of buckets.entries()) {
+      if (seen.has(name)) continue;
+      const subs = Array.from(m.entries())
+        .map(([sub, rows]) => ({ sub, rows: rows.sort((a, b) => a.name.localeCompare(b.name)) }))
+        .sort((a, b) => a.sub.localeCompare(b.sub));
+      ordered.push({ team: name, subs, total: subs.reduce((n, s) => n + s.rows.length, 0) });
+    }
+    if (unmapped.length) {
+      ordered.push({
+        team: "Unassigned",
+        subs: [{ sub: "No role type set", rows: unmapped.sort((a, b) => a.name.localeCompare(b.name)) }],
+        total: unmapped.length,
+      });
     }
     return ordered;
   }, [filtered, byName, TEAM_ORDER, customTeams, customSubsByTeam]);
