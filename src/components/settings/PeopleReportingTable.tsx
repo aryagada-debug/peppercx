@@ -525,8 +525,8 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
               const teamCollapsed = collapsed.has(teamKey);
               return (
                 <Fragment key={teamKey}>
-                  <tr className="border-t border-border bg-secondary/30">
-                    <td colSpan={7} className="px-3 py-2">
+                   <tr className="border-t border-border bg-secondary/30">
+                     <td colSpan={8} className="px-3 py-2">
                       <button
                         type="button"
                         onClick={() => toggle(teamKey)}
@@ -550,9 +550,9 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                       const subCollapsed = collapsed.has(subKey);
                       return (
                         <Fragment key={subKey}>
-                          {hasSub && (
-                            <tr className="border-t border-border/50 bg-secondary/10">
-                              <td colSpan={7} className="px-3 py-1.5 pl-8">
+                           {hasSub && (
+                             <tr className="border-t border-border/50 bg-secondary/10">
+                               <td colSpan={8} className="px-3 py-1.5 pl-8">
                                 <button
                                   type="button"
                                   onClick={() => toggle(subKey)}
@@ -576,24 +576,43 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                               const currency = p.revenueTargetCurrency || "INR";
                               const symbol = currency === "USD" ? "$" : "₹";
                               const fmt = currency === "USD" ? USD : INR;
+                              const u = utilByPerson[p.id] || { time: 0, revenue: 0, allocatedMrr: 0 };
+                              const isExpanded = expanded.has(p.id);
+                              const personDeals = (assignmentsByPerson[p.id] || [])
+                                .map((a) => ({ a, d: dealById.get(a.dealId) }))
+                                .filter((x) => x.d);
                               return (
+                                <Fragment key={p.id}>
                                 <tr
-                                  key={p.id}
-                                  className="border-t border-border/40 hover:bg-secondary/20"
+                                  className="border-t border-border/40 hover:bg-secondary/20 cursor-pointer"
+                                  onClick={() =>
+                                    setExpanded((s) => {
+                                      const n = new Set(s);
+                                      n.has(p.id) ? n.delete(p.id) : n.add(p.id);
+                                      return n;
+                                    })
+                                  }
                                 >
-                                  <td className="px-3 py-1.5 pl-10">
-                                    <InlineText
+                                  <td className="px-3 py-1.5 pl-10" onClick={(e) => e.stopPropagation()}>
+                                    <div className="flex items-center gap-1.5">
+                                      {isExpanded
+                                        ? <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
+                                        : <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />}
+                                      <div className="flex-1 min-w-0">
+                                        <InlineText
                                       value={p.name}
                                       onSave={(v) => v && onUpdate(p.id, { name: v })}
                                     />
+                                      </div>
+                                    </div>
                                   </td>
-                                  <td className="px-3 py-1.5">
+                                  <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
                                     <InlineText
                                       value={p.designation || ""}
                                       onSave={(v) => onUpdate(p.id, { designation: v })}
                                     />
                                   </td>
-                                  <td className="px-3 py-1.5">
+                                  <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
                                     <InlineText
                                       value={p.email || ""}
                                       onSave={(v) => onUpdate(p.id, { email: v })}
@@ -601,7 +620,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                       type="email"
                                     />
                                   </td>
-                                  <td className="px-3 py-1.5">
+                                  <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
                                     <InlineText
                                       value={p.reportingManager || ""}
                                       onSave={(v) => {
@@ -615,7 +634,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                       placeholder="—"
                                     />
                                   </td>
-                                  <td className="px-3 py-1.5">
+                                  <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
                                     <div className="flex items-center gap-1.5">
                                       <select
                                         value={currency}
@@ -657,22 +676,19 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                     </div>
                                   </td>
                                   <td className="px-3 py-1.5">
-                                    {(() => {
-                                      const u = Math.round(utilByPerson[p.id] || 0);
-                                      const tone =
-                                        u > 100 ? "bg-destructive/15 text-destructive"
-                                        : u >= 85 ? "bg-warning/15 text-warning"
-                                        : u >= 30 ? "bg-positive/15 text-positive"
-                                        : u > 0 ? "bg-info/15 text-info"
-                                        : "bg-secondary text-muted-foreground";
-                                      return (
-                                        <span className={cn("inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium tabular-nums", tone)}>
-                                          {u === 0 ? "—" : `${u}%`}
-                                        </span>
-                                      );
-                                    })()}
+                                    <UtilBar value={u.time} hint={`${Math.round((u.time / 100) * 160)}h / 160h`} />
                                   </td>
-                                  <td className="px-2 py-1.5 text-right">
+                                  <td className="px-3 py-1.5">
+                                    <UtilBar
+                                      value={u.revenue}
+                                      hint={
+                                        (p.revenueTargetPerPerson || 0) > 0
+                                          ? `${symbol}${fmt(Math.round(u.allocatedMrr))} / ${symbol}${fmt(p.revenueTargetPerPerson || 0)}`
+                                          : "No capacity set"
+                                      }
+                                    />
+                                  </td>
+                                  <td className="px-2 py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
                                     <button
                                       type="button"
                                       onClick={() => onRequestDelete(p)}
@@ -683,6 +699,50 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                     </button>
                                   </td>
                                 </tr>
+                                {isExpanded && (
+                                  <tr className="bg-secondary/10 border-t border-border/30">
+                                    <td colSpan={8} className="px-3 py-2 pl-16">
+                                      {personDeals.length === 0 ? (
+                                        <div className="text-xs text-muted-foreground">
+                                          Not staffed on any deals.
+                                        </div>
+                                      ) : (
+                                        <div className="space-y-1">
+                                          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                                            Deals tagged ({personDeals.length})
+                                          </div>
+                                          <table className="text-xs w-full">
+                                            <thead className="text-muted-foreground">
+                                              <tr>
+                                                <th className="text-left font-medium py-1 pr-3">Deal</th>
+                                                <th className="text-left font-medium py-1 pr-3">Type</th>
+                                                <th className="text-left font-medium py-1 pr-3">Role</th>
+                                                <th className="text-right font-medium py-1 pr-3">Alloc %</th>
+                                                <th className="text-right font-medium py-1">MRR</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody>
+                                              {personDeals.map(({ a, d }) => (
+                                                <tr key={a.id} className="border-t border-border/30">
+                                                  <td className="py-1 pr-3">{d!.dealName || d!.account}</td>
+                                                  <td className="py-1 pr-3">{d!.dealType}</td>
+                                                  <td className="py-1 pr-3 text-muted-foreground">{a.roleKey || "—"}</td>
+                                                  <td className="py-1 pr-3 text-right tabular-nums">{a.allocationPct}%</td>
+                                                  <td className="py-1 text-right tabular-nums">
+                                                    {d!.dealType === "Retainer" && d!.mrr
+                                                      ? `₹${INR(d!.mrr)}`
+                                                      : "—"}
+                                                  </td>
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        </div>
+                                      )}
+                                    </td>
+                                  </tr>
+                                )}
+                                </Fragment>
                               );
                             })}
                         </Fragment>
@@ -693,7 +753,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
             })}
             {grouped.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
+                <td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">
                   No people match "{search}".
                 </td>
               </tr>
