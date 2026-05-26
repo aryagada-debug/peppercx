@@ -74,6 +74,10 @@ export default function SettingsPage() {
           <NotificationsPanel />
         )}
 
+        {activeTab === "Targets" && (
+          <Targets embedded />
+        )}
+
         {activeTab === "Data Sync" && (
           isActuallyAdmin ? (
             <DataSyncPanel />
