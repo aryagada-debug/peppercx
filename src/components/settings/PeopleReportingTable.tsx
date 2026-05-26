@@ -108,6 +108,23 @@ const VSD_SUBTEAM_ORDER = [
 ];
 const CREATIVE_SUBTEAM_ORDER = ["Copy", "Design", "Strategy", "Video", "Other"];
 
+/* Seniority ranking by team. Lower number = more senior. */
+const SENIORITY_BY_TEAM: Record<TeamName, RegExp[]> = {
+  VSD: [/^VSD$/i, /principal\s*bopm/i, /senior\s*bopm/i, /\bbopm\b/i],
+  "Content team": [/managing\s*editor/i, /content\s*lead/i, /senior\s*content\s*editor/i, /content\s*editor/i, /editor/i],
+  "SEO team": [/seo\s*leader/i, /seo\s*growth\s*lead/i, /seo\s*operations/i, /seo/i],
+  "Creative team": [/lead/i, /senior/i],
+  Other: [],
+};
+
+function seniorityRank(team: TeamName, designation: string): number {
+  const patterns = SENIORITY_BY_TEAM[team] || [];
+  for (let i = 0; i < patterns.length; i++) {
+    if (patterns[i].test(designation || "")) return i;
+  }
+  return 999;
+}
+
 function classifyPerson(
   p: Person,
   byName: Map<string, Person>,
@@ -259,7 +276,15 @@ export function PeopleReportingTable({ people, onAdd, onUpdate, onRequestDelete 
       const order =
         t === "VSD" ? VSD_SUBTEAM_ORDER : t === "Creative team" ? CREATIVE_SUBTEAM_ORDER : [];
       const subs = Array.from(subMap.entries())
-        .map(([sub, rows]) => ({ sub, rows: rows.sort((a, b) => a.name.localeCompare(b.name)) }))
+        .map(([sub, rows]) => ({
+          sub,
+          rows: rows.sort((a, b) => {
+            const ra = seniorityRank(t, a.designation || "");
+            const rb = seniorityRank(t, b.designation || "");
+            if (ra !== rb) return ra - rb;
+            return a.name.localeCompare(b.name);
+          }),
+        }))
         .sort((a, b) => {
           const ai = order.indexOf(a.sub);
           const bi = order.indexOf(b.sub);
