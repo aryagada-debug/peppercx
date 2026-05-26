@@ -586,6 +586,11 @@ export function BopmStaffingFlatTable({
   const { isAdmin } = useUserRole();
   const { deleteDeal: deleteDealMutation } = useClients();
   const { lockStaffing } = useStaffingMutations();
+  const { data: applicabilityRows } = useDealApplicabilityQuery();
+  const applicabilityIndex = useMemo(
+    () => buildApplicabilityIndex(applicabilityRows),
+    [applicabilityRows],
+  );
   const [lockBusy, setLockBusy] = useState<Record<string, boolean>>({});
   const toggleLock = useCallback(async (dealId: string, lock: boolean) => {
     if (lockBusy[dealId]) return;
