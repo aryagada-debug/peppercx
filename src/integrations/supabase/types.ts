@@ -434,6 +434,51 @@ export type Database = {
           },
         ]
       }
+      deal_applicability: {
+        Row: {
+          created_at: string
+          deal_id: string
+          department_id: string
+          id: string
+          is_applicable: boolean
+          role_type_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          deal_id: string
+          department_id: string
+          id?: string
+          is_applicable?: boolean
+          role_type_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          deal_id?: string
+          department_id?: string
+          id?: string
+          is_applicable?: boolean
+          role_type_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deal_applicability_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "staffing_departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deal_applicability_role_type_id_fkey"
+            columns: ["role_type_id"]
+            isOneToOne: false
+            referencedRelation: "staffing_role_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       deal_financial_targets: {
         Row: {
           contraction_actual: number
@@ -1442,6 +1487,7 @@ export type Database = {
           id: string
           person_id: string
           role_key: string
+          role_type_id: string | null
           start_date: string | null
           updated_at: string
         }
@@ -1453,6 +1499,7 @@ export type Database = {
           id: string
           person_id: string
           role_key: string
+          role_type_id?: string | null
           start_date?: string | null
           updated_at?: string
         }
@@ -1464,6 +1511,7 @@ export type Database = {
           id?: string
           person_id?: string
           role_key?: string
+          role_type_id?: string | null
           start_date?: string | null
           updated_at?: string
         }
@@ -1489,6 +1537,13 @@ export type Database = {
             referencedRelation: "staffing_people"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "staffing_assignments_role_type_id_fkey"
+            columns: ["role_type_id"]
+            isOneToOne: false
+            referencedRelation: "staffing_role_types"
+            referencedColumns: ["id"]
+          },
         ]
       }
       staffing_bw_rules: {
@@ -1502,6 +1557,7 @@ export type Database = {
           recommended_pct: number
           region: string
           role_key: string
+          role_type_id: string | null
           updated_at: string
         }
         Insert: {
@@ -1514,6 +1570,7 @@ export type Database = {
           recommended_pct?: number
           region?: string
           role_key?: string
+          role_type_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -1526,9 +1583,18 @@ export type Database = {
           recommended_pct?: number
           region?: string
           role_key?: string
+          role_type_id?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "staffing_bw_rules_role_type_id_fkey"
+            columns: ["role_type_id"]
+            isOneToOne: false
+            referencedRelation: "staffing_role_types"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       staffing_deals: {
         Row: {
@@ -1742,6 +1808,30 @@ export type Database = {
           },
         ]
       }
+      staffing_departments: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       staffing_hiring_needs: {
         Row: {
           created_at: string
@@ -1786,6 +1876,7 @@ export type Database = {
           band: string | null
           created_at: string
           department: string | null
+          department_id: string | null
           designation: string | null
           email: string
           hourly_rate: number
@@ -1799,6 +1890,7 @@ export type Database = {
           revenue_target_per_person: number
           role_category: string
           role_title: string
+          role_type_id: string | null
           slack_user_id: string
           sub_team: string
           tbh: boolean
@@ -1808,6 +1900,7 @@ export type Database = {
           band?: string | null
           created_at?: string
           department?: string | null
+          department_id?: string | null
           designation?: string | null
           email?: string
           hourly_rate?: number
@@ -1821,6 +1914,7 @@ export type Database = {
           revenue_target_per_person?: number
           role_category: string
           role_title?: string
+          role_type_id?: string | null
           slack_user_id?: string
           sub_team?: string
           tbh?: boolean
@@ -1830,6 +1924,7 @@ export type Database = {
           band?: string | null
           created_at?: string
           department?: string | null
+          department_id?: string | null
           designation?: string | null
           email?: string
           hourly_rate?: number
@@ -1843,12 +1938,28 @@ export type Database = {
           revenue_target_per_person?: number
           role_category?: string
           role_title?: string
+          role_type_id?: string | null
           slack_user_id?: string
           sub_team?: string
           tbh?: boolean
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "staffing_people_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "staffing_departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staffing_people_role_type_id_fkey"
+            columns: ["role_type_id"]
+            isOneToOne: false
+            referencedRelation: "staffing_role_types"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       staffing_reminder_log: {
         Row: {
@@ -1945,6 +2056,41 @@ export type Database = {
           status?: string
         }
         Relationships: []
+      }
+      staffing_role_types: {
+        Row: {
+          created_at: string
+          department_id: string
+          id: string
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          department_id: string
+          id: string
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          department_id?: string
+          id?: string
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staffing_role_types_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "staffing_departments"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       staffing_weekly_allocations: {
         Row: {
