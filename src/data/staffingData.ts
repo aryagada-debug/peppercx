@@ -18,6 +18,10 @@ export interface Person {
   subTeam?: string;
   revenueTargetPerPerson?: number;
   revenueTargetCurrency?: "INR" | "USD";
+  /** New taxonomy: stable id of the person's department (e.g. "dept_delivery_ops_and_cs"). */
+  departmentId?: string | null;
+  /** New taxonomy: stable id of the person's role type (e.g. "rt_vsd"). */
+  roleTypeId?: string | null;
 }
 
 export const DEPARTMENTS = [
@@ -46,12 +50,17 @@ export const ACTIVE_DEAL_STATUSES: ReadonlySet<string> = new Set([
 ]);
 
 export type RoleCategory =
-  | "Operations"
+  // New taxonomy (7 departments, short labels used as table headers)
+  | "Delivery Ops"
   | "Content"
-  | "Content Strategy"
   | "SEO"
   | "Creative Strategy"
   | "Creative Copy"
+  | "Creative Video"
+  | "Creative Design"
+  // Legacy values retained for back-compat with existing consumers
+  | "Operations"
+  | "Content Strategy"
   | "Creative Art"
   | "Video"
   | "Performance & Growth"
