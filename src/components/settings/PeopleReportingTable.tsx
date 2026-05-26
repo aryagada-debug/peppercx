@@ -339,6 +339,25 @@ export function PeopleReportingTable({ people, assignments = [], onAdd, onUpdate
     setAddOpen(true);
   };
 
+  // Persist custom (empty) teams / sub-teams in localStorage so headers
+  // appear in the grouped view even before any person is assigned.
+  const persistCustomTeam = (name: string) => {
+    try {
+      const key = "people-ops.custom-teams";
+      const list: string[] = JSON.parse(localStorage.getItem(key) || "[]");
+      if (!list.includes(name)) localStorage.setItem(key, JSON.stringify([...list, name]));
+    } catch {}
+    toast.success(`Team "${name}" added. Assign people to keep it.`);
+  };
+  const persistCustomSubTeam = (parent: string, name: string) => {
+    try {
+      const key = `people-ops.custom-subs:${parent}`;
+      const list: string[] = JSON.parse(localStorage.getItem(key) || "[]");
+      if (!list.includes(name)) localStorage.setItem(key, JSON.stringify([...list, name]));
+    } catch {}
+    toast.success(`Sub-team "${name}" added under ${parent}.`);
+  };
+
   return (
     <div className="space-y-3">
       <datalist id="people-reporting-managers">
@@ -372,10 +391,10 @@ export function PeopleReportingTable({ people, assignments = [], onAdd, onUpdate
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-44">
             <DropdownMenuItem onClick={() => openAdd()}>Add person</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => openAdd({ department: "Delivery Ops and CS" })}>
-              Add sub-team (VSD)
+            <DropdownMenuItem onClick={() => setTeamDialog({ mode: "subteam", parent: "VSD" })}>
+              Add sub-team
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => openAdd({ department: "" })}>
+            <DropdownMenuItem onClick={() => setTeamDialog({ mode: "team" })}>
               Add team
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -389,6 +408,17 @@ export function PeopleReportingTable({ people, assignments = [], onAdd, onUpdate
         defaultDepartment={addDefaults.department}
         defaultSubTeam={addDefaults.subTeam}
         onAdd={onAdd}
+      />
+
+      <AddTeamDialog
+        open={!!teamDialog}
+        onOpenChange={(o) => !o && setTeamDialog(null)}
+        mode={teamDialog?.mode || "team"}
+        parentTeam={teamDialog?.parent}
+        onCreate={async (name) => {
+          if (teamDialog?.mode === "team") persistCustomTeam(name);
+          else if (teamDialog?.parent) persistCustomSubTeam(teamDialog.parent, name);
+        }}
       />
 
       <div className="overflow-auto rounded-xl border border-border bg-card">
