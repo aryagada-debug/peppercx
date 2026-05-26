@@ -1786,6 +1786,8 @@ export type Database = {
           pod: string
           region: string
           reporting_manager: string | null
+          revenue_target_currency: string
+          revenue_target_per_person: number
           role_category: string
           role_title: string
           slack_user_id: string
@@ -1806,6 +1808,8 @@ export type Database = {
           pod?: string
           region?: string
           reporting_manager?: string | null
+          revenue_target_currency?: string
+          revenue_target_per_person?: number
           role_category: string
           role_title?: string
           slack_user_id?: string
@@ -1826,6 +1830,8 @@ export type Database = {
           pod?: string
           region?: string
           reporting_manager?: string | null
+          revenue_target_currency?: string
+          revenue_target_per_person?: number
           role_category?: string
           role_title?: string
           slack_user_id?: string
