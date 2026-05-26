@@ -242,6 +242,8 @@ function ResizeHandle({ onMouseDown }: { onMouseDown: (e: React.MouseEvent) => v
 export function PeopleReportingTable({ people, onAdd, onUpdate, onRequestDelete }: Props) {
   const [search, setSearch] = useState("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [addOpen, setAddOpen] = useState(false);
+  const [addDefaults, setAddDefaults] = useState<{ department?: string; subTeam?: string }>({});
   const { widths, onMouseDown } = useResizableColumns();
 
   const byName = useMemo(() => {
@@ -319,31 +321,9 @@ export function PeopleReportingTable({ people, onAdd, onUpdate, onRequestDelete 
     [people],
   );
 
-  const handleAdd = async () => {
-    const name = prompt("New person name?")?.trim();
-    if (!name) return;
-    const newPerson: Person = {
-      id: uid(),
-      name,
-      roleCategory: "BOPM" as any,
-      roleTitle: "",
-      pod: "",
-      region: "India",
-      leaving: false,
-      tbh: false,
-      department: "",
-      designation: "",
-      reportingManager: "",
-      band: "",
-      hourlyRate: 0,
-      email: "",
-      slackUserId: "",
-      subTeam: "",
-      revenueTargetPerPerson: 0,
-      revenueTargetCurrency: "INR",
-    };
-    await onAdd(newPerson);
-    toast.success(`Added ${name}`);
+  const openAdd = (defaults: { department?: string; subTeam?: string } = {}) => {
+    setAddDefaults(defaults);
+    setAddOpen(true);
   };
 
   return (
@@ -367,13 +347,38 @@ export function PeopleReportingTable({ people, onAdd, onUpdate, onRequestDelete 
         <div className="text-xs text-muted-foreground">
           {filtered.length} of {people.length}
         </div>
-        <button
-          onClick={handleAdd}
-          type="button"
-          className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90"
-        >
-          <Plus className="h-3.5 w-3.5" /> Add person
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90"
+            >
+              <Plus className="h-3.5 w-3.5" /> Add
+              <ChevronDown className="h-3 w-3" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuItem onClick={() => openAdd()}>Add person</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => openAdd({ department: "Delivery Ops and CS" })}>
+              Add sub-team (VSD)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => openAdd({ department: "" })}>
+              Add team
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      <AddPersonDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        people={people}
+        defaultDepartment={addDefaults.department}
+        defaultSubTeam={addDefaults.subTeam}
+        onAdd={onAdd}
+      />
+
+      <div className="hidden">
       </div>
 
       <div className="overflow-auto rounded-xl border border-border bg-card">
