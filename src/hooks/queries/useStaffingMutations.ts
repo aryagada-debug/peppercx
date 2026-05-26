@@ -165,6 +165,8 @@ export function useStaffingMutations() {
       if (updates.email !== undefined) dbUpdates.email = updates.email;
       if (updates.slackUserId !== undefined) dbUpdates.slack_user_id = updates.slackUserId;
       if (updates.subTeam !== undefined) dbUpdates.sub_team = updates.subTeam;
+      if (updates.revenueTargetPerPerson !== undefined) (dbUpdates as any).revenue_target_per_person = updates.revenueTargetPerPerson;
+      if (updates.revenueTargetCurrency !== undefined) (dbUpdates as any).revenue_target_currency = updates.revenueTargetCurrency;
       await supabase.from("staffing_people").update(dbUpdates).eq("id", personId);
     },
     [patch],
