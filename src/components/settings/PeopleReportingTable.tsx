@@ -417,7 +417,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
       });
     }
     return ordered;
-  }, [filtered, byName, TEAM_ORDER, customTeams, customSubsByTeam]);
+  }, [filtered, taxonomy]);
 
   const toggle = (key: string) =>
     setCollapsed((s) => {
