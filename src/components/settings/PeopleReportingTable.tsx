@@ -378,11 +378,8 @@ export function PeopleReportingTable({ people, onAdd, onUpdate, onRequestDelete 
         onAdd={onAdd}
       />
 
-      <div className="hidden">
-      </div>
-
       <div className="overflow-auto rounded-xl border border-border bg-card">
-        <table className="text-xs" style={{ tableLayout: "fixed", width: "max-content", minWidth: "100%" }}>
+        <table className="text-sm" style={{ tableLayout: "fixed", width: "max-content", minWidth: "100%" }}>
           <colgroup>
             <col style={{ width: widths.name }} />
             <col style={{ width: widths.designation }} />
