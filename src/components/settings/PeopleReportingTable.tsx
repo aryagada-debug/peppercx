@@ -104,8 +104,8 @@ const USD = (n: number) =>
 /* Team derivation                                                     */
 /* ------------------------------------------------------------------ */
 
-const TEAM_ORDER = ["VSD", "Content team", "SEO team", "Creative team", "Other"] as const;
-type TeamName = (typeof TEAM_ORDER)[number];
+const BUILT_IN_TEAMS = ["VSD", "Content team", "SEO team", "Creative team", "Other"] as const;
+type TeamName = string;
 
 const VSD_SUBTEAM_ORDER = [
   "Aamir Khan",
@@ -188,14 +188,15 @@ function classifyPerson(
 /* Resizable column hook                                               */
 /* ------------------------------------------------------------------ */
 
-type ColKey = "name" | "designation" | "email" | "reportsTo" | "revType" | "utilisation";
+type ColKey = "name" | "designation" | "email" | "reportsTo" | "revType" | "timeUtil" | "revUtil";
 const DEFAULT_WIDTHS: Record<ColKey, number> = {
   name: 220,
   designation: 220,
   email: 240,
   reportsTo: 180,
   revType: 360,
-  utilisation: 160,
+  timeUtil: 180,
+  revUtil: 180,
 };
 
 function useResizableColumns() {
