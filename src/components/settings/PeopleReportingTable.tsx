@@ -195,26 +195,26 @@ function classifyPerson(
 
 type ColKey = "name" | "designation" | "email" | "reportsTo" | "revType" | "timeUtil" | "revUtil";
 const DEFAULT_WIDTHS: Record<ColKey, number> = {
-  name: 220,
-  designation: 220,
-  email: 240,
-  reportsTo: 180,
-  revType: 360,
-  timeUtil: 180,
-  revUtil: 180,
+  name: 180,
+  designation: 160,
+  email: 190,
+  reportsTo: 140,
+  revType: 260,
+  timeUtil: 130,
+  revUtil: 130,
 };
 
 function useResizableColumns() {
   const [widths, setWidths] = useState<Record<ColKey, number>>(() => {
     try {
-      const raw = localStorage.getItem("people-team-cols");
+      const raw = localStorage.getItem("people-team-cols-v2");
       if (raw) return { ...DEFAULT_WIDTHS, ...JSON.parse(raw) };
     } catch {}
     return DEFAULT_WIDTHS;
   });
   useEffect(() => {
     try {
-      localStorage.setItem("people-team-cols", JSON.stringify(widths));
+      localStorage.setItem("people-team-cols-v2", JSON.stringify(widths));
     } catch {}
   }, [widths]);
 
