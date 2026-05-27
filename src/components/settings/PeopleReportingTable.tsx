@@ -603,24 +603,31 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
           </colgroup>
           <thead className="bg-secondary/40 text-muted-foreground">
             <tr>
-              {(
-                [
-                  ["name", "Name"],
-                  ["designation", "Designation"],
-                  ["email", "Email"],
-                  ["reportsTo", "Reports to"],
-                  ["revType", "Revenue capacity"],
-                  ["timeUtil", "Time utilisation"],
-                  ["revUtil", "Revenue utilisation"],
-                ] as [ColKey, string][]
-              ).map(([k, label]) => (
-                <th
+              {([
+                ["name", "Name", undefined],
+                ["designation", "Designation", undefined],
+                ["email", "Email", undefined],
+                ["reportsTo", "Reports to", managerNames],
+                ["revType", "Revenue capacity", undefined],
+                ["timeUtil", "Time utilisation", undefined],
+                ["revUtil", "Revenue utilisation", undefined],
+              ] as [ColKey, string, string[] | undefined][]).map(([k, label, options]) => (
+                <ColHeader
                   key={k}
-                  className="relative px-3 py-2 text-left font-medium uppercase tracking-wider text-[10px]"
-                >
-                  {label}
-                  <ResizeHandle onMouseDown={onMouseDown(k)} />
-                </th>
+                  label={label}
+                  colKey={k}
+                  sortKey={k}
+                  numeric={k === "revType" || k === "timeUtil" || k === "revUtil"}
+                  options={options}
+                  sortState={sortState}
+                  onSort={onSort}
+                  colFilters={colFilters}
+                  openFilter={openFilter}
+                  setOpenFilter={setOpenFilter}
+                  setFilter={setFilter}
+                  clearFilter={clearFilter}
+                  onResizeStart={onMouseDown(k)}
+                />
               ))}
               <th className="px-2 py-2" />
             </tr>
