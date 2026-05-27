@@ -146,46 +146,6 @@ export function WeeklyComplianceTab() {
     };
   }, [rows]);
 
-  // ── Deals not updated the longest (all-time across active deals) ──
-  const [staleDeals, setStaleDeals] = useState<{ dealId: string; lastAt: string | null }[]>([]);
-  useEffect(() => {
-    if (rows.length === 0) { setStaleDeals([]); return; }
-    let cancelled = false;
-    (async () => {
-      const dealIds = rows.map(r => r.dealId);
-      // Fetch most recent note per deal (excluding sentinel review rows? keep them — they count as activity)
-      const { data } = await supabase
-        .from("deal_rgy_notes")
-        .select("deal_id, created_at")
-        .in("deal_id", dealIds)
-        .order("created_at", { ascending: false })
-        .limit(5000);
-      if (cancelled) return;
-      const lastByDeal = new Map<string, string>();
-      for (const n of (data || []) as { deal_id: string; created_at: string }[]) {
-        if (!lastByDeal.has(n.deal_id)) lastByDeal.set(n.deal_id, n.created_at);
-      }
-      const merged = rows.map(r => ({
-        dealId: r.dealId,
-        lastAt: lastByDeal.get(r.dealId) || null,
-      }));
-      merged.sort((a, b) => {
-        if (!a.lastAt && !b.lastAt) return 0;
-        if (!a.lastAt) return -1;
-        if (!b.lastAt) return 1;
-        return a.lastAt.localeCompare(b.lastAt);
-      });
-      setStaleDeals(merged.slice(0, 6));
-    })();
-    return () => { cancelled = true; };
-  }, [rows]);
-
-  const rowById = useMemo(() => {
-    const m = new Map<string, ComplianceRow>();
-    rows.forEach(r => m.set(r.dealId, r));
-    return m;
-  }, [rows]);
-
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (segment.kind === "none") return [] as ComplianceRow[];
