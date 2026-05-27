@@ -129,15 +129,21 @@ export function DealStaffingCard({
   };
 
   return (
-    <div className="bg-card border border-border rounded-xl overflow-hidden">
+    <div className={cn(
+      "bg-card border border-border rounded-xl overflow-hidden transition-all",
+      open && "border-l-4 border-l-primary ring-1 ring-primary/15 shadow-sm",
+    )}>
       {/* ── Card header ───────────────────────────────────────────── */}
-      <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-3 bg-secondary/30">
+      <div className={cn(
+        "px-4 py-3 border-b border-border flex items-center justify-between gap-3",
+        open ? "bg-primary/5" : "bg-secondary/30",
+      )}>
         <button
           type="button"
           onClick={() => setOpen(o => !o)}
           className="flex items-center gap-2 text-left min-w-0 flex-1"
         >
-          {open ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          {open ? <ChevronUp className="h-4 w-4 text-primary" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
           <div className="min-w-0">
             <div className="text-sm font-semibold text-foreground truncate">
               {deal.account || deal.dealName || deal.id}
