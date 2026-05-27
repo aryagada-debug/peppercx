@@ -188,6 +188,16 @@ const ROLE_SLOT_BY_KEY = new Map(ROLE_SLOTS.map((s, i) => [s.roleKey, { ...s, ra
 const ROLE_LABEL = (rk: string) => ROLE_SLOT_BY_KEY.get(rk)?.roleLabel || rk;
 const ROLE_CATEGORY_OF = (rk: string): string => ROLE_SLOT_BY_KEY.get(rk)?.category || "Other";
 const ROLE_RANK = (rk: string): number => ROLE_SLOT_BY_KEY.get(rk)?.rank ?? 999;
+const ROLE_LABEL_OF = (rk: string): string => {
+  const slot = ROLE_SLOT_BY_KEY.get(rk);
+  if (slot?.roleLabel) return slot.roleLabel;
+  // Strip leading "rt_" taxonomy prefix and humanize the remainder.
+  const clean = rk.replace(/^rt_/i, "").replace(/_/g, " ").trim();
+  return clean
+    .split(/\s+/)
+    .map(w => w.length <= 3 ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1))
+    .join(" ");
+};
 
 type PersonGroups = { exact: Person[]; family: Person[]; other: Person[] };
 
@@ -488,7 +498,7 @@ function SortableColHeader({
           <GripVertical className="h-3 w-3" />
         </button>
         <span className={cn("h-1.5 w-1.5 rounded-full flex-shrink-0", s.dot)} />
-        <span className="truncate">{rk}</span>
+        <span className="truncate">{ROLE_LABEL_OF(rk)}</span>
         {children}
       </div>
       <span
@@ -568,7 +578,7 @@ function SortablePickerRow({
         )}>
           {checked && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
         </span>
-        <span className="text-foreground truncate">{rk}</span>
+        <span className="text-foreground truncate">{ROLE_LABEL_OF(rk)}</span>
       </button>
     </div>
   );
