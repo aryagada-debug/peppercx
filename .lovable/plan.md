@@ -1,38 +1,29 @@
 Single-file change in `src/components/settings/PeopleReportingTable.tsx`.
 
-## 1. Make the left chevron clickable
+## 1. Fix the wrong Deal ID
 
-The name cell uses `onClick={(e) => e.stopPropagation()}` to protect inline editing, which also kills the row-click toggle when you hit the chevron. Wrap the `ChevronRight`/`ChevronDown` in a real `<button>` that calls the expand/collapse setter directly (and stops propagation itself). Add `hover:bg-secondary` and `rounded` for affordance.
+Deal has both `id` (internal) and `dealId` (human-readable like `TT01006`). The expanded sub-table currently shows `d.id`. Switch to `d.dealId || "—"` with the same mono styling.
 
-## 2. Expanded "Deals tagged" sub-table
+## 2. Make deal rows clickable
 
-Replace columns:
+Each row in the expanded "Deals tagged" table becomes a navigation target — `useNavigate()` to `/deals/${d.id}?tab=Staffing` (matches `DealStaffingCard`'s "Open" link). Add `cursor-pointer hover:bg-primary/5` and a small `ExternalLink` icon at row end.
 
-```text
-Before: Deal | Type | Role | Alloc % | MRR
-After:  Deal ID | Deal | Status | Type | Alloc % | MRR
-```
+## 3. Reduce column whitespace in the expanded sub-table
 
-- **Deal ID** → `d.id` in `font-mono text-[11px] text-muted-foreground`
-- **Deal** → `d.dealName || d.account` (medium weight)
-- **Status** → `d.dealStatus` rendered as a small colored pill via a `statusTone(status)` helper:
-  - Active / Live / Running → `bg-positive/15 text-positive border-positive/30`
-  - Pitch / Proposal / Negotiation → `bg-info/15 text-info border-info/30`
-  - Paused / On Hold → `bg-warning/15 text-warning border-warning/30`
-  - Lost / Closed / Churned → `bg-destructive/10 text-destructive border-destructive/30`
-  - default → `bg-muted text-muted-foreground border-border`
-- **Type** → keep as-is, but as a subtle outline pill
-- **Alloc %** → right-aligned, tabular; tint >100 with `text-destructive`, ≥85 with `text-warning`
-- **MRR** → unchanged formatting
+- Padding `pr-3` → `pr-2`, `py-1.5` → `py-1`.
+- Add a `<colgroup>` to constrain widths: Deal ID 90px, Deal flex, Status 110px, Type 90px, Alloc 70px, MRR 100px, action 28px.
+- Reduce expanded `<td>` indent from `pl-16` to `pl-10`.
 
-## 3. Subtle color polish on the expanded panel
+## 4. Column header filters on the main table (Clients/Deals style)
 
-- Wrap the panel content in a card: `rounded-lg border border-primary/20 bg-primary/[0.03] p-3`.
-- Header row: `text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border/60`.
-- Body rows: `hover:bg-secondary/40`, zebra via `even:bg-secondary/20`.
-- Title chip "Deals tagged (N)" gets `text-primary` accent.
-- Empty state gets a soft muted card instead of bare text.
+Reuse the shared `ColHeader` component already used by `Clients.tsx` and `MBRTracker.tsx`.
+
+- Add local state: `sortState: { sortKey, sortDir }`, `colFilters: Record<string,string>`, `openFilter: string | null`.
+- Replace the current `<th>` map with `ColHeader` for: **Name** (text), **Designation** (text), **Email** (text), **Reports to** (options from `managerNames`), **Revenue capacity** (sortable numeric), **Time utilisation** (sortable numeric), **Revenue utilisation** (sortable numeric).
+- Extend the `filtered` memo to also apply column filters; add a sort pass after grouping per leaf-person list.
+- Keep existing resize handles via `ColHeader.onResizeStart`.
 
 ## Out of scope
 
-No changes to data fetching, the main row layout, or other files.
+- No changes outside `PeopleReportingTable.tsx`.
+- Group/sub-team header rows keep their plain header; filters and sorts act on the leaf person rows.
