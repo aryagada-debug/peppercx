@@ -317,46 +317,26 @@ function RGYIssueFormDialog({
   onSave: (data: {
     issueDate: string;
     issueDetails: string;
-    discussedActionPlan: string;
     actionPlan: string;
-    resolutionDueDate: string;
     issueStatus: string;
-    tasks: RGYIssueTask[];
+    assignees: string[];
+    dueDate: string;
+    subtasks: { title: string }[];
   }) => Promise<void>;
   onCancel: () => void;
 }) {
   const [issueDate, setIssueDate] = useState<Date>(new Date());
   const [issueDetails, setIssueDetails] = useState("");
-  const [discussedActionPlan, setDiscussedActionPlan] = useState("");
   const [actionPlan, setActionPlan] = useState("");
-  const [resolutionDueDate, setResolutionDueDate] = useState<Date | undefined>();
+  const [dueDate, setDueDate] = useState<Date | undefined>();
   const [issueStatus, setIssueStatus] = useState("Open");
+  const [taskAssignees, setTaskAssignees] = useState<string[]>([]);
+  const [subtasks, setSubtasks] = useState<{ title: string }[]>([]);
   const [saving, setSaving] = useState(false);
-
-  const [issueTasks, setIssueTasks] = useState<RGYIssueTask[]>(
-    nonGreenDims.map(d => ({
-      dimension: d.label,
-      issueSummary: "",
-      urgency: d.value === "R" ? "High" : "Medium",
-      assignees: [],
-    }))
-  );
 
   const allAssigneeNames = [...new Set(
     [deal.vsd, deal.principal_bopm, deal.senior_bopm, deal.bopm].filter(Boolean)
   )];
-
-  const updateIssueTask = (idx: number, updates: Partial<RGYIssueTask>) => {
-    setIssueTasks(prev => prev.map((t, i) => i === idx ? { ...t, ...updates } : t));
-  };
-
-  const addNewTask = () => {
-    setIssueTasks(prev => [...prev, { dimension: nonGreenDims[0]?.label || "", issueSummary: "", urgency: "Medium", assignees: [] }]);
-  };
-
-  const removeTask = (idx: number) => {
-    setIssueTasks(prev => prev.filter((_, i) => i !== idx));
-  };
 
   const handleSubmit = async () => {
     if (!issueDetails.trim()) {
@@ -368,11 +348,11 @@ function RGYIssueFormDialog({
       await onSave({
         issueDate: issueDate.toISOString().split("T")[0],
         issueDetails,
-        discussedActionPlan,
         actionPlan,
-        resolutionDueDate: resolutionDueDate?.toISOString().split("T")[0] || "",
         issueStatus,
-        tasks: issueTasks.filter(t => t.issueSummary.trim() && t.assignees.length > 0),
+        assignees: taskAssignees,
+        dueDate: dueDate?.toISOString().split("T")[0] || "",
+        subtasks: subtasks.filter(s => s.title.trim()),
       });
     } finally {
       setSaving(false);
