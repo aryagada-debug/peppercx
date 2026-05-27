@@ -1703,6 +1703,10 @@ export default function RGYHealth() {
               summaryDeals={aiSummaryDeals}
             />
           </TabsContent>
+
+          <TabsContent value="compliance" className="mt-0">
+            <WeeklyComplianceTab />
+          </TabsContent>
         </Tabs>
 
         {/* R/Y → G Resolve Issues Dialog (mandatory) */}
