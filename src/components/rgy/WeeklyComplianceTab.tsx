@@ -4,26 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChevronLeft, ChevronRight, Download, Search, CheckCircle2, Clock, AlertTriangle, Eye, ChevronDown, ChevronRight as ChevronRightIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Search, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight as ChevronRightIcon } from "lucide-react";
 import { format } from "date-fns";
-import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useRgyWeeklyCompliance, type ComplianceRow } from "@/hooks/useRgyWeeklyCompliance";
-import { weekRange, shiftWeek, statusLabel, statusToneClass, type ComplianceStatus } from "@/lib/rgyCompliance";
-import { logRGYReviewedNoChange } from "@/lib/rgyHistory";
+import { weekRange, shiftWeek, statusLabel } from "@/lib/rgyCompliance";
 
 function rowState(r: ComplianceRow): "compliant" | "missing" {
   return r.status === "pending" ? "missing" : "compliant";
-}
-
-function StatusPill({ s }: { s: ComplianceStatus }) {
-  const Icon = s === "updated" ? CheckCircle2 : s === "reviewed" ? Eye : Clock;
-  return (
-    <Badge variant="outline" className={cn("gap-1 font-normal", statusToneClass(s))}>
-      <Icon className="h-3 w-3" />
-      {statusLabel(s)}
-    </Badge>
-  );
 }
 
 interface WeeklyComplianceTabProps {
@@ -99,11 +87,6 @@ export function WeeklyComplianceTab({ rgyByDealId }: WeeklyComplianceTabProps = 
   const weekEnd = new Date(weekStart + "T00:00:00Z");
   weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
   const isCurrentWeek = weekStart === weekRange().start;
-
-  const handleMarkReviewed = async (dealId: string) => {
-    await logRGYReviewedNoChange({ dealId, weekStart });
-    toast.success("Marked as reviewed — no change");
-  };
 
   const exportCsv = () => {
     const data = rows;
@@ -231,14 +214,12 @@ export function WeeklyComplianceTab({ rgyByDealId }: WeeklyComplianceTabProps = 
                             <tr className="text-left text-[10px] uppercase tracking-wider text-muted-foreground">
                               <th className="px-3 py-2">Deal</th>
                               <th className="px-3 py-2">BOPM</th>
-                              <th className="px-3 py-2">Status</th>
                               <th className="px-3 py-2">Last Activity</th>
-                              <th className="px-3 py-2 text-right">Actions</th>
                             </tr>
                           </thead>
                           <tbody>
                             {visibleDeals.length === 0 && (
-                              <tr><td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">No deals match the search.</td></tr>
+                              <tr><td colSpan={3} className="px-3 py-6 text-center text-muted-foreground">No deals match the search.</td></tr>
                             )}
                             {visibleDeals.map(r => {
                               const lastAt = r.lastAt;
@@ -249,21 +230,10 @@ export function WeeklyComplianceTab({ rgyByDealId }: WeeklyComplianceTabProps = 
                                     <div className="text-[10px] text-muted-foreground">{r.dealName} · {r.dealId}</div>
                                   </td>
                                   <td className="px-3 py-2 align-top text-muted-foreground">{r.bopm || "—"}</td>
-                                  <td className="px-3 py-2 align-top">
-                                    <StatusPill s={r.status} />
-                                    {r.lastBy && <div className="text-[10px] text-muted-foreground mt-1">by {r.lastBy}</div>}
-                                  </td>
                                   <td className="px-3 py-2 align-top text-muted-foreground">
                                     {lastAt ? format(new Date(lastAt), "MMM d, HH:mm") : <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400"><AlertTriangle className="h-3 w-3" />No activity</span>}
                                     {r.otherEditors.length > 0 && (
                                       <div className="text-[10px]">+ {r.otherEditors.length} other editor{r.otherEditors.length > 1 ? "s" : ""}</div>
-                                    )}
-                                  </td>
-                                  <td className="px-3 py-2 align-top text-right">
-                                    {isCurrentWeek && (
-                                      <Button variant="ghost" size="sm" className="h-7 text-[11px]" onClick={() => handleMarkReviewed(r.dealId)}>
-                                        Mark reviewed
-                                      </Button>
                                     )}
                                   </td>
                                 </tr>
