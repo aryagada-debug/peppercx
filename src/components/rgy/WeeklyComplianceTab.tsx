@@ -279,48 +279,6 @@ export function WeeklyComplianceTab() {
         </div>
       )}
 
-      {/* Deals not updated the longest */}
-      {staleDeals.length > 0 && (
-        <div className="border border-border rounded-lg bg-card">
-          <div className="flex items-center justify-between px-3 py-2 border-b border-border">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Deals not updated the longest</div>
-            <button
-              className="text-[11px] text-primary hover:underline"
-              onClick={() => openSegment({ kind: "stale", staleIds: new Set(staleDeals.map(s => s.dealId)) })}
-            >
-              View all in drill-down
-            </button>
-          </div>
-          <div className="divide-y divide-border">
-            {staleDeals.map(s => {
-              const r = rowById.get(s.dealId);
-              const age = s.lastAt ? formatDistanceToNowStrict(new Date(s.lastAt), { addSuffix: false }) : "Never updated";
-              return (
-                <div key={s.dealId} className="flex items-center justify-between px-3 py-2 text-xs hover:bg-secondary/30">
-                  <div className="min-w-0 flex-1">
-                    <Link to={`/deals/${s.dealId}`} className="font-medium text-primary hover:underline truncate block">
-                      {r?.account || s.dealId}
-                    </Link>
-                    <div className="text-[10px] text-muted-foreground truncate">
-                      {r?.dealName} · VSD: {r?.vsd || "—"}
-                    </div>
-                  </div>
-                  <Badge variant="outline" className={cn(
-                    "font-normal text-[10px] gap-1 shrink-0",
-                    !s.lastAt || (Date.now() - new Date(s.lastAt).getTime()) / (1000 * 60 * 60 * 24) > 14
-                      ? "bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/30"
-                      : "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30"
-                  )}>
-                    <Clock className="h-3 w-3" />
-                    {age === "Never updated" ? "Never" : `${age} ago`}
-                  </Badge>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       {/* Drill-down panel */}
       <div ref={drillRef} className="border border-border rounded-lg overflow-hidden bg-card">
         <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border bg-secondary/30">
