@@ -479,19 +479,19 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
     for (const [name, m] of buckets.entries()) {
       if (seen.has(name)) continue;
       const subs = Array.from(m.entries())
-        .map(([sub, rows]) => ({ sub, rows: rows.sort((a, b) => a.name.localeCompare(b.name)) }))
+        .map(([sub, rows]) => ({ sub, rows: sortState.sortKey ? rows : rows.sort((a, b) => a.name.localeCompare(b.name)) }))
         .sort((a, b) => a.sub.localeCompare(b.sub));
       ordered.push({ team: name, subs, total: subs.reduce((n, s) => n + s.rows.length, 0) });
     }
     if (unmapped.length) {
       ordered.push({
         team: "Unassigned",
-        subs: [{ sub: "No role type set", rows: unmapped.sort((a, b) => a.name.localeCompare(b.name)) }],
+        subs: [{ sub: "No role type set", rows: sortState.sortKey ? unmapped : unmapped.sort((a, b) => a.name.localeCompare(b.name)) }],
         total: unmapped.length,
       });
     }
     return ordered;
-  }, [filtered, taxonomy]);
+  }, [filtered, taxonomy, sortState]);
 
   const toggle = (key: string) =>
     setCollapsed((s) => {
