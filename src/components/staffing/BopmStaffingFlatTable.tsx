@@ -498,7 +498,7 @@ function SortableColHeader({
           <GripVertical className="h-3 w-3" />
         </button>
         <span className={cn("h-1.5 w-1.5 rounded-full flex-shrink-0", s.dot)} />
-        <span className="truncate">{rk}</span>
+        <span className="truncate">{ROLE_LABEL_OF(rk)}</span>
         {children}
       </div>
       <span
