@@ -838,15 +838,15 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                           <div className="text-[10px] uppercase tracking-wider text-primary font-medium">
                                             Deals tagged ({personDeals.length})
                                           </div>
-                                          <table className="text-xs w-full" style={{ tableLayout: "fixed" }}>
+                                          <table className="text-xs" style={{ tableLayout: "fixed", width: 820 }}>
                                             <colgroup>
                                               <col style={{ width: 90 }} />
-                                              <col />
-                                              <col style={{ width: 110 }} />
-                                              <col style={{ width: 90 }} />
-                                              <col style={{ width: 70 }} />
+                                              <col style={{ width: 300 }} />
+                                              <col style={{ width: 120 }} />
                                               <col style={{ width: 100 }} />
-                                              <col style={{ width: 28 }} />
+                                              <col style={{ width: 70 }} />
+                                              <col style={{ width: 110 }} />
+                                              <col style={{ width: 30 }} />
                                             </colgroup>
                                             <thead>
                                               <tr className="text-muted-foreground border-b border-border/60">
