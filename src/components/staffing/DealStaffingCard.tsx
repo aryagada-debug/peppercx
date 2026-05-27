@@ -53,6 +53,19 @@ const DEPT_ORDER: string[] = [
   "dept_creative_capability_video",
 ];
 
+// Department tint palette — kept in sync with the Sheet view's
+// CATEGORY_STYLES so the same team reads with the same hue across surfaces.
+const DEPT_STYLE: Record<string, { head: string; cell: string; dot: string }> = {
+  dept_delivery_ops_and_cs:               { head: "bg-violet-500/15 text-violet-800 dark:text-violet-200 border-violet-500/30",   cell: "bg-violet-500/[0.04]",  dot: "bg-violet-500" },
+  dept_content_capability:                { head: "bg-teal-500/15 text-teal-800 dark:text-teal-200 border-teal-500/30",           cell: "bg-teal-500/[0.04]",    dot: "bg-teal-500" },
+  dept_seo_capability:                    { head: "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border-emerald-500/30", cell: "bg-emerald-500/[0.04]", dot: "bg-emerald-500" },
+  dept_capability_creative_strategy_team: { head: "bg-fuchsia-500/15 text-fuchsia-800 dark:text-fuchsia-200 border-fuchsia-500/30", cell: "bg-fuchsia-500/[0.04]", dot: "bg-fuchsia-500" },
+  dept_creative_capability_copy:          { head: "bg-pink-500/15 text-pink-800 dark:text-pink-200 border-pink-500/30",           cell: "bg-pink-500/[0.04]",    dot: "bg-pink-500" },
+  dept_creative_capability_design:        { head: "bg-rose-500/15 text-rose-800 dark:text-rose-200 border-rose-500/30",           cell: "bg-rose-500/[0.04]",    dot: "bg-rose-500" },
+  dept_creative_capability_video:         { head: "bg-orange-500/15 text-orange-800 dark:text-orange-200 border-orange-500/30",   cell: "bg-orange-500/[0.04]",  dot: "bg-orange-500" },
+};
+const DEPT_STYLE_FALLBACK = { head: "bg-slate-500/15 text-slate-800 dark:text-slate-200 border-slate-500/30", cell: "bg-slate-500/[0.04]", dot: "bg-slate-500" };
+
 export function DealStaffingCard({
   deal, people, assignments, deals, isAdmin, defaultOpen = true,
   onAddAssignment, onUpdateAssignment, onDeleteAssignment, onUpdatePerson,
