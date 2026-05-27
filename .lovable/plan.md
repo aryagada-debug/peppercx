@@ -1,47 +1,44 @@
-# Weekly Compliance — Insights-first redesign
+## Problem
 
-Replace the current dense table-by-default view with an **insights dashboard** where Central CX sees headline numbers first, then drills into details on demand.
+Non-admin users see zero deals after login. `useDealAccess` resolves visibility from `profiles.staffing_person_id` → `staffing_people`, but that FK is stale: 0 of 251 mapped profiles point at a current `staffing_people.id` (People sheet was re-synced and IDs changed from `P###`/`id_*` to `p_<name>`).
 
-## New layout (top → bottom)
+## Fix
 
-**1. Week selector + Export** (unchanged compact strip)
+### 1. One-time backfill migration
 
-**2. Headline insight band** — 3 large cards, click-to-drill
-- **Compliance rate**: `compliant / total` as % + ring/bar. Sub-line: "X of Y deals updated by both VSD and BOPM this week."
-- **At-risk deals**: count of "Not updated" deals. Sub-line: "No VSD or BOPM activity yet."
-- **Reviewed – no change**: count. Sub-line: "Intentionally left unchanged."
+New migration that, for every profile, finds the matching active `staffing_people` row by email (case-insensitive, `leaving=false`, `tbh=false`) and updates `profiles.staffing_person_id` when the current value is missing or no longer exists:
 
-Clicking any card opens the drill-down panel (below) pre-filtered to that segment.
+```sql
+update public.profiles p
+   set staffing_person_id = sp.id,
+       updated_at = now()
+  from auth.users u
+  join public.staffing_people sp
+    on lower(sp.email) = lower(u.email)
+   and sp.leaving = false
+   and sp.tbh = false
+ where p.user_id = u.id
+   and (
+        p.staffing_person_id is null
+        or p.staffing_person_id = ''
+        or not exists (
+            select 1 from public.staffing_people sp2
+            where sp2.id = p.staffing_person_id
+        )
+   );
+```
 
-**3. Breakdown strip** — 4 small tiles, also clickable
-- VSD updated · VSD pending · BOPM updated · BOPM pending
-Each shows count + % of active deals. Clicking filters drill-down by that role+status.
+### 2. Keep it from drifting again
 
-**4. Top offenders** (only shown when there are misses)
-- "VSDs with most pending deals" — top 5 list with count badge
-- "Pods with lowest compliance" — top 5 list with % badge
-Clicking a row filters drill-down to that VSD/pod.
+Add an `AFTER INSERT/UPDATE` trigger on `public.staffing_people` (SECURITY DEFINER) that, whenever a row is inserted or its email/id changes, relinks any `profiles` row whose email matches and whose current `staffing_person_id` is null or no longer valid. This makes future Sheets re-syncs self-healing.
 
-**5. Drill-down panel** — collapsed by default
-- Header shows the active filter chips (e.g. "Not updated · VSD: Aman") with a "Clear" button.
-- Expands to the existing detailed table (deal, VSD/BOPM status, last activity, mark-reviewed action).
-- Search box lives inside the panel.
-- Empty state when no segment is selected: "Click a metric above to see the deals behind it."
+### 3. Verification
 
-## Interaction model
-
-- Single source of truth: `activeSegment` state = `{ kind: "all" | "compliant" | "partial" | "missing" | "reviewed" | "vsd-pending" | "bopm-pending", vsd?: string, pod?: string }`.
-- Setting a segment auto-expands the drill-down panel and scrolls it into view.
-- Export CSV always reflects the current segment (so CX can export "all at-risk deals" in one click).
-
-## Files
-
-- **Rewrite** `src/components/rgy/WeeklyComplianceTab.tsx` with the new layout. Keeps existing hook `useRgyWeeklyCompliance` and helpers — no data-layer changes.
-- New small subcomponents inside the same file: `InsightCard`, `BreakdownTile`, `OffenderList`, `DrillDownPanel`.
-- No changes to `useRgyWeeklyCompliance`, `rgyCompliance.ts`, `rgyHistory.ts`, `RGYHealth.tsx`, or DB.
+- Re-run the diagnostic query: expect "relinkable" count to drop to ~0 and the "matches existing staffing_people" count to jump to ~all profiles with an email match.
+- Log in as Aditya Shaw (or any affected user) and confirm Clients & Deals lists their tagged deals.
 
 ## Out of scope
 
-- Trend over multiple weeks (can be added later as a sparkline on the headline card).
-- Email/Slack nudges to offenders.
-- Editing role assignments.
+- No changes to `useDealAccess.ts` — the logic is correct; only the underlying data is broken.
+- No changes to the Google Sheets sync (it can keep generating new IDs; the trigger handles it).
+- Profiles that have no email match in `staffing_people` (e.g. people not yet in the directory) will remain unmapped — that's the existing `BopmEmptyState` flow.
