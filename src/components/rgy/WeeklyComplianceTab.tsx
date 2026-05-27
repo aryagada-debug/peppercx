@@ -93,39 +93,102 @@ export function WeeklyComplianceTab() {
 
   const insights = useMemo(() => {
     let compliant = 0, partial = 0, missing = 0, reviewed = 0;
-    let vsdUpdated = 0, bopmUpdated = 0;
-    const vsdPending = new Map<string, number>();
-    const podStats = new Map<string, { total: number; compliant: number }>();
+    // VSD aggregation: total deals and pending count per VSD
+    const vsdStats = new Map<string, { total: number; pending: number }>();
+    // BOPM aggregation by person (split principal_bopm + senior_bopm)
+    const bopmStats = new Map<string, { total: number; updated: number }>();
     for (const r of rows) {
       const s = rowState(r);
       if (s === "compliant") compliant++;
       else if (s === "partial") partial++;
       else missing++;
       if (r.vsdStatus === "reviewed" || r.bopmStatus === "reviewed") reviewed++;
-      if (r.vsdStatus !== "pending") vsdUpdated++;
-      else if (r.vsd) vsdPending.set(r.vsd, (vsdPending.get(r.vsd) || 0) + 1);
-      if (r.bopmStatus !== "pending") bopmUpdated++;
-      const pod = r.pod || "Unassigned";
-      const ps = podStats.get(pod) || { total: 0, compliant: 0 };
-      ps.total++;
-      if (s === "compliant") ps.compliant++;
-      podStats.set(pod, ps);
+
+      if (r.vsd) {
+        const v = vsdStats.get(r.vsd) || { total: 0, pending: 0 };
+        v.total++;
+        if (r.vsdStatus === "pending") v.pending++;
+        vsdStats.set(r.vsd, v);
+      }
+
+      // BOPM names live in r.bopm as a comma-separated list
+      const bopmNames = r.bopm
+        ? r.bopm.split(",").map(s => s.trim()).filter(Boolean)
+        : [];
+      const bopmUpdatedThisDeal = r.bopmStatus !== "pending";
+      for (const name of bopmNames) {
+        const b = bopmStats.get(name) || { total: 0, updated: 0 };
+        b.total++;
+        if (bopmUpdatedThisDeal) b.updated++;
+        bopmStats.set(name, b);
+      }
     }
     const total = rows.length;
-    const topOffenders = Array.from(vsdPending.entries())
-      .sort((a, b) => b[1] - a[1]).slice(0, 5)
-      .map(([vsd, count]) => ({ vsd, count }));
-    const worstPods = Array.from(podStats.entries())
-      .filter(([, v]) => v.total >= 2)
-      .map(([pod, v]) => ({ pod, total: v.total, rate: v.total ? v.compliant / v.total : 0 }))
-      .sort((a, b) => a.rate - b.rate).slice(0, 5);
+    const vsdPending = Array.from(vsdStats.entries())
+      .filter(([, v]) => v.pending > 0)
+      .map(([vsd, v]) => ({
+        vsd,
+        pending: v.pending,
+        total: v.total,
+        rate: v.total ? (v.total - v.pending) / v.total : 0,
+      }))
+      .sort((a, b) => b.pending - a.pending || a.rate - b.rate)
+      .slice(0, 6);
+    const bopmCompliance = Array.from(bopmStats.entries())
+      .filter(([, v]) => v.total >= 1)
+      .map(([bopm, v]) => ({
+        bopm,
+        total: v.total,
+        updated: v.updated,
+        rate: v.total ? v.updated / v.total : 0,
+      }))
+      .sort((a, b) => a.rate - b.rate || b.total - a.total)
+      .slice(0, 6);
     return {
       total, compliant, partial, missing, reviewed,
-      vsdUpdated, vsdPending: total - vsdUpdated,
-      bopmUpdated, bopmPending: total - bopmUpdated,
       complianceRate: total ? compliant / total : 0,
-      topOffenders, worstPods,
+      vsdPending, bopmCompliance,
     };
+  }, [rows]);
+
+  // ── Deals not updated the longest (all-time across active deals) ──
+  const [staleDeals, setStaleDeals] = useState<{ dealId: string; lastAt: string | null }[]>([]);
+  useEffect(() => {
+    if (rows.length === 0) { setStaleDeals([]); return; }
+    let cancelled = false;
+    (async () => {
+      const dealIds = rows.map(r => r.dealId);
+      // Fetch most recent note per deal (excluding sentinel review rows? keep them — they count as activity)
+      const { data } = await supabase
+        .from("deal_rgy_notes")
+        .select("deal_id, created_at")
+        .in("deal_id", dealIds)
+        .order("created_at", { ascending: false })
+        .limit(5000);
+      if (cancelled) return;
+      const lastByDeal = new Map<string, string>();
+      for (const n of (data || []) as { deal_id: string; created_at: string }[]) {
+        if (!lastByDeal.has(n.deal_id)) lastByDeal.set(n.deal_id, n.created_at);
+      }
+      const merged = rows.map(r => ({
+        dealId: r.dealId,
+        lastAt: lastByDeal.get(r.dealId) || null,
+      }));
+      merged.sort((a, b) => {
+        if (!a.lastAt && !b.lastAt) return 0;
+        if (!a.lastAt) return -1;
+        if (!b.lastAt) return 1;
+        return a.lastAt.localeCompare(b.lastAt);
+      });
+      setStaleDeals(merged.slice(0, 6));
+    })();
+    return () => { cancelled = true; };
+  }, [rows]);
+
+  const rowById = useMemo(() => {
+    const m = new Map<string, ComplianceRow>();
+    rows.forEach(r => m.set(r.dealId, r));
+    return m;
   }, [rows]);
 
   const filtered = useMemo(() => {
@@ -233,43 +296,73 @@ export function WeeklyComplianceTab() {
         </div>
       )}
 
-      {/* Breakdown strip */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-        <BreakdownTile label="VSD updated" count={insights.vsdUpdated} total={insights.total} tone="positive"
-          onClick={() => openSegment({ kind: "vsd-updated" })} active={segment.kind === "vsd-updated"} />
-        <BreakdownTile label="VSD pending" count={insights.vsdPending} total={insights.total} tone="warning"
-          onClick={() => openSegment({ kind: "vsd-pending" })} active={segment.kind === "vsd-pending"} />
-        <BreakdownTile label="BOPM updated" count={insights.bopmUpdated} total={insights.total} tone="positive"
-          onClick={() => openSegment({ kind: "bopm-updated" })} active={segment.kind === "bopm-updated"} />
-        <BreakdownTile label="BOPM pending" count={insights.bopmPending} total={insights.total} tone="warning"
-          onClick={() => openSegment({ kind: "bopm-pending" })} active={segment.kind === "bopm-pending"} />
-      </div>
-
-      {/* Top offenders */}
-      {(insights.topOffenders.length > 0 || insights.worstPods.length > 0) && (
+      {/* Offender lists */}
+      {(insights.vsdPending.length > 0 || insights.bopmCompliance.length > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {insights.topOffenders.length > 0 && (
+          {insights.vsdPending.length > 0 && (
             <OffenderList
-              title="VSDs with most pending deals"
-              items={insights.topOffenders.map(o => ({
+              title="VSDs with pending deals"
+              items={insights.vsdPending.map(o => ({
                 key: o.vsd,
                 label: o.vsd,
-                badge: `${o.count} pending`,
+                badge: `${o.pending} pending · ${Math.round(o.rate * 100)}% compliant`,
                 onClick: () => openSegment({ kind: "vsd-person", vsd: o.vsd }),
               }))}
             />
           )}
-          {insights.worstPods.length > 0 && (
+          {insights.bopmCompliance.length > 0 && (
             <OffenderList
-              title="Pods with lowest compliance"
-              items={insights.worstPods.map(p => ({
-                key: p.pod,
-                label: p.pod || "Unassigned",
-                badge: `${Math.round(p.rate * 100)}% · ${p.total} deals`,
-                onClick: () => openSegment({ kind: "pod", pod: p.pod }),
+              title="P / Sr BOPMs by compliance %"
+              items={insights.bopmCompliance.map(b => ({
+                key: b.bopm,
+                label: b.bopm,
+                badge: `${Math.round(b.rate * 100)}% · ${b.updated}/${b.total} deals`,
+                onClick: () => openSegment({ kind: "bopm-person", bopm: b.bopm }),
               }))}
             />
           )}
+        </div>
+      )}
+
+      {/* Deals not updated the longest */}
+      {staleDeals.length > 0 && (
+        <div className="border border-border rounded-lg bg-card">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Deals not updated the longest</div>
+            <button
+              className="text-[11px] text-primary hover:underline"
+              onClick={() => openSegment({ kind: "stale", staleIds: new Set(staleDeals.map(s => s.dealId)) })}
+            >
+              View all in drill-down
+            </button>
+          </div>
+          <div className="divide-y divide-border">
+            {staleDeals.map(s => {
+              const r = rowById.get(s.dealId);
+              const age = s.lastAt ? formatDistanceToNowStrict(new Date(s.lastAt), { addSuffix: false }) : "Never updated";
+              return (
+                <div key={s.dealId} className="flex items-center justify-between px-3 py-2 text-xs hover:bg-secondary/30">
+                  <div className="min-w-0 flex-1">
+                    <Link to={`/deals/${s.dealId}`} className="font-medium text-primary hover:underline truncate block">
+                      {r?.account || s.dealId}
+                    </Link>
+                    <div className="text-[10px] text-muted-foreground truncate">
+                      {r?.dealName} · VSD: {r?.vsd || "—"}
+                    </div>
+                  </div>
+                  <Badge variant="outline" className={cn(
+                    "font-normal text-[10px] gap-1 shrink-0",
+                    !s.lastAt || (Date.now() - new Date(s.lastAt).getTime()) / (1000 * 60 * 60 * 24) > 14
+                      ? "bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/30"
+                      : "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30"
+                  )}>
+                    <Clock className="h-3 w-3" />
+                    {age === "Never updated" ? "Never" : `${age} ago`}
+                  </Badge>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
