@@ -1694,7 +1694,7 @@ export default function RGYHealth() {
             {!isBopmPersona && (
               <div className="mb-6">
                 <h3 className="text-sm font-semibold mb-3">Weekly RGY Update Compliance</h3>
-                <WeeklyComplianceTab />
+                <WeeklyComplianceTab rgyByDealId={Object.fromEntries(deals.map(d => [d.id, getWorstRGY(d)]))} />
               </div>
             )}
             <RGYInsightsTab
