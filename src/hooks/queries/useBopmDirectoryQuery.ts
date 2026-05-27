@@ -46,6 +46,7 @@ function isBopmRoleTitle(roleTitle: string, designation: string): boolean {
   const t = `${roleTitle || ""} ${designation || ""}`.toLowerCase();
   return (
     /\b(principal|senior|sr\.?)\s+bopm\b/.test(t) ||
+    /\bgroup\s+bopm\b/.test(t) ||
     /principal\s+account\s+engagement\s+lead/.test(t) ||
     (t.includes("bopm") && (t.includes("principal") || t.includes("senior") || t.includes("sr")))
   );
