@@ -252,7 +252,7 @@ export function LockAnalyticsTab({ deals }: Props) {
             <span className="text-[11px] text-muted-foreground">Only Central CX can lock staffing.</span>
           )}
         </div>
-        <div className="overflow-auto max-h-[520px]">
+        <div className="overflow-auto max-h-[70vh]">
           <table className="w-full text-xs">
             <thead className="bg-secondary text-[10px] uppercase tracking-wider text-muted-foreground sticky top-0">
               <tr>
