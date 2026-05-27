@@ -339,6 +339,15 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
     return m;
   }, [deals]);
 
+  const dealStatusOptions = useMemo(
+    () => Array.from(new Set(deals.map((d) => d.dealStatus).filter(Boolean))) as string[],
+    [deals],
+  );
+  const dealTypeOptions = useMemo(
+    () => Array.from(new Set(deals.map((d) => d.dealType).filter(Boolean))) as string[],
+    [deals],
+  );
+
   const assignmentsByPerson = useMemo(() => {
     const m: Record<string, StaffingAssignment[]> = {};
     assignments.forEach((a) => {
