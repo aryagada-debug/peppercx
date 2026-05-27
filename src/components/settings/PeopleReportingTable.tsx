@@ -1,7 +1,9 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { Deal, Person, StaffingAssignment } from "@/data/staffingData";
 import { Input } from "@/components/ui/input";
-import { Search, Trash2, Plus, Check, X, Pencil, ChevronRight, ChevronDown } from "lucide-react";
+import { Search, Trash2, Plus, Check, X, Pencil, ChevronRight, ChevronDown, ExternalLink } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { ColHeader, type SortState } from "@/components/table/ColHeader";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
