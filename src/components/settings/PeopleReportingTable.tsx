@@ -314,6 +314,24 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
       return n;
     });
 
+  // Sub-table (expanded "Deals tagged") filter/sort state — shared across rows.
+  const [subSort, setSubSort] = useState<SortState>({ sortKey: null, sortDir: "asc" });
+  const [subFilters, setSubFilters] = useState<Record<string, string>>({});
+  const [subOpenFilter, setSubOpenFilter] = useState<string | null>(null);
+  const onSubSort = (k: string) =>
+    setSubSort((s) => ({
+      sortKey: k,
+      sortDir: s.sortKey === k && s.sortDir === "asc" ? "desc" : "asc",
+    }));
+  const setSubFilter = (k: string, v: string) =>
+    setSubFilters((p) => ({ ...p, [k]: v }));
+  const clearSubFilter = (k: string) =>
+    setSubFilters((p) => {
+      const n = { ...p };
+      delete n[k];
+      return n;
+    });
+
   // Build a lookup of deals + per-person assignment lists.
   const dealById = useMemo(() => {
     const m = new Map<string, Deal>();
