@@ -33,6 +33,7 @@ import { useDealAccess } from "@/hooks/useDealAccess";
 import { BopmEmptyState } from "@/components/access/BopmEmptyState";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { getOverallCustomerRGY as computeOverallCustomerRGY, computeOverallCustomerScore } from "@/lib/overallCustomerRGY";
+import { WeeklyComplianceTab } from "@/components/rgy/WeeklyComplianceTab";
 
 type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
@@ -577,7 +578,7 @@ export default function RGYHealth() {
   const [showClosed, setShowClosed] = useState(false);
   const [search, setSearch] = useState("");
   const [rgyFilter, setRgyFilter] = useState<"All" | "Red" | "Yellow" | "Green">("All");
-  const [activeTab, setActiveTab] = useState<"health" | "table" | "insights">("table");
+  const [activeTab, setActiveTab] = useState<"health" | "table" | "insights" | "compliance">("table");
   useEffect(() => {
     if (isVsdPersona && myVsdName && activeVsd !== myVsdName) setActiveVsd(myVsdName);
   }, [isVsdPersona, myVsdName, activeVsd]);
@@ -1265,6 +1266,7 @@ export default function RGYHealth() {
               {isBopmPersona && <TabsTrigger value="insights">Insights</TabsTrigger>}
               <TabsTrigger value="table">Table</TabsTrigger>
               {!isBopmPersona && <TabsTrigger value="insights">Insights</TabsTrigger>}
+              {!isBopmPersona && <TabsTrigger value="compliance">Weekly Compliance</TabsTrigger>}
             </TabsList>
             {activeTab === "table" && (
               <Popover>
