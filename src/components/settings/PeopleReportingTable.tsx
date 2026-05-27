@@ -296,6 +296,23 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
   const [customBump, setCustomBump] = useState(0);
   const { widths, onMouseDown } = useResizableColumns();
   const { data: taxonomy } = useTaxonomyQuery();
+  const navigate = useNavigate();
+  const [sortState, setSortState] = useState<SortState>({ sortKey: null, sortDir: "asc" });
+  const [colFilters, setColFilters] = useState<Record<string, string>>({});
+  const [openFilter, setOpenFilter] = useState<string | null>(null);
+  const onSort = (k: string) =>
+    setSortState((s) => ({
+      sortKey: k,
+      sortDir: s.sortKey === k && s.sortDir === "asc" ? "desc" : "asc",
+    }));
+  const setFilter = (k: string, v: string) =>
+    setColFilters((p) => ({ ...p, [k]: v }));
+  const clearFilter = (k: string) =>
+    setColFilters((p) => {
+      const n = { ...p };
+      delete n[k];
+      return n;
+    });
 
   // Build a lookup of deals + per-person assignment lists.
   const dealById = useMemo(() => {
