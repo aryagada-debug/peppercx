@@ -1,28 +1,60 @@
-## Goal
-Update `staffing_deals` rows matched by `deal_id` with the values from the pasted table:
-- `mrr` ← MRR column
-- `total_deal_value` ← Total Deal Value column
-- `start_date` ← first day of "Start Month" (e.g. `May-26` → `2026-05-01`)
-- `end_date` ← last day of "End Month" (e.g. `Oct-26` → `2026-10-31`)
+# Weekly RGY Update Compliance Report (Central CX)
 
-For deals where `vsd = 'Neema Jayadas'` (identified in DB — 30+ deals incl. Atlan, Dataiku, Talkspace, Earnin, Tigergraph, Mews AI, Sedai, O'Reilly, Wizeline, Justworks, etc.): **only** update `start_date` and `end_date`. Leave `mrr` and `total_deal_value` untouched.
+A new report tab inside the RGY Health Tracker that lets Central CX see, for every active deal each week, whether the VSD and the Principal/Sr. BOPM have either (a) edited the RGY, or (b) explicitly confirmed "Reviewed — No Change". Anything else shows up as outstanding.
 
-## Approach
-Single `supabase--insert` call running an `UPDATE ... FROM (VALUES …)` against `staffing_deals` keyed by `deal_id`. The VALUES list will encode all ~140 rows from the paste with parsed numeric MRR / total value / start / end. A second `UPDATE` clears MRR/total back to existing for Neema's deals — simpler: split into two `UPDATE`s:
+## What Central CX will see
 
-1. **Non-Neema deals:** update `mrr`, `total_deal_value`, `start_date`, `end_date` where `vsd IS DISTINCT FROM 'Neema Jayadas'`.
-2. **Neema's deals:** update only `start_date`, `end_date` where `vsd = 'Neema Jayadas'`.
+A new tab **"Weekly Compliance"** inside `/rgy-health` with:
 
-## Parsing rules
-- MRR / Total: strip commas, blanks → `NULL` (skip if blank).
-- Start/End month: `MMM-YY` → first/last day of month. Blank cells → skip (leave existing date).
-- Rows where start or end is blank: only update the side that has a value.
-- Rows where `deal_id` doesn't exist in DB: no-op (safe with `UPDATE … WHERE deal_id = ...`).
+- **Week selector** (defaults to current ISO week, Mon–Sun). Arrows for prev/next week.
+- **Top KPIs**: Total Active Deals · Fully Compliant · Partially Compliant · Not Updated · Reviewed–No Change.
+- **Compliance table**, one row per active deal:
+  - Deal · Client · VSD · P/Sr BOPM
+  - **VSD status** for the week: `Updated` (edited), `Reviewed – No Change` (confirmed), or `Pending` (with days-since-last-touch)
+  - **BOPM status** for the week: same three states
+  - Last updated by / at (per role)
+  - Overall RGY this week
+  - Actions: "Open deal", "Nudge on Slack" (uses existing Slack send)
+- **Filters**: VSD, BOPM, Pod, compliance state, RGY status, search.
+- **Export CSV** of the current view.
 
-## Out of scope
-- No reallocations, no other column changes.
-- Rows in the paste with no deal_id (the two blank-ID lines for Aditya Birla Sun Life Insurance and Edelweiss Life) are skipped.
-- The `100702` row appears as `Apr-25 → Mar-26`; existing TT… ids that weren't renamed earlier still match by their TT id.
+A small **"Mark Reviewed — No Change"** button is added to the existing RGY weekly grid (for the current week's row) so VSD/BOPM can record an intentional no-change in one click. This writes an audit row, which the report reads.
 
-## Confirmation
-Reply "go" and I'll run the two UPDATE statements.
+## How "updated" is detected
+
+For the selected week (Mon 00:00 → Sun 23:59 in IST):
+
+- **Updated**: at least one row exists in `deal_rgy_notes` for this `deal_id` within the week where `updated_by` resolves to a user whose role on that deal is VSD (or P/Sr BOPM). `deal_rgy_notes` is already written by `logRGYChange` on every cell edit, so we get who/when/from→to for free.
+- **Reviewed – No Change**: a new sentinel row in `deal_rgy_notes` with `dimension = '__review__'`, `from_value = to_value = ''`, `note = 'Reviewed - no change'`. No schema change needed — the existing table already stores `updated_by`, `updated_by_name`, `week_start`, `created_at`.
+- **Pending**: neither of the above for the week.
+
+Role attribution per deal uses `staffing_assignments` joined to `profiles.user_id` (via `staffing_people.email → auth.users.email`), filtered to normalized role keys:
+
+- VSD: `vsd`, `rt_vsd`
+- P/Sr BOPM: `principal_bopm`, `senior_bopm`, `rt_group_bopm`, `rt_senior_bopm`
+
+If the editor matches neither role for that deal, the edit still counts as "activity" but is shown in a separate "Other edits" tooltip — it does not satisfy VSD or BOPM compliance.
+
+## Files
+
+New:
+
+- `src/components/rgy/WeeklyComplianceTab.tsx` — the report UI (KPIs, filters, table, CSV export).
+- `src/hooks/useRgyWeeklyCompliance.ts` — fetches `staffing_deals` (active), `staffing_assignments` (VSD/BOPM per deal), and `deal_rgy_notes` for the week; returns per-deal compliance rows. Realtime subscription on `deal_rgy_notes`.
+- `src/lib/rgyCompliance.ts` — pure helpers: week range (IST), role classification, status derivation.
+
+Edits:
+
+- `src/pages/RGYHealth.tsx` — add the new tab; wire week selector.
+- `src/components/deals/EditableRGY.tsx` (or the weekly grid component used on RGY Health) — add **"Mark Reviewed — No Change"** button on the current-week row; on click, insert sentinel note via a new helper.
+- `src/lib/rgyHistory.ts` — add `logRGYReviewedNoChange({ dealId, weekStart })` that inserts the sentinel row.
+
+## Out of scope (call out, don't build now)
+
+- Email/Slack auto-nudges for non-compliant deals (manual nudge button only).
+- Editing role assignments from inside the report.
+- Backfill of historical compliance before this feature ships (we can only count notes that exist).
+
+## Open question
+
+For Central CX, should "Compliance" require **both** VSD and BOPM to update/confirm in the same week, or is **either** sufficient? Default in the plan: both required for "Fully Compliant"; only one for "Partially Compliant". - Either is sufficient
