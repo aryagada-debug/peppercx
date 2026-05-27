@@ -995,11 +995,11 @@ export default function RGYHealth() {
   const handleIssueSave = useCallback(async (issueData: {
     issueDate: string;
     issueDetails: string;
-    discussedActionPlan: string;
     actionPlan: string;
-    resolutionDueDate: string;
     issueStatus: string;
-    tasks: RGYIssueTask[];
+    assignees: string[];
+    dueDate: string;
+    subtasks: { title: string }[];
   }) => {
     if (!issueFormDeal) return;
 
@@ -1008,34 +1008,37 @@ export default function RGYHealth() {
       await supabase.from("deal_rgy_weekly").update({
         issue_date: issueData.issueDate,
         issue_details: issueData.issueDetails,
-        discussed_action_plan: issueData.discussedActionPlan,
         action_plan: issueData.actionPlan,
-        resolution_due_date: issueData.resolutionDueDate || null,
+        resolution_due_date: issueData.dueDate || null,
         issue_status: issueData.issueStatus,
       }).eq("id", deal.rgy_row_id);
     }
 
-    for (const task of issueData.tasks) {
-      for (const assignee of task.assignees) {
-        await supabase.from("deal_tasks").insert({
-          deal_id: issueFormDeal.id,
-          title: `[RGY Health] ${task.dimension} — ${task.issueSummary}`,
-          description: `Issue Details: ${issueData.issueDetails}\nAction Plan: ${issueData.actionPlan}\nDiscussed Action Plan: ${issueData.discussedActionPlan}`,
-          stage: "To Do",
-          assignee,
-          urgency: task.urgency,
-          logged_hours: 0,
-          sort_order: 0,
-          start_date: issueData.issueDate,
-          end_date: issueData.resolutionDueDate || null,
-        });
-      }
+    if (issueData.assignees.length > 0 || issueData.actionPlan.trim() || issueData.subtasks.length > 0) {
+      await (supabase.from("deal_tasks") as any).insert({
+        deal_id: issueFormDeal.id,
+        title: `[RGY Health] ${(issueData.actionPlan || issueData.issueDetails).trim().slice(0, 120)}`,
+        description: `Issue Details: ${issueData.issueDetails}\nAction Plan: ${issueData.actionPlan}`,
+        stage: "To Do",
+        assignee: issueData.assignees[0] || "",
+        assignees: issueData.assignees,
+        urgency: "Medium",
+        logged_hours: 0,
+        sort_order: 0,
+        start_date: issueData.issueDate,
+        end_date: issueData.dueDate || null,
+        subtasks: issueData.subtasks.map((s, i) => ({
+          id: `${Date.now()}-${i}`,
+          title: s.title,
+          completed: false,
+        })),
+      });
     }
 
     setIssueFormDeal(null);
     setIssueFormNonGreen([]);
     setPrevRGYSnapshot(null);
-    toast.success("Issue saved & tasks created");
+    toast.success("Issue saved & task created");
   }, [issueFormDeal, deals]);
 
   // Filtering
