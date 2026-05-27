@@ -317,46 +317,26 @@ function RGYIssueFormDialog({
   onSave: (data: {
     issueDate: string;
     issueDetails: string;
-    discussedActionPlan: string;
     actionPlan: string;
-    resolutionDueDate: string;
     issueStatus: string;
-    tasks: RGYIssueTask[];
+    assignees: string[];
+    dueDate: string;
+    subtasks: { title: string }[];
   }) => Promise<void>;
   onCancel: () => void;
 }) {
   const [issueDate, setIssueDate] = useState<Date>(new Date());
   const [issueDetails, setIssueDetails] = useState("");
-  const [discussedActionPlan, setDiscussedActionPlan] = useState("");
   const [actionPlan, setActionPlan] = useState("");
-  const [resolutionDueDate, setResolutionDueDate] = useState<Date | undefined>();
+  const [dueDate, setDueDate] = useState<Date | undefined>();
   const [issueStatus, setIssueStatus] = useState("Open");
+  const [taskAssignees, setTaskAssignees] = useState<string[]>([]);
+  const [subtasks, setSubtasks] = useState<{ title: string }[]>([]);
   const [saving, setSaving] = useState(false);
-
-  const [issueTasks, setIssueTasks] = useState<RGYIssueTask[]>(
-    nonGreenDims.map(d => ({
-      dimension: d.label,
-      issueSummary: "",
-      urgency: d.value === "R" ? "High" : "Medium",
-      assignees: [],
-    }))
-  );
 
   const allAssigneeNames = [...new Set(
     [deal.vsd, deal.principal_bopm, deal.senior_bopm, deal.bopm].filter(Boolean)
   )];
-
-  const updateIssueTask = (idx: number, updates: Partial<RGYIssueTask>) => {
-    setIssueTasks(prev => prev.map((t, i) => i === idx ? { ...t, ...updates } : t));
-  };
-
-  const addNewTask = () => {
-    setIssueTasks(prev => [...prev, { dimension: nonGreenDims[0]?.label || "", issueSummary: "", urgency: "Medium", assignees: [] }]);
-  };
-
-  const removeTask = (idx: number) => {
-    setIssueTasks(prev => prev.filter((_, i) => i !== idx));
-  };
 
   const handleSubmit = async () => {
     if (!issueDetails.trim()) {
@@ -368,11 +348,11 @@ function RGYIssueFormDialog({
       await onSave({
         issueDate: issueDate.toISOString().split("T")[0],
         issueDetails,
-        discussedActionPlan,
         actionPlan,
-        resolutionDueDate: resolutionDueDate?.toISOString().split("T")[0] || "",
         issueStatus,
-        tasks: issueTasks.filter(t => t.issueSummary.trim() && t.assignees.length > 0),
+        assignees: taskAssignees,
+        dueDate: dueDate?.toISOString().split("T")[0] || "",
+        subtasks: subtasks.filter(s => s.title.trim()),
       });
     } finally {
       setSaving(false);
@@ -417,21 +397,6 @@ function RGYIssueFormDialog({
             </div>
 
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Resolution Due Date</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn("w-full justify-start text-left text-sm font-normal h-9", !resolutionDueDate && "text-muted-foreground")}>
-                    <Calendar className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-                    {resolutionDueDate ? format(resolutionDueDate, "dd MMM yyyy") : "Pick a date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <CalendarComponent mode="single" selected={resolutionDueDate} onSelect={setResolutionDueDate} className="p-3 pointer-events-auto" />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Status</label>
               <Select value={issueStatus} onValueChange={setIssueStatus}>
                 <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
@@ -455,72 +420,79 @@ function RGYIssueFormDialog({
             <Textarea value={actionPlan} onChange={e => setActionPlan(e.target.value)} placeholder="Final action plan..." className="text-sm min-h-[60px]" />
           </div>
 
-          {/* Tasks */}
+          {/* Assignees */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Assignees</label>
+            <div className="flex flex-wrap gap-1.5">
+              {allAssigneeNames.map(name => {
+                const selected = taskAssignees.includes(name);
+                return (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => setTaskAssignees(prev => selected ? prev.filter(a => a !== name) : [...prev, name])}
+                    className={cn(
+                      "px-2 py-0.5 rounded-full text-[11px] border transition-colors",
+                      selected
+                        ? "bg-primary/15 border-primary/40 text-primary font-medium"
+                        : "bg-secondary/50 border-border text-muted-foreground hover:bg-secondary"
+                    )}
+                  >
+                    {name}
+                  </button>
+                );
+              })}
+              {allAssigneeNames.length === 0 && (
+                <span className="text-[11px] text-muted-foreground italic">No team members available</span>
+              )}
+            </div>
+          </div>
+
+          {/* Due Date */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Due Date</label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className={cn("w-full justify-start text-left text-sm font-normal h-9", !dueDate && "text-muted-foreground")}>
+                  <Calendar className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                  {dueDate ? format(dueDate, "dd MMM yyyy") : "Pick a date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <CalendarComponent mode="single" selected={dueDate} onSelect={setDueDate} className="p-3 pointer-events-auto" />
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          {/* Subtasks */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Tasks to Create</label>
-              <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={addNewTask}>
-                <Plus className="h-3 w-3" /> Add Task
+              <label className="text-xs font-medium text-muted-foreground">Subtasks</label>
+              <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => setSubtasks(prev => [...prev, { title: "" }])}>
+                <Plus className="h-3 w-3" /> Add Subtask
               </Button>
             </div>
-            <div className="space-y-3">
-              {issueTasks.map((task, idx) => (
-                <div key={idx} className="bg-secondary/30 rounded-lg p-3 space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-medium text-foreground">{task.dimension}</span>
-                    <div className="flex items-center gap-2">
-                      <Select value={task.urgency} onValueChange={v => updateIssueTask(idx, { urgency: v })}>
-                        <SelectTrigger className="h-7 w-[90px] text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Critical">Critical</SelectItem>
-                          <SelectItem value="High">High</SelectItem>
-                          <SelectItem value="Medium">Medium</SelectItem>
-                          <SelectItem value="Low">Low</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      {issueTasks.length > 1 && (
-                        <button onClick={() => removeTask(idx)} className="text-destructive hover:text-destructive/80">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
+            <div className="space-y-2">
+              {subtasks.map((s, idx) => (
+                <div key={idx} className="flex items-center gap-2">
                   <Input
-                    value={task.issueSummary}
-                    onChange={e => updateIssueTask(idx, { issueSummary: e.target.value })}
-                    placeholder="Brief issue summary for task title..."
+                    value={s.title}
+                    onChange={e => setSubtasks(prev => prev.map((x, i) => i === idx ? { title: e.target.value } : x))}
+                    placeholder="Subtask title..."
                     className="h-8 text-sm"
                   />
-                  <div>
-                    <label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 block">Assignees</label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {allAssigneeNames.map(name => {
-                        const selected = task.assignees.includes(name);
-                        return (
-                          <button
-                            key={name}
-                            onClick={() => {
-                              updateIssueTask(idx, {
-                                assignees: selected
-                                  ? task.assignees.filter(a => a !== name)
-                                  : [...task.assignees, name],
-                              });
-                            }}
-                            className={cn(
-                              "px-2 py-0.5 rounded-full text-[11px] border transition-colors",
-                              selected
-                                ? "bg-primary/15 border-primary/40 text-primary font-medium"
-                                : "bg-secondary/50 border-border text-muted-foreground hover:bg-secondary"
-                            )}
-                          >
-                            {name}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSubtasks(prev => prev.filter((_, i) => i !== idx))}
+                    className="text-destructive hover:text-destructive/80"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               ))}
+              {subtasks.length === 0 && (
+                <p className="text-[11px] text-muted-foreground italic">No subtasks yet.</p>
+              )}
             </div>
           </div>
 
@@ -1023,11 +995,11 @@ export default function RGYHealth() {
   const handleIssueSave = useCallback(async (issueData: {
     issueDate: string;
     issueDetails: string;
-    discussedActionPlan: string;
     actionPlan: string;
-    resolutionDueDate: string;
     issueStatus: string;
-    tasks: RGYIssueTask[];
+    assignees: string[];
+    dueDate: string;
+    subtasks: { title: string }[];
   }) => {
     if (!issueFormDeal) return;
 
@@ -1036,34 +1008,37 @@ export default function RGYHealth() {
       await supabase.from("deal_rgy_weekly").update({
         issue_date: issueData.issueDate,
         issue_details: issueData.issueDetails,
-        discussed_action_plan: issueData.discussedActionPlan,
         action_plan: issueData.actionPlan,
-        resolution_due_date: issueData.resolutionDueDate || null,
+        resolution_due_date: issueData.dueDate || null,
         issue_status: issueData.issueStatus,
       }).eq("id", deal.rgy_row_id);
     }
 
-    for (const task of issueData.tasks) {
-      for (const assignee of task.assignees) {
-        await supabase.from("deal_tasks").insert({
-          deal_id: issueFormDeal.id,
-          title: `[RGY Health] ${task.dimension} — ${task.issueSummary}`,
-          description: `Issue Details: ${issueData.issueDetails}\nAction Plan: ${issueData.actionPlan}\nDiscussed Action Plan: ${issueData.discussedActionPlan}`,
-          stage: "To Do",
-          assignee,
-          urgency: task.urgency,
-          logged_hours: 0,
-          sort_order: 0,
-          start_date: issueData.issueDate,
-          end_date: issueData.resolutionDueDate || null,
-        });
-      }
+    if (issueData.assignees.length > 0 || issueData.actionPlan.trim() || issueData.subtasks.length > 0) {
+      await (supabase.from("deal_tasks") as any).insert({
+        deal_id: issueFormDeal.id,
+        title: `[RGY Health] ${(issueData.actionPlan || issueData.issueDetails).trim().slice(0, 120)}`,
+        description: `Issue Details: ${issueData.issueDetails}\nAction Plan: ${issueData.actionPlan}`,
+        stage: "To Do",
+        assignee: issueData.assignees[0] || "",
+        assignees: issueData.assignees,
+        urgency: "Medium",
+        logged_hours: 0,
+        sort_order: 0,
+        start_date: issueData.issueDate,
+        end_date: issueData.dueDate || null,
+        subtasks: issueData.subtasks.map((s, i) => ({
+          id: `${Date.now()}-${i}`,
+          title: s.title,
+          completed: false,
+        })),
+      });
     }
 
     setIssueFormDeal(null);
     setIssueFormNonGreen([]);
     setPrevRGYSnapshot(null);
-    toast.success("Issue saved & tasks created");
+    toast.success("Issue saved & task created");
   }, [issueFormDeal, deals]);
 
   // Filtering
