@@ -97,12 +97,18 @@ Deno.serve(async (req) => {
         });
       }
       const { error } = await adminClient.auth.admin.deleteUser(targetId);
-      if (error) {
+      // If the auth user is already gone, treat as success and clean up
+      // the orphan profile / role rows that the UI is still showing.
+      const msg = (error?.message || "").toLowerCase();
+      const alreadyGone = !!error && (msg.includes("user not found") || msg.includes("not found"));
+      if (error && !alreadyGone) {
         return new Response(JSON.stringify({ error: error.message }), {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+      await adminClient.from("profiles").delete().eq("user_id", targetId);
+      await adminClient.from("user_roles").delete().eq("user_id", targetId);
       return new Response(JSON.stringify({ ok: true }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
