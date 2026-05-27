@@ -306,7 +306,7 @@ interface RGYIssueTask {
   assignees: string[];
 }
 
-function RGYIssueFormDialog({
+const RGYIssueFormDialog = React.memo(function RGYIssueFormDialog({
   deal,
   nonGreenDims,
   onSave,
@@ -507,7 +507,19 @@ function RGYIssueFormDialog({
       </DialogContent>
     </Dialog>
   );
-}
+}, (prev, next) => {
+  // Only re-render when the dialog's identity actually changes.
+  // Parent re-renders (realtime, filters) would otherwise cascade into
+  // this heavy form and make typing feel laggy.
+  if (prev.deal.id !== next.deal.id) return false;
+  if (prev.deal.deal_name !== next.deal.deal_name) return false;
+  if (prev.nonGreenDims.length !== next.nonGreenDims.length) return false;
+  for (let i = 0; i < prev.nonGreenDims.length; i++) {
+    if (prev.nonGreenDims[i].key !== next.nonGreenDims[i].key) return false;
+    if (prev.nonGreenDims[i].value !== next.nonGreenDims[i].value) return false;
+  }
+  return true;
+});
 
 // ── Main Component ──
 export default function RGYHealth() {
