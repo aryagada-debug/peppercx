@@ -379,17 +379,29 @@ export default function Clients() {
     for (const a of activeAssignments) {
       (grouped[a.dealId] = grouped[a.dealId] || []).push(a);
     }
+    const CONTENT_ROLE_KEYS = new Set([
+      "content_lead", "content_lead_2026", "senior_editor", "managing_editor", "content_capability_leader",
+    ]);
+    const SEO_ROLE_KEYS = new Set([
+      "seo_leader", "seo_group_head", "sr_seo_manager", "seo_manager",
+      "sr_seo_analyst", "seo_analyst", "seo_operations", "seo_capability_leader",
+    ]);
     for (const dealId of Object.keys(grouped)) {
       const list = grouped[dealId];
-      const pick = (cat: string) => {
+      const pick = (cat: string, roleKeys: Set<string>) => {
         const matches = list
           .map(a => ({ a, p: peopleById.get(a.personId) }))
-          .filter(({ p }) => p && (p.roleCategory || "").toLowerCase() === cat.toLowerCase())
+          .filter(({ a, p }) => {
+            if (!p) return false;
+            const rk = (a.roleKey || "").toLowerCase();
+            if (rk && roleKeys.has(rk)) return true;
+            return (p.roleCategory || "").toLowerCase() === cat.toLowerCase();
+          })
           .sort((x, y) => (Number(y.a.allocationPct) || 0) - (Number(x.a.allocationPct) || 0));
         return matches[0] ? { name: matches[0].p?.name, assignmentId: matches[0].a.id } : undefined;
       };
-      const c = pick("Content");
-      const s = pick("SEO");
+      const c = pick("Content", CONTENT_ROLE_KEYS);
+      const s = pick("SEO", SEO_ROLE_KEYS);
       map[dealId] = {
         content: c?.name,
         contentAssignmentId: c?.assignmentId,
