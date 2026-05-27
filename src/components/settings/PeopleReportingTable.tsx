@@ -636,9 +636,23 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                 >
                                   <td className="px-3 py-1.5 pl-10" onClick={(e) => e.stopPropagation()}>
                                     <div className="flex items-center gap-1.5">
-                                      {isExpanded
-                                        ? <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
-                                        : <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />}
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setExpanded((s) => {
+                                            const n = new Set(s);
+                                            n.has(p.id) ? n.delete(p.id) : n.add(p.id);
+                                            return n;
+                                          });
+                                        }}
+                                        className="rounded p-0.5 hover:bg-secondary text-muted-foreground hover:text-foreground shrink-0"
+                                        aria-label={isExpanded ? "Collapse" : "Expand"}
+                                      >
+                                        {isExpanded
+                                          ? <ChevronDown className="h-3.5 w-3.5" />
+                                          : <ChevronRight className="h-3.5 w-3.5" />}
+                                      </button>
                                       <div className="flex-1 min-w-0">
                                         <InlineText
                                       value={p.name}
@@ -741,41 +755,56 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                   </td>
                                 </tr>
                                 {isExpanded && (
-                                  <tr className="bg-secondary/10 border-t border-border/30">
-                                    <td colSpan={8} className="px-3 py-2 pl-16">
+                                  <tr className="bg-primary/[0.03] border-t border-primary/15">
+                                    <td colSpan={8} className="px-3 py-3 pl-16">
                                       {personDeals.length === 0 ? (
-                                        <div className="text-xs text-muted-foreground">
+                                        <div className="rounded-lg border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
                                           Not staffed on any deals.
                                         </div>
                                       ) : (
-                                        <div className="space-y-1">
-                                          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                                        <div className="rounded-lg border border-primary/20 bg-card p-3 space-y-2">
+                                          <div className="text-[10px] uppercase tracking-wider text-primary font-medium">
                                             Deals tagged ({personDeals.length})
                                           </div>
                                           <table className="text-xs w-full">
-                                            <thead className="text-muted-foreground">
-                                              <tr>
-                                                <th className="text-left font-medium py-1 pr-3">Deal</th>
-                                                <th className="text-left font-medium py-1 pr-3">Type</th>
-                                                <th className="text-left font-medium py-1 pr-3">Role</th>
-                                                <th className="text-right font-medium py-1 pr-3">Alloc %</th>
-                                                <th className="text-right font-medium py-1">MRR</th>
+                                            <thead>
+                                              <tr className="text-muted-foreground border-b border-border/60">
+                                                <th className="text-left font-medium py-1.5 pr-3">Deal ID</th>
+                                                <th className="text-left font-medium py-1.5 pr-3">Deal</th>
+                                                <th className="text-left font-medium py-1.5 pr-3">Status</th>
+                                                <th className="text-left font-medium py-1.5 pr-3">Type</th>
+                                                <th className="text-right font-medium py-1.5 pr-3">Alloc %</th>
+                                                <th className="text-right font-medium py-1.5">MRR</th>
                                               </tr>
                                             </thead>
                                             <tbody>
-                                              {personDeals.map(({ a, d }) => (
-                                                <tr key={a.id} className="border-t border-border/30">
-                                                  <td className="py-1 pr-3">{d!.dealName || d!.account}</td>
-                                                  <td className="py-1 pr-3">{d!.dealType}</td>
-                                                  <td className="py-1 pr-3 text-muted-foreground">{a.roleKey || "—"}</td>
-                                                  <td className="py-1 pr-3 text-right tabular-nums">{a.allocationPct}%</td>
-                                                  <td className="py-1 text-right tabular-nums">
-                                                    {d!.dealType === "Retainer" && d!.mrr
-                                                      ? `₹${INR(d!.mrr)}`
-                                                      : "—"}
-                                                  </td>
-                                                </tr>
-                                              ))}
+                                              {personDeals.map(({ a, d }) => {
+                                                const alloc = a.allocationPct || 0;
+                                                const allocColor =
+                                                  alloc > 100 ? "text-destructive"
+                                                  : alloc >= 85 ? "text-warning"
+                                                  : "text-foreground";
+                                                return (
+                                                  <tr key={a.id} className="border-t border-border/30 even:bg-secondary/20 hover:bg-secondary/40 transition-colors">
+                                                    <td className="py-1.5 pr-3 font-mono text-[11px] text-muted-foreground">{d!.id}</td>
+                                                    <td className="py-1.5 pr-3 font-medium text-foreground">{d!.dealName || d!.account}</td>
+                                                    <td className="py-1.5 pr-3">
+                                                      <StatusPill status={d!.dealStatus} />
+                                                    </td>
+                                                    <td className="py-1.5 pr-3">
+                                                      <span className="inline-flex items-center rounded-full border border-border bg-background px-2 py-0.5 text-[10px] text-muted-foreground">
+                                                        {d!.dealType}
+                                                      </span>
+                                                    </td>
+                                                    <td className={cn("py-1.5 pr-3 text-right tabular-nums font-medium", allocColor)}>{alloc}%</td>
+                                                    <td className="py-1.5 text-right tabular-nums">
+                                                      {d!.dealType === "Retainer" && d!.mrr
+                                                        ? `₹${INR(d!.mrr)}`
+                                                        : "—"}
+                                                    </td>
+                                                  </tr>
+                                                );
+                                              })}
                                             </tbody>
                                           </table>
                                         </div>
