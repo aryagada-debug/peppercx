@@ -195,26 +195,26 @@ function classifyPerson(
 
 type ColKey = "name" | "designation" | "email" | "reportsTo" | "revType" | "timeUtil" | "revUtil";
 const DEFAULT_WIDTHS: Record<ColKey, number> = {
-  name: 220,
-  designation: 220,
-  email: 240,
-  reportsTo: 180,
-  revType: 360,
-  timeUtil: 180,
-  revUtil: 180,
+  name: 180,
+  designation: 160,
+  email: 190,
+  reportsTo: 140,
+  revType: 260,
+  timeUtil: 130,
+  revUtil: 130,
 };
 
 function useResizableColumns() {
   const [widths, setWidths] = useState<Record<ColKey, number>>(() => {
     try {
-      const raw = localStorage.getItem("people-team-cols");
+      const raw = localStorage.getItem("people-team-cols-v2");
       if (raw) return { ...DEFAULT_WIDTHS, ...JSON.parse(raw) };
     } catch {}
     return DEFAULT_WIDTHS;
   });
   useEffect(() => {
     try {
-      localStorage.setItem("people-team-cols", JSON.stringify(widths));
+      localStorage.setItem("people-team-cols-v2", JSON.stringify(widths));
     } catch {}
   }, [widths]);
 
@@ -314,12 +314,39 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
       return n;
     });
 
+  // Sub-table (expanded "Deals tagged") filter/sort state — shared across rows.
+  const [subSort, setSubSort] = useState<SortState>({ sortKey: null, sortDir: "asc" });
+  const [subFilters, setSubFilters] = useState<Record<string, string>>({});
+  const [subOpenFilter, setSubOpenFilter] = useState<string | null>(null);
+  const onSubSort = (k: string) =>
+    setSubSort((s) => ({
+      sortKey: k,
+      sortDir: s.sortKey === k && s.sortDir === "asc" ? "desc" : "asc",
+    }));
+  const setSubFilter = (k: string, v: string) =>
+    setSubFilters((p) => ({ ...p, [k]: v }));
+  const clearSubFilter = (k: string) =>
+    setSubFilters((p) => {
+      const n = { ...p };
+      delete n[k];
+      return n;
+    });
+
   // Build a lookup of deals + per-person assignment lists.
   const dealById = useMemo(() => {
     const m = new Map<string, Deal>();
     deals.forEach((d) => m.set(d.id, d));
     return m;
   }, [deals]);
+
+  const dealStatusOptions = useMemo(
+    () => Array.from(new Set(deals.map((d) => d.dealStatus).filter(Boolean))) as string[],
+    [deals],
+  );
+  const dealTypeOptions = useMemo(
+    () => Array.from(new Set(deals.map((d) => d.dealType).filter(Boolean))) as string[],
+    [deals],
+  );
 
   const assignmentsByPerson = useMemo(() => {
     const m: Record<string, StaffingAssignment[]> = {};
@@ -703,6 +730,39 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                               const personDeals = (assignmentsByPerson[p.id] || [])
                                 .map((a) => ({ a, d: dealById.get(a.dealId) }))
                                 .filter((x) => x.d);
+                              // Apply sub-table filters
+                              const fDealId = (subFilters.subDealId || "").trim().toLowerCase();
+                              const fDealName = (subFilters.subDeal || "").trim().toLowerCase();
+                              const fStatus = subFilters.subStatus || "";
+                              const fType = subFilters.subType || "";
+                              const fAllocN = subFilters.subAlloc ? Number(subFilters.subAlloc) : null;
+                              const fMrrN = subFilters.subMrr ? Number(subFilters.subMrr) : null;
+                              let visibleDeals = personDeals.filter(({ a, d }) => {
+                                if (fDealId && !(d!.dealId || "").toLowerCase().includes(fDealId)) return false;
+                                if (fDealName && !((d!.dealName || d!.account || "").toLowerCase().includes(fDealName))) return false;
+                                if (fStatus && d!.dealStatus !== fStatus) return false;
+                                if (fType && d!.dealType !== fType) return false;
+                                if (fAllocN != null && !Number.isNaN(fAllocN) && (a.allocationPct || 0) < fAllocN) return false;
+                                if (fMrrN != null && !Number.isNaN(fMrrN) && (d!.mrr || 0) < fMrrN) return false;
+                                return true;
+                              });
+                              if (subSort.sortKey) {
+                                const dir = subSort.sortDir === "asc" ? 1 : -1;
+                                visibleDeals = [...visibleDeals].sort((x, y) => {
+                                  let av: any, bv: any;
+                                  switch (subSort.sortKey) {
+                                    case "subDealId": av = x.d!.dealId || ""; bv = y.d!.dealId || ""; break;
+                                    case "subDeal": av = x.d!.dealName || x.d!.account || ""; bv = y.d!.dealName || y.d!.account || ""; break;
+                                    case "subStatus": av = x.d!.dealStatus || ""; bv = y.d!.dealStatus || ""; break;
+                                    case "subType": av = x.d!.dealType || ""; bv = y.d!.dealType || ""; break;
+                                    case "subAlloc": av = x.a.allocationPct || 0; bv = y.a.allocationPct || 0; break;
+                                    case "subMrr": av = x.d!.mrr || 0; bv = y.d!.mrr || 0; break;
+                                    default: av = 0; bv = 0;
+                                  }
+                                  if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
+                                  return String(av).localeCompare(String(bv)) * dir;
+                                });
+                              }
                               return (
                                 <Fragment key={p.id}>
                                 <tr
@@ -859,17 +919,17 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                             </colgroup>
                                             <thead>
                                               <tr className="text-muted-foreground border-b border-border/60">
-                                                <th className="text-left font-medium py-1 pr-2">Deal ID</th>
-                                                <th className="text-left font-medium py-1 pr-2">Deal</th>
-                                                <th className="text-left font-medium py-1 pr-2">Status</th>
-                                                <th className="text-left font-medium py-1 pr-2">Type</th>
-                                                <th className="text-right font-medium py-1 pr-2">Alloc %</th>
-                                                <th className="text-right font-medium py-1 pr-2">MRR</th>
+                                                <ColHeader label="Deal ID" colKey="subDealId" sortKey="subDealId" sortState={subSort} onSort={onSubSort} colFilters={subFilters} openFilter={subOpenFilter} setOpenFilter={setSubOpenFilter} setFilter={setSubFilter} clearFilter={clearSubFilter} />
+                                                <ColHeader label="Deal" colKey="subDeal" sortKey="subDeal" sortState={subSort} onSort={onSubSort} colFilters={subFilters} openFilter={subOpenFilter} setOpenFilter={setSubOpenFilter} setFilter={setSubFilter} clearFilter={clearSubFilter} />
+                                                <ColHeader label="Status" colKey="subStatus" sortKey="subStatus" options={dealStatusOptions} sortState={subSort} onSort={onSubSort} colFilters={subFilters} openFilter={subOpenFilter} setOpenFilter={setSubOpenFilter} setFilter={setSubFilter} clearFilter={clearSubFilter} />
+                                                <ColHeader label="Type" colKey="subType" sortKey="subType" options={dealTypeOptions} sortState={subSort} onSort={onSubSort} colFilters={subFilters} openFilter={subOpenFilter} setOpenFilter={setSubOpenFilter} setFilter={setSubFilter} clearFilter={clearSubFilter} />
+                                                <ColHeader label="Alloc %" colKey="subAlloc" sortKey="subAlloc" numeric align="right" sortState={subSort} onSort={onSubSort} colFilters={subFilters} openFilter={subOpenFilter} setOpenFilter={setSubOpenFilter} setFilter={setSubFilter} clearFilter={clearSubFilter} />
+                                                <ColHeader label="MRR" colKey="subMrr" sortKey="subMrr" numeric align="right" sortState={subSort} onSort={onSubSort} colFilters={subFilters} openFilter={subOpenFilter} setOpenFilter={setSubOpenFilter} setFilter={setSubFilter} clearFilter={clearSubFilter} />
                                                 <th />
                                               </tr>
                                             </thead>
                                             <tbody>
-                                              {personDeals.map(({ a, d }) => {
+                                              {visibleDeals.map(({ a, d }) => {
                                                 const alloc = a.allocationPct || 0;
                                                 const allocColor =
                                                   alloc > 100 ? "text-destructive"
