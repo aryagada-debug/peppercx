@@ -1,85 +1,49 @@
 ## Goal
 
-Adopt the per-deal **Staffing tab** flow (the one inside Clients & Deals → Deal Detail) as the **default/primary view** of the `Staffing & Capacity` module. The current flat spreadsheet (`BopmStaffingFlatTable`) becomes a secondary "Sheet view". Both views group columns/sections by **Department**, with Delivery Ops and CS first.
+Slim down the RGY "Issue Tracker" popup so it reads as a single task to assign, instead of a form-plus-per-dimension task builder.
 
-No backend, schema, or business-logic changes — purely a frontend reshape.
+This dialog exists in two places with identical structure and both will be updated:
+- `src/pages/DealDetail.tsx` (lines ~1421–1578)
+- `src/pages/RGYHealth.tsx` (lines ~382–537)
 
----
+## New layout (top → bottom)
 
-## What the new default view looks like
+1. **Issue Date** (date picker — kept)
+2. **Status** (Open / In Progress / Resolved — kept)
+3. **Issue Details** (textarea — kept)
+4. **Action Plan** (textarea — kept; this is treated as the task description/title source)
+5. **Assignees** (chip multi-select — moved here from the per-dimension card)
+6. **Due Date** (date picker — replaces the old "Resolution Due Date" up top, now positioned under Assignees)
+7. **Subtasks** (lightweight list: add row → text input + remove button; no urgency, no per-row assignees)
 
-A scrollable list of **deal cards**, each card mirroring the per-deal Staffing tab layout:
+## Removed
 
-```text
-┌─ Deal: <Account> — <Deal Name>   [Add Staffing] [Request] [⋯] ┐
-│  KPI strip: Team Size · Hrs/Wk · Cost/Wk (admin) · Rev Managed │
-│                                                                │
-│  ── Delivery Ops ───────────────────────  3 members ──         │
-│   Name | Role | Pod | Allocation | Hrs/Wk | Rate | Cost | Rev  │
-│   …                                                            │
-│                                                                │
-│  ── CS (Content Strategy) ──────────────  2 members ──         │
-│   …                                                            │
-│                                                                │
-│  ── Content / SEO / Creative … ──                              │
-└────────────────────────────────────────────────────────────────┘
-```
+- "Discussed Action Plan" field
+- Standalone "Resolution Due Date" field at the top (its picker is reused as the new "Due Date" under Assignees)
+- Entire "Tasks to Create" section (per-dimension cards with urgency, summary, and assignees)
 
-Rules:
-- Department-first grouping (replacing the old per-deal `roleCategory` grouping). **Order:** Delivery Ops → CS (Content Strategy) → Content → SEO → Creative Strategy → Creative Copy → Creative Art → Video → Performance & Growth → Other / Unassigned. Use `useTaxonomyQuery` + the per-deal applicability index so hidden departments don't render.
-- Per-row controls (allocation inline-edit, remove, rate edit) reuse the exact JSX already in `DealDetail` Staffing tab.
-- "Add Staffing" / "Request Staffing" open the existing shared `AddStaffingMemberDialog` / `RequestStaffingDialog`, prefilled with the card's `dealId`.
-- Card header carries the admin gear (`DealApplicabilityPopover`) and the deal lock control already used today.
-- Top-of-page controls: deal search box, `BopmFilter`, `DealTypeFilter`, and a status toggle (active / all). Same filters the current Sheet view already exposes — reuse the same handlers.
+## Submit behavior
 
-## What changes in Staffing & Capacity tabs
+`onSave` currently emits one task per non-green dimension. New behavior:
+- Emit a **single task** built from the form:
+  - `title`: Action Plan text (fallback to Issue Details if empty), prefixed with `[RGY Health]` to stay compatible with existing filters in `ResolveIssuesDialog.tsx` and the description parser in `DealDetail.tsx` (~line 2811).
+  - `description`: `Issue Details: …\nAction Plan: …` (drop the `Discussed Action Plan:` line).
+  - `assignees`: from the new top-level Assignees field.
+  - `dueDate`: from the new Due Date field.
+  - `subtasks`: array of `{ title }` items.
+- The non-green-dimension Badges row at the top of the dialog stays (context only); it no longer drives task generation.
+- `issueTasks` state and helpers (`addNewTask`, `removeTask`, `updateIssueTask`) are removed.
 
-`src/pages/Staffing.tsx`:
-- Replace the current admin tab set with: **`Staffing` (new default cards) · `Sheet view` (the existing flat table) · `Deal view` · `Lock Analytics`**.
-- `tab` default becomes `"staffing"` (was `"table"`). URL param `?tab=table` keeps working via the existing normalizer, but now resolves to **Sheet view**.
-- BOPM persona: default also becomes the new Staffing cards (read-only); "Sheet view" remains hidden for them, "Change requests" stays.
-- Keep the lazy-mount / `hidden`-class pattern already in `Staffing.tsx` so switching tabs preserves drafts.
+## Caller updates
 
-## Sheet view (existing flat table) — column re-ordering only
+`onSave` payload shape changes from `tasks: IssueTask[]` to a single `task: { title, assignees, dueDate, subtasks }`. Update the two call sites that consume it:
+- `DealDetail.tsx` ~line 2330 (and ~2920) — replace the loop that inserts a `deal_tasks` row per dimension with a single insert + child `deal_subtasks` inserts.
+- `RGYHealth.tsx` ~line 1051 — same change.
 
-`src/components/staffing/BopmStaffingFlatTable.tsx`:
-- The column groups today are derived from `ROLE_SLOTS` (category → roles). Re-sort the *group order* so **Delivery Ops first, then CS, then the rest** (same explicit order as above). Within each group, role columns keep their current order.
-- No structural / write-path changes; only the `ROLE_SLOTS` traversal that builds visible column groups is reordered (use a `DEPT_ORDER` array keyed by `ROLE_TYPE_TO_DEPT`).
-
-## New shared component
-
-`src/components/staffing/DealStaffingCard.tsx` (new):
-- Props: `deal`, `dealPeople`, `dealAssignments`, `people`, `assignments`, `isAdmin`, mutation callbacks (`addAssignment`, `updateAssignment`, `deleteAssignment`, `updatePerson`, `updateDeal`).
-- Renders the KPI strip + department-grouped tables exactly like `DealDetail` Staffing tab (lifted out so both places share code).
-- Uses `useTaxonomyQuery` + `useDealApplicabilityQuery` (per-deal) to drive group order/visibility.
-
-Then `DealDetail.tsx` Staffing tab body (lines ~2475–2620) is replaced with `<DealStaffingCard … />` so the per-deal page and the module page stay byte-identical visually.
-
-## New container
-
-`src/components/staffing/StaffingDealsList.tsx` (new):
-- Receives the already-scoped `deals/people/assignments` from `Staffing.tsx`.
-- Owns the top filter bar (search, BopmFilter, DealTypeFilter, status toggle, sort) and renders `<DealStaffingCard>` per deal.
-- Virtualises with a simple "show 20 / load more" pager (cheap) — Staffing & Capacity can have 500+ deals; mounting them all eagerly would crash like the historical issue called out in `Staffing.tsx`.
-
-## Files
-
-**New**
-- `src/components/staffing/DealStaffingCard.tsx`
-- `src/components/staffing/StaffingDealsList.tsx`
-
-**Edited**
-- `src/pages/Staffing.tsx` — new tab set, default = `staffing`, mount `StaffingDealsList`.
-- `src/components/staffing/BopmStaffingFlatTable.tsx` — reorder column groups by department (Delivery Ops + CS first).
-- `src/pages/DealDetail.tsx` — Staffing tab body swapped to `<DealStaffingCard />`.
-
-**Unchanged**
-- DB schema, mutations, applicability/lock RPCs, query keys, `AddStaffingMemberDialog`, `RequestStaffingDialog`, `WeeklyStaffingGrid`, `DealViewTab`, `LockAnalyticsTab`, `BopmStaffingSummary`.
+Subtask persistence uses the existing `deal_subtasks` table (already referenced by `TaskKanban.tsx` / `TaskFormDialog.tsx`); no schema migration required. If a subtask row insert ever fails, the parent task still saves.
 
 ## Out of scope
-- Re-skinning Deal view / Lock Analytics / People Ops.
-- Changing what data is shown per row (same columns as the deal page today).
-- Any change to capacity / utilisation calculations.
 
-## Open question (will assume "yes" unless told otherwise)
-- Should the **BOPM persona** also see the new cards as their default (read-only, no Add/Request buttons)? Plan above assumes **yes**.
+- No changes to how RGY Green-gating reads open issues/tasks (`ResolveIssuesDialog.tsx` keeps working because the `[RGY Health]` title prefix is preserved).
+- No changes to the RGY history table columns or the "Action Plan" column there.
+- No visual redesign beyond the field reordering above.
