@@ -513,29 +513,6 @@ function InsightCard({ label, value, sub, tone, progress, onClick, active }: {
   );
 }
 
-function BreakdownTile({ label, count, total, tone, onClick, active }: {
-  label: string; count: number; total: number;
-  tone?: "positive" | "warning" | "destructive" | "info" | "muted";
-  onClick?: () => void; active?: boolean;
-}) {
-  const pct = total ? Math.round((count / total) * 100) : 0;
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "text-left border rounded-lg p-3 bg-card hover:bg-secondary/30 transition-colors",
-        active ? "border-primary ring-1 ring-primary/30" : "border-border"
-      )}
-    >
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className="flex items-baseline gap-1.5 mt-0.5">
-        <span className={cn("text-lg font-medium", toneText(tone))}>{count}</span>
-        <span className="text-[10px] text-muted-foreground">/ {total} · {pct}%</span>
-      </div>
-    </button>
-  );
-}
-
 function OffenderList({ title, items }: {
   title: string;
   items: { key: string; label: string; badge: string; onClick: () => void }[];
