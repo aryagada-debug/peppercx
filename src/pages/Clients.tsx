@@ -380,9 +380,12 @@ export default function Clients() {
       (grouped[a.dealId] = grouped[a.dealId] || []).push(a);
     }
     const CONTENT_ROLE_KEYS = new Set([
+      // Normalized (rt_*) keys produced by dbToAssignment + legacy raw keys as a safety net.
+      "rt_content_lead", "rt_content_capability_leader", "rt_content_editor",
       "content_lead", "content_lead_2026", "senior_editor", "managing_editor", "content_capability_leader",
     ]);
     const SEO_ROLE_KEYS = new Set([
+      "rt_seo_capability_leader", "rt_seo_growth_lead", "rt_seo_operations",
       "seo_leader", "seo_group_head", "sr_seo_manager", "seo_manager",
       "sr_seo_analyst", "seo_analyst", "seo_operations", "seo_capability_leader",
     ]);
