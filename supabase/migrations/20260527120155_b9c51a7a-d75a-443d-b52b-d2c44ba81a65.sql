@@ -1,0 +1,1 @@
+DELETE FROM public.deal_rgy_notes WHERE dimension = '__review__';
