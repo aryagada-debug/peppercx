@@ -12,12 +12,8 @@ import { useRgyWeeklyCompliance, type ComplianceRow } from "@/hooks/useRgyWeekly
 import { weekRange, shiftWeek, statusLabel, statusToneClass, type ComplianceStatus } from "@/lib/rgyCompliance";
 import { logRGYReviewedNoChange } from "@/lib/rgyHistory";
 
-function rowState(r: ComplianceRow): "compliant" | "partial" | "missing" {
-  const vsdOk = r.vsdStatus !== "pending";
-  const bopmOk = r.bopmStatus !== "pending";
-  if (vsdOk && bopmOk) return "compliant";
-  if (vsdOk || bopmOk) return "partial";
-  return "missing";
+function rowState(r: ComplianceRow): "compliant" | "missing" {
+  return r.status === "pending" ? "missing" : "compliant";
 }
 
 function StatusPill({ s }: { s: ComplianceStatus }) {
@@ -51,7 +47,7 @@ export function WeeklyComplianceTab({ rgyByDealId }: WeeklyComplianceTabProps = 
     }
     return Array.from(map.entries())
       .map(([vsd, deals]) => {
-        const pending = deals.filter(d => d.vsdStatus === "pending").length;
+        const pending = deals.filter(d => d.status === "pending").length;
         const total = deals.length;
         const compliant = deals.filter(d => rowState(d) === "compliant").length;
         // RGY rollup for this VSD
@@ -75,7 +71,7 @@ export function WeeklyComplianceTab({ rgyByDealId }: WeeklyComplianceTabProps = 
         const bopmMap = new Map<string, { total: number; updated: number }>();
         for (const d of deals) {
           const names = d.bopm ? d.bopm.split(",").map(s => s.trim()).filter(Boolean) : [];
-          const updatedThis = d.bopmStatus !== "pending";
+          const updatedThis = d.status !== "pending";
           for (const n of names) {
             const b = bopmMap.get(n) || { total: 0, updated: 0 };
             b.total++;
@@ -111,13 +107,12 @@ export function WeeklyComplianceTab({ rgyByDealId }: WeeklyComplianceTabProps = 
 
   const exportCsv = () => {
     const data = rows;
-    const headers = ["Deal ID","Account","Deal","Pod","VSD","BOPM","VSD Status","VSD Updated By","VSD Updated At","BOPM Status","BOPM Updated By","BOPM Updated At"];
+    const headers = ["Deal ID","Account","Deal","Pod","VSD","BOPM","Status","Updated By","Updated At"];
     const lines = [headers.join(",")];
     for (const r of data) {
       lines.push([
         r.dealId, r.account, r.dealName, r.pod, r.vsd, r.bopm,
-        statusLabel(r.vsdStatus), r.vsdLastBy, r.vsdLastAt || "",
-        statusLabel(r.bopmStatus), r.bopmLastBy, r.bopmLastAt || "",
+        statusLabel(r.status), r.lastBy, r.lastAt || "",
       ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
     }
     const blob = new Blob([lines.join("\n")], { type: "text/csv" });
@@ -235,33 +230,28 @@ export function WeeklyComplianceTab({ rgyByDealId }: WeeklyComplianceTabProps = 
                           <thead className="bg-secondary/30">
                             <tr className="text-left text-[10px] uppercase tracking-wider text-muted-foreground">
                               <th className="px-3 py-2">Deal</th>
-                              <th className="px-3 py-2">VSD Status</th>
                               <th className="px-3 py-2">BOPM</th>
-                              <th className="px-3 py-2">BOPM Status</th>
+                              <th className="px-3 py-2">Status</th>
                               <th className="px-3 py-2">Last Activity</th>
                               <th className="px-3 py-2 text-right">Actions</th>
                             </tr>
                           </thead>
                           <tbody>
                             {visibleDeals.length === 0 && (
-                              <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">No deals match the search.</td></tr>
+                              <tr><td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">No deals match the search.</td></tr>
                             )}
                             {visibleDeals.map(r => {
-                              const lastAt = [r.vsdLastAt, r.bopmLastAt].filter(Boolean).sort().pop();
+                              const lastAt = r.lastAt;
                               return (
                                 <tr key={r.dealId} className="border-t border-border hover:bg-secondary/30">
                                   <td className="px-3 py-2 align-top">
                                     <Link to={`/deals/${r.dealId}`} className="font-medium text-primary hover:underline">{r.account || r.dealId}</Link>
                                     <div className="text-[10px] text-muted-foreground">{r.dealName} · {r.dealId}</div>
                                   </td>
-                                  <td className="px-3 py-2 align-top">
-                                    <StatusPill s={r.vsdStatus} />
-                                    {r.vsdLastBy && <div className="text-[10px] text-muted-foreground mt-1">by {r.vsdLastBy}</div>}
-                                  </td>
                                   <td className="px-3 py-2 align-top text-muted-foreground">{r.bopm || "—"}</td>
                                   <td className="px-3 py-2 align-top">
-                                    <StatusPill s={r.bopmStatus} />
-                                    {r.bopmLastBy && <div className="text-[10px] text-muted-foreground mt-1">by {r.bopmLastBy}</div>}
+                                    <StatusPill s={r.status} />
+                                    {r.lastBy && <div className="text-[10px] text-muted-foreground mt-1">by {r.lastBy}</div>}
                                   </td>
                                   <td className="px-3 py-2 align-top text-muted-foreground">
                                     {lastAt ? format(new Date(lastAt), "MMM d, HH:mm") : <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400"><AlertTriangle className="h-3 w-3" />No activity</span>}
