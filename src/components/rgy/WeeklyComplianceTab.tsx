@@ -30,7 +30,12 @@ function StatusPill({ s }: { s: ComplianceStatus }) {
   );
 }
 
-export function WeeklyComplianceTab() {
+interface WeeklyComplianceTabProps {
+  /** Optional map of dealId → overall RGY status, used to show R/Y/G counts per VSD. */
+  rgyByDealId?: Record<string, "R" | "Y" | "G" | null>;
+}
+
+export function WeeklyComplianceTab({ rgyByDealId }: WeeklyComplianceTabProps = {}) {
   const [weekStart, setWeekStart] = useState(() => weekRange().start);
   const { rows, loading } = useRgyWeeklyCompliance(weekStart);
   const [search, setSearch] = useState("");
@@ -49,6 +54,23 @@ export function WeeklyComplianceTab() {
         const pending = deals.filter(d => d.vsdStatus === "pending").length;
         const total = deals.length;
         const compliant = deals.filter(d => rowState(d) === "compliant").length;
+        // RGY rollup for this VSD
+        let red = 0, yellow = 0, green = 0;
+        if (rgyByDealId) {
+          for (const d of deals) {
+            const w = rgyByDealId[d.dealId];
+            if (w === "R") red++;
+            else if (w === "Y") yellow++;
+            else if (w === "G") green++;
+          }
+        }
+        const rgyTotal = red + yellow + green;
+        // Score: weighted health score (G=1, Y=0.5, R=0) blended with weekly compliance
+        const healthScore = rgyTotal ? (green + yellow * 0.5) / rgyTotal : null;
+        const complianceScore = total ? compliant / total : 0;
+        const score = healthScore === null
+          ? complianceScore
+          : 0.6 * healthScore + 0.4 * complianceScore;
         // BOPM compliance within this VSD
         const bopmMap = new Map<string, { total: number; updated: number }>();
         for (const d of deals) {
@@ -64,11 +86,11 @@ export function WeeklyComplianceTab() {
         const bopms = Array.from(bopmMap.entries())
           .map(([bopm, v]) => ({ bopm, total: v.total, updated: v.updated, rate: v.total ? v.updated / v.total : 0 }))
           .sort((a, b) => a.rate - b.rate || b.total - a.total);
-        return { vsd, deals, pending, total, compliant, rate: total ? compliant / total : 0, bopms };
+        return { vsd, deals, pending, total, compliant, rate: complianceScore, bopms, red, yellow, green, score };
       })
       .filter(g => g.pending > 0)
       .sort((a, b) => b.pending - a.pending || a.rate - b.rate);
-  }, [rows]);
+  }, [rows, rgyByDealId]);
 
   const toggle = (vsd: string) => {
     setExpanded(prev => {
@@ -173,7 +195,22 @@ export function WeeklyComplianceTab() {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <Badge variant="outline" className="font-normal text-[10px]">{g.pending} pending</Badge>
-                      <Badge variant="outline" className="font-normal text-[10px]">{Math.round(g.rate * 100)}% compliant</Badge>
+                      {(g.red + g.yellow + g.green) > 0 && (
+                        <div className="flex items-center gap-1">
+                          <Badge variant="outline" className="font-normal text-[10px] text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/50">R {g.red}</Badge>
+                          <Badge variant="outline" className="font-normal text-[10px] text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-900/50">Y {g.yellow}</Badge>
+                          <Badge variant="outline" className="font-normal text-[10px] text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50">G {g.green}</Badge>
+                        </div>
+                      )}
+                      <Badge variant="outline" className="font-normal text-[10px] gap-1">
+                        <span className="text-muted-foreground">Score</span>
+                        <span className={cn(
+                          "font-medium",
+                          g.score >= 0.75 ? "text-emerald-600 dark:text-emerald-400"
+                            : g.score >= 0.5 ? "text-amber-600 dark:text-amber-400"
+                            : "text-red-600 dark:text-red-400"
+                        )}>{Math.round(g.score * 100)}</span>
+                      </Badge>
                     </div>
                   </button>
                   {isOpen && (
