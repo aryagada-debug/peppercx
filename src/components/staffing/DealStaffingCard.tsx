@@ -53,6 +53,19 @@ const DEPT_ORDER: string[] = [
   "dept_creative_capability_video",
 ];
 
+// Department tint palette — kept in sync with the Sheet view's
+// CATEGORY_STYLES so the same team reads with the same hue across surfaces.
+const DEPT_STYLE: Record<string, { head: string; cell: string; dot: string }> = {
+  dept_delivery_ops_and_cs:               { head: "bg-violet-500/15 text-violet-800 dark:text-violet-200 border-violet-500/30",   cell: "bg-violet-500/[0.04]",  dot: "bg-violet-500" },
+  dept_content_capability:                { head: "bg-teal-500/15 text-teal-800 dark:text-teal-200 border-teal-500/30",           cell: "bg-teal-500/[0.04]",    dot: "bg-teal-500" },
+  dept_seo_capability:                    { head: "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border-emerald-500/30", cell: "bg-emerald-500/[0.04]", dot: "bg-emerald-500" },
+  dept_capability_creative_strategy_team: { head: "bg-fuchsia-500/15 text-fuchsia-800 dark:text-fuchsia-200 border-fuchsia-500/30", cell: "bg-fuchsia-500/[0.04]", dot: "bg-fuchsia-500" },
+  dept_creative_capability_copy:          { head: "bg-pink-500/15 text-pink-800 dark:text-pink-200 border-pink-500/30",           cell: "bg-pink-500/[0.04]",    dot: "bg-pink-500" },
+  dept_creative_capability_design:        { head: "bg-rose-500/15 text-rose-800 dark:text-rose-200 border-rose-500/30",           cell: "bg-rose-500/[0.04]",    dot: "bg-rose-500" },
+  dept_creative_capability_video:         { head: "bg-orange-500/15 text-orange-800 dark:text-orange-200 border-orange-500/30",   cell: "bg-orange-500/[0.04]",  dot: "bg-orange-500" },
+};
+const DEPT_STYLE_FALLBACK = { head: "bg-slate-500/15 text-slate-800 dark:text-slate-200 border-slate-500/30", cell: "bg-slate-500/[0.04]", dot: "bg-slate-500" };
+
 export function DealStaffingCard({
   deal, people, assignments, deals, isAdmin, defaultOpen = true,
   onAddAssignment, onUpdateAssignment, onDeleteAssignment, onUpdatePerson,
@@ -207,13 +220,16 @@ export function DealStaffingCard({
               No team members on this deal yet.
             </div>
           ) : (
-            grouped.map(group => (
-              <div key={group.deptId} className="border border-border rounded-lg overflow-hidden">
-                <div className="px-3 py-1.5 bg-accent/20 border-b border-border flex items-center justify-between">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            grouped.map(group => {
+              const ds = DEPT_STYLE[group.deptId] ?? DEPT_STYLE_FALLBACK;
+              return (
+              <div key={group.deptId} className={cn("border border-border rounded-lg overflow-hidden", ds.cell)}>
+                <div className={cn("px-3 py-1.5 border-b flex items-center justify-between", ds.head)}>
+                  <span className="text-[11px] font-semibold uppercase tracking-wider inline-flex items-center gap-2">
+                    <span className={cn("h-1.5 w-1.5 rounded-full", ds.dot)} />
                     {group.deptName}
                   </span>
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-[11px] opacity-80">
                     {group.members.length} member{group.members.length === 1 ? "" : "s"}
                   </span>
                 </div>
@@ -311,7 +327,8 @@ export function DealStaffingCard({
                   </table>
                 </div>
               </div>
-            ))
+              );
+            })
           )}
         </div>
       )}
