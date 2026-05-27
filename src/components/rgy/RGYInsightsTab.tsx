@@ -440,21 +440,6 @@ export function RGYInsightsTab({ deals, filteredDeals, issues, activeVsd, isBopm
 
   return (
     <div className="space-y-6">
-      {/* KPI Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-        {[
-          { label: "Total Deals", value: kpis.total, color: "" },
-          { label: "Red", value: kpis.red, color: "text-red-600" },
-          { label: "Yellow", value: kpis.yellow, color: "text-amber-600" },
-          { label: "Green", value: kpis.green, color: "text-emerald-600" },
-        ].map((k) => (
-          <div key={k.label} className="bg-card border border-border rounded-lg p-3">
-            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{k.label}</p>
-            <p className={cn("text-2xl font-bold", k.color)}>{k.value}</p>
-          </div>
-        ))}
-      </div>
-
       {/* AI Movement Summary */}
       <div className="bg-card border border-border rounded-lg p-4">
         <div className="flex items-center justify-between mb-2">
