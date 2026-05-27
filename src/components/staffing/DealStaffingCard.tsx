@@ -327,7 +327,8 @@ export function DealStaffingCard({
                   </table>
                 </div>
               </div>
-            ))
+              );
+            })
           )}
         </div>
       )}
