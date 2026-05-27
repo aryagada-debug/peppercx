@@ -2870,32 +2870,34 @@ export default function DealDetail() {
                     await updateRGYWeek(currentRGY.id, {
                       issueDate: issueData.issueDate,
                       issueDetails: issueData.issueDetails,
-                      discussedActionPlan: issueData.discussedActionPlan,
                       actionPlan: issueData.actionPlan,
-                      resolutionDueDate: issueData.resolutionDueDate,
+                      resolutionDueDate: issueData.dueDate,
                       issueStatus: issueData.issueStatus,
                     });
                   }
-                  // Create tasks
-                  for (const task of issueData.tasks) {
-                    for (const assignee of task.assignees) {
-                      await addTask({
-                        dealId: dealId!,
-                        title: `[RGY Health] ${task.dimension} — ${task.issueSummary}`,
-                        description: `Issue Details: ${issueData.issueDetails}\nAction Plan: ${issueData.actionPlan}\nDiscussed Action Plan: ${issueData.discussedActionPlan}`,
-                        stage: "To Do",
-                        assignee,
-                        urgency: task.urgency,
-                        loggedHours: 0,
-                        sortOrder: 0,
-                        startDate: issueData.issueDate,
-                        endDate: issueData.resolutionDueDate,
-                      });
-                    }
+                  if (issueData.assignees.length > 0 || issueData.actionPlan.trim() || issueData.subtasks.length > 0) {
+                    await addTask({
+                      dealId: dealId!,
+                      title: `[RGY Health] ${(issueData.actionPlan || issueData.issueDetails).trim().slice(0, 120)}`,
+                      description: `Issue Details: ${issueData.issueDetails}\nAction Plan: ${issueData.actionPlan}`,
+                      stage: "To Do",
+                      assignee: issueData.assignees[0] || "",
+                      assignees: issueData.assignees,
+                      urgency: "Medium",
+                      loggedHours: 0,
+                      sortOrder: 0,
+                      startDate: issueData.issueDate,
+                      endDate: issueData.dueDate || undefined,
+                      subtasks: issueData.subtasks.map((s, i) => ({
+                        id: `${Date.now()}-${i}`,
+                        title: s.title,
+                        completed: false,
+                      })),
+                    });
                   }
                   setShowIssueForm(false);
                   setPrevRGYSnapshot(null);
-                  toast.success("Issue saved & tasks created");
+                  toast.success("Issue saved & task created");
                 }}
               />
             )}
