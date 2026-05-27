@@ -578,7 +578,7 @@ export default function RGYHealth() {
   const [showClosed, setShowClosed] = useState(false);
   const [search, setSearch] = useState("");
   const [rgyFilter, setRgyFilter] = useState<"All" | "Red" | "Yellow" | "Green">("All");
-  const [activeTab, setActiveTab] = useState<"health" | "table" | "insights" | "compliance">("table");
+  const [activeTab, setActiveTab] = useState<"health" | "table" | "insights">("table");
   useEffect(() => {
     if (isVsdPersona && myVsdName && activeVsd !== myVsdName) setActiveVsd(myVsdName);
   }, [isVsdPersona, myVsdName, activeVsd]);
@@ -1266,7 +1266,6 @@ export default function RGYHealth() {
               {isBopmPersona && <TabsTrigger value="insights">Insights</TabsTrigger>}
               <TabsTrigger value="table">Table</TabsTrigger>
               {!isBopmPersona && <TabsTrigger value="insights">Insights</TabsTrigger>}
-              {!isBopmPersona && <TabsTrigger value="compliance">Weekly Compliance</TabsTrigger>}
             </TabsList>
             {activeTab === "table" && (
               <Popover>
@@ -1692,6 +1691,12 @@ export default function RGYHealth() {
           </TabsContent>
 
           <TabsContent value="insights">
+            {!isBopmPersona && (
+              <div className="mb-6">
+                <h3 className="text-sm font-semibold mb-3">Weekly RGY Update Compliance</h3>
+                <WeeklyComplianceTab />
+              </div>
+            )}
             <RGYInsightsTab
               deals={deals}
               filteredDeals={filteredDeals}
@@ -1702,10 +1707,6 @@ export default function RGYHealth() {
               myVsdName={myVsdName}
               summaryDeals={aiSummaryDeals}
             />
-          </TabsContent>
-
-          <TabsContent value="compliance" className="mt-0">
-            <WeeklyComplianceTab />
           </TabsContent>
         </Tabs>
 
