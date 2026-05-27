@@ -396,6 +396,15 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
     if (fDesig) list = list.filter((p) => (p.designation || "").toLowerCase().includes(fDesig));
     if (fEmail) list = list.filter((p) => (p.email || "").toLowerCase().includes(fEmail));
     if (fRep) list = list.filter((p) => (p.reportingManager || "").toLowerCase() === fRep);
+    // Numeric filters: ≥ value
+    const numF = (k: string) => {
+      const v = (colFilters[k] || "").trim();
+      return v === "" ? null : Number(v);
+    };
+    const fRev = numF("revType"), fTime = numF("timeUtil"), fRevU = numF("revUtil");
+    if (fRev != null && !Number.isNaN(fRev)) list = list.filter((p) => (p.revenueTargetPerPerson || 0) >= fRev);
+    if (fTime != null && !Number.isNaN(fTime)) list = list.filter((p) => (utilByPerson[p.id]?.time || 0) >= fTime);
+    if (fRevU != null && !Number.isNaN(fRevU)) list = list.filter((p) => (utilByPerson[p.id]?.revenue || 0) >= fRevU);
     // Sort
     const { sortKey, sortDir } = sortState;
     const dir = sortDir === "asc" ? 1 : -1;
@@ -455,7 +464,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
       if (!m) continue;
       const order = (roleTypesByDept?.get(d.id) || []).map(r => r.name);
       const subs = Array.from(m.entries())
-        .map(([sub, rows]) => ({ sub, rows: rows.sort((a, b) => a.name.localeCompare(b.name)) }))
+        .map(([sub, rows]) => ({ sub, rows: sortState.sortKey ? rows : rows.sort((a, b) => a.name.localeCompare(b.name)) }))
         .sort((a, b) => {
           const ai = order.indexOf(a.sub);
           const bi = order.indexOf(b.sub);
@@ -470,19 +479,19 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
     for (const [name, m] of buckets.entries()) {
       if (seen.has(name)) continue;
       const subs = Array.from(m.entries())
-        .map(([sub, rows]) => ({ sub, rows: rows.sort((a, b) => a.name.localeCompare(b.name)) }))
+        .map(([sub, rows]) => ({ sub, rows: sortState.sortKey ? rows : rows.sort((a, b) => a.name.localeCompare(b.name)) }))
         .sort((a, b) => a.sub.localeCompare(b.sub));
       ordered.push({ team: name, subs, total: subs.reduce((n, s) => n + s.rows.length, 0) });
     }
     if (unmapped.length) {
       ordered.push({
         team: "Unassigned",
-        subs: [{ sub: "No role type set", rows: unmapped.sort((a, b) => a.name.localeCompare(b.name)) }],
+        subs: [{ sub: "No role type set", rows: sortState.sortKey ? unmapped : unmapped.sort((a, b) => a.name.localeCompare(b.name)) }],
         total: unmapped.length,
       });
     }
     return ordered;
-  }, [filtered, taxonomy]);
+  }, [filtered, taxonomy, sortState]);
 
   const toggle = (key: string) =>
     setCollapsed((s) => {
@@ -838,15 +847,15 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                           <div className="text-[10px] uppercase tracking-wider text-primary font-medium">
                                             Deals tagged ({personDeals.length})
                                           </div>
-                                          <table className="text-xs w-full" style={{ tableLayout: "fixed" }}>
+                                          <table className="text-xs" style={{ tableLayout: "fixed", width: 820 }}>
                                             <colgroup>
                                               <col style={{ width: 90 }} />
-                                              <col />
-                                              <col style={{ width: 110 }} />
-                                              <col style={{ width: 90 }} />
-                                              <col style={{ width: 70 }} />
+                                              <col style={{ width: 300 }} />
+                                              <col style={{ width: 120 }} />
                                               <col style={{ width: 100 }} />
-                                              <col style={{ width: 28 }} />
+                                              <col style={{ width: 70 }} />
+                                              <col style={{ width: 110 }} />
+                                              <col style={{ width: 30 }} />
                                             </colgroup>
                                             <thead>
                                               <tr className="text-muted-foreground border-b border-border/60">
