@@ -828,7 +828,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                 </tr>
                                 {isExpanded && (
                                   <tr className="bg-primary/[0.03] border-t border-primary/15">
-                                    <td colSpan={8} className="px-3 py-3 pl-16">
+                                    <td colSpan={8} className="px-3 py-3 pl-10">
                                       {personDeals.length === 0 ? (
                                         <div className="rounded-lg border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
                                           Not staffed on any deals.
@@ -838,15 +838,25 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                           <div className="text-[10px] uppercase tracking-wider text-primary font-medium">
                                             Deals tagged ({personDeals.length})
                                           </div>
-                                          <table className="text-xs w-full">
+                                          <table className="text-xs w-full" style={{ tableLayout: "fixed" }}>
+                                            <colgroup>
+                                              <col style={{ width: 90 }} />
+                                              <col />
+                                              <col style={{ width: 110 }} />
+                                              <col style={{ width: 90 }} />
+                                              <col style={{ width: 70 }} />
+                                              <col style={{ width: 100 }} />
+                                              <col style={{ width: 28 }} />
+                                            </colgroup>
                                             <thead>
                                               <tr className="text-muted-foreground border-b border-border/60">
-                                                <th className="text-left font-medium py-1.5 pr-3">Deal ID</th>
-                                                <th className="text-left font-medium py-1.5 pr-3">Deal</th>
-                                                <th className="text-left font-medium py-1.5 pr-3">Status</th>
-                                                <th className="text-left font-medium py-1.5 pr-3">Type</th>
-                                                <th className="text-right font-medium py-1.5 pr-3">Alloc %</th>
-                                                <th className="text-right font-medium py-1.5">MRR</th>
+                                                <th className="text-left font-medium py-1 pr-2">Deal ID</th>
+                                                <th className="text-left font-medium py-1 pr-2">Deal</th>
+                                                <th className="text-left font-medium py-1 pr-2">Status</th>
+                                                <th className="text-left font-medium py-1 pr-2">Type</th>
+                                                <th className="text-right font-medium py-1 pr-2">Alloc %</th>
+                                                <th className="text-right font-medium py-1 pr-2">MRR</th>
+                                                <th />
                                               </tr>
                                             </thead>
                                             <tbody>
@@ -857,22 +867,25 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                                   : alloc >= 85 ? "text-warning"
                                                   : "text-foreground";
                                                 return (
-                                                  <tr key={a.id} className="border-t border-border/30 even:bg-secondary/20 hover:bg-secondary/40 transition-colors">
-                                                    <td className="py-1.5 pr-3 font-mono text-[11px] text-muted-foreground">{d!.id}</td>
-                                                    <td className="py-1.5 pr-3 font-medium text-foreground">{d!.dealName || d!.account}</td>
-                                                    <td className="py-1.5 pr-3">
-                                                      <StatusPill status={d!.dealStatus} />
-                                                    </td>
-                                                    <td className="py-1.5 pr-3">
+                                                  <tr
+                                                    key={a.id}
+                                                    onClick={(e) => { e.stopPropagation(); navigate(`/deals/${d!.id}?tab=Staffing`); }}
+                                                    className="group/dealrow cursor-pointer border-t border-border/30 even:bg-secondary/20 hover:bg-primary/5 transition-colors"
+                                                  >
+                                                    <td className="py-1 pr-2 font-mono text-[11px] text-muted-foreground truncate">{d!.dealId || "—"}</td>
+                                                    <td className="py-1 pr-2 font-medium text-foreground truncate group-hover/dealrow:text-primary">{d!.dealName || d!.account}</td>
+                                                    <td className="py-1 pr-2"><StatusPill status={d!.dealStatus} /></td>
+                                                    <td className="py-1 pr-2">
                                                       <span className="inline-flex items-center rounded-full border border-border bg-background px-2 py-0.5 text-[10px] text-muted-foreground">
                                                         {d!.dealType}
                                                       </span>
                                                     </td>
-                                                    <td className={cn("py-1.5 pr-3 text-right tabular-nums font-medium", allocColor)}>{alloc}%</td>
-                                                    <td className="py-1.5 text-right tabular-nums">
-                                                      {d!.dealType === "Retainer" && d!.mrr
-                                                        ? `₹${INR(d!.mrr)}`
-                                                        : "—"}
+                                                    <td className={cn("py-1 pr-2 text-right tabular-nums font-medium", allocColor)}>{alloc}%</td>
+                                                    <td className="py-1 pr-2 text-right tabular-nums">
+                                                      {d!.dealType === "Retainer" && d!.mrr ? `₹${INR(d!.mrr)}` : "—"}
+                                                    </td>
+                                                    <td className="py-1 text-right">
+                                                      <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover/dealrow:opacity-100 transition-opacity inline" />
                                                     </td>
                                                   </tr>
                                                 );
