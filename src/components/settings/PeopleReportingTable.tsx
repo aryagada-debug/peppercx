@@ -464,7 +464,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
       if (!m) continue;
       const order = (roleTypesByDept?.get(d.id) || []).map(r => r.name);
       const subs = Array.from(m.entries())
-        .map(([sub, rows]) => ({ sub, rows: rows.sort((a, b) => a.name.localeCompare(b.name)) }))
+        .map(([sub, rows]) => ({ sub, rows: sortState.sortKey ? rows : rows.sort((a, b) => a.name.localeCompare(b.name)) }))
         .sort((a, b) => {
           const ai = order.indexOf(a.sub);
           const bi = order.indexOf(b.sub);
