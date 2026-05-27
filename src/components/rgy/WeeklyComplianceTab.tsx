@@ -5,13 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronLeft, ChevronRight, Download, Search, CheckCircle2, Clock, AlertTriangle, Eye, X, ChevronDown } from "lucide-react";
-import { format, formatDistanceToNowStrict } from "date-fns";
+import { format } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useRgyWeeklyCompliance, type ComplianceRow } from "@/hooks/useRgyWeeklyCompliance";
 import { weekRange, shiftWeek, statusLabel, statusToneClass, type ComplianceStatus } from "@/lib/rgyCompliance";
 import { logRGYReviewedNoChange } from "@/lib/rgyHistory";
-import { supabase } from "@/integrations/supabase/client";
 
 type SegmentKind =
   | "none"
@@ -21,14 +20,12 @@ type SegmentKind =
   | "missing"
   | "reviewed"
   | "vsd-person"
-  | "bopm-person"
-  | "stale";
+  | "bopm-person";
 
 interface Segment {
   kind: SegmentKind;
   vsd?: string;
   bopm?: string;
-  staleIds?: Set<string>;
 }
 
 function rowState(r: ComplianceRow): "compliant" | "partial" | "missing" {
@@ -55,7 +52,6 @@ function matchesSegment(r: ComplianceRow, seg: Segment): boolean {
       const t = seg.bopm.trim().toLowerCase();
       return r.bopm.toLowerCase().split(",").map(s => s.trim()).includes(t);
     }
-    case "stale": return !!seg.staleIds && seg.staleIds.has(r.dealId);
     default: return false;
   }
 }
@@ -69,7 +65,6 @@ function segmentLabel(seg: Segment): string {
     case "reviewed": return "Reviewed — no change";
     case "vsd-person": return `VSD: ${seg.vsd}`;
     case "bopm-person": return `BOPM: ${seg.bopm}`;
-    case "stale": return "Longest without update";
     default: return "";
   }
 }
