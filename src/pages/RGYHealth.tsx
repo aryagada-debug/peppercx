@@ -1514,6 +1514,7 @@ export default function RGYHealth() {
                         {isColVisible("deal_status") && (
                           <ColHeader label="Status" colKey="deal_status" sortKey="deal_status" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={Object.keys(statusBadgeStyles)} width={colWidths.deal_status} onResizeStart={startResize("deal_status")} />
                         )}
+                        <th className="text-left py-2 px-3 font-medium text-muted-foreground text-caption whitespace-nowrap">Reviewed — No Change</th>
                         {isColVisible("overall_rgy") && (
                           <ColHeader
                             label="Overall RGY"
@@ -1581,6 +1582,22 @@ export default function RGYHealth() {
                                 </Badge>
                               </td>
                             )}
+                            <td className="py-2 px-3">
+                              {reviewedThisWeek.has(deal.id) ? (
+                                <Badge variant="outline" className="gap-1 font-normal text-[10px] bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/30">
+                                  <Check className="h-3 w-3" /> Reviewed this week
+                                </Badge>
+                              ) : (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-[11px]"
+                                  onClick={() => handleMarkReviewedNoChange(deal.id)}
+                                >
+                                  Mark reviewed
+                                </Button>
+                              )}
+                            </td>
                             {isColVisible("overall_rgy") && (() => {
                               const dims: Record<string, string> = {};
                               for (const d of DIMENSIONS) dims[d.key] = (deal[d.key as keyof DealWithRGY] as string) || "";
