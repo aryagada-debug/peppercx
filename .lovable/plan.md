@@ -1,51 +1,28 @@
-# Replace temp `TT…` deal IDs with new formulated IDs
+## Goal
+Update `staffing_deals` rows matched by `deal_id` with the values from the pasted table:
+- `mrr` ← MRR column
+- `total_deal_value` ← Total Deal Value column
+- `start_date` ← first day of "Start Month" (e.g. `May-26` → `2026-05-01`)
+- `end_date` ← last day of "End Month" (e.g. `Oct-26` → `2026-10-31`)
 
-## Scope
-
-Update the text `deal_id` field on the deals table (and the two related tables that store the text ID) from each `TT…` temp value to the new formulated numeric ID provided in the mapping.
-
-## Mapping
-
-90 rows in the user-provided list have a real numeric target (e.g. `TT12031 → 101057`). The remaining ~30 rows map `TT… → TT…` (same value) and will be left unchanged per the answer to the clarifying question. `TT09028` has a trailing space in the source list (`100980 ` → `TT09028`); will be trimmed.
-
-## Tables affected
-
-A scan showed temp `TT…` deal IDs only live in three tables:
-
-- `staffing_deals.deal_id` — 93 rows
-- `deal_financials.deal_id` — 1 row
-- `deal_financial_targets.deal_id` — 1 row
-
-All other deal-scoped tables (`staffing_assignments`, `deal_tasks`, `deal_sow_items`, `mbr_entries`, `deal_revenue_monthly`, `deal_rgy_weekly`, `deal_applicability`, `deal_stakeholders`, `deal_onboarding_steps`, `deal_rgy_notes`, etc.) already reference deals by the immutable UUID `id`, so they need **no change** and existing staffing allocations will automatically follow the renamed deal.
+For deals where `vsd = 'Neema Jayadas'` (identified in DB — 30+ deals incl. Atlan, Dataiku, Talkspace, Earnin, Tigergraph, Mews AI, Sedai, O'Reilly, Wizeline, Justworks, etc.): **only** update `start_date` and `end_date`. Leave `mrr` and `total_deal_value` untouched.
 
 ## Approach
+Single `supabase--insert` call running an `UPDATE ... FROM (VALUES …)` against `staffing_deals` keyed by `deal_id`. The VALUES list will encode all ~140 rows from the paste with parsed numeric MRR / total value / start / end. A second `UPDATE` clears MRR/total back to existing for Neema's deals — simpler: split into two `UPDATE`s:
 
-A single SQL data-update via the `insert` tool, using a `VALUES (...)` mapping table joined into each of the three tables:
+1. **Non-Neema deals:** update `mrr`, `total_deal_value`, `start_date`, `end_date` where `vsd IS DISTINCT FROM 'Neema Jayadas'`.
+2. **Neema's deals:** update only `start_date`, `end_date` where `vsd = 'Neema Jayadas'`.
 
-```sql
-WITH map(old_id, new_id) AS (
-  VALUES ('TT12031','101057'), ('TT09019','100947'), … -- 90 pairs
-)
-UPDATE staffing_deals s
-   SET deal_id = m.new_id, updated_at = now()
-  FROM map m
- WHERE s.deal_id = m.old_id;
-
--- same UPDATE pattern for deal_financials and deal_financial_targets
-```
-
-Pre-check `SELECT old_id FROM map WHERE old_id NOT IN (SELECT deal_id FROM staffing_deals)` to flag any temp IDs that don't exist in the DB so they can be reported back rather than silently skipped.
-
-## Staffing reallocation
-
-Per your answer, no reassignment is needed — `staffing_assignments` links to deals via the UUID `id`, so every person already allocated to e.g. `TT12031` will still be allocated to that same deal under its new ID `101057`. Nothing else to do.
+## Parsing rules
+- MRR / Total: strip commas, blanks → `NULL` (skip if blank).
+- Start/End month: `MMM-YY` → first/last day of month. Blank cells → skip (leave existing date).
+- Rows where start or end is blank: only update the side that has a value.
+- Rows where `deal_id` doesn't exist in DB: no-op (safe with `UPDATE … WHERE deal_id = ...`).
 
 ## Out of scope
+- No reallocations, no other column changes.
+- Rows in the paste with no deal_id (the two blank-ID lines for Aditya Birla Sun Life Insurance and Edelweiss Life) are skipped.
+- The `100702` row appears as `Apr-25 → Mar-26`; existing TT… ids that weren't renamed earlier still match by their TT id.
 
-- The ~30 entries where `TT… → TT…` (no new ID): left as-is.
-- Importing a fresh staffing CSV: not requested in this round.
-
-## Deliverables
-
-1. Run the 3 `UPDATE … FROM (VALUES …)` statements.
-2. Report back: rows updated per table, plus any mapping rows whose `old_id` was not found in the DB.
+## Confirmation
+Reply "go" and I'll run the two UPDATE statements.
