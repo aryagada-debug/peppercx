@@ -919,17 +919,17 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                             </colgroup>
                                             <thead>
                                               <tr className="text-muted-foreground border-b border-border/60">
-                                                <th className="text-left font-medium py-1 pr-2">Deal ID</th>
-                                                <th className="text-left font-medium py-1 pr-2">Deal</th>
-                                                <th className="text-left font-medium py-1 pr-2">Status</th>
-                                                <th className="text-left font-medium py-1 pr-2">Type</th>
-                                                <th className="text-right font-medium py-1 pr-2">Alloc %</th>
-                                                <th className="text-right font-medium py-1 pr-2">MRR</th>
+                                                <ColHeader label="Deal ID" colKey="subDealId" sortKey="subDealId" sortState={subSort} onSort={onSubSort} colFilters={subFilters} openFilter={subOpenFilter} setOpenFilter={setSubOpenFilter} setFilter={setSubFilter} clearFilter={clearSubFilter} />
+                                                <ColHeader label="Deal" colKey="subDeal" sortKey="subDeal" sortState={subSort} onSort={onSubSort} colFilters={subFilters} openFilter={subOpenFilter} setOpenFilter={setSubOpenFilter} setFilter={setSubFilter} clearFilter={clearSubFilter} />
+                                                <ColHeader label="Status" colKey="subStatus" sortKey="subStatus" options={dealStatusOptions} sortState={subSort} onSort={onSubSort} colFilters={subFilters} openFilter={subOpenFilter} setOpenFilter={setSubOpenFilter} setFilter={setSubFilter} clearFilter={clearSubFilter} />
+                                                <ColHeader label="Type" colKey="subType" sortKey="subType" options={dealTypeOptions} sortState={subSort} onSort={onSubSort} colFilters={subFilters} openFilter={subOpenFilter} setOpenFilter={setSubOpenFilter} setFilter={setSubFilter} clearFilter={clearSubFilter} />
+                                                <ColHeader label="Alloc %" colKey="subAlloc" sortKey="subAlloc" numeric align="right" sortState={subSort} onSort={onSubSort} colFilters={subFilters} openFilter={subOpenFilter} setOpenFilter={setSubOpenFilter} setFilter={setSubFilter} clearFilter={clearSubFilter} />
+                                                <ColHeader label="MRR" colKey="subMrr" sortKey="subMrr" numeric align="right" sortState={subSort} onSort={onSubSort} colFilters={subFilters} openFilter={subOpenFilter} setOpenFilter={setSubOpenFilter} setFilter={setSubFilter} clearFilter={clearSubFilter} />
                                                 <th />
                                               </tr>
                                             </thead>
                                             <tbody>
-                                              {personDeals.map(({ a, d }) => {
+                                              {visibleDeals.map(({ a, d }) => {
                                                 const alloc = a.allocationPct || 0;
                                                 const allocColor =
                                                   alloc > 100 ? "text-destructive"
