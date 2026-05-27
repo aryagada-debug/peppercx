@@ -143,7 +143,12 @@ export function DealStaffingCard({
               )}
             </div>
             <div className="text-xs text-muted-foreground truncate">
-              {[deal.geo, deal.pod, deal.dealStatus].filter(Boolean).join(" · ")}
+              {[
+                deal.dealId ? `ID ${deal.dealId}` : null,
+                deal.geo,
+                deal.pod,
+                deal.dealStatus,
+              ].filter(Boolean).join(" · ")}
               {dealPeople.length > 0 && (
                 <span className="ml-2">· {dealPeople.length} member{dealPeople.length === 1 ? "" : "s"}</span>
               )}
