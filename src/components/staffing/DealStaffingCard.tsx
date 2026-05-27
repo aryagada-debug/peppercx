@@ -72,8 +72,11 @@ export function DealStaffingCard({
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const dealAssignments = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    return assignments.filter(a => a.dealId === deal.id && (!a.endDate || a.endDate >= today));
+    // Show all current assignments for this deal. We intentionally do NOT
+    // drop rows where `endDate < today` — Sheet view doesn't, and many deals
+    // inherit a stale contract end date from the parent deal record, which
+    // would otherwise hide just-added members on still-active deals.
+    return assignments.filter(a => a.dealId === deal.id);
   }, [assignments, deal.id]);
 
   const dealPeople = useMemo(() => {
