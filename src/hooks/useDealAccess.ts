@@ -226,6 +226,7 @@ export function useDealAccess(): DealAccessState {
     const roleText = `${myRoleTitle} ${myRoleCategory} ${myDesignation}`.toLowerCase();
     const isPrincipalOrSeniorBopm =
       /\b(principal|senior|sr\.?)\s+bopm\b/.test(roleText)
+      || /\bgroup\s+bopm\b/.test(roleText)
       || /principal\s+account\s+engagement\s+lead/.test(roleText)
       || (roleText.includes("bopm") && (roleText.includes("principal") || roleText.includes("senior") || roleText.includes("sr")));
     const isRegularBopm = /\bbopm\b/.test(roleText) && !isPrincipalOrSeniorBopm;
