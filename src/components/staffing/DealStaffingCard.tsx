@@ -220,13 +220,16 @@ export function DealStaffingCard({
               No team members on this deal yet.
             </div>
           ) : (
-            grouped.map(group => (
-              <div key={group.deptId} className="border border-border rounded-lg overflow-hidden">
-                <div className="px-3 py-1.5 bg-accent/20 border-b border-border flex items-center justify-between">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            grouped.map(group => {
+              const ds = DEPT_STYLE[group.deptId] ?? DEPT_STYLE_FALLBACK;
+              return (
+              <div key={group.deptId} className={cn("border border-border rounded-lg overflow-hidden", ds.cell)}>
+                <div className={cn("px-3 py-1.5 border-b flex items-center justify-between", ds.head)}>
+                  <span className="text-[11px] font-semibold uppercase tracking-wider inline-flex items-center gap-2">
+                    <span className={cn("h-1.5 w-1.5 rounded-full", ds.dot)} />
                     {group.deptName}
                   </span>
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-[11px] opacity-80">
                     {group.members.length} member{group.members.length === 1 ? "" : "s"}
                   </span>
                 </div>
