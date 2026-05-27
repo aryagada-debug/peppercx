@@ -269,6 +269,21 @@ function UtilBar({ value, hint }: { value: number; hint?: string }) {
   );
 }
 
+function StatusPill({ status }: { status?: string }) {
+  const s = (status || "").trim();
+  const l = s.toLowerCase();
+  let tone = "bg-muted text-muted-foreground border-border";
+  if (/active|live|running|won|signed/.test(l)) tone = "bg-positive/15 text-positive border-positive/30";
+  else if (/pitch|proposal|negotiat|prospect/.test(l)) tone = "bg-info/15 text-info border-info/30";
+  else if (/pause|hold|renew/.test(l)) tone = "bg-warning/15 text-warning border-warning/30";
+  else if (/lost|closed|churn|dropped/.test(l)) tone = "bg-destructive/10 text-destructive border-destructive/30";
+  return (
+    <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium", tone)}>
+      {s || "—"}
+    </span>
+  );
+}
+
 export function PeopleReportingTable({ people, assignments = [], deals = [], onAdd, onUpdate, onRequestDelete }: Props) {
   const [search, setSearch] = useState("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
