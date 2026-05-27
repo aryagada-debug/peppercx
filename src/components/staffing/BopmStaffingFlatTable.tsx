@@ -578,7 +578,7 @@ function SortablePickerRow({
         )}>
           {checked && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
         </span>
-        <span className="text-foreground truncate">{rk}</span>
+        <span className="text-foreground truncate">{ROLE_LABEL_OF(rk)}</span>
       </button>
     </div>
   );
