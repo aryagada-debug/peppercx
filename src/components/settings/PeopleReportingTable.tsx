@@ -396,6 +396,15 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
     if (fDesig) list = list.filter((p) => (p.designation || "").toLowerCase().includes(fDesig));
     if (fEmail) list = list.filter((p) => (p.email || "").toLowerCase().includes(fEmail));
     if (fRep) list = list.filter((p) => (p.reportingManager || "").toLowerCase() === fRep);
+    // Numeric filters: ≥ value
+    const numF = (k: string) => {
+      const v = (colFilters[k] || "").trim();
+      return v === "" ? null : Number(v);
+    };
+    const fRev = numF("revType"), fTime = numF("timeUtil"), fRevU = numF("revUtil");
+    if (fRev != null && !Number.isNaN(fRev)) list = list.filter((p) => (p.revenueTargetPerPerson || 0) >= fRev);
+    if (fTime != null && !Number.isNaN(fTime)) list = list.filter((p) => (utilByPerson[p.id]?.time || 0) >= fTime);
+    if (fRevU != null && !Number.isNaN(fRevU)) list = list.filter((p) => (utilByPerson[p.id]?.revenue || 0) >= fRevU);
     // Sort
     const { sortKey, sortDir } = sortState;
     const dir = sortDir === "asc" ? 1 : -1;
