@@ -15,12 +15,10 @@ export interface ComplianceRow {
   pod: string;
   vsd: string;
   bopm: string; // combined principal + senior + bopm
-  vsdStatus: ComplianceStatus;
-  bopmStatus: ComplianceStatus;
-  vsdLastBy: string;
-  vsdLastAt: string | null;
-  bopmLastBy: string;
-  bopmLastAt: string | null;
+  /** Unified status — any user (VSD, BOPM, or other) can satisfy this. */
+  status: ComplianceStatus;
+  lastBy: string;
+  lastAt: string | null;
   otherEditors: string[];
 }
 
@@ -101,36 +99,31 @@ export function useRgyWeeklyCompliance(weekStart: string) {
       const bopmCombined = [d.principal_bopm, d.senior_bopm, d.bopm]
         .filter(Boolean).join(", ");
 
-      let vsdStatus: ComplianceStatus = "pending";
-      let bopmStatus: ComplianceStatus = "pending";
-      let vsdLastBy = "", vsdLastAt: string | null = null;
-      let bopmLastBy = "", bopmLastAt: string | null = null;
+      let status: ComplianceStatus = "pending";
+      let lastBy = "";
+      let lastAt: string | null = null;
       const otherEditors = new Set<string>();
 
-      // sort newest-first
+      // sort newest-first; any note from any user satisfies the week.
+      // An actual edit ("updated") outranks a reviewed-no-change mark.
       const sorted = [...dealNotes].sort((a, b) => b.created_at.localeCompare(a.created_at));
       for (const n of sorted) {
         const editor = n.updated_by_name || "";
         const isReview = n.dimension === REVIEW_SENTINEL_DIMENSION;
-        const matchVsd = nameMatchesRole(editor, d.vsd);
-        const matchBopm = nameMatchesRole(editor, bopmCombined);
-        if (matchVsd) {
-          if (vsdStatus === "pending") {
-            vsdStatus = isReview ? "reviewed" : "updated";
-            vsdLastBy = editor; vsdLastAt = n.created_at;
-          } else if (vsdStatus === "reviewed" && !isReview) {
-            vsdStatus = "updated"; vsdLastBy = editor; vsdLastAt = n.created_at;
-          }
+        if (status === "pending") {
+          status = isReview ? "reviewed" : "updated";
+          lastBy = editor;
+          lastAt = n.created_at;
+        } else if (status === "reviewed" && !isReview) {
+          status = "updated";
+          lastBy = editor;
+          lastAt = n.created_at;
         }
-        if (matchBopm) {
-          if (bopmStatus === "pending") {
-            bopmStatus = isReview ? "reviewed" : "updated";
-            bopmLastBy = editor; bopmLastAt = n.created_at;
-          } else if (bopmStatus === "reviewed" && !isReview) {
-            bopmStatus = "updated"; bopmLastBy = editor; bopmLastAt = n.created_at;
-          }
+        if (editor
+          && !nameMatchesRole(editor, d.vsd)
+          && !nameMatchesRole(editor, bopmCombined)) {
+          otherEditors.add(editor);
         }
-        if (!matchVsd && !matchBopm && editor) otherEditors.add(editor);
       }
 
       return {
@@ -140,9 +133,9 @@ export function useRgyWeeklyCompliance(weekStart: string) {
         pod: d.pod || "",
         vsd: d.vsd || "",
         bopm: bopmCombined,
-        vsdStatus, bopmStatus,
-        vsdLastBy, vsdLastAt,
-        bopmLastBy, bopmLastAt,
+        status,
+        lastBy,
+        lastAt,
         otherEditors: Array.from(otherEditors),
       };
     });
