@@ -730,6 +730,39 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                               const personDeals = (assignmentsByPerson[p.id] || [])
                                 .map((a) => ({ a, d: dealById.get(a.dealId) }))
                                 .filter((x) => x.d);
+                              // Apply sub-table filters
+                              const fDealId = (subFilters.subDealId || "").trim().toLowerCase();
+                              const fDealName = (subFilters.subDeal || "").trim().toLowerCase();
+                              const fStatus = subFilters.subStatus || "";
+                              const fType = subFilters.subType || "";
+                              const fAllocN = subFilters.subAlloc ? Number(subFilters.subAlloc) : null;
+                              const fMrrN = subFilters.subMrr ? Number(subFilters.subMrr) : null;
+                              let visibleDeals = personDeals.filter(({ a, d }) => {
+                                if (fDealId && !(d!.dealId || "").toLowerCase().includes(fDealId)) return false;
+                                if (fDealName && !((d!.dealName || d!.account || "").toLowerCase().includes(fDealName))) return false;
+                                if (fStatus && d!.dealStatus !== fStatus) return false;
+                                if (fType && d!.dealType !== fType) return false;
+                                if (fAllocN != null && !Number.isNaN(fAllocN) && (a.allocationPct || 0) < fAllocN) return false;
+                                if (fMrrN != null && !Number.isNaN(fMrrN) && (d!.mrr || 0) < fMrrN) return false;
+                                return true;
+                              });
+                              if (subSort.sortKey) {
+                                const dir = subSort.sortDir === "asc" ? 1 : -1;
+                                visibleDeals = [...visibleDeals].sort((x, y) => {
+                                  let av: any, bv: any;
+                                  switch (subSort.sortKey) {
+                                    case "subDealId": av = x.d!.dealId || ""; bv = y.d!.dealId || ""; break;
+                                    case "subDeal": av = x.d!.dealName || x.d!.account || ""; bv = y.d!.dealName || y.d!.account || ""; break;
+                                    case "subStatus": av = x.d!.dealStatus || ""; bv = y.d!.dealStatus || ""; break;
+                                    case "subType": av = x.d!.dealType || ""; bv = y.d!.dealType || ""; break;
+                                    case "subAlloc": av = x.a.allocationPct || 0; bv = y.a.allocationPct || 0; break;
+                                    case "subMrr": av = x.d!.mrr || 0; bv = y.d!.mrr || 0; break;
+                                    default: av = 0; bv = 0;
+                                  }
+                                  if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
+                                  return String(av).localeCompare(String(bv)) * dir;
+                                });
+                              }
                               return (
                                 <Fragment key={p.id}>
                                 <tr
