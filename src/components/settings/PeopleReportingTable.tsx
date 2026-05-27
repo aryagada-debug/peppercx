@@ -379,17 +379,48 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
   }, [people]);
 
   const filtered = useMemo(() => {
-    const sorted = [...people].sort((a, b) => a.name.localeCompare(b.name));
-    if (!search.trim()) return sorted;
-    const q = search.toLowerCase();
-    return sorted.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        (p.designation || "").toLowerCase().includes(q) ||
-        (p.email || "").toLowerCase().includes(q) ||
-        (p.reportingManager || "").toLowerCase().includes(q),
-    );
-  }, [people, search]);
+    let list = [...people];
+    const q = search.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          (p.designation || "").toLowerCase().includes(q) ||
+          (p.email || "").toLowerCase().includes(q) ||
+          (p.reportingManager || "").toLowerCase().includes(q),
+      );
+    }
+    const txt = (k: string) => (colFilters[k] || "").trim().toLowerCase();
+    const fName = txt("name"), fDesig = txt("designation"), fEmail = txt("email"), fRep = txt("reportsTo");
+    if (fName) list = list.filter((p) => p.name.toLowerCase().includes(fName));
+    if (fDesig) list = list.filter((p) => (p.designation || "").toLowerCase().includes(fDesig));
+    if (fEmail) list = list.filter((p) => (p.email || "").toLowerCase().includes(fEmail));
+    if (fRep) list = list.filter((p) => (p.reportingManager || "").toLowerCase() === fRep);
+    // Sort
+    const { sortKey, sortDir } = sortState;
+    const dir = sortDir === "asc" ? 1 : -1;
+    const getUtil = (p: Person) => utilByPerson[p.id] || { time: 0, revenue: 0, allocatedMrr: 0 };
+    if (sortKey) {
+      list.sort((a, b) => {
+        let av: any, bv: any;
+        switch (sortKey) {
+          case "name": av = a.name; bv = b.name; break;
+          case "designation": av = a.designation || ""; bv = b.designation || ""; break;
+          case "email": av = a.email || ""; bv = b.email || ""; break;
+          case "reportsTo": av = a.reportingManager || ""; bv = b.reportingManager || ""; break;
+          case "revType": av = a.revenueTargetPerPerson || 0; bv = b.revenueTargetPerPerson || 0; break;
+          case "timeUtil": av = getUtil(a).time; bv = getUtil(b).time; break;
+          case "revUtil": av = getUtil(a).revenue; bv = getUtil(b).revenue; break;
+          default: av = a.name; bv = b.name;
+        }
+        if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
+        return String(av).localeCompare(String(bv)) * dir;
+      });
+    } else {
+      list.sort((a, b) => a.name.localeCompare(b.name));
+    }
+    return list;
+  }, [people, search, colFilters, sortState, utilByPerson]);
 
   // Group filtered people by team -> sub-team
   const grouped = useMemo(() => {
