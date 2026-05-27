@@ -5,12 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronLeft, ChevronRight, Download, Search, CheckCircle2, Clock, AlertTriangle, Eye, X, ChevronDown } from "lucide-react";
-import { format } from "date-fns";
+import { format, formatDistanceToNowStrict } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useRgyWeeklyCompliance, type ComplianceRow } from "@/hooks/useRgyWeeklyCompliance";
 import { weekRange, shiftWeek, statusLabel, statusToneClass, type ComplianceStatus } from "@/lib/rgyCompliance";
 import { logRGYReviewedNoChange } from "@/lib/rgyHistory";
+import { supabase } from "@/integrations/supabase/client";
 
 type SegmentKind =
   | "none"
@@ -19,17 +20,15 @@ type SegmentKind =
   | "partial"
   | "missing"
   | "reviewed"
-  | "vsd-updated"
-  | "vsd-pending"
-  | "bopm-updated"
-  | "bopm-pending"
   | "vsd-person"
-  | "pod";
+  | "bopm-person"
+  | "stale";
 
 interface Segment {
   kind: SegmentKind;
   vsd?: string;
-  pod?: string;
+  bopm?: string;
+  staleIds?: Set<string>;
 }
 
 function rowState(r: ComplianceRow): "compliant" | "partial" | "missing" {
@@ -50,12 +49,13 @@ function matchesSegment(r: ComplianceRow, seg: Segment): boolean {
       return rowState(r) === seg.kind;
     case "reviewed":
       return r.vsdStatus === "reviewed" || r.bopmStatus === "reviewed";
-    case "vsd-updated": return r.vsdStatus !== "pending";
-    case "vsd-pending": return r.vsdStatus === "pending";
-    case "bopm-updated": return r.bopmStatus !== "pending";
-    case "bopm-pending": return r.bopmStatus === "pending";
     case "vsd-person": return !!seg.vsd && r.vsd === seg.vsd;
-    case "pod": return !!seg.pod && r.pod === seg.pod;
+    case "bopm-person": {
+      if (!seg.bopm) return false;
+      const t = seg.bopm.trim().toLowerCase();
+      return r.bopm.toLowerCase().split(",").map(s => s.trim()).includes(t);
+    }
+    case "stale": return !!seg.staleIds && seg.staleIds.has(r.dealId);
     default: return false;
   }
 }
@@ -67,12 +67,9 @@ function segmentLabel(seg: Segment): string {
     case "partial": return "Partial compliance";
     case "missing": return "Not updated";
     case "reviewed": return "Reviewed — no change";
-    case "vsd-updated": return "VSD updated";
-    case "vsd-pending": return "VSD pending";
-    case "bopm-updated": return "BOPM updated";
-    case "bopm-pending": return "BOPM pending";
     case "vsd-person": return `VSD: ${seg.vsd}`;
-    case "pod": return `Pod: ${seg.pod}`;
+    case "bopm-person": return `BOPM: ${seg.bopm}`;
+    case "stale": return "Longest without update";
     default: return "";
   }
 }
