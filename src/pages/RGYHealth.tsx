@@ -1583,7 +1583,7 @@ export default function RGYHealth() {
                               </td>
                             )}
                             <td className="py-2 px-3">
-                              {reviewedThisWeek.has(deal.id) ? (
+                              {reviewedThisWeek.has(deal.deal_id) ? (
                                 <Badge variant="outline" className="gap-1 font-normal text-[10px] bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/30">
                                   <Check className="h-3 w-3" /> Reviewed this week
                                 </Badge>
@@ -1592,7 +1592,7 @@ export default function RGYHealth() {
                                   variant="outline"
                                   size="sm"
                                   className="h-7 text-[11px]"
-                                  onClick={() => handleMarkReviewedNoChange(deal.id)}
+                                  onClick={() => handleMarkReviewedNoChange(deal.deal_id)}
                                 >
                                   Mark reviewed
                                 </Button>
