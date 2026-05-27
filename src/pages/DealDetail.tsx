@@ -1332,11 +1332,11 @@ interface RGYIssueFormProps {
   onSaveIssue: (data: {
     issueDate: string;
     issueDetails: string;
-    discussedActionPlan: string;
     actionPlan: string;
-    resolutionDueDate: string;
     issueStatus: string;
-    tasks: RGYIssueTask[];
+    assignees: string[];
+    dueDate: string;
+    subtasks: { title: string }[];
   }) => Promise<void>;
   onCancel: () => void;
 }
@@ -1344,13 +1344,13 @@ interface RGYIssueFormProps {
 function RGYIssueForm({ dealId, currentRGY, assignees, teamMembers, onSaveIssue, onCancel }: RGYIssueFormProps) {
   const [issueDate, setIssueDate] = useState<Date>(new Date());
   const [issueDetails, setIssueDetails] = useState("");
-  const [discussedActionPlan, setDiscussedActionPlan] = useState("");
   const [actionPlan, setActionPlan] = useState("");
-  const [resolutionDueDate, setResolutionDueDate] = useState<Date | undefined>();
+  const [dueDate, setDueDate] = useState<Date | undefined>();
   const [issueStatus, setIssueStatus] = useState("Open");
+  const [taskAssignees, setTaskAssignees] = useState<string[]>([]);
+  const [subtasks, setSubtasks] = useState<{ title: string }[]>([]);
   const [saving, setSaving] = useState(false);
 
-  // Build tasks from non-green dimensions
   const nonGreenDims = [
     { key: "customer", label: "Overall Customer", value: currentRGY.customer },
     { key: "internal", label: "Internal", value: currentRGY.internal },
@@ -1362,31 +1362,10 @@ function RGYIssueForm({ dealId, currentRGY, assignees, teamMembers, onSaveIssue,
     { key: "video", label: "Video", value: currentRGY.video },
   ].filter(d => d.value === "R" || d.value === "Y");
 
-  const [issueTasks, setIssueTasks] = useState<RGYIssueTask[]>(
-    nonGreenDims.map(d => ({
-      dimension: d.label,
-      issueSummary: "",
-      urgency: d.value === "R" ? "High" : "Medium",
-      assignees: [],
-    }))
-  );
-
   const allAssigneeNames = [...new Set([
     ...assignees.map(a => a.name),
     ...teamMembers,
   ])].filter(Boolean);
-
-  const updateIssueTask = (idx: number, updates: Partial<RGYIssueTask>) => {
-    setIssueTasks(prev => prev.map((t, i) => i === idx ? { ...t, ...updates } : t));
-  };
-
-  const addNewTask = () => {
-    setIssueTasks(prev => [...prev, { dimension: nonGreenDims[0]?.label || "", issueSummary: "", urgency: "Medium", assignees: [] }]);
-  };
-
-  const removeTask = (idx: number) => {
-    setIssueTasks(prev => prev.filter((_, i) => i !== idx));
-  };
 
   const handleSubmit = async () => {
     if (!issueDetails.trim()) {
@@ -1398,21 +1377,17 @@ function RGYIssueForm({ dealId, currentRGY, assignees, teamMembers, onSaveIssue,
       await onSaveIssue({
         issueDate: issueDate.toISOString().split("T")[0],
         issueDetails,
-        discussedActionPlan,
         actionPlan,
-        resolutionDueDate: resolutionDueDate?.toISOString().split("T")[0] || "",
         issueStatus,
-        tasks: issueTasks.filter(t => t.issueSummary.trim() && t.assignees.length > 0),
+        assignees: taskAssignees,
+        dueDate: dueDate?.toISOString().split("T")[0] || "",
+        subtasks: subtasks.filter(s => s.title.trim()),
       });
       setIssueDetails("");
-      setDiscussedActionPlan("");
       setActionPlan("");
-      setIssueTasks(nonGreenDims.map(d => ({
-        dimension: d.label,
-        issueSummary: "",
-        urgency: d.value === "R" ? "High" : "Medium",
-        assignees: [],
-      })));
+      setTaskAssignees([]);
+      setSubtasks([]);
+      setDueDate(undefined);
     } finally {
       setSaving(false);
     }
