@@ -968,11 +968,11 @@ export default function Clients() {
         </div>
 
         {/* Flat Table with column filters */}
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
+        <div className="bg-card border border-border rounded-xl">
+          <div className="overflow-auto max-h-[calc(100vh-220px)] rounded-xl">
             <table className="text-ui table-fixed" style={{ width: "100%" }}>
-              <thead>
-                <tr className="bg-secondary/40 border-b border-border">
+              <thead className="sticky top-0 z-20">
+                <tr className="bg-secondary border-b border-border">
                   {isVisible("account") && <ColHeader label="Client" sortKey="account" colKey="account" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.account} onResizeStart={startResize("account")} />}
                   {isVisible("dealName") && <ColHeader label="Deal Name" sortKey="dealName" colKey="dealName" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.dealName} onResizeStart={startResize("dealName")} />}
                   {isVisible("dealId") && <ColHeader label="Deal ID" sortKey="dealId" colKey="dealId" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.dealId} onResizeStart={startResize("dealId")} />}
