@@ -311,15 +311,17 @@ export function DealStaffingCard({
                               <td className="py-2 px-3 text-right font-mono tabular-nums text-muted-foreground">{fmtCurrency(costWeek)}</td>
                             )}
                             <td className="py-2 px-3 text-right font-mono tabular-nums text-muted-foreground">{fmtCurrency(revManaged)}</td>
-                            <td className="py-2 px-3 text-right">
-                              <button
-                                onClick={() => a && setConfirmDelete(a.id)}
-                                className="p-1 text-muted-foreground hover:text-destructive transition-colors"
-                                title="Remove from deal"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </td>
+                            {isAdmin && (
+                              <td className="py-2 px-3 text-right">
+                                <button
+                                  onClick={() => a && setConfirmDelete(a.id)}
+                                  className="p-1 text-muted-foreground hover:text-destructive transition-colors"
+                                  title="Remove from deal"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </td>
+                            )}
                           </tr>
                         );
                       })}
