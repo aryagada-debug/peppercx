@@ -1172,7 +1172,7 @@ export default function MBRTracker() {
                                   <Link to={`/deals/${deal.id}?tab=MBR`} className="text-primary hover:underline text-xs font-medium">{deal.dealName}</Link>
                                 </td>
                                 <td className="py-2 px-3 text-xs text-foreground whitespace-nowrap">{deal.vsd}</td>
-                                <td className="py-2 px-3 text-xs text-muted-foreground whitespace-nowrap">{deal.seniorBopm}</td>
+                                <td className="py-2 px-3 text-xs text-muted-foreground whitespace-nowrap">{deal.seniorBopm || deal.principalBopm || "—"}</td>
                                 <td className="py-2 px-3 text-xs font-mono tabular-nums text-foreground text-right">{formatCurrency(deal.mrr)}</td>
                                 <td className="py-2 px-3 text-center">
                                   <span className={cn(
@@ -1263,7 +1263,7 @@ export default function MBRTracker() {
                         </Link>
                       </td>
                       <td className="py-1.5 px-3 text-xs text-muted-foreground truncate max-w-[140px]">{deal.vsd || "—"}</td>
-                      <td className="py-1.5 px-3 text-xs text-muted-foreground truncate max-w-[160px]">{deal.seniorBopm || "—"}</td>
+                      <td className="py-1.5 px-3 text-xs text-muted-foreground truncate max-w-[160px]">{deal.seniorBopm || deal.principalBopm || "—"}</td>
                       <td className="py-1.5 px-3 text-right text-xs tabular-nums text-foreground">{deal.mrr ? formatCurrency(deal.mrr) : "—"}</td>
                       {availableMonths.map(m => {
                         const monthData = entriesByMonth.get(m);
