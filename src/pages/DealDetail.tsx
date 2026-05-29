@@ -2595,25 +2595,6 @@ export default function DealDetail() {
               />
             )}
 
-            {/* Add Member Dialog */}
-            <AddStaffingMemberDialog
-              open={addMemberOpen}
-              onOpenChange={setAddMemberOpen}
-              people={people}
-              assignments={assignments}
-              deals={deals}
-              dealId={dealId!}
-              onAdd={addAssignment}
-            />
-
-            {/* Request Staffing Dialog */}
-            <RequestStaffingDialog
-              open={requestStaffingOpen}
-              onOpenChange={setRequestStaffingOpen}
-              dealId={dealId!}
-              dealLabel={deal.account || deal.dealName || dealId!}
-            />
-
             {/* Confirm Delete Assignment */}
             <AlertDialog open={!!confirmDeleteAssignment} onOpenChange={v => { if (!v) setConfirmDeleteAssignment(null); }}>
               <AlertDialogContent>
@@ -2629,6 +2610,23 @@ export default function DealDetail() {
             </AlertDialog>
           </div>
         )}
+
+        {/* Staffing dialogs (rendered outside tab so Overview's Add/Request buttons also work) */}
+        <AddStaffingMemberDialog
+          open={addMemberOpen}
+          onOpenChange={setAddMemberOpen}
+          people={people}
+          assignments={assignments}
+          deals={deals}
+          dealId={dealId!}
+          onAdd={addAssignment}
+        />
+        <RequestStaffingDialog
+          open={requestStaffingOpen}
+          onOpenChange={setRequestStaffingOpen}
+          dealId={dealId!}
+          dealLabel={deal.account || deal.dealName || dealId!}
+        />
 
         {/* ══════════ Financials ══════════ */}
         {activeTab === "Financials" && (
