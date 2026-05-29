@@ -245,7 +245,7 @@ export function DealStaffingCard({
                         {isAdmin && <th className="text-right py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Rate/Hr</th>}
                         {isAdmin && <th className="text-right py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Cost/Wk</th>}
                         <th className="text-right py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Rev Managed</th>
-                        <th className="w-10"></th>
+                       {isAdmin && <th className="w-10"></th>}
                       </tr>
                     </thead>
                     <tbody>
