@@ -2182,9 +2182,14 @@ export default function DealDetail() {
                     pct: number;
                     pickable?: { roleKey: string; people: typeof people; onPick: (name: string) => void };
                   };
-                  const coreRoleKeys = ["vsd", "principal_bopm", "senior_bopm", "bopm"] as const;
-                  const allocFor = (roleKey: string) =>
-                    dealAssignments.find(a => normalizeRoleKey(a.roleKey) === roleKey)?.allocationPct ?? 0;
+                  // Normalize to canonical rt_* role keys so aliases (bopm, principal_bopm,
+                  // group_bopm, senior_bopm, vsd) all collapse to the same bucket and core
+                  // rows don't get duplicated as "Other" extras.
+                  const coreRoleKeys = ["rt_vsd", "rt_group_bopm", "rt_senior_bopm", "rt_bopm"] as const;
+                  const allocFor = (roleKey: string) => {
+                    const target = normalizeRoleKey(roleKey);
+                    return dealAssignments.find(a => normalizeRoleKey(a.roleKey) === target)?.allocationPct ?? 0;
+                  };
                   const makeOnPick = (roleKey: string, field: "vsd" | "principalBopm" | "seniorBopm" | "bopm") => (name: string) => {
                     handleDealFieldSave(field, name);
                     if (!name) {
