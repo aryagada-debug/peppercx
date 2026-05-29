@@ -1497,11 +1497,11 @@ export default function RGYHealth() {
 
             {/* Flat Table with column filters */}
             <TooltipProvider>
-              <div className="bg-card border border-border rounded-xl overflow-hidden">
-                <div className="overflow-x-auto">
+              <div className="bg-card border border-border rounded-xl">
+                <div className="overflow-auto max-h-[calc(100vh-260px)] rounded-xl">
                   <table className="w-full text-ui">
-                    <thead>
-                      <tr className="bg-secondary/40 border-b border-border">
+                    <thead className="sticky top-0 z-20">
+                      <tr className="bg-secondary border-b border-border">
                         {isColVisible("account") && (
                           <ColHeader label="Client" colKey="account" sortKey="account" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.account} onResizeStart={startResize("account")} />
                         )}
