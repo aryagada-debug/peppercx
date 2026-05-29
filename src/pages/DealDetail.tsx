@@ -2502,7 +2502,7 @@ export default function DealDetail() {
                               {isAdmin && <th className="text-right py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Rate/Hr</th>}
                               {isAdmin && <th className="text-right py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Cost/Week</th>}
                               <th className="text-right py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Rev Managed</th>
-                              <th className="w-16"></th>
+                              {isAdmin && <th className="w-16"></th>}
                             </tr>
                           </thead>
                           <tbody>
@@ -2558,15 +2558,17 @@ export default function DealDetail() {
                                     <td className="py-2.5 px-4 text-right font-mono tabular-nums text-muted-foreground">{fmtCurrency(costWeek)}</td>
                                   )}
                                   <td className="py-2.5 px-4 text-right font-mono tabular-nums text-muted-foreground">{fmtCurrency(revManaged)}</td>
-                                  <td className="py-2.5 px-4 text-right">
-                                    <button
-                                      onClick={() => alloc && setConfirmDeleteAssignment(alloc.id)}
-                                      className="p-1 text-muted-foreground hover:text-destructive transition-colors"
-                                      title="Remove from deal"
-                                    >
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                    </button>
-                                  </td>
+                                  {isAdmin && (
+                                    <td className="py-2.5 px-4 text-right">
+                                      <button
+                                        onClick={() => alloc && setConfirmDeleteAssignment(alloc.id)}
+                                        className="p-1 text-muted-foreground hover:text-destructive transition-colors"
+                                        title="Remove from deal"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </button>
+                                    </td>
+                                  )}
                                 </tr>
                               );
                             })}
