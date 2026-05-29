@@ -245,7 +245,7 @@ export function DealStaffingCard({
                         {isAdmin && <th className="text-right py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Rate/Hr</th>}
                         {isAdmin && <th className="text-right py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Cost/Wk</th>}
                         <th className="text-right py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Rev Managed</th>
-                        <th className="w-10"></th>
+                       {isAdmin && <th className="w-10"></th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -311,15 +311,17 @@ export function DealStaffingCard({
                               <td className="py-2 px-3 text-right font-mono tabular-nums text-muted-foreground">{fmtCurrency(costWeek)}</td>
                             )}
                             <td className="py-2 px-3 text-right font-mono tabular-nums text-muted-foreground">{fmtCurrency(revManaged)}</td>
-                            <td className="py-2 px-3 text-right">
-                              <button
-                                onClick={() => a && setConfirmDelete(a.id)}
-                                className="p-1 text-muted-foreground hover:text-destructive transition-colors"
-                                title="Remove from deal"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </td>
+                            {isAdmin && (
+                              <td className="py-2 px-3 text-right">
+                                <button
+                                  onClick={() => a && setConfirmDelete(a.id)}
+                                  className="p-1 text-muted-foreground hover:text-destructive transition-colors"
+                                  title="Remove from deal"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </td>
+                            )}
                           </tr>
                         );
                       })}
