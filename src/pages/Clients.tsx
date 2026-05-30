@@ -22,7 +22,7 @@ import { DealFormWizard } from "@/components/deals/DealFormWizard";
 import { DealDocsUpload } from "@/components/deals/DealDocsUpload";
 import { AddStaffingMemberDialog } from "@/components/staffing/AddStaffingMemberDialog";
 import { supabase } from "@/integrations/supabase/client";
-import { normalizeRoleKey, uid } from "@/data/staffingData";
+import { normalizeRoleKey, uid, PEPPER_BUSINESS_UNITS, CAPABILITY_LINES } from "@/data/staffingData";
 import { toast } from "sonner";
 import {
   AlertDialog,
