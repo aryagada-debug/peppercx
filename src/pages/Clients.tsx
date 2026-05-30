@@ -1031,6 +1031,16 @@ export default function Clients() {
                         </td>
                       )}
                       {isVisible("dealId") && <td className="py-2 px-3 text-xs font-mono text-muted-foreground truncate">{deal.dealId}</td>}
+                      {isVisible("pcCode") && (
+                        <td className="py-2 px-3 text-xs font-mono text-muted-foreground truncate" title={deal.pcCode || ""}>
+                          {deal.pcCode || <span className="text-muted-foreground">—</span>}
+                        </td>
+                      )}
+                      {isVisible("monthClosedWon") && (
+                        <td className="py-2 px-3 text-xs text-foreground truncate" title={deal.monthClosedWon || ""}>
+                          {deal.monthClosedWon || <span className="text-muted-foreground">—</span>}
+                        </td>
+                      )}
                       {isVisible("dealType") && (
                         <td className="py-2 px-3">
                           {isBopmViewOnly ? (
