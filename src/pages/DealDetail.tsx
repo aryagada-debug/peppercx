@@ -15,7 +15,7 @@ import { useStaffingMutations } from "@/hooks/queries/useStaffingMutations";
 import { useDealAccess } from "@/hooks/useDealAccess";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useNavigate } from "react-router-dom";
-import { normalizeRoleKey, uid } from "@/data/staffingData";
+import { normalizeRoleKey, uid, PEPPER_BUSINESS_UNITS, CAPABILITY_LINES } from "@/data/staffingData";
 import type { StaffingAssignment, Person, Deal, RoleCategory } from "@/data/staffingData";
 import { useDealDetail } from "@/hooks/useDealDetail";
 import { EditableRGY } from "@/components/deals/EditableRGY";
