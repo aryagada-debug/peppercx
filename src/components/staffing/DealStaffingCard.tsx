@@ -9,7 +9,7 @@
  */
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Check, X, Trash2, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
+import { Plus, Check, X, Trash2, ChevronDown, ChevronUp, ExternalLink, Lock, Unlock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ import { resolvePersonDepartmentId } from "@/lib/peopleGrouping";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { CURRENCY_SYMBOL, formatMoney } from "@/lib/currency";
 import { dealDisplayCurrency } from "@/lib/dealCurrency";
+import { useStaffingMutations } from "@/hooks/queries/useStaffingMutations";
 
 interface Props {
   deal: Deal;
@@ -83,6 +84,19 @@ export function DealStaffingCard({
   const [editingAlloc, setEditingAlloc] = useState<string | null>(null);
   const [editAllocValue, setEditAllocValue] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const { lockStaffing } = useStaffingMutations();
+  const [lockBusy, setLockBusy] = useState(false);
+  const locked = !!deal.staffingLockedAt;
+  const lockedDate = locked && deal.staffingLockedAt
+    ? new Date(deal.staffingLockedAt).toLocaleDateString()
+    : "";
+  const handleToggleLock = async () => {
+    if (!isAdmin || lockBusy) return;
+    setLockBusy(true);
+    try { await lockStaffing(deal.id, !locked); }
+    catch { /* toast handled in mutation */ }
+    finally { setLockBusy(false); }
+  };
 
   const dealAssignments = useMemo(() => {
     // Show all current assignments for this deal. We intentionally do NOT
@@ -135,10 +149,10 @@ export function DealStaffingCard({
   }, [dealPeople, dealAssignments, deal.mrr]);
 
   const handleSaveAlloc = (assignmentId: string) => {
-    const pct = Math.round((editAllocValue / 40) * 100);
+    const pct = Math.max(0, Math.min(100, Math.round(editAllocValue)));
     onUpdateAssignment(assignmentId, { allocationPct: pct });
     setEditingAlloc(null);
-    toast.success("Hours updated");
+    toast.success("Allocation updated");
   };
 
   return (
