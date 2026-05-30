@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Search, AlertTriangle, AlertCircle, CheckCircle2, Activity, Plus, Trash2, Check, X, Calendar, Loader2, Settings2, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ScrollToStartButton } from "@/components/ui/ScrollToStartButton";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -527,6 +528,7 @@ const RGYIssueFormDialog = React.memo(function RGYIssueFormDialog({
 // ── Main Component ──
 export default function RGYHealth() {
   const { users: appUsers, isRegisteredName } = useAppUsers();
+  const tableScrollRef = useRef<HTMLDivElement>(null);
   const { vsdUsers, isVsdName, canonVsd } = useVsdUsers();
   const { vsdForDeal, bopmsForVsd, allBopms } = useVsdHierarchy();
   const { role } = useUserRole();
@@ -1497,8 +1499,8 @@ export default function RGYHealth() {
 
             {/* Flat Table with column filters */}
             <TooltipProvider>
-              <div className="bg-card border border-border rounded-xl">
-                <div className="overflow-auto max-h-[calc(100vh-260px)] rounded-xl">
+              <div className="bg-card border border-border rounded-xl relative">
+                <div ref={tableScrollRef} className="overflow-auto overscroll-x-contain max-h-[calc(100vh-260px)] rounded-xl">
                   <table className="w-full text-ui">
                     <thead className="sticky top-0 z-20">
                       <tr className="bg-secondary border-b border-border">
@@ -1729,6 +1731,7 @@ export default function RGYHealth() {
                     </tbody>
                   </table>
                 </div>
+                <ScrollToStartButton scrollRef={tableScrollRef} />
 
                 {tableRows.length === 0 && (
                   <div className="text-center py-12">
