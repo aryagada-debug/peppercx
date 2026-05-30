@@ -1080,6 +1080,16 @@ export default function Clients() {
                           )}
                         </td>
                       )}
+                      {isVisible("pepperBusinessUnit") && (
+                        <td className="py-2 px-3 truncate text-xs text-foreground" title={deal.pepperBusinessUnit || ""}>
+                          {deal.pepperBusinessUnit || <span className="text-muted-foreground">—</span>}
+                        </td>
+                      )}
+                      {isVisible("capabilityLine") && (
+                        <td className="py-2 px-3 truncate text-xs text-foreground" title={deal.capabilityLine || ""}>
+                          {deal.capabilityLine || <span className="text-muted-foreground">—</span>}
+                        </td>
+                      )}
                       {isVisible("vsd") && (
                         <td className="py-2 px-3 truncate">
                           <button
