@@ -14,10 +14,11 @@ import { Plus, Trash2, ChevronLeft, ChevronRight, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Client } from "@/hooks/useClients";
 import { CurrencyInput } from "@/components/ui/currency-input";
+import { PEPPER_BUSINESS_UNITS, CAPABILITY_LINES } from "@/data/staffingData";
 
 const PODS = ["Integrated", "India B2B", "US B2B", "FMCG", "BFSI"] as const;
 const DEAL_TYPES = ["Retainer", "Non-Retainer", "Pilot"] as const;
-const PEPPER_BUS = ["Pepper SEO/GEO+Content", "Pepper Content", "Pepper Creative", "Integrated", "Content Studio"] as const;
+const PEPPER_BUS = PEPPER_BUSINESS_UNITS;
 const DEAL_STATUSES = ["Won", "Negotiation", "Pipeline", "Lost"] as const;
 const PAYMENT_TERMS = ["Net 15", "Net 30", "Net 45", "Net 60", "Advance", "Milestone-based"] as const;
 
@@ -316,7 +317,10 @@ export function DealFormWizard({ open, onOpenChange, clients, preSelectedClientI
                   </Field>
                 </div>
                 <Field label="Capability Line">
-                  <Input value={form.capabilityLine} onChange={e => set("capabilityLine", e.target.value)} />
+                  <Select value={form.capabilityLine} onValueChange={v => set("capabilityLine", v)}>
+                    <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                    <SelectContent>{CAPABILITY_LINES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                  </Select>
                 </Field>
               </div>
             )}
