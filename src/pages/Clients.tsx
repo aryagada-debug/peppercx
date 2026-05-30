@@ -288,6 +288,8 @@ export default function Clients() {
     { key: "account", label: "Client", required: true },
     { key: "dealName", label: "Deal Name", required: true },
     { key: "dealId", label: "Deal ID" },
+    { key: "pcCode", label: "PC Code" },
+    { key: "monthClosedWon", label: "Month of Closed Won" },
     { key: "dealType", label: "Type" },
     { key: "dealStatus", label: "Status" },
     { key: "pepperBusinessUnit", label: "Pepper BU" },
@@ -298,12 +300,14 @@ export default function Clients() {
     { key: "contentLead", label: "Content Lead" },
     { key: "seoLead", label: "SEO Lead" },
     { key: "mrr", label: "MRR" },
+    { key: "retainerDealValue", label: "Retainer Deal Value" },
+    { key: "nonRetainerDealValue", label: "Non-Retainer Deal Value" },
     { key: "totalDealValue", label: "Total Revenue" },
     { key: "duration", label: "Duration" },
     { key: "rag", label: "RGY" },
   ]), []);
 
-  const DEFAULT_VISIBLE = ["account","dealName","dealId","dealType","dealStatus","pepperBusinessUnit","capabilityLine","vsd","bopm","bopmOnly","contentLead","seoLead","mrr","totalDealValue","duration","rag"];
+  const DEFAULT_VISIBLE = ["account","dealName","dealId","pcCode","monthClosedWon","dealType","dealStatus","pepperBusinessUnit","capabilityLine","vsd","bopm","bopmOnly","contentLead","seoLead","mrr","totalDealValue","duration","rag"];
   const [visibleCols, setVisibleCols] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem("clients-visible-cols-v2");
@@ -325,6 +329,7 @@ export default function Clients() {
     account: 160, dealName: 200, dealId: 100, dealType: 100, dealStatus: 130,
     pepperBusinessUnit: 150, capabilityLine: 200,
     vsd: 130, bopm: 150, bopmOnly: 130, contentLead: 140, seoLead: 140, mrr: 110, totalDealValue: 130, duration: 130, rag: 70, actions: 40,
+    pcCode: 110, monthClosedWon: 140, retainerDealValue: 140, nonRetainerDealValue: 160,
   };
   const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
     try {
