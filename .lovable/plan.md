@@ -1,40 +1,32 @@
 ## Goal
-Replace DM Sans with Inter as the primary font and tighten the visual system so the UI reads sharper and more modern.
+Make horizontal scrolling in the Clients & Deals and RGY Health tables painless: block accidental browser back-navigation on overscroll, and add a one-click way to jump back to the first column.
 
 ## Changes
 
-### 1. Font swap → Inter
-`src/index.css`
-- Replace the Google Fonts `@import` to load **Inter** (weights 400, 500, 600, 700) alongside the existing JetBrains Mono.
-- Update the `body` `font-family` to `'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`.
-- Enable Inter's modern OpenType features for crispness:
-  - `font-feature-settings: 'cv11', 'ss01', 'ss03', 'cv02'` (stylistic alternates that give Inter its sharper, geometric look).
-  - Keep `-webkit-font-smoothing: antialiased`.
-- Drop body `font-weight` from 450 → **400** (Inter renders cleaner at 400; 450 is a DM Sans variable axis that won't apply to Inter).
-- Tighten body `letter-spacing` to `-0.005em` and reduce body `line-height` from `1.6` → `1.5`.
+### 1. Block browser back-swipe on overscroll
+`src/pages/Clients.tsx` (line 977 scroll container) and `src/pages/RGYHealth.tsx` (line 1501 scroll container)
+- Add Tailwind class `overscroll-x-contain` to the `<div className="overflow-auto ...">` wrapper. This stops horizontal overscroll from bubbling to the browser and triggering back/forward navigation (the "another window" the user is hitting).
 
-### 2. Sharper typographic rhythm
-`src/index.css` + `tailwind.config.ts`
-- Add a global heading rule: headings get `letter-spacing: -0.02em` and `font-weight: 600` for a tighter, modern display feel.
-- In `tailwind.config.ts` `fontSize` tokens, tighten tracking on `subhead` (`-0.01em`) and `heading` (`-0.025em`). Keep `metric` as-is (already tight).
+### 2. Floating "Jump to start" button
+Create `src/components/ui/ScrollToStartButton.tsx` — a small reusable overlay button.
 
-### 3. Tighter geometry (sharper corners + crisper surfaces)
-`src/index.css`
-- Reduce `--radius` from `0.875rem` (14px) → **`0.5rem` (8px)** for a sharper, less rounded modern look across buttons, inputs, cards, popovers.
-- Update `.data-card` `border-radius` from `14px` → `8px` to match.
-- Replace the slightly soft `--shadow-sm` / `--shadow-md` with crisper, lower-spread shadows:
-  - `--shadow-sm: 0 1px 2px 0 rgba(0,0,0,0.05)`
-  - `--shadow-md: 0 2px 8px -2px rgba(0,0,0,0.08)`
-- Make `--border` 1 step darker in light mode (e.g. `240 6% 84%`) so thin borders read crisper on the off-white background.
+Behavior:
+- Accepts a `scrollRef` (ref to the scrollable `<div>`).
+- Listens to that container's `scroll` event and is visible only when `scrollLeft > 120px`.
+- On click, calls `scrollRef.current.scrollTo({ left: 0, behavior: 'smooth' })`.
+- Positioned `sticky`/`absolute` at the bottom-left of the table container (`bottom-4 left-4`), `z-20`, with the existing primary color tokens, small rounded button, `ChevronsLeft` icon from lucide + label "Jump to start".
+- Hidden on mobile by default to avoid covering rows; visible from `sm:` up.
 
-### 4. No component-level changes
-All buttons, cards, inputs, dialogs already consume `--radius`, `--border`, `--shadow-*`, and body font tokens — so the above token changes propagate everywhere with zero component edits.
+### 3. Wire into both tables
+- `Clients.tsx`: create a `tableScrollRef` via `useRef<HTMLDivElement>(null)`, attach to the scroll container, render `<ScrollToStartButton scrollRef={tableScrollRef} />` inside (or as a sibling positioned over) that container.
+- `RGYHealth.tsx`: same pattern on its scroll container.
+- Wrap each scroll container in `<div className="relative">` so the absolute-positioned button anchors correctly.
 
 ## Out of scope
-- No color palette changes (purple primary, off-white bg preserved per project memory).
-- No layout, spacing, or component structural changes.
-- No changes to the mono font usage on metrics.
+- No changes to row/column rendering, frozen header logic, or filters.
+- No changes to the tab strip scroller (line 894 / 1432) — that's a different scroller and not part of the complaint.
+- No global overscroll changes outside these two pages.
 
 ## Verification
-- Reload preview, confirm Inter is loading (Network tab → `fonts.googleapis.com/...Inter`).
-- Spot-check Dashboard, Clients & Deals, Deal Detail, RGY Health for: tighter corners on cards/buttons, crisper borders, sharper headings, and Inter rendering in body + tables.
+- Open Clients & Deals, scroll right far enough that "Jump to start" appears; click it — should smoothly snap back to column 1. Swipe-back / two-finger swipe at the leftmost edge should no longer navigate the browser.
+- Repeat on RGY Health.

@@ -17,6 +17,7 @@ import { submitApprovalRequest } from "@/lib/approvals";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ScrollToStartButton } from "@/components/ui/ScrollToStartButton";
 import { ClientFormDialog } from "@/components/deals/ClientFormDialog";
 import { DealFormWizard } from "@/components/deals/DealFormWizard";
 import { DealDocsUpload } from "@/components/deals/DealDocsUpload";
@@ -157,6 +158,7 @@ function InlineEditCell({ value, onSave, type = "text", prefix = "", placeholder
 
 export default function Clients() {
   useCurrencyVersion();
+  const tableScrollRef = useRef<HTMLDivElement>(null);
   const { currency, fxRate, format } = useCurrency();
   const fmtCurrency = (n: number | undefined) => format(Number(n) || 0);
   const ValueIcon = currency === "USD" ? DollarSign : IndianRupee;
@@ -973,8 +975,8 @@ export default function Clients() {
         </div>
 
         {/* Flat Table with column filters */}
-        <div className="bg-card border border-border rounded-xl">
-          <div className="overflow-auto max-h-[calc(100vh-220px)] rounded-xl">
+        <div className="bg-card border border-border rounded-xl relative">
+          <div ref={tableScrollRef} className="overflow-auto overscroll-x-contain max-h-[calc(100vh-220px)] rounded-xl">
             <table className="text-ui table-fixed" style={{ width: "100%" }}>
               <thead className="sticky top-0 z-20">
                 <tr className="bg-secondary border-b border-border">
@@ -1275,6 +1277,7 @@ export default function Clients() {
               </tbody>
             </table>
           </div>
+          <ScrollToStartButton scrollRef={tableScrollRef} />
 
           {tableRows.length === 0 && (
             <div className="text-center py-12">
