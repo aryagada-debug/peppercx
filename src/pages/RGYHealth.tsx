@@ -27,6 +27,20 @@ import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ColHeader } from "@/components/table/ColHeader";
+import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  horizontalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { isRetainerDeal } from "@/hooks/useMBRData";
 import { useAppUsers, useVsdUsers, useVsdHierarchy, nameKey } from "@/hooks/queries/legacy";
 import { useUserRole } from "@/hooks/useUserRole";
 import { ReadOnlyBanner } from "@/components/access/ReadOnlyBanner";
@@ -123,6 +137,8 @@ interface DealWithRGY {
   start_date: string | null;
   end_date: string | null;
   payment_terms: string;
+  deal_type?: string | null;
+  customer_type?: string | null;
   rgy_row_id?: string;
   rgy_week_start?: string;
   rgy_action_plan?: string;
