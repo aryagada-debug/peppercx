@@ -192,6 +192,41 @@ export function DealStaffingCard({
           </div>
         </button>
         <div className="flex items-center gap-2 shrink-0">
+          {isAdmin ? (
+            <button
+              type="button"
+              disabled={lockBusy}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleToggleLock(); }}
+              className={cn(
+                "inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border transition-opacity",
+                locked
+                  ? "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-400"
+                  : "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+                "hover:opacity-80 disabled:opacity-50",
+              )}
+              title={locked
+                ? `Staffed${deal.staffingLockedByName ? ` · locked by ${deal.staffingLockedByName}` : ""}${lockedDate ? ` · ${lockedDate}` : ""} — click to unlock`
+                : "Click to lock staffing (mark as Staffed)"}
+            >
+              {locked ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
+              {lockBusy ? "…" : locked ? "Staffed" : "Unstaffed"}
+            </button>
+          ) : (
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border",
+                locked
+                  ? "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-400"
+                  : "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+              )}
+              title={locked
+                ? `Staffed${deal.staffingLockedByName ? ` · locked by ${deal.staffingLockedByName}` : ""}${lockedDate ? ` · ${lockedDate}` : ""}`
+                : "Unstaffed — awaiting Central CX lock"}
+            >
+              {locked ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
+              {locked ? "Staffed" : "Unstaffed"}
+            </span>
+          )}
           <Link
             to={`/deals/${deal.id}?tab=Staffing`}
             className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
