@@ -1254,6 +1254,26 @@ export default function Clients() {
                         </td>
                         );
                       })()}
+                      {isVisible("retainerDealValue") && (() => {
+                        const dealCcy = dealDisplayCurrency(deal as any, currency);
+                        const sym = CURRENCY_SYMBOL[dealCcy];
+                        const displayVal = deal.retainerDealValue ? Math.round(convertFromInr(Number(deal.retainerDealValue), dealCcy, fxRate)) : 0;
+                        return (
+                          <td className="py-2 px-3 text-right text-xs text-foreground">
+                            {deal.retainerDealValue ? `${sym}${displayVal.toLocaleString()}` : <span className="text-muted-foreground">—</span>}
+                          </td>
+                        );
+                      })()}
+                      {isVisible("nonRetainerDealValue") && (() => {
+                        const dealCcy = dealDisplayCurrency(deal as any, currency);
+                        const sym = CURRENCY_SYMBOL[dealCcy];
+                        const displayVal = deal.nonRetainerDealValue ? Math.round(convertFromInr(Number(deal.nonRetainerDealValue), dealCcy, fxRate)) : 0;
+                        return (
+                          <td className="py-2 px-3 text-right text-xs text-foreground">
+                            {deal.nonRetainerDealValue ? `${sym}${displayVal.toLocaleString()}` : <span className="text-muted-foreground">—</span>}
+                          </td>
+                        );
+                      })()}
                       {isVisible("totalDealValue") && (() => {
                         const dealCcy = dealDisplayCurrency(deal as any, currency);
                         const sym = CURRENCY_SYMBOL[dealCcy];
