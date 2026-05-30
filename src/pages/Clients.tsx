@@ -1052,43 +1052,50 @@ export default function Clients() {
                 {tableRows.map(deal => {
                   const clientObj = clients.find(c => c.name === deal.account);
                   const leads = leadByDeal[deal.id] || {};
-                  return (
-                    <tr key={deal.id} className="border-b border-border/50 hover:bg-accent/10 transition-colors group/row">
-                      {isVisible("account") && (
-                        <td className="py-2 px-3 truncate" title={deal.account}>
-                          <span className="text-xs font-medium text-foreground truncate block">{deal.account}</span>
-                        </td>
-                      )}
-                      {isVisible("dealName") && (
-                        <td className="py-2 px-3 truncate">
-                          <Link to={`/deals/${deal.id}`} className="text-primary hover:underline text-xs font-medium truncate block" title={deal.dealName}>
-                            {deal.dealName}
-                          </Link>
-                        </td>
-                      )}
-                      {isVisible("dealId") && <td className="py-2 px-3 text-xs font-mono text-muted-foreground truncate">{deal.dealId}</td>}
-                      {isVisible("pcCode") && (
-                        <td className="py-2 px-3 text-xs font-mono text-muted-foreground truncate" title={deal.pcCode || ""}>
-                          {deal.pcCode || <span className="text-muted-foreground">—</span>}
-                        </td>
-                      )}
-                      {isVisible("monthClosedWon") && (
-                        <td className="py-2 px-3 text-xs text-foreground truncate" title={deal.monthClosedWon || ""}>
-                          {deal.monthClosedWon || <span className="text-muted-foreground">—</span>}
-                        </td>
-                      )}
-                      {isVisible("dealType") && (
-                        <td className="py-2 px-3">
-                          {isBopmViewOnly ? (
-                            <span
-                              className={cn(
-                                "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium",
-                                (deal.dealType === "Retainer") ? "bg-accent text-accent-foreground" : "bg-secondary text-secondary-foreground"
-                              )}
-                            >
-                              {deal.dealType === "Retainer" ? "Retainer" : "Non-Retainer"}
-                            </span>
-                          ) : (
+                  const dealCcy = dealDisplayCurrency(deal as any, currency);
+                  const sym = CURRENCY_SYMBOL[dealCcy];
+                  const mrrVal = deal.mrr ? Math.round(convertFromInr(Number(deal.mrr), dealCcy, fxRate)) : 0;
+                  const retainerVal = deal.retainerDealValue ? Math.round(convertFromInr(Number(deal.retainerDealValue), dealCcy, fxRate)) : 0;
+                  const nonRetainerVal = deal.nonRetainerDealValue ? Math.round(convertFromInr(Number(deal.nonRetainerDealValue), dealCcy, fxRate)) : 0;
+                  const totalVal = deal.totalDealValue ? Math.round(convertFromInr(Number(deal.totalDealValue), dealCcy, fxRate)) : 0;
+                  const cellByKey: Record<string, React.ReactNode> = {
+                    account: (
+                      <td key="account" className="py-2 px-3 truncate" title={deal.account}>
+                        <span className="text-xs font-medium text-foreground truncate block">{deal.account}</span>
+                      </td>
+                    ),
+                    dealName: (
+                      <td key="dealName" className="py-2 px-3 truncate">
+                        <Link to={`/deals/${deal.id}`} className="text-primary hover:underline text-xs font-medium truncate block" title={deal.dealName}>
+                          {deal.dealName}
+                        </Link>
+                      </td>
+                    ),
+                    dealId: (
+                      <td key="dealId" className="py-2 px-3 text-xs font-mono text-muted-foreground truncate">{deal.dealId}</td>
+                    ),
+                    pcCode: (
+                      <td key="pcCode" className="py-2 px-3 text-xs font-mono text-muted-foreground truncate" title={deal.pcCode || ""}>
+                        {deal.pcCode || <span className="text-muted-foreground">—</span>}
+                      </td>
+                    ),
+                    monthClosedWon: (
+                      <td key="monthClosedWon" className="py-2 px-3 text-xs text-foreground truncate" title={deal.monthClosedWon || ""}>
+                        {deal.monthClosedWon || <span className="text-muted-foreground">—</span>}
+                      </td>
+                    ),
+                    dealType: (
+                      <td key="dealType" className="py-2 px-3">
+                        {isBopmViewOnly ? (
+                          <span
+                            className={cn(
+                              "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium",
+                              (deal.dealType === "Retainer") ? "bg-accent text-accent-foreground" : "bg-secondary text-secondary-foreground"
+                            )}
+                          >
+                            {deal.dealType === "Retainer" ? "Retainer" : "Non-Retainer"}
+                          </span>
+                        ) : (
                           <Select
                             value={deal.dealType === "Retainer" ? "Retainer" : "Non-Retainer"}
                             onValueChange={async (v) => {
@@ -1120,245 +1127,230 @@ export default function Clients() {
                               <SelectItem value="Non-Retainer" className="text-xs">Non-Retainer</SelectItem>
                             </SelectContent>
                           </Select>
-                          )}
-                        </td>
-                      )}
-                      {isVisible("dealStatus") && (
-                        <td className="py-2 px-3">
-                          {isBopmViewOnly ? (
-                            <span className="text-[11px] text-foreground px-1">{deal.dealStatus || "Active Deal"}</span>
-                          ) : (
-                            <Select value={deal.dealStatus || "Active Deal"} onValueChange={(v) => handleStatusChange(deal.id, v)}>
-                              <SelectTrigger className="h-6 w-full text-[11px] border-none bg-transparent shadow-none px-1 focus:ring-0">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {DEAL_STATUSES.map(s => (
-                                  <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        </td>
-                      )}
-                      {isVisible("pepperBusinessUnit") && (
-                        <td className="py-2 px-3 truncate" title={deal.pepperBusinessUnit || ""}>
-                          {access.isAdmin ? (
-                            <Select
-                              value={deal.pepperBusinessUnit || undefined}
-                              onValueChange={(v) => { guardedUpdateDeal(deal.id, { pepperBusinessUnit: v }); toast.success("Pepper BU updated"); }}
-                            >
-                              <SelectTrigger className="h-6 w-full text-[11px] border-none bg-transparent shadow-none px-1 focus:ring-0">
-                                <SelectValue placeholder="—" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {PEPPER_BUSINESS_UNITS.map(s => (
-                                  <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            <span className="text-xs text-foreground">
-                              {deal.pepperBusinessUnit || <span className="text-muted-foreground">—</span>}
-                            </span>
-                          )}
-                        </td>
-                      )}
-                      {isVisible("capabilityLine") && (
-                        <td className="py-2 px-3 truncate" title={deal.capabilityLine || ""}>
-                          {access.isAdmin ? (
-                            <Select
-                              value={deal.capabilityLine || undefined}
-                              onValueChange={(v) => { guardedUpdateDeal(deal.id, { capabilityLine: v }); toast.success("Capability Line updated"); }}
-                            >
-                              <SelectTrigger className="h-6 w-full text-[11px] border-none bg-transparent shadow-none px-1 focus:ring-0">
-                                <SelectValue placeholder="—" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {CAPABILITY_LINES.map(s => (
-                                  <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            <span className="text-xs text-foreground">
-                              {deal.capabilityLine || <span className="text-muted-foreground">—</span>}
-                            </span>
-                          )}
-                        </td>
-                      )}
-                      {isVisible("vsd") && (
-                        <td className="py-2 px-3 truncate">
-                          <button
-                            onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "Operations", preSelectedName: deal.vsd || undefined })}
-                            className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate block text-left w-full"
+                        )}
+                      </td>
+                    ),
+                    dealStatus: (
+                      <td key="dealStatus" className="py-2 px-3">
+                        {isBopmViewOnly ? (
+                          <span className="text-[11px] text-foreground px-1">{deal.dealStatus || "Active Deal"}</span>
+                        ) : (
+                          <Select value={deal.dealStatus || "Active Deal"} onValueChange={(v) => handleStatusChange(deal.id, v)}>
+                            <SelectTrigger className="h-6 w-full text-[11px] border-none bg-transparent shadow-none px-1 focus:ring-0">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {DEAL_STATUSES.map(s => (
+                                <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </td>
+                    ),
+                    pepperBusinessUnit: (
+                      <td key="pepperBusinessUnit" className="py-2 px-3 truncate" title={deal.pepperBusinessUnit || ""}>
+                        {access.isAdmin ? (
+                          <Select
+                            value={deal.pepperBusinessUnit || undefined}
+                            onValueChange={(v) => { guardedUpdateDeal(deal.id, { pepperBusinessUnit: v }); toast.success("Pepper BU updated"); }}
                           >
-                            {deal.vsd || <span className="text-muted-foreground">— None —</span>}
-                          </button>
-                        </td>
-                      )}
-                      {isVisible("bopm") && (
-                        <td className="py-2 px-3 truncate">
-                          <div className="flex items-center gap-1 group/cell">
-                            <button
-                              onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "Operations", preSelectedName: deal.principalBopm || deal.seniorBopm || undefined })}
-                              className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate block text-left flex-1 min-w-0"
-                            >
-                              {deal.principalBopm || deal.seniorBopm || <span className="text-muted-foreground">— None —</span>}
-                            </button>
-                            {(deal.principalBopm || deal.seniorBopm) && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleClearBOPM(deal.id); }}
-                                className="text-muted-foreground/40 hover:text-destructive opacity-0 group-hover/cell:opacity-100 transition-opacity flex-none"
-                                title="Remove BOPM from this deal"
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      )}
-                      {isVisible("bopmOnly") && (
-                        <td className="py-2 px-3 truncate">
-                          <button
-                            onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "Operations", preSelectedName: (deal as any).bopm || undefined })}
-                            className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate block text-left w-full"
-                            title={(deal as any).bopm || ""}
+                            <SelectTrigger className="h-6 w-full text-[11px] border-none bg-transparent shadow-none px-1 focus:ring-0">
+                              <SelectValue placeholder="—" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {PEPPER_BUSINESS_UNITS.map(s => (
+                                <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <span className="text-xs text-foreground">
+                            {deal.pepperBusinessUnit || <span className="text-muted-foreground">—</span>}
+                          </span>
+                        )}
+                      </td>
+                    ),
+                    capabilityLine: (
+                      <td key="capabilityLine" className="py-2 px-3 truncate" title={deal.capabilityLine || ""}>
+                        {access.isAdmin ? (
+                          <Select
+                            value={deal.capabilityLine || undefined}
+                            onValueChange={(v) => { guardedUpdateDeal(deal.id, { capabilityLine: v }); toast.success("Capability Line updated"); }}
                           >
-                            {(deal as any).bopm || <span className="text-muted-foreground">— None —</span>}
+                            <SelectTrigger className="h-6 w-full text-[11px] border-none bg-transparent shadow-none px-1 focus:ring-0">
+                              <SelectValue placeholder="—" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {CAPABILITY_LINES.map(s => (
+                                <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <span className="text-xs text-foreground">
+                            {deal.capabilityLine || <span className="text-muted-foreground">—</span>}
+                          </span>
+                        )}
+                      </td>
+                    ),
+                    vsd: (
+                      <td key="vsd" className="py-2 px-3 truncate">
+                        <button
+                          onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "Operations", preSelectedName: deal.vsd || undefined })}
+                          className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate block text-left w-full"
+                        >
+                          {deal.vsd || <span className="text-muted-foreground">— None —</span>}
+                        </button>
+                      </td>
+                    ),
+                    bopm: (
+                      <td key="bopm" className="py-2 px-3 truncate">
+                        <div className="flex items-center gap-1 group/cell">
+                          <button
+                            onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "Operations", preSelectedName: deal.principalBopm || deal.seniorBopm || undefined })}
+                            className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate block text-left flex-1 min-w-0"
+                          >
+                            {deal.principalBopm || deal.seniorBopm || <span className="text-muted-foreground">— None —</span>}
                           </button>
-                        </td>
-                      )}
-                      {isVisible("contentLead") && (
-                        <td className="py-2 px-3 truncate">
-                          <div className="flex items-center gap-1 group/cell">
+                          {(deal.principalBopm || deal.seniorBopm) && (
                             <button
-                              onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "Content", preSelectedName: leads.content || undefined })}
-                              className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate block text-left flex-1 min-w-0"
-                              title={leads.content || ""}
+                              onClick={(e) => { e.stopPropagation(); handleClearBOPM(deal.id); }}
+                              className="text-muted-foreground/40 hover:text-destructive opacity-0 group-hover/cell:opacity-100 transition-opacity flex-none"
+                              title="Remove BOPM from this deal"
                             >
-                              {leads.content || <span className="text-muted-foreground">— None —</span>}
+                              <X className="h-3 w-3" />
                             </button>
-                            {leads.content && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleClearLead(deal.id, "content"); }}
-                                className="text-muted-foreground/40 hover:text-destructive opacity-0 group-hover/cell:opacity-100 transition-opacity flex-none"
-                                title="Remove Content Lead from this deal"
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      )}
-                      {isVisible("seoLead") && (
-                        <td className="py-2 px-3 truncate">
-                          <div className="flex items-center gap-1 group/cell">
+                          )}
+                        </div>
+                      </td>
+                    ),
+                    bopmOnly: (
+                      <td key="bopmOnly" className="py-2 px-3 truncate">
+                        <button
+                          onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "Operations", preSelectedName: (deal as any).bopm || undefined })}
+                          className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate block text-left w-full"
+                          title={(deal as any).bopm || ""}
+                        >
+                          {(deal as any).bopm || <span className="text-muted-foreground">— None —</span>}
+                        </button>
+                      </td>
+                    ),
+                    contentLead: (
+                      <td key="contentLead" className="py-2 px-3 truncate">
+                        <div className="flex items-center gap-1 group/cell">
+                          <button
+                            onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "Content", preSelectedName: leads.content || undefined })}
+                            className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate block text-left flex-1 min-w-0"
+                            title={leads.content || ""}
+                          >
+                            {leads.content || <span className="text-muted-foreground">— None —</span>}
+                          </button>
+                          {leads.content && (
                             <button
-                              onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "SEO", preSelectedName: leads.seo || undefined })}
-                              className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate block text-left flex-1 min-w-0"
-                              title={leads.seo || ""}
+                              onClick={(e) => { e.stopPropagation(); handleClearLead(deal.id, "content"); }}
+                              className="text-muted-foreground/40 hover:text-destructive opacity-0 group-hover/cell:opacity-100 transition-opacity flex-none"
+                              title="Remove Content Lead from this deal"
                             >
-                              {leads.seo || <span className="text-muted-foreground">— None —</span>}
+                              <X className="h-3 w-3" />
                             </button>
-                            {leads.seo && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleClearLead(deal.id, "seo"); }}
-                                className="text-muted-foreground/40 hover:text-destructive opacity-0 group-hover/cell:opacity-100 transition-opacity flex-none"
-                                title="Remove SEO Lead from this deal"
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            )}
+                          )}
+                        </div>
+                      </td>
+                    ),
+                    seoLead: (
+                      <td key="seoLead" className="py-2 px-3 truncate">
+                        <div className="flex items-center gap-1 group/cell">
+                          <button
+                            onClick={() => setStaffingDialog({ open: true, dealId: deal.id, roleFilter: "SEO", preSelectedName: leads.seo || undefined })}
+                            className="text-xs text-foreground hover:text-primary hover:underline cursor-pointer truncate block text-left flex-1 min-w-0"
+                            title={leads.seo || ""}
+                          >
+                            {leads.seo || <span className="text-muted-foreground">— None —</span>}
+                          </button>
+                          {leads.seo && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleClearLead(deal.id, "seo"); }}
+                              className="text-muted-foreground/40 hover:text-destructive opacity-0 group-hover/cell:opacity-100 transition-opacity flex-none"
+                              title="Remove SEO Lead from this deal"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    ),
+                    mrr: (
+                      <td key="mrr" className="py-2 px-3 text-right">
+                        {isBopmViewOnly ? (
+                          <span className="text-xs text-foreground">
+                            {deal.mrr ? `${sym}${mrrVal.toLocaleString()}` : "—"}
+                          </span>
+                        ) : (
+                          <InlineEditCell value={deal.mrr ? String(mrrVal) : ""} onSave={v => handleMRRSave(deal.id, v, dealCcy)} type="number" prefix={sym} placeholder="—" />
+                        )}
+                      </td>
+                    ),
+                    retainerDealValue: (
+                      <td key="retainerDealValue" className="py-2 px-3 text-right text-xs text-foreground">
+                        {deal.retainerDealValue ? `${sym}${retainerVal.toLocaleString()}` : <span className="text-muted-foreground">—</span>}
+                      </td>
+                    ),
+                    nonRetainerDealValue: (
+                      <td key="nonRetainerDealValue" className="py-2 px-3 text-right text-xs text-foreground">
+                        {deal.nonRetainerDealValue ? `${sym}${nonRetainerVal.toLocaleString()}` : <span className="text-muted-foreground">—</span>}
+                      </td>
+                    ),
+                    totalDealValue: (
+                      <td key="totalDealValue" className="py-2 px-3 text-right">
+                        {isBopmViewOnly ? (
+                          <span className="text-xs text-foreground">
+                            {deal.totalDealValue ? `${sym}${totalVal.toLocaleString()}` : "—"}
+                          </span>
+                        ) : (
+                          <InlineEditCell value={deal.totalDealValue ? String(totalVal) : ""} onSave={v => handleTotalRevenueSave(deal.id, v, dealCcy)} type="number" prefix={sym} placeholder="—" />
+                        )}
+                      </td>
+                    ),
+                    duration: (
+                      <td key="duration" className="py-2 px-3 text-xs text-muted-foreground truncate" title={`${deal.startDate || "—"} → ${deal.endDate || "—"}`}>
+                        {isBopmViewOnly ? (
+                          (() => {
+                            const sd = deal.startDate ? new Date(deal.startDate) : null;
+                            const ed = deal.endDate ? new Date(deal.endDate) : null;
+                            if (sd && ed && !isNaN(sd.getTime()) && !isNaN(ed.getTime())) {
+                              const months = Math.max(0, Math.round((ed.getTime() - sd.getTime()) / (1000 * 60 * 60 * 24 * 30.44)));
+                              return <span className="text-foreground">{months} mo</span>;
+                            }
+                            if (ed && !isNaN(ed.getTime())) return <span>ends {ed.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>;
+                            return <span className="text-muted-foreground">—</span>;
+                          })()
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <InlineEditCell
+                              value={deal.startDate ? String(deal.startDate).slice(0, 10) : ""}
+                              onSave={v => { updateDeal(deal.id, { startDate: v || undefined } as any); toast.success("Updated"); }}
+                              type="date"
+                              placeholder="start"
+                            />
+                            <span className="text-muted-foreground">→</span>
+                            <InlineEditCell
+                              value={deal.endDate ? String(deal.endDate).slice(0, 10) : ""}
+                              onSave={v => { updateDeal(deal.id, { endDate: v || undefined } as any); toast.success("Updated"); }}
+                              type="date"
+                              placeholder="end"
+                            />
                           </div>
-                        </td>
-                      )}
-                      {(() => null)()}
-                      {isVisible("mrr") && (() => {
-                        const dealCcy = dealDisplayCurrency(deal as any, currency);
-                        const sym = CURRENCY_SYMBOL[dealCcy];
-                        const displayVal = deal.mrr ? Math.round(convertFromInr(Number(deal.mrr), dealCcy, fxRate)) : 0;
-                        return (
-                        <td className="py-2 px-3 text-right">
-                          {isBopmViewOnly ? (
-                            <span className="text-xs text-foreground">
-                              {deal.mrr ? `${sym}${displayVal.toLocaleString()}` : "—"}
-                            </span>
-                          ) : (
-                            <InlineEditCell value={deal.mrr ? String(displayVal) : ""} onSave={v => handleMRRSave(deal.id, v, dealCcy)} type="number" prefix={sym} placeholder="—" />
-                          )}
-                        </td>
-                        );
-                      })()}
-                      {isVisible("retainerDealValue") && (() => {
-                        const dealCcy = dealDisplayCurrency(deal as any, currency);
-                        const sym = CURRENCY_SYMBOL[dealCcy];
-                        const displayVal = deal.retainerDealValue ? Math.round(convertFromInr(Number(deal.retainerDealValue), dealCcy, fxRate)) : 0;
-                        return (
-                          <td className="py-2 px-3 text-right text-xs text-foreground">
-                            {deal.retainerDealValue ? `${sym}${displayVal.toLocaleString()}` : <span className="text-muted-foreground">—</span>}
-                          </td>
-                        );
-                      })()}
-                      {isVisible("nonRetainerDealValue") && (() => {
-                        const dealCcy = dealDisplayCurrency(deal as any, currency);
-                        const sym = CURRENCY_SYMBOL[dealCcy];
-                        const displayVal = deal.nonRetainerDealValue ? Math.round(convertFromInr(Number(deal.nonRetainerDealValue), dealCcy, fxRate)) : 0;
-                        return (
-                          <td className="py-2 px-3 text-right text-xs text-foreground">
-                            {deal.nonRetainerDealValue ? `${sym}${displayVal.toLocaleString()}` : <span className="text-muted-foreground">—</span>}
-                          </td>
-                        );
-                      })()}
-                      {isVisible("totalDealValue") && (() => {
-                        const dealCcy = dealDisplayCurrency(deal as any, currency);
-                        const sym = CURRENCY_SYMBOL[dealCcy];
-                        const displayVal = deal.totalDealValue ? Math.round(convertFromInr(Number(deal.totalDealValue), dealCcy, fxRate)) : 0;
-                        return (
-                        <td className="py-2 px-3 text-right">
-                          {isBopmViewOnly ? (
-                            <span className="text-xs text-foreground">
-                              {deal.totalDealValue ? `${sym}${displayVal.toLocaleString()}` : "—"}
-                            </span>
-                          ) : (
-                            <InlineEditCell value={deal.totalDealValue ? String(displayVal) : ""} onSave={v => handleTotalRevenueSave(deal.id, v, dealCcy)} type="number" prefix={sym} placeholder="—" />
-                          )}
-                        </td>
-                        );
-                      })()}
-                      {isVisible("duration") && (
-                        <td className="py-2 px-3 text-xs text-muted-foreground truncate" title={`${deal.startDate || "—"} → ${deal.endDate || "—"}`}>
-                          {isBopmViewOnly ? (
-                            (() => {
-                              const sd = deal.startDate ? new Date(deal.startDate) : null;
-                              const ed = deal.endDate ? new Date(deal.endDate) : null;
-                              if (sd && ed && !isNaN(sd.getTime()) && !isNaN(ed.getTime())) {
-                                const months = Math.max(0, Math.round((ed.getTime() - sd.getTime()) / (1000 * 60 * 60 * 24 * 30.44)));
-                                return <span className="text-foreground">{months} mo</span>;
-                              }
-                              if (ed && !isNaN(ed.getTime())) return <span>ends {ed.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>;
-                              return <span className="text-muted-foreground">—</span>;
-                            })()
-                          ) : (
-                            <div className="flex items-center gap-1">
-                              <InlineEditCell
-                                value={deal.startDate ? String(deal.startDate).slice(0, 10) : ""}
-                                onSave={v => { updateDeal(deal.id, { startDate: v || undefined } as any); toast.success("Updated"); }}
-                                type="date"
-                                placeholder="start"
-                              />
-                              <span className="text-muted-foreground">→</span>
-                              <InlineEditCell
-                                value={deal.endDate ? String(deal.endDate).slice(0, 10) : ""}
-                                onSave={v => { updateDeal(deal.id, { endDate: v || undefined } as any); toast.success("Updated"); }}
-                                type="date"
-                                placeholder="end"
-                              />
-                            </div>
-                          )}
-                        </td>
-                      )}
-                      {isVisible("rag") && <td className="py-2 px-3 text-center"><RgyBlock letter={rgyRollup.get(deal.id)} /></td>}
+                        )}
+                      </td>
+                    ),
+                    rag: (
+                      <td key="rag" className="py-2 px-3 text-center"><RgyBlock letter={rgyRollup.get(deal.id)} /></td>
+                    ),
+                  };
+                  return (
+                    <tr key={deal.id} className="border-b border-border/50 hover:bg-accent/10 transition-colors group/row">
+                      {visibleCols.filter(k => k in cellByKey).map(k => cellByKey[k])}
                       <td className="py-2 px-1">
                         <div className="flex items-center gap-1.5 justify-end">
                           <Popover>
