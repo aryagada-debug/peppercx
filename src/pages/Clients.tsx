@@ -17,6 +17,7 @@ import { submitApprovalRequest } from "@/lib/approvals";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ScrollToStartButton } from "@/components/ui/ScrollToStartButton";
 import { ClientFormDialog } from "@/components/deals/ClientFormDialog";
 import { DealFormWizard } from "@/components/deals/DealFormWizard";
 import { DealDocsUpload } from "@/components/deals/DealDocsUpload";
@@ -157,6 +158,7 @@ function InlineEditCell({ value, onSave, type = "text", prefix = "", placeholder
 
 export default function Clients() {
   useCurrencyVersion();
+  const tableScrollRef = useRef<HTMLDivElement>(null);
   const { currency, fxRate, format } = useCurrency();
   const fmtCurrency = (n: number | undefined) => format(Number(n) || 0);
   const ValueIcon = currency === "USD" ? DollarSign : IndianRupee;
