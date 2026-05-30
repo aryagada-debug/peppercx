@@ -1926,7 +1926,7 @@ export default function DealDetail() {
     return <AppLayout><div className="p-8"><Link to="/clients" className="text-primary hover:underline text-sm">← Back to Clients</Link><p className="mt-4 text-muted-foreground">Deal not found.</p></div></AppLayout>;
   }
 
-  const subtitle = [deal.serviceLineTagging || deal.capabilityLine, deal.account].filter(Boolean).join(" · ");
+  const subtitle = [deal.capabilityLine || deal.serviceLineTagging, deal.account].filter(Boolean).join(" · ");
 
   return (
     <AppLayout>
