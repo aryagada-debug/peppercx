@@ -1275,6 +1275,7 @@ export default function Clients() {
               </tbody>
             </table>
           </div>
+          <ScrollToStartButton scrollRef={tableScrollRef} />
 
           {tableRows.length === 0 && (
             <div className="text-center py-12">
