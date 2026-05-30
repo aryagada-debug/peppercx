@@ -1138,8 +1138,14 @@ export default function RGYHealth() {
         return true;
       });
     }
+    if (dealTypeFilter !== "All") {
+      d = d.filter(deal => {
+        const isRet = isRetainerDeal({ dealType: deal.deal_type || "", customerType: deal.customer_type || "" });
+        return dealTypeFilter === "Retainer" ? isRet : !isRet;
+      });
+    }
     return d;
-  }, [deals, activeVsd, activeBopm, search, showClosed, rgyFilter, vsdForDeal, hasAllDealAccess, accessLoading, visibleDealIds]);
+  }, [deals, activeVsd, activeBopm, search, showClosed, rgyFilter, dealTypeFilter, vsdForDeal, hasAllDealAccess, accessLoading, visibleDealIds]);
 
   const aiSummaryDeals = useMemo(() => {
     if (hasAllDealAccess && !isVsdPersona && !isBopmPersona) return deals;
