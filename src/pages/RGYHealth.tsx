@@ -599,6 +599,34 @@ export default function RGYHealth() {
   const [search, setSearch] = useState("");
   const [rgyFilter, setRgyFilter] = useState<"All" | "Red" | "Yellow" | "Green">("All");
   const [dealTypeFilter, setDealTypeFilter] = useState<"All" | "Retainer" | "Non-Retainer">("All");
+
+  // Metadata column ordering (drag-to-reorder for left-side columns only)
+  const DEFAULT_META_ORDER = ["account", "deal_name", "deal_id", "deal_status"] as const;
+  const [metaOrder, setMetaOrder] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem("rgy-meta-order");
+      if (raw) {
+        const parsed: string[] = JSON.parse(raw);
+        const valid = parsed.filter(k => (DEFAULT_META_ORDER as readonly string[]).includes(k));
+        if (valid.length === DEFAULT_META_ORDER.length) return valid;
+      }
+    } catch {}
+    return [...DEFAULT_META_ORDER];
+  });
+  useEffect(() => {
+    try { localStorage.setItem("rgy-meta-order", JSON.stringify(metaOrder)); } catch {}
+  }, [metaOrder]);
+  const metaDndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+  const handleMetaDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setMetaOrder(prev => {
+      const from = prev.indexOf(String(active.id));
+      const to = prev.indexOf(String(over.id));
+      if (from < 0 || to < 0) return prev;
+      return arrayMove(prev, from, to);
+    });
+  }, []);
   const [activeTab, setActiveTab] = useState<"health" | "table" | "insights">("table");
   useEffect(() => {
     if (isVsdPersona && myVsdName && activeVsd !== myVsdName) setActiveVsd(myVsdName);
