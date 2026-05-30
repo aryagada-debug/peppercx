@@ -91,8 +91,8 @@ export default {
       fontSize: {
         "caption": ["0.6875rem", { lineHeight: "1rem" }],    // 11px
         "ui": ["0.8125rem", { lineHeight: "1.25rem" }],      // 13px
-        "subhead": ["1.125rem", { lineHeight: "1.5rem" }],   // 18px
-        "heading": ["1.5rem", { lineHeight: "2rem" }],       // 24px
+        "subhead": ["1.125rem", { lineHeight: "1.5rem", letterSpacing: "-0.01em" }],   // 18px
+        "heading": ["1.5rem", { lineHeight: "2rem", letterSpacing: "-0.025em" }],       // 24px
         "metric": ["1.75rem", { lineHeight: "2rem", letterSpacing: "-0.04em" }],
       },
       keyframes: {
