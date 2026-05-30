@@ -2093,15 +2093,13 @@ export default function DealDetail() {
                     <EditableCell value={deal.duration || ""} onSave={v => handleDealFieldSave("duration", v)} placeholder="Not set" />
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">Service Line</span>
+                    <span className="text-xs text-muted-foreground">Pepper Business Unit</span>
                     {(() => {
-                      const current = deal.serviceLineTagging || deal.capabilityLine || "";
-                      const isLegacy = current && !(SERVICE_LINE_OPTIONS as readonly string[]).includes(current);
+                      const current = deal.pepperBusinessUnit || "";
+                      const isLegacy = current && !(PEPPER_BUSINESS_UNITS as readonly string[]).includes(current);
                       return (
-                        <Select value={current || undefined} onValueChange={(v) => handleDealFieldSave("serviceLineTagging", v)}>
-                          <SelectTrigger
-                            className="h-auto p-0 border-0 bg-transparent shadow-none focus:ring-0 hover:text-primary text-xs text-foreground gap-1 w-auto max-w-[280px] [&>svg]:h-3 [&>svg]:w-3 [&>svg]:opacity-60"
-                          >
+                        <Select value={current || undefined} onValueChange={(v) => handleDealFieldSave("pepperBusinessUnit", v)}>
+                          <SelectTrigger className="h-auto p-0 border-0 bg-transparent shadow-none focus:ring-0 hover:text-primary text-xs text-foreground gap-1 w-auto max-w-[280px] [&>svg]:h-3 [&>svg]:w-3 [&>svg]:opacity-60">
                             <SelectValue placeholder="Not set">
                               <span className={cn("truncate inline-flex items-center gap-1", !current && "text-muted-foreground")}>
                                 {current || "Not set"}
@@ -2110,7 +2108,31 @@ export default function DealDetail() {
                             </SelectValue>
                           </SelectTrigger>
                           <SelectContent className="max-w-[360px]">
-                            {SERVICE_LINE_OPTIONS.map(opt => (
+                            {PEPPER_BUSINESS_UNITS.map(opt => (
+                              <SelectItem key={opt} value={opt} className="text-xs">{opt}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      );
+                    })()}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Capability Line</span>
+                    {(() => {
+                      const current = deal.capabilityLine || deal.serviceLineTagging || "";
+                      const isLegacy = current && !(CAPABILITY_LINES as readonly string[]).includes(current);
+                      return (
+                        <Select value={current || undefined} onValueChange={(v) => handleDealFieldSave("capabilityLine", v)}>
+                          <SelectTrigger className="h-auto p-0 border-0 bg-transparent shadow-none focus:ring-0 hover:text-primary text-xs text-foreground gap-1 w-auto max-w-[280px] [&>svg]:h-3 [&>svg]:w-3 [&>svg]:opacity-60">
+                            <SelectValue placeholder="Not set">
+                              <span className={cn("truncate inline-flex items-center gap-1", !current && "text-muted-foreground")}>
+                                {current || "Not set"}
+                                {isLegacy && <span className="text-[9px] text-muted-foreground">(legacy)</span>}
+                              </span>
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent className="max-w-[360px]">
+                            {CAPABILITY_LINES.map(opt => (
                               <SelectItem key={opt} value={opt} className="text-xs">{opt}</SelectItem>
                             ))}
                           </SelectContent>
