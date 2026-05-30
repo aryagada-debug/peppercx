@@ -288,6 +288,8 @@ export default function Clients() {
     { key: "account", label: "Client", required: true },
     { key: "dealName", label: "Deal Name", required: true },
     { key: "dealId", label: "Deal ID" },
+    { key: "pcCode", label: "PC Code" },
+    { key: "monthClosedWon", label: "Month of Closed Won" },
     { key: "dealType", label: "Type" },
     { key: "dealStatus", label: "Status" },
     { key: "pepperBusinessUnit", label: "Pepper BU" },
@@ -298,12 +300,14 @@ export default function Clients() {
     { key: "contentLead", label: "Content Lead" },
     { key: "seoLead", label: "SEO Lead" },
     { key: "mrr", label: "MRR" },
+    { key: "retainerDealValue", label: "Retainer Deal Value" },
+    { key: "nonRetainerDealValue", label: "Non-Retainer Deal Value" },
     { key: "totalDealValue", label: "Total Revenue" },
     { key: "duration", label: "Duration" },
     { key: "rag", label: "RGY" },
   ]), []);
 
-  const DEFAULT_VISIBLE = ["account","dealName","dealId","dealType","dealStatus","pepperBusinessUnit","capabilityLine","vsd","bopm","bopmOnly","contentLead","seoLead","mrr","totalDealValue","duration","rag"];
+  const DEFAULT_VISIBLE = ["account","dealName","dealId","pcCode","monthClosedWon","dealType","dealStatus","pepperBusinessUnit","capabilityLine","vsd","bopm","bopmOnly","contentLead","seoLead","mrr","totalDealValue","duration","rag"];
   const [visibleCols, setVisibleCols] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem("clients-visible-cols-v2");
@@ -325,6 +329,7 @@ export default function Clients() {
     account: 160, dealName: 200, dealId: 100, dealType: 100, dealStatus: 130,
     pepperBusinessUnit: 150, capabilityLine: 200,
     vsd: 130, bopm: 150, bopmOnly: 130, contentLead: 140, seoLead: 140, mrr: 110, totalDealValue: 130, duration: 130, rag: 70, actions: 40,
+    pcCode: 110, monthClosedWon: 140, retainerDealValue: 140, nonRetainerDealValue: 160,
   };
   const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
     try {
@@ -489,6 +494,8 @@ export default function Clients() {
       if (colFilters.account && !matches(d.account, colFilters.account)) return false;
       if (colFilters.dealName && !matches(d.dealName, colFilters.dealName)) return false;
       if (colFilters.dealId && !matches(d.dealId, colFilters.dealId)) return false;
+      if (colFilters.pcCode && !matches(d.pcCode, colFilters.pcCode)) return false;
+      if (colFilters.monthClosedWon && !matches(d.monthClosedWon, colFilters.monthClosedWon)) return false;
       if (colFilters.dealType && d.dealType !== colFilters.dealType) return false;
       if (colFilters.dealStatus && (d.dealStatus || "Active Deal") !== colFilters.dealStatus) return false;
       if (colFilters.pepperBusinessUnit && (d.pepperBusinessUnit || "") !== colFilters.pepperBusinessUnit) return false;
@@ -505,6 +512,8 @@ export default function Clients() {
         if (!matches(name, colFilters.seoLead)) return false;
       }
       if (colFilters.mrr && convertFromInr(Number(d.mrr) || 0, currency, fxRate) < Number(colFilters.mrr)) return false;
+      if (colFilters.retainerDealValue && convertFromInr(Number(d.retainerDealValue) || 0, currency, fxRate) < Number(colFilters.retainerDealValue)) return false;
+      if (colFilters.nonRetainerDealValue && convertFromInr(Number(d.nonRetainerDealValue) || 0, currency, fxRate) < Number(colFilters.nonRetainerDealValue)) return false;
       if (colFilters.totalDealValue && convertFromInr(Number(d.totalDealValue) || 0, currency, fxRate) < Number(colFilters.totalDealValue)) return false;
       if (colFilters.rag) {
         const rag = rgyLetterToFilter(rgyRollup.get(d.id));
@@ -983,6 +992,8 @@ export default function Clients() {
                   {isVisible("account") && <ColHeader label="Client" sortKey="account" colKey="account" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.account} onResizeStart={startResize("account")} />}
                   {isVisible("dealName") && <ColHeader label="Deal Name" sortKey="dealName" colKey="dealName" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.dealName} onResizeStart={startResize("dealName")} />}
                   {isVisible("dealId") && <ColHeader label="Deal ID" sortKey="dealId" colKey="dealId" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.dealId} onResizeStart={startResize("dealId")} />}
+                  {isVisible("pcCode") && <ColHeader label="PC Code" sortKey="pcCode" colKey="pcCode" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.pcCode} onResizeStart={startResize("pcCode")} />}
+                  {isVisible("monthClosedWon") && <ColHeader label="Month of Closed Won" sortKey="monthClosedWon" colKey="monthClosedWon" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.monthClosedWon} onResizeStart={startResize("monthClosedWon")} />}
                   {isVisible("dealType") && <ColHeader label="Type" sortKey="dealType" colKey="dealType" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["Retainer","Non-Retainer","Pilot"]} width={colWidths.dealType} onResizeStart={startResize("dealType")} />}
                   {isVisible("dealStatus") && <ColHeader label="Status" sortKey="dealStatus" colKey="dealStatus" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={[...DEAL_STATUSES]} width={colWidths.dealStatus} onResizeStart={startResize("dealStatus")} />}
                   {isVisible("pepperBusinessUnit") && <ColHeader label="Pepper BU" sortKey="pepperBusinessUnit" colKey="pepperBusinessUnit" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={[...PEPPER_BUSINESS_UNITS]} width={colWidths.pepperBusinessUnit} onResizeStart={startResize("pepperBusinessUnit")} />}
@@ -993,6 +1004,8 @@ export default function Clients() {
                   {isVisible("contentLead") && <ColHeader label="Content Lead" colKey="contentLead" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={peopleColOptions.content} width={colWidths.contentLead} onResizeStart={startResize("contentLead")} />}
                   {isVisible("seoLead") && <ColHeader label="SEO Lead" colKey="seoLead" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={peopleColOptions.seo} width={colWidths.seoLead} onResizeStart={startResize("seoLead")} />}
                   {isVisible("mrr") && <ColHeader label="MRR" align="right" sortKey="mrr" colKey="mrr" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} numeric placeholder="≥ amount" width={colWidths.mrr} onResizeStart={startResize("mrr")} />}
+                  {isVisible("retainerDealValue") && <ColHeader label="Retainer Deal Value" align="right" sortKey="retainerDealValue" colKey="retainerDealValue" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} numeric placeholder="≥ amount" width={colWidths.retainerDealValue} onResizeStart={startResize("retainerDealValue")} />}
+                  {isVisible("nonRetainerDealValue") && <ColHeader label="Non-Retainer Deal Value" align="right" sortKey="nonRetainerDealValue" colKey="nonRetainerDealValue" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} numeric placeholder="≥ amount" width={colWidths.nonRetainerDealValue} onResizeStart={startResize("nonRetainerDealValue")} />}
                   {isVisible("totalDealValue") && <ColHeader label="Total Revenue" align="right" sortKey="totalDealValue" colKey="totalDealValue" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} numeric placeholder="≥ amount" width={colWidths.totalDealValue} onResizeStart={startResize("totalDealValue")} />}
                   {isVisible("duration") && <ColHeader label="Duration" colKey="duration" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.duration} onResizeStart={startResize("duration")} />}
                   {isVisible("rag") && <ColHeader label="RGY" align="center" colKey="rag" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["green","amber","red","na","pending"]} width={colWidths.rag} onResizeStart={startResize("rag")} />}
@@ -1018,6 +1031,16 @@ export default function Clients() {
                         </td>
                       )}
                       {isVisible("dealId") && <td className="py-2 px-3 text-xs font-mono text-muted-foreground truncate">{deal.dealId}</td>}
+                      {isVisible("pcCode") && (
+                        <td className="py-2 px-3 text-xs font-mono text-muted-foreground truncate" title={deal.pcCode || ""}>
+                          {deal.pcCode || <span className="text-muted-foreground">—</span>}
+                        </td>
+                      )}
+                      {isVisible("monthClosedWon") && (
+                        <td className="py-2 px-3 text-xs text-foreground truncate" title={deal.monthClosedWon || ""}>
+                          {deal.monthClosedWon || <span className="text-muted-foreground">—</span>}
+                        </td>
+                      )}
                       {isVisible("dealType") && (
                         <td className="py-2 px-3">
                           {isBopmViewOnly ? (
@@ -1083,13 +1106,49 @@ export default function Clients() {
                         </td>
                       )}
                       {isVisible("pepperBusinessUnit") && (
-                        <td className="py-2 px-3 truncate text-xs text-foreground" title={deal.pepperBusinessUnit || ""}>
-                          {deal.pepperBusinessUnit || <span className="text-muted-foreground">—</span>}
+                        <td className="py-2 px-3 truncate" title={deal.pepperBusinessUnit || ""}>
+                          {access.isAdmin ? (
+                            <Select
+                              value={deal.pepperBusinessUnit || undefined}
+                              onValueChange={(v) => { guardedUpdateDeal(deal.id, { pepperBusinessUnit: v }); toast.success("Pepper BU updated"); }}
+                            >
+                              <SelectTrigger className="h-6 w-full text-[11px] border-none bg-transparent shadow-none px-1 focus:ring-0">
+                                <SelectValue placeholder="—" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {PEPPER_BUSINESS_UNITS.map(s => (
+                                  <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <span className="text-xs text-foreground">
+                              {deal.pepperBusinessUnit || <span className="text-muted-foreground">—</span>}
+                            </span>
+                          )}
                         </td>
                       )}
                       {isVisible("capabilityLine") && (
-                        <td className="py-2 px-3 truncate text-xs text-foreground" title={deal.capabilityLine || ""}>
-                          {deal.capabilityLine || <span className="text-muted-foreground">—</span>}
+                        <td className="py-2 px-3 truncate" title={deal.capabilityLine || ""}>
+                          {access.isAdmin ? (
+                            <Select
+                              value={deal.capabilityLine || undefined}
+                              onValueChange={(v) => { guardedUpdateDeal(deal.id, { capabilityLine: v }); toast.success("Capability Line updated"); }}
+                            >
+                              <SelectTrigger className="h-6 w-full text-[11px] border-none bg-transparent shadow-none px-1 focus:ring-0">
+                                <SelectValue placeholder="—" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {CAPABILITY_LINES.map(s => (
+                                  <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <span className="text-xs text-foreground">
+                              {deal.capabilityLine || <span className="text-muted-foreground">—</span>}
+                            </span>
+                          )}
                         </td>
                       )}
                       {isVisible("vsd") && (
@@ -1193,6 +1252,26 @@ export default function Clients() {
                             <InlineEditCell value={deal.mrr ? String(displayVal) : ""} onSave={v => handleMRRSave(deal.id, v, dealCcy)} type="number" prefix={sym} placeholder="—" />
                           )}
                         </td>
+                        );
+                      })()}
+                      {isVisible("retainerDealValue") && (() => {
+                        const dealCcy = dealDisplayCurrency(deal as any, currency);
+                        const sym = CURRENCY_SYMBOL[dealCcy];
+                        const displayVal = deal.retainerDealValue ? Math.round(convertFromInr(Number(deal.retainerDealValue), dealCcy, fxRate)) : 0;
+                        return (
+                          <td className="py-2 px-3 text-right text-xs text-foreground">
+                            {deal.retainerDealValue ? `${sym}${displayVal.toLocaleString()}` : <span className="text-muted-foreground">—</span>}
+                          </td>
+                        );
+                      })()}
+                      {isVisible("nonRetainerDealValue") && (() => {
+                        const dealCcy = dealDisplayCurrency(deal as any, currency);
+                        const sym = CURRENCY_SYMBOL[dealCcy];
+                        const displayVal = deal.nonRetainerDealValue ? Math.round(convertFromInr(Number(deal.nonRetainerDealValue), dealCcy, fxRate)) : 0;
+                        return (
+                          <td className="py-2 px-3 text-right text-xs text-foreground">
+                            {deal.nonRetainerDealValue ? `${sym}${displayVal.toLocaleString()}` : <span className="text-muted-foreground">—</span>}
+                          </td>
                         );
                       })()}
                       {isVisible("totalDealValue") && (() => {
