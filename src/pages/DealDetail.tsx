@@ -67,21 +67,6 @@ const rgySymbol: Record<string, string> = { G: "G", Y: "Y", R: "R", NA: "⊘", T
 // Comparable scale for trend logic. NA / TBU are non-comparable (null).
 const rgyCompare: Record<string, number | null> = { G: 3, Y: 2, R: 1, NA: null, TBU: null };
 
-const SERVICE_LINE_OPTIONS = [
-  "Integrated Retainers - Content + SEO + Social or Content Hubs",
-  "Content Studio - Talent Onsite/Virtual",
-  "Pepper SEO - SEO + Content Retainer",
-  "Pepper Content - Website/SEO Content",
-  "Campaign Assets - Statics, Adapts, Asset Creation",
-  "Pepper Content - B2B Full Funnel",
-  "Light Video Production - Reels/YouTube/Podcast",
-  "Creative/Social Media Retainer",
-  "CRM/CLM Content - Lifecycle Marketing",
-  "Campaigns - Influencer Marketing/Social",
-  "Heavy Video Production - Films/DVCs/TVCs",
-  "Translation/Localisation",
-  "Other",
-] as const;
 
 const RGY_DIMENSIONS: { key: keyof RGYWeekly; label: string }[] = [
   { key: "customer", label: "Customer" },
