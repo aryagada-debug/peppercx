@@ -598,6 +598,7 @@ export default function RGYHealth() {
   const [showClosed, setShowClosed] = useState(false);
   const [search, setSearch] = useState("");
   const [rgyFilter, setRgyFilter] = useState<"All" | "Red" | "Yellow" | "Green">("All");
+  const [dealTypeFilter, setDealTypeFilter] = useState<"All" | "Retainer" | "Non-Retainer">("All");
   const [activeTab, setActiveTab] = useState<"health" | "table" | "insights">("table");
   useEffect(() => {
     if (isVsdPersona && myVsdName && activeVsd !== myVsdName) setActiveVsd(myVsdName);
