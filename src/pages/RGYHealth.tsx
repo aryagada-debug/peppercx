@@ -1502,6 +1502,17 @@ export default function RGYHealth() {
                 ))}
               </div>
 
+              <div className="flex gap-1 bg-secondary rounded-lg p-1">
+                {(["All", "Retainer", "Non-Retainer"] as const).map(f => (
+                  <button key={f} onClick={() => setDealTypeFilter(f)} className={cn(
+                    "px-2.5 py-1.5 rounded-md text-caption font-medium whitespace-nowrap transition-colors",
+                    dealTypeFilter === f
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}>{f}</button>
+                ))}
+              </div>
+
               <div className="relative flex-1 max-w-xs">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <input type="text" placeholder="Search clients or deals..." value={search} onChange={e => setSearch(e.target.value)}
