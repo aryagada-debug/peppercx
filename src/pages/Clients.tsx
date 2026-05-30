@@ -1106,13 +1106,49 @@ export default function Clients() {
                         </td>
                       )}
                       {isVisible("pepperBusinessUnit") && (
-                        <td className="py-2 px-3 truncate text-xs text-foreground" title={deal.pepperBusinessUnit || ""}>
-                          {deal.pepperBusinessUnit || <span className="text-muted-foreground">—</span>}
+                        <td className="py-2 px-3 truncate" title={deal.pepperBusinessUnit || ""}>
+                          {access.isAdmin ? (
+                            <Select
+                              value={deal.pepperBusinessUnit || undefined}
+                              onValueChange={(v) => { guardedUpdateDeal(deal.id, { pepperBusinessUnit: v }); toast.success("Pepper BU updated"); }}
+                            >
+                              <SelectTrigger className="h-6 w-full text-[11px] border-none bg-transparent shadow-none px-1 focus:ring-0">
+                                <SelectValue placeholder="—" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {PEPPER_BUSINESS_UNITS.map(s => (
+                                  <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <span className="text-xs text-foreground">
+                              {deal.pepperBusinessUnit || <span className="text-muted-foreground">—</span>}
+                            </span>
+                          )}
                         </td>
                       )}
                       {isVisible("capabilityLine") && (
-                        <td className="py-2 px-3 truncate text-xs text-foreground" title={deal.capabilityLine || ""}>
-                          {deal.capabilityLine || <span className="text-muted-foreground">—</span>}
+                        <td className="py-2 px-3 truncate" title={deal.capabilityLine || ""}>
+                          {access.isAdmin ? (
+                            <Select
+                              value={deal.capabilityLine || undefined}
+                              onValueChange={(v) => { guardedUpdateDeal(deal.id, { capabilityLine: v }); toast.success("Capability Line updated"); }}
+                            >
+                              <SelectTrigger className="h-6 w-full text-[11px] border-none bg-transparent shadow-none px-1 focus:ring-0">
+                                <SelectValue placeholder="—" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {CAPABILITY_LINES.map(s => (
+                                  <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <span className="text-xs text-foreground">
+                              {deal.capabilityLine || <span className="text-muted-foreground">—</span>}
+                            </span>
+                          )}
                         </td>
                       )}
                       {isVisible("vsd") && (
