@@ -489,6 +489,8 @@ export default function Clients() {
       if (colFilters.dealId && !matches(d.dealId, colFilters.dealId)) return false;
       if (colFilters.dealType && d.dealType !== colFilters.dealType) return false;
       if (colFilters.dealStatus && (d.dealStatus || "Active Deal") !== colFilters.dealStatus) return false;
+      if (colFilters.pepperBusinessUnit && (d.pepperBusinessUnit || "") !== colFilters.pepperBusinessUnit) return false;
+      if (colFilters.capabilityLine && (d.capabilityLine || "") !== colFilters.capabilityLine) return false;
       if (colFilters.vsd && !matches(d.vsd, colFilters.vsd)) return false;
       if (colFilters.bopm && !matches(`${d.principalBopm || ""} ${d.seniorBopm || ""}`, colFilters.bopm)) return false;
       if (colFilters.bopmOnly && !matches((d as any).bopm || "", colFilters.bopmOnly)) return false;
