@@ -2584,6 +2584,10 @@ export type Database = {
       }
     }
     Functions: {
+      _is_active_staffing_status: {
+        Args: { _status: string }
+        Returns: boolean
+      }
       _recompute_deal_bopm_field: {
         Args: { _deal_id: string; _role_key: string }
         Returns: undefined
