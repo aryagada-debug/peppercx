@@ -337,6 +337,20 @@ export default function Clients() {
     setVisibleCols(prev => prev.includes(k) ? prev.filter(c => c !== k) : [...prev, k]);
   };
 
+  // Column reordering via drag and drop on headers
+  const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+  const handleColDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setVisibleCols(prev => {
+      const from = prev.indexOf(String(active.id));
+      const to = prev.indexOf(String(over.id));
+      if (from < 0 || to < 0) return prev;
+      return arrayMove(prev, from, to);
+    });
+  }, []);
+  const resetColOrder = () => setVisibleCols(DEFAULT_VISIBLE);
+
   // Column widths (resizable)
   const DEFAULT_WIDTHS: Record<string, number> = {
     account: 160, dealName: 200, dealId: 100, dealType: 100, dealStatus: 130,
