@@ -494,6 +494,8 @@ export default function Clients() {
       if (colFilters.account && !matches(d.account, colFilters.account)) return false;
       if (colFilters.dealName && !matches(d.dealName, colFilters.dealName)) return false;
       if (colFilters.dealId && !matches(d.dealId, colFilters.dealId)) return false;
+      if (colFilters.pcCode && !matches(d.pcCode, colFilters.pcCode)) return false;
+      if (colFilters.monthClosedWon && !matches(d.monthClosedWon, colFilters.monthClosedWon)) return false;
       if (colFilters.dealType && d.dealType !== colFilters.dealType) return false;
       if (colFilters.dealStatus && (d.dealStatus || "Active Deal") !== colFilters.dealStatus) return false;
       if (colFilters.pepperBusinessUnit && (d.pepperBusinessUnit || "") !== colFilters.pepperBusinessUnit) return false;
@@ -510,6 +512,8 @@ export default function Clients() {
         if (!matches(name, colFilters.seoLead)) return false;
       }
       if (colFilters.mrr && convertFromInr(Number(d.mrr) || 0, currency, fxRate) < Number(colFilters.mrr)) return false;
+      if (colFilters.retainerDealValue && convertFromInr(Number(d.retainerDealValue) || 0, currency, fxRate) < Number(colFilters.retainerDealValue)) return false;
+      if (colFilters.nonRetainerDealValue && convertFromInr(Number(d.nonRetainerDealValue) || 0, currency, fxRate) < Number(colFilters.nonRetainerDealValue)) return false;
       if (colFilters.totalDealValue && convertFromInr(Number(d.totalDealValue) || 0, currency, fxRate) < Number(colFilters.totalDealValue)) return false;
       if (colFilters.rag) {
         const rag = rgyLetterToFilter(rgyRollup.get(d.id));
