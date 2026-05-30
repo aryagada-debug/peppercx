@@ -109,6 +109,37 @@ export function isAssignmentExpired(_a: { endDate?: string | null } | null | und
   return false;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Canonical option lists used by Deal Detail, Deal Wizard, and Clients table.
+// Keep these in one place so filters/selects stay in sync.
+
+export const PEPPER_BUSINESS_UNITS = [
+  "Pepper SEO/GEO + Content",
+  "Pepper Content",
+  "Pepper Creative",
+  "Integrated",
+  "Content Studios",
+  "Others",
+  "Not Applicable",
+] as const;
+
+export const CAPABILITY_LINES = [
+  "Integrated Retainers - Content + SEO + Social or Content Hubs",
+  "Content Studio - Talent Onsite/Virtual",
+  "Pepper SEO - SEO + Content Retainer",
+  "Pepper Content - B2B Full Funnel",
+  "Pepper Content - Website/SEO Content",
+  "Campaign Assets - Statics, Adapts, Asset Creation",
+  "Light Video Production - Reels/YouTube/Podcast",
+  "Creative/Social Media Retainer",
+  "CRM/CLM Content - Lifecycle Marketing",
+  "Campaigns - Influencer Marketing/Social",
+  "Heavy Video Production - Films/DVCs/TVCs",
+  "Translation/Localisation",
+  "Other",
+  "Not Applicable",
+] as const;
+
 export interface Deal {
   id: string;
   pcCode: string;
