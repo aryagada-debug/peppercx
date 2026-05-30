@@ -320,8 +320,8 @@ export function DealStaffingCard({
                                   <Input
                                     type="number"
                                     min={0}
-                                    max={40}
-                                    step="0.5"
+                                    max={100}
+                                    step="1"
                                     value={editAllocValue}
                                     onChange={e => setEditAllocValue(Number(e.target.value) || 0)}
                                     className="h-7 w-16 text-sm text-right"
@@ -331,14 +331,14 @@ export function DealStaffingCard({
                                       if (e.key === "Escape") setEditingAlloc(null);
                                     }}
                                   />
-                                  <span className="text-[10px]">h</span>
+                                  <span className="text-[10px]">%</span>
                                   <button onClick={() => handleSaveAlloc(a!.id)} className="text-primary"><Check className="h-3.5 w-3.5" /></button>
                                   <button onClick={() => setEditingAlloc(null)} className="text-muted-foreground"><X className="h-3.5 w-3.5" /></button>
                                 </div>
                               ) : (
                                 <span
                                   className={cn(a ? "cursor-pointer hover:underline" : "text-muted-foreground")}
-                                  onClick={() => { if (a) { setEditingAlloc(a.id); setEditAllocValue(Number(((a.allocationPct / 100) * 40).toFixed(1))); } }}
+                                  onClick={() => { if (a) { setEditingAlloc(a.id); setEditAllocValue(a.allocationPct || 0); } }}
                                 >
                                   {a?.allocationPct || 0}%
                                 </span>
