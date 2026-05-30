@@ -27,6 +27,20 @@ import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ColHeader } from "@/components/table/ColHeader";
+import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  horizontalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { isRetainerDeal } from "@/hooks/useMBRData";
 import { useAppUsers, useVsdUsers, useVsdHierarchy, nameKey } from "@/hooks/queries/legacy";
 import { useUserRole } from "@/hooks/useUserRole";
 import { ReadOnlyBanner } from "@/components/access/ReadOnlyBanner";
@@ -123,6 +137,8 @@ interface DealWithRGY {
   start_date: string | null;
   end_date: string | null;
   payment_terms: string;
+  deal_type?: string | null;
+  customer_type?: string | null;
   rgy_row_id?: string;
   rgy_week_start?: string;
   rgy_action_plan?: string;
@@ -582,6 +598,35 @@ export default function RGYHealth() {
   const [showClosed, setShowClosed] = useState(false);
   const [search, setSearch] = useState("");
   const [rgyFilter, setRgyFilter] = useState<"All" | "Red" | "Yellow" | "Green">("All");
+  const [dealTypeFilter, setDealTypeFilter] = useState<"All" | "Retainer" | "Non-Retainer">("All");
+
+  // Metadata column ordering (drag-to-reorder for left-side columns only)
+  const DEFAULT_META_ORDER = ["account", "deal_name", "deal_id", "deal_status"] as const;
+  const [metaOrder, setMetaOrder] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem("rgy-meta-order");
+      if (raw) {
+        const parsed: string[] = JSON.parse(raw);
+        const valid = parsed.filter(k => (DEFAULT_META_ORDER as readonly string[]).includes(k));
+        if (valid.length === DEFAULT_META_ORDER.length) return valid;
+      }
+    } catch {}
+    return [...DEFAULT_META_ORDER];
+  });
+  useEffect(() => {
+    try { localStorage.setItem("rgy-meta-order", JSON.stringify(metaOrder)); } catch {}
+  }, [metaOrder]);
+  const metaDndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+  const handleMetaDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setMetaOrder(prev => {
+      const from = prev.indexOf(String(active.id));
+      const to = prev.indexOf(String(over.id));
+      if (from < 0 || to < 0) return prev;
+      return arrayMove(prev, from, to);
+    });
+  }, []);
   const [activeTab, setActiveTab] = useState<"health" | "table" | "insights">("table");
   useEffect(() => {
     if (isVsdPersona && myVsdName && activeVsd !== myVsdName) setActiveVsd(myVsdName);
@@ -801,7 +846,7 @@ export default function RGYHealth() {
     // Fire deals + recent RGY in parallel.
     const dealsPromise = supabase
       .from("staffing_deals")
-      .select("id, deal_id, deal_name, account, bopm, deal_status, pod, mrr, total_deal_value, vsd, principal_bopm, senior_bopm, start_date, end_date, payment_terms, pc_code")
+      .select("id, deal_id, deal_name, account, bopm, deal_status, pod, mrr, total_deal_value, vsd, principal_bopm, senior_bopm, start_date, end_date, payment_terms, pc_code, deal_type, customer_type")
       .order("deal_name");
 
     const rgyPromise = supabase
@@ -1121,8 +1166,14 @@ export default function RGYHealth() {
         return true;
       });
     }
+    if (dealTypeFilter !== "All") {
+      d = d.filter(deal => {
+        const isRet = isRetainerDeal({ dealType: deal.deal_type || "", customerType: deal.customer_type || "" });
+        return dealTypeFilter === "Retainer" ? isRet : !isRet;
+      });
+    }
     return d;
-  }, [deals, activeVsd, activeBopm, search, showClosed, rgyFilter, vsdForDeal, hasAllDealAccess, accessLoading, visibleDealIds]);
+  }, [deals, activeVsd, activeBopm, search, showClosed, rgyFilter, dealTypeFilter, vsdForDeal, hasAllDealAccess, accessLoading, visibleDealIds]);
 
   const aiSummaryDeals = useMemo(() => {
     if (hasAllDealAccess && !isVsdPersona && !isBopmPersona) return deals;
@@ -1475,6 +1526,17 @@ export default function RGYHealth() {
                       f === "Green" ? "bg-emerald-500 text-white shadow-sm" :
                       "bg-primary text-primary-foreground shadow-sm"
                     ) : "text-muted-foreground hover:text-foreground"
+                  )}>{f}</button>
+                ))}
+              </div>
+
+              <div className="flex gap-1 bg-secondary rounded-lg p-1">
+                {(["All", "Retainer", "Non-Retainer"] as const).map(f => (
+                  <button key={f} onClick={() => setDealTypeFilter(f)} className={cn(
+                    "px-2.5 py-1.5 rounded-md text-caption font-medium whitespace-nowrap transition-colors",
+                    dealTypeFilter === f
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
                   )}>{f}</button>
                 ))}
               </div>
