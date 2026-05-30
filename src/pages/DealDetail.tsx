@@ -15,7 +15,7 @@ import { useStaffingMutations } from "@/hooks/queries/useStaffingMutations";
 import { useDealAccess } from "@/hooks/useDealAccess";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useNavigate } from "react-router-dom";
-import { normalizeRoleKey, uid } from "@/data/staffingData";
+import { normalizeRoleKey, uid, PEPPER_BUSINESS_UNITS, CAPABILITY_LINES } from "@/data/staffingData";
 import type { StaffingAssignment, Person, Deal, RoleCategory } from "@/data/staffingData";
 import { useDealDetail } from "@/hooks/useDealDetail";
 import { EditableRGY } from "@/components/deals/EditableRGY";
@@ -67,21 +67,6 @@ const rgySymbol: Record<string, string> = { G: "G", Y: "Y", R: "R", NA: "⊘", T
 // Comparable scale for trend logic. NA / TBU are non-comparable (null).
 const rgyCompare: Record<string, number | null> = { G: 3, Y: 2, R: 1, NA: null, TBU: null };
 
-const SERVICE_LINE_OPTIONS = [
-  "Integrated Retainers - Content + SEO + Social or Content Hubs",
-  "Content Studio - Talent Onsite/Virtual",
-  "Pepper SEO - SEO + Content Retainer",
-  "Pepper Content - Website/SEO Content",
-  "Campaign Assets - Statics, Adapts, Asset Creation",
-  "Pepper Content - B2B Full Funnel",
-  "Light Video Production - Reels/YouTube/Podcast",
-  "Creative/Social Media Retainer",
-  "CRM/CLM Content - Lifecycle Marketing",
-  "Campaigns - Influencer Marketing/Social",
-  "Heavy Video Production - Films/DVCs/TVCs",
-  "Translation/Localisation",
-  "Other",
-] as const;
 
 const RGY_DIMENSIONS: { key: keyof RGYWeekly; label: string }[] = [
   { key: "customer", label: "Customer" },
@@ -1941,7 +1926,7 @@ export default function DealDetail() {
     return <AppLayout><div className="p-8"><Link to="/clients" className="text-primary hover:underline text-sm">← Back to Clients</Link><p className="mt-4 text-muted-foreground">Deal not found.</p></div></AppLayout>;
   }
 
-  const subtitle = [deal.serviceLineTagging || deal.capabilityLine, deal.account].filter(Boolean).join(" · ");
+  const subtitle = [deal.capabilityLine || deal.serviceLineTagging, deal.account].filter(Boolean).join(" · ");
 
   return (
     <AppLayout>
@@ -2108,15 +2093,13 @@ export default function DealDetail() {
                     <EditableCell value={deal.duration || ""} onSave={v => handleDealFieldSave("duration", v)} placeholder="Not set" />
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">Service Line</span>
+                    <span className="text-xs text-muted-foreground">Pepper Business Unit</span>
                     {(() => {
-                      const current = deal.serviceLineTagging || deal.capabilityLine || "";
-                      const isLegacy = current && !(SERVICE_LINE_OPTIONS as readonly string[]).includes(current);
+                      const current = deal.pepperBusinessUnit || "";
+                      const isLegacy = current && !(PEPPER_BUSINESS_UNITS as readonly string[]).includes(current);
                       return (
-                        <Select value={current || undefined} onValueChange={(v) => handleDealFieldSave("serviceLineTagging", v)}>
-                          <SelectTrigger
-                            className="h-auto p-0 border-0 bg-transparent shadow-none focus:ring-0 hover:text-primary text-xs text-foreground gap-1 w-auto max-w-[280px] [&>svg]:h-3 [&>svg]:w-3 [&>svg]:opacity-60"
-                          >
+                        <Select value={current || undefined} onValueChange={(v) => handleDealFieldSave("pepperBusinessUnit", v)}>
+                          <SelectTrigger className="h-auto p-0 border-0 bg-transparent shadow-none focus:ring-0 hover:text-primary text-xs text-foreground gap-1 w-auto max-w-[280px] [&>svg]:h-3 [&>svg]:w-3 [&>svg]:opacity-60">
                             <SelectValue placeholder="Not set">
                               <span className={cn("truncate inline-flex items-center gap-1", !current && "text-muted-foreground")}>
                                 {current || "Not set"}
@@ -2125,7 +2108,31 @@ export default function DealDetail() {
                             </SelectValue>
                           </SelectTrigger>
                           <SelectContent className="max-w-[360px]">
-                            {SERVICE_LINE_OPTIONS.map(opt => (
+                            {PEPPER_BUSINESS_UNITS.map(opt => (
+                              <SelectItem key={opt} value={opt} className="text-xs">{opt}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      );
+                    })()}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Capability Line</span>
+                    {(() => {
+                      const current = deal.capabilityLine || deal.serviceLineTagging || "";
+                      const isLegacy = current && !(CAPABILITY_LINES as readonly string[]).includes(current);
+                      return (
+                        <Select value={current || undefined} onValueChange={(v) => handleDealFieldSave("capabilityLine", v)}>
+                          <SelectTrigger className="h-auto p-0 border-0 bg-transparent shadow-none focus:ring-0 hover:text-primary text-xs text-foreground gap-1 w-auto max-w-[280px] [&>svg]:h-3 [&>svg]:w-3 [&>svg]:opacity-60">
+                            <SelectValue placeholder="Not set">
+                              <span className={cn("truncate inline-flex items-center gap-1", !current && "text-muted-foreground")}>
+                                {current || "Not set"}
+                                {isLegacy && <span className="text-[9px] text-muted-foreground">(legacy)</span>}
+                              </span>
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent className="max-w-[360px]">
+                            {CAPABILITY_LINES.map(opt => (
                               <SelectItem key={opt} value={opt} className="text-xs">{opt}</SelectItem>
                             ))}
                           </SelectContent>

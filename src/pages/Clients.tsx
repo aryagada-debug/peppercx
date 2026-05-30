@@ -22,7 +22,7 @@ import { DealFormWizard } from "@/components/deals/DealFormWizard";
 import { DealDocsUpload } from "@/components/deals/DealDocsUpload";
 import { AddStaffingMemberDialog } from "@/components/staffing/AddStaffingMemberDialog";
 import { supabase } from "@/integrations/supabase/client";
-import { normalizeRoleKey, uid } from "@/data/staffingData";
+import { normalizeRoleKey, uid, PEPPER_BUSINESS_UNITS, CAPABILITY_LINES } from "@/data/staffingData";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -288,6 +288,8 @@ export default function Clients() {
     { key: "dealId", label: "Deal ID" },
     { key: "dealType", label: "Type" },
     { key: "dealStatus", label: "Status" },
+    { key: "pepperBusinessUnit", label: "Pepper BU" },
+    { key: "capabilityLine", label: "Capability Line" },
     { key: "vsd", label: "VSD" },
     { key: "bopm", label: "P.BOPM / Sr BOPM" },
     { key: "bopmOnly", label: "BOPM" },
@@ -299,7 +301,7 @@ export default function Clients() {
     { key: "rag", label: "RGY" },
   ]), []);
 
-  const DEFAULT_VISIBLE = ["account","dealName","dealId","dealType","dealStatus","vsd","bopm","bopmOnly","contentLead","seoLead","mrr","totalDealValue","duration","rag"];
+  const DEFAULT_VISIBLE = ["account","dealName","dealId","dealType","dealStatus","pepperBusinessUnit","capabilityLine","vsd","bopm","bopmOnly","contentLead","seoLead","mrr","totalDealValue","duration","rag"];
   const [visibleCols, setVisibleCols] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem("clients-visible-cols-v2");
@@ -319,6 +321,7 @@ export default function Clients() {
   // Column widths (resizable)
   const DEFAULT_WIDTHS: Record<string, number> = {
     account: 160, dealName: 200, dealId: 100, dealType: 100, dealStatus: 130,
+    pepperBusinessUnit: 150, capabilityLine: 200,
     vsd: 130, bopm: 150, bopmOnly: 130, contentLead: 140, seoLead: 140, mrr: 110, totalDealValue: 130, duration: 130, rag: 70, actions: 40,
   };
   const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
@@ -486,6 +489,8 @@ export default function Clients() {
       if (colFilters.dealId && !matches(d.dealId, colFilters.dealId)) return false;
       if (colFilters.dealType && d.dealType !== colFilters.dealType) return false;
       if (colFilters.dealStatus && (d.dealStatus || "Active Deal") !== colFilters.dealStatus) return false;
+      if (colFilters.pepperBusinessUnit && (d.pepperBusinessUnit || "") !== colFilters.pepperBusinessUnit) return false;
+      if (colFilters.capabilityLine && (d.capabilityLine || "") !== colFilters.capabilityLine) return false;
       if (colFilters.vsd && !matches(d.vsd, colFilters.vsd)) return false;
       if (colFilters.bopm && !matches(`${d.principalBopm || ""} ${d.seniorBopm || ""}`, colFilters.bopm)) return false;
       if (colFilters.bopmOnly && !matches((d as any).bopm || "", colFilters.bopmOnly)) return false;
@@ -978,6 +983,8 @@ export default function Clients() {
                   {isVisible("dealId") && <ColHeader label="Deal ID" sortKey="dealId" colKey="dealId" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.dealId} onResizeStart={startResize("dealId")} />}
                   {isVisible("dealType") && <ColHeader label="Type" sortKey="dealType" colKey="dealType" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["Retainer","Non-Retainer","Pilot"]} width={colWidths.dealType} onResizeStart={startResize("dealType")} />}
                   {isVisible("dealStatus") && <ColHeader label="Status" sortKey="dealStatus" colKey="dealStatus" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={[...DEAL_STATUSES]} width={colWidths.dealStatus} onResizeStart={startResize("dealStatus")} />}
+                  {isVisible("pepperBusinessUnit") && <ColHeader label="Pepper BU" sortKey="pepperBusinessUnit" colKey="pepperBusinessUnit" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={[...PEPPER_BUSINESS_UNITS]} width={colWidths.pepperBusinessUnit} onResizeStart={startResize("pepperBusinessUnit")} />}
+                  {isVisible("capabilityLine") && <ColHeader label="Capability Line" sortKey="capabilityLine" colKey="capabilityLine" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={[...CAPABILITY_LINES]} width={colWidths.capabilityLine} onResizeStart={startResize("capabilityLine")} />}
                   {isVisible("vsd") && <ColHeader label="VSD" sortKey="vsd" colKey="vsd" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={peopleColOptions.vsd} width={colWidths.vsd} onResizeStart={startResize("vsd")} />}
                   {isVisible("bopm") && <ColHeader label="P.BOPM / Sr BOPM" colKey="bopm" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={peopleColOptions.bopm} width={colWidths.bopm} onResizeStart={startResize("bopm")} />}
                   {isVisible("bopmOnly") && <ColHeader label="BOPM" colKey="bopmOnly" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={peopleColOptions.bopmOnly} width={colWidths.bopmOnly} onResizeStart={startResize("bopmOnly")} />}
@@ -1071,6 +1078,16 @@ export default function Clients() {
                               </SelectContent>
                             </Select>
                           )}
+                        </td>
+                      )}
+                      {isVisible("pepperBusinessUnit") && (
+                        <td className="py-2 px-3 truncate text-xs text-foreground" title={deal.pepperBusinessUnit || ""}>
+                          {deal.pepperBusinessUnit || <span className="text-muted-foreground">—</span>}
+                        </td>
+                      )}
+                      {isVisible("capabilityLine") && (
+                        <td className="py-2 px-3 truncate text-xs text-foreground" title={deal.capabilityLine || ""}>
+                          {deal.capabilityLine || <span className="text-muted-foreground">—</span>}
                         </td>
                       )}
                       {isVisible("vsd") && (
