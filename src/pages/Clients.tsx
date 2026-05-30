@@ -1005,6 +1005,12 @@ export default function Clients() {
                 >
                   Reset to defaults
                 </button>
+                <button
+                  onClick={resetColOrder}
+                  className="w-full text-left text-[11px] px-2 py-1 rounded hover:bg-secondary text-muted-foreground"
+                >
+                  Reset column order
+                </button>
               </div>
             </PopoverContent>
           </Popover>
