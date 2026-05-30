@@ -9,7 +9,7 @@
  */
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Check, X, Trash2, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
+import { Plus, Check, X, Trash2, ChevronDown, ChevronUp, ExternalLink, Lock, Unlock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ import { resolvePersonDepartmentId } from "@/lib/peopleGrouping";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { CURRENCY_SYMBOL, formatMoney } from "@/lib/currency";
 import { dealDisplayCurrency } from "@/lib/dealCurrency";
+import { useStaffingMutations } from "@/hooks/queries/useStaffingMutations";
 
 interface Props {
   deal: Deal;
@@ -83,6 +84,19 @@ export function DealStaffingCard({
   const [editingAlloc, setEditingAlloc] = useState<string | null>(null);
   const [editAllocValue, setEditAllocValue] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const { lockStaffing } = useStaffingMutations();
+  const [lockBusy, setLockBusy] = useState(false);
+  const locked = !!deal.staffingLockedAt;
+  const lockedDate = locked && deal.staffingLockedAt
+    ? new Date(deal.staffingLockedAt).toLocaleDateString()
+    : "";
+  const handleToggleLock = async () => {
+    if (!isAdmin || lockBusy) return;
+    setLockBusy(true);
+    try { await lockStaffing(deal.id, !locked); }
+    catch { /* toast handled in mutation */ }
+    finally { setLockBusy(false); }
+  };
 
   const dealAssignments = useMemo(() => {
     // Show all current assignments for this deal. We intentionally do NOT
@@ -135,10 +149,10 @@ export function DealStaffingCard({
   }, [dealPeople, dealAssignments, deal.mrr]);
 
   const handleSaveAlloc = (assignmentId: string) => {
-    const pct = Math.round((editAllocValue / 40) * 100);
+    const pct = Math.max(0, Math.min(100, Math.round(editAllocValue)));
     onUpdateAssignment(assignmentId, { allocationPct: pct });
     setEditingAlloc(null);
-    toast.success("Hours updated");
+    toast.success("Allocation updated");
   };
 
   return (
@@ -178,6 +192,41 @@ export function DealStaffingCard({
           </div>
         </button>
         <div className="flex items-center gap-2 shrink-0">
+          {isAdmin ? (
+            <button
+              type="button"
+              disabled={lockBusy}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleToggleLock(); }}
+              className={cn(
+                "inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border transition-opacity",
+                locked
+                  ? "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-400"
+                  : "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+                "hover:opacity-80 disabled:opacity-50",
+              )}
+              title={locked
+                ? `Staffed${deal.staffingLockedByName ? ` · locked by ${deal.staffingLockedByName}` : ""}${lockedDate ? ` · ${lockedDate}` : ""} — click to unlock`
+                : "Click to lock staffing (mark as Staffed)"}
+            >
+              {locked ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
+              {lockBusy ? "…" : locked ? "Staffed" : "Unstaffed"}
+            </button>
+          ) : (
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border",
+                locked
+                  ? "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-400"
+                  : "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+              )}
+              title={locked
+                ? `Staffed${deal.staffingLockedByName ? ` · locked by ${deal.staffingLockedByName}` : ""}${lockedDate ? ` · ${lockedDate}` : ""}`
+                : "Unstaffed — awaiting Central CX lock"}
+            >
+              {locked ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
+              {locked ? "Staffed" : "Unstaffed"}
+            </span>
+          )}
           <Link
             to={`/deals/${deal.id}?tab=Staffing`}
             className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
@@ -271,8 +320,8 @@ export function DealStaffingCard({
                                   <Input
                                     type="number"
                                     min={0}
-                                    max={40}
-                                    step="0.5"
+                                    max={100}
+                                    step="1"
                                     value={editAllocValue}
                                     onChange={e => setEditAllocValue(Number(e.target.value) || 0)}
                                     className="h-7 w-16 text-sm text-right"
@@ -282,14 +331,14 @@ export function DealStaffingCard({
                                       if (e.key === "Escape") setEditingAlloc(null);
                                     }}
                                   />
-                                  <span className="text-[10px]">h</span>
+                                  <span className="text-[10px]">%</span>
                                   <button onClick={() => handleSaveAlloc(a!.id)} className="text-primary"><Check className="h-3.5 w-3.5" /></button>
                                   <button onClick={() => setEditingAlloc(null)} className="text-muted-foreground"><X className="h-3.5 w-3.5" /></button>
                                 </div>
                               ) : (
                                 <span
                                   className={cn(a ? "cursor-pointer hover:underline" : "text-muted-foreground")}
-                                  onClick={() => { if (a) { setEditingAlloc(a.id); setEditAllocValue(Number(((a.allocationPct / 100) * 40).toFixed(1))); } }}
+                                  onClick={() => { if (a) { setEditingAlloc(a.id); setEditAllocValue(a.allocationPct || 0); } }}
                                 >
                                   {a?.allocationPct || 0}%
                                 </span>
