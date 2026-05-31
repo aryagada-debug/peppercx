@@ -240,7 +240,7 @@ export function DealStaffingCard({
       {open && (
         <div className="p-4 space-y-4">
           {/* KPI strip */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <div className="rounded-lg bg-secondary/50 p-3">
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Team Size</p>
               <p className="text-lg font-semibold text-foreground">{dealPeople.length}</p>
@@ -248,6 +248,14 @@ export function DealStaffingCard({
             <div className="rounded-lg bg-secondary/50 p-3">
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Total Hrs/Week</p>
               <p className="text-lg font-semibold text-foreground">{totals.totalHrsWeek.toFixed(1)}h</p>
+            </div>
+            <div className="rounded-lg bg-secondary/50 p-3">
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">MRR</p>
+              <p className="text-lg font-semibold text-foreground">{deal.mrr ? fmtCurrency(deal.mrr) : "—"}</p>
+            </div>
+            <div className="rounded-lg bg-secondary/50 p-3">
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Total Deal Value</p>
+              <p className="text-lg font-semibold text-foreground">{deal.totalDealValue ? fmtCurrency(deal.totalDealValue) : "—"}</p>
             </div>
           </div>
 

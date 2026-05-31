@@ -905,30 +905,6 @@ export default function Clients() {
           </div>
           {!(isCapLead || isCapMember) && (
             <div className="flex items-center gap-2 ml-auto">
-              <div className="flex items-center rounded-md border border-border bg-muted/40 p-0.5" role="group" aria-label="View">
-                <button
-                  type="button"
-                  onClick={() => setView("analytics")}
-                  aria-pressed={view === "analytics"}
-                  className={cn(
-                    "h-7 px-2 rounded text-[11px] inline-flex items-center gap-1 transition-colors",
-                    view === "analytics" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  <BarChart3 className="h-3 w-3" /> Analytics
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setView("table")}
-                  aria-pressed={view === "table"}
-                  className={cn(
-                    "h-7 px-2 rounded text-[11px] inline-flex items-center gap-1 transition-colors",
-                    view === "table" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  <TableIcon className="h-3 w-3" /> Table
-                </button>
-              </div>
               <Button variant="outline" size="sm" onClick={() => setClientDialogOpen(true)}>
                 <Plus className="h-4 w-4 mr-1" /> Add Client
               </Button>
@@ -938,6 +914,49 @@ export default function Clients() {
             </div>
           )}
         </div>
+
+        {!(isCapLead || isCapMember) && (
+          <div
+            role="tablist"
+            aria-label="Clients & Deals view"
+            className="flex items-center gap-1 mb-3 border-b border-border"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={view === "analytics"}
+              onClick={() => setView("analytics")}
+              className={cn(
+                "inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
+                view === "analytics"
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground hover:border-border",
+              )}
+            >
+              <BarChart3 className="h-4 w-4" /> Analytics
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={view === "table"}
+              onClick={() => setView("table")}
+              className={cn(
+                "inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
+                view === "table"
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground hover:border-border",
+              )}
+            >
+              <TableIcon className="h-4 w-4" /> Table
+              <span className={cn(
+                "ml-1 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded text-[10px] font-medium",
+                view === "table" ? "bg-primary/10 text-primary" : "bg-secondary text-muted-foreground",
+              )}>
+                {filteredDeals.length}
+              </span>
+            </button>
+          </div>
+        )}
 
         {view === "analytics" && (
           <ClientsAnalyticsTab
@@ -1010,6 +1029,45 @@ export default function Clients() {
             <input type="checkbox" checked={showClosed} onChange={e => setShowClosed(e.target.checked)} className="rounded border-border" />
             Closed
           </label>
+
+          <div className="flex items-center gap-1.5">
+            <Select
+              value={colFilters.dealType || "__all__"}
+              onValueChange={v => v === "__all__" ? clearFilter("dealType") : setFilter("dealType", v)}
+            >
+              <SelectTrigger className="h-8 w-[130px] text-xs"><SelectValue placeholder="Type" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All Types</SelectItem>
+                {["Retainer","Non-Retainer","Pilot"].map(o => (
+                  <SelectItem key={o} value={o}>{o}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={colFilters.dealStatus || "__all__"}
+              onValueChange={v => v === "__all__" ? clearFilter("dealStatus") : setFilter("dealStatus", v)}
+            >
+              <SelectTrigger className="h-8 w-[170px] text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All Statuses</SelectItem>
+                {DEAL_STATUSES.map(o => (
+                  <SelectItem key={o} value={o}>{o}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={colFilters.pepperBusinessUnit || "__all__"}
+              onValueChange={v => v === "__all__" ? clearFilter("pepperBusinessUnit") : setFilter("pepperBusinessUnit", v)}
+            >
+              <SelectTrigger className="h-8 w-[150px] text-xs"><SelectValue placeholder="Pepper BU" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All Pepper BUs</SelectItem>
+                {PEPPER_BUSINESS_UNITS.map(o => (
+                  <SelectItem key={o} value={o}>{o}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           {Object.keys(colFilters).length > 0 && (
             <Button variant="ghost" size="sm" onClick={() => setColFilters({})} className="h-8 text-xs gap-1 text-muted-foreground">

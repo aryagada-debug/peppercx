@@ -2497,9 +2497,11 @@ export default function DealDetail() {
                         totalHrsWeek += hrs;
                       });
                       return (
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                           <div className="rounded-lg bg-secondary/50 p-4"><p className="metric-label">Team Size</p><p className="text-xl font-semibold text-foreground">{dealPeople.length}</p></div>
                           <div className="rounded-lg bg-secondary/50 p-4"><p className="metric-label">Total Hrs/Week</p><p className="text-xl font-semibold text-foreground">{totalHrsWeek.toFixed(1)}h</p></div>
+                          <div className="rounded-lg bg-secondary/50 p-4"><p className="metric-label">MRR</p><p className="text-xl font-semibold text-foreground">{deal.mrr ? fmtCurrency(deal.mrr) : "—"}</p></div>
+                          <div className="rounded-lg bg-secondary/50 p-4"><p className="metric-label">Total Deal Value</p><p className="text-xl font-semibold text-foreground">{deal.totalDealValue ? fmtCurrency(deal.totalDealValue) : "—"}</p></div>
                         </div>
                       );
                     })()}
