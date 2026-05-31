@@ -289,6 +289,7 @@ function StatusPill({ status }: { status?: string }) {
 
 export function PeopleReportingTable({ people, assignments = [], deals = [], onAdd, onUpdate, onRequestDelete }: Props) {
   const [search, setSearch] = useState("");
+  const [marketFilter, setMarketFilter] = useState<"all" | "US" | "India">("all");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
