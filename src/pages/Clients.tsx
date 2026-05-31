@@ -843,7 +843,7 @@ export default function Clients() {
         <div className="flex items-start gap-4 mb-3 flex-wrap">
           <h1 className="text-subhead font-bold tracking-tight text-foreground whitespace-nowrap mt-2">Clients & Deals</h1>
           <div className="flex flex-1 gap-2.5 flex-nowrap min-w-0 overflow-hidden">
-          {[
+          {([
             {
               key: "clients",
               label: "Clients", value: String(kpis.clients), Icon: Building2, tint: "sky",
@@ -876,7 +876,9 @@ export default function Clients() {
               insight: kpis.topDealLabel,
               tone: "muted" as const,
             },
-          ].map(({ key, label, value, Icon, tint, insight, tone, onClick, active }: any) => {
+          ] as any[])
+            .filter((k) => isCentralCx || ["active", "renewals", "mrr", "value"].includes(k.key))
+            .map(({ key, label, value, Icon, tint, insight, tone, onClick, active }: any) => {
             const tintMap: Record<string, { bg: string; ring: string; icon: string }> = {
               sky: { bg: "from-sky-500/10", ring: "border-sky-500/20", icon: "text-sky-500" },
               violet: { bg: "from-violet-500/10", ring: "border-violet-500/20", icon: "text-violet-500" },
