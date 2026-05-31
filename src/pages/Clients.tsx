@@ -1030,6 +1030,45 @@ export default function Clients() {
             Closed
           </label>
 
+          <div className="flex items-center gap-1.5">
+            <Select
+              value={colFilters.dealType || "__all__"}
+              onValueChange={v => v === "__all__" ? clearFilter("dealType") : setFilter("dealType", v)}
+            >
+              <SelectTrigger className="h-8 w-[130px] text-xs"><SelectValue placeholder="Type" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All Types</SelectItem>
+                {["Retainer","Non-Retainer","Pilot"].map(o => (
+                  <SelectItem key={o} value={o}>{o}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={colFilters.dealStatus || "__all__"}
+              onValueChange={v => v === "__all__" ? clearFilter("dealStatus") : setFilter("dealStatus", v)}
+            >
+              <SelectTrigger className="h-8 w-[170px] text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All Statuses</SelectItem>
+                {DEAL_STATUSES.map(o => (
+                  <SelectItem key={o} value={o}>{o}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={colFilters.pepperBusinessUnit || "__all__"}
+              onValueChange={v => v === "__all__" ? clearFilter("pepperBusinessUnit") : setFilter("pepperBusinessUnit", v)}
+            >
+              <SelectTrigger className="h-8 w-[150px] text-xs"><SelectValue placeholder="Pepper BU" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All Pepper BUs</SelectItem>
+                {PEPPER_BUSINESS_UNITS.map(o => (
+                  <SelectItem key={o} value={o}>{o}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           {Object.keys(colFilters).length > 0 && (
             <Button variant="ghost" size="sm" onClick={() => setColFilters({})} className="h-8 text-xs gap-1 text-muted-foreground">
               <X className="h-3.5 w-3.5" /> Clear filters ({Object.keys(colFilters).length})
