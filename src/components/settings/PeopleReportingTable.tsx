@@ -17,6 +17,7 @@ import { AddTeamDialog } from "@/components/settings/AddTeamDialog";
 import { useTaxonomyQuery } from "@/hooks/queries/useTaxonomyQuery";
 import { resolvePersonRoleTypeId } from "@/lib/peopleGrouping";
 import { ROLE_TYPE_TO_DEPT, DEPARTMENT_LABELS, ROLE_SLOTS } from "@/data/staffingData";
+import { getPersonRevenueCapacity } from "@/lib/revenueCapacity";
 
 interface Props {
   people: Person[];
@@ -380,12 +381,19 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
         if (!d || d.dealType !== "Retainer") continue;
         allocatedMrr += (d.mrr || 0) * (a.allocationPct || 0) / 100;
       }
-      const cap = p.revenueTargetPerPerson || 0;
+      const cap = getPersonRevenueCapacity(p, people);
       const revenue = cap > 0 ? (allocatedMrr / cap) * 100 : 0;
       m[p.id] = { time, revenue, allocatedMrr };
     }
     return m;
   }, [people, assignmentsByPerson, dealById]);
+
+  // Derived revenue capacity per person (rule-based, single source of truth).
+  const capacityById = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of people) m.set(p.id, getPersonRevenueCapacity(p, people));
+    return m;
+  }, [people]);
 
   // Custom teams + sub-teams persisted in localStorage.
   const customTeams = useMemo<string[]>(() => {
@@ -444,7 +452,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
       return v === "" ? null : Number(v);
     };
     const fRev = numF("revType"), fTime = numF("timeUtil"), fRevU = numF("revUtil");
-    if (fRev != null && !Number.isNaN(fRev)) list = list.filter((p) => (p.revenueTargetPerPerson || 0) >= fRev);
+    if (fRev != null && !Number.isNaN(fRev)) list = list.filter((p) => (capacityById.get(p.id) || 0) >= fRev);
     if (fTime != null && !Number.isNaN(fTime)) list = list.filter((p) => (utilByPerson[p.id]?.time || 0) >= fTime);
     if (fRevU != null && !Number.isNaN(fRevU)) list = list.filter((p) => (utilByPerson[p.id]?.revenue || 0) >= fRevU);
     // Sort
@@ -460,7 +468,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
           case "email": av = a.email || ""; bv = b.email || ""; break;
           case "reportsTo": av = a.reportingManager || ""; bv = b.reportingManager || ""; break;
           case "market": av = marketOf(a); bv = marketOf(b); break;
-          case "revType": av = a.revenueTargetPerPerson || 0; bv = b.revenueTargetPerPerson || 0; break;
+          case "revType": av = capacityById.get(a.id) || 0; bv = capacityById.get(b.id) || 0; break;
           case "timeUtil": av = getUtil(a).time; bv = getUtil(b).time; break;
           case "revUtil": av = getUtil(a).revenue; bv = getUtil(b).revenue; break;
           default: av = a.name; bv = b.name;
