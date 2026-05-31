@@ -212,7 +212,7 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
               <th className="px-3 py-2 font-medium text-right"># Deals</th>
               <th className="px-3 py-2 font-medium text-right">MRR (Actual)</th>
               <th className="px-3 py-2 font-medium text-right">MRR Capacity</th>
-              <th className="px-3 py-2 font-medium text-right">MRR Fill %</th>
+              <th className="px-3 py-2 font-medium text-right">Revenue Utilisation</th>
             </tr>
           </thead>
           <tbody>
@@ -226,7 +226,7 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
             {filtered.map((r) => {
               const b = BUCKET_COLOR[bucketOf(r.bwPct)];
               const fillBucket = r.fillPct == null ? null : r.fillPct >= 100 ? "healthy" : r.fillPct >= 60 ? "nearFull" : "overloaded";
-              const fillColor = fillBucket ? BUCKET_COLOR[fillBucket as Bucket].text : "text-muted-foreground";
+              const fillStyle = fillBucket ? BUCKET_COLOR[fillBucket as Bucket] : null;
               const isOpen = expanded === r.person.id;
               return (
                 <Fragment key={r.person.id}>
@@ -257,8 +257,22 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
                     <td className="px-3 py-2 text-right tabular-nums text-xs text-muted-foreground">
                       {r.capacity > 0 ? formatINR(r.capacity) : "—"}
                     </td>
-                    <td className={cn("px-3 py-2 text-right tabular-nums text-xs font-medium", fillColor)}>
-                      {r.fillPct == null ? "—" : `${Math.round(r.fillPct)}%`}
+                    <td className="px-3 py-2 text-right text-xs">
+                      {r.fillPct == null ? (
+                        <span className="text-muted-foreground">—</span>
+                      ) : (
+                        <div className="inline-flex items-center gap-2 justify-end">
+                          <div className="w-24 h-1.5 bg-border rounded-full overflow-hidden">
+                            <div
+                              className={cn("h-full rounded-full", fillStyle?.bar)}
+                              style={{ width: `${Math.min(r.fillPct, 100)}%` }}
+                            />
+                          </div>
+                          <span className={cn("text-xs font-medium tabular-nums", fillStyle?.text)}>
+                            {Math.round(r.fillPct)}%
+                          </span>
+                        </div>
+                      )}
                     </td>
                   </tr>
                   {isOpen && r.splits.map((s) => (
@@ -296,7 +310,7 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
                   <th className="px-3 py-2 font-medium text-right">Avg BW</th>
                   <th className="px-3 py-2 font-medium text-right">MRR (Actual)</th>
                   <th className="px-3 py-2 font-medium text-right">MRR Capacity</th>
-                  <th className="px-3 py-2 font-medium text-right">Fill %</th>
+                  <th className="px-3 py-2 font-medium text-right">Revenue Util.</th>
                 </tr>
               </thead>
               <tbody>
@@ -304,7 +318,7 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
                   const avg = v.people ? v.bwSum / v.people : 0;
                   const fill = v.capacity > 0 ? (v.mrr / v.capacity) * 100 : null;
                   const fillBucket = fill == null ? null : fill >= 100 ? "healthy" : fill >= 60 ? "nearFull" : "overloaded";
-                  const fillColor = fillBucket ? BUCKET_COLOR[fillBucket as Bucket].text : "text-muted-foreground";
+                  const fillStyle = fillBucket ? BUCKET_COLOR[fillBucket as Bucket] : null;
                   return (
                     <tr key={v.vsd} className="border-t border-border">
                       <td className="px-3 py-2 text-foreground">{v.vsd}</td>
@@ -314,8 +328,22 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
                       <td className="px-3 py-2 text-right tabular-nums text-xs text-muted-foreground">
                         {v.capacity > 0 ? formatINR(v.capacity) : "—"}
                       </td>
-                      <td className={cn("px-3 py-2 text-right tabular-nums text-xs font-medium", fillColor)}>
-                        {fill == null ? "—" : `${Math.round(fill)}%`}
+                      <td className="px-3 py-2 text-right text-xs">
+                        {fill == null ? (
+                          <span className="text-muted-foreground">—</span>
+                        ) : (
+                          <div className="inline-flex items-center gap-2 justify-end">
+                            <div className="w-24 h-1.5 bg-border rounded-full overflow-hidden">
+                              <div
+                                className={cn("h-full rounded-full", fillStyle?.bar)}
+                                style={{ width: `${Math.min(fill, 100)}%` }}
+                              />
+                            </div>
+                            <span className={cn("text-xs font-medium tabular-nums", fillStyle?.text)}>
+                              {Math.round(fill)}%
+                            </span>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );
