@@ -2,7 +2,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Briefcase, Users, UserCheck, DollarSign,
   Target, Activity, FileText, MessageSquare, Clock,
- CheckSquare, Settings, Building2,
+ CheckSquare, Settings, Building2, BookOpen,
   ChevronDown, Home, ChevronsLeft, ChevronsRight,
   Trash2,
 } from "lucide-react";
@@ -23,6 +23,7 @@ const routePrefetch: Record<string, () => Promise<unknown>> = {
   "/rgy-health": () => import("@/pages/RGYHealth"),
   "/mbr-tracker": () => import("@/pages/MBRTracker"),
   "/settings": () => import("@/pages/Settings"),
+  "/help": () => import("@/pages/Help"),
   "/trash": () => import("@/pages/Trash"),
 };
 const prefetched = new Set<string>();
@@ -60,6 +61,7 @@ const navSections = [
     label: "System",
     items: [
       { to: "/settings", icon: Settings, label: "Settings", routeKey: "settings" },
+      { to: "/help", icon: BookOpen, label: "Help & Guide", routeKey: "home" },
       { to: "/trash", icon: Trash2, label: "Trash", routeKey: "settings" },
     ],
   },

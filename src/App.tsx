@@ -31,6 +31,7 @@ const RGYHealth = lazy(() => import("./pages/RGYHealth"));
 const MBRTracker = lazy(() => import("./pages/MBRTracker"));
 const Onboarding = lazy(() => import("./pages/Onboarding"));
 const SettingsPage = lazy(() => import("./pages/Settings"));
+const Help = lazy(() => import("./pages/Help"));
 const Trash = lazy(() => import("./pages/Trash"));
 const PeopleOps = lazy(() => import("./pages/PeopleOps"));
 
@@ -90,6 +91,7 @@ const App = () => (
             <Route path="/mbr-tracker" element={<ProtectedRoute routeKey="mbr-tracker"><MBRTracker /></ProtectedRoute>} />
             <Route path="/onboarding" element={<ProtectedRoute routeKey="onboarding"><Onboarding /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute routeKey="settings"><SettingsPage /></ProtectedRoute>} />
+            <Route path="/help" element={<ProtectedRoute routeKey="home"><Help /></ProtectedRoute>} />
             <Route path="/trash" element={<ProtectedRoute routeKey="settings"><Trash /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
