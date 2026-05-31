@@ -135,16 +135,14 @@ export function DealStaffingCard({
 
   // KPI totals
   const totals = useMemo(() => {
-    const dealMrr = deal.mrr || 0;
-    let totalHrsWeek = 0, totalRevManaged = 0;
+    let totalHrsWeek = 0;
     for (const p of dealPeople) {
       const a = dealAssignments.find(x => x.personId === p.id);
       const pct = (a?.allocationPct || 0) / 100;
       const hrs = pct * 40;
       totalHrsWeek += hrs;
-      totalRevManaged += dealMrr * pct;
     }
-    return { totalHrsWeek, totalRevManaged };
+    return { totalHrsWeek };
   }, [dealPeople, dealAssignments, deal.mrr]);
 
   const handleSaveAlloc = (assignmentId: string) => {
@@ -242,7 +240,7 @@ export function DealStaffingCard({
       {open && (
         <div className="p-4 space-y-4">
           {/* KPI strip */}
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3">
             <div className="rounded-lg bg-secondary/50 p-3">
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Team Size</p>
               <p className="text-lg font-semibold text-foreground">{dealPeople.length}</p>
@@ -250,10 +248,6 @@ export function DealStaffingCard({
             <div className="rounded-lg bg-secondary/50 p-3">
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Total Hrs/Week</p>
               <p className="text-lg font-semibold text-foreground">{totals.totalHrsWeek.toFixed(1)}h</p>
-            </div>
-            <div className="rounded-lg bg-secondary/50 p-3">
-              <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Revenue Managed</p>
-              <p className="text-lg font-semibold text-foreground">{fmtCurrency(totals.totalRevManaged)}</p>
             </div>
           </div>
 
@@ -284,7 +278,6 @@ export function DealStaffingCard({
                         <th className="text-left py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Pod</th>
                         <th className="text-right py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Allocation</th>
                         <th className="text-right py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Hrs/Wk</th>
-                        <th className="text-right py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Rev Managed</th>
                        {isAdmin && <th className="w-10"></th>}
                       </tr>
                     </thead>
@@ -293,7 +286,6 @@ export function DealStaffingCard({
                         const a = dealAssignments.find(x => x.personId === p.id);
                         const pct = (a?.allocationPct || 0) / 100;
                         const hrs = pct * 40;
-                        const revManaged = (deal.mrr || 0) * pct;
                         const editing = editingAlloc === a?.id;
                         return (
                           <tr key={p.id} className="border-b border-border/50 hover:bg-accent/10">
@@ -335,7 +327,6 @@ export function DealStaffingCard({
                               )}
                             </td>
                             <td className="py-2 px-3 text-right font-mono tabular-nums text-muted-foreground">{hrs.toFixed(1)}h</td>
-                            <td className="py-2 px-3 text-right font-mono tabular-nums text-muted-foreground">{fmtCurrency(revManaged)}</td>
                             {isAdmin && (
                               <td className="py-2 px-3 text-right">
                                 <button
