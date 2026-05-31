@@ -41,7 +41,6 @@ export const ALL_ROUTE_KEYS = [
   "rgy-health",
   "mbr-tracker",
   "onboarding",
-  "gm2-calculator",
   "settings",
 ] as const;
 

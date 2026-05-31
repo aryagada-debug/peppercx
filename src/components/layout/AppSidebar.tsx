@@ -2,7 +2,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Briefcase, Users, UserCheck, DollarSign,
   Target, Activity, FileText, MessageSquare, Clock,
-  CheckSquare, Settings, Building2, Calculator,
+ CheckSquare, Settings, Building2,
   ChevronDown, Home, ChevronsLeft, ChevronsRight,
   Trash2,
 } from "lucide-react";
@@ -22,7 +22,6 @@ const routePrefetch: Record<string, () => Promise<unknown>> = {
   "/targets": () => import("@/pages/Targets"),
   "/rgy-health": () => import("@/pages/RGYHealth"),
   "/mbr-tracker": () => import("@/pages/MBRTracker"),
-  "/gm2-calculator": () => import("@/pages/GM2Calculator"),
   "/settings": () => import("@/pages/Settings"),
   "/trash": () => import("@/pages/Trash"),
 };
@@ -55,12 +54,6 @@ const navSections = [
     items: [
       { to: "/rgy-health", icon: Activity, label: "RGY Health", routeKey: "rgy-health" },
       { to: "/mbr-tracker", icon: FileText, label: "MBR Tracker", routeKey: "mbr-tracker" },
-    ],
-  },
-  {
-    label: "Tools",
-    items: [
-      { to: "/gm2-calculator", icon: Calculator, label: "GM2 Calculator", routeKey: "gm2-calculator" },
     ],
   },
   {
