@@ -183,7 +183,10 @@ export default function Clients() {
   const { clients: allClients, loading: clientsLoading, addClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
   const access = useDealAccess();
   const { matchesDeal: geoMatchesDeal, geo: geoFilter } = useGeoFilter();
-  const [view, setView] = useState<"analytics" | "table">("analytics");
+  const isCentralCx = access.isAdmin;
+  const [view, setView] = useState<"analytics" | "table">(
+    isCentralCx ? "analytics" : "table"
+  );
   const { canEditAll, role } = useUserRole();
   const isCapLead = role === "capability_lead";
   const isCapMember = role === "capability_member";
@@ -344,6 +347,15 @@ export default function Clients() {
     if (required) return;
     setVisibleCols(prev => prev.includes(k) ? prev.filter(c => c !== k) : [...prev, k]);
   };
+
+  // Non-admin users get a curated, locked column set focused on what they need
+  // (per-deal ownership + revenue + RGY). Central CX (admin) keeps the full
+  // customizable column picker.
+  const NON_ADMIN_COLS = useMemo(() => ([
+    "account", "dealName", "dealType", "dealStatus", "pepperBusinessUnit",
+    "vsd", "bopm", "contentLead", "seoLead", "mrr", "totalDealValue", "rag",
+  ]), []);
+  const effectiveVisibleCols = isCentralCx ? visibleCols : NON_ADMIN_COLS;
 
   // Column reordering via drag and drop on headers
   const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
@@ -831,7 +843,7 @@ export default function Clients() {
         <div className="flex items-start gap-4 mb-3 flex-wrap">
           <h1 className="text-subhead font-bold tracking-tight text-foreground whitespace-nowrap mt-2">Clients & Deals</h1>
           <div className="flex flex-1 gap-2.5 flex-nowrap min-w-0 overflow-hidden">
-          {[
+          {([
             {
               key: "clients",
               label: "Clients", value: String(kpis.clients), Icon: Building2, tint: "sky",
@@ -864,7 +876,9 @@ export default function Clients() {
               insight: kpis.topDealLabel,
               tone: "muted" as const,
             },
-          ].map(({ key, label, value, Icon, tint, insight, tone, onClick, active }: any) => {
+          ] as any[])
+            .filter((k) => isCentralCx || ["active", "renewals", "mrr", "value"].includes(k.key))
+            .map(({ key, label, value, Icon, tint, insight, tone, onClick, active }: any) => {
             const tintMap: Record<string, { bg: string; ring: string; icon: string }> = {
               sky: { bg: "from-sky-500/10", ring: "border-sky-500/20", icon: "text-sky-500" },
               violet: { bg: "from-violet-500/10", ring: "border-violet-500/20", icon: "text-violet-500" },
@@ -915,7 +929,7 @@ export default function Clients() {
           )}
         </div>
 
-        {!(isCapLead || isCapMember) && (
+        {isCentralCx && (
           <div
             role="tablist"
             aria-label="Clients & Deals view"
@@ -1075,6 +1089,7 @@ export default function Clients() {
             </Button>
           )}
 
+          {isCentralCx && (
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 ml-auto">
@@ -1118,6 +1133,7 @@ export default function Clients() {
               </div>
             </PopoverContent>
           </Popover>
+          )}
         </div>
 
         {/* Flat Table with column filters */}
@@ -1126,7 +1142,7 @@ export default function Clients() {
             <table className="text-ui table-fixed" style={{ width: "100%" }}>
               <thead className="sticky top-0 z-20">
                 <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleColDragEnd}>
-                  <SortableContext items={visibleCols} strategy={horizontalListSortingStrategy}>
+                  <SortableContext items={effectiveVisibleCols} strategy={horizontalListSortingStrategy}>
                     <tr className="bg-secondary border-b border-border group/headrow">
                       {(() => {
                         const headerByKey: Record<string, React.ReactNode> = {
@@ -1151,7 +1167,7 @@ export default function Clients() {
                           duration: <ColHeader key="duration" sortableId="duration" label="Duration" colKey="duration" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.duration} onResizeStart={startResize("duration")} />,
                           rag: <ColHeader key="rag" sortableId="rag" label="RGY" align="center" colKey="rag" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["green","amber","red","na","pending"]} width={colWidths.rag} onResizeStart={startResize("rag")} />,
                         };
-                        return visibleCols.filter(k => k in headerByKey).map(k => headerByKey[k]);
+                        return effectiveVisibleCols.filter(k => k in headerByKey).map(k => headerByKey[k]);
                       })()}
                       <th style={{ width: colWidths.actions, minWidth: colWidths.actions }}></th>
                     </tr>
@@ -1391,7 +1407,7 @@ export default function Clients() {
                       </td>
                     ),
                     mrr: (
-                      <td key="mrr" className="py-2 px-3 text-right">
+                      <td key="mrr" className={cn("py-2 px-3 text-right", !isCentralCx && "bg-primary/5 font-medium")}>
                         {isBopmViewOnly ? (
                           <span className="text-xs text-foreground">
                             {deal.mrr ? `${sym}${mrrVal.toLocaleString()}` : "—"}
@@ -1412,7 +1428,7 @@ export default function Clients() {
                       </td>
                     ),
                     totalDealValue: (
-                      <td key="totalDealValue" className="py-2 px-3 text-right">
+                      <td key="totalDealValue" className={cn("py-2 px-3 text-right", !isCentralCx && "bg-primary/5 font-medium")}>
                         {isBopmViewOnly ? (
                           <span className="text-xs text-foreground">
                             {deal.totalDealValue ? `${sym}${totalVal.toLocaleString()}` : "—"}
@@ -1460,7 +1476,7 @@ export default function Clients() {
                   };
                   return (
                     <tr key={deal.id} className="border-b border-border/50 hover:bg-accent/10 transition-colors group/row">
-                      {visibleCols.filter(k => k in cellByKey).map(k => cellByKey[k])}
+                      {effectiveVisibleCols.filter(k => k in cellByKey).map(k => cellByKey[k])}
                       <td className="py-2 px-1">
                         <div className="flex items-center gap-1.5 justify-end">
                           <Popover>
