@@ -8,6 +8,11 @@ import { PeopleReportingTable } from "@/components/settings/PeopleReportingTable
 import { PeopleOpsAnalyticsStrip } from "@/components/people-ops/PeopleOpsAnalyticsStrip";
 import { DepartmentCardsGrid } from "@/components/people-ops/DepartmentCardsGrid";
 import { UtilLegend } from "@/components/people-ops/DepartmentCard";
+import { PeopleOpsCapacityTab } from "@/components/people-ops/PeopleOpsCapacityTab";
+import { PeopleOpsHiringGapTab } from "@/components/people-ops/PeopleOpsHiringGapTab";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useTeamScope } from "@/hooks/useTeamScope";
+import { useUserRole } from "@/hooks/useUserRole";
 import { ACTIVE_DEAL_STATUSES, isAssignmentExpired } from "@/data/staffingData";
 import { formatINR } from "@/lib/csvTargets";
 import {
@@ -18,10 +23,28 @@ import { toast } from "sonner";
 
 export default function PeopleOps() {
   useCurrencyVersion();
-  const { people, assignments, deals, loading } = useStaffingQueries();
+  const { people: allPeople, assignments: allAssignments, deals: allDeals, loading } = useStaffingQueries();
   const { addPerson, updatePerson, deletePerson } = useStaffingMutations();
+  const { isAdmin } = useUserRole();
+  const scope = useTeamScope(allPeople);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const tableRef = useRef<HTMLDivElement | null>(null);
+
+  // Scope people / assignments / deals to the viewer's team for non-admins.
+  const { people, assignments, deals } = useMemo(() => {
+    if (scope.scopeMode === "all") {
+      return { people: allPeople, assignments: allAssignments, deals: allDeals };
+    }
+    if (scope.scopeMode === "none" || !scope.teamPersonIds) {
+      return { people: [] as typeof allPeople, assignments: [] as typeof allAssignments, deals: [] as typeof allDeals };
+    }
+    const ids = scope.teamPersonIds;
+    const scopedPeople = allPeople.filter((p) => ids.has(p.id));
+    const scopedAssignments = allAssignments.filter((a) => ids.has(a.personId));
+    const dealIds = new Set(scopedAssignments.map((a) => a.dealId));
+    const scopedDeals = allDeals.filter((d) => dealIds.has(d.id));
+    return { people: scopedPeople, assignments: scopedAssignments, deals: scopedDeals };
+  }, [scope, allPeople, allAssignments, allDeals]);
 
   const analytics = useMemo(() => {
     const active = people.filter((p) => !p.tbh && !p.leaving);
@@ -63,7 +86,7 @@ export default function PeopleOps() {
     tableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  if (loading) {
+  if (loading || scope.loading) {
     return (
       <AppLayout>
         <div className="flex min-h-[60vh] items-center justify-center p-8">
@@ -85,64 +108,102 @@ export default function PeopleOps() {
     }
   };
 
+  const headerSubtitle = scope.scopeMode === "team"
+    ? `Your team — ${people.filter((p) => !p.tbh).length} people • capacity & hiring view`
+    : `${people.filter(p => !p.tbh).length} people • reporting, capacity & utilisation`;
+
   return (
     <AppLayout>
       <div className="px-3 py-4 space-y-6">
         <div>
           <h1 className="text-subhead font-bold tracking-tight text-foreground">People Ops</h1>
           <p className="text-ui text-muted-foreground mt-1">
-            {people.filter(p => !p.tbh).length} people • reporting, capacity &amp; utilisation
+            {headerSubtitle}
+            {scope.scopeMode === "team" && scope.leaderPerson && (
+              <span className="ml-2 text-xs">(scoped to {scope.leaderPerson.name})</span>
+            )}
           </p>
         </div>
 
-        <PeopleOpsAnalyticsStrip
-          tiles={[
-            { label: "Headcount", value: analytics.headcount },
-            {
-              label: "Avg Utilization",
-              value: `${Math.round(analytics.avgUtil)}%`,
-              tone:
-                analytics.avgUtil > 100 ? "destructive"
-                : analytics.avgUtil >= 85 ? "warning"
-                : analytics.avgUtil >= 30 ? "positive"
-                : "info",
-            },
-            { label: "Hiring Gaps", value: analytics.tbh, tone: analytics.tbh > 0 ? "warning" : "default" },
-            { label: "Leavers", value: String(analytics.leavers).padStart(2, "0"), tone: analytics.leavers > 0 ? "destructive" : "default" },
-            { label: "TBH Roles", value: String(analytics.tbh).padStart(2, "0"), tone: "info" },
-            {
-              label: "Capacity",
-              value: (
-                <>
-                  {analytics.capacityHrs.toLocaleString()}{" "}
-                  <span className="text-xs text-muted-foreground font-normal">hrs</span>
-                </>
-              ),
-            },
-            { label: "Rev / Head", value: formatINR(analytics.revPerHead) },
-          ]}
-        />
+        <Tabs defaultValue="summary" className="w-full">
+          <TabsList>
+            <TabsTrigger value="summary">Summary</TabsTrigger>
+            <TabsTrigger value="people">People</TabsTrigger>
+            <TabsTrigger value="capacity">Capacity</TabsTrigger>
+            <TabsTrigger value="hiring">Hiring Gap</TabsTrigger>
+          </TabsList>
 
-        <DepartmentCardsGrid
-          people={people}
-          assignments={assignments}
-          deals={deals}
-          onViewDept={scrollToTable}
-        />
+          <TabsContent value="summary" className="space-y-6 pt-4">
+            <PeopleOpsAnalyticsStrip
+              tiles={[
+                { label: "Headcount", value: analytics.headcount },
+                {
+                  label: "Avg Utilization",
+                  value: `${Math.round(analytics.avgUtil)}%`,
+                  tone:
+                    analytics.avgUtil > 100 ? "destructive"
+                    : analytics.avgUtil >= 85 ? "warning"
+                    : analytics.avgUtil >= 30 ? "positive"
+                    : "info",
+                },
+                { label: "Hiring Gaps", value: analytics.tbh, tone: analytics.tbh > 0 ? "warning" : "default" },
+                { label: "Leavers", value: String(analytics.leavers).padStart(2, "0"), tone: analytics.leavers > 0 ? "destructive" : "default" },
+                { label: "TBH Roles", value: String(analytics.tbh).padStart(2, "0"), tone: "info" },
+                {
+                  label: "Capacity",
+                  value: (
+                    <>
+                      {analytics.capacityHrs.toLocaleString()}{" "}
+                      <span className="text-xs text-muted-foreground font-normal">hrs</span>
+                    </>
+                  ),
+                },
+                { label: "Rev / Head", value: formatINR(analytics.revPerHead) },
+              ]}
+            />
+            <DepartmentCardsGrid
+              people={people}
+              assignments={assignments}
+              deals={deals}
+              onViewDept={scrollToTable}
+            />
+            <UtilLegend />
+          </TabsContent>
 
-        <UtilLegend />
+          <TabsContent value="people" className="pt-4">
+            <div ref={tableRef}>
+              <h2 className="text-base font-medium text-foreground mb-3">All people</h2>
+              <PeopleReportingTable
+                people={people}
+                assignments={assignments}
+                deals={deals}
+                onAdd={addPerson}
+                onUpdate={updatePerson}
+                onRequestDelete={(p) => setConfirmDelete({ id: p.id, name: p.name })}
+              />
+            </div>
+          </TabsContent>
 
-        <div ref={tableRef} className="pt-2">
-          <h2 className="text-base font-medium text-foreground mb-3">All people</h2>
-          <PeopleReportingTable
-            people={people}
-            assignments={assignments}
-            deals={deals}
-            onAdd={addPerson}
-            onUpdate={updatePerson}
-            onRequestDelete={(p) => setConfirmDelete({ id: p.id, name: p.name })}
-          />
-        </div>
+          <TabsContent value="capacity" className="pt-4">
+            <PeopleOpsCapacityTab
+              people={people}
+              assignments={assignments}
+              deals={deals}
+              capacityRoster={allPeople}
+              isAdmin={isAdmin}
+            />
+          </TabsContent>
+
+          <TabsContent value="hiring" className="pt-4">
+            <PeopleOpsHiringGapTab
+              people={people}
+              assignments={assignments}
+              deals={deals}
+              capacityRoster={allPeople}
+              isAdmin={isAdmin}
+            />
+          </TabsContent>
+        </Tabs>
       </div>
 
       <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>

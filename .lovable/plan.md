@@ -1,49 +1,66 @@
 ## Goal
 
-Replace the existing per-(department, designation) "target deal value per person" with a region+role formula that drives the **Target MRR / Revenue Capacity** number used in the Staffing → People view (and any other place that reads `revenueTargets`).
+Open the **People Ops** page to Admins, every VSD, and every Capability Leader, and add the two missing views from the reference app — **Capacity** and **Hiring Gap** — scoped automatically to the viewer's team.
 
-## Capacity Rule (single source of truth)
+## 1. Access — route + data scope
 
-Per-region base values:
+- `route_visibility`: set `visible=true` for `route_key='people-ops'` for roles `member` (VSD) and `capability_lead`. Admin already true.
+- New hook `src/hooks/useTeamScope.ts`:
+  - Admin → returns `{ scopeMode: "all" }`.
+  - VSD (`member`) / Capability Leader (`capability_lead`) → resolves the viewer's `staffing_person_id`, walks `staffing_people.reporting_manager` to build the set of all direct + indirect reportees (plus self), returns `{ scopeMode: "team", teamPersonIds, teamDealIds }` (deals derived from `staffing_assignments` for that team).
+  - Other roles → empty scope (page already gated by route_visibility, so this is a safety net).
+- `PeopleOps.tsx` filters `people` / `assignments` / `deals` through this scope before passing them down. Header subtitle becomes "Your team — N people" for non-admins.
 
-| Role (designation) | US capacity | India capacity |
-|---|---|---|
-| Senior BOPM | ₹60,00,000 | ₹30,00,000 |
-| SEO Growth Lead | ₹60,00,000 | ₹30,00,000 |
-| Content Lead | ₹60,00,000 | ₹30,00,000 |
+## 2. Tabs
 
-Derived (sum across the whole region, not just direct reportees):
+Convert the page body to four tabs (existing content stays):
 
-- **VSD (region R)** = (count of Senior BOPM in region R) × Senior-BOPM capacity for R
-- **Content Capability Leader (R)** = (count of Content Lead in R) × Content-Lead capacity for R
-- **SEO Capability Leader (R)** = (count of SEO Growth Lead in R) × SEO-Growth-Lead capacity for R
+| Tab | Content |
+|---|---|
+| Summary | Existing `PeopleOpsAnalyticsStrip` + `DepartmentCardsGrid` + `UtilLegend` |
+| People | Existing `PeopleReportingTable` |
+| Capacity | New `PeopleOpsCapacityTab` |
+| Hiring Gap | New `PeopleOpsHiringGapTab` |
 
-All other designations → revenue capacity = **0** for now.
+## 3. Capacity tab — `src/components/people-ops/PeopleOpsCapacityTab.tsx`
 
-Region is read from `Person.region` and normalized: `US/USA/U.S./United States → "US"`, `IN/India → "India"`. Anything else → no capacity.
+Mirror the reference screenshot, using semantic tokens (no hard-coded colors).
 
-## Implementation
+- Four summary cards on top:
+  - `> 100% Overloaded` (red)
+  - `85–100% Near Full` (warning)
+  - `30–85% Healthy` (positive)
+  - `< 30% Under-utilised` (info)
+- Filter row:
+  - Role pills: All Roles / Senior BOPM / VSD / SEO Growth Lead / SEO Capability Leader / Content Lead / Content Capability Leader / Others
+  - "Lead" select (managers in the scoped people set)
+  - "VSD" select (admins only; for VSDs/CapLeads it's locked to themselves)
+  - Counter `N of M people` on the right
+- Grouped table (group by `designation`), columns:
+  `▶ | Name | Role | Region | Reporting Manager | BW Used (bar + %) | # Deals | MRR (actual) | MRR Capacity | MRR Fill %`
+  - BW used = sum of `allocationPct` across active, non-expired assignments. Bucket coloring same as cards.
+  - MRR (actual) = Σ(deal.mrr × allocation%) over active assignments.
+  - MRR Capacity = `getPersonRevenueCapacity(person, allPeople)` (already implemented).
+  - MRR Fill % = actual / capacity; color green ≥ 100, warning ≥ 60, destructive otherwise.
+  - Row expands to show per-deal split (deal name, region, allocation %, deal MRR contribution).
+- Below the table: **VSD-Level Capacity** rollup. For each VSD in the scope, aggregate BW used (avg), total MRR actual, total capacity, fill %.
 
-1. **New helper** `src/lib/revenueCapacity.ts`
-   - `getPersonRevenueCapacity(person, allPeople): number`
-   - Internal table of base values per (role, region).
-   - For VSD / Capability Leader designations, count active (`!leaving && !tbh`) people of the corresponding role in the same region from `allPeople` and multiply.
-   - Returns 0 for any other designation or unknown region.
+## 4. Hiring Gap tab — `src/components/people-ops/PeopleOpsHiringGapTab.tsx`
 
-2. **Replace `getTarget()` call sites** (currently `revenueTargets.find(department, designation)`):
-   - `src/components/staffing/PeopleLevelView.tsx`
-   - `src/components/staffing/PeopleViewTab.tsx`
-   - Any other usage of `targetDealValuePerPerson` surfaced by a follow-up search.
-   - Pass `people` array (already available in both components) into the helper.
+- Top filter: VSD select (admin / multi-VSD only).
+- Two side-by-side cards:
+  - **Leaving (N)** — list of `leaving` people in scope, with role + manager + impacted-deal count.
+  - **TBH placeholders (N)** — list of `tbh` people, with assigned-deal count.
+- **Replacement-needed deals** — active deals that have at least one assignee marked `leaving`.
+- **FTE Gap by role** cards for the three driver roles (Senior BOPM, SEO Growth Lead, Content Lead):
+  - Required BW = sum of recommended allocations per deal from `staffing_bandwidth_rules` (existing memory references this) where the deal is in scope.
+  - Current BW = sum of `allocationPct` of in-scope people in that role on active deals.
+  - Gap = `ceil(required) - ceil(current)`, shown as "⚠ N FTE gap" / "✓ Sufficient".
+- **Unstaffed active deals** — active deals in scope with `mrr > 0` and no non-leaving / non-TBH assignee in the driver roles.
+- **Prioritised Hiring Plan** table — reads from existing TBH person rows (Name, Designation, Region, Manager, target date if recorded, rationale notes). Editable via a small dialog (consistent with Core memory "all data must be editable").
 
-3. **Deprecate the old `revenueTargets` plumbing for capacity display** — leave the `staffing_revenue_targets` table and `useRevTargetsQuery` in place (other code may still read it), but stop using its value for the Target MRR column. Mark `RevenueCapacityTarget` lookup as unused at the call sites with a short comment so we don't reintroduce it.
+## 5. Out of scope
 
-4. **No DB migration required** — the rule is computed client-side from existing `staffing_people.region` and `designation` fields.
-
-5. **Memory** — add a small note under `mem://data/staffing-model` (or new file) capturing the new region+role capacity formula so it stays the single source of truth.
-
-## Out of scope
-
-- Changing the Settings UI for the legacy designation→target table (kept untouched; can be cleaned up in a later pass once we confirm nothing else relies on it).
-- Bandwidth / hours logic — only revenue capacity changes.
-- Reporting-line based sums (explicitly chose region-wide sums).
+- No new DB tables. We reuse `staffing_people`, `staffing_assignments`, `staffing_deals`, `staffing_bandwidth_rules`, the new `getPersonRevenueCapacity` helper, and `route_visibility`.
+- No changes to the existing Summary / People tabs beyond wrapping them in the new tab shell.
+- Mobile-specific tuning not addressed beyond Tailwind responsive defaults already used in PeopleOps.

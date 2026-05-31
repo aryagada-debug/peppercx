@@ -1,0 +1,1 @@
+UPDATE public.route_visibility SET visible = true, access_mode = 'read', updated_at = now() WHERE route_key = 'people-ops' AND role IN ('member','capability_lead');
