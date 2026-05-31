@@ -383,12 +383,17 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
       const rows = assignmentsByPerson[p.id] || [];
       let time = 0;
       let allocatedMrr = 0;
+      const counted = new Set<string>();
       for (const a of rows) {
         if (!activeDealIds.has(a.dealId) || isAssignmentExpired(a)) continue;
         const d = dealById.get(a.dealId);
         if (!d) continue;
         time += a.allocationPct || 0;
-        allocatedMrr += (d.mrr || 0) * (a.allocationPct || 0) / 100;
+        // Actual MRR = sum of full deal MRR across all tagged deals (dedup'd).
+        if (!counted.has(d.id)) {
+          allocatedMrr += d.mrr || 0;
+          counted.add(d.id);
+        }
       }
       const cap = getPersonRevenueCapacity(p, people);
       const revenue = cap > 0 ? (allocatedMrr / cap) * 100 : 0;
