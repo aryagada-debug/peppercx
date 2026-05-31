@@ -1,21 +1,27 @@
-## Diagnosis
+## Goal
 
-The **Revenue Capacity** column in the All People table reads from the static DB field `revenueTargetPerPerson`, which is still `0` for every person. The new mapping you set up lives in `src/lib/revenueCapacity.ts` (`getPersonRevenueCapacity`) and is computed live from `designation` + `region` (plus the headcount of base roles in the region for VSDs / Capability Leaders). It was wired into the Staffing → People view but never wired into the People Ops "All people" table — so the column keeps showing the unset DB number.
+In **People Ops → Capacity**, the "BW Used" column already shows a horizontal mini progress bar + % so you can eyeball who's loaded. The "MRR Fill %" column shows only a number. Add the same meter-style bar so revenue capacity utilisation is visually scannable too.
 
-## Fix
+## Changes
 
-In `src/components/settings/PeopleReportingTable.tsx`:
+Single file: `src/components/people-ops/PeopleOpsCapacityTab.tsx`
 
-1. Import `getPersonRevenueCapacity` from `@/lib/revenueCapacity`.
-2. Build a per-person derived capacity once per render:
-   `const capacityById = useMemo(() => new Map(people.map(p => [p.id, getPersonRevenueCapacity(p, people)])), [people])`.
-3. Replace every read of `p.revenueTargetPerPerson` in:
-   - the sort comparator (`case "revType"`),
-   - the numeric filter (`fRev`),
-   - the Revenue Utilisation calc at line ~383 (`const cap = ...`),
-   - the Revenue Utilisation hint at line ~929,
-   - the Revenue Capacity cell display at line ~918,
-   with the derived value from `capacityById`.
-4. Make the Revenue Capacity cell read-only — render the formatted derived value (with currency symbol) instead of the editable `<Input>`. Keep the currency selector visible but disable it, since the capacity formula is INR-only. Add a small "auto" hint so it's obvious the number is rule-driven, not a free field.
+1. **Per-person table — "MRR Fill %" cell**
+   - Replace the plain percentage with a flex row: mini bar (same `w-24 h-1.5 bg-border rounded-full`) + colored fill + numeric %.
+   - Bar fill width = `Math.min(fillPct, 100)%`; color uses the existing `fillBucket` mapping (overloaded = red when <60%, nearFull = amber 60–<100%, healthy = green ≥100%).
+   - When `fillPct == null` (capacity 0), keep showing "—" with no bar.
+   - Widen the column slightly so the bar fits without breaking the row.
 
-No DB changes, no migration, no other files affected.
+2. **VSD-Level Capacity table — "Fill %" cell**
+   - Same treatment: mini bar + % using the same color rule.
+
+3. **Optional polish**
+   - Rename header **"MRR Fill %"** → **"Revenue Utilisation"** (and "Fill %" → "Revenue Util.") so the meter reads as utilisation, consistent with how BW Used is framed.
+   - Add a small legend line under the table mirroring the BW legend: `<60% Under • 60–100% Healthy • ≥100% Fully utilised`.
+
+No data/logic changes — only presentation. No other files touched.
+
+## Technical notes
+
+- Reuse `BUCKET_COLOR[...].bar` for the fill color so it stays in sync with the existing palette and dark mode.
+- Keep the cell `text-right` alignment by wrapping bar + % in `inline-flex items-center gap-2 justify-end`.
