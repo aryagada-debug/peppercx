@@ -2487,9 +2487,6 @@ export default function DealDetail() {
                   .filter(g => g.members.length > 0);
 
                 let totalHrsWeek = 0;
-                let totalRevManaged = 0;
-                const dealMrr = deal.mrr || 0;
-
                 return (
                   <>
                     {(() => {
@@ -2498,13 +2495,11 @@ export default function DealDetail() {
                         const pct = (alloc?.allocationPct || 0) / 100;
                         const hrs = pct * 40;
                         totalHrsWeek += hrs;
-                        totalRevManaged += dealMrr * pct;
                       });
                       return (
-                        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+                        <div className="grid grid-cols-2 gap-3">
                           <div className="rounded-lg bg-secondary/50 p-4"><p className="metric-label">Team Size</p><p className="text-xl font-semibold text-foreground">{dealPeople.length}</p></div>
                           <div className="rounded-lg bg-secondary/50 p-4"><p className="metric-label">Total Hrs/Week</p><p className="text-xl font-semibold text-foreground">{totalHrsWeek.toFixed(1)}h</p></div>
-                          <div className="rounded-lg bg-secondary/50 p-4"><p className="metric-label">Revenue Managed</p><p className="text-xl font-semibold text-foreground">{fmtCurrency(totalRevManaged)}</p></div>
                         </div>
                       );
                     })()}
@@ -2523,7 +2518,6 @@ export default function DealDetail() {
                               <th className="text-left py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Pod</th>
                               <th className="text-right py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Allocation</th>
                               <th className="text-right py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Hrs/Week</th>
-                              <th className="text-right py-2 px-4 text-xs uppercase tracking-wider text-muted-foreground font-medium">Rev Managed</th>
                               {isAdmin && <th className="w-16"></th>}
                             </tr>
                           </thead>
@@ -2532,7 +2526,6 @@ export default function DealDetail() {
                               const alloc = dealAssignments.find(a => a.personId === p.id);
                               const pct = (alloc?.allocationPct || 0) / 100;
                               const hrs = pct * 40;
-                              const revManaged = (deal.mrr || 0) * pct;
                               const isEditingThis = editingAllocation === alloc?.id;
                               return (
                                 <tr key={p.id} className="border-b border-border/50 hover:bg-accent/10">
@@ -2570,7 +2563,6 @@ export default function DealDetail() {
                                     )}
                                   </td>
                                   <td className="py-2.5 px-4 text-right font-mono tabular-nums text-muted-foreground">{hrs.toFixed(1)}h</td>
-                                  <td className="py-2.5 px-4 text-right font-mono tabular-nums text-muted-foreground">{fmtCurrency(revManaged)}</td>
                                   {isAdmin && (
                                     <td className="py-2.5 px-4 text-right">
                                       <button
