@@ -294,17 +294,17 @@ Deno.serve(async (req) => {
 
     if (action === "provision_demo_logins") {
       const DEMO_PASSWORD = "Demo@1234";
-      const DEMO_ACCOUNTS: { personId: string; email: string }[] = [
-        // VSDs
-        { personId: "P437", email: "aditya.shaw+demo@peppercontent.io" },
-        { personId: "P378", email: "neema.jayadas+demo@peppercontent.io" },
-        { personId: "P112", email: "aamir.khan+demo@peppercontent.io" },
-        { personId: "P308", email: "sumit.shekhawat+demo@peppercontent.io" },
-        { personId: "P064", email: "sneha.iyer+demo@peppercontent.io" },
-        // BOPMs
-        { personId: "P579", email: "ritu.priya+demo@peppercontent.io" },
-        { personId: "P148", email: "tiffany.fernandes+demo@peppercontent.io" },
-        { personId: "P543", email: "shreshtha.pathak+demo@peppercontent.io" },
+      const DEMO_ACCOUNTS: { personId: string; email: string; appRole: "member" | "user" }[] = [
+        // VSDs → 'member' role
+        { personId: "p_adityashaw",        email: "aditya.shaw+demo@peppercontent.io",       appRole: "member" },
+        { personId: "p_neema_jayadas",     email: "neema.jayadas+demo@peppercontent.io",     appRole: "member" },
+        { personId: "p_aamir_khan",        email: "aamir.khan+demo@peppercontent.io",        appRole: "member" },
+        { personId: "p_sumit_shekhawat",   email: "sumit.shekhawat+demo@peppercontent.io",   appRole: "member" },
+        { personId: "p_sneha_iyer",        email: "sneha.iyer+demo@peppercontent.io",        appRole: "member" },
+        // BOPMs → 'user' role
+        { personId: "p_ritu_shinde",       email: "ritu.shinde+demo@peppercontent.io",       appRole: "user" },
+        { personId: "p_tiffany_fernandes", email: "tiffany.fernandes+demo@peppercontent.io", appRole: "user" },
+        { personId: "p_shreshtha_pathak",  email: "shreshtha.pathak+demo@peppercontent.io",  appRole: "user" },
       ];
 
       const ids = DEMO_ACCOUNTS.map((a) => a.personId);
@@ -358,9 +358,11 @@ Deno.serve(async (req) => {
           { user_id: userId, display_name: personName, staffing_person_id: acc.personId },
           { onConflict: "user_id" },
         );
+        // Replace any auto-assigned roles with the persona-specific role.
+        await adminClient.from("user_roles").delete().eq("user_id", userId);
         await adminClient
           .from("user_roles")
-          .insert({ user_id: userId, role: "user" })
+          .insert({ user_id: userId, role: acc.appRole })
           .select()
           .then((r) => r, () => null);
 
