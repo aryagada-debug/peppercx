@@ -21,12 +21,9 @@ export function dealDisplayCurrency(
   deal: DealCurrencyShape | null | undefined,
   globalCurrency: Currency,
 ): Currency {
-  if (!deal) return globalCurrency;
-  const geo = (deal.geo || "").trim().toLowerCase();
-  const isGlobal = geo === "global";
-  const peopleStr = `${deal.vsd || ""} ${deal.principalBopm || ""} ${deal.seniorBopm || ""} ${deal.bopm || ""}`.toLowerCase();
-  const isNeema = /\bneema\b/.test(peopleStr);
-  if (isGlobal || isNeema) return "USD";
+  // All tables and KPIs render in the user-selected global currency.
+  // The FX rate (₹/$ ticker) converts every amount uniformly — no
+  // per-deal currency overrides for Global geo or specific VSDs.
   return globalCurrency;
 }
 
