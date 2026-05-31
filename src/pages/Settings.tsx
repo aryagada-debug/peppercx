@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { UsersTab } from "@/pages/admin/UsersTab";
 import { AccessControlsTab } from "@/pages/admin/AccessControlsTab";
+import { UsageTab } from "@/pages/admin/UsageTab";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useCurrencyVersion } from "@/contexts/CurrencyContext";
 import Targets from "@/pages/Targets";
@@ -16,6 +17,7 @@ import { Switch } from "@/components/ui/switch";
 const tabs = [
   "Users & Roles",
   "Access Controls",
+  "Usage",
   "Targets",
   "Notifications",
   "Data Sync",
@@ -63,6 +65,16 @@ export default function SettingsPage() {
         {activeTab === "Access Controls" && (
           isActuallyAdmin ? (
             <AccessControlsTab />
+          ) : (
+            <div className="rounded-xl border border-border bg-card p-8 text-center">
+              <p className="text-sm text-muted-foreground">Admin access required.</p>
+            </div>
+          )
+        )}
+
+        {activeTab === "Usage" && (
+          isActuallyAdmin ? (
+            <UsageTab />
           ) : (
             <div className="rounded-xl border border-border bg-card p-8 text-center">
               <p className="text-sm text-muted-foreground">Admin access required.</p>
