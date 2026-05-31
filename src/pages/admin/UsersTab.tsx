@@ -440,7 +440,7 @@ export function UsersTab() {
                   <td className="px-3 py-2 text-xs text-muted-foreground">{row.email}</td>
                   <td className="px-3 py-2">
                     <Select value={row.role} onValueChange={(v) => changeRole(row, v as AppRole)} disabled={busy}>
-                      <SelectTrigger className="h-7 w-[120px] text-xs">
+                      <SelectTrigger className="h-7 w-[180px] text-xs">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
