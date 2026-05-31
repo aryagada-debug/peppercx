@@ -19,7 +19,7 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
   { email: "aamir.khan+demo@peppercontent.io", person: "Aamir Khan", role: "VSD", pod: "Integrated" },
   { email: "sumit.shekhawat+demo@peppercontent.io", person: "Sumit Shekhawat", role: "VSD", pod: "India B2B" },
   { email: "sneha.iyer+demo@peppercontent.io", person: "Sneha Iyer", role: "VSD", pod: "FMCG" },
-  { email: "ritu.priya+demo@peppercontent.io", person: "Ritu Priya", role: "BOPM", pod: "Sr BOPM (Aditya Shaw)" },
+  { email: "ritu.shinde+demo@peppercontent.io", person: "Ritu Shinde", role: "BOPM", pod: "Group BOPM" },
   { email: "tiffany.fernandes+demo@peppercontent.io", person: "Tiffany Fernandes", role: "BOPM", pod: "Sr BOPM" },
   { email: "shreshtha.pathak+demo@peppercontent.io", person: "Shreshtha Pathak", role: "BOPM", pod: "Principal BOPM" },
 ];
