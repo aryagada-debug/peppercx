@@ -63,6 +63,7 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
         let bwPct = 0;
         let mrrActual = 0;
         const splits: { dealId: string; dealName: string; pct: number; mrrContribution: number; region?: string; vsd?: string }[] = [];
+        const countedDeals = new Set<string>();
         for (const a of assignments) {
           if (a.personId !== p.id) continue;
           if (!activeDealIds.has(a.dealId) || isAssignmentExpired(a)) continue;
@@ -70,9 +71,13 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
           bwPct += pct;
           const d = dealById.get(a.dealId);
           const dealMrr = d?.mrr || 0;
-          const mrrContribution = (dealMrr * pct) / 100;
-          mrrActual += mrrContribution;
-          if (d) splits.push({ dealId: d.id, dealName: d.dealName || d.account, pct, mrrContribution, vsd: d.vsd });
+          // Actual MRR = sum of full deal MRR for every deal the person is tagged into
+          // (no allocation-% weighting). Dedupe in case of multiple role rows on the same deal.
+          if (d && !countedDeals.has(d.id)) {
+            mrrActual += dealMrr;
+            countedDeals.add(d.id);
+          }
+          if (d) splits.push({ dealId: d.id, dealName: d.dealName || d.account, pct, mrrContribution: dealMrr, vsd: d.vsd });
         }
         splits.sort((a, b) => b.pct - a.pct);
         const capacity = getPersonRevenueCapacity(p, capacityRoster);
