@@ -434,6 +434,10 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
     if (fDesig) list = list.filter((p) => (p.designation || "").toLowerCase().includes(fDesig));
     if (fEmail) list = list.filter((p) => (p.email || "").toLowerCase().includes(fEmail));
     if (fRep) list = list.filter((p) => (p.reportingManager || "").toLowerCase() === fRep);
+    // Market: top-bar pills + per-column dropdown both filter the same way.
+    if (marketFilter !== "all") list = list.filter((p) => marketOf(p) === marketFilter);
+    const fMarket = (colFilters["market"] || "").trim();
+    if (fMarket) list = list.filter((p) => marketOf(p) === fMarket);
     // Numeric filters: ≥ value
     const numF = (k: string) => {
       const v = (colFilters[k] || "").trim();
@@ -455,6 +459,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
           case "designation": av = a.designation || ""; bv = b.designation || ""; break;
           case "email": av = a.email || ""; bv = b.email || ""; break;
           case "reportsTo": av = a.reportingManager || ""; bv = b.reportingManager || ""; break;
+          case "market": av = marketOf(a); bv = marketOf(b); break;
           case "revType": av = a.revenueTargetPerPerson || 0; bv = b.revenueTargetPerPerson || 0; break;
           case "timeUtil": av = getUtil(a).time; bv = getUtil(b).time; break;
           case "revUtil": av = getUtil(a).revenue; bv = getUtil(b).revenue; break;
@@ -467,7 +472,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
       list.sort((a, b) => a.name.localeCompare(b.name));
     }
     return list;
-  }, [people, search, colFilters, sortState, utilByPerson]);
+  }, [people, search, marketFilter, colFilters, sortState, utilByPerson]);
 
   // Group filtered people by team -> sub-team
   const grouped = useMemo(() => {
