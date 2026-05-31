@@ -1,82 +1,53 @@
-# Clients & Deals — Portfolio Analytics
+## Goal
+Give admins a single tab to see **who is logging in**, **who is actively working on the platform**, and **who is dormant / never logged in** — so the team can drive adoption.
 
-Goal: turn the Clients page into a true portfolio-analytics surface. Slice every active deal across every meaningful dimension (VSD, Senior BOPM/GAM, Pepper BU, Capability Line, Geo, Retainer vs Non-Retainer), with US/India geo as a first-class filter that also influences other modules' P&L numbers.
+## Where it lives
+New tab in `Settings` → **"Usage"** (admin-only), next to Users & Roles / Access Controls. Route: `/settings` with `?tab=usage`.
 
-All data is already on the `Deal` model — no schema changes:
-`vsd`, `principalBopm`, `seniorBopm`, `bopm`, `pepperBusinessUnit`/`businessUnit`, `capabilityLine`, `dealType` (Retainer / Non-Retainer / Pilot), `mrr`, `retainerDealValue`, `nonRetainerDealValue`, `totalDealValue`, `geo`.
+## Data sources (no new schema required for v1)
+1. **Auth signals** (via existing `admin-user-mgmt` edge function, extended):
+   - `auth.admin.listUsers()` already returns `last_sign_in_at`, `created_at`, `email_confirmed_at`. Extend the `list` action to return these fields.
+2. **Expected users** = `staffing_people` where `leaving=false` and `tbh=false`. Join by email against auth users to derive:
+   - **Never invited** — in staffing_people but no auth account.
+   - **Invited, never signed in** — auth account exists, `last_sign_in_at IS NULL`.
+   - **Dormant** — `last_sign_in_at` older than 14 / 30 days.
+3. **Work activity** (per user, last 30 days, derived client-side from existing tables):
+   - `deal_tasks` updates (`created_by`, assignees)
+   - `deal_rgy_weekly` + `deal_rgy_notes` (`updated_by`)
+   - `personal_todos` (`user_id`, `assigned_by_user_id`)
+   - `slack_messages` (`sent_by_app_user`)
+   - `mbr_entries` (`updated_by` text field, best-effort)
+   - `approval_requests` (`requested_by`)
+   Aggregate count of writes per user over the period.
 
-## 1. New "Analytics" tab on Clients & Deals
+## UI layout (`src/pages/admin/UsageTab.tsx`)
+- **KPI strip (6 tiles):** Total expected users · Provisioned · Active 7d · Active 30d · Dormant 30d+ · Never signed in.
+- **Adoption funnel bar:** Expected → Provisioned → Signed in once → Active 30d → Active 7d.
+- **Logins over time (last 60 days):** simple Recharts area chart of distinct daily sign-ins (bucketed from `last_sign_in_at`; v1 shows current snapshot only — note in section copy that historical daily login series requires audit logs and will land later).
+- **Users table** with columns: Name · Email · Role · Pod/Region (from staffing_people) · First login · Last login · Days since last login · Writes (30d) · Status pill (Active / Dormant / Never signed in / Not provisioned). Sortable, searchable, filter by status + role + region.
+- **"Never signed in" panel:** quick list with one-click "Resend invite" (calls existing `admin-user-mgmt` `invite` action if present; otherwise a copy-email button).
+- **"Dormant" panel:** top 20 by days-since-login with Slack-DM nudge button (uses existing `slack_dm_threads` infra if available; otherwise copy mailto).
 
-Add a tab switcher at the top of `src/pages/Clients.tsx`:
-`Clients & Deals` (current table) | `Analytics` (new, default for admin/VSD personas).
+## Edge function changes (`supabase/functions/admin-user-mgmt/index.ts`)
+- Extend the `list` response to include `last_sign_in_at`, `email_confirmed_at`.
+- Add new action `usage_summary` that returns the joined per-user usage snapshot server-side (to avoid pulling all rows to the client). Admin-gated as today.
 
-The Analytics tab is one scrollable page composed of bands. Each band uses the flat-UI design system (off-white bg, thin borders, purple primary, semantic colors). Every aggregate row is click-through and drills into the Clients table filtered to those deals.
+## Files
+**New**
+- `src/pages/admin/UsageTab.tsx` — page shell, KPIs, charts, tables.
+- `src/components/admin/usage/UsageKpiStrip.tsx`
+- `src/components/admin/usage/UsersUsageTable.tsx`
+- `src/components/admin/usage/AdoptionFunnel.tsx`
+- `src/lib/usageAnalytics.ts` — pure helpers: classify status, bucket activity, aggregate writes per user.
 
-### Band A — KPI strip (8 tiles)
-Active deals · Retainer deals · Non-Retainer deals · Total MRR · Total Retainer Value · Total Non-Retainer Value · Total Deal Value · Avg MRR per deal.
-Currency-aware via `useCurrencyVersion` + `formatINR` / `formatMoney`. Tiles tinted with semantic tones (positive / warning / muted).
+**Edited**
+- `src/pages/Settings.tsx` — add "Usage" tab (admin only) and render `<UsageTab/>`.
+- `supabase/functions/admin-user-mgmt/index.ts` — return `last_sign_in_at`; add `usage_summary` action.
 
-### Band B — Portfolio by VSD
-Table: VSD · # Deals · Retainer # · Non-Retainer # · MRR · Retainer Value · Non-Retainer Value · Total Value · % of portfolio.
-Sortable; Grand Total row pinned. Mirrors the screenshot's "VSD" pivot. Click a VSD row → table tab filtered to that VSD.
+## Out of scope (v1)
+- True page-view / session analytics (requires a `user_activity_events` table + client beacon — propose as Phase 2 if you want per-page heatmap).
+- Historical daily login time-series before today (needs auth audit log ingestion).
+- Per-feature usage breakdown beyond the write-count rollup above.
 
-### Band C — Portfolio by Senior BOPM / GAM
-Same column shape as Band B but rows are Senior BOPM (falls back to Principal BOPM / GAM where Senior is empty, matching how Staffing groups today). Adds an "Unassigned" bucket.
-
-### Band D — Pepper BU + Capability split
-Two side-by-side tables:
-- **By Pepper Business Unit** (`pepperBusinessUnit`, fallback `businessUnit`): # Deals, MRR, Retainer Value, Non-Retainer Value, Total, GM% placeholder slot.
-- **By Capability Line** (`capabilityLine`, e.g., Content, SEO, Creative, Video): same columns.
-
-Both mirror the "Service Line Tagging" pivot from the uploaded sheet.
-
-### Band E — Retainer vs Non-Retainer mix
-Compact 2-row table + a horizontal stacked bar (Recharts) showing Retainer vs Non-Retainer share of total deal value, repeated three ways: overall, by Pepper BU, by VSD. Helps answer "where is the retainer concentration?".
-
-### Band F — Geo split (US vs India)
-Table with rows = `geo` (US, India, Other/Unspecified) × columns = # Deals, MRR, Retainer Value, Non-Retainer Value, Total Value, % share. Includes a small donut for # deals and another for MRR. This is the canonical US/India split.
-
-### Band G — MRR distribution
-Histogram-style table bucketed by MRR tier (<5L, 5–15L, 15–30L, 30–60L, 60L+ in INR) crossed with Retainer vs Non-Retainer. Click a bucket → drill to table.
-
-## 2. Geo (US / India) as a global filter
-
-Add a Geo selector to the Clients page header (All / US / India / Other). It scopes:
-- All Analytics bands above.
-- The existing Clients & Deals table.
-
-To make Geo influence "P&L across modules", add a lightweight `GeoFilterContext` (`src/contexts/GeoFilterContext.tsx`) holding `geo: "all" | "US" | "India" | "Other"`. Persist in `localStorage`. Consume it (read-only for this phase) in:
-- `src/pages/Staffing.tsx` Overview KPIs (MRR, deal counts).
-- `src/pages/Targets.tsx` / `FinanceTargetsCard` totals.
-- `src/pages/MBRTracker.tsx` deal list.
-- `src/pages/RGYHealth.tsx` deal list.
-- Home dashboard portfolio tiles.
-
-Each consumer simply filters its `deals` array by `geo` before computing. No backend, no business-logic rewrite — purely a presentation filter on top of existing computations. Header in `AppLayout` gets a small Geo pill next to the currency toggle so the filter is discoverable from any page.
-
-## 3. Files
-
-New:
-- `src/components/clients/analytics/AnalyticsKpiStrip.tsx`
-- `src/components/clients/analytics/PortfolioByVsdTable.tsx`
-- `src/components/clients/analytics/PortfolioByBopmTable.tsx`
-- `src/components/clients/analytics/PortfolioByBuCapability.tsx`
-- `src/components/clients/analytics/RetainerMixCard.tsx`
-- `src/components/clients/analytics/GeoSplitCard.tsx`
-- `src/components/clients/analytics/MrrDistributionTable.tsx`
-- `src/components/clients/analytics/ClientsAnalyticsTab.tsx` (composes all bands)
-- `src/contexts/GeoFilterContext.tsx`
-- `src/components/layout/GeoFilter.tsx` (header pill)
-- `src/lib/dealAnalytics.ts` (pure aggregation helpers: `groupBy`, `sumByDimension`, retainer/NR splits, geo bucketization)
-
-Edited:
-- `src/pages/Clients.tsx` — tab switcher, geo selector wired to context, render `ClientsAnalyticsTab`.
-- `src/App.tsx` — wrap with `GeoFilterProvider`.
-- `src/components/layout/AppLayout.tsx` — render `<GeoFilter />` next to currency toggle.
-- `src/pages/Staffing.tsx`, `src/pages/Targets.tsx`, `src/pages/MBRTracker.tsx`, `src/pages/RGYHealth.tsx`, `src/pages/Home.tsx` — apply `useGeoFilter()` to their deal arrays.
-
-## 4. Out of scope (call out)
-- No new database fields. Deals already carry `geo`; rows where it's blank fall into "Other/Unspecified".
-- No edit flows in Analytics — it's a read-only pivot surface. Editing stays in the existing Clients table tab.
-- BOPM/Capability Leader persona view of Clients is unchanged (they already see a scoped subset; Analytics tab will respect `useDealAccess` and only aggregate visible deals).
-- GM%/profitability columns will render as "—" until a margin source is wired in a later pass; the layout reserves the slot.
+## Phase 2 (only if you want it — say the word)
+Add `public.user_activity_events (user_id, route_key, occurred_at)` + a tiny `usePageActivityBeacon()` hook fired on route change (throttled to 1/min). Unlocks: daily active users chart, per-module adoption, time-on-platform.
