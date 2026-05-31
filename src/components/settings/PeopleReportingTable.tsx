@@ -105,6 +105,15 @@ const INR = (n: number) =>
 const USD = (n: number) =>
   new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(n || 0);
 
+/** Normalize a person's region into one of the supported markets. */
+function marketOf(p: Person): "US" | "India" | "" {
+  const r = (p.region || "").trim().toLowerCase();
+  if (!r || r === "—" || r === "-") return "";
+  if (/^(us|u\.s\.|usa|united states)$/i.test(r)) return "US";
+  if (/^(in|india)$/i.test(r)) return "India";
+  return "";
+}
+
 /* ------------------------------------------------------------------ */
 /* Team derivation                                                     */
 /* ------------------------------------------------------------------ */
