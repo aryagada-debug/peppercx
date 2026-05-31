@@ -890,40 +890,19 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                     <div className="flex items-center gap-1.5">
                                       <select
                                         value={currency}
-                                        onChange={(e) =>
-                                          onUpdate(p.id, {
-                                            revenueTargetCurrency: e.target.value as
-                                              | "INR"
-                                              | "USD",
-                                          })
-                                        }
-                                        className="h-8 shrink-0 rounded border border-input bg-background px-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                                        disabled
+                                        onChange={() => {}}
+                                        className="h-8 shrink-0 rounded border border-input bg-background px-1 text-xs text-muted-foreground focus:outline-none"
                                       >
                                         <option value="INR">₹ INR</option>
                                         <option value="USD">$ USD</option>
                                       </select>
-                                      <div className="relative w-32 shrink-0">
-                                        <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                                          {symbol}
-                                        </span>
-                                        <Input
-                                          type="number"
-                                          min={0}
-                                          step={1000}
-                                          value={p.revenueTargetPerPerson ?? 0}
-                                          onChange={(e) =>
-                                            onUpdate(p.id, {
-                                              revenueTargetPerPerson:
-                                                Number(e.target.value) || 0,
-                                            })
-                                          }
-                                          className="h-8 pl-5 pr-2 text-sm tabular-nums"
-                                          placeholder="0"
-                                        />
-                                      </div>
-                                      <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
-                                        = {symbol}
-                                        {fmt(p.revenueTargetPerPerson || 0)}
+                                      <span className="text-sm tabular-nums whitespace-nowrap">
+                                        {symbol}
+                                        {fmt(capacityById.get(p.id) || 0)}
+                                      </span>
+                                      <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                                        auto
                                       </span>
                                     </div>
                                   </td>
@@ -934,8 +913,8 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                     <UtilBar
                                       value={u.revenue}
                                       hint={
-                                        (p.revenueTargetPerPerson || 0) > 0
-                                          ? `${symbol}${fmt(Math.round(u.allocatedMrr))} / ${symbol}${fmt(p.revenueTargetPerPerson || 0)}`
+                                        (capacityById.get(p.id) || 0) > 0
+                                          ? `${symbol}${fmt(Math.round(u.allocatedMrr))} / ${symbol}${fmt(capacityById.get(p.id) || 0)}`
                                           : "No capacity set"
                                       }
                                     />
