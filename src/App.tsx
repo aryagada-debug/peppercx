@@ -30,7 +30,6 @@ const Targets = lazy(() => import("./pages/Targets"));
 const RGYHealth = lazy(() => import("./pages/RGYHealth"));
 const MBRTracker = lazy(() => import("./pages/MBRTracker"));
 const Onboarding = lazy(() => import("./pages/Onboarding"));
-const GM2Calculator = lazy(() => import("./pages/GM2Calculator"));
 const SettingsPage = lazy(() => import("./pages/Settings"));
 const Trash = lazy(() => import("./pages/Trash"));
 const PeopleOps = lazy(() => import("./pages/PeopleOps"));
@@ -90,7 +89,6 @@ const App = () => (
             <Route path="/rgy-health" element={<ProtectedRoute routeKey="rgy-health"><RGYHealth /></ProtectedRoute>} />
             <Route path="/mbr-tracker" element={<ProtectedRoute routeKey="mbr-tracker"><MBRTracker /></ProtectedRoute>} />
             <Route path="/onboarding" element={<ProtectedRoute routeKey="onboarding"><Onboarding /></ProtectedRoute>} />
-            <Route path="/gm2-calculator" element={<ProtectedRoute routeKey="gm2-calculator"><GM2Calculator /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute routeKey="settings"><SettingsPage /></ProtectedRoute>} />
             <Route path="/trash" element={<ProtectedRoute routeKey="settings"><Trash /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />

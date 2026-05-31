@@ -30,7 +30,6 @@ const ROUTE_LABELS: Record<string, string> = {
   "rgy-health": "RGY Health",
   "mbr-tracker": "MBR Tracker",
   "onboarding": "Onboarding",
-  "gm2-calculator": "GM2 Calculator",
   "settings": "Settings",
 };
 
@@ -65,7 +64,6 @@ const VIEW_OPTIONS: Record<string, string[]> = {
   "slack-health":   ["All channels", "Own pod channels", "Inactivity nudges"],
   "onboarding":     ["All onboarding plans", "Own deals onboarding"],
   "seo-staffing":   ["All SEO allocations", "Own SEO allocations"],
-  "gm2-calculator": ["Calculator inputs", "Saved scenarios"],
   "settings":       ["Personal settings", "Users & roles", "Access controls", "Integrations"],
 };
 
@@ -81,7 +79,6 @@ const EDIT_OPTIONS: Record<string, string[]> = {
   "slack-health":   ["Send messages", "Configure nudges"],
   "onboarding":     ["Edit own deal steps", "Edit any deal steps", "Mark complete"],
   "seo-staffing":   ["Edit SEO allocations"],
-  "gm2-calculator": ["Save scenarios"],
   "settings":       ["Edit personal settings", "Manage users & roles", "Edit access controls", "Manage integrations"],
 };
 

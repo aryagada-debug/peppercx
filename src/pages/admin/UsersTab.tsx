@@ -18,7 +18,6 @@ const ROUTE_LABELS: Record<string, string> = {
   "rgy-health": "RGY Health",
   "mbr-tracker": "MBR Tracker",
   "onboarding": "Onboarding",
-  "gm2-calculator": "GM2 Calculator",
   "settings": "Settings",
 };
 
