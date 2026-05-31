@@ -16,7 +16,7 @@ import { AddPersonDialog } from "@/components/settings/AddPersonDialog";
 import { AddTeamDialog } from "@/components/settings/AddTeamDialog";
 import { useTaxonomyQuery } from "@/hooks/queries/useTaxonomyQuery";
 import { resolvePersonRoleTypeId } from "@/lib/peopleGrouping";
-import { ROLE_TYPE_TO_DEPT, DEPARTMENT_LABELS, ROLE_SLOTS } from "@/data/staffingData";
+import { ROLE_TYPE_TO_DEPT, DEPARTMENT_LABELS, ROLE_SLOTS, ACTIVE_DEAL_STATUSES, isAssignmentExpired } from "@/data/staffingData";
 import { getPersonRevenueCapacity } from "@/lib/revenueCapacity";
 
 interface Props {
@@ -351,6 +351,12 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
     return m;
   }, [deals]);
 
+  // Only count active deals (matches Staffing → People view).
+  const activeDealIds = useMemo(
+    () => new Set(deals.filter((d) => ACTIVE_DEAL_STATUSES.has(d.dealStatus)).map((d) => d.id)),
+    [deals],
+  );
+
   const dealStatusOptions = useMemo(
     () => Array.from(new Set(deals.map((d) => d.dealStatus).filter(Boolean))) as string[],
     [deals],
@@ -368,17 +374,20 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
     return m;
   }, [assignments]);
 
-  // Time utilisation = sum allocation %. Revenue utilisation = allocated MRR
-  // from RETAINER deals divided by the person's revenue capacity.
+  // Time utilisation = sum allocation % on active, non-expired assignments.
+  // Revenue utilisation = allocated MRR from active deals (any type, since deal.mrr
+  // is the monthly run-rate) divided by the person's revenue capacity.
   const utilByPerson = useMemo(() => {
     const m: Record<string, { time: number; revenue: number; allocatedMrr: number }> = {};
     for (const p of people) {
       const rows = assignmentsByPerson[p.id] || [];
-      const time = rows.reduce((n, a) => n + (a.allocationPct || 0), 0);
+      let time = 0;
       let allocatedMrr = 0;
       for (const a of rows) {
+        if (!activeDealIds.has(a.dealId) || isAssignmentExpired(a)) continue;
         const d = dealById.get(a.dealId);
-        if (!d || d.dealType !== "Retainer") continue;
+        if (!d) continue;
+        time += a.allocationPct || 0;
         allocatedMrr += (d.mrr || 0) * (a.allocationPct || 0) / 100;
       }
       const cap = getPersonRevenueCapacity(p, people);
@@ -386,7 +395,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
       m[p.id] = { time, revenue, allocatedMrr };
     }
     return m;
-  }, [people, assignmentsByPerson, dealById]);
+  }, [people, assignmentsByPerson, dealById, activeDealIds]);
 
   // Derived revenue capacity per person (rule-based, single source of truth).
   const capacityById = useMemo(() => {
