@@ -17,6 +17,7 @@ import { AddTeamDialog } from "@/components/settings/AddTeamDialog";
 import { useTaxonomyQuery } from "@/hooks/queries/useTaxonomyQuery";
 import { resolvePersonRoleTypeId } from "@/lib/peopleGrouping";
 import { ROLE_TYPE_TO_DEPT, DEPARTMENT_LABELS, ROLE_SLOTS } from "@/data/staffingData";
+import { getPersonRevenueCapacity } from "@/lib/revenueCapacity";
 
 interface Props {
   people: Person[];
@@ -380,12 +381,19 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
         if (!d || d.dealType !== "Retainer") continue;
         allocatedMrr += (d.mrr || 0) * (a.allocationPct || 0) / 100;
       }
-      const cap = p.revenueTargetPerPerson || 0;
+      const cap = getPersonRevenueCapacity(p, people);
       const revenue = cap > 0 ? (allocatedMrr / cap) * 100 : 0;
       m[p.id] = { time, revenue, allocatedMrr };
     }
     return m;
   }, [people, assignmentsByPerson, dealById]);
+
+  // Derived revenue capacity per person (rule-based, single source of truth).
+  const capacityById = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of people) m.set(p.id, getPersonRevenueCapacity(p, people));
+    return m;
+  }, [people]);
 
   // Custom teams + sub-teams persisted in localStorage.
   const customTeams = useMemo<string[]>(() => {
@@ -444,7 +452,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
       return v === "" ? null : Number(v);
     };
     const fRev = numF("revType"), fTime = numF("timeUtil"), fRevU = numF("revUtil");
-    if (fRev != null && !Number.isNaN(fRev)) list = list.filter((p) => (p.revenueTargetPerPerson || 0) >= fRev);
+    if (fRev != null && !Number.isNaN(fRev)) list = list.filter((p) => (capacityById.get(p.id) || 0) >= fRev);
     if (fTime != null && !Number.isNaN(fTime)) list = list.filter((p) => (utilByPerson[p.id]?.time || 0) >= fTime);
     if (fRevU != null && !Number.isNaN(fRevU)) list = list.filter((p) => (utilByPerson[p.id]?.revenue || 0) >= fRevU);
     // Sort
@@ -460,7 +468,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
           case "email": av = a.email || ""; bv = b.email || ""; break;
           case "reportsTo": av = a.reportingManager || ""; bv = b.reportingManager || ""; break;
           case "market": av = marketOf(a); bv = marketOf(b); break;
-          case "revType": av = a.revenueTargetPerPerson || 0; bv = b.revenueTargetPerPerson || 0; break;
+          case "revType": av = capacityById.get(a.id) || 0; bv = capacityById.get(b.id) || 0; break;
           case "timeUtil": av = getUtil(a).time; bv = getUtil(b).time; break;
           case "revUtil": av = getUtil(a).revenue; bv = getUtil(b).revenue; break;
           default: av = a.name; bv = b.name;
@@ -882,40 +890,19 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                     <div className="flex items-center gap-1.5">
                                       <select
                                         value={currency}
-                                        onChange={(e) =>
-                                          onUpdate(p.id, {
-                                            revenueTargetCurrency: e.target.value as
-                                              | "INR"
-                                              | "USD",
-                                          })
-                                        }
-                                        className="h-8 shrink-0 rounded border border-input bg-background px-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                                        disabled
+                                        onChange={() => {}}
+                                        className="h-8 shrink-0 rounded border border-input bg-background px-1 text-xs text-muted-foreground focus:outline-none"
                                       >
                                         <option value="INR">₹ INR</option>
                                         <option value="USD">$ USD</option>
                                       </select>
-                                      <div className="relative w-32 shrink-0">
-                                        <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                                          {symbol}
-                                        </span>
-                                        <Input
-                                          type="number"
-                                          min={0}
-                                          step={1000}
-                                          value={p.revenueTargetPerPerson ?? 0}
-                                          onChange={(e) =>
-                                            onUpdate(p.id, {
-                                              revenueTargetPerPerson:
-                                                Number(e.target.value) || 0,
-                                            })
-                                          }
-                                          className="h-8 pl-5 pr-2 text-sm tabular-nums"
-                                          placeholder="0"
-                                        />
-                                      </div>
-                                      <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
-                                        = {symbol}
-                                        {fmt(p.revenueTargetPerPerson || 0)}
+                                      <span className="text-sm tabular-nums whitespace-nowrap">
+                                        {symbol}
+                                        {fmt(capacityById.get(p.id) || 0)}
+                                      </span>
+                                      <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                                        auto
                                       </span>
                                     </div>
                                   </td>
@@ -926,8 +913,8 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                     <UtilBar
                                       value={u.revenue}
                                       hint={
-                                        (p.revenueTargetPerPerson || 0) > 0
-                                          ? `${symbol}${fmt(Math.round(u.allocatedMrr))} / ${symbol}${fmt(p.revenueTargetPerPerson || 0)}`
+                                        (capacityById.get(p.id) || 0) > 0
+                                          ? `${symbol}${fmt(Math.round(u.allocatedMrr))} / ${symbol}${fmt(capacityById.get(p.id) || 0)}`
                                           : "No capacity set"
                                       }
                                     />
