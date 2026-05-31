@@ -9,7 +9,7 @@ import { logRGYChange } from "@/lib/rgyHistory";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
-import { Search, AlertTriangle, AlertCircle, CheckCircle2, Activity, Plus, Trash2, Check, X, Calendar, Loader2, Settings2, Info } from "lucide-react";
+import { Search, AlertTriangle, AlertCircle, CheckCircle2, Activity, Plus, Trash2, Check, X, Calendar, Loader2, Settings2, Info, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollToStartButton } from "@/components/ui/ScrollToStartButton";
@@ -645,7 +645,7 @@ export default function RGYHealth() {
   type RGYDrillMetric = "total" | "red" | "yellow" | "green" | "pending";
   const [rgyDrill, setRgyDrill] = useState<{ rowLabel: string; metric: RGYDrillMetric } | null>(null);
   // KPI strip drill (Red / Yellow / Green / Score)
-  const [kpiDrill, setKpiDrill] = useState<null | "red" | "yellow" | "green" | "score">(null);
+  const [kpiDrill, setKpiDrill] = useState<null | "red" | "yellow" | "green" | "score" | "pending" | "marked">(null);
   // Column filter/sort state
   const [colFilters, setColFilters] = useState<Record<string, string>>({});
   const [openFilter, setOpenFilter] = useState<string | null>(null);
@@ -1330,16 +1330,17 @@ export default function RGYHealth() {
           <div>
             <h1 className="text-subhead font-bold tracking-tight text-foreground">RGY Health Tracker</h1>
             <p className="text-ui text-muted-foreground mt-0.5">
-              {kpis.totalDeals} deals • Click any RGY cell to update
+              {kpis.totalDeals} deals • {kpis.red + kpis.yellow + kpis.green} marked • {kpis.pending} pending • Click any RGY cell to update
             </p>
           </div>
         </div>
 
         {/* KPI Strip */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3">
           <KpiTile label="Red" value={String(kpis.red)} tone="destructive" icon={AlertTriangle} onClick={() => setKpiDrill("red")} />
           <KpiTile label="Yellow" value={String(kpis.yellow)} tone="warning" icon={AlertCircle} onClick={() => setKpiDrill("yellow")} />
           <KpiTile label="Green" value={String(kpis.green)} tone="positive" icon={CheckCircle2} onClick={() => setKpiDrill("green")} />
+          <KpiTile label="Pending" value={String(kpis.pending)} tone="muted" icon={Circle} onClick={() => setKpiDrill("pending")} />
           <KpiTile label="Score" value={String(kpis.score)} suffix="/ 100" tone="primary" icon={Activity} onClick={() => setKpiDrill("score")} />
         </div>
 
@@ -1958,13 +1959,15 @@ export default function RGYHealth() {
               if (kpiDrill === "red") return r.worst === "R";
               if (kpiDrill === "yellow") return r.worst === "Y";
               if (kpiDrill === "green") return r.worst === "G";
+              if (kpiDrill === "pending") return r.worst === null || r.worst === undefined || (r.worst as string) === "" || (r.worst as string) === "P";
+              if (kpiDrill === "marked") return r.worst === "R" || r.worst === "Y" || r.worst === "G";
               return false;
             })
             .sort((a, b) => {
               if (kpiDrill === "score") return (b.score ?? -1) - (a.score ?? -1);
               return a.deal.account.localeCompare(b.deal.account);
             });
-          const titleMap = { red: "Red Deals", yellow: "Yellow Deals", green: "Green Deals", score: "Overall Health Score" } as const;
+          const titleMap = { red: "Red Deals", yellow: "Yellow Deals", green: "Green Deals", score: "Overall Health Score", pending: "Pending RGY (unmarked)", marked: "Marked Deals" } as const;
           return (
             <Dialog open={!!kpiDrill} onOpenChange={(o) => !o && setKpiDrill(null)}>
               <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
