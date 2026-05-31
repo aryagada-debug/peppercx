@@ -1,66 +1,82 @@
-# Staffing & Capacity — Overview-first redesign
+# Clients & Deals — Portfolio Analytics
 
-Merge the two existing analytical tabs (Deal View + Lock Analytics) into one sharper **Overview** tab and make it the default/home screen for Staffing & Capacity. The other tabs collapse to just **Staffing** and **Sheet view**.
+Goal: turn the Clients page into a true portfolio-analytics surface. Slice every active deal across every meaningful dimension (VSD, Senior BOPM/GAM, Pepper BU, Capability Line, Geo, Retainer vs Non-Retainer), with US/India geo as a first-class filter that also influences other modules' P&L numbers.
 
-## New tab layout (admin / VSD / cap-lead personas)
+All data is already on the `Deal` model — no schema changes:
+`vsd`, `principalBopm`, `seniorBopm`, `bopm`, `pepperBusinessUnit`/`businessUnit`, `capabilityLine`, `dealType` (Retainer / Non-Retainer / Pilot), `mrr`, `retainerDealValue`, `nonRetainerDealValue`, `totalDealValue`, `geo`.
 
-```
-Overview (default)   |   Staffing   |   Sheet view
-```
+## 1. New "Analytics" tab on Clients & Deals
 
-BOPM/cap-IC persona is unchanged: `Staffing | Sheet view | Change requests`.
+Add a tab switcher at the top of `src/pages/Clients.tsx`:
+`Clients & Deals` (current table) | `Analytics` (new, default for admin/VSD personas).
 
-URL: `/staffing` → `?tab=overview`. Old links keep working: `?tab=deals` and `?tab=lock` both redirect to `overview`.
+The Analytics tab is one scrollable page composed of bands. Each band uses the flat-UI design system (off-white bg, thin borders, purple primary, semantic colors). Every aggregate row is click-through and drills into the Clients table filtered to those deals.
 
-## New file: `src/components/staffing/OverviewTab.tsx`
+### Band A — KPI strip (8 tiles)
+Active deals · Retainer deals · Non-Retainer deals · Total MRR · Total Retainer Value · Total Non-Retainer Value · Total Deal Value · Avg MRR per deal.
+Currency-aware via `useCurrencyVersion` + `formatINR` / `formatMoney`. Tiles tinted with semantic tones (positive / warning / muted).
 
-A single scrollable analytics page split into four bands. All filters live in one shared bar at the top, so VSD/BOPM/Type/Status/Capability/Lock-state/Account-search/Locked-date apply to every band below.
+### Band B — Portfolio by VSD
+Table: VSD · # Deals · Retainer # · Non-Retainer # · MRR · Retainer Value · Non-Retainer Value · Total Value · % of portfolio.
+Sortable; Grand Total row pinned. Mirrors the screenshot's "VSD" pivot. Click a VSD row → table tab filtered to that VSD.
 
-### 1. KPI strip (7 tiles)
+### Band C — Portfolio by Senior BOPM / GAM
+Same column shape as Band B but rows are Senior BOPM (falls back to Principal BOPM / GAM where Senior is empty, matching how Staffing groups today). Adds an "Unassigned" bucket.
 
-Pulled from both source tabs, computed off the filtered deal set:
+### Band D — Pepper BU + Capability split
+Two side-by-side tables:
+- **By Pepper Business Unit** (`pepperBusinessUnit`, fallback `businessUnit`): # Deals, MRR, Retainer Value, Non-Retainer Value, Total, GM% placeholder slot.
+- **By Capability Line** (`capabilityLine`, e.g., Content, SEO, Creative, Video): same columns.
 
-- Total deals
-- Already staffed (green)
-- Staffing needed (red)
-- No staffing needed (muted)
-- Locked (green) + % locked of "needs staffing"
-- Unlocked / open to close out (amber)
-- Total MRR (currency-aware via `useCurrencyVersion` + `formatINR`)
+Both mirror the "Service Line Tagging" pivot from the uploaded sheet.
 
-### 2. Staffing status pivot (from Deal View)
+### Band E — Retainer vs Non-Retainer mix
+Compact 2-row table + a horizontal stacked bar (Recharts) showing Retainer vs Non-Retainer share of total deal value, repeated three ways: overall, by Pepper BU, by VSD. Helps answer "where is the retainer concentration?".
 
-Same VSD → BOPM → Deals drill behaviour as today's `DealViewTab`, with the staffing-bucket columns (Already Staffed / No Staffing Needed / Staffing Needed). Group mode auto-switches to BOPM when a VSD is picked, and to a flat list when a BOPM is picked — identical to current logic. Inline editors for type/status/staffing bucket are preserved.
+### Band F — Geo split (US vs India)
+Table with rows = `geo` (US, India, Other/Unspecified) × columns = # Deals, MRR, Retainer Value, Non-Retainer Value, Total Value, % share. Includes a small donut for # deals and another for MRR. This is the canonical US/India split.
 
-### 3. Lock distribution (from Lock Analytics)
+### Band G — MRR distribution
+Histogram-style table bucketed by MRR tier (<5L, 5–15L, 15–30L, 30–60L, 60L+ in INR) crossed with Retainer vs Non-Retainer. Click a bucket → drill to table.
 
-Two compact stacked bar charts side-by-side:
+## 2. Geo (US / India) as a global filter
 
-- Staffed vs Unstaffed by VSD (horizontal)
-- Staffed vs Unstaffed by Capability (vertical)
+Add a Geo selector to the Clients page header (All / US / India / Other). It scopes:
+- All Analytics bands above.
+- The existing Clients & Deals table.
 
-Uses the same recharts setup as today's `LockAnalyticsTab`. Tightened heights so both fit in one viewport on 1208px.
+To make Geo influence "P&L across modules", add a lightweight `GeoFilterContext` (`src/contexts/GeoFilterContext.tsx`) holding `geo: "all" | "US" | "India" | "Other"`. Persist in `localStorage`. Consume it (read-only for this phase) in:
+- `src/pages/Staffing.tsx` Overview KPIs (MRR, deal counts).
+- `src/pages/Targets.tsx` / `FinanceTargetsCard` totals.
+- `src/pages/MBRTracker.tsx` deal list.
+- `src/pages/RGYHealth.tsx` deal list.
+- Home dashboard portfolio tiles.
 
-### 4. Unstaffed action list (from Lock Analytics)
+Each consumer simply filters its `deals` array by `geo` before computing. No backend, no business-logic rewrite — purely a presentation filter on top of existing computations. Header in `AppLayout` gets a small Geo pill next to the currency toggle so the filter is discoverable from any page.
 
-The "Unstaffed deals to close out" table with the inline **Lock** button (admin only). Always shows the unstaffed slice of the filtered deals, sorted by MRR desc.
+## 3. Files
 
-## Page changes: `src/pages/Staffing.tsx`
+New:
+- `src/components/clients/analytics/AnalyticsKpiStrip.tsx`
+- `src/components/clients/analytics/PortfolioByVsdTable.tsx`
+- `src/components/clients/analytics/PortfolioByBopmTable.tsx`
+- `src/components/clients/analytics/PortfolioByBuCapability.tsx`
+- `src/components/clients/analytics/RetainerMixCard.tsx`
+- `src/components/clients/analytics/GeoSplitCard.tsx`
+- `src/components/clients/analytics/MrrDistributionTable.tsx`
+- `src/components/clients/analytics/ClientsAnalyticsTab.tsx` (composes all bands)
+- `src/contexts/GeoFilterContext.tsx`
+- `src/components/layout/GeoFilter.tsx` (header pill)
+- `src/lib/dealAnalytics.ts` (pure aggregation helpers: `groupBy`, `sumByDimension`, retainer/NR splits, geo bucketization)
 
-- `Tab` type → `"overview" | "staffing" | "table" | "requests"`.
-- Default `tab` for non-BOPM personas: `"overview"` (was `"staffing"`).
-- Tab list for non-BOPM: `Overview · Staffing · Sheet view`. Drop the `deals` and `lock` entries.
-- `normalizedTabParam`: also map `"deals"` and `"lock"` → `"overview"` so existing deep links and bookmarks keep working.
-- Replace the two existing panels (`DealViewTab`, `LockAnalyticsTab`) with one `<OverviewTab deals=… people=… assignments=… onUpdateDeal=… bopmFilterScopedVsd=… />` panel, lazy-mounted on first visit just like the others.
+Edited:
+- `src/pages/Clients.tsx` — tab switcher, geo selector wired to context, render `ClientsAnalyticsTab`.
+- `src/App.tsx` — wrap with `GeoFilterProvider`.
+- `src/components/layout/AppLayout.tsx` — render `<GeoFilter />` next to currency toggle.
+- `src/pages/Staffing.tsx`, `src/pages/Targets.tsx`, `src/pages/MBRTracker.tsx`, `src/pages/RGYHealth.tsx`, `src/pages/Home.tsx` — apply `useGeoFilter()` to their deal arrays.
 
-## Files left untouched
-
-- `DealViewTab.tsx` and `LockAnalyticsTab.tsx` stay on disk as building blocks — `OverviewTab` reuses their internal helpers (`classifyStaffing`, `dealCapabilities`, the BOPM/VSD grouping memo, the lock mutation) rather than re-importing the full tab shells. We can delete the originals in a follow-up once nothing else links to them.
-- No schema, RLS, or data-fetching changes.
-- BOPM persona view unchanged.
-
-## Out of scope
-
-- Visual redesign of the underlying tables/charts beyond the new compact layout.
-- People-side analytics (that lives on People Ops).
-- Editing the `LockAnalyticsTab` lock-mutation behaviour.
+## 4. Out of scope (call out)
+- No new database fields. Deals already carry `geo`; rows where it's blank fall into "Other/Unspecified".
+- No edit flows in Analytics — it's a read-only pivot surface. Editing stays in the existing Clients table tab.
+- BOPM/Capability Leader persona view of Clients is unchanged (they already see a scoped subset; Analytics tab will respect `useDealAccess` and only aggregate visible deals).
+- GM%/profitability columns will render as "—" until a margin source is wired in a later pass; the layout reserves the slot.
