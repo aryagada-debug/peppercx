@@ -27,7 +27,7 @@ type Tab = "overview" | "staffing" | "people" | "table" | "requests";
 export default function Staffing() {
   useCurrencyVersion();
   const [searchParams, setSearchParams] = useSearchParams();
-  const tabParam = searchParams.get("tab") as Tab | null;
+  const tabParam = searchParams.get("tab");
   const dealParam = searchParams.get("deal");
   const { role, isActuallyAdmin } = useUserRole();
   const { visibleDealIds, loading: accessLoading } = useDealAccess();
