@@ -1444,9 +1444,9 @@ export default function Clients() {
             </div>
           )}
         </div>
+        </>
+        )}
       </div>
-      </>
-      )}
 
       {/* Delete Confirmation */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
