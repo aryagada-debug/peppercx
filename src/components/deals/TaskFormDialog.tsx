@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SubTask } from "./TaskKanban";
+import DOMPurify from "dompurify";
 
 const STAGES = ["To Do", "In Progress", "In Review", "Done", "Dropped"];
 const URGENCIES = ["Low", "Medium", "High", "Critical"];
