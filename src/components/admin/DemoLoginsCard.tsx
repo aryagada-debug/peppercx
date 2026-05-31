@@ -7,7 +7,7 @@ import { Copy, ExternalLink, Loader2, KeyRound } from "lucide-react";
 interface DemoAccount {
   email: string;
   person: string;
-  role: "VSD" | "BOPM";
+  role: "VSD" | "BOPM" | "Cap Lead";
   pod?: string;
 }
 
@@ -22,6 +22,8 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
   { email: "ritu.shinde+demo@peppercontent.io", person: "Ritu Shinde", role: "BOPM", pod: "Group BOPM" },
   { email: "tiffany.fernandes+demo@peppercontent.io", person: "Tiffany Fernandes", role: "BOPM", pod: "Sr BOPM" },
   { email: "shreshtha.pathak+demo@peppercontent.io", person: "Shreshtha Pathak", role: "BOPM", pod: "Principal BOPM" },
+  { email: "mayur.varade+demo@peppercontent.io", person: "Mayur Varade", role: "Cap Lead", pod: "SEO Capability" },
+  { email: "vedanga.bandyopadhyay+demo@peppercontent.io", person: "Vedanga Bandyopadhyay", role: "Cap Lead", pod: "SEO Capability" },
 ];
 
 export function DemoLoginsCard() {
@@ -85,7 +87,17 @@ export function DemoLoginsCard() {
             <tr key={a.email} className="border-b border-border/50 hover:bg-secondary/30">
               <td className="px-3 py-2 font-medium text-foreground">{a.person}</td>
               <td className="px-3 py-2">
-                <span className={`inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium ${a.role === "VSD" ? "bg-primary/15 text-primary" : "bg-accent/40 text-foreground"}`}>{a.role}</span>
+                <span
+                  className={`inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                    a.role === "VSD"
+                      ? "bg-primary/15 text-primary"
+                      : a.role === "Cap Lead"
+                        ? "bg-emerald-500/15 text-emerald-600"
+                        : "bg-accent/40 text-foreground"
+                  }`}
+                >
+                  {a.role}
+                </span>
               </td>
               <td className="px-3 py-2 text-muted-foreground">{a.pod}</td>
               <td className="px-3 py-2 font-mono text-[11px] text-foreground">{a.email}</td>

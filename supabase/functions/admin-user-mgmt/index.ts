@@ -295,7 +295,7 @@ Deno.serve(async (req) => {
 
     if (action === "provision_demo_logins") {
       const DEMO_PASSWORD = "Demo@1234";
-      const DEMO_ACCOUNTS: { personId: string; email: string; appRole: "member" | "user" }[] = [
+      const DEMO_ACCOUNTS: { personId: string; email: string; appRole: "member" | "user" | "capability_lead" }[] = [
         // VSDs → 'member' role
         { personId: "p_adityashaw",        email: "aditya.shaw+demo@peppercontent.io",       appRole: "member" },
         { personId: "p_neema_jayadas",     email: "neema.jayadas+demo@peppercontent.io",     appRole: "member" },
@@ -306,6 +306,9 @@ Deno.serve(async (req) => {
         { personId: "p_ritu_shinde",       email: "ritu.shinde+demo@peppercontent.io",       appRole: "user" },
         { personId: "p_tiffany_fernandes", email: "tiffany.fernandes+demo@peppercontent.io", appRole: "user" },
         { personId: "p_shreshtha_pathak",  email: "shreshtha.pathak+demo@peppercontent.io",  appRole: "user" },
+        // Capability Leaders → 'capability_lead' role
+        { personId: "p_mayur_varade",            email: "mayur.varade+demo@peppercontent.io",            appRole: "capability_lead" },
+        { personId: "p_vedanga_bandyopadhyay",   email: "vedanga.bandyopadhyay+demo@peppercontent.io",   appRole: "capability_lead" },
       ];
 
       const ids = DEMO_ACCOUNTS.map((a) => a.personId);
