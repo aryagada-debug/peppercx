@@ -499,7 +499,7 @@ Deno.serve(async (req) => {
       }
 
       return new Response(
-        JSON.stringify({ password: BOPM_PASSWORD, count: results.length, results, skipped }),
+        JSON.stringify({ count: results.length, results, skipped }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
