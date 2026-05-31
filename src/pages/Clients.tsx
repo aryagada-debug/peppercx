@@ -182,7 +182,7 @@ export default function Clients() {
   const { updateDeal, addAssignment, updateAssignment, deleteAssignment } = useStaffingMutations();
   const { clients: allClients, loading: clientsLoading, addClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
   const access = useDealAccess();
-  const { matches: geoMatches, geo: geoFilter } = useGeoFilter();
+  const { matchesDeal: geoMatchesDeal, geo: geoFilter } = useGeoFilter();
   const [view, setView] = useState<"analytics" | "table">("analytics");
   const { canEditAll, role } = useUserRole();
   const isCapLead = role === "capability_lead";
@@ -232,9 +232,9 @@ export default function Clients() {
   const deals = useMemo(
     () => {
       const visible = access.isAdmin ? allDeals : allDeals.filter(d => access.canViewDeal(d.id));
-      return visible.filter(d => geoMatches(d.geo));
+      return visible.filter(d => geoMatchesDeal(d));
     },
-    [allDeals, access, geoMatches]
+    [allDeals, access, geoMatchesDeal]
   );
   const dealIdList = useMemo(() => deals.map(d => d.id), [deals]);
   const { rgyRollup } = useDealRgyRollup(dealIdList);
