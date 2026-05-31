@@ -58,6 +58,7 @@ export function UsersTab() {
   const [overrides, setOverrides] = useState<OverrideMap>({});
   const [savingOverrides, setSavingOverrides] = useState(false);
   const [missingPeople, setMissingPeople] = useState<MissingPerson[]>([]);
+  const [roleFilter, setRoleFilter] = useState<AppRole | "all">("all");
   const [savingEmail, setSavingEmail] = useState<string | null>(null);
   const [showMissing, setShowMissing] = useState(false);
 
