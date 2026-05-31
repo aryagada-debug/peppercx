@@ -1,0 +1,461 @@
+{
+  "title": "Pepper OS \u2014 Detailed User Guide",
+  "subtitle": "How to use the platform, by role",
+  "version": "v1.0 \u00b7 May 2026",
+  "intro": {
+    "what": "Pepper OS is the single operating system for the Customer Experience (CX) org. It replaces spreadsheets and Slack threads with one source of truth for every active customer deal \u2014 who owns it, how it's staffed, how healthy it is, whether the MBR has been done, and how the financials are tracking.",
+    "navigation": [
+      [
+        "Home",
+        "Your personal landing page \u2014 pinned deals, your open tasks, quick links."
+      ],
+      [
+        "Clients & Deals",
+        "Every client and the deals under them. The deepest module in the product \u2014 click any deal to open the 7-tab Deal Detail."
+      ],
+      [
+        "Staffing & Capacity",
+        "Two views: Deal view (who's on each deal) and People view (every person's allocations). Add, lock, and rebalance staffing here."
+      ],
+      [
+        "People Ops",
+        "Hierarchical org tree, roles, capability membership, hiring requests, leavers."
+      ],
+      [
+        "RGY Health",
+        "Red/Yellow/Green tracker across 8 health dimensions for every deal. The board, table, and insights tabs."
+      ],
+      [
+        "MBR Tracker",
+        "Monthly Business Reviews \u2014 schedule, notes, compliance warnings."
+      ],
+      [
+        "Settings",
+        "Personal preferences, Users & Roles, Access Controls, Integrations."
+      ]
+    ],
+    "common": [
+      [
+        "Global Search",
+        "Press Cmd+K (Mac) or Ctrl+K (Windows) anywhere to jump to a deal, person, or page."
+      ],
+      [
+        "Theme",
+        "Toggle Dark / Light in the top bar \u2014 your choice is remembered per device."
+      ],
+      [
+        "Inline editing",
+        "Almost every cell in the product is editable in place. Click a value, type, press Enter. No 'Save' button required."
+      ],
+      [
+        "Currency",
+        "Switch INR / USD in the top bar. All amounts re-render with FX conversion using the rate set in Settings -> Integrations."
+      ],
+      [
+        "Read-only banner",
+        "If you see an amber banner at the top of a page, your role can view but not edit that section. Hover the badges in any table to see exactly which fields are locked."
+      ]
+    ]
+  },
+  "personas": [
+    {
+      "key": "admin",
+      "name": "Admin / Central CX",
+      "summary": "You run the platform. Full edit access to every module, every deal, every person. You're also the gatekeeper for staffing locks and access control.",
+      "daily": [
+        "Start the day on the Home dashboard. Scan KPI tiles: Red deals, MBR overdue, staffing < 60% utilised, receivables aging > 60 days.",
+        "Open RGY Health -> Health Board -> 'All' VSD filter. Any deal in the Red column is your priority list for the morning.",
+        "Jump into Staffing & Capacity -> People view. Look for red bars (under 60%) and yellow bars (over 85%) \u2014 these need rebalancing.",
+        "MBR Tracker: confirm anything marked 'Overdue' for the current month has either been scheduled or escalated."
+      ],
+      "modules": [
+        {
+          "name": "Clients & Deals",
+          "steps": [
+            "Click 'New Client' (top right) to open the creation wizard. Step 1: client basics. Step 2: first deal under that client.",
+            "On an existing deal, the Overview tab is your single edit pane: Account, MRR, Start/End, Status, VSD, Principal/Senior/BOPM dropdowns.",
+            "Use the trash icon to soft-delete a deal \u2014 it's recoverable from the Trash page for 30 days, then purged.",
+            "Bulk operations: from the Clients table, select multiple rows to bulk-tag pod or VSD."
+          ]
+        },
+        {
+          "name": "Staffing & Capacity",
+          "steps": [
+            "Open any deal's staffing card. Click the amber 'Unstaffed' chip to lock the deal as 'Staffed' \u2014 only admins can do this. Locked deals can't be edited until you unlock.",
+            "Click 'Add Staffing' on a deal to assign a person + role + allocation %. The system warns if the person is already > 100% allocated.",
+            "Use the People view to spot capacity issues. Red = <60%, Green = 60\u201385%, Yellow = >85% (over-allocated).",
+            "BOPMs can raise staffing requests; you approve them in the Approval Requests drawer (bell icon, top bar)."
+          ]
+        },
+        {
+          "name": "RGY Health",
+          "steps": [
+            "Click any RGY cell in the Table tab to change a dimension. Marking a deal Green forces you through the 'Green-gate' validator: all 8 dimensions must justify Green.",
+            "Use the Insights tab for VSD- and pod-level rollups. Drill-downs are clickable.",
+            "Pending KPI tile shows deals that have never been marked \u2014 these need a VSD assigned and a first review."
+          ]
+        },
+        {
+          "name": "Settings -> Users & Roles",
+          "steps": [
+            "Add a user by email. They sign in via Google SSO; the first sign-in creates their profile and links to their staffing record by email match.",
+            "Assign role: Admin, VSD, BOPM, Capability Leader, Capability Member, or Viewer.",
+            "Use 'View As' to preview the product as any role \u2014 useful before changing access policies."
+          ]
+        },
+        {
+          "name": "Settings -> Access Controls",
+          "steps": [
+            "Per route, per role: toggle visibility and configure view/edit scope tokens (e.g. 'Own pod only', 'Edit financials').",
+            "Defaults are sensible \u2014 only override when a specific persona needs an exception."
+          ]
+        }
+      ],
+      "cans": [
+        "Edit every field on every deal",
+        "Lock / unlock staffing",
+        "Delete deals (soft, with restore)",
+        "Manage users & roles",
+        "Edit access controls and FX rate"
+      ],
+      "cants": [
+        "Modify Supabase-reserved schemas (auth, storage)"
+      ],
+      "faq": [
+        [
+          "A VSD says they can't see a deal they own.",
+          "Confirm the deal's `vsd` column matches their full name exactly. Email mismatch breaks the profile<->staffing link."
+        ],
+        [
+          "A BOPM is on staffing but can't open the deal.",
+          "BOPM access is granted via the deal's BOPM cells, NOT staffing_assignments. Add their name to principal_bopm / senior_bopm / bopm on the Overview tab."
+        ],
+        [
+          "The Pending RGY count looks too high.",
+          "Filter the RGY board by VSD = 'Unassigned' \u2014 these are deals waiting for VSD assignment in Settings -> People & Reporting."
+        ]
+      ]
+    },
+    {
+      "key": "vsd",
+      "name": "VSD (Vertical Service Director)",
+      "summary": "You own the P&L of your pod. The platform surfaces every deal where you are the VSD, plus deals where a Principal/Senior BOPM rolls up to you.",
+      "daily": [
+        "Home dashboard: review the 'My Pod' KPI strip and pinned deals.",
+        "RGY Health -> filter by 'You' \u2014 anything Red or Yellow is your call to make this week.",
+        "MBR Tracker -> check compliance for the current month for your pod's deals.",
+        "Staffing & Capacity -> confirm Add Staffing requests raised by your BOPMs are approved within 24h."
+      ],
+      "modules": [
+        {
+          "name": "Clients & Deals (your scope)",
+          "steps": [
+            "Open any deal in your pod. Use the Overview tab to keep MRR, contract dates, and BOPM assignments current.",
+            "Financials tab -> 6 sub-tabs. Edit Contracted MRR, Consumption, GM%, Invoiced, Received inline. Watch the receivables aging chip \u2014 anything > 60 days needs escalation.",
+            "Use the Contract Details panel to spot deals renewing in < 30 days (chip turns amber)."
+          ]
+        },
+        {
+          "name": "Staffing",
+          "steps": [
+            "Approve / decline staffing requests routed to you via the bell icon.",
+            "Spot under-utilisation in your pod \u2014 People view, filter by your pod, sort by allocation ascending.",
+            "Use the WeeklyStaffingGrid (bottom of every deal's Staffing tab) to plan the next 4 weeks at row-by-row hour level."
+          ]
+        },
+        {
+          "name": "RGY Health",
+          "steps": [
+            "Mark RGY for any deal you own. Logging a Red requires a mandatory issue + action-plan form \u2014 this is non-negotiable.",
+            "Insights tab shows your pod ranked vs. peers. Aim for an Overall Health Score > 70/100."
+          ]
+        },
+        {
+          "name": "MBR Tracker",
+          "steps": [
+            "Every deal in your pod must have one MBR per calendar month. The tracker warns 5 days before the end of the month.",
+            "Click into an MBR to upload the deck + meeting notes. The 'Single source of truth' field lets you mark this MBR as the canonical one for the month."
+          ]
+        }
+      ],
+      "cans": [
+        "Edit any deal in your pod (financials, RGY, staffing, MBR)",
+        "Approve staffing requests from your BOPMs",
+        "Pin deals to Home",
+        "Comment on any deal"
+      ],
+      "cants": [
+        "See deals outside your pod",
+        "Edit org-level targets or FX rate",
+        "Manage users or access controls"
+      ],
+      "faq": [
+        [
+          "A deal disappeared from my list.",
+          "Its `Deal Status` was changed to Closed / Lost. Filter the Clients table by Status = All to see closed deals."
+        ],
+        [
+          "I marked a deal Green but the score didn't change.",
+          "Score recomputes when \u2265 4 of 8 dimensions are non-Pending. Mark the remaining dimensions explicitly."
+        ]
+      ]
+    },
+    {
+      "key": "bopm",
+      "name": "BOPM (Business Operations & Project Manager)",
+      "summary": "You run the day-to-day for the deals you're tagged on. Access is restricted to those deals only \u2014 you won't see anyone else's.",
+      "daily": [
+        "Home -> My Tasks: Kanban of the 5-column board (Backlog, In Progress, Blocked, In Review, Done). Time-track on the fly.",
+        "Open each of your deals. Confirm staffing is locked (green 'Staffed' chip). If not, raise a request.",
+        "Update RGY for any dimension that changed this week.",
+        "If an MBR is due, schedule it from the MBR Tracker."
+      ],
+      "modules": [
+        {
+          "name": "Clients & Deals (your tagged deals only)",
+          "steps": [
+            "Overview tab: keep the Team card current. If a designer or strategist changes, update their entry \u2014 this auto-creates a staffing assignment.",
+            "Tasks tab: drag cards across the 5-column board. Click into a card to log time, add subtasks, or attach files.",
+            "RGY tab: red/amber/green dimensions you've marked here flow up to the RGY Health module."
+          ]
+        },
+        {
+          "name": "Staffing",
+          "steps": [
+            "You can't add staffing directly. Click 'Request Staffing' on any of your deals \u2014 it routes to the relevant Capability Leader, then to Central CX for approval.",
+            "Read-only views of allocations and capacity are available so you can plan."
+          ]
+        },
+        {
+          "name": "RGY Health",
+          "steps": [
+            "Mark RGY only for the deals you're tagged on. Same Green-gate rules as VSDs apply.",
+            "Use the Table view for fast bulk updates across your portfolio."
+          ]
+        },
+        {
+          "name": "MBR Tracker",
+          "steps": [
+            "Schedule, upload notes, and mark MBRs done for your deals.",
+            "Compliance warnings appear 5 days before month-end; act on them."
+          ]
+        }
+      ],
+      "cans": [
+        "View and edit deals you're tagged on (BOPM cell)",
+        "Raise staffing requests",
+        "Edit RGY and MBR on your deals",
+        "Manage your own task board"
+      ],
+      "cants": [
+        "See deals you're not tagged on",
+        "Add staffing directly",
+        "Lock staffing",
+        "Edit financials beyond your scope (admin policy)",
+        "See org-wide KPIs"
+      ],
+      "faq": [
+        [
+          "I'm staffed on a deal but can't see it.",
+          "BOPM scope is granted by deal sheet cells (principal_bopm / senior_bopm / bopm), not staffing assignments. Ask your VSD to add your name to one of those cells on the Overview tab."
+        ],
+        [
+          "My staffing request is stuck.",
+          "Bell icon -> Approval Requests shows status. Stage 1 is Capability Leader, Stage 2 is Central CX."
+        ]
+      ]
+    },
+    {
+      "key": "capability_lead",
+      "name": "Capability Leader (SEO / Creative / Editorial)",
+      "summary": "You own a capability team end-to-end \u2014 utilisation, hiring, quality. You see every deal that uses your capability and can rebalance your people across them.",
+      "daily": [
+        "Open Home \u2014 the Capability Leader Dashboard shows your team's utilisation distribution and a leaderboard of deals by RGY.",
+        "Staffing -> People view, filtered to your capability. Red bars need work assigned, yellow bars need work taken off.",
+        "Approve / decline staffing requests routed to you.",
+        "People Ops: hiring gaps and TBH (To Be Hired) tracker."
+      ],
+      "modules": [
+        {
+          "name": "Custom Dashboard",
+          "steps": [
+            "Team Utilisation chart: stacked by person, showing % allocated this week.",
+            "Deals by RGY: every deal your team touches, grouped by health. Click any to drill in (read-only view of the deal)."
+          ]
+        },
+        {
+          "name": "Staffing \u2014 your team",
+          "steps": [
+            "On any staffing request routed to you (bell icon), click Approve / Reject. Approval forwards to Central CX for final lock.",
+            "From the People view, click a person to see their allocation across all deals. Use this to identify who you can pull off a deal that's wrapping up."
+          ]
+        },
+        {
+          "name": "Deals (read-only)",
+          "steps": [
+            "You can open any deal your team appears on. RGY, MBR, Staffing tabs are visible but not editable.",
+            "Use comments to flag risks to the VSD."
+          ]
+        },
+        {
+          "name": "People Ops",
+          "steps": [
+            "Manage your capability membership (auto-seeded from role_category).",
+            "Mark people as TBH (open req), Leaving, or Active. The platform uses this for capacity forecasting."
+          ]
+        }
+      ],
+      "cans": [
+        "See every deal your capability touches",
+        "Approve staffing for your capability",
+        "Manage your team in People Ops",
+        "Comment on deals"
+      ],
+      "cants": [
+        "Edit deal fields, financials, RGY, MBR",
+        "Lock staffing",
+        "See deals that don't use your capability"
+      ],
+      "faq": [
+        [
+          "A deal isn't showing under my team.",
+          "Capability access is granted via staffing_assignments. If no one from your capability is staffed on the deal yet, you won't see it. Wait for the BOPM to raise a request, or ask the VSD to staff one of yours."
+        ]
+      ]
+    },
+    {
+      "key": "capability_member",
+      "name": "Capability Member (IC \u2014 Individual Contributor)",
+      "summary": "You're an IC \u2014 designer, writer, SEO analyst, strategist. You see only the deals you are personally staffed on, plus your own task board.",
+      "daily": [
+        "Home -> My Tasks. Your Kanban board of work assigned to you, across every deal.",
+        "Log time on tasks as you work. Don't end the day with un-tracked hours.",
+        "Read RGY status on your deals \u2014 if a deal you're on goes Red, expect a sync with the BOPM."
+      ],
+      "modules": [
+        {
+          "name": "Custom Dashboard",
+          "steps": [
+            "My Tasks: 5-column Kanban with time-tracker on every card.",
+            "My Deals: read-only cards for each deal you're staffed on. Click into any to see the brief, team, and SoW."
+          ]
+        },
+        {
+          "name": "Deals (read-only)",
+          "steps": [
+            "Overview tab to read the brief and contract context.",
+            "Staffing tab to see who else is on the deal and at what allocation.",
+            "Tasks tab \u2014 your tasks only are editable; everyone else's are read-only."
+          ]
+        }
+      ],
+      "cans": [
+        "See your own task board",
+        "Log time",
+        "Read details of deals you're staffed on",
+        "Update your own profile in Settings"
+      ],
+      "cants": [
+        "Edit anything outside your tasks",
+        "See deals you're not on",
+        "Mark RGY or MBR"
+      ],
+      "faq": [
+        [
+          "I'm assigned tasks but they don't show on Home.",
+          "Tasks are only surfaced to Home when the assignee_staffing_person_id matches your profile. If you joined recently, ask Admin to re-link your staffing record via Settings -> Users."
+        ]
+      ]
+    },
+    {
+      "key": "view_only",
+      "name": "Viewer (Read-Only)",
+      "summary": "You can see everything Admin can see \u2014 but cannot edit. Typically Finance, Legal, Founders, or external auditors.",
+      "daily": [
+        "Use the dashboards to monitor org-wide health.",
+        "Open any deal to inspect financials, RGY, staffing, MBR.",
+        "Export tables to CSV from any module's Columns dropdown."
+      ],
+      "modules": [
+        {
+          "name": "Every module \u2014 view mode",
+          "steps": [
+            "Every page loads with a read-only banner at the top.",
+            "Edit affordances (pencil icons, inline cells) are hidden or disabled.",
+            "Use Cmd+K (Mac) / Ctrl+K (Windows) to jump to any deal or person."
+          ]
+        }
+      ],
+      "cans": [
+        "See everything across the org",
+        "Export any table to CSV",
+        "Comment on deals (read-only mode allows comments)"
+      ],
+      "cants": [
+        "Edit any field",
+        "Trigger workflows (staffing requests, RGY updates, MBR uploads)",
+        "Change settings"
+      ],
+      "faq": [
+        [
+          "I need to fix one wrong number for a finance close.",
+          "Ask an Admin to make the edit. Viewer is intentionally locked to preserve audit integrity."
+        ]
+      ]
+    }
+  ],
+  "appendix": {
+    "modules": [
+      {
+        "name": "Clients & Deals",
+        "blurb": "Unified table grouped by client. Each client expands to show its deals. Click a deal to open the 7-tab Deal Detail: Overview, Financials (with 6 sub-tabs), Staffing, RGY, Tasks, MBR, Documents.",
+        "tips": [
+          "Use the column picker (top right of the table) to show/hide columns.",
+          "Soft-deleted deals live in /trash for 30 days.",
+          "Composite IDs follow `{PC}_{dealId}` \u2014 never edit IDs manually."
+        ]
+      },
+      {
+        "name": "Staffing & Capacity",
+        "blurb": "Two views: Deal view (deal cards, expand each to see members) and People view (every person, their utilisation, their deals). The standard work week is 160 hours / month. Allocations are % of full-time.",
+        "tips": [
+          "Lock icon = staffing approved. Locked deals can't be edited until unlocked.",
+          "Capacity bands: Red <60%, Green 60\u201385%, Yellow >85%.",
+          "Use the Weekly grid at the bottom of each deal to plan the next 4 weeks."
+        ]
+      },
+      {
+        "name": "RGY Health",
+        "blurb": "8 dimensions per deal (e.g. Delivery, NPS, Renewal Risk, Strategic Alignment). Each gets R/Y/G/Pending. A deal's worst dimension drives its row color. Score = (Green\u00d7100 + Yellow\u00d750) / scored dimensions.",
+        "tips": [
+          "Going Green forces the Green-gate validator \u2014 all 8 dimensions must justify Green.",
+          "Going Red requires the mandatory Issue + Action Plan form.",
+          "Pending = unmarked. Click the Pending KPI to drill into untouched deals."
+        ]
+      },
+      {
+        "name": "MBR Tracker",
+        "blurb": "One MBR per deal per calendar month. Compliance warnings fire 5 days before month-end. The 'Single source of truth' flag marks the canonical MBR when multiple are uploaded.",
+        "tips": [
+          "Upload deck, notes, and transcript on the MBR card.",
+          "Filter by Overdue / Upcoming / Done at the top of the page."
+        ]
+      },
+      {
+        "name": "People Ops",
+        "blurb": "Hierarchical tree of the org. Region codes, capability membership, active / TBH / Leaving states. Reporting manager chain is enforced here.",
+        "tips": [
+          "Adding someone here doesn't grant Pepper OS access \u2014 that happens via Settings -> Users when they first sign in."
+        ]
+      },
+      {
+        "name": "Settings",
+        "blurb": "Personal preferences (theme, default currency), Users & Roles, Access Controls, and Integrations (Slack, Google Calendar, FX rate provider).",
+        "tips": [
+          "FX rate is set centrally in Integrations and used everywhere INR<->USD shows up.",
+          "Use 'View As' in Users to preview the app as any role."
+        ]
+      }
+    ]
+  }
+}
