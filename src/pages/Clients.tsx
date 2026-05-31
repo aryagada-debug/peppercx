@@ -1089,6 +1089,7 @@ export default function Clients() {
             </Button>
           )}
 
+          {isCentralCx && (
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 ml-auto">
@@ -1132,6 +1133,7 @@ export default function Clients() {
               </div>
             </PopoverContent>
           </Popover>
+          )}
         </div>
 
         {/* Flat Table with column filters */}
