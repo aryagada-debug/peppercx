@@ -2015,17 +2015,39 @@ export default function DealDetail() {
                   editor={<EditableCell value={String(deal.mrr || "")} onSave={v => handleDealFieldSave("mrr", v)} type="number" prefix={currencySymbol} placeholder="—" size="lg" />}
                 />
                 <KpiTile
-                  label="Total Value" icon={Wallet} tone="positive" sublabel="Contract total"
+                  label="Total Deal Value" icon={Wallet} tone="positive" sublabel="Contract total"
                   editor={<EditableCell value={String(deal.totalDealValue || "")} onSave={v => handleDealFieldSave("totalDealValue", v)} type="number" prefix={currencySymbol} placeholder="—" size="lg" />}
                 />
                 <KpiTile
-                  label="Retainer Value" icon={Receipt} tone="warning" sublabel="Of total value"
-                  editor={<EditableCell value={String(deal.retainerDealValue || "")} onSave={v => handleDealFieldSave("retainerDealValue", v)} type="number" prefix={currencySymbol} placeholder="—" size="lg" />}
+                  label="Net Deal Value" icon={BadgeCheck} tone="primary" sublabel="After losses"
+                  editor={<EditableCell value={String(deal.netDealValue || "")} onSave={v => handleDealFieldSave("netDealValue", v)} type="number" prefix={currencySymbol} placeholder="—" size="lg" />}
                 />
                 <KpiTile
-                  label="Non-Retainer" icon={Receipt} tone="destructive" sublabel="Non-retainer portion"
-                  editor={<EditableCell value={String(deal.nonRetainerDealValue || "")} onSave={v => handleDealFieldSave("nonRetainerDealValue", v)} type="number" prefix={currencySymbol} placeholder="—" size="lg" />}
+                  label="Deal Value Lost" icon={AlertCircle} tone="destructive" sublabel="Churn / disputes"
+                  editor={<EditableCell value={String(deal.dealValueLost || "")} onSave={v => handleDealFieldSave("dealValueLost", v)} type="number" prefix={currencySymbol} placeholder="—" size="lg" />}
                 />
+              </div>
+              <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 rounded-lg border border-border bg-muted/30 p-3">
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Retainer Value</span>
+                  editor={<EditableCell value={String(deal.retainerDealValue || "")} onSave={v => handleDealFieldSave("retainerDealValue", v)} type="number" prefix={currencySymbol} placeholder="—" size="lg" />}
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Non-Retainer Value</span>
+                  <EditableCell value={String(deal.nonRetainerDealValue || "")} onSave={v => handleDealFieldSave("nonRetainerDealValue", v)} type="number" prefix={currencySymbol} placeholder="—" />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Duration (months)</span>
+                  <EditableCell value={deal.duration || ""} onSave={v => handleDealFieldSave("duration", v)} placeholder="—" />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Start Month</span>
+                  <EditableCell value={deal.startDate || ""} onSave={v => handleDealFieldSave("startDate", v)} type="date" placeholder="—" />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">End Month</span>
+                  <EditableCell value={deal.endDate || ""} onSave={v => handleDealFieldSave("endDate", v)} type="date" placeholder="—" />
+                </div>
               </div>
             </div>
 
