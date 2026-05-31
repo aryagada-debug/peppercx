@@ -4,12 +4,31 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Download, FileText, BookOpen } from "lucide-react";
 import guide from "@/data/userGuide.json";
+import { useUserRole, type AppRole } from "@/hooks/useUserRole";
 
 type Persona = (typeof guide.personas)[number];
 
+/** Map auth role → persona key used in userGuide.json. */
+const ROLE_TO_PERSONA: Record<AppRole, string> = {
+  admin: "admin",
+  member: "vsd",
+  user: "bopm",
+  capability_lead: "capability_lead",
+  capability_member: "capability_member",
+  view_only: "view_only",
+};
+
 export default function Help() {
+  const { role, isActuallyAdmin } = useUserRole();
+  // Admins see every persona section. Everyone else only sees their own —
+  // they shouldn't see what other roles can or can't do.
+  const personas = useMemo(() => {
+    const all = guide.personas as Persona[];
+    if (isActuallyAdmin) return all;
+    const myKey = ROLE_TO_PERSONA[role];
+    return all.filter((p) => p.key === myKey);
+  }, [role, isActuallyAdmin]);
   const [tab, setTab] = useState<string>("overview");
-  const personas = guide.personas as Persona[];
 
   return (
     <AppLayout>
