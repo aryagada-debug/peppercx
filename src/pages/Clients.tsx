@@ -927,7 +927,7 @@ export default function Clients() {
           )}
         </div>
 
-        {!(isCapLead || isCapMember) && (
+        {isCentralCx && (
           <div
             role="tablist"
             aria-label="Clients & Deals view"
