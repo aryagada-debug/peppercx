@@ -1138,7 +1138,7 @@ export default function Clients() {
             <table className="text-ui table-fixed" style={{ width: "100%" }}>
               <thead className="sticky top-0 z-20">
                 <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleColDragEnd}>
-                  <SortableContext items={visibleCols} strategy={horizontalListSortingStrategy}>
+                  <SortableContext items={effectiveVisibleCols} strategy={horizontalListSortingStrategy}>
                     <tr className="bg-secondary border-b border-border group/headrow">
                       {(() => {
                         const headerByKey: Record<string, React.ReactNode> = {
@@ -1163,7 +1163,7 @@ export default function Clients() {
                           duration: <ColHeader key="duration" sortableId="duration" label="Duration" colKey="duration" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.duration} onResizeStart={startResize("duration")} />,
                           rag: <ColHeader key="rag" sortableId="rag" label="RGY" align="center" colKey="rag" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["green","amber","red","na","pending"]} width={colWidths.rag} onResizeStart={startResize("rag")} />,
                         };
-                        return visibleCols.filter(k => k in headerByKey).map(k => headerByKey[k]);
+                        return effectiveVisibleCols.filter(k => k in headerByKey).map(k => headerByKey[k]);
                       })()}
                       <th style={{ width: colWidths.actions, minWidth: colWidths.actions }}></th>
                     </tr>
@@ -1472,7 +1472,7 @@ export default function Clients() {
                   };
                   return (
                     <tr key={deal.id} className="border-b border-border/50 hover:bg-accent/10 transition-colors group/row">
-                      {visibleCols.filter(k => k in cellByKey).map(k => cellByKey[k])}
+                      {effectiveVisibleCols.filter(k => k in cellByKey).map(k => cellByKey[k])}
                       <td className="py-2 px-1">
                         <div className="flex items-center gap-1.5 justify-end">
                           <Popover>
