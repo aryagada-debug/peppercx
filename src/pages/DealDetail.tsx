@@ -1729,7 +1729,7 @@ export default function DealDetail() {
 
   const handleDealFieldSave = useCallback((field: string, value: string) => {
     if (!dealId) return;
-    const numFields = ["mrr", "totalDealValue", "retainerDealValue", "nonRetainerDealValue", "netDealValue"];
+    const numFields = ["mrr", "totalDealValue", "retainerDealValue", "nonRetainerDealValue", "netDealValue", "dealValueLost"];
     const v = numFields.includes(field) ? Number(value) || undefined : value;
     updateDeal(dealId, { [field]: v });
     toast.success("Updated");
