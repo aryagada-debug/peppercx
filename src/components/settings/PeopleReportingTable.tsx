@@ -598,6 +598,23 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
         <div className="text-xs text-muted-foreground">
           {filtered.length} of {people.length}
         </div>
+        <div className="flex items-center gap-1 rounded-md border border-border bg-secondary/30 p-0.5">
+          {(["all", "US", "India"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setMarketFilter(m)}
+              className={cn(
+                "rounded px-2.5 py-1 text-xs transition-colors",
+                marketFilter === m
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {m === "all" ? "All markets" : m}
+            </button>
+          ))}
+        </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
