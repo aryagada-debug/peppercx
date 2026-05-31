@@ -665,6 +665,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
             <col style={{ width: widths.designation }} />
             <col style={{ width: widths.email }} />
             <col style={{ width: widths.reportsTo }} />
+            <col style={{ width: widths.market }} />
             <col style={{ width: widths.revType }} />
             <col style={{ width: widths.timeUtil }} />
             <col style={{ width: widths.revUtil }} />
@@ -677,6 +678,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                 ["designation", "Designation", undefined],
                 ["email", "Email", undefined],
                 ["reportsTo", "Reports to", managerNames],
+                ["market", "Market", ["US", "India"]],
                 ["revType", "Revenue capacity", undefined],
                 ["timeUtil", "Time utilisation", undefined],
                 ["revUtil", "Revenue utilisation", undefined],
