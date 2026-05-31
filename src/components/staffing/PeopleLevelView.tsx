@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronRight, Search } from "lucide-react";
 import type { Deal, Person, StaffingAssignment, RevenueCapacityTarget } from "@/data/staffingData";
+import { getPersonRevenueCapacity } from "@/lib/revenueCapacity";
 import { isAssignmentExpired } from "@/data/staffingData";
 
 const ACTIVE_STATUSES = new Set(["Active Deal", "New Deal in SLA/PO", "Deal Disputed"]);
@@ -54,11 +55,9 @@ export function PeopleLevelView({ people, deals, assignments, revenueTargets = [
     return m;
   }, [assignments, activeDealIds, dealMap]);
 
-  // Revenue target lookup
-  const getTarget = (person: Person): number => {
-    const t = revenueTargets.find(rt => rt.department === person.department && rt.designation === person.designation);
-    return t?.targetDealValuePerPerson || 0;
-  };
+  // Revenue capacity is computed from (region, designation) — see src/lib/revenueCapacity.ts.
+  // The legacy `revenueTargets` prop is intentionally unused here.
+  const getTarget = (person: Person): number => getPersonRevenueCapacity(person, people);
 
   // Build hierarchy: group by reporting manager
   const hierarchy = useMemo(() => {
