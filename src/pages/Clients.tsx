@@ -1407,7 +1407,7 @@ export default function Clients() {
                       </td>
                     ),
                     mrr: (
-                      <td key="mrr" className="py-2 px-3 text-right">
+                      <td key="mrr" className={cn("py-2 px-3 text-right", !isCentralCx && "bg-primary/5 font-medium")}>
                         {isBopmViewOnly ? (
                           <span className="text-xs text-foreground">
                             {deal.mrr ? `${sym}${mrrVal.toLocaleString()}` : "—"}
@@ -1428,7 +1428,7 @@ export default function Clients() {
                       </td>
                     ),
                     totalDealValue: (
-                      <td key="totalDealValue" className="py-2 px-3 text-right">
+                      <td key="totalDealValue" className={cn("py-2 px-3 text-right", !isCentralCx && "bg-primary/5 font-medium")}>
                         {isBopmViewOnly ? (
                           <span className="text-xs text-foreground">
                             {deal.totalDealValue ? `${sym}${totalVal.toLocaleString()}` : "—"}
