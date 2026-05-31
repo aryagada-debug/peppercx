@@ -66,6 +66,9 @@ import { BopmFilter, dealMatchesBopm, dealsStaffedByName } from "@/components/ac
 import { useAuth } from "@/components/auth/AuthProvider";
 // BopmClientsHeader removed per request — KPIs below now serve that role.
 import { useDealRgyRollup, type RgyLetter } from "@/hooks/useDealRgyRollup";
+import { useGeoFilter } from "@/contexts/GeoFilterContext";
+import { ClientsAnalyticsTab } from "@/components/clients/analytics/ClientsAnalyticsTab";
+import { BarChart3, Table as TableIcon } from "lucide-react";
 
 type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
@@ -179,6 +182,8 @@ export default function Clients() {
   const { updateDeal, addAssignment, updateAssignment, deleteAssignment } = useStaffingMutations();
   const { clients: allClients, loading: clientsLoading, addClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
   const access = useDealAccess();
+  const { matches: geoMatches, geo: geoFilter } = useGeoFilter();
+  const [view, setView] = useState<"analytics" | "table">("analytics");
   const { canEditAll, role } = useUserRole();
   const isCapLead = role === "capability_lead";
   const isCapMember = role === "capability_member";
@@ -225,8 +230,11 @@ export default function Clients() {
   }, [vsdUsers]);
   // Scope deals & clients to what this user is allowed to see.
   const deals = useMemo(
-    () => (access.isAdmin ? allDeals : allDeals.filter(d => access.canViewDeal(d.id))),
-    [allDeals, access]
+    () => {
+      const visible = access.isAdmin ? allDeals : allDeals.filter(d => access.canViewDeal(d.id));
+      return visible.filter(d => geoMatches(d.geo));
+    },
+    [allDeals, access, geoMatches]
   );
   const dealIdList = useMemo(() => deals.map(d => d.id), [deals]);
   const { rgyRollup } = useDealRgyRollup(dealIdList);
