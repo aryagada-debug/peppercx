@@ -297,7 +297,7 @@ export default function Staffing() {
                   deals={scopedDeals}
                   people={people}
                   assignments={scopedAssignments}
-                  isAdmin={isActuallyAdmin}
+                  isAdmin={isActuallyAdmin || isVsdPersona}
                   enableBopmFilter
                   bopmFilterScopedVsd={myVsdName}
                   onAddAssignment={addAssignment}
