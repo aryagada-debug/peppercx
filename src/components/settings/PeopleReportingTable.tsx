@@ -193,12 +193,13 @@ function classifyPerson(
 /* Resizable column hook                                               */
 /* ------------------------------------------------------------------ */
 
-type ColKey = "name" | "designation" | "email" | "reportsTo" | "revType" | "timeUtil" | "revUtil";
+type ColKey = "name" | "designation" | "email" | "reportsTo" | "market" | "revType" | "timeUtil" | "revUtil";
 const DEFAULT_WIDTHS: Record<ColKey, number> = {
   name: 180,
   designation: 160,
   email: 190,
   reportsTo: 140,
+  market: 110,
   revType: 260,
   timeUtil: 130,
   revUtil: 130,
