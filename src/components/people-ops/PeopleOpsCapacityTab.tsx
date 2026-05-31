@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import type { Deal, Person, StaffingAssignment } from "@/data/staffingData";
 import { ACTIVE_DEAL_STATUSES, isAssignmentExpired } from "@/data/staffingData";
@@ -224,9 +224,8 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
               const fillColor = fillBucket ? BUCKET_COLOR[fillBucket as Bucket].text : "text-muted-foreground";
               const isOpen = expanded === r.person.id;
               return (
-                <>
+                <Fragment key={r.person.id}>
                   <tr
-                    key={r.person.id}
                     onClick={() => setExpanded(isOpen ? null : r.person.id)}
                     className="border-t border-border cursor-pointer hover:bg-muted/30"
                   >
@@ -272,7 +271,7 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
                       <td colSpan={2}></td>
                     </tr>
                   ))}
-                </>
+                </Fragment>
               );
             })}
           </tbody>
