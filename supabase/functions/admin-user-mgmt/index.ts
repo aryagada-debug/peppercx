@@ -288,7 +288,7 @@ Deno.serve(async (req) => {
         .then((r) => r, () => null);
 
       return new Response(
-        JSON.stringify({ status, user_id: userId, email, password: DEFAULT_PASSWORD }),
+        JSON.stringify({ status, user_id: userId, email }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
