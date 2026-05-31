@@ -21,10 +21,11 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action = body.action;
 
-    // `provision_demo_logins` is callable from the public Login page (the
-    // user has no session yet), so it bypasses the auth/admin gate. All
-    // other actions require an authenticated admin.
-    const isPublicAction = action === "provision_demo_logins";
+    // Every action — including `provision_demo_logins` — now requires an
+    // authenticated admin. Previously demo provisioning was public, which
+    // let any internet caller reset the 8 named demo accounts to the known
+    // password.
+    const isPublicAction = false;
 
     let callerId: string | null = null;
     let userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
