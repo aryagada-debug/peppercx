@@ -2,6 +2,7 @@ import { AppSidebar } from "./AppSidebar";
 import { GlobalSearch } from "@/components/dashboard/GlobalSearch";
 import { ThemeToggle } from "@/components/dashboard/ThemeToggle";
 import { CurrencyToggle } from "./CurrencyToggle";
+import { GeoFilter } from "./GeoFilter";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { RoleSwitcher } from "./RoleSwitcher";
 import type { RGYRow } from "@/types/dashboard";
@@ -32,6 +33,7 @@ export function AppLayout({ children, onSearchSelectDeal }: AppLayoutProps) {
           <div className="flex items-center gap-2">
             <RoleSwitcher />
             <GlobalSearch onSelectDeal={onSearchSelectDeal} />
+            <GeoFilter />
             <CurrencyToggle />
             <ThemeToggle />
             <UserMenu />
