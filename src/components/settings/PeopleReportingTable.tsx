@@ -866,6 +866,19 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                     />
                                   </td>
                                   <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
+                                    <select
+                                      value={marketOf(p)}
+                                      onChange={(e) =>
+                                        onUpdate(p.id, { region: e.target.value })
+                                      }
+                                      className="h-8 w-full rounded border border-input bg-background px-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                                    >
+                                      <option value="">—</option>
+                                      <option value="US">US</option>
+                                      <option value="India">India</option>
+                                    </select>
+                                  </td>
+                                  <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
                                     <div className="flex items-center gap-1.5">
                                       <select
                                         value={currency}
