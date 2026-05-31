@@ -10,6 +10,8 @@ import type { Person } from "@/data/staffingData";
  *   Senior BOPM / SEO Growth Lead / Content Lead
  *     US    → ₹60,00,000
  *     India → ₹30,00,000
+ *   Group BOPM
+ *     India → ₹40,00,000
  *   VSD (region R)                      = (# Senior BOPM in R)        × base(Senior BOPM, R)
  *   Content Capability Leader (R)       = (# Content Lead in R)       × base(Content Lead, R)
  *   SEO Capability Leader (R)           = (# SEO Growth Lead in R)    × base(SEO Growth Lead, R)
@@ -22,6 +24,7 @@ const BASE_BY_ROLE_REGION: Record<string, Record<CapacityRegion, number>> = {
   "Senior BOPM":     { US: 60_00_000, India: 30_00_000 },
   "SEO Growth Lead": { US: 60_00_000, India: 30_00_000 },
   "Content Lead":    { US: 60_00_000, India: 30_00_000 },
+  "Group BOPM":      { US: 0,         India: 40_00_000 },
 };
 
 const LEADER_TO_BASE_ROLE: Record<string, string> = {
