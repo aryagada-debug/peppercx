@@ -183,7 +183,10 @@ export default function Clients() {
   const { clients: allClients, loading: clientsLoading, addClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
   const access = useDealAccess();
   const { matchesDeal: geoMatchesDeal, geo: geoFilter } = useGeoFilter();
-  const [view, setView] = useState<"analytics" | "table">("analytics");
+  const isCentralCx = access.isAdmin;
+  const [view, setView] = useState<"analytics" | "table">(
+    isCentralCx ? "analytics" : "table"
+  );
   const { canEditAll, role } = useUserRole();
   const isCapLead = role === "capability_lead";
   const isCapMember = role === "capability_member";
@@ -344,6 +347,15 @@ export default function Clients() {
     if (required) return;
     setVisibleCols(prev => prev.includes(k) ? prev.filter(c => c !== k) : [...prev, k]);
   };
+
+  // Non-admin users get a curated, locked column set focused on what they need
+  // (per-deal ownership + revenue + RGY). Central CX (admin) keeps the full
+  // customizable column picker.
+  const NON_ADMIN_COLS = useMemo(() => ([
+    "account", "dealName", "dealType", "dealStatus", "pepperBusinessUnit",
+    "vsd", "bopm", "contentLead", "seoLead", "mrr", "totalDealValue", "rag",
+  ]), []);
+  const effectiveVisibleCols = isCentralCx ? visibleCols : NON_ADMIN_COLS;
 
   // Column reordering via drag and drop on headers
   const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
