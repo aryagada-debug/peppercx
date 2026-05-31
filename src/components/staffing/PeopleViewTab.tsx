@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import type { Deal, Person, StaffingAssignment, RevenueCapacityTarget } from "@/data/staffingData";
+import { getPersonRevenueCapacity } from "@/lib/revenueCapacity";
 import { BopmFilter, dealMatchesBopm, dealsStaffedByName } from "@/components/access/BopmFilter";
 import { DealTypeFilter, dealMatchesType, type DealTypeFilterValue } from "@/components/filters/DealTypeFilter";
 import { useAllPersonNames } from "@/hooks/queries/legacy";
@@ -164,10 +165,9 @@ export function PeopleViewTab({
     return m;
   }, [scopedAssignments, dealMap, activeDealIds]);
 
-  const targetFor = (p: Person): number => {
-    const t = revenueTargets.find(rt => rt.department === p.department && rt.designation === p.designation);
-    return t?.targetDealValuePerPerson || 0;
-  };
+  // Revenue capacity is computed from (region, designation) — see src/lib/revenueCapacity.ts.
+  // The legacy `revenueTargets` prop is intentionally unused here.
+  const targetFor = (p: Person): number => getPersonRevenueCapacity(p, people);
 
   // Hierarchy: normalized-department → reporting tree (only assigned people in non-excluded depts)
   const peopleByDept = useMemo(() => {
