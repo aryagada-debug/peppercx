@@ -8,6 +8,7 @@ import { AuthProvider } from "@/components/auth/AuthProvider";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { UserRoleProvider } from "@/hooks/useUserRole";
 import { CurrencyProvider } from "@/contexts/CurrencyContext";
+import { GeoFilterProvider } from "@/contexts/GeoFilterContext";
 import { RouteFallback } from "./components/layout/RouteFallback";
 import { useStaffingSeeder } from "@/hooks/queries/useStaffingMutations";
 
@@ -67,6 +68,7 @@ const App = () => (
           <AuthProvider>
           <UserRoleProvider>
           <CurrencyProvider>
+          <GeoFilterProvider>
           <StaffingSeederMount />
           <Suspense fallback={<RouteFallback />}>
           <Routes>
@@ -96,6 +98,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
           </Suspense>
+          </GeoFilterProvider>
           </CurrencyProvider>
           </UserRoleProvider>
           </AuthProvider>

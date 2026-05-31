@@ -21,6 +21,7 @@ import { MyStaffingRequests } from "@/components/staffing/MyStaffingRequests";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useVsdUsers } from "@/hooks/queries/legacy";
 import { supabase } from "@/integrations/supabase/client";
+import { useGeoFilter } from "@/contexts/GeoFilterContext";
 
 type Tab = "overview" | "staffing" | "people" | "table" | "requests";
 
@@ -107,6 +108,9 @@ export default function Staffing() {
   };
 
   const { people, deals, assignments, revenueTargets, loading } = useStaffingQueries();
+  // Geo filter (header pill) applies as a presentation filter on top of
+  // role-based scoping below. Deals with no geo fall into "Other".
+  const { matches: geoMatches } = useGeoFilter();
   const {
     updateAssignment, updateDeal, upsertAssignmentByRole,
     addAssignment, deleteAssignment, updatePerson,
@@ -124,10 +128,11 @@ export default function Staffing() {
     const scoped = shouldScopeToOwnDeals && !accessLoading
       ? deals.filter(d => visibleDealIds.has(d.id))
       : deals;
-    return shouldScopeToOwnDeals
+    const dedup = shouldScopeToOwnDeals
       ? Array.from(new Map(scoped.map(d => [d.id, d])).values())
       : scoped;
-  }, [deals, shouldScopeToOwnDeals, accessLoading, visibleDealIds]);
+    return dedup.filter(d => geoMatches(d.geo));
+  }, [deals, shouldScopeToOwnDeals, accessLoading, visibleDealIds, geoMatches]);
 
   const scopedDeals = uniqueScopedDeals;
 

@@ -66,6 +66,9 @@ import { BopmFilter, dealMatchesBopm, dealsStaffedByName } from "@/components/ac
 import { useAuth } from "@/components/auth/AuthProvider";
 // BopmClientsHeader removed per request — KPIs below now serve that role.
 import { useDealRgyRollup, type RgyLetter } from "@/hooks/useDealRgyRollup";
+import { useGeoFilter } from "@/contexts/GeoFilterContext";
+import { ClientsAnalyticsTab } from "@/components/clients/analytics/ClientsAnalyticsTab";
+import { BarChart3, Table as TableIcon } from "lucide-react";
 
 type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
@@ -179,6 +182,8 @@ export default function Clients() {
   const { updateDeal, addAssignment, updateAssignment, deleteAssignment } = useStaffingMutations();
   const { clients: allClients, loading: clientsLoading, addClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
   const access = useDealAccess();
+  const { matches: geoMatches, geo: geoFilter } = useGeoFilter();
+  const [view, setView] = useState<"analytics" | "table">("analytics");
   const { canEditAll, role } = useUserRole();
   const isCapLead = role === "capability_lead";
   const isCapMember = role === "capability_member";
@@ -225,8 +230,11 @@ export default function Clients() {
   }, [vsdUsers]);
   // Scope deals & clients to what this user is allowed to see.
   const deals = useMemo(
-    () => (access.isAdmin ? allDeals : allDeals.filter(d => access.canViewDeal(d.id))),
-    [allDeals, access]
+    () => {
+      const visible = access.isAdmin ? allDeals : allDeals.filter(d => access.canViewDeal(d.id));
+      return visible.filter(d => geoMatches(d.geo));
+    },
+    [allDeals, access, geoMatches]
   );
   const dealIdList = useMemo(() => deals.map(d => d.id), [deals]);
   const { rgyRollup } = useDealRgyRollup(dealIdList);
@@ -897,6 +905,30 @@ export default function Clients() {
           </div>
           {!(isCapLead || isCapMember) && (
             <div className="flex items-center gap-2 ml-auto">
+              <div className="flex items-center rounded-md border border-border bg-muted/40 p-0.5" role="group" aria-label="View">
+                <button
+                  type="button"
+                  onClick={() => setView("analytics")}
+                  aria-pressed={view === "analytics"}
+                  className={cn(
+                    "h-7 px-2 rounded text-[11px] inline-flex items-center gap-1 transition-colors",
+                    view === "analytics" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <BarChart3 className="h-3 w-3" /> Analytics
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setView("table")}
+                  aria-pressed={view === "table"}
+                  className={cn(
+                    "h-7 px-2 rounded text-[11px] inline-flex items-center gap-1 transition-colors",
+                    view === "table" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <TableIcon className="h-3 w-3" /> Table
+                </button>
+              </div>
               <Button variant="outline" size="sm" onClick={() => setClientDialogOpen(true)}>
                 <Plus className="h-4 w-4 mr-1" /> Add Client
               </Button>
@@ -907,6 +939,20 @@ export default function Clients() {
           )}
         </div>
 
+        {view === "analytics" && (
+          <ClientsAnalyticsTab
+            deals={deals}
+            onDrill={(f) => {
+              if (f.vsd) setActiveVsd(f.vsd);
+              if (f.bopm) setActiveBopm(f.bopm);
+              if (f.bu || f.capability) setSearch(f.bu || f.capability || "");
+              setView("table");
+            }}
+          />
+        )}
+
+        {view === "table" && (
+        <>
         {/* Row 2: Filters + Search + Closed + Columns */}
         <div className="flex items-center gap-2 mb-2 flex-wrap">
           {(access.isAdmin || isCapLead) && (
@@ -1398,6 +1444,8 @@ export default function Clients() {
             </div>
           )}
         </div>
+        </>
+        )}
       </div>
 
       {/* Delete Confirmation */}
