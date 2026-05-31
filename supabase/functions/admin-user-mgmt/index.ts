@@ -76,7 +76,13 @@ Deno.serve(async (req) => {
       }
       return new Response(
         JSON.stringify({
-          users: data.users.map((u) => ({ id: u.id, email: u.email, created_at: u.created_at })),
+          users: data.users.map((u) => ({
+            id: u.id,
+            email: u.email,
+            created_at: u.created_at,
+            last_sign_in_at: u.last_sign_in_at ?? null,
+            email_confirmed_at: u.email_confirmed_at ?? null,
+          })),
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
