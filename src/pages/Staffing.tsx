@@ -131,7 +131,9 @@ export default function Staffing() {
     const dedup = shouldScopeToOwnDeals
       ? Array.from(new Map(scoped.map(d => [d.id, d])).values())
       : scoped;
-    return dedup.filter(d => geoMatchesDeal(d));
+    // Staffing & Capacity only cares about deals currently in flight — drop
+    // closed/lost deals so counts (e.g. "158 active deals") match Clients & Deals.
+    return dedup.filter(d => geoMatchesDeal(d) && ACTIVE_DEAL_STATUSES.has(d.dealStatus));
   }, [deals, shouldScopeToOwnDeals, accessLoading, visibleDealIds, geoMatchesDeal]);
 
   const scopedDeals = uniqueScopedDeals;
