@@ -105,6 +105,15 @@ const INR = (n: number) =>
 const USD = (n: number) =>
   new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(n || 0);
 
+/** Normalize a person's region into one of the supported markets. */
+function marketOf(p: Person): "US" | "India" | "" {
+  const r = (p.region || "").trim().toLowerCase();
+  if (!r || r === "—" || r === "-") return "";
+  if (/^(us|u\.s\.|usa|united states)$/i.test(r)) return "US";
+  if (/^(in|india)$/i.test(r)) return "India";
+  return "";
+}
+
 /* ------------------------------------------------------------------ */
 /* Team derivation                                                     */
 /* ------------------------------------------------------------------ */
@@ -193,12 +202,13 @@ function classifyPerson(
 /* Resizable column hook                                               */
 /* ------------------------------------------------------------------ */
 
-type ColKey = "name" | "designation" | "email" | "reportsTo" | "revType" | "timeUtil" | "revUtil";
+type ColKey = "name" | "designation" | "email" | "reportsTo" | "market" | "revType" | "timeUtil" | "revUtil";
 const DEFAULT_WIDTHS: Record<ColKey, number> = {
   name: 180,
   designation: 160,
   email: 190,
   reportsTo: 140,
+  market: 110,
   revType: 260,
   timeUtil: 130,
   revUtil: 130,
@@ -288,6 +298,7 @@ function StatusPill({ status }: { status?: string }) {
 
 export function PeopleReportingTable({ people, assignments = [], deals = [], onAdd, onUpdate, onRequestDelete }: Props) {
   const [search, setSearch] = useState("");
+  const [marketFilter, setMarketFilter] = useState<"all" | "US" | "India">("all");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
@@ -423,6 +434,10 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
     if (fDesig) list = list.filter((p) => (p.designation || "").toLowerCase().includes(fDesig));
     if (fEmail) list = list.filter((p) => (p.email || "").toLowerCase().includes(fEmail));
     if (fRep) list = list.filter((p) => (p.reportingManager || "").toLowerCase() === fRep);
+    // Market: top-bar pills + per-column dropdown both filter the same way.
+    if (marketFilter !== "all") list = list.filter((p) => marketOf(p) === marketFilter);
+    const fMarket = (colFilters["market"] || "").trim();
+    if (fMarket) list = list.filter((p) => marketOf(p) === fMarket);
     // Numeric filters: ≥ value
     const numF = (k: string) => {
       const v = (colFilters[k] || "").trim();
@@ -444,6 +459,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
           case "designation": av = a.designation || ""; bv = b.designation || ""; break;
           case "email": av = a.email || ""; bv = b.email || ""; break;
           case "reportsTo": av = a.reportingManager || ""; bv = b.reportingManager || ""; break;
+          case "market": av = marketOf(a); bv = marketOf(b); break;
           case "revType": av = a.revenueTargetPerPerson || 0; bv = b.revenueTargetPerPerson || 0; break;
           case "timeUtil": av = getUtil(a).time; bv = getUtil(b).time; break;
           case "revUtil": av = getUtil(a).revenue; bv = getUtil(b).revenue; break;
@@ -456,7 +472,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
       list.sort((a, b) => a.name.localeCompare(b.name));
     }
     return list;
-  }, [people, search, colFilters, sortState, utilByPerson]);
+  }, [people, search, marketFilter, colFilters, sortState, utilByPerson]);
 
   // Group filtered people by team -> sub-team
   const grouped = useMemo(() => {
@@ -582,6 +598,23 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
         <div className="text-xs text-muted-foreground">
           {filtered.length} of {people.length}
         </div>
+        <div className="flex items-center gap-1 rounded-md border border-border bg-secondary/30 p-0.5">
+          {(["all", "US", "India"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setMarketFilter(m)}
+              className={cn(
+                "rounded px-2.5 py-1 text-xs transition-colors",
+                marketFilter === m
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {m === "all" ? "All markets" : m}
+            </button>
+          ))}
+        </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -632,6 +665,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
             <col style={{ width: widths.designation }} />
             <col style={{ width: widths.email }} />
             <col style={{ width: widths.reportsTo }} />
+            <col style={{ width: widths.market }} />
             <col style={{ width: widths.revType }} />
             <col style={{ width: widths.timeUtil }} />
             <col style={{ width: widths.revUtil }} />
@@ -644,6 +678,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                 ["designation", "Designation", undefined],
                 ["email", "Email", undefined],
                 ["reportsTo", "Reports to", managerNames],
+                ["market", "Market", ["US", "India"]],
                 ["revType", "Revenue capacity", undefined],
                 ["timeUtil", "Time utilisation", undefined],
                 ["revUtil", "Revenue utilisation", undefined],
@@ -675,7 +710,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
               return (
                 <Fragment key={teamKey}>
                    <tr className="border-t border-border bg-secondary/30">
-                     <td colSpan={8} className="px-3 py-2">
+                     <td colSpan={9} className="px-3 py-2">
                       <button
                         type="button"
                         onClick={() => toggle(teamKey)}
@@ -701,7 +736,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                         <Fragment key={subKey}>
                            {hasSub && (
                              <tr className="border-t border-border/50 bg-secondary/10">
-                               <td colSpan={8} className="px-3 py-1.5 pl-8">
+                               <td colSpan={9} className="px-3 py-1.5 pl-8">
                                 <button
                                   type="button"
                                   onClick={() => toggle(subKey)}
@@ -831,6 +866,19 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                     />
                                   </td>
                                   <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
+                                    <select
+                                      value={marketOf(p)}
+                                      onChange={(e) =>
+                                        onUpdate(p.id, { region: e.target.value })
+                                      }
+                                      className="h-8 w-full rounded border border-input bg-background px-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                                    >
+                                      <option value="">—</option>
+                                      <option value="US">US</option>
+                                      <option value="India">India</option>
+                                    </select>
+                                  </td>
+                                  <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
                                     <div className="flex items-center gap-1.5">
                                       <select
                                         value={currency}
@@ -897,7 +945,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                 </tr>
                                 {isExpanded && (
                                   <tr className="bg-primary/[0.03] border-t border-primary/15">
-                                    <td colSpan={8} className="px-3 py-3 pl-10">
+                                    <td colSpan={9} className="px-3 py-3 pl-10">
                                       {personDeals.length === 0 ? (
                                         <div className="rounded-lg border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
                                           Not staffed on any deals.
@@ -977,7 +1025,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
             })}
             {grouped.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">
+                <td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">
                   No people match "{search}".
                 </td>
               </tr>
