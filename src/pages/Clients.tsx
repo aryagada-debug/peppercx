@@ -182,7 +182,7 @@ export default function Clients() {
   const { updateDeal, addAssignment, updateAssignment, deleteAssignment } = useStaffingMutations();
   const { clients: allClients, loading: clientsLoading, addClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
   const access = useDealAccess();
-  const { matches: geoMatches, geo: geoFilter } = useGeoFilter();
+  const { matchesDeal: geoMatchesDeal, geo: geoFilter } = useGeoFilter();
   const [view, setView] = useState<"analytics" | "table">("analytics");
   const { canEditAll, role } = useUserRole();
   const isCapLead = role === "capability_lead";
