@@ -1,5 +1,5 @@
 import type { Deal } from "@/data/staffingData";
-import { bucketGeo } from "@/contexts/GeoFilterContext";
+import { bucketDealGeo } from "@/contexts/GeoFilterContext";
 
 export interface PortfolioRow {
   key: string;
@@ -81,7 +81,7 @@ export function bopmOwner(d: Deal): string {
 }
 
 export function geoOf(d: Deal): "US" | "India" | "Other" {
-  return bucketGeo(d.geo);
+  return bucketDealGeo(d);
 }
 
 /** MRR tier buckets (in INR). */
