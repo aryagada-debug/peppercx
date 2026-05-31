@@ -385,6 +385,32 @@ export function UsersTab() {
       )}
 
       <div className="overflow-hidden rounded-xl border border-border bg-card">
+        <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border bg-secondary/40">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Filter by role</span>
+            <Select value={roleFilter} onValueChange={(v) => setRoleFilter(v as AppRole | "all")}>
+              <SelectTrigger className="h-7 w-[200px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-xs">All roles ({rows.length})</SelectItem>
+                {ROLE_ORDER.slice().reverse().map((r) => {
+                  const count = rows.filter((row) => row.role === r).length;
+                  return (
+                    <SelectItem key={r} value={r} className="text-xs">
+                      {ROLE_LABELS[r]} ({count})
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="text-[11px] text-muted-foreground">
+            {roleFilter === "all"
+              ? `${rows.length} users`
+              : `${rows.filter((r) => r.role === roleFilter).length} of ${rows.length} users`}
+          </div>
+        </div>
         <table className="w-full text-ui">
           <thead>
             <tr className="border-b border-border bg-secondary/40">
@@ -394,7 +420,7 @@ export function UsersTab() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => {
+            {rows.filter((r) => roleFilter === "all" || r.role === roleFilter).map((row) => {
               const isSelf = row.user_id === currentUser?.id;
               const busy = working === row.user_id;
               return (
