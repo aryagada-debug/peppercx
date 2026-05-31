@@ -48,7 +48,7 @@ export function useDealAccess(): DealAccessState {
       const dealsP = ensureDealsLite(qc);
       const allPeopleP = supabase
         .from("staffing_people")
-        .select("name")
+        .select("id, name, reporting_manager")
         .eq("leaving", false)
         .eq("tbh", false);
 
@@ -103,22 +103,43 @@ export function useDealAccess(): DealAccessState {
 
       let teamDealIds = new Set<string>();
       if (personId && role === "capability_lead") {
-        const { data: myMems } = await supabase
-          .from("capability_memberships")
-          .select("capability_id")
-          .eq("person_id", personId);
-        const capIds = (myMems || []).map((m: any) => m.capability_id);
-        if (capIds.length > 0) {
-          const { data: teamMems } = await supabase
-            .from("capability_memberships")
-            .select("person_id")
-            .in("capability_id", capIds);
-          const teamPersonIds = (teamMems || []).map((m: any) => m.person_id);
-          if (teamPersonIds.length > 0) {
+        // Cap lead sees deals staffed on people whose reporting chain rolls
+        // up to them (direct + indirect reportees), based on
+        // staffing_people.reporting_manager (name-based).
+        const peopleRows = (peopleAll as any[]) || [];
+        const myName = (personName || "").trim().toLowerCase();
+        if (myName) {
+          const childrenByMgr = new Map<string, string[]>(); // mgr name (lc) → child ids
+          for (const p of peopleRows) {
+            const mgr = (p.reporting_manager || "").trim().toLowerCase();
+            if (!mgr) continue;
+            if (!childrenByMgr.has(mgr)) childrenByMgr.set(mgr, []);
+            childrenByMgr.get(mgr)!.push(p.id);
+          }
+          const idToName = new Map<string, string>(
+            peopleRows.map((p: any) => [p.id, (p.name || "").trim().toLowerCase()]),
+          );
+          const teamPersonIds = new Set<string>();
+          const queue = [myName];
+          const seen = new Set<string>([myName]);
+          while (queue.length) {
+            const mgrName = queue.shift()!;
+            const kids = childrenByMgr.get(mgrName) || [];
+            for (const childId of kids) {
+              if (teamPersonIds.has(childId)) continue;
+              teamPersonIds.add(childId);
+              const childName = idToName.get(childId);
+              if (childName && !seen.has(childName)) {
+                seen.add(childName);
+                queue.push(childName);
+              }
+            }
+          }
+          if (teamPersonIds.size > 0) {
             const { data: teamAssigns } = await supabase
               .from("staffing_assignments")
               .select("deal_id")
-              .in("person_id", teamPersonIds);
+              .in("person_id", Array.from(teamPersonIds));
             teamDealIds = new Set((teamAssigns || []).map((a: any) => a.deal_id));
           }
         }
