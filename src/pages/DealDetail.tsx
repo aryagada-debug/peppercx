@@ -2030,7 +2030,7 @@ export default function DealDetail() {
               <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 rounded-lg border border-border bg-muted/30 p-3">
                 <div className="flex flex-col gap-1">
                   <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Retainer Value</span>
-                  editor={<EditableCell value={String(deal.retainerDealValue || "")} onSave={v => handleDealFieldSave("retainerDealValue", v)} type="number" prefix={currencySymbol} placeholder="—" size="lg" />}
+                  <EditableCell value={String(deal.retainerDealValue || "")} onSave={v => handleDealFieldSave("retainerDealValue", v)} type="number" prefix={currencySymbol} placeholder="—" />
                 </div>
                 <div className="flex flex-col gap-1">
                   <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Non-Retainer Value</span>
