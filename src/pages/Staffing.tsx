@@ -8,7 +8,7 @@ import { useStaffingQueries } from "@/hooks/queries/useStaffingQueries";
 import { useStaffingMutations } from "@/hooks/queries/useStaffingMutations";
 import { ACTIVE_DEAL_STATUSES } from "@/data/staffingData";
 import { useCurrencyVersion } from "@/contexts/CurrencyContext";
-import { DealViewTab } from "@/components/staffing/DealViewTab";
+import { OverviewTab } from "@/components/staffing/OverviewTab";
 import { useUserRole } from "@/hooks/useUserRole";
 import { ReadOnlyBanner } from "@/components/access/ReadOnlyBanner";
 import { useDealAccess } from "@/hooks/useDealAccess";
@@ -18,17 +18,16 @@ import { BopmStaffingSummary } from "@/components/staffing/BopmStaffingSummary";
 import { BopmStaffingFlatTable } from "@/components/staffing/BopmStaffingFlatTable";
 import { StaffingDealsList } from "@/components/staffing/StaffingDealsList";
 import { MyStaffingRequests } from "@/components/staffing/MyStaffingRequests";
-import { LockAnalyticsTab } from "@/components/staffing/LockAnalyticsTab";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useVsdUsers } from "@/hooks/queries/legacy";
 import { supabase } from "@/integrations/supabase/client";
 
-type Tab = "staffing" | "deals" | "people" | "table" | "requests" | "lock";
+type Tab = "overview" | "staffing" | "people" | "table" | "requests";
 
 export default function Staffing() {
   useCurrencyVersion();
   const [searchParams, setSearchParams] = useSearchParams();
-  const tabParam = searchParams.get("tab") as Tab | null;
+  const tabParam = searchParams.get("tab");
   const dealParam = searchParams.get("deal");
   const { role, isActuallyAdmin } = useUserRole();
   const { visibleDealIds, loading: accessLoading } = useDealAccess();
@@ -69,11 +68,15 @@ export default function Staffing() {
   const isVsdPersona = role === "member" || isCapLead;
   // VSDs/Cap Leads and BOPMs/Cap ICs all have their own deal-set scope. Admin sees everything.
   const shouldScopeToOwnDeals = isBopmPersona || isVsdPersona;
-  const normalizedTabParam: Tab | null =
-    tabParam === ("matrix" as any) || tabParam === ("tables" as any)
-      ? "table"
-      : (tabParam as Tab | null);
-  const [tab, setTab] = useState<Tab>(normalizedTabParam || "staffing");
+  // Legacy params: deals/lock collapsed into "overview"; matrix/tables → table.
+  const normalizedTabParam: Tab | null = (() => {
+    if (!tabParam) return null;
+    if (tabParam === "matrix" || tabParam === "tables") return "table";
+    if (tabParam === "deals" || tabParam === "lock") return "overview";
+    return tabParam as Tab;
+  })();
+  const defaultTab: Tab = isBopmPersona ? "staffing" : "overview";
+  const [tab, setTab] = useState<Tab>(normalizedTabParam || defaultTab);
 
   // Track which tabs have ever been opened. We mount each panel lazily the
   // first time the user visits it and keep it mounted afterwards so column
@@ -175,10 +178,9 @@ export default function Staffing() {
         { key: "requests", label: "Change requests" },
       ]
     : [
+        { key: "overview", label: "Overview" },
         { key: "staffing", label: "Staffing" },
         { key: "table",    label: "Sheet view" },
-        { key: "deals",    label: "Deal view" },
-        { key: "lock",     label: "Lock Analytics" },
       ];
 
   const showBopmEmpty = isBopmPersona && !accessLoading && activeBopmDeals.length === 0;
@@ -273,6 +275,17 @@ export default function Staffing() {
           </>
         ) : (
           <>
+            <div className={cn(tab !== "overview" && "hidden")}>
+              {hasVisited("overview") && (
+                <OverviewTab
+                  deals={scopedDeals}
+                  people={people}
+                  assignments={scopedAssignments}
+                  onUpdateDeal={updateDeal}
+                  bopmFilterScopedVsd={myVsdName}
+                />
+              )}
+            </div>
             <div className={cn(tab !== "staffing" && "hidden")}>
               {hasVisited("staffing") && (
                 <StaffingDealsList
@@ -286,17 +299,6 @@ export default function Staffing() {
                   onUpdateAssignment={updateAssignment}
                   onDeleteAssignment={deleteAssignment}
                   onUpdatePerson={updatePerson}
-                />
-              )}
-            </div>
-            <div className={cn(tab !== "deals" && "hidden")}>
-              {hasVisited("deals") && (
-                <DealViewTab
-                  deals={scopedDeals}
-                  people={people}
-                  assignments={scopedAssignments}
-                  onUpdateDeal={updateDeal}
-                  bopmFilterScopedVsd={myVsdName}
                 />
               )}
             </div>
@@ -314,11 +316,6 @@ export default function Staffing() {
                   enableBopmFilter
                   bopmFilterScopedVsd={myVsdName}
                 />
-              )}
-            </div>
-            <div className={cn(tab !== "lock" && "hidden")}>
-              {hasVisited("lock") && (
-                <LockAnalyticsTab deals={scopedDeals} />
               )}
             </div>
           </>
