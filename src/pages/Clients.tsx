@@ -232,9 +232,9 @@ export default function Clients() {
   const deals = useMemo(
     () => {
       const visible = access.isAdmin ? allDeals : allDeals.filter(d => access.canViewDeal(d.id));
-      return visible.filter(d => geoMatches(d.geo));
+      return visible.filter(d => geoMatchesDeal(d));
     },
-    [allDeals, access, geoMatches]
+    [allDeals, access, geoMatchesDeal]
   );
   const dealIdList = useMemo(() => deals.map(d => d.id), [deals]);
   const { rgyRollup } = useDealRgyRollup(dealIdList);
