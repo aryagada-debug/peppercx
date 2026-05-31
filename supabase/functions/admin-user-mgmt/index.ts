@@ -21,10 +21,11 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action = body.action;
 
-    // `provision_demo_logins` is callable from the public Login page (the
-    // user has no session yet), so it bypasses the auth/admin gate. All
-    // other actions require an authenticated admin.
-    const isPublicAction = action === "provision_demo_logins";
+    // Every action — including `provision_demo_logins` — now requires an
+    // authenticated admin. Previously demo provisioning was public, which
+    // let any internet caller reset the 8 named demo accounts to the known
+    // password.
+    const isPublicAction = false;
 
     let callerId: string | null = null;
     let userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -287,7 +288,7 @@ Deno.serve(async (req) => {
         .then((r) => r, () => null);
 
       return new Response(
-        JSON.stringify({ status, user_id: userId, email, password: DEFAULT_PASSWORD }),
+        JSON.stringify({ status, user_id: userId, email }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -370,7 +371,7 @@ Deno.serve(async (req) => {
       }
 
       return new Response(
-        JSON.stringify({ password: DEMO_PASSWORD, results }),
+        JSON.stringify({ results }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -498,7 +499,7 @@ Deno.serve(async (req) => {
       }
 
       return new Response(
-        JSON.stringify({ password: BOPM_PASSWORD, count: results.length, results, skipped }),
+        JSON.stringify({ count: results.length, results, skipped }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }

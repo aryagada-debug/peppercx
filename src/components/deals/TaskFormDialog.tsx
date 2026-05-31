@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SubTask } from "./TaskKanban";
+import DOMPurify from "dompurify";
 
 const STAGES = ["To Do", "In Progress", "In Review", "Done", "Dropped"];
 const URGENCIES = ["Low", "Medium", "High", "Critical"];
@@ -260,21 +261,32 @@ interface Props {
 function RichTextEditor({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const editorRef = useRef<HTMLDivElement>(null);
 
+  // Sanitize incoming HTML — task descriptions come from `deal_tasks`, which
+  // can be written by any authenticated user. Without sanitization an attacker
+  // could store malicious HTML that runs in a viewer's browser (stored XSS).
+  const sanitize = (html: string) =>
+    DOMPurify.sanitize(html || "", {
+      ALLOWED_TAGS: ["b","strong","i","em","u","s","p","br","ul","ol","li","a","span","div","blockquote","code","pre","h1","h2","h3","h4"],
+      ALLOWED_ATTR: ["href","target","rel","class","style"],
+      ALLOWED_URI_REGEXP: /^(?:https?:|mailto:|tel:|\/|#)/i,
+    });
+
   // Set initial HTML once, and only re-sync if `value` changes from OUTSIDE
   // (e.g. parent reset). Avoids overwriting the DOM on every keystroke,
   // which was destroying the caret position.
   useEffect(() => {
     const el = editorRef.current;
     if (!el) return;
-    if (el.innerHTML !== (value || "")) {
-      el.innerHTML = value || "";
+    const safe = sanitize(value || "");
+    if (el.innerHTML !== safe) {
+      el.innerHTML = safe;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
   const exec = (cmd: string, val?: string) => {
     document.execCommand(cmd, false, val);
-    if (editorRef.current) onChange(editorRef.current.innerHTML);
+    if (editorRef.current) onChange(sanitize(editorRef.current.innerHTML));
   };
 
   const handleLink = () => {

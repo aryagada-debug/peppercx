@@ -1,19 +1,37 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import * as XLSX from "https://esm.sh/xlsx@0.18.5";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const MAX_FILE_BYTES = 8 * 1024 * 1024; // 8 MB
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
+    const authHeader = req.headers.get("Authorization") || "";
+    if (!authHeader.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    const authSupa = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!);
+    const { data: claims, error: claimErr } = await authSupa.auth.getClaims(authHeader.replace("Bearer ", ""));
+    if (claimErr || !claims?.claims?.sub) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     const { fileBase64 } = await req.json();
     if (!fileBase64 || typeof fileBase64 !== "string") {
       return new Response(JSON.stringify({ error: "Missing fileBase64" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (fileBase64.length > Math.ceil((MAX_FILE_BYTES * 4) / 3)) {
+      return new Response(JSON.stringify({ error: "File too large (max 8 MB)" }), {
+        status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
