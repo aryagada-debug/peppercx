@@ -110,7 +110,7 @@ export default function Staffing() {
   const { people, deals, assignments, revenueTargets, loading } = useStaffingQueries();
   // Geo filter (header pill) applies as a presentation filter on top of
   // role-based scoping below. Deals with no geo fall into "Other".
-  const { matches: geoMatches } = useGeoFilter();
+  const { matchesDeal: geoMatchesDeal } = useGeoFilter();
   const {
     updateAssignment, updateDeal, upsertAssignmentByRole,
     addAssignment, deleteAssignment, updatePerson,
@@ -131,8 +131,8 @@ export default function Staffing() {
     const dedup = shouldScopeToOwnDeals
       ? Array.from(new Map(scoped.map(d => [d.id, d])).values())
       : scoped;
-    return dedup.filter(d => geoMatches(d.geo));
-  }, [deals, shouldScopeToOwnDeals, accessLoading, visibleDealIds, geoMatches]);
+    return dedup.filter(d => geoMatchesDeal(d));
+  }, [deals, shouldScopeToOwnDeals, accessLoading, visibleDealIds, geoMatchesDeal]);
 
   const scopedDeals = uniqueScopedDeals;
 
