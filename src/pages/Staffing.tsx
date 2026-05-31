@@ -107,6 +107,9 @@ export default function Staffing() {
   };
 
   const { people, deals, assignments, revenueTargets, loading } = useStaffingQueries();
+  // Geo filter (header pill) applies as a presentation filter on top of
+  // role-based scoping below. Deals with no geo fall into "Other".
+  const { matches: geoMatches } = useGeoFilter();
   const {
     updateAssignment, updateDeal, upsertAssignmentByRole,
     addAssignment, deleteAssignment, updatePerson,
