@@ -213,6 +213,15 @@ export function useStaffingMutations() {
     [],
   );
 
+  const syncStaffingCaches = useCallback(() => {
+    void qc.refetchQueries({ queryKey: qk.assignments(), type: "active" });
+    void qc.refetchQueries({ queryKey: qk.deals(), type: "active" });
+    void qc.invalidateQueries({ queryKey: qk.dealsLite() });
+    void qc.invalidateQueries({ queryKey: qk.vsdHierarchy() });
+    void qc.invalidateQueries({ queryKey: qk.bopmDirectory() });
+    void qc.invalidateQueries({ queryKey: ["deal-access"] });
+  }, [qc]);
+
   const addAssignment = useCallback(
     async (assignment: StaffingAssignment) => {
       if (!canEditAll) {
@@ -260,9 +269,7 @@ export function useStaffingMutations() {
           toast.error("Couldn't update staffing — please retry");
           return;
         }
-        void qc.refetchQueries({ queryKey: qk.assignments(), type: "active" });
-        void qc.refetchQueries({ queryKey: qk.deals(), type: "active" });
-        void qc.invalidateQueries({ queryKey: ["deal-access"] });
+        syncStaffingCaches();
         notifyStaffing(merged.personId, merged.dealId, merged.roleKey, merged.allocationPct);
         return;
       }
@@ -280,12 +287,10 @@ export function useStaffingMutations() {
       // surface in the table without a manual page reload. Use refetch
       // (not invalidate) so the cache is overwritten with mapped data
       // immediately — invalidate-only can leave stale renders in flight.
-      void qc.refetchQueries({ queryKey: qk.assignments(), type: "active" });
-      void qc.refetchQueries({ queryKey: qk.deals(), type: "active" });
-      void qc.invalidateQueries({ queryKey: ["deal-access"] });
+      syncStaffingCaches();
       notifyStaffing(normalizedAssignment.personId, normalizedAssignment.dealId, normalizedAssignment.roleKey, normalizedAssignment.allocationPct);
     },
-    [notifyStaffing, canEditAll, patch, qc, getAssignments],
+    [notifyStaffing, canEditAll, patch, getAssignments, syncStaffingCaches],
   );
 
   const updateAssignment = useCallback(
@@ -327,14 +332,12 @@ export function useStaffingMutations() {
         toast.error("Couldn't update staffing — please retry");
         return;
       }
-      qc.invalidateQueries({ queryKey: qk.assignments() });
-      qc.invalidateQueries({ queryKey: qk.deals() });
-      qc.invalidateQueries({ queryKey: ["deal-access"] });
+      syncStaffingCaches();
       if (next && updates.personId) {
         notifyStaffing(next.personId, next.dealId, next.roleKey, next.allocationPct);
       }
     },
-    [notifyStaffing, canEditAll, getAssignments, patch, qc],
+    [notifyStaffing, canEditAll, getAssignments, patch, syncStaffingCaches],
   );
 
   const deleteAssignment = useCallback(
@@ -355,9 +358,7 @@ export function useStaffingMutations() {
       patch.assignments((prev) => prev.filter((a) => a.id !== id));
       try {
         await softDelete("staffing_assignment", id);
-        qc.invalidateQueries({ queryKey: qk.assignments() });
-        qc.invalidateQueries({ queryKey: qk.deals() });
-        qc.invalidateQueries({ queryKey: ["deal-access"] });
+        syncStaffingCaches();
       } catch (err) {
         console.error("[deleteAssignment] failed", err);
         if (prevSnapshot) {
@@ -366,7 +367,7 @@ export function useStaffingMutations() {
         toast.error("Couldn't remove staffing — please retry");
       }
     },
-    [canEditAll, getAssignments, patch, qc],
+    [canEditAll, getAssignments, patch, syncStaffingCaches],
   );
 
   const upsertAssignmentByRole = useCallback(
@@ -434,6 +435,7 @@ export function useStaffingMutations() {
         if (existing) {
           patch.assignments((prev) => prev.filter((a) => a.id !== existing.id));
           await softDelete("staffing_assignment", existing.id);
+          syncStaffingCaches();
         }
         return;
       }
@@ -458,6 +460,7 @@ export function useStaffingMutations() {
         if (extras?.startDate !== undefined) upd.start_date = extras.startDate || null;
         if (extras?.endDate !== undefined) upd.end_date = extras.endDate || null;
         await supabase.from("staffing_assignments").update(upd).eq("id", existing.id);
+        syncStaffingCaches();
         if (existing.personId !== personId) {
           notifyStaffing(personId, dealId, normalizedRoleKey, allocationPct);
         }
@@ -474,10 +477,11 @@ export function useStaffingMutations() {
         };
         patch.assignments((prev) => [...prev, newAssignment]);
         await supabase.from("staffing_assignments").insert(assignmentToDb(newAssignment));
+        syncStaffingCaches();
         notifyStaffing(personId, dealId, normalizedRoleKey, allocationPct);
       }
     },
-    [getAssignments, notifyStaffing, canEditAll, patch],
+    [getAssignments, notifyStaffing, canEditAll, patch, syncStaffingCaches],
   );
 
   // ── Deals ──
