@@ -213,6 +213,15 @@ export function useStaffingMutations() {
     [],
   );
 
+  const syncStaffingCaches = useCallback(() => {
+    void qc.refetchQueries({ queryKey: qk.assignments(), type: "active" });
+    void qc.refetchQueries({ queryKey: qk.deals(), type: "active" });
+    void qc.invalidateQueries({ queryKey: qk.dealsLite() });
+    void qc.invalidateQueries({ queryKey: qk.vsdHierarchy() });
+    void qc.invalidateQueries({ queryKey: qk.bopmDirectory() });
+    void qc.invalidateQueries({ queryKey: ["deal-access"] });
+  }, [qc]);
+
   const addAssignment = useCallback(
     async (assignment: StaffingAssignment) => {
       if (!canEditAll) {
@@ -260,9 +269,7 @@ export function useStaffingMutations() {
           toast.error("Couldn't update staffing — please retry");
           return;
         }
-        void qc.refetchQueries({ queryKey: qk.assignments(), type: "active" });
-        void qc.refetchQueries({ queryKey: qk.deals(), type: "active" });
-        void qc.invalidateQueries({ queryKey: ["deal-access"] });
+        syncStaffingCaches();
         notifyStaffing(merged.personId, merged.dealId, merged.roleKey, merged.allocationPct);
         return;
       }
@@ -280,12 +287,10 @@ export function useStaffingMutations() {
       // surface in the table without a manual page reload. Use refetch
       // (not invalidate) so the cache is overwritten with mapped data
       // immediately — invalidate-only can leave stale renders in flight.
-      void qc.refetchQueries({ queryKey: qk.assignments(), type: "active" });
-      void qc.refetchQueries({ queryKey: qk.deals(), type: "active" });
-      void qc.invalidateQueries({ queryKey: ["deal-access"] });
+      syncStaffingCaches();
       notifyStaffing(normalizedAssignment.personId, normalizedAssignment.dealId, normalizedAssignment.roleKey, normalizedAssignment.allocationPct);
     },
-    [notifyStaffing, canEditAll, patch, qc, getAssignments],
+    [notifyStaffing, canEditAll, patch, getAssignments, syncStaffingCaches],
   );
 
   const updateAssignment = useCallback(
