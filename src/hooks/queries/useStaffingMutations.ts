@@ -435,6 +435,7 @@ export function useStaffingMutations() {
         if (existing) {
           patch.assignments((prev) => prev.filter((a) => a.id !== existing.id));
           await softDelete("staffing_assignment", existing.id);
+          syncStaffingCaches();
         }
         return;
       }
@@ -459,6 +460,7 @@ export function useStaffingMutations() {
         if (extras?.startDate !== undefined) upd.start_date = extras.startDate || null;
         if (extras?.endDate !== undefined) upd.end_date = extras.endDate || null;
         await supabase.from("staffing_assignments").update(upd).eq("id", existing.id);
+        syncStaffingCaches();
         if (existing.personId !== personId) {
           notifyStaffing(personId, dealId, normalizedRoleKey, allocationPct);
         }
@@ -475,10 +477,11 @@ export function useStaffingMutations() {
         };
         patch.assignments((prev) => [...prev, newAssignment]);
         await supabase.from("staffing_assignments").insert(assignmentToDb(newAssignment));
+        syncStaffingCaches();
         notifyStaffing(personId, dealId, normalizedRoleKey, allocationPct);
       }
     },
-    [getAssignments, notifyStaffing, canEditAll, patch],
+    [getAssignments, notifyStaffing, canEditAll, patch, syncStaffingCaches],
   );
 
   // ── Deals ──
