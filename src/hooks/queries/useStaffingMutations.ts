@@ -332,14 +332,12 @@ export function useStaffingMutations() {
         toast.error("Couldn't update staffing — please retry");
         return;
       }
-      qc.invalidateQueries({ queryKey: qk.assignments() });
-      qc.invalidateQueries({ queryKey: qk.deals() });
-      qc.invalidateQueries({ queryKey: ["deal-access"] });
+      syncStaffingCaches();
       if (next && updates.personId) {
         notifyStaffing(next.personId, next.dealId, next.roleKey, next.allocationPct);
       }
     },
-    [notifyStaffing, canEditAll, getAssignments, patch, qc],
+    [notifyStaffing, canEditAll, getAssignments, patch, syncStaffingCaches],
   );
 
   const deleteAssignment = useCallback(
@@ -360,9 +358,7 @@ export function useStaffingMutations() {
       patch.assignments((prev) => prev.filter((a) => a.id !== id));
       try {
         await softDelete("staffing_assignment", id);
-        qc.invalidateQueries({ queryKey: qk.assignments() });
-        qc.invalidateQueries({ queryKey: qk.deals() });
-        qc.invalidateQueries({ queryKey: ["deal-access"] });
+        syncStaffingCaches();
       } catch (err) {
         console.error("[deleteAssignment] failed", err);
         if (prevSnapshot) {
@@ -371,7 +367,7 @@ export function useStaffingMutations() {
         toast.error("Couldn't remove staffing — please retry");
       }
     },
-    [canEditAll, getAssignments, patch, qc],
+    [canEditAll, getAssignments, patch, syncStaffingCaches],
   );
 
   const upsertAssignmentByRole = useCallback(
