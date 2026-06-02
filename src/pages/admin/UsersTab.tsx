@@ -8,7 +8,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { ALL_ROUTE_KEYS, ROLE_LABELS, ROLE_ORDER, type AppRole } from "@/hooks/useUserRole";
-import { DemoLoginsCard } from "@/components/admin/DemoLoginsCard";
 
 const ROUTE_LABELS: Record<string, string> = {
   "dashboard": "Dashboard",
