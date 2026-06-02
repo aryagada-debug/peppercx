@@ -36,6 +36,7 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
   const [roleFilter, setRoleFilter] = useState("all");
   const [leadFilter, setLeadFilter] = useState("all");
   const [vsdFilter, setVsdFilter] = useState("all");
+  const [regionFilter, setRegionFilter] = useState("all");
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const activeDealIds = useMemo(
@@ -50,7 +51,7 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
       .map((p) => {
         let bwPct = 0;
         let mrrActual = 0;
-        const splits: { dealId: string; dealName: string; pct: number; mrrContribution: number; region?: string; vsd?: string }[] = [];
+        const splits: { dealId: string; dealName: string; account: string; pct: number; mrrContribution: number; region?: string; vsd?: string }[] = [];
         const countedDeals = new Set<string>();
         for (const a of assignments) {
           if (a.personId !== p.id) continue;
@@ -65,7 +66,7 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
             mrrActual += dealMrr;
             countedDeals.add(d.id);
           }
-          if (d) splits.push({ dealId: d.id, dealName: d.dealName || d.account, pct, mrrContribution: dealMrr, vsd: d.vsd });
+          if (d) splits.push({ dealId: d.id, dealName: d.dealName || d.account, account: d.account, pct, mrrContribution: dealMrr, vsd: d.vsd });
         }
         splits.sort((a, b) => b.pct - a.pct);
         const capacity = getPersonRevenueCapacity(p, capacityRoster);
@@ -110,17 +111,27 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
     return Array.from(set).sort();
   }, [deals]);
 
+  const regionOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of people) {
+      const r = (p.region || "").trim();
+      if (r) set.add(r);
+    }
+    return Array.from(set).sort();
+  }, [people]);
+
   const filtered = useMemo(() => {
     return rows.filter((r) => {
       if (deptFilter !== "all" && (r.person.department || "") !== deptFilter) return false;
       if (roleFilter !== "all" && (r.person.designation || r.person.roleTitle || "") !== roleFilter) return false;
       if (leadFilter !== "all" && (r.person.reportingManager || "").toLowerCase() !== leadFilter) return false;
       if (vsdFilter !== "all" && !r.splits.some((s) => (s.vsd || "") === vsdFilter)) return false;
+      if (regionFilter !== "all" && (r.person.region || "") !== regionFilter) return false;
       // When no role/department filter is set, hide people with no allocation to mirror the reference layout.
       if (roleFilter === "all" && deptFilter === "all" && r.dealCount === 0) return false;
       return true;
     });
-  }, [rows, deptFilter, roleFilter, leadFilter, vsdFilter]);
+  }, [rows, deptFilter, roleFilter, leadFilter, vsdFilter, regionFilter]);
 
   const buckets = useMemo(() => {
     const out = { overloaded: 0, nearFull: 0, healthy: 0, under: 0 };
@@ -189,6 +200,17 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
           <option value="all">All Leads</option>
           {leadOptions.map((m) => (
             <option key={m} value={m.toLowerCase()}>{m}</option>
+          ))}
+        </select>
+        <label className="text-xs text-muted-foreground">Region:</label>
+        <select
+          value={regionFilter}
+          onChange={(e) => setRegionFilter(e.target.value)}
+          className="text-xs bg-background border border-border rounded-sm px-2 py-1"
+        >
+          <option value="all">All Regions</option>
+          {regionOptions.map((r) => (
+            <option key={r} value={r}>{r}</option>
           ))}
         </select>
         {isAdmin && (
@@ -291,7 +313,12 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
                   {isOpen && r.splits.map((s) => (
                     <tr key={`${r.person.id}-${s.dealId}`} className="border-t border-border/50 bg-muted/10">
                       <td></td>
-                      <td className="px-3 py-1.5 pl-8 text-xs text-foreground">{s.dealName}</td>
+                      <td className="px-3 py-1.5 pl-8 text-xs text-foreground">
+                        <span>{s.account}</span>
+                        {s.dealName && s.dealName !== s.account && (
+                          <span className="text-muted-foreground"> — {s.dealName}</span>
+                        )}
+                      </td>
                       <td className="px-3 py-1.5 text-[10px] text-muted-foreground" colSpan={3}>
                         {s.vsd ? `VSD: ${s.vsd}` : ""}
                       </td>
