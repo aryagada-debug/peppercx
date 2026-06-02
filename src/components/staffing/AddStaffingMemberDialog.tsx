@@ -260,7 +260,9 @@ export function AddStaffingMemberDialog({
             {step === 1 && "Select Department"}
             {step === 2 && (selectedDeptId
               ? `Select Role Type — ${taxonomy?.departmentById.get(selectedDeptId)?.name ?? ""}`
-              : `Select Member — ${selectedCategory}`)}
+              : selectedRoleTypeId
+              ? `Select Member — ${selectedRoleTypeName || selectedCategory || ""}`
+              : `Select Member — ${selectedCategory ?? ""}`)}
             {step === 3 && `${isEditMode ? "Update Assignment" : "Set Allocation"} — ${selectedPerson?.name}`}
           </AlertDialogTitle>
           <AlertDialogDescription>
@@ -368,7 +370,9 @@ export function AddStaffingMemberDialog({
                   })
                 )
               ) : filteredPeople.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-6">No available members in {selectedCategory}.</p>
+                <p className="text-sm text-muted-foreground text-center py-6">
+                  No available members in {selectedRoleTypeName || selectedCategory || "this role"}.
+                </p>
               ) : selectedCategory === "Operations" ? (
                 (() => {
                   const OPS_GROUPS = ["VSD", "Principal BOPM", "Senior BOPM", "BOPM"];
@@ -495,13 +499,21 @@ export function AddStaffingMemberDialog({
               <Button
                 variant="ghost" size="sm"
                 onClick={() => {
-                  if (selectedRoleTypeId) { setSelectedRoleTypeId(null); }
-                  else { setSelectedCategory(null); setStep(1); }
+                  if (selectedRoleTypeId && selectedDeptId) {
+                    setSelectedRoleTypeId(null);
+                  } else {
+                    setSelectedRoleTypeId(null);
+                    setSelectedDeptId(null);
+                    setSelectedCategory(null);
+                    setStep(1);
+                  }
                   setExpandedOpsGroup(null);
+                  setSearchQuery("");
                 }}
                 className="mt-2"
               >
-                <ArrowLeft className="h-3.5 w-3.5 mr-1" /> {selectedRoleTypeId ? "Back to role types" : "Back to departments"}
+                <ArrowLeft className="h-3.5 w-3.5 mr-1" />{" "}
+                {selectedRoleTypeId && selectedDeptId ? "Back to role types" : "Browse all departments"}
               </Button>
             </>
           )}
