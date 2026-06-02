@@ -64,7 +64,9 @@ export function AddStaffingMemberDialog({
   const [step, setStep] = useState<1 | 2 | 3>(getInitialStep());
   const [selectedCategory, setSelectedCategory] = useState<RoleCategory | null>(initialCategory || null);
   const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null);
-  const [selectedRoleTypeId, setSelectedRoleTypeId] = useState<string | null>(null);
+  const [selectedRoleTypeId, setSelectedRoleTypeId] = useState<string | null>(
+    initialRoleKey ? normalizeRoleKey(initialRoleKey) : null,
+  );
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(() => {
     if (initialPersonName) return people.find(p => p.name === initialPersonName) || null;
     return null;
@@ -91,6 +93,10 @@ export function AddStaffingMemberDialog({
   const [expandedOpsGroup, setExpandedOpsGroup] = useState<string | null>(null);
   const { data: taxonomy } = useTaxonomyQuery();
   const { data: dealsLite } = useDealsLiteQuery();
+  const selectedRoleTypeName = useMemo(
+    () => (selectedRoleTypeId ? taxonomy?.roleTypeById.get(selectedRoleTypeId)?.name ?? "" : ""),
+    [selectedRoleTypeId, taxonomy],
+  );
   const dealNameMap = useMemo(() => {
     const m = new Map<string, { account: string; dealName: string; dealStatus?: string }>();
     (dealsLite || []).forEach(d => {
@@ -145,10 +151,10 @@ export function AddStaffingMemberDialog({
 
   const reset = () => {
     const initialPct = initialAllocationPct ?? 10;
-    setStep(initialCategory ? 2 : 1);
+    setStep(initialCategory || initialRoleKey ? 2 : 1);
     setSelectedCategory(initialCategory || null);
     setSelectedDeptId(null);
-    setSelectedRoleTypeId(null);
+    setSelectedRoleTypeId(initialRoleKey ? normalizeRoleKey(initialRoleKey) : null);
     setSelectedPerson(null);
     setAllocationPct(initialPct);
     setAllocationInput(formatAllocationPct(initialPct));
@@ -201,7 +207,11 @@ export function AddStaffingMemberDialog({
           return;
         }
       }
-      if (initialCategory) {
+      if (initialRoleKey) {
+        setSelectedRoleTypeId(normalizeRoleKey(initialRoleKey));
+        if (initialCategory) setSelectedCategory(initialCategory);
+        setStep(2);
+      } else if (initialCategory) {
         setSelectedCategory(initialCategory);
         setStep(2);
       } else {
