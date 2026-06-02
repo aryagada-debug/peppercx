@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useCallback } from "react";
-import { ArrowLeft, ChevronDown, ChevronUp, AlertTriangle, Search } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, AlertTriangle, Search, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { normalizeRoleKey, uid } from "@/data/staffingData";
+import { normalizeRoleKey, uid, ROLE_SLOTS } from "@/data/staffingData";
 import type { StaffingAssignment, Person, Deal, RoleCategory } from "@/data/staffingData";
 import { useTaxonomyQuery } from "@/hooks/queries/useTaxonomyQuery";
 import { resolvePersonRoleTypeId, countAvailableForRole } from "@/lib/peopleGrouping";
+import { usePersonMutations } from "@/hooks/queries/usePeopleQuery";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -91,6 +92,59 @@ export function AddStaffingMemberDialog({
   const { data: taxonomy } = useTaxonomyQuery();
   const alreadyAssigned = useMemo(() => new Set(assignments.filter(a => a.dealId === dealId).map(a => a.personId)), [assignments, dealId]);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // TBH inline form (Step 2, after a Role Type or category is chosen)
+  const [tbhFormOpen, setTbhFormOpen] = useState(false);
+  const [tbhName, setTbhName] = useState("");
+  const [tbhSaving, setTbhSaving] = useState(false);
+  const { addPerson } = usePersonMutations();
+
+  const selectedRoleType = useMemo(
+    () => (selectedRoleTypeId ? taxonomy?.roleTypeById.get(selectedRoleTypeId) : undefined),
+    [selectedRoleTypeId, taxonomy],
+  );
+  const selectedDept = useMemo(
+    () => (selectedDeptId ? taxonomy?.departmentById.get(selectedDeptId) : undefined),
+    [selectedDeptId, taxonomy],
+  );
+
+  const handleAddTbh = useCallback(async () => {
+    const fallbackLabel = selectedRoleType?.name || selectedCategory || "Role";
+    const finalName = tbhName.trim() || `TBH — ${fallbackLabel}`;
+    const rtSlot = selectedRoleTypeId ? ROLE_SLOTS.find(s => s.roleKey === selectedRoleTypeId) : undefined;
+    const newPerson: Person = {
+      id: uid(),
+      name: finalName,
+      roleCategory: (rtSlot?.category ?? selectedCategory ?? "Other") as RoleCategory,
+      roleTitle: selectedRoleType?.name || rtSlot?.roleLabel || selectedCategory || "",
+      pod: "",
+      region: "India",
+      leaving: false,
+      tbh: true,
+      department: selectedDept?.name || "",
+      designation: selectedRoleType?.name || rtSlot?.roleLabel || "",
+      reportingManager: "",
+      band: "",
+      email: "",
+      subTeam: "",
+      departmentId: selectedDeptId || null,
+      roleTypeId: selectedRoleTypeId || null,
+    };
+    setTbhSaving(true);
+    try {
+      await addPerson.mutateAsync(newPerson);
+      toast.success(`TBH placeholder added for ${fallbackLabel}`);
+      setTbhFormOpen(false);
+      setTbhName("");
+      setSelectedPerson(newPerson);
+      setRoleOnDeal(newPerson.roleTitle || newPerson.roleCategory);
+      setStep(3);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to add TBH");
+    } finally {
+      setTbhSaving(false);
+    }
+  }, [tbhName, selectedRoleType, selectedCategory, selectedRoleTypeId, selectedDept, selectedDeptId, addPerson]);
 
   // People filtered by the selected Role Type (preferred) or legacy category.
   const filteredPeople = useMemo(() => {
@@ -302,6 +356,45 @@ export function AddStaffingMemberDialog({
                   className="h-8 pl-8 text-xs"
                   autoFocus
                 />
+              </div>
+              {/* Add TBH placeholder for the selected role type / category */}
+              <div className="mb-2 rounded-lg border border-dashed border-warning/40 bg-warning/5 p-2">
+                {!tbhFormOpen ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTbhFormOpen(true);
+                      setTbhName(`TBH — ${selectedRoleType?.name || selectedCategory || "Role"}`);
+                    }}
+                    className="flex items-center gap-2 text-xs font-medium text-warning hover:underline"
+                  >
+                    <UserPlus className="h-3.5 w-3.5" />
+                    Add TBH placeholder for {selectedRoleType?.name || selectedCategory}
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={tbhName}
+                      onChange={(e) => setTbhName(e.target.value)}
+                      placeholder={`TBH — ${selectedRoleType?.name || selectedCategory || "Role"}`}
+                      className="h-7 text-xs"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") { e.preventDefault(); handleAddTbh(); }
+                        if (e.key === "Escape") { e.preventDefault(); setTbhFormOpen(false); }
+                      }}
+                    />
+                    <Button size="sm" className="h-7 px-2 text-xs" disabled={tbhSaving} onClick={handleAddTbh}>
+                      {tbhSaving ? "Adding…" : "Save TBH"}
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setTbhFormOpen(false)}>
+                      Cancel
+                    </Button>
+                  </div>
+                )}
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  Creates a hiring placeholder you can assign to this deal. Shows up in Hiring Gaps until a real hire is made.
+                </p>
               </div>
               {searchedPeople ? (
                 searchedPeople.length === 0 ? (
