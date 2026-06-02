@@ -78,30 +78,5 @@ export function useTeamScope(allPeople: Person[]): TeamScope {
       inScope: () => false,
       inScopeByName: () => false,
     };
-
-    // (unreachable — kept for type narrowing reference)
-    const leader = allPeople.find((p) => p.id === leaderPersonId) || null;
-    const ids = new Set<string>();
-    if (leader) {
-      ids.add(leader.id);
-      const descendants = getDescendantPersonIds([leader.name], allPeople);
-      descendants.forEach((id) => ids.add(id));
-    }
-    const namesLc = new Set<string>(
-      Array.from(ids)
-        .map((id) => allPeople.find((p) => p.id === id)?.name?.trim().toLowerCase())
-        .filter((n): n is string => !!n),
-    );
-    return {
-      loading,
-      scopeMode: "team",
-      leaderPerson: leader,
-      teamPersonIds: ids,
-      inScope: (pid: string) => ids.has(pid),
-      inScopeByName: (name) => {
-        const n = (name || "").trim().toLowerCase();
-        return n ? namesLc.has(n) : false;
-      },
-    };
   }, [authLoading, roleLoading, profileLoading, enabled, isAdmin, role, leaderPersonId, allPeople]);
 }
