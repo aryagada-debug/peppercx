@@ -642,6 +642,106 @@ export function UsersTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) resetCreateForm(); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create user</DialogTitle>
+          </DialogHeader>
+          {createResult ? (
+            <div className="space-y-3">
+              <p className="text-sm text-foreground">
+                Account created for <strong>{createResult.email}</strong>. Share this temporary password — they can change it after signing in.
+              </p>
+              <div className="flex items-center gap-2 rounded-md border border-border bg-secondary/40 px-3 py-2">
+                <code className="flex-1 font-mono text-sm text-foreground">{createResult.password}</code>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 gap-1 text-[11px]"
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(createResult.password);
+                    setPwCopied(true);
+                    setTimeout(() => setPwCopied(false), 1500);
+                  }}
+                >
+                  {pwCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                  {pwCopied ? "Copied" : "Copy"}
+                </Button>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { resetCreateForm(); }}>
+                  Create another
+                </Button>
+                <Button onClick={() => { setCreateOpen(false); resetCreateForm(); }}>Done</Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Full name</label>
+                <Input
+                  value={createForm.name}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="Jane Doe"
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Email</label>
+                <Input
+                  type="email"
+                  value={createForm.email}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, email: e.target.value }))}
+                  placeholder="jane@peppercontent.io"
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Role</label>
+                <Select
+                  value={createForm.role}
+                  onValueChange={(v) => setCreateForm((f) => ({ ...f, role: v as AppRole }))}
+                >
+                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {ROLE_ORDER.slice().reverse().map((r) => (
+                      <SelectItem key={r} value={r} className="text-xs">{ROLE_LABELS[r]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Link to staffing person <span className="text-muted-foreground/70">(optional, recommended)</span>
+                </label>
+                <Select
+                  value={createForm.staffing_person_id || "none"}
+                  onValueChange={(v) => setCreateForm((f) => ({ ...f, staffing_person_id: v === "none" ? "" : v }))}
+                >
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Not linked" /></SelectTrigger>
+                  <SelectContent className="max-h-[280px]">
+                    <SelectItem value="none" className="text-xs">Not linked</SelectItem>
+                    {staffingPeople.map((p) => (
+                      <SelectItem key={p.id} value={p.id} className="text-xs">
+                        {p.name}{p.email ? ` · ${p.email}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground">Links this account to a person in the staffing directory so they see their deals.</p>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { setCreateOpen(false); resetCreateForm(); }}>Cancel</Button>
+                <Button onClick={submitCreateUser} disabled={creating}>
+                  {creating && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
+                  Create user
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
