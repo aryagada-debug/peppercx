@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, SessionHeartbeat } from "@/components/auth/AuthProvider";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { UserRoleProvider } from "@/hooks/useUserRole";
+import { RouteTracker } from "@/hooks/useRouteTracking";
 import { CurrencyProvider } from "@/contexts/CurrencyContext";
 import { GeoFilterProvider } from "@/contexts/GeoFilterContext";
 import { RouteFallback } from "./components/layout/RouteFallback";
@@ -67,6 +68,7 @@ const App = () => (
         <BrowserRouter>
           <AuthProvider>
           <SessionHeartbeat />
+          <RouteTracker />
           <UserRoleProvider>
           <CurrencyProvider>
           <GeoFilterProvider>
