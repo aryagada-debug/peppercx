@@ -2332,6 +2332,30 @@ export type Database = {
         }
         Relationships: []
       }
+      user_page_views: {
+        Row: {
+          id: string
+          path: string
+          route_key: string
+          user_id: string
+          visited_at: string
+        }
+        Insert: {
+          id?: string
+          path?: string
+          route_key: string
+          user_id: string
+          visited_at?: string
+        }
+        Update: {
+          id?: string
+          path?: string
+          route_key?: string
+          user_id?: string
+          visited_at?: string
+        }
+        Relationships: []
+      }
       user_pins: {
         Row: {
           entity_id: string
