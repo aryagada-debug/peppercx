@@ -64,6 +64,7 @@ function isVsdRole(roleText: string): boolean {
 
 interface RowWithVsd extends UsageRow {
   vsd_name: string;
+  avg_session_min: number | null;
 }
 
 export function UsageTab() {
@@ -78,6 +79,7 @@ export function UsageTab() {
   const [perPage, setPerPage] = useState<10 | 25 | 50>(25);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [sortK, setSortK] = useState<"name" | "role" | "last" | "idle" | "writes" | "status">("status");
+  // 'session' sort key added below via union widening in toggleSort handler
   const [sortDir, setSortDir] = useState<1 | -1>(1);
 
   useEffect(() => { void load(rangeDays); }, [rangeDays]);
