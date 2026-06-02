@@ -64,7 +64,9 @@ export function AddStaffingMemberDialog({
   const [step, setStep] = useState<1 | 2 | 3>(getInitialStep());
   const [selectedCategory, setSelectedCategory] = useState<RoleCategory | null>(initialCategory || null);
   const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null);
-  const [selectedRoleTypeId, setSelectedRoleTypeId] = useState<string | null>(null);
+  const [selectedRoleTypeId, setSelectedRoleTypeId] = useState<string | null>(
+    initialRoleKey ? normalizeRoleKey(initialRoleKey) : null,
+  );
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(() => {
     if (initialPersonName) return people.find(p => p.name === initialPersonName) || null;
     return null;
@@ -91,6 +93,10 @@ export function AddStaffingMemberDialog({
   const [expandedOpsGroup, setExpandedOpsGroup] = useState<string | null>(null);
   const { data: taxonomy } = useTaxonomyQuery();
   const { data: dealsLite } = useDealsLiteQuery();
+  const selectedRoleTypeName = useMemo(
+    () => (selectedRoleTypeId ? taxonomy?.roleTypeById.get(selectedRoleTypeId)?.name ?? "" : ""),
+    [selectedRoleTypeId, taxonomy],
+  );
   const dealNameMap = useMemo(() => {
     const m = new Map<string, { account: string; dealName: string; dealStatus?: string }>();
     (dealsLite || []).forEach(d => {
@@ -145,10 +151,10 @@ export function AddStaffingMemberDialog({
 
   const reset = () => {
     const initialPct = initialAllocationPct ?? 10;
-    setStep(initialCategory ? 2 : 1);
+    setStep(initialCategory || initialRoleKey ? 2 : 1);
     setSelectedCategory(initialCategory || null);
     setSelectedDeptId(null);
-    setSelectedRoleTypeId(null);
+    setSelectedRoleTypeId(initialRoleKey ? normalizeRoleKey(initialRoleKey) : null);
     setSelectedPerson(null);
     setAllocationPct(initialPct);
     setAllocationInput(formatAllocationPct(initialPct));
@@ -201,7 +207,11 @@ export function AddStaffingMemberDialog({
           return;
         }
       }
-      if (initialCategory) {
+      if (initialRoleKey) {
+        setSelectedRoleTypeId(normalizeRoleKey(initialRoleKey));
+        if (initialCategory) setSelectedCategory(initialCategory);
+        setStep(2);
+      } else if (initialCategory) {
         setSelectedCategory(initialCategory);
         setStep(2);
       } else {
@@ -250,7 +260,9 @@ export function AddStaffingMemberDialog({
             {step === 1 && "Select Department"}
             {step === 2 && (selectedDeptId
               ? `Select Role Type — ${taxonomy?.departmentById.get(selectedDeptId)?.name ?? ""}`
-              : `Select Member — ${selectedCategory}`)}
+              : selectedRoleTypeId
+              ? `Select Member — ${selectedRoleTypeName || selectedCategory || ""}`
+              : `Select Member — ${selectedCategory ?? ""}`)}
             {step === 3 && `${isEditMode ? "Update Assignment" : "Set Allocation"} — ${selectedPerson?.name}`}
           </AlertDialogTitle>
           <AlertDialogDescription>
@@ -358,7 +370,9 @@ export function AddStaffingMemberDialog({
                   })
                 )
               ) : filteredPeople.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-6">No available members in {selectedCategory}.</p>
+                <p className="text-sm text-muted-foreground text-center py-6">
+                  No available members in {selectedRoleTypeName || selectedCategory || "this role"}.
+                </p>
               ) : selectedCategory === "Operations" ? (
                 (() => {
                   const OPS_GROUPS = ["VSD", "Principal BOPM", "Senior BOPM", "BOPM"];
@@ -485,13 +499,21 @@ export function AddStaffingMemberDialog({
               <Button
                 variant="ghost" size="sm"
                 onClick={() => {
-                  if (selectedRoleTypeId) { setSelectedRoleTypeId(null); }
-                  else { setSelectedCategory(null); setStep(1); }
+                  if (selectedRoleTypeId && selectedDeptId) {
+                    setSelectedRoleTypeId(null);
+                  } else {
+                    setSelectedRoleTypeId(null);
+                    setSelectedDeptId(null);
+                    setSelectedCategory(null);
+                    setStep(1);
+                  }
                   setExpandedOpsGroup(null);
+                  setSearchQuery("");
                 }}
                 className="mt-2"
               >
-                <ArrowLeft className="h-3.5 w-3.5 mr-1" /> {selectedRoleTypeId ? "Back to role types" : "Back to departments"}
+                <ArrowLeft className="h-3.5 w-3.5 mr-1" />{" "}
+                {selectedRoleTypeId && selectedDeptId ? "Back to role types" : "Browse all departments"}
               </Button>
             </>
           )}
