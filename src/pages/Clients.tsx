@@ -552,7 +552,10 @@ export default function Clients() {
       if (colFilters.monthClosedWon && !matches(d.monthClosedWon, colFilters.monthClosedWon)) return false;
       if (colFilters.dealType && d.dealType !== colFilters.dealType) return false;
       if (colFilters.dealStatus && (d.dealStatus || "Active Deal") !== colFilters.dealStatus) return false;
-      if (colFilters.pepperBusinessUnit && (d.pepperBusinessUnit || "") !== colFilters.pepperBusinessUnit) return false;
+      if (colFilters.pepperBusinessUnit) {
+        const bu = (d.pepperBusinessUnit || (d as any).businessUnit || "").trim();
+        if (bu !== colFilters.pepperBusinessUnit) return false;
+      }
       if (colFilters.capabilityLine && (d.capabilityLine || "") !== colFilters.capabilityLine) return false;
       if (colFilters.vsd && !matches(d.vsd, colFilters.vsd)) return false;
       if (colFilters.bopm && !matches(`${d.principalBopm || ""} ${d.seniorBopm || ""}`, colFilters.bopm)) return false;
@@ -985,7 +988,24 @@ export default function Clients() {
             onDrill={(f) => {
               if (f.vsd) setActiveVsd(f.vsd);
               if (f.bopm) setActiveBopm(f.bopm);
-              if (f.bu || f.capability) setSearch(f.bu || f.capability || "");
+              if (f.bu) {
+                const isUnassigned = /^unassigned/i.test(f.bu);
+                setColFilters(prev => {
+                  const n = { ...prev };
+                  if (isUnassigned) delete n.pepperBusinessUnit;
+                  else n.pepperBusinessUnit = f.bu!;
+                  return n;
+                });
+              }
+              if (f.capability) {
+                const isUnassigned = /^unassigned/i.test(f.capability);
+                setColFilters(prev => {
+                  const n = { ...prev };
+                  if (isUnassigned) delete n.capabilityLine;
+                  else n.capabilityLine = f.capability!;
+                  return n;
+                });
+              }
               setView("table");
             }}
           />
