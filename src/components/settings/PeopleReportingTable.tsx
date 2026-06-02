@@ -639,6 +639,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
             </button>
           ))}
         </div>
+        {isAdmin && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -659,6 +660,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        )}
       </div>
 
       <AddPersonDialog
