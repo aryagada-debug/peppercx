@@ -594,6 +594,9 @@ function FragmentRow({
             {r.writes_30d}
           </span>
         </td>
+        <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+          {fmtSession(r.avg_session_min)}
+        </td>
         <td className="px-3 py-2">
           <span className={cn("inline-flex rounded-full px-2 py-0.5 text-xs font-medium", STATUS_TONE[r.status])}>
             {STATUS_LABEL[r.status]}
@@ -605,7 +608,7 @@ function FragmentRow({
       </tr>
       {open && (
         <tr className="border-t border-border bg-muted/20">
-          <td colSpan={9} className="px-4 py-3">
+          <td colSpan={10} className="px-4 py-3">
             <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs md:grid-cols-4">
               <Detail label="VSD" value={r.vsd_name || "—"} />
               <Detail label="Department" value={r.department || "—"} />
@@ -617,6 +620,7 @@ function FragmentRow({
               />
               <Detail label="Email" value={r.email || "—"} />
               <Detail label={`Writes (${rangeDays}d)`} value={String(r.writes_30d)} />
+              <Detail label="Avg session" value={fmtSession(r.avg_session_min)} />
               <Detail label="Status" value={STATUS_LABEL[r.status]} />
             </div>
           </td>
@@ -705,6 +709,15 @@ function PagerBtn({
 function fmtDate(ts: string | null): string {
   if (!ts) return "—";
   return new Date(ts).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "2-digit" });
+}
+
+function fmtSession(min: number | null): string {
+  if (min === null || !isFinite(min) || min <= 0) return "—";
+  if (min < 1) return "<1m";
+  if (min < 60) return `${Math.round(min)}m`;
+  const h = Math.floor(min / 60);
+  const m = Math.round(min % 60);
+  return m ? `${h}h ${m}m` : `${h}h`;
 }
 
 function pct(n: number, d: number): number {
