@@ -317,7 +317,6 @@ export function UsersTab() {
 
   return (
     <div className="space-y-4">
-      <DemoLoginsCard />
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-base font-semibold text-foreground">Users & Roles</h2>
