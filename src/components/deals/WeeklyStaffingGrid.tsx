@@ -103,7 +103,7 @@ export function WeeklyStaffingGrid({ dealId, dealPeople, dealAssignments }: Prop
         <div>
           <h4 className="text-sm font-semibold text-foreground">Weekly Capacity Tracker</h4>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            Log how many hours each person actually spent on this deal that week. Click any cell to edit (40h = full week).
+            Log each person's weekly allocation as a percentage. Click any cell to edit (100% = full week / 40h).
           </p>
         </div>
         <div className="flex items-center gap-1">
@@ -173,7 +173,6 @@ export function WeeklyStaffingGrid({ dealId, dealPeople, dealAssignments }: Prop
                     const defaultPct = getAssignmentAllocationForWeek(dealAssignments, p.id, w);
                     const pct = cell?.allocation_pct ?? defaultPct;
                     const isDefault = !cell;
-                    const hours = Math.round((pct / 100) * 40);
                     return (
                       <td
                         key={w}
@@ -182,14 +181,10 @@ export function WeeklyStaffingGrid({ dealId, dealPeople, dealAssignments }: Prop
                           w === todayIso && "bg-primary/5"
                         )}
                       >
-                        <HoursInput
-                          value={hours}
+                        <PctInput
+                          value={Math.round(pct)}
                           isDefault={isDefault}
-                          onSave={(h) => {
-                            const newPct = Math.max(0, Math.min(150, Math.round((h / 40) * 100)));
-                            // Find the relevant assignment for this person on this deal.
-                            // We update the underlying staffing_assignments row so the
-                            // person's capacity is reflected across ALL weeks moving forward.
+                          onSave={(newPct) => {
                             const assignment = dealAssignments.find(a => a.personId === p.id);
                             if (!assignment) {
                               toast.error("No staffing assignment found for this person.");
@@ -197,7 +192,7 @@ export function WeeklyStaffingGrid({ dealId, dealPeople, dealAssignments }: Prop
                             }
                             updateAssignment(assignment.id, { allocationPct: newPct });
                             if (canEditAll) {
-                              toast.success(`${p.name}'s weekly capacity updated to ${h}h`);
+                              toast.success(`${p.name}'s weekly allocation updated to ${newPct}%`);
                             }
                           }}
                         />
