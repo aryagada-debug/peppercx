@@ -300,6 +300,7 @@ export default function Staffing() {
                   people={people}
                   assignments={scopedAssignments}
                   isAdmin={isActuallyAdmin || isVsdPersona}
+                  canLock={isActuallyAdmin}
                   enableBopmFilter
                   bopmFilterScopedVsd={myVsdName}
                   onAddAssignment={addAssignment}
