@@ -1,55 +1,47 @@
-## Goal
-Import staffing assignments from `Staffing Sheet_May 30th (1).xlsx` (989 deal rows × up to 16 roles each) into `staffing_assignments`, mapping by Deal ID and preserving the `% Mapping` value as `allocation_pct`.
+# Why nothing shows on Clients/Deals
 
-## Rules (per your answers)
-- **Only add missing** — never modify or delete existing rows. A `(deal_id, person_id, role_key)` triple already present is skipped.
-- **All ~16 roles** imported (VSD, Principal/Sr/BOPM, Content Lead, Sr Content Editor, SEO Leader/Growth/Ops, CD-Strategy, ACD-Copy, Copywriters 1&2, CD-Design, ACD-Design, Graphic Designers 1&2, Video Capability Leader, AD-Creative Producer, Creative Producer, Video Editors 1&2).
-- **Attach to `d_{NewDealID}`** records only.
-- **Fuzzy auto-match** people names against `staffing_people.name` (handles "Phatak"→"Pathak", "Agarwal"→"Agrawal", etc.); skip cells that are empty, "Not Applicable" / "Not applicable", or have no close match (≥0.85 similarity).
+For every deal the DB stores up to 3 sibling rows in `staffing_deals` keyed by the same numeric ID:
+
+```
+_100853         (legacy stub, blank)
+d_100853        (status: "New Deal")        ← all 634 imported assignments live here
+PC3889_100853   (status: "Active Deal", has client_id)   ← what Clients/Deals UI renders
+```
+
+Verified on deal 100853: `d_100853` now has `vsd=Aamir Khan, principal_bopm=Tushar Walia, senior_bopm=Ayushi Das`, but `PC3889_100853` (the one the app reads) has all BOPM/VSD columns blank. The `sync_bopm_fields_from_assignment` trigger only recomputes the row whose `id` matches `staffing_assignments.deal_id`, so the cache on the PC row never updates.
+
+Scope: 634 assignments on 210 distinct numeric IDs; 129 of those have a matching `PC%_` sibling that's invisible in the UI today.
+
+# Fix
+
+Mirror each `d_{num}` assignment onto its `PC{code}_{num}` sibling (when one exists). The existing trigger then recomputes `vsd / principal_bopm / senior_bopm / bopm` on the PC row, and Clients/Deals/Staffing all start showing the right names with no code changes.
 
 ## Steps
 
-1. **Load sheet** (`/mnt/user-uploads/Staffing_Sheet_May_30th_1-2.xlsx`) with openpyxl.
-2. **Build people lookup** — fetch all `staffing_people` (id, name); use `difflib.get_close_matches` for fuzzy matching. Cache decisions per name.
-3. **Build deal lookup** — fetch all `staffing_deals.id` starting with `d_`; only insert when `d_{NewDealID}` exists.
-4. **Walk each sheet row** — for every (role column, % column) pair:
-   - resolve `role_key` via the normalizer mapping
-   - resolve `person_id` (skip if unmatched)
-   - skip if `(deal_id, person_id, role_key)` already exists in `staffing_assignments`
-   - else queue an INSERT with id `id_sheet_{rownum}_{rolekey}_{personid}`, `allocation_pct` from the % cell (0 if blank)
-5. **Generate a single SQL file** under `/tmp/import_assignments.sql` containing only the new INSERTs.
-6. **Generate a report** at `/mnt/documents/staffing_import_report.csv` with: rows inserted, rows skipped (duplicate / unmatched-person / unknown-deal), unmatched name list for your review.
-7. **Run the INSERTs** via the insert tool (one batch).
-8. The existing `sync_bopm_fields_from_assignment` trigger will recompute the `vsd / principal_bopm / senior_bopm / bopm` cached columns on `staffing_deals` automatically — no extra step needed.
+1. **Audit query** — list every `(d_id, pc_id)` pair that shares a numeric suffix; report counts and any orphans (d_ with no PC sibling — those stay as-is since UI doesn't show them anyway).
+2. **Insert mirrored rows** via one migration:
+   ```sql
+   INSERT INTO public.staffing_assignments
+     (id, deal_id, person_id, role_key, allocation_pct, ...)
+   SELECT
+     'mirror_' || sa.id,
+     pc.id,
+     sa.person_id, sa.role_key, sa.allocation_pct, ...
+   FROM public.staffing_assignments sa
+   JOIN public.staffing_deals d   ON d.id  = sa.deal_id  AND d.id LIKE 'd\_%' ESCAPE '\'
+   JOIN public.staffing_deals pc  ON pc.id LIKE 'PC%\_' || substring(sa.deal_id from 3) ESCAPE '\'
+   ON CONFLICT (deal_id, person_id, role_key) DO NOTHING;
+   ```
+   (Exact ON CONFLICT target adjusted to whatever unique constraint exists; otherwise pre-filter with NOT EXISTS.)
+3. **Trigger recompute** — the `AFTER INSERT` trigger fires per row and populates the PC deal's cached BOPM/VSD columns automatically. No app-side change required.
+4. **Verify** on a sample (100853, plus 3–5 other PC deals) that `vsd / principal_bopm / senior_bopm / bopm` now match the sheet, and reload the Clients/Deals pages.
 
-## Role-column → `role_key` mapping
+## Why not just point the import at PC_ rows and re-run?
 
-```text
-VSD                       -> vsd
-Principal BOPM            -> principal_bopm
-Senior BOPM               -> senior_bopm
-BOPM                      -> bopm
-Content Lead (2026)       -> content_lead
-Senior Content Editor     -> senior_editor
-SEO Leader                -> seo_leader
-SEO Growth Lead           -> seo_group_head
-SEO Operations            -> seo_manager
-CD/SCD - Strategy         -> strategy_lead
-ACD/AGH - Copy            -> copy_lead
-Copywriter 1 / 2          -> copywriter
-CD/SCD - Design           -> design_lead
-ACD/AGH - Design          -> design_acd
-Graphic Designer 1 / 2    -> graphic_designer
-Video Capability Leader   -> video_lead
-AD - Creative Producer    -> creative_producer_ad
-Creative Producer         -> creative_producer
-Video Editor 1 / 2        -> video_editor
-```
+Same outcome, but `d_` rows are also referenced elsewhere (Staffing module, BOPM filters that the previous fix added). Mirroring keeps both sibling rows consistent so every module — Clients, Deals, Staffing, dashboards — sees the same staffing without depending on which deal-ID variant a given query happens to hit.
 
-(SEO + creative role keys follow existing `normalize_staffing_role_key` conventions where they exist; new keys like `copywriter`, `graphic_designer`, `video_editor`, `creative_producer` are used as-is — they already appear in the codebase via `staffing_data`.)
+## Non-goals
 
-## Deliverables
-- New assignment rows inserted into `staffing_assignments` (additive only).
-- CSV report at `/mnt/documents/staffing_import_report.csv` with counts + unmatched-name list so you can decide whether to add new `staffing_people` records or correct typos in a follow-up.
-
-No code/schema changes — pure data import.
+- No schema changes.
+- No edits to import script or UI hooks.
+- Orphan `d_` deals (no PC sibling) are left alone — they're not visible in Clients/Deals today, and changing that is a separate question.
