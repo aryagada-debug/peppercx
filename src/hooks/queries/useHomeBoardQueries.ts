@@ -175,10 +175,10 @@ export function useHomeTasksQuery(opts: {
           .in("id", dealIds);
         (dealRows || []).forEach((d: any) => { deals[d.id] = d; });
         const { data: assigns } = await supabase.from("staffing_assignments")
-          .select("staffing_deal_id, person_id").in("staffing_deal_id", dealIds);
+          .select("deal_id, person_id").in("deal_id", dealIds);
         (assigns || []).forEach((a: any) => {
-          if (!dealAssignmentsMap[a.staffing_deal_id]) dealAssignmentsMap[a.staffing_deal_id] = new Set();
-          dealAssignmentsMap[a.staffing_deal_id].add(a.person_id);
+          if (!dealAssignmentsMap[a.deal_id]) dealAssignmentsMap[a.deal_id] = new Set();
+          dealAssignmentsMap[a.deal_id].add(a.person_id);
         });
       }
 

@@ -4,7 +4,6 @@ import { cn } from "@/lib/utils";
 import { normalizeRoleKey, uid } from "@/data/staffingData";
 import type { StaffingAssignment, Person, Deal, RoleCategory } from "@/data/staffingData";
 import { useTaxonomyQuery } from "@/hooks/queries/useTaxonomyQuery";
-import { useDealsLiteQuery } from "@/hooks/queries/useDealsLiteQuery";
 import { resolvePersonRoleTypeId, countAvailableForRole } from "@/lib/peopleGrouping";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,9 +63,7 @@ export function AddStaffingMemberDialog({
   const [step, setStep] = useState<1 | 2 | 3>(getInitialStep());
   const [selectedCategory, setSelectedCategory] = useState<RoleCategory | null>(initialCategory || null);
   const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null);
-  const [selectedRoleTypeId, setSelectedRoleTypeId] = useState<string | null>(
-    initialRoleKey ? normalizeRoleKey(initialRoleKey) : null,
-  );
+  const [selectedRoleTypeId, setSelectedRoleTypeId] = useState<string | null>(null);
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(() => {
     if (initialPersonName) return people.find(p => p.name === initialPersonName) || null;
     return null;
@@ -92,19 +89,6 @@ export function AddStaffingMemberDialog({
   const [assignmentType, setAssignmentType] = useState<"Internal" | "External" | "Freelance">("Internal");
   const [expandedOpsGroup, setExpandedOpsGroup] = useState<string | null>(null);
   const { data: taxonomy } = useTaxonomyQuery();
-  const { data: dealsLite } = useDealsLiteQuery();
-  const selectedRoleTypeName = useMemo(
-    () => (selectedRoleTypeId ? taxonomy?.roleTypeById.get(selectedRoleTypeId)?.name ?? "" : ""),
-    [selectedRoleTypeId, taxonomy],
-  );
-  const dealNameMap = useMemo(() => {
-    const m = new Map<string, { account: string; dealName: string; dealStatus?: string }>();
-    (dealsLite || []).forEach(d => {
-      const value = { account: d.account || "", dealName: d.deal_name || "", dealStatus: d.deal_status || undefined };
-      m.set(d.id, value);
-    });
-    return m;
-  }, [dealsLite]);
   const alreadyAssigned = useMemo(() => new Set(assignments.filter(a => a.dealId === dealId).map(a => a.personId)), [assignments, dealId]);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -135,26 +119,16 @@ export function AddStaffingMemberDialog({
   }, [assignments]);
 
   const getDealName = useCallback((dId: string) => {
-    const d = deals.find(x => x.id === dId || x.dealId === dId || `d_${x.dealId}` === dId);
-    if (d && (d.account || d.dealName)) return `${d.account || ""}${d.account && d.dealName ? " — " : ""}${d.dealName || ""}` || dId;
-    const lite = dealNameMap.get(dId);
-    if (lite && (lite.account || lite.dealName)) {
-      return `${lite.account}${lite.account && lite.dealName ? " — " : ""}${lite.dealName}`;
-    }
-    return dId;
-  }, [deals, dealNameMap]);
-
-  const getDealStatus = useCallback((dId: string) => {
-    const d = deals.find(x => x.id === dId || x.dealId === dId || `d_${x.dealId}` === dId);
-    return d?.dealStatus || dealNameMap.get(dId)?.dealStatus || "";
-  }, [deals, dealNameMap]);
+    const d = deals.find(x => x.id === dId);
+    return d ? `${d.account} — ${d.dealName}` : dId;
+  }, [deals]);
 
   const reset = () => {
     const initialPct = initialAllocationPct ?? 10;
-    setStep(initialCategory || initialRoleKey ? 2 : 1);
+    setStep(initialCategory ? 2 : 1);
     setSelectedCategory(initialCategory || null);
     setSelectedDeptId(null);
-    setSelectedRoleTypeId(initialRoleKey ? normalizeRoleKey(initialRoleKey) : null);
+    setSelectedRoleTypeId(null);
     setSelectedPerson(null);
     setAllocationPct(initialPct);
     setAllocationInput(formatAllocationPct(initialPct));
@@ -207,11 +181,7 @@ export function AddStaffingMemberDialog({
           return;
         }
       }
-      if (initialRoleKey) {
-        setSelectedRoleTypeId(normalizeRoleKey(initialRoleKey));
-        if (initialCategory) setSelectedCategory(initialCategory);
-        setStep(2);
-      } else if (initialCategory) {
+      if (initialCategory) {
         setSelectedCategory(initialCategory);
         setStep(2);
       } else {
@@ -260,9 +230,7 @@ export function AddStaffingMemberDialog({
             {step === 1 && "Select Department"}
             {step === 2 && (selectedDeptId
               ? `Select Role Type — ${taxonomy?.departmentById.get(selectedDeptId)?.name ?? ""}`
-              : selectedRoleTypeId
-              ? `Select Member — ${selectedRoleTypeName || selectedCategory || ""}`
-              : `Select Member — ${selectedCategory ?? ""}`)}
+              : `Select Member — ${selectedCategory}`)}
             {step === 3 && `${isEditMode ? "Update Assignment" : "Set Allocation"} — ${selectedPerson?.name}`}
           </AlertDialogTitle>
           <AlertDialogDescription>
@@ -370,9 +338,7 @@ export function AddStaffingMemberDialog({
                   })
                 )
               ) : filteredPeople.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-6">
-                  No available members in {selectedRoleTypeName || selectedCategory || "this role"}.
-                </p>
+                <p className="text-sm text-muted-foreground text-center py-6">No available members in {selectedCategory}.</p>
               ) : selectedCategory === "Operations" ? (
                 (() => {
                   const OPS_GROUPS = ["VSD", "Principal BOPM", "Senior BOPM", "BOPM"];
@@ -499,21 +465,13 @@ export function AddStaffingMemberDialog({
               <Button
                 variant="ghost" size="sm"
                 onClick={() => {
-                  if (selectedRoleTypeId && selectedDeptId) {
-                    setSelectedRoleTypeId(null);
-                  } else {
-                    setSelectedRoleTypeId(null);
-                    setSelectedDeptId(null);
-                    setSelectedCategory(null);
-                    setStep(1);
-                  }
+                  if (selectedRoleTypeId) { setSelectedRoleTypeId(null); }
+                  else { setSelectedCategory(null); setStep(1); }
                   setExpandedOpsGroup(null);
-                  setSearchQuery("");
                 }}
                 className="mt-2"
               >
-                <ArrowLeft className="h-3.5 w-3.5 mr-1" />{" "}
-                {selectedRoleTypeId && selectedDeptId ? "Back to role types" : "Browse all departments"}
+                <ArrowLeft className="h-3.5 w-3.5 mr-1" /> {selectedRoleTypeId ? "Back to role types" : "Back to departments"}
               </Button>
             </>
           )}
@@ -550,7 +508,7 @@ export function AddStaffingMemberDialog({
                     {util.assignments.length > 0 ? (
                       <div className="space-y-2.5">
                         {util.assignments.map(a => {
-                          const assignDealStatus = getDealStatus(a.dealId);
+                          const assignDeal = deals.find(d => d.id === a.dealId);
                           return (
                             <div key={a.id} className="flex items-center gap-2">
                               <div className="flex-1 min-w-0">
@@ -563,7 +521,7 @@ export function AddStaffingMemberDialog({
                               <span className="text-xs font-mono text-foreground w-10 text-right shrink-0">{a.allocationPct}%</span>
                               <span className="text-[10px] font-mono text-muted-foreground w-10 text-right shrink-0">{(a.allocationPct / 100 * 40).toFixed(1)}h</span>
                               <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-positive border-positive/30 shrink-0">
-                                {assignDealStatus === "Deal Completed Successfully" ? "Completed" : "Active"}
+                                {assignDeal?.dealStatus === "Deal Completed Successfully" ? "Completed" : "Active"}
                               </Badge>
                             </div>
                           );
@@ -614,7 +572,7 @@ export function AddStaffingMemberDialog({
                   </div>
                   <div>
                     <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Type</label>
-                    <Select value={assignmentType} onValueChange={v => setAssignmentType(v as "Internal" | "External" | "Freelance")}>
+                    <Select value={assignmentType} onValueChange={v => setAssignmentType(v as any)}>
                       <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Internal">Internal</SelectItem>

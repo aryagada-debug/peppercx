@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
       case "staffing.add": {
         await admin.from("staffing_assignments").insert({
           id: p.id,
-          staffing_deal_id: p.dealId,
+          deal_id: p.dealId,
           person_id: p.personId,
           role_key: p.roleKey || "",
           allocation_pct: p.allocationPct ?? 0,

@@ -4,10 +4,9 @@ import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider, SessionHeartbeat } from "@/components/auth/AuthProvider";
+import { AuthProvider } from "@/components/auth/AuthProvider";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { UserRoleProvider } from "@/hooks/useUserRole";
-import { RouteTracker } from "@/hooks/useRouteTracking";
 import { CurrencyProvider } from "@/contexts/CurrencyContext";
 import { GeoFilterProvider } from "@/contexts/GeoFilterContext";
 import { RouteFallback } from "./components/layout/RouteFallback";
@@ -67,8 +66,6 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
-          <SessionHeartbeat />
-          <RouteTracker />
           <UserRoleProvider>
           <CurrencyProvider>
           <GeoFilterProvider>

@@ -103,11 +103,11 @@ Deno.serve(async (req) => {
       const dateField = mode === "start" ? "start_date" : "end_date";
       const { data: assignments } = await admin
         .from("staffing_assignments")
-        .select("id, staffing_deal_id, person_id, role_key, allocation_pct, start_date, end_date")
+        .select("id, deal_id, person_id, role_key, allocation_pct, start_date, end_date")
         .eq(dateField, today);
 
       const personIds = [...new Set((assignments || []).map(a => a.person_id))].filter(Boolean);
-      const dealIds = [...new Set((assignments || []).map(a => a.staffing_deal_id))].filter(Boolean);
+      const dealIds = [...new Set((assignments || []).map(a => a.deal_id))].filter(Boolean);
       const [{ data: people }, { data: deals }] = await Promise.all([
         admin.from("staffing_people").select("id, name, slack_user_id").in("id", personIds.length ? personIds : [""]),
         admin.from("staffing_deals").select("id, deal_name, account").in("id", dealIds.length ? dealIds : [""]),
@@ -117,16 +117,16 @@ Deno.serve(async (req) => {
 
       for (const a of assignments || []) {
         const p = personMap.get(a.person_id);
-        const d = dealMap.get(a.staffing_deal_id);
+        const d = dealMap.get(a.deal_id);
         if (!p) continue;
-        const dealLabel = d ? `${d.account} — ${d.deal_name}` : a.staffing_deal_id;
+        const dealLabel = d ? `${d.account} — ${d.deal_name}` : a.deal_id;
         const text = mode === "start"
           ? `:rocket: Your assignment on *${dealLabel}* (${a.role_key}, ${a.allocation_pct}%) starts today.\n` +
-            `Open the deal: ${APP_BASE_URL}/deals/${a.staffing_deal_id}`
+            `Open the deal: ${APP_BASE_URL}/deals/${a.deal_id}`
           : `:checkered_flag: Your assignment on *${dealLabel}* (${a.role_key}) ends today. ` +
             `Please update your allocation if it has changed: ${APP_BASE_URL}/staffing?tab=people`;
         await sendOnce({
-          personId: p.id, slackUserId: p.slack_user_id || "", dealId: a.staffing_deal_id,
+          personId: p.id, slackUserId: p.slack_user_id || "", dealId: a.deal_id,
           assignmentId: a.id, reminderType: mode === "start" ? "assignment_start" : "assignment_end", text,
         });
       }

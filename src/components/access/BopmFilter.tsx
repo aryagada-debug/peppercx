@@ -119,8 +119,6 @@ export function dealMatchesBopm(
   const fields: Array<string | null | undefined> = [
     (deal as any).principalBopm ?? (deal as any).principal_bopm,
     (deal as any).seniorBopm ?? (deal as any).senior_bopm,
-    (deal as any).bopm,
-    (deal as any).vsd,
   ];
   // Strict identity match: a deal cell like "Shreshtha P" matches the
   // filter "Shreshtha Pathak" only when no other registered person could

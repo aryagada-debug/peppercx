@@ -21,7 +21,10 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action = body.action;
 
-    // Every action requires an authenticated admin.
+    // Every action — including `provision_demo_logins` — now requires an
+    // authenticated admin. Previously demo provisioning was public, which
+    // let any internet caller reset the 8 named demo accounts to the known
+    // password.
     const isPublicAction = false;
 
     let callerId: string | null = null;
@@ -117,75 +120,6 @@ Deno.serve(async (req) => {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
-    }
-
-    if (action === "create_user") {
-      const email = ((body.email as string) || "").trim().toLowerCase();
-      const name = ((body.name as string) || "").trim();
-      const role = (body.role as string) || "user";
-      const staffingPersonId = (body.staffing_person_id as string) || null;
-      let password = (body.password as string) || "";
-
-      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        return new Response(JSON.stringify({ error: "Valid email required" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (!name) {
-        return new Response(JSON.stringify({ error: "Name required" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (!["admin", "member", "user"].includes(role)) {
-        return new Response(JSON.stringify({ error: "Invalid role" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      if (!password) {
-        // Generate a readable temporary password.
-        const rand = Math.random().toString(36).slice(2, 8);
-        password = `Pepper@${rand}`;
-      }
-
-      // Block if email already exists
-      const { data: authList } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
-      const existing = (authList?.users || []).find(
-        (u) => (u.email || "").toLowerCase() === email,
-      );
-      if (existing) {
-        return new Response(JSON.stringify({ error: "A user with this email already exists" }), {
-          status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      const { data: newUser, error: cErr } = await adminClient.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: { full_name: name },
-      });
-      if (cErr || !newUser?.user) {
-        return new Response(JSON.stringify({ error: cErr?.message || "Create failed" }), {
-          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      const userId = newUser.user.id;
-
-      await adminClient.from("profiles").upsert(
-        { user_id: userId, display_name: name, staffing_person_id: staffingPersonId },
-        { onConflict: "user_id" },
-      );
-
-      // Replace any auto-assigned role with the chosen one
-      await adminClient.from("user_roles").delete().eq("user_id", userId);
-      await adminClient.from("user_roles").insert({ user_id: userId, role });
-
-      return new Response(
-        JSON.stringify({ ok: true, user_id: userId, email, password }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
     }
 
     if (action === "bulk_provision") {
@@ -355,6 +289,92 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({ status, user_id: userId, email }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    if (action === "provision_demo_logins") {
+      const DEMO_PASSWORD = "Demo@1234";
+      const DEMO_ACCOUNTS: { personId: string; email: string; appRole: "member" | "user" | "capability_lead" }[] = [
+        // VSDs → 'member' role
+        { personId: "p_adityashaw",        email: "aditya.shaw+demo@peppercontent.io",       appRole: "member" },
+        { personId: "p_neema_jayadas",     email: "neema.jayadas+demo@peppercontent.io",     appRole: "member" },
+        { personId: "p_aamir_khan",        email: "aamir.khan+demo@peppercontent.io",        appRole: "member" },
+        { personId: "p_sumit_shekhawat",   email: "sumit.shekhawat+demo@peppercontent.io",   appRole: "member" },
+        { personId: "p_sneha_iyer",        email: "sneha.iyer+demo@peppercontent.io",        appRole: "member" },
+        // BOPMs → 'user' role
+        { personId: "p_ritu_shinde",       email: "ritu.shinde+demo@peppercontent.io",       appRole: "user" },
+        { personId: "p_tiffany_fernandes", email: "tiffany.fernandes+demo@peppercontent.io", appRole: "user" },
+        { personId: "p_shreshtha_pathak",  email: "shreshtha.pathak+demo@peppercontent.io",  appRole: "user" },
+        // Capability Leaders → 'capability_lead' role
+        { personId: "p_mayur_varade",            email: "mayur.varade+demo@peppercontent.io",            appRole: "capability_lead" },
+        { personId: "p_vedanga_bandyopadhyay",   email: "vedanga.bandyopadhyay+demo@peppercontent.io",   appRole: "capability_lead" },
+      ];
+
+      const ids = DEMO_ACCOUNTS.map((a) => a.personId);
+      const { data: people } = await adminClient
+        .from("staffing_people")
+        .select("id, name")
+        .in("id", ids);
+      const personById = new Map((people || []).map((p: any) => [p.id, p.name as string]));
+
+      const { data: authList } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
+      const existingByEmail = new Map<string, string>();
+      (authList?.users || []).forEach((u) => {
+        if (u.email) existingByEmail.set(u.email.toLowerCase(), u.id);
+      });
+
+      const results: { email: string; person: string; status: string; error?: string }[] = [];
+
+      for (const acc of DEMO_ACCOUNTS) {
+        const personName = personById.get(acc.personId);
+        if (!personName) {
+          results.push({ email: acc.email, person: acc.personId, status: "missing_person" });
+          continue;
+        }
+        const emailLower = acc.email.toLowerCase();
+        let userId = existingByEmail.get(emailLower);
+        let status = "linked";
+
+        if (!userId) {
+          const { data: newUser, error: cErr } = await adminClient.auth.admin.createUser({
+            email: acc.email,
+            password: DEMO_PASSWORD,
+            email_confirm: true,
+            user_metadata: { full_name: personName },
+          });
+          if (cErr || !newUser?.user) {
+            results.push({ email: acc.email, person: personName, status: "error", error: cErr?.message || "create failed" });
+            continue;
+          }
+          userId = newUser.user.id;
+          status = "created";
+        } else {
+          // Reset password to known demo value so it stays predictable.
+          await adminClient.auth.admin.updateUserById(userId, {
+            password: DEMO_PASSWORD,
+            email_confirm: true,
+          }).catch(() => {});
+          status = "reset";
+        }
+
+        await adminClient.from("profiles").upsert(
+          { user_id: userId, display_name: personName, staffing_person_id: acc.personId },
+          { onConflict: "user_id" },
+        );
+        // Replace any auto-assigned roles with the persona-specific role.
+        await adminClient.from("user_roles").delete().eq("user_id", userId);
+        await adminClient
+          .from("user_roles")
+          .insert({ user_id: userId, role: acc.appRole })
+          .select()
+          .then((r) => r, () => null);
+
+        results.push({ email: acc.email, person: personName, status });
+      }
+
+      return new Response(
+        JSON.stringify({ results }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }

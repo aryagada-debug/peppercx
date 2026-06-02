@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { StaffingErrorBoundary } from "@/components/staffing/StaffingErrorBoundary";
 import { useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { Loader2, Eye, Download } from "lucide-react";
+import { Loader2, Eye } from "lucide-react";
 import { useStaffingQueries } from "@/hooks/queries/useStaffingQueries";
 import { useStaffingMutations } from "@/hooks/queries/useStaffingMutations";
 import { ACTIVE_DEAL_STATUSES } from "@/data/staffingData";
@@ -192,48 +192,6 @@ export default function Staffing() {
 
   const showBopmEmpty = isBopmPersona && !accessLoading && activeBopmDeals.length === 0;
 
-  const exportSheetCsv = () => {
-    const exportDeals = isBopmPersona ? activeBopmDeals : scopedDeals;
-    const exportAssignments = isBopmPersona ? bopmActiveAssignments : scopedAssignments;
-    const dealById = new Map(exportDeals.map(d => [d.id, d]));
-    const personById = new Map(people.map(p => [p.id, p]));
-    const esc = (v: unknown) => {
-      const s = v == null ? "" : String(v);
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
-    const headers = [
-      "Deal ID","PC Code","Account","Deal Name","VSD","Pepper BU","Capability Line",
-      "Deal Status","Staffing Status","Start Date","End Date",
-      "Person","Role Title","Department","Pod","Region","Band",
-      "Role Key","Allocation %","Hours / week","Assignment Start","Assignment End",
-    ];
-    const rows: string[] = [headers.map(esc).join(",")];
-    for (const a of exportAssignments) {
-      const d = dealById.get(a.dealId);
-      const p = personById.get(a.personId);
-      if (!d || !p) continue;
-      const hours = ((Number(a.allocationPct) || 0) / 100) * 40;
-      rows.push([
-        d.dealId, d.pcCode, d.account, d.dealName, d.vsd,
-        d.pepperBusinessUnit ?? "", d.capabilityLine, d.dealStatus, d.staffingStatus,
-        d.startDate ?? "", d.endDate ?? "",
-        p.name, p.roleTitle, p.department ?? "", p.pod, p.region, p.band ?? "",
-        a.roleKey, Number(a.allocationPct) || 0, hours.toFixed(1),
-        a.startDate ?? "", a.endDate ?? "",
-      ].map(esc).join(","));
-    }
-    const blob = new Blob([rows.join("\n")], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    const stamp = new Date().toISOString().slice(0, 10);
-    link.href = url;
-    link.download = `staffing-sheet-${stamp}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
   return (
     <AppLayout>
       <div className="px-3 py-4">
@@ -254,15 +212,6 @@ export default function Staffing() {
           </div>
           <div className="flex items-center gap-2">
             {!isBopmPersona && <StaffingReviewRequestsButton />}
-            {tab === "table" && (
-              <button
-                onClick={exportSheetCsv}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border bg-card text-ui font-medium text-foreground hover:bg-accent/40 transition-colors"
-                title="Download the Sheet view as CSV"
-              >
-                <Download className="h-3.5 w-3.5" /> Download CSV
-              </button>
-            )}
             {TABS.length > 1 && (
               <div className="flex gap-1 bg-secondary rounded-lg p-1 border border-border/60">
                 {TABS.map(t => (

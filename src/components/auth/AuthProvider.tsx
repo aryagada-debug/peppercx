@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Session, User } from "@supabase/supabase-js";
-import { useSessionHeartbeat } from "@/hooks/useSessionHeartbeat";
 
 interface AuthContextType {
   session: Session | null;
@@ -53,10 +52,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-// Mount the heartbeat inside the provider tree so it has access to `useAuth`.
-export function SessionHeartbeat() {
-  useSessionHeartbeat();
-  return null;
 }

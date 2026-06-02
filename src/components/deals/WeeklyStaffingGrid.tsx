@@ -103,7 +103,7 @@ export function WeeklyStaffingGrid({ dealId, dealPeople, dealAssignments }: Prop
         <div>
           <h4 className="text-sm font-semibold text-foreground">Weekly Capacity Tracker</h4>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            Log each person's weekly allocation as a percentage. Click any cell to edit (100% = full week / 40h).
+            Log how many hours each person actually spent on this deal that week. Click any cell to edit (40h = full week).
           </p>
         </div>
         <div className="flex items-center gap-1">
@@ -173,6 +173,7 @@ export function WeeklyStaffingGrid({ dealId, dealPeople, dealAssignments }: Prop
                     const defaultPct = getAssignmentAllocationForWeek(dealAssignments, p.id, w);
                     const pct = cell?.allocation_pct ?? defaultPct;
                     const isDefault = !cell;
+                    const hours = Math.round((pct / 100) * 40);
                     return (
                       <td
                         key={w}
@@ -181,10 +182,14 @@ export function WeeklyStaffingGrid({ dealId, dealPeople, dealAssignments }: Prop
                           w === todayIso && "bg-primary/5"
                         )}
                       >
-                        <PctInput
-                          value={Math.round(pct)}
+                        <HoursInput
+                          value={hours}
                           isDefault={isDefault}
-                          onSave={(newPct) => {
+                          onSave={(h) => {
+                            const newPct = Math.max(0, Math.min(150, Math.round((h / 40) * 100)));
+                            // Find the relevant assignment for this person on this deal.
+                            // We update the underlying staffing_assignments row so the
+                            // person's capacity is reflected across ALL weeks moving forward.
                             const assignment = dealAssignments.find(a => a.personId === p.id);
                             if (!assignment) {
                               toast.error("No staffing assignment found for this person.");
@@ -192,7 +197,7 @@ export function WeeklyStaffingGrid({ dealId, dealPeople, dealAssignments }: Prop
                             }
                             updateAssignment(assignment.id, { allocationPct: newPct });
                             if (canEditAll) {
-                              toast.success(`${p.name}'s weekly allocation updated to ${newPct}%`);
+                              toast.success(`${p.name}'s weekly capacity updated to ${h}h`);
                             }
                           }}
                         />
@@ -233,8 +238,8 @@ export function WeeklyStaffingGrid({ dealId, dealPeople, dealAssignments }: Prop
   );
 }
 
-// ─── Editable percentage cell ───
-function PctInput({ value, onSave, isDefault }: { value: number; onSave: (v: number) => void; isDefault?: boolean }) {
+// ─── Editable hours cell ───
+function HoursInput({ value, onSave, isDefault }: { value: number; onSave: (v: number) => void; isDefault?: boolean }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(value));
 
@@ -243,12 +248,12 @@ function PctInput({ value, onSave, isDefault }: { value: number; onSave: (v: num
       <Input
         type="number"
         min={0}
-        max={150}
+        max={60}
         value={draft}
         autoFocus
         onChange={e => setDraft(e.target.value)}
         onBlur={() => {
-          const v = Math.max(0, Math.min(150, Number(draft) || 0));
+          const v = Math.max(0, Math.min(60, Number(draft) || 0));
           if (v !== value) onSave(v);
           setEditing(false);
         }}
@@ -266,14 +271,14 @@ function PctInput({ value, onSave, isDefault }: { value: number; onSave: (v: num
       className={cn(
         "w-full h-7 text-xs font-mono tabular-nums hover:bg-accent/30 transition-colors",
         value === 0 && "text-muted-foreground/50",
-        value > 0 && value < 50 && "text-foreground",
-        value >= 50 && value < 100 && "text-warning font-medium",
-        value >= 100 && "text-destructive font-semibold",
+        value > 0 && value < 20 && "text-foreground",
+        value >= 20 && value < 40 && "text-warning font-medium",
+        value >= 40 && "text-destructive font-semibold",
         isDefault && value > 0 && "italic text-muted-foreground/70"
       )}
-      title={isDefault ? "Auto-populated from staffing allocation. Click to edit %." : "Click to edit"}
+      title={isDefault ? "Auto-populated from staffing allocation. Click to edit actual hours." : "Click to edit"}
     >
-      {value > 0 ? `${value}%` : "—"}
+      {value > 0 ? `${value}h` : "—"}
     </button>
   );
 }

@@ -135,7 +135,7 @@ function LegacyDashboard() {
         supabase.from("slack_inactivity_nudges")
           .select("deal_id, channel_id, week_start")
           .gte("week_start", sevenDaysAgo),
-        supabase.from("staffing_assignments").select("staffing_deal_id, person_id"),
+        supabase.from("staffing_assignments").select("deal_id, person_id"),
         supabase.from("staffing_people").select("id, name, role_title, designation, tbh"),
         supabase.from("staffing_weekly_allocations")
           .select("person_id, deal_id, allocation_pct")
@@ -257,7 +257,7 @@ function LegacyDashboard() {
       const overdueMbrCount = overduePendingCount + missingMbrCount;
       const inactiveChannels = new Set((inact || []).map((i: any) => i.channel_id)).size;
       const noSlackChannelCount = dealList.filter((d: any) => !d.slack_channel_id).length;
-      const staffedDeals = new Set((assigns || []).map((a: any) => a.staffing_deal_id));
+      const staffedDeals = new Set((assigns || []).map((a: any) => a.deal_id));
       const unstaffedCount = dealList.filter((d: any) => !staffedDeals.has(d.id)).length;
 
       const builtAlerts: DashboardAlert[] = [];

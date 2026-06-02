@@ -16,28 +16,14 @@ export interface DealLiteRow {
   principal_bopm: string | null;
   senior_bopm: string | null;
   bopm: string | null;
-  deal_name: string | null;
-  account: string | null;
-  deal_status: string | null;
 }
 
-const PAGE_SIZE = 1000;
-
 async function fetchDealsLite(): Promise<DealLiteRow[]> {
-  const out: DealLiteRow[] = [];
-  for (let from = 0; ; from += PAGE_SIZE) {
-    const to = from + PAGE_SIZE - 1;
-    const { data, error } = await supabase
-      .from("staffing_deals")
-      .select("id, client_id, vsd, principal_bopm, senior_bopm, bopm, deal_name, account, deal_status")
-      .order("id", { ascending: true })
-      .range(from, to);
-    if (error) throw error;
-    const rows = (data as DealLiteRow[]) || [];
-    out.push(...rows);
-    if (rows.length < PAGE_SIZE) break;
-  }
-  return out;
+  const { data, error } = await supabase
+    .from("staffing_deals")
+    .select("id, client_id, vsd, principal_bopm, senior_bopm, bopm");
+  if (error) throw error;
+  return (data as DealLiteRow[]) || [];
 }
 
 export function ensureDealsLite(qc: QueryClient): Promise<DealLiteRow[]> {
