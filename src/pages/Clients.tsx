@@ -985,7 +985,24 @@ export default function Clients() {
             onDrill={(f) => {
               if (f.vsd) setActiveVsd(f.vsd);
               if (f.bopm) setActiveBopm(f.bopm);
-              if (f.bu || f.capability) setSearch(f.bu || f.capability || "");
+              if (f.bu) {
+                const isUnassigned = /^unassigned/i.test(f.bu);
+                setColFilters(prev => {
+                  const n = { ...prev };
+                  if (isUnassigned) delete n.pepperBusinessUnit;
+                  else n.pepperBusinessUnit = f.bu!;
+                  return n;
+                });
+              }
+              if (f.capability) {
+                const isUnassigned = /^unassigned/i.test(f.capability);
+                setColFilters(prev => {
+                  const n = { ...prev };
+                  if (isUnassigned) delete n.capabilityLine;
+                  else n.capabilityLine = f.capability!;
+                  return n;
+                });
+              }
               setView("table");
             }}
           />
