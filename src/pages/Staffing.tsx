@@ -7,6 +7,7 @@ import { Loader2, Eye } from "lucide-react";
 import { useStaffingQueries } from "@/hooks/queries/useStaffingQueries";
 import { useStaffingMutations } from "@/hooks/queries/useStaffingMutations";
 import { ACTIVE_DEAL_STATUSES } from "@/data/staffingData";
+import { getDescendantPersonIds } from "@/data/staffingData";
 import { useCurrencyVersion } from "@/contexts/CurrencyContext";
 import { OverviewTab } from "@/components/staffing/OverviewTab";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -22,8 +23,18 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { useVsdUsers } from "@/hooks/queries/legacy";
 import { supabase } from "@/integrations/supabase/client";
 import { useGeoFilter } from "@/contexts/GeoFilterContext";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type Tab = "overview" | "staffing" | "people" | "table" | "requests";
+
+// Capability Leader filter — scopes Staffing & Capacity to a leader's full
+// reporting subtree. Vedanga's name has two spellings in the data, so both
+// are passed as roots so descendants from either spelling are picked up.
+const CAP_LEADERS: { value: string; label: string; roots: string[] }[] = [
+  { value: "Gaurab Chatterjee",     label: "Gaurab Chatterjee — Content",   roots: ["Gaurab Chatterjee"] },
+  { value: "Mayur Varade",          label: "Mayur Varade — SEO",            roots: ["Mayur Varade"] },
+  { value: "Vedanga Bandyopadhyay", label: "Vedanga Bandyopadhyay — SEO",   roots: ["Vedanga Bandyopadhyay", "Vedanga Bandopadhyay"] },
+];
 
 export default function Staffing() {
   useCurrencyVersion();
@@ -138,6 +149,20 @@ export default function Staffing() {
 
   const scopedDeals = uniqueScopedDeals;
 
+  // Capability Leader filter (applied on top of role-based scoping above).
+  const [capLead, setCapLead] = useState<string>("all");
+  const capLeadPersonIds = useMemo<Set<string> | null>(() => {
+    if (capLead === "all") return null;
+    const cfg = CAP_LEADERS.find(c => c.value === capLead);
+    if (!cfg) return null;
+    const ids = getDescendantPersonIds(cfg.roots, people);
+    // Include the leaders themselves so they show on their own pages.
+    const norm = (s: string) => (s || "").trim().toLowerCase();
+    const rootSet = new Set(cfg.roots.map(norm));
+    for (const p of people) if (rootSet.has(norm(p.name))) ids.add(p.id);
+    return ids;
+  }, [capLead, people]);
+
   const activeBopmDeals = useMemo(() => (
     isBopmPersona
       ? uniqueScopedDeals.filter(d => ACTIVE_DEAL_STATUSES.has(d.dealStatus))
@@ -155,6 +180,22 @@ export default function Staffing() {
     const personIds = new Set(people.map(p => p.id));
     return assignments.filter(a => ids.has(a.dealId) && personIds.has(a.personId));
   }, [assignments, deals, people, uniqueScopedDeals, shouldScopeToOwnDeals, accessLoading]);
+
+  // Apply Capability Leader filter to assignments + deals (after base scoping).
+  const capScopedAssignments = useMemo(() => {
+    if (!capLeadPersonIds) return scopedAssignments;
+    return scopedAssignments.filter(a => capLeadPersonIds.has(a.personId));
+  }, [scopedAssignments, capLeadPersonIds]);
+  const capScopedDealIds = useMemo(() => {
+    if (!capLeadPersonIds) return null;
+    const s = new Set<string>();
+    for (const a of capScopedAssignments) s.add(a.dealId);
+    return s;
+  }, [capLeadPersonIds, capScopedAssignments]);
+  const capScopedDeals = useMemo(() => {
+    if (!capScopedDealIds) return scopedDeals;
+    return scopedDeals.filter(d => capScopedDealIds.has(d.id));
+  }, [scopedDeals, capScopedDealIds]);
 
   const bopmActiveAssignments = useMemo(() => {
     if (!isBopmPersona) return scopedAssignments;
@@ -207,10 +248,23 @@ export default function Staffing() {
               )}
             </div>
             <p className="text-ui text-muted-foreground mt-1">
-              {(isBopmPersona ? activeBopmDeals : uniqueScopedDeals).length} active deals • {(isBopmPersona ? scopedPeople : people.filter(p => !p.tbh)).length} people
+              {(isBopmPersona ? activeBopmDeals : capScopedDeals).length} active deals • {(isBopmPersona ? scopedPeople : (capLeadPersonIds ? people.filter(p => capLeadPersonIds.has(p.id) && !p.tbh) : people.filter(p => !p.tbh))).length} people
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {!isBopmPersona && (
+              <Select value={capLead} onValueChange={setCapLead}>
+                <SelectTrigger className="h-8 w-[240px] text-[11px]">
+                  <SelectValue placeholder="Filter by Capability Leader" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Capability Leaders</SelectItem>
+                  {CAP_LEADERS.map(c => (
+                    <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             {!isBopmPersona && <StaffingReviewRequestsButton />}
             {TABS.length > 1 && (
               <div className="flex gap-1 bg-secondary rounded-lg p-1 border border-border/60">
@@ -285,9 +339,9 @@ export default function Staffing() {
             <div className={cn(tab !== "overview" && "hidden")}>
               {hasVisited("overview") && (
                 <OverviewTab
-                  deals={scopedDeals}
+                  deals={capScopedDeals}
                   people={people}
-                  assignments={scopedAssignments}
+                  assignments={capScopedAssignments}
                   onUpdateDeal={updateDeal}
                   bopmFilterScopedVsd={myVsdName}
                 />
@@ -296,9 +350,9 @@ export default function Staffing() {
             <div className={cn(tab !== "staffing" && "hidden")}>
               {hasVisited("staffing") && (
                 <StaffingDealsList
-                  deals={scopedDeals}
+                  deals={capScopedDeals}
                   people={people}
-                  assignments={scopedAssignments}
+                  assignments={capScopedAssignments}
                   isAdmin={isActuallyAdmin || isVsdPersona}
                   canLock={isActuallyAdmin}
                   enableBopmFilter
@@ -313,10 +367,10 @@ export default function Staffing() {
             <div className={cn(tab !== "table" && "hidden")}>
               {hasVisited("table") && (
                 <BopmStaffingFlatTable
-                  deals={scopedDeals}
+                  deals={capScopedDeals}
                   people={people}
                   allPeople={people}
-                  assignments={scopedAssignments}
+                  assignments={capScopedAssignments}
                   directEdit
                   onAddAssignment={addAssignment}
                   onUpdateAssignment={updateAssignment}
