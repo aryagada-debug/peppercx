@@ -64,6 +64,7 @@ function isVsdRole(roleText: string): boolean {
 
 interface RowWithVsd extends UsageRow {
   vsd_name: string;
+  avg_session_min: number | null;
 }
 
 export function UsageTab() {
@@ -77,7 +78,7 @@ export function UsageTab() {
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState<10 | 25 | 50>(25);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [sortK, setSortK] = useState<"name" | "role" | "last" | "idle" | "writes" | "status">("status");
+  const [sortK, setSortK] = useState<"name" | "role" | "last" | "idle" | "writes" | "status" | "session">("status");
   const [sortDir, setSortDir] = useState<1 | -1>(1);
 
   useEffect(() => { void load(rangeDays); }, [rangeDays]);
@@ -115,6 +116,30 @@ export function UsageTab() {
         supabase.from("slack_messages").select("sent_by_app_user").gte("created_at", since),
         supabase.from("approval_requests").select("requested_by").gte("created_at", since),
       ]);
+
+      // Session heartbeats — used to compute average session length per user.
+      // A "session" row's length is (last_seen_at - started_at).
+      const { data: sessions } = await supabase
+        .from("user_sessions")
+        .select("user_id, started_at, last_seen_at")
+        .gte("started_at", since);
+
+      const sessionAgg = new Map<string, { total: number; count: number }>();
+      (sessions || []).forEach((s: any) => {
+        const dur = (new Date(s.last_seen_at).getTime() - new Date(s.started_at).getTime()) / 60000;
+        // Ignore zero-length pings (single heartbeat) — only meaningful if > 0.
+        if (!isFinite(dur) || dur <= 0) return;
+        const a = sessionAgg.get(s.user_id) || { total: 0, count: 0 };
+        a.total += dur;
+        a.count += 1;
+        sessionAgg.set(s.user_id, a);
+      });
+      const avgSessionFor = (uid: string | null | undefined): number | null => {
+        if (!uid) return null;
+        const a = sessionAgg.get(uid);
+        if (!a || a.count === 0) return null;
+        return a.total / a.count;
+      };
 
       const authUsers: AuthUser[] = (authRes?.data?.users as AuthUser[]) || [];
       const authByEmail = new Map<string, AuthUser>();
@@ -200,6 +225,7 @@ export function UsageTab() {
           writes_30d: auth ? writes.get(auth.id) || 0 : 0,
           status: classifyStatus(!!auth, auth?.last_sign_in_at ?? null),
           vsd_name: resolveVsd(p.id),
+          avg_session_min: avgSessionFor(auth?.id),
         });
       });
 
@@ -220,6 +246,7 @@ export function UsageTab() {
           writes_30d: writes.get(u.id) || 0,
           status: classifyStatus(true, u.last_sign_in_at),
           vsd_name: "",
+          avg_session_min: avgSessionFor(u.id),
         });
       });
 
@@ -270,6 +297,7 @@ export function UsageTab() {
         case "idle": return (a.days_since_login ?? -1) - (b.days_since_login ?? -1);
         case "writes": return a.writes_30d - b.writes_30d;
         case "status": return order.indexOf(a.status) - order.indexOf(b.status);
+        case "session": return (a.avg_session_min ?? -1) - (b.avg_session_min ?? -1);
       }
     };
     return [...base].sort((a, b) => cmp(a, b) * sortDir);
@@ -305,14 +333,16 @@ export function UsageTab() {
   };
 
   const exportCsv = () => {
-    const head = ["Name", "Email", "Role", "VSD", "Region", "Pod", "Department", "First login", "Last login", "Days idle", `Writes ${rangeDays}d`, "Status"];
+    const head = ["Name", "Email", "Role", "VSD", "Region", "Pod", "Department", "First login", "Last login", "Days idle", `Writes ${rangeDays}d`, "Avg session (min)", "Status"];
     const lines = [head.join(",")];
     filtered.forEach((r) => {
       const cells = [
         r.name, r.email, ROLE_LABELS[r.role as AppRole] || r.role, r.vsd_name, r.region, r.pod, r.department,
         fmtDate(r.created_at), fmtDate(r.last_sign_in_at),
         r.days_since_login === null ? "" : String(r.days_since_login),
-        String(r.writes_30d), STATUS_LABEL[r.status],
+        String(r.writes_30d),
+        r.avg_session_min === null ? "" : r.avg_session_min.toFixed(1),
+        STATUS_LABEL[r.status],
       ].map((v) => {
         const s = (v ?? "").toString().replace(/"/g, '""');
         return /[",\n]/.test(s) ? `"${s}"` : s;
@@ -464,6 +494,7 @@ export function UsageTab() {
                 <Th label="Last login" k="last" sortK={sortK} dir={sortDir} onClick={toggleSort} />
                 <Th label="Idle" k="idle" sortK={sortK} dir={sortDir} onClick={toggleSort} align="right" />
                 <Th label={`Writes · ${rangeDays}d`} k="writes" sortK={sortK} dir={sortDir} onClick={toggleSort} align="right" />
+                <Th label="Avg session" k="session" sortK={sortK} dir={sortDir} onClick={toggleSort} align="right" />
                 <Th label="Status" k="status" sortK={sortK} dir={sortDir} onClick={toggleSort} />
                 <th className="w-8 px-2 py-2" />
               </tr>
@@ -485,7 +516,7 @@ export function UsageTab() {
               })}
               {pageRows.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-3 py-8 text-center text-sm text-muted-foreground">
+                  <td colSpan={10} className="px-3 py-8 text-center text-sm text-muted-foreground">
                     No users match these filters.
                   </td>
                 </tr>
@@ -527,7 +558,8 @@ export function UsageTab() {
 
       <p className="text-xs text-muted-foreground">
         "Writes · {rangeDays}d" counts edits across tasks, RGY health, personal todos, Slack messages and approvals
-        in the selected window. VSD is resolved by walking each person's manager chain.
+        in the selected window. "Avg session" is the mean active session length (heartbeat-based) in the same window
+        — it will be empty until users have signed in and accumulated session data.
       </p>
     </div>
   );
@@ -563,6 +595,9 @@ function FragmentRow({
             {r.writes_30d}
           </span>
         </td>
+        <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+          {fmtSession(r.avg_session_min)}
+        </td>
         <td className="px-3 py-2">
           <span className={cn("inline-flex rounded-full px-2 py-0.5 text-xs font-medium", STATUS_TONE[r.status])}>
             {STATUS_LABEL[r.status]}
@@ -574,7 +609,7 @@ function FragmentRow({
       </tr>
       {open && (
         <tr className="border-t border-border bg-muted/20">
-          <td colSpan={9} className="px-4 py-3">
+          <td colSpan={10} className="px-4 py-3">
             <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs md:grid-cols-4">
               <Detail label="VSD" value={r.vsd_name || "—"} />
               <Detail label="Department" value={r.department || "—"} />
@@ -586,6 +621,7 @@ function FragmentRow({
               />
               <Detail label="Email" value={r.email || "—"} />
               <Detail label={`Writes (${rangeDays}d)`} value={String(r.writes_30d)} />
+              <Detail label="Avg session" value={fmtSession(r.avg_session_min)} />
               <Detail label="Status" value={STATUS_LABEL[r.status]} />
             </div>
           </td>
@@ -611,7 +647,7 @@ function Th({
   label, k, sortK, dir, onClick, align,
 }: {
   label: string;
-  k: "name" | "role" | "last" | "idle" | "writes" | "status";
+  k: "name" | "role" | "last" | "idle" | "writes" | "status" | "session";
   sortK: string;
   dir: 1 | -1;
   onClick: (k: any) => void;
@@ -674,6 +710,15 @@ function PagerBtn({
 function fmtDate(ts: string | null): string {
   if (!ts) return "—";
   return new Date(ts).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "2-digit" });
+}
+
+function fmtSession(min: number | null): string {
+  if (min === null || !isFinite(min) || min <= 0) return "—";
+  if (min < 1) return "<1m";
+  if (min < 60) return `${Math.round(min)}m`;
+  const h = Math.floor(min / 60);
+  const m = Math.round(min % 60);
+  return m ? `${h}h ${m}m` : `${h}h`;
 }
 
 function pct(n: number, d: number): number {
