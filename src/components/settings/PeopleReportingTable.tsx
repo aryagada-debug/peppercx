@@ -15,6 +15,7 @@ import {
 import { AddPersonDialog } from "@/components/settings/AddPersonDialog";
 import { AddTeamDialog } from "@/components/settings/AddTeamDialog";
 import { useTaxonomyQuery } from "@/hooks/queries/useTaxonomyQuery";
+import { useUserRole } from "@/hooks/useUserRole";
 import { resolvePersonRoleTypeId } from "@/lib/peopleGrouping";
 import { ROLE_TYPE_TO_DEPT, DEPARTMENT_LABELS, ROLE_SLOTS, ACTIVE_DEAL_STATUSES, isAssignmentExpired } from "@/data/staffingData";
 import { getPersonRevenueCapacity } from "@/lib/revenueCapacity";
