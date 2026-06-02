@@ -357,6 +357,45 @@ export function AddStaffingMemberDialog({
                   autoFocus
                 />
               </div>
+              {/* Add TBH placeholder for the selected role type / category */}
+              <div className="mb-2 rounded-lg border border-dashed border-warning/40 bg-warning/5 p-2">
+                {!tbhFormOpen ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTbhFormOpen(true);
+                      setTbhName(`TBH — ${selectedRoleType?.name || selectedCategory || "Role"}`);
+                    }}
+                    className="flex items-center gap-2 text-xs font-medium text-warning hover:underline"
+                  >
+                    <UserPlus className="h-3.5 w-3.5" />
+                    Add TBH placeholder for {selectedRoleType?.name || selectedCategory}
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={tbhName}
+                      onChange={(e) => setTbhName(e.target.value)}
+                      placeholder={`TBH — ${selectedRoleType?.name || selectedCategory || "Role"}`}
+                      className="h-7 text-xs"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") { e.preventDefault(); handleAddTbh(); }
+                        if (e.key === "Escape") { e.preventDefault(); setTbhFormOpen(false); }
+                      }}
+                    />
+                    <Button size="sm" className="h-7 px-2 text-xs" disabled={tbhSaving} onClick={handleAddTbh}>
+                      {tbhSaving ? "Adding…" : "Save TBH"}
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setTbhFormOpen(false)}>
+                      Cancel
+                    </Button>
+                  </div>
+                )}
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  Creates a hiring placeholder you can assign to this deal. Shows up in Hiring Gaps until a real hire is made.
+                </p>
+              </div>
               {searchedPeople ? (
                 searchedPeople.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-6">No people match "{searchQuery}".</p>
