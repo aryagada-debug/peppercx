@@ -532,7 +532,7 @@ export function AddStaffingMemberDialog({
                     {util.assignments.length > 0 ? (
                       <div className="space-y-2.5">
                         {util.assignments.map(a => {
-                          const assignDeal = deals.find(d => d.id === a.dealId);
+                          const assignDealStatus = getDealStatus(a.dealId);
                           return (
                             <div key={a.id} className="flex items-center gap-2">
                               <div className="flex-1 min-w-0">
@@ -545,7 +545,7 @@ export function AddStaffingMemberDialog({
                               <span className="text-xs font-mono text-foreground w-10 text-right shrink-0">{a.allocationPct}%</span>
                               <span className="text-[10px] font-mono text-muted-foreground w-10 text-right shrink-0">{(a.allocationPct / 100 * 40).toFixed(1)}h</span>
                               <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-positive border-positive/30 shrink-0">
-                                {assignDeal?.dealStatus === "Deal Completed Successfully" ? "Completed" : "Active"}
+                                {assignDealStatus === "Deal Completed Successfully" ? "Completed" : "Active"}
                               </Badge>
                             </div>
                           );
