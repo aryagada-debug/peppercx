@@ -1882,6 +1882,7 @@ export type Database = {
           hourly_rate: number
           id: string
           leaving: boolean
+          manager_person_id: string | null
           name: string
           pod: string
           region: string
@@ -1906,6 +1907,7 @@ export type Database = {
           hourly_rate?: number
           id: string
           leaving?: boolean
+          manager_person_id?: string | null
           name: string
           pod?: string
           region?: string
@@ -1930,6 +1932,7 @@ export type Database = {
           hourly_rate?: number
           id?: string
           leaving?: boolean
+          manager_person_id?: string | null
           name?: string
           pod?: string
           region?: string
@@ -1950,6 +1953,13 @@ export type Database = {
             columns: ["department_id"]
             isOneToOne: false
             referencedRelation: "staffing_departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staffing_people_manager_person_id_fkey"
+            columns: ["manager_person_id"]
+            isOneToOne: false
+            referencedRelation: "staffing_people"
             referencedColumns: ["id"]
           },
           {
@@ -2588,6 +2598,7 @@ export type Database = {
         Args: { _status: string }
         Returns: boolean
       }
+      _norm_name: { Args: { _n: string }; Returns: string }
       _recompute_deal_bopm_field: {
         Args: { _deal_id: string; _role_key: string }
         Returns: undefined
@@ -2628,6 +2639,12 @@ export type Database = {
         Args: { _role_key: string }
         Returns: string
       }
+      person_subtree: {
+        Args: { _root_id: string }
+        Returns: {
+          person_id: string
+        }[]
+      }
       resolve_assignee_user_id: {
         Args: { _staffing_person_id: string }
         Returns: {
@@ -2635,6 +2652,7 @@ export type Database = {
           user_id: string
         }[]
       }
+      resolve_current_person: { Args: { _user_id: string }; Returns: string }
       toggle_staffing_lock: {
         Args: { _deal_id: string; _lock: boolean }
         Returns: {
@@ -2710,6 +2728,12 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      visible_deal_ids_for_user: {
+        Args: { _user_id: string }
+        Returns: {
+          deal_id: string
+        }[]
       }
     }
     Enums: {
