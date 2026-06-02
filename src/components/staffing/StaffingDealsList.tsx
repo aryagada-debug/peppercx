@@ -21,6 +21,7 @@ interface Props {
   people: Person[];
   assignments: StaffingAssignment[];
   isAdmin: boolean;
+  canLock?: boolean;
   enableBopmFilter?: boolean;
   bopmFilterScopedVsd?: string | null;
   onAddAssignment: (a: StaffingAssignment) => void;
@@ -32,7 +33,7 @@ interface Props {
 const PAGE_SIZE = 20;
 
 export function StaffingDealsList({
-  deals, people, assignments, isAdmin, enableBopmFilter = true, bopmFilterScopedVsd,
+  deals, people, assignments, isAdmin, canLock = false, enableBopmFilter = true, bopmFilterScopedVsd,
   onAddAssignment, onUpdateAssignment, onDeleteAssignment, onUpdatePerson,
 }: Props) {
   const [search, setSearch] = useState("");
@@ -143,6 +144,7 @@ export function StaffingDealsList({
               people={people}
               assignments={assignments}
               isAdmin={isAdmin}
+              canLock={canLock}
               defaultOpen={visible.length <= 5}
               onAddAssignment={onAddAssignment}
               onUpdateAssignment={onUpdateAssignment}

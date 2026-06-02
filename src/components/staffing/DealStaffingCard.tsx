@@ -34,6 +34,8 @@ interface Props {
   people: Person[];        // full roster, for the Add dialog
   assignments: StaffingAssignment[]; // all assignments (filtered to this deal internally)
   isAdmin: boolean;
+  /** Only true admins (Central CX) may lock/unlock staffing. */
+  canLock?: boolean;
   defaultOpen?: boolean;
   onAddAssignment: (a: StaffingAssignment) => void;
   onUpdateAssignment: (id: string, patch: Partial<StaffingAssignment>) => void;
@@ -68,7 +70,7 @@ const DEPT_STYLE: Record<string, { head: string; cell: string; dot: string }> = 
 const DEPT_STYLE_FALLBACK = { head: "bg-slate-500/15 text-slate-800 dark:text-slate-200 border-slate-500/30", cell: "bg-slate-500/[0.04]", dot: "bg-slate-500" };
 
 export function DealStaffingCard({
-  deal, people, assignments, deals, isAdmin, defaultOpen = true,
+  deal, people, assignments, deals, isAdmin, canLock = false, defaultOpen = true,
   onAddAssignment, onUpdateAssignment, onDeleteAssignment, onUpdatePerson,
 }: Props) {
   const { data: taxonomy } = useTaxonomyQuery();
@@ -189,7 +191,7 @@ export function DealStaffingCard({
           </div>
         </button>
         <div className="flex items-center gap-2 shrink-0">
-          {isAdmin ? (
+          {canLock ? (
             <button
               type="button"
               disabled={lockBusy}

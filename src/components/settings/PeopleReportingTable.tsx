@@ -15,6 +15,7 @@ import {
 import { AddPersonDialog } from "@/components/settings/AddPersonDialog";
 import { AddTeamDialog } from "@/components/settings/AddTeamDialog";
 import { useTaxonomyQuery } from "@/hooks/queries/useTaxonomyQuery";
+import { useUserRole } from "@/hooks/useUserRole";
 import { resolvePersonRoleTypeId } from "@/lib/peopleGrouping";
 import { ROLE_TYPE_TO_DEPT, DEPARTMENT_LABELS, ROLE_SLOTS, ACTIVE_DEAL_STATUSES, isAssignmentExpired } from "@/data/staffingData";
 import { getPersonRevenueCapacity } from "@/lib/revenueCapacity";
@@ -299,6 +300,7 @@ function StatusPill({ status }: { status?: string }) {
 
 export function PeopleReportingTable({ people, assignments = [], deals = [], onAdd, onUpdate, onRequestDelete }: Props) {
   const [search, setSearch] = useState("");
+  const { isAdmin } = useUserRole();
   const [marketFilter, setMarketFilter] = useState<"all" | "US" | "India">("all");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -637,6 +639,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
             </button>
           ))}
         </div>
+        {isAdmin && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -657,6 +660,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        )}
       </div>
 
       <AddPersonDialog
