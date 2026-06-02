@@ -1,27 +1,23 @@
-## Rebuild the Usage tab — app-consistent styling
+## Cleanup duplicate demo users
 
-Rewrites `src/pages/admin/UsageTab.tsx` to match the provided HTML's structure and interactions, but keeps the project's design system (flat UI, purple primary, off-white surface, thin borders, Inter, no gradients/shadows). The "New activations" chart is omitted as requested. Data sourcing is unchanged — all real data.
+Ten `+demo@peppercontent.io` accounts share `staffing_person_id` with real employee accounts, causing each person to appear twice in Usage/Users. These were created by the admin "Provision demo logins" action.
 
-### Layout
+### Accounts to delete
+Aamir Khan, Aditya Shaw, Mayur Varade, Neema Jayadas, Ritu Shinde, Shreshtha Pathak, Sneha Iyer, Sumit Shekhawat, Tiffany Fernandes, Vedanga Bandyopadhyay — all the `*+demo@peppercontent.io` variants.
 
-1. **Header**: "Usage & Adoption" title + small "Admin" pill. Right side: range segmented control (7d / 30d / 90d) and "Export CSV" button.
-2. **KPI strip** (5 tiles, no New activations): Total users, Active 7d, Active 30d, Dormant, Never signed in.
-3. **Filter row**: status chips (All / Active / Low usage / Dormant / Never) + right-aligned search input (name, email, region).
-4. **Sortable table**: Name+email, Role, Region·Pod, Last login, Idle (days), Writes·{range}d, Status pill, chevron. Click a row to expand a detail panel with Department, First login, Last login, Days since login, Email, Writes, Role, Status.
-5. **Pager footer**: "Showing X–Y of N", per-page selector (10/25/50), numeric pager with prev/next.  
-Add in relevant filters like VSD name pill that will show the useage of the people under that particular VSD, etc
+### Steps
 
-### Data wiring (existing logic preserved)
+1. **Delete the auth users** — call the existing `admin-user-mgmt` edge function (or `auth.admin.deleteUser`) for each of the 10 user IDs. This cascades to `profiles`, `user_roles`, `user_sessions`, and other `user_id`-keyed rows via FK/RLS cleanup. Run as a one-shot SQL via the data tool:
+   - `DELETE FROM auth.users WHERE email LIKE '%+demo@peppercontent.io'` (cascades through linked public tables that reference `user_id`).
+   - Any leftover `public.profiles` / `public.user_roles` rows without an FK cascade get cleaned in the same migration.
 
-- `load(days)` keyed off the selected range — reuses the same Promise.all over auth + profiles + user_roles + staffing_people + deal_tasks/rgy/notes/todos/slack/approvals, with the `since` boundary derived from `rangeDays`.
-- Status chip mapping: Active→`active7`, Low usage→`active30`, Dormant→`dormant`, Never→`never_signed_in` + `not_provisioned`.
-- Export CSV streams the currently-filtered rows client-side; no backend change.
-- Sorting is local; pagination resets on filter/search/range change.
+2. **Remove the provisioning UI** so the duplicates can't be re-created:
+   - Delete `src/components/admin/DemoLoginsCard.tsx`.
+   - Remove its import + render from the admin Settings page (search for `DemoLoginsCard`).
+   - Delete the `provision_demo_logins` branch from `supabase/functions/admin-user-mgmt/index.ts` (and the function file if that was its only action).
 
-### Styling
+3. **Verify** — re-query `auth.users` / `profiles` to confirm no `+demo` emails remain and the Usage tab no longer shows duplicate rows.
 
-- Uses tokens from index.css (`bg-card`, `border-border`, `text-muted-foreground`, `text-primary`, `bg-primary/10`, `text-positive`, `text-warning`, `text-destructive`, `STATUS_TONE`). No inline custom palette, no scoped style block.
-
-### Files
-
-- `src/pages/admin/UsageTab.tsx` — single-file rewrite. Removes the unused Funnel and ActionList helpers and `copyEmails` flow. No schema changes, no other components touched.
+### Technical notes
+- Deletion happens via the data-change tool (cascades) rather than a schema migration.
+- No schema change is required; no other code paths reference the `+demo` accounts beyond `DemoLoginsCard`.
