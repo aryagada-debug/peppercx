@@ -1326,7 +1326,7 @@ export function BopmStaffingFlatTable({
               }
               setAllocDraft(prev => { const next = { ...prev }; delete next[draftKey]; return next; });
             }}
-            className="h-5 flex-1 min-w-[2.25rem] w-9 px-1 rounded border border-border/60 bg-background/70 text-right font-mono text-[10px] disabled:opacity-50 focus:outline-none focus:ring-1 focus:ring-primary/40"
+            className="h-5 flex-1 min-w-[2.25rem] basis-9 px-1 rounded border border-border/60 bg-background/70 text-right font-mono text-[10px] disabled:opacity-50 focus:outline-none focus:ring-1 focus:ring-primary/40"
             title={e.isVirtual ? "Read-only (synced from deal sheet)" : `${hrs.toFixed(1)} h/wk`}
           />
           <span className="text-[9px] text-muted-foreground -ml-0.5">%</span>
