@@ -16,12 +16,14 @@ export interface DealLiteRow {
   principal_bopm: string | null;
   senior_bopm: string | null;
   bopm: string | null;
+  deal_name: string | null;
+  account: string | null;
 }
 
 async function fetchDealsLite(): Promise<DealLiteRow[]> {
   const { data, error } = await supabase
     .from("staffing_deals")
-    .select("id, client_id, vsd, principal_bopm, senior_bopm, bopm");
+    .select("id, client_id, vsd, principal_bopm, senior_bopm, bopm, deal_name, account");
   if (error) throw error;
   return (data as DealLiteRow[]) || [];
 }

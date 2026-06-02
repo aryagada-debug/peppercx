@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { normalizeRoleKey, uid } from "@/data/staffingData";
 import type { StaffingAssignment, Person, Deal, RoleCategory } from "@/data/staffingData";
 import { useTaxonomyQuery } from "@/hooks/queries/useTaxonomyQuery";
+import { useDealsLiteQuery } from "@/hooks/queries/useDealsLiteQuery";
 import { resolvePersonRoleTypeId, countAvailableForRole } from "@/lib/peopleGrouping";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -89,6 +90,14 @@ export function AddStaffingMemberDialog({
   const [assignmentType, setAssignmentType] = useState<"Internal" | "External" | "Freelance">("Internal");
   const [expandedOpsGroup, setExpandedOpsGroup] = useState<string | null>(null);
   const { data: taxonomy } = useTaxonomyQuery();
+  const { data: dealsLite } = useDealsLiteQuery();
+  const dealNameMap = useMemo(() => {
+    const m = new Map<string, { account: string; dealName: string }>();
+    (dealsLite || []).forEach(d => {
+      m.set(d.id, { account: d.account || "", dealName: d.deal_name || "" });
+    });
+    return m;
+  }, [dealsLite]);
   const alreadyAssigned = useMemo(() => new Set(assignments.filter(a => a.dealId === dealId).map(a => a.personId)), [assignments, dealId]);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -120,8 +129,13 @@ export function AddStaffingMemberDialog({
 
   const getDealName = useCallback((dId: string) => {
     const d = deals.find(x => x.id === dId);
-    return d ? `${d.account} — ${d.dealName}` : dId;
-  }, [deals]);
+    if (d && (d.account || d.dealName)) return `${d.account || ""}${d.account && d.dealName ? " — " : ""}${d.dealName || ""}` || dId;
+    const lite = dealNameMap.get(dId);
+    if (lite && (lite.account || lite.dealName)) {
+      return `${lite.account}${lite.account && lite.dealName ? " — " : ""}${lite.dealName}`;
+    }
+    return dId;
+  }, [deals, dealNameMap]);
 
   const reset = () => {
     const initialPct = initialAllocationPct ?? 10;
