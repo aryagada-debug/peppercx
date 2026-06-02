@@ -248,7 +248,7 @@ export default function Staffing() {
               )}
             </div>
             <p className="text-ui text-muted-foreground mt-1">
-              {(isBopmPersona ? activeBopmDeals : uniqueScopedDeals).length} active deals • {(isBopmPersona ? scopedPeople : people.filter(p => !p.tbh)).length} people
+              {(isBopmPersona ? activeBopmDeals : capScopedDeals).length} active deals • {(isBopmPersona ? scopedPeople : (capLeadPersonIds ? people.filter(p => capLeadPersonIds.has(p.id) && !p.tbh) : people.filter(p => !p.tbh))).length} people
             </p>
           </div>
           <div className="flex items-center gap-2">
