@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { ROLE_LABELS, ROLE_ORDER, type AppRole } from "@/hooks/useUserRole";
+import { routeKeyLabel } from "@/lib/routeKey";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from "recharts";
 import {
   classifyStatus,
   daysSince,
@@ -67,9 +69,19 @@ interface RowWithVsd extends UsageRow {
   avg_session_min: number | null;
 }
 
+interface PageRoleData {
+  route_key: string;
+  label: string;
+  admin: number;
+  member: number;
+  user: number;
+  total: number;
+}
+
 export function UsageTab() {
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<RowWithVsd[]>([]);
+  const [pageRoleData, setPageRoleData] = useState<PageRoleData[]>([]);
   const [vsdList, setVsdList] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [statusChip, setStatusChip] = useState<StatusChip>("all");
@@ -253,6 +265,39 @@ export function UsageTab() {
       setRows(out);
       const vsds = Array.from(new Set(out.map((r) => r.vsd_name).filter(Boolean))).sort();
       setVsdList(vsds);
+
+      // Page-views aggregation by route_key × role (admin/member/user).
+      const { data: views } = await supabase
+        .from("user_page_views")
+        .select("user_id, route_key")
+        .gte("visited_at", since)
+        .limit(50000);
+
+      const roleByUserId = new Map<string, AppRole>();
+      rolesByUser.forEach((v, k) => roleByUserId.set(k, v));
+
+      const agg = new Map<string, { admin: number; member: number; user: number }>();
+      (views || []).forEach((v: any) => {
+        const rk = v.route_key || "unknown";
+        const role = roleByUserId.get(v.user_id) || "user";
+        const bucket = agg.get(rk) || { admin: 0, member: 0, user: 0 };
+        if (role === "admin") bucket.admin += 1;
+        else if (role === "member") bucket.member += 1;
+        else bucket.user += 1;
+        agg.set(rk, bucket);
+      });
+
+      const pageRows: PageRoleData[] = Array.from(agg.entries())
+        .map(([rk, b]) => ({
+          route_key: rk,
+          label: routeKeyLabel(rk),
+          admin: b.admin,
+          member: b.member,
+          user: b.user,
+          total: b.admin + b.member + b.user,
+        }))
+        .sort((a, b) => b.total - a.total);
+      setPageRoleData(pageRows);
     } catch (e: any) {
       toast.error(e?.message || "Failed to load usage");
     } finally {
