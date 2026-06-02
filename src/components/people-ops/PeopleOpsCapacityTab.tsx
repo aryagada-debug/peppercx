@@ -31,20 +31,8 @@ const BUCKET_COLOR: Record<Bucket, { text: string; bar: string; bg: string; ring
   under:      { text: "text-sky-600",     bar: "bg-sky-500",     bg: "bg-sky-500/10",     ring: "border-sky-500/30" },
 };
 
-const ROLE_FILTERS: { key: string; label: string; match: (p: Person) => boolean }[] = [
-  { key: "all", label: "All Roles", match: () => true },
-  { key: "senior_bopm", label: "Senior BOPM", match: (p) => p.designation === "Senior BOPM" },
-  { key: "vsd", label: "VSD", match: (p) => p.designation === "VSD" },
-  { key: "seo_growth_lead", label: "SEO Growth Lead", match: (p) => p.designation === "SEO Growth Lead" },
-  { key: "content_lead", label: "Content Lead", match: (p) => p.designation === "Content Lead" },
-  {
-    key: "cap_leader",
-    label: "Capability Leader",
-    match: (p) => p.designation === "SEO Capability Leader" || p.designation === "Content Capability Leader",
-  },
-];
-
 export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoster, isAdmin }: Props) {
+  const [deptFilter, setDeptFilter] = useState("all");
   const [roleFilter, setRoleFilter] = useState("all");
   const [leadFilter, setLeadFilter] = useState("all");
   const [vsdFilter, setVsdFilter] = useState("all");
@@ -86,15 +74,6 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
       });
   }, [people, assignments, dealById, activeDealIds, capacityRoster]);
 
-  const buckets = useMemo(() => {
-    const out = { overloaded: 0, nearFull: 0, healthy: 0, under: 0 };
-    for (const r of rows) {
-      if (r.dealCount === 0 && r.bwPct === 0) continue;
-      out[bucketOf(r.bwPct)]++;
-    }
-    return out;
-  }, [rows]);
-
   const leadOptions = useMemo(() => {
     const set = new Map<string, string>();
     for (const p of people) {
@@ -103,6 +82,25 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
     }
     return Array.from(set.values()).sort();
   }, [people]);
+
+  const departmentOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of people) {
+      const d = (p.department || "").trim();
+      if (d) set.add(d);
+    }
+    return Array.from(set).sort();
+  }, [people]);
+
+  const roleTypeOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of people) {
+      if (deptFilter !== "all" && (p.department || "") !== deptFilter) continue;
+      const r = (p.designation || p.roleTitle || "").trim();
+      if (r) set.add(r);
+    }
+    return Array.from(set).sort();
+  }, [people, deptFilter]);
 
   const vsdOptions = useMemo(() => {
     const set = new Set<string>();
@@ -114,15 +112,24 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
 
   const filtered = useMemo(() => {
     return rows.filter((r) => {
-      const def = ROLE_FILTERS.find((rf) => rf.key === roleFilter) || ROLE_FILTERS[0];
-      if (!def.match(r.person)) return false;
+      if (deptFilter !== "all" && (r.person.department || "") !== deptFilter) return false;
+      if (roleFilter !== "all" && (r.person.designation || r.person.roleTitle || "") !== roleFilter) return false;
       if (leadFilter !== "all" && (r.person.reportingManager || "").toLowerCase() !== leadFilter) return false;
       if (vsdFilter !== "all" && !r.splits.some((s) => (s.vsd || "") === vsdFilter)) return false;
-      // Drop people with no allocation entirely when the user is browsing All Roles to mirror the reference layout.
-      if (roleFilter === "all" && r.dealCount === 0) return false;
+      // When no role/department filter is set, hide people with no allocation to mirror the reference layout.
+      if (roleFilter === "all" && deptFilter === "all" && r.dealCount === 0) return false;
       return true;
     });
-  }, [rows, roleFilter, leadFilter, vsdFilter]);
+  }, [rows, deptFilter, roleFilter, leadFilter, vsdFilter]);
+
+  const buckets = useMemo(() => {
+    const out = { overloaded: 0, nearFull: 0, healthy: 0, under: 0 };
+    for (const r of filtered) {
+      if (r.dealCount === 0 && r.bwPct === 0) continue;
+      out[bucketOf(r.bwPct)]++;
+    }
+    return out;
+  }, [filtered]);
 
   const vsdRollup = useMemo(() => {
     const map = new Map<string, { vsd: string; people: number; bwSum: number; mrr: number; capacity: number }>();
@@ -150,22 +157,28 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex flex-wrap gap-1">
-          {ROLE_FILTERS.map((rf) => (
-            <button
-              key={rf.key}
-              onClick={() => setRoleFilter(rf.key)}
-              className={cn(
-                "px-3 py-1 text-xs rounded-sm border transition-colors",
-                roleFilter === rf.key
-                  ? "bg-primary/10 border-primary/30 text-primary"
-                  : "bg-transparent border-border text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {rf.label}
-            </button>
+        <label className="text-xs text-muted-foreground">Department:</label>
+        <select
+          value={deptFilter}
+          onChange={(e) => { setDeptFilter(e.target.value); setRoleFilter("all"); }}
+          className="text-xs bg-background border border-border rounded-sm px-2 py-1"
+        >
+          <option value="all">All Departments</option>
+          {departmentOptions.map((d) => (
+            <option key={d} value={d}>{d}</option>
           ))}
-        </div>
+        </select>
+        <label className="text-xs text-muted-foreground">Role Type:</label>
+        <select
+          value={roleFilter}
+          onChange={(e) => setRoleFilter(e.target.value)}
+          className="text-xs bg-background border border-border rounded-sm px-2 py-1"
+        >
+          <option value="all">All Role Types</option>
+          {roleTypeOptions.map((r) => (
+            <option key={r} value={r}>{r}</option>
+          ))}
+        </select>
         <div className="h-5 w-px bg-border mx-1" />
         <label className="text-xs text-muted-foreground">Lead:</label>
         <select
