@@ -69,18 +69,17 @@ export function useTeamScope(allPeople: Person[]): TeamScope {
         inScopeByName: () => true,
       };
     }
-    if (role !== "member" && role !== "capability_lead") {
-      const empty = new Set<string>();
-      return {
-        loading,
-        scopeMode: "none",
-        leaderPerson: null,
-        teamPersonIds: empty,
-        inScope: () => false,
-        inScopeByName: () => false,
-      };
-    }
+    const empty = new Set<string>();
+    return {
+      loading,
+      scopeMode: "none",
+      leaderPerson: null,
+      teamPersonIds: empty,
+      inScope: () => false,
+      inScopeByName: () => false,
+    };
 
+    // (unreachable — kept for type narrowing reference)
     const leader = allPeople.find((p) => p.id === leaderPersonId) || null;
     const ids = new Set<string>();
     if (leader) {
