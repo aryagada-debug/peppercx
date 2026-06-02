@@ -558,7 +558,8 @@ export function UsageTab() {
 
       <p className="text-xs text-muted-foreground">
         "Writes · {rangeDays}d" counts edits across tasks, RGY health, personal todos, Slack messages and approvals
-        in the selected window. VSD is resolved by walking each person's manager chain.
+        in the selected window. "Avg session" is the mean active session length (heartbeat-based) in the same window
+        — it will be empty until users have signed in and accumulated session data.
       </p>
     </div>
   );
