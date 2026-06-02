@@ -1,47 +1,65 @@
-# Why nothing shows on Clients/Deals
+## Goal
+Make deal visibility consistent everywhere:
+- VSDs: see deals they are tagged on, plus deals where their P/Sr BOPMs/BOPMs under them are tagged.
+- P/Sr BOPM, BOPM, and other individual users: see only deals they are tagged on.
+- Capability leads: see deals they are tagged on, plus deals tagged to people under them.
+- Admins: continue seeing everything.
 
-For every deal the DB stores up to 3 sibling rows in `staffing_deals` keyed by the same numeric ID:
+## Findings
+- Most logged-in profiles point to old `staffing_person_id` values such as `p_aamir_khan`, but the current staffing records use IDs like `P112`.
+- Because `useDealAccess` starts from `profiles.staffing_person_id`, many users resolve to no current person record, so their visible deal set becomes empty.
+- This affects the main Clients/Deals route and also other features that rely on the same person mapping.
+- Some pages apply `useDealAccess` only to BOPM personas, so VSD and capability-lead views can be inconsistent across Home, MBR, RGY, Targets, Staffing, and Clients.
+- `/deals` currently redirects to `/clients`; the real Deals tab data is the Clients page/table, while `src/pages/Deals.tsx` is a stale static page and not routed.
 
-```
-_100853         (legacy stub, blank)
-d_100853        (status: "New Deal")        ← all 634 imported assignments live here
-PC3889_100853   (status: "Active Deal", has client_id)   ← what Clients/Deals UI renders
-```
+## Implementation plan
 
-Verified on deal 100853: `d_100853` now has `vsd=Aamir Khan, principal_bopm=Tushar Walia, senior_bopm=Ayushi Das`, but `PC3889_100853` (the one the app reads) has all BOPM/VSD columns blank. The `sync_bopm_fields_from_assignment` trigger only recomputes the row whose `id` matches `staffing_assignments.deal_id`, so the cache on the PC row never updates.
+### 1. Repair existing profile-to-person links
+Use a safe data update to relink profiles whose `staffing_person_id` points to a non-existent person, matching them to the current `staffing_people` row by normalized display name.
 
-Scope: 634 assignments on 210 distinct numeric IDs; 129 of those have a matching `PC%_` sibling that's invisible in the UI today.
+Expected immediate effect:
+- VSD profiles for Aditya Shaw, Neema Jayadas, Aamir Khan, Sneha Iyer, and Sumit Shekhawat will resolve to current person IDs.
+- Most BOPM/capability-user profiles with matching current people will start resolving correctly.
+- Profiles that cannot be safely matched by name will be left unchanged rather than guessed.
 
-# Fix
+### 2. Add a resilient current-person resolver in code
+Centralize user identity resolution so every feature uses the same logic:
+1. Try `profiles.staffing_person_id` if it exists in current `staffing_people`.
+2. If stale/missing, match by authenticated email.
+3. If still unresolved, match by normalized profile display name.
+4. Return the current person row: ID, name, role title, role category, designation, email, reporting manager.
 
-Mirror each `d_{num}` assignment onto its `PC{code}_{num}` sibling (when one exists). The existing trigger then recomputes `vsd / principal_bopm / senior_bopm / bopm` on the PC row, and Clients/Deals/Staffing all start showing the right names with no code changes.
+This prevents future imports/syncs from breaking visibility if IDs drift again.
 
-## Steps
+### 3. Rebuild `useDealAccess` around assignments + hierarchy
+Update the shared deal-access hook to use current staffing assignments as the source of truth, with deal-ID sibling expansion for `d_{id}` and `PC..._{id}` records:
+- Direct users: visible deals = their own assignment deal IDs and matching active sibling records.
+- VSDs: visible deals = their own assignment deals + deals where people in their reporting chain are assigned as `principal_bopm`, `senior_bopm`, or `bopm`.
+- Capability leads: visible deals = their own assignment deals + all assignment deals for direct/indirect reportees.
+- Admins: unchanged, all deals.
 
-1. **Audit query** — list every `(d_id, pc_id)` pair that shares a numeric suffix; report counts and any orphans (d_ with no PC sibling — those stay as-is since UI doesn't show them anyway).
-2. **Insert mirrored rows** via one migration:
-   ```sql
-   INSERT INTO public.staffing_assignments
-     (id, deal_id, person_id, role_key, allocation_pct, ...)
-   SELECT
-     'mirror_' || sa.id,
-     pc.id,
-     sa.person_id, sa.role_key, sa.allocation_pct, ...
-   FROM public.staffing_assignments sa
-   JOIN public.staffing_deals d   ON d.id  = sa.deal_id  AND d.id LIKE 'd\_%' ESCAPE '\'
-   JOIN public.staffing_deals pc  ON pc.id LIKE 'PC%\_' || substring(sa.deal_id from 3) ESCAPE '\'
-   ON CONFLICT (deal_id, person_id, role_key) DO NOTHING;
-   ```
-   (Exact ON CONFLICT target adjusted to whatever unique constraint exists; otherwise pre-filter with NOT EXISTS.)
-3. **Trigger recompute** — the `AFTER INSERT` trigger fires per row and populates the PC deal's cached BOPM/VSD columns automatically. No app-side change required.
-4. **Verify** on a sample (100853, plus 3–5 other PC deals) that `vsd / principal_bopm / senior_bopm / bopm` now match the sheet, and reload the Clients/Deals pages.
+This avoids relying only on cached text columns like `vsd`, `principal_bopm`, and `senior_bopm`, while still keeping the existing name-cell matching as a fallback where useful.
 
-## Why not just point the import at PC_ rows and re-run?
+### 4. Apply the same scope across app pages
+Update pages/components that currently perform their own partial scoping:
+- Clients/Deals: keep using `useDealAccess`, but rely on the fixed resolver/scope.
+- Staffing: keep the same scoped behavior, now backed by correct access IDs.
+- Home dashboard: use the shared access set consistently; remove stale-profile dependency for own staffed deals.
+- MBR Tracker: scope all non-admin users via `useDealAccess`, not only BOPMs.
+- RGY Health: keep non-admin scoping, but ensure VSD summary/AI deal logic uses the same visible deal set.
+- Targets: keep using `useDealAccess`; it will inherit the corrected scope.
+- BOPM/VSD filters: resolve the current viewer through the shared resolver so VSD filter options don’t disappear because of stale IDs.
 
-Same outcome, but `d_` rows are also referenced elsewhere (Staffing module, BOPM filters that the previous fix added). Mirroring keeps both sibling rows consistent so every module — Clients, Deals, Staffing, dashboards — sees the same staffing without depending on which deal-ID variant a given query happens to hit.
+### 5. Verify with database diagnostics and app checks
+After changes:
+- Confirm stale profile links drop for all safely matchable users.
+- Confirm each named VSD has a non-zero visible PC/active deal count.
+- Confirm sample P/Sr BOPM/BOPM users only get directly assigned deals.
+- Confirm sample capability leads include self + reportee assigned deals.
+- Check Clients, Staffing, MBR, RGY, Home, and Targets use the same visible deal set for non-admin personas.
 
-## Non-goals
-
-- No schema changes.
-- No edits to import script or UI hooks.
-- Orphan `d_` deals (no PC sibling) are left alone — they're not visible in Clients/Deals today, and changing that is a separate question.
+## Technical details
+- Data repair will use the data-change tool, not a schema migration.
+- No new tables are needed.
+- No changes to generated Lovable Cloud client/type files.
+- The central resolver will be a small reusable frontend helper/hook, then existing repeated profile lookups will be replaced where they affect visibility or filters.

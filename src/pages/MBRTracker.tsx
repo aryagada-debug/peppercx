@@ -88,7 +88,7 @@ export default function MBRTracker() {
   const { vsdUsers, isVsdName, canonVsd } = useVsdUsers();
   const { vsdForDeal, vsdForPerson, bopmsForVsd, allBopms } = useVsdHierarchy();
   const { role } = useUserRole();
-  const { visibleDealIds, loading: accessLoading } = useDealAccess();
+  const { visibleDealIds, loading: accessLoading, isAdmin: hasAllDealAccess } = useDealAccess();
   const isBopmPersona = role === "user" || role === "capability_member";
   const isVsdPersona = role === "member";
   const VSD_FILTERS = useMemo(() => {
@@ -257,7 +257,7 @@ export default function MBRTracker() {
   // Filter deals
   const filteredDeals = useMemo(() => {
     let d = deals;
-    if (isBopmPersona && !accessLoading) {
+    if (!hasAllDealAccess && !accessLoading) {
       d = d.filter(deal => visibleDealIds.has(deal.id));
     }
     if (accountTypeFilter === "retainer") {
@@ -287,7 +287,7 @@ export default function MBRTracker() {
       d = d.filter(deal => deal.account.toLowerCase().includes(s) || deal.dealName.toLowerCase().includes(s));
     }
     return d;
-  }, [deals, dealMeta, activeVsd, activeBopm, search, showClosed, vsdForDeal, isBopmPersona, accessLoading, visibleDealIds, accountTypeFilter]);
+  }, [deals, dealMeta, activeVsd, activeBopm, search, showClosed, vsdForDeal, hasAllDealAccess, accessLoading, visibleDealIds, accountTypeFilter]);
 
   // BOPM persona is locked to the table-view, current month only.
   useEffect(() => {
