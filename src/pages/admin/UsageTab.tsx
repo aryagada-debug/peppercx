@@ -333,14 +333,16 @@ export function UsageTab() {
   };
 
   const exportCsv = () => {
-    const head = ["Name", "Email", "Role", "VSD", "Region", "Pod", "Department", "First login", "Last login", "Days idle", `Writes ${rangeDays}d`, "Status"];
+    const head = ["Name", "Email", "Role", "VSD", "Region", "Pod", "Department", "First login", "Last login", "Days idle", `Writes ${rangeDays}d`, "Avg session (min)", "Status"];
     const lines = [head.join(",")];
     filtered.forEach((r) => {
       const cells = [
         r.name, r.email, ROLE_LABELS[r.role as AppRole] || r.role, r.vsd_name, r.region, r.pod, r.department,
         fmtDate(r.created_at), fmtDate(r.last_sign_in_at),
         r.days_since_login === null ? "" : String(r.days_since_login),
-        String(r.writes_30d), STATUS_LABEL[r.status],
+        String(r.writes_30d),
+        r.avg_session_min === null ? "" : r.avg_session_min.toFixed(1),
+        STATUS_LABEL[r.status],
       ].map((v) => {
         const s = (v ?? "").toString().replace(/"/g, '""');
         return /[",\n]/.test(s) ? `"${s}"` : s;
@@ -492,6 +494,7 @@ export function UsageTab() {
                 <Th label="Last login" k="last" sortK={sortK} dir={sortDir} onClick={toggleSort} />
                 <Th label="Idle" k="idle" sortK={sortK} dir={sortDir} onClick={toggleSort} align="right" />
                 <Th label={`Writes · ${rangeDays}d`} k="writes" sortK={sortK} dir={sortDir} onClick={toggleSort} align="right" />
+                <Th label="Avg session" k="session" sortK={sortK} dir={sortDir} onClick={toggleSort} align="right" />
                 <Th label="Status" k="status" sortK={sortK} dir={sortDir} onClick={toggleSort} />
                 <th className="w-8 px-2 py-2" />
               </tr>
@@ -513,7 +516,7 @@ export function UsageTab() {
               })}
               {pageRows.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-3 py-8 text-center text-sm text-muted-foreground">
+                  <td colSpan={10} className="px-3 py-8 text-center text-sm text-muted-foreground">
                     No users match these filters.
                   </td>
                 </tr>
