@@ -119,6 +119,75 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (action === "create_user") {
+      const email = ((body.email as string) || "").trim().toLowerCase();
+      const name = ((body.name as string) || "").trim();
+      const role = (body.role as string) || "user";
+      const staffingPersonId = (body.staffing_person_id as string) || null;
+      let password = (body.password as string) || "";
+
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return new Response(JSON.stringify({ error: "Valid email required" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (!name) {
+        return new Response(JSON.stringify({ error: "Name required" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (!["admin", "member", "user"].includes(role)) {
+        return new Response(JSON.stringify({ error: "Invalid role" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (!password) {
+        // Generate a readable temporary password.
+        const rand = Math.random().toString(36).slice(2, 8);
+        password = `Pepper@${rand}`;
+      }
+
+      // Block if email already exists
+      const { data: authList } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
+      const existing = (authList?.users || []).find(
+        (u) => (u.email || "").toLowerCase() === email,
+      );
+      if (existing) {
+        return new Response(JSON.stringify({ error: "A user with this email already exists" }), {
+          status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: newUser, error: cErr } = await adminClient.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { full_name: name },
+      });
+      if (cErr || !newUser?.user) {
+        return new Response(JSON.stringify({ error: cErr?.message || "Create failed" }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const userId = newUser.user.id;
+
+      await adminClient.from("profiles").upsert(
+        { user_id: userId, display_name: name, staffing_person_id: staffingPersonId },
+        { onConflict: "user_id" },
+      );
+
+      // Replace any auto-assigned role with the chosen one
+      await adminClient.from("user_roles").delete().eq("user_id", userId);
+      await adminClient.from("user_roles").insert({ user_id: userId, role });
+
+      return new Response(
+        JSON.stringify({ ok: true, user_id: userId, email, password }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     if (action === "bulk_provision") {
       const sendInvite = body.send_invite !== false;
       const DEFAULT_PASSWORD = "Pepper@2026";
