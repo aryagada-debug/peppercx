@@ -596,7 +596,7 @@ export function AddStaffingMemberDialog({
                   </div>
                   <div>
                     <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Type</label>
-                    <Select value={assignmentType} onValueChange={v => setAssignmentType(v as any)}>
+                    <Select value={assignmentType} onValueChange={v => setAssignmentType(v as "Internal" | "External" | "Freelance")}>
                       <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Internal">Internal</SelectItem>
