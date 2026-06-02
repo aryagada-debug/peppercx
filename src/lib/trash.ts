@@ -45,7 +45,7 @@ export const TRASH_REGISTRY: Record<TrashEntityType, EntityConfig> = {
     displayName: "Deal",
     label: (r) => r?.deal_name || r?.account || r?.id || "Deal",
     children: [
-      { table: "staffing_assignments", fk: "deal_id" },
+      { table: "staffing_assignments", fk: "staffing_deal_id" },
       { table: "deal_financials", fk: "deal_id" },
       { table: "deal_sow_items", fk: "deal_id" },
       { table: "deal_tasks", fk: "deal_id" },
