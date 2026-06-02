@@ -1,68 +1,55 @@
-
 ## Goal
+Import staffing assignments from `Staffing Sheet_May 30th (1).xlsx` (989 deal rows × up to 16 roles each) into `staffing_assignments`, mapping by Deal ID and preserving the `% Mapping` value as `allocation_pct`.
 
-On `/clients`, non-admin users (VSD, Capability Lead, BOPM, Capability Member) should see a single combined view — a small 4-KPI strip and a curated, filterable deals table below it (no tabs, no in-depth analytics). Admin (Central CX) keeps the existing Analytics/Table tabs and the full customizable table.
+## Rules (per your answers)
+- **Only add missing** — never modify or delete existing rows. A `(deal_id, person_id, role_key)` triple already present is skipped.
+- **All ~16 roles** imported (VSD, Principal/Sr/BOPM, Content Lead, Sr Content Editor, SEO Leader/Growth/Ops, CD-Strategy, ACD-Copy, Copywriters 1&2, CD-Design, ACD-Design, Graphic Designers 1&2, Video Capability Leader, AD-Creative Producer, Creative Producer, Video Editors 1&2).
+- **Attach to `d_{NewDealID}`** records only.
+- **Fuzzy auto-match** people names against `staffing_people.name` (handles "Phatak"→"Pathak", "Agarwal"→"Agrawal", etc.); skip cells that are empty, "Not Applicable" / "Not applicable", or have no close match (≥0.85 similarity).
 
-Scope already in place: `useDealAccess` already returns only the deals a non-admin should see (self + reportees for Cap Leads; explicit BOPM/VSD cell match for others; assigned deals for Capability Members). No changes to access logic.
+## Steps
 
-## What changes
+1. **Load sheet** (`/mnt/user-uploads/Staffing_Sheet_May_30th_1-2.xlsx`) with openpyxl.
+2. **Build people lookup** — fetch all `staffing_people` (id, name); use `difflib.get_close_matches` for fuzzy matching. Cache decisions per name.
+3. **Build deal lookup** — fetch all `staffing_deals.id` starting with `d_`; only insert when `d_{NewDealID}` exists.
+4. **Walk each sheet row** — for every (role column, % column) pair:
+   - resolve `role_key` via the normalizer mapping
+   - resolve `person_id` (skip if unmatched)
+   - skip if `(deal_id, person_id, role_key)` already exists in `staffing_assignments`
+   - else queue an INSERT with id `id_sheet_{rownum}_{rolekey}_{personid}`, `allocation_pct` from the % cell (0 if blank)
+5. **Generate a single SQL file** under `/tmp/import_assignments.sql` containing only the new INSERTs.
+6. **Generate a report** at `/mnt/documents/staffing_import_report.csv` with: rows inserted, rows skipped (duplicate / unmatched-person / unknown-deal), unmatched name list for your review.
+7. **Run the INSERTs** via the insert tool (one batch).
+8. The existing `sync_bopm_fields_from_assignment` trigger will recompute the `vsd / principal_bopm / senior_bopm / bopm` cached columns on `staffing_deals` automatically — no extra step needed.
 
-### 1. `src/pages/Clients.tsx` — branch the view by role
-
-- Detect `!access.isAdmin` once (call it `isCentralCx = access.isAdmin`).
-- Admin path: unchanged. Keep the `Analytics ▸ Table` tab toggle, the existing 5 hero KPI tiles, full column set, Columns picker, all filters.
-- Non-admin path: render **one section** instead of the tab toggle.
-  - Top: 4 compact KPI tiles (see below).
-  - Below: the **same `<table>` element** that exists today, but locked to a curated column set and a curated filter strip (so we reuse all existing row rendering, sort, RGY pill, inline navigation — no new table component).
-
-The branch only changes:
-- which buttons render in the header (hide "Add Client" / "Add Deal" for non-admin — already gated by `access.isAdmin` in current code, keep that),
-- the view-switcher (skip rendering `Analytics | Table` tabs; just render the table block),
-- `visibleCols` initialization and the Columns dropdown,
-- the KPI strip above the table.
-
-### 2. KPI strip for non-admin (above the table)
-
-Compute over the already-scoped `deals` list (active statuses only, matching today's KPI filter):
-
-1. **My Deals** — count of `deals` (active statuses).
-2. **Total MRR** — sum of `mrr`, formatted via `useCurrency().format`.
-3. **Total Deal Value** — sum of `totalDealValue`.
-4. **Renewals < 90d** — reuse the existing renewal computation already in the page (`renewalCount`).
-
-Use the same tile component style as the current admin KPIs but only 4 across; make MRR and Total Value the visually emphasized tiles (slightly larger numeric, primary-toned border/background accent) — that satisfies "highlight revenue figures in a better table structure".
-
-### 3. Curated table for non-admin
-
-Locked column order (no Columns picker, no drag reorder for non-admin):
+## Role-column → `role_key` mapping
 
 ```text
-Client | Deal Name | Type | Status | Pepper BU | VSD | Sr/Principal BOPM | Content Lead | SEO Lead | MRR | Total Value | RGY
+VSD                       -> vsd
+Principal BOPM            -> principal_bopm
+Senior BOPM               -> senior_bopm
+BOPM                      -> bopm
+Content Lead (2026)       -> content_lead
+Senior Content Editor     -> senior_editor
+SEO Leader                -> seo_leader
+SEO Growth Lead           -> seo_group_head
+SEO Operations            -> seo_manager
+CD/SCD - Strategy         -> strategy_lead
+ACD/AGH - Copy            -> copy_lead
+Copywriter 1 / 2          -> copywriter
+CD/SCD - Design           -> design_lead
+ACD/AGH - Design          -> design_acd
+Graphic Designer 1 / 2    -> graphic_designer
+Video Capability Leader   -> video_lead
+AD - Creative Producer    -> creative_producer_ad
+Creative Producer         -> creative_producer
+Video Editor 1 / 2        -> video_editor
 ```
 
-Mapping to existing column keys already defined in `ALL_COLS`:
-`account, dealName, dealType, dealStatus, pepperBusinessUnit, vsd, bopm, contentLead, seoLead, mrr, totalDealValue, rag`.
+(SEO + creative role keys follow existing `normalize_staffing_role_key` conventions where they exist; new keys like `copywriter`, `graphic_designer`, `video_editor`, `creative_producer` are used as-is — they already appear in the codebase via `staffing_data`.)
 
-- For non-admin, set `visibleCols` to this fixed list and skip persisting to `localStorage` (or use a separate key `clients-visible-cols-nonadmin-v1` so it can't bleed into admin's preference).
-- Hide the Columns / Reset buttons.
-- Keep all column headers' existing **sort + per-column filter** behavior (`ColHeader`, `colFilters`, `openFilter`) — every listed column already supports it, which satisfies "all of these should be filters".
-- Keep the top filter strip (search box, VSD pills, BOPM dropdown, Type/Status/BU selects, Closed toggle) — these are already there and useful.
-- Visual emphasis on revenue cells: in the table body, when rendering `mrr` and `totalDealValue` cells for non-admin, add a subtle `bg-primary/5 text-foreground font-medium` class to make the two money columns pop relative to the rest. (Pure CSS, no logic change.)
+## Deliverables
+- New assignment rows inserted into `staffing_assignments` (additive only).
+- CSV report at `/mnt/documents/staffing_import_report.csv` with counts + unmatched-name list so you can decide whether to add new `staffing_people` records or correct typos in a follow-up.
 
-### 4. Cleanup
-
-- The existing `BopmClientsHeader` block (already removed per a prior request) stays removed.
-- No changes to data hooks, mutations, or access control.
-- No changes to the deal detail page or any other route.
-
-## Files touched
-
-- `src/pages/Clients.tsx` — branch UI by `access.isAdmin`, add small `NonAdminKpiStrip` block inline (or as a sibling component file if it gets long), apply the locked column list and the revenue-cell highlight class.
-
-No new dependencies. No DB / edge function changes.
-
-## Out of scope
-
-- Building a separate analytics dashboard for non-admins — the 4 KPIs replace that.
-- Changing what counts as a "visible deal" — `useDealAccess` already handles team scoping for Capability Leads (direct + indirect reportees) and BOPM/VSD cell matching.
-- Customizable columns for non-admin (explicitly requested as a Central CX–only capability).
+No code/schema changes — pure data import.
