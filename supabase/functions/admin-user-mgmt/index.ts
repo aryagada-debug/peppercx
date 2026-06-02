@@ -21,10 +21,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action = body.action;
 
-    // Every action — including `provision_demo_logins` — now requires an
-    // authenticated admin. Previously demo provisioning was public, which
-    // let any internet caller reset the 8 named demo accounts to the known
-    // password.
+    // Every action requires an authenticated admin.
     const isPublicAction = false;
 
     let callerId: string | null = null;
