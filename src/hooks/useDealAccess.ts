@@ -6,6 +6,22 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { dealCellMatchesPerson } from "@/hooks/queries/legacy";
 import { qk } from "@/lib/queryKeys";
 import { ensureDealsLite } from "@/hooks/queries/useDealsLiteQuery";
+import { VSD_NAMES } from "@/hooks/queries/useVsdUsersQuery";
+
+const VSD_NAME_KEYS = new Set(
+  VSD_NAMES.map((n) => n.trim().toLowerCase()),
+);
+const VSD_FIRST_NAME_KEYS = new Set(
+  VSD_NAMES.map((n) => n.trim().toLowerCase().split(/\s+/)[0]),
+);
+
+function isKnownVsdName(name: string | null | undefined): boolean {
+  const k = (name || "").trim().toLowerCase();
+  if (!k) return false;
+  if (VSD_NAME_KEYS.has(k)) return true;
+  const first = k.split(/\s+/)[0];
+  return VSD_FIRST_NAME_KEYS.has(first);
+}
 
 interface DealAccessState {
   loading: boolean;
@@ -63,6 +79,7 @@ export function useDealAccess(): DealAccessState {
           myRoleCategory: "",
           myDesignation: "",
           myTeamDealIds: new Set<string>(),
+          myTeamPersonNames: [] as string[],
         };
       }
 
@@ -102,7 +119,14 @@ export function useDealAccess(): DealAccessState {
       const personNames = ((peopleAll as any[]) || []).map((p: any) => p.name).filter(Boolean);
 
       let teamDealIds = new Set<string>();
-      if (personId && role === "capability_lead") {
+      let teamPersonNames: string[] = [];
+      const looksLikeVsdRole =
+        /\bvsd\b|vertical service delivery|service delivery (leader|director)/i.test(
+          `${roleTitle} ${designation}`,
+        );
+      const treatAsVsd = !!personName && (looksLikeVsdRole || isKnownVsdName(personName));
+
+      if (personId && (role === "capability_lead" || treatAsVsd)) {
         // Cap lead sees deals staffed on people whose reporting chain rolls
         // up to them (direct + indirect reportees), based on
         // staffing_people.reporting_manager (name-based).
@@ -135,6 +159,10 @@ export function useDealAccess(): DealAccessState {
               }
             }
           }
+          teamPersonNames = peopleRows
+            .filter((p: any) => teamPersonIds.has(p.id))
+            .map((p: any) => p.name)
+            .filter(Boolean);
           if (teamPersonIds.size > 0) {
             const { data: teamAssigns } = await supabase
               .from("staffing_assignments")
@@ -154,6 +182,7 @@ export function useDealAccess(): DealAccessState {
         myRoleCategory: roleCategory,
         myDesignation: designation,
         myTeamDealIds: teamDealIds,
+        myTeamPersonNames: teamPersonNames,
       };
     },
   });
@@ -167,6 +196,7 @@ export function useDealAccess(): DealAccessState {
   const myRoleCategory = data?.myRoleCategory ?? "";
   const myDesignation = data?.myDesignation ?? "";
   const myTeamDealIds = data?.myTeamDealIds ?? new Set<string>();
+  const myTeamPersonNames = data?.myTeamPersonNames ?? [];
 
   const result = useMemo<DealAccessState>(() => {
     if (isAdmin) {
@@ -189,10 +219,11 @@ export function useDealAccess(): DealAccessState {
     }
 
     const me = myPersonName || "";
-    const looksLikeVsd =
+    const looksLikeVsdRole =
       /\bvsd\b|vertical service delivery|service delivery (leader|director)/i.test(
         `${myRoleTitle} ${myDesignation}`,
       );
+    const looksLikeVsd = looksLikeVsdRole || isKnownVsdName(me);
 
     // Capability Leader → sees deals their whole team is staffed on.
     if (role === "capability_lead") {
@@ -266,8 +297,25 @@ export function useDealAccess(): DealAccessState {
         ownDealIds.add(d.id);
         continue;
       }
-      if (looksLikeVsd && dealCellMatchesPerson(d.vsd, me, allPersonNames)) {
-        ownDealIds.add(d.id);
+      if (looksLikeVsd) {
+        // VSDs see deals tagged to them directly, or to any P/Sr BOPM / BOPM
+        // in their reporting chain.
+        if (dealCellMatchesPerson(d.vsd, me, allPersonNames)) {
+          ownDealIds.add(d.id);
+          continue;
+        }
+        let matched = false;
+        for (const teamName of myTeamPersonNames) {
+          if (
+            dealCellMatchesPerson(d.principal_bopm, teamName, allPersonNames) ||
+            dealCellMatchesPerson(d.senior_bopm, teamName, allPersonNames) ||
+            dealCellMatchesPerson(d.bopm, teamName, allPersonNames)
+          ) {
+            matched = true;
+            break;
+          }
+        }
+        if (matched) ownDealIds.add(d.id);
       }
     }
 
@@ -332,7 +380,7 @@ export function useDealAccess(): DealAccessState {
       canViewClient: (id) => !!id && visibleClientIds.has(id),
       canEditClient: (id) => !!id && editableClientIds.has(id),
     };
-  }, [isAdmin, role, allDeals, allPersonNames, myAssignedDealIds, myTeamDealIds, myPersonName, myRoleTitle, myDesignation, myRoleCategory, loading]);
+  }, [isAdmin, role, allDeals, allPersonNames, myAssignedDealIds, myTeamDealIds, myTeamPersonNames, myPersonName, myRoleTitle, myDesignation, myRoleCategory, loading]);
 
   return result;
 }
