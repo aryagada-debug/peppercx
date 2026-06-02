@@ -11,7 +11,6 @@ import { useTableSubscription, invalidatePatcher } from "@/lib/realtime";
 
 export interface DealLiteRow {
   id: string;
-  deal_id: string | null;
   client_id: string | null;
   vsd: string | null;
   principal_bopm: string | null;
@@ -30,7 +29,7 @@ async function fetchDealsLite(): Promise<DealLiteRow[]> {
     const to = from + PAGE_SIZE - 1;
     const { data, error } = await supabase
       .from("staffing_deals")
-      .select("id, deal_id, client_id, vsd, principal_bopm, senior_bopm, bopm, deal_name, account, deal_status")
+      .select("id, client_id, vsd, principal_bopm, senior_bopm, bopm, deal_name, account, deal_status")
       .order("id", { ascending: true })
       .range(from, to);
     if (error) throw error;

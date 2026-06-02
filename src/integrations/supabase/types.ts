@@ -1482,50 +1482,50 @@ export type Database = {
         Row: {
           allocation_pct: number
           created_at: string
-          deal_id: string
           end_date: string | null
           id: string
           person_id: string
           role_key: string
           role_type_id: string | null
+          staffing_deal_id: string
           start_date: string | null
           updated_at: string
         }
         Insert: {
           allocation_pct?: number
           created_at?: string
-          deal_id: string
           end_date?: string | null
           id: string
           person_id: string
           role_key: string
           role_type_id?: string | null
+          staffing_deal_id: string
           start_date?: string | null
           updated_at?: string
         }
         Update: {
           allocation_pct?: number
           created_at?: string
-          deal_id?: string
           end_date?: string | null
           id?: string
           person_id?: string
           role_key?: string
           role_type_id?: string | null
+          staffing_deal_id?: string
           start_date?: string | null
           updated_at?: string
         }
         Relationships: [
           {
             foreignKeyName: "staffing_assignments_deal_id_fkey"
-            columns: ["deal_id"]
+            columns: ["staffing_deal_id"]
             isOneToOne: false
             referencedRelation: "deals_unified"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "staffing_assignments_deal_id_fkey"
-            columns: ["deal_id"]
+            columns: ["staffing_deal_id"]
             isOneToOne: false
             referencedRelation: "staffing_deals"
             referencedColumns: ["id"]
@@ -1542,6 +1542,20 @@ export type Database = {
             columns: ["role_type_id"]
             isOneToOne: false
             referencedRelation: "staffing_role_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staffing_assignments_staffing_deal_id_fkey"
+            columns: ["staffing_deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals_unified"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staffing_assignments_staffing_deal_id_fkey"
+            columns: ["staffing_deal_id"]
+            isOneToOne: false
+            referencedRelation: "staffing_deals"
             referencedColumns: ["id"]
           },
         ]
@@ -1610,7 +1624,6 @@ export type Database = {
           creative_staffing: boolean
           customer_status: string
           customer_type: string
-          deal_id: string
           deal_name: string
           deal_status: string
           deal_status_cx: string
@@ -1677,7 +1690,6 @@ export type Database = {
           creative_staffing?: boolean
           customer_status?: string
           customer_type?: string
-          deal_id?: string
           deal_name?: string
           deal_status?: string
           deal_status_cx?: string
@@ -1744,7 +1756,6 @@ export type Database = {
           creative_staffing?: boolean
           customer_status?: string
           customer_type?: string
-          deal_id?: string
           deal_name?: string
           deal_status?: string
           deal_status_cx?: string
@@ -2531,7 +2542,6 @@ export type Database = {
           creative_staffing: boolean | null
           customer_status: string | null
           customer_type: string | null
-          deal_id: string | null
           deal_name: string | null
           deal_status: string | null
           deal_status_cx: string | null
@@ -2668,7 +2678,6 @@ export type Database = {
           creative_staffing: boolean
           customer_status: string
           customer_type: string
-          deal_id: string
           deal_name: string
           deal_status: string
           deal_status_cx: string
