@@ -1285,7 +1285,7 @@ export function BopmStaffingFlatTable({
       >
         <div className="flex items-center gap-1.5">
           {/* Name as styled popover trigger (same row as %) */}
-          <div className="flex-1 min-w-0">
+          <div className="flex-[3] min-w-0">
             <PersonPickerPopover
               currentId={e.personId}
               candidateGroups={colGroups}
