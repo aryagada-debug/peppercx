@@ -11,6 +11,7 @@ import { useTableSubscription, invalidatePatcher } from "@/lib/realtime";
 
 export interface DealLiteRow {
   id: string;
+  deal_id: string | null;
   client_id: string | null;
   vsd: string | null;
   principal_bopm: string | null;
@@ -18,14 +19,26 @@ export interface DealLiteRow {
   bopm: string | null;
   deal_name: string | null;
   account: string | null;
+  deal_status: string | null;
 }
 
+const PAGE_SIZE = 1000;
+
 async function fetchDealsLite(): Promise<DealLiteRow[]> {
-  const { data, error } = await supabase
-    .from("staffing_deals")
-    .select("id, client_id, vsd, principal_bopm, senior_bopm, bopm, deal_name, account");
-  if (error) throw error;
-  return (data as DealLiteRow[]) || [];
+  const out: DealLiteRow[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const to = from + PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .from("staffing_deals")
+      .select("id, deal_id, client_id, vsd, principal_bopm, senior_bopm, bopm, deal_name, account, deal_status")
+      .order("id", { ascending: true })
+      .range(from, to);
+    if (error) throw error;
+    const rows = (data as DealLiteRow[]) || [];
+    out.push(...rows);
+    if (rows.length < PAGE_SIZE) break;
+  }
+  return out;
 }
 
 export function ensureDealsLite(qc: QueryClient): Promise<DealLiteRow[]> {
