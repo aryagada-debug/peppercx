@@ -57,6 +57,18 @@ export function useTeamScope(allPeople: Person[]): TeamScope {
         inScopeByName: () => true,
       };
     }
+    // VSDs and Capability Leaders see the full People Ops view (read-only).
+    // Add/Edit controls remain gated by `isAdmin` at the component level.
+    if (role === "member" || role === "capability_lead") {
+      return {
+        loading,
+        scopeMode: "all",
+        leaderPerson: allPeople.find((p) => p.id === leaderPersonId) || null,
+        teamPersonIds: null,
+        inScope: () => true,
+        inScopeByName: () => true,
+      };
+    }
     if (role !== "member" && role !== "capability_lead") {
       const empty = new Set<string>();
       return {
