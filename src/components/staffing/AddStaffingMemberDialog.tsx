@@ -92,9 +92,14 @@ export function AddStaffingMemberDialog({
   const { data: taxonomy } = useTaxonomyQuery();
   const { data: dealsLite } = useDealsLiteQuery();
   const dealNameMap = useMemo(() => {
-    const m = new Map<string, { account: string; dealName: string }>();
+    const m = new Map<string, { account: string; dealName: string; dealStatus?: string }>();
     (dealsLite || []).forEach(d => {
-      m.set(d.id, { account: d.account || "", dealName: d.deal_name || "" });
+      const value = { account: d.account || "", dealName: d.deal_name || "", dealStatus: d.deal_status || undefined };
+      m.set(d.id, value);
+      if (d.deal_id) {
+        m.set(d.deal_id, value);
+        m.set(`d_${d.deal_id}`, value);
+      }
     });
     return m;
   }, [dealsLite]);
@@ -128,13 +133,18 @@ export function AddStaffingMemberDialog({
   }, [assignments]);
 
   const getDealName = useCallback((dId: string) => {
-    const d = deals.find(x => x.id === dId);
+    const d = deals.find(x => x.id === dId || x.dealId === dId || `d_${x.dealId}` === dId);
     if (d && (d.account || d.dealName)) return `${d.account || ""}${d.account && d.dealName ? " — " : ""}${d.dealName || ""}` || dId;
     const lite = dealNameMap.get(dId);
     if (lite && (lite.account || lite.dealName)) {
       return `${lite.account}${lite.account && lite.dealName ? " — " : ""}${lite.dealName}`;
     }
     return dId;
+  }, [deals, dealNameMap]);
+
+  const getDealStatus = useCallback((dId: string) => {
+    const d = deals.find(x => x.id === dId || x.dealId === dId || `d_${x.dealId}` === dId);
+    return d?.dealStatus || dealNameMap.get(dId)?.dealStatus || "";
   }, [deals, dealNameMap]);
 
   const reset = () => {
@@ -522,7 +532,7 @@ export function AddStaffingMemberDialog({
                     {util.assignments.length > 0 ? (
                       <div className="space-y-2.5">
                         {util.assignments.map(a => {
-                          const assignDeal = deals.find(d => d.id === a.dealId);
+                          const assignDealStatus = getDealStatus(a.dealId);
                           return (
                             <div key={a.id} className="flex items-center gap-2">
                               <div className="flex-1 min-w-0">
@@ -535,7 +545,7 @@ export function AddStaffingMemberDialog({
                               <span className="text-xs font-mono text-foreground w-10 text-right shrink-0">{a.allocationPct}%</span>
                               <span className="text-[10px] font-mono text-muted-foreground w-10 text-right shrink-0">{(a.allocationPct / 100 * 40).toFixed(1)}h</span>
                               <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-positive border-positive/30 shrink-0">
-                                {assignDeal?.dealStatus === "Deal Completed Successfully" ? "Completed" : "Active"}
+                                {assignDealStatus === "Deal Completed Successfully" ? "Completed" : "Active"}
                               </Badge>
                             </div>
                           );
@@ -586,7 +596,7 @@ export function AddStaffingMemberDialog({
                   </div>
                   <div>
                     <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Type</label>
-                    <Select value={assignmentType} onValueChange={v => setAssignmentType(v as any)}>
+                    <Select value={assignmentType} onValueChange={v => setAssignmentType(v as "Internal" | "External" | "Freelance")}>
                       <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Internal">Internal</SelectItem>
