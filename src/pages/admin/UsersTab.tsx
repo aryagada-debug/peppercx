@@ -2,12 +2,19 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { Button } from "@/components/ui/button";
-import { Loader2, KeyRound, Trash2, UserPlus, Sliders, Users } from "lucide-react";
+import { Loader2, KeyRound, Trash2, UserPlus, Sliders, Users, Copy, Check } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { ALL_ROUTE_KEYS, ROLE_LABELS, ROLE_ORDER, type AppRole } from "@/hooks/useUserRole";
+
+// Admins who can directly create a user (instead of inviting via signup link).
+const DIRECT_CREATE_ADMINS = new Set([
+  "arya.gada@peppercontent.io",
+  "shashwat@peppercontent.io",
+  "anirudh@peppercontent.io",
+]);
 
 const ROUTE_LABELS: Record<string, string> = {
   "dashboard": "Dashboard",
@@ -48,6 +55,19 @@ const OVERRIDE_LABELS: Record<OverrideOption, string> = {
 
 export function UsersTab() {
   const { user: currentUser } = useAuth();
+  const canDirectCreate = !!currentUser?.email &&
+    DIRECT_CREATE_ADMINS.has(currentUser.email.toLowerCase());
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    name: "",
+    email: "",
+    role: "user" as AppRole,
+    staffing_person_id: "" as string,
+  });
+  const [creating, setCreating] = useState(false);
+  const [createResult, setCreateResult] = useState<{ email: string; password: string } | null>(null);
+  const [pwCopied, setPwCopied] = useState(false);
+  const [staffingPeople, setStaffingPeople] = useState<{ id: string; name: string; email: string }[]>([]);
   const [rows, setRows] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState<string | null>(null);
@@ -129,6 +149,49 @@ export function UsersTab() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Load staffing people for the Create User dropdown (small list, OK to fetch once).
+  useEffect(() => {
+    if (!canDirectCreate) return;
+    void supabase
+      .from("staffing_people")
+      .select("id, name, email")
+      .eq("leaving", false)
+      .eq("tbh", false)
+      .order("name")
+      .then(({ data }) => setStaffingPeople((data || []) as any));
+  }, [canDirectCreate]);
+
+  const resetCreateForm = () => {
+    setCreateForm({ name: "", email: "", role: "user", staffing_person_id: "" });
+    setCreateResult(null);
+    setPwCopied(false);
+  };
+
+  const submitCreateUser = async () => {
+    const name = createForm.name.trim();
+    const email = createForm.email.trim().toLowerCase();
+    if (!name) return toast.error("Name is required");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return toast.error("Valid email is required");
+    setCreating(true);
+    const { data, error } = await supabase.functions.invoke("admin-user-mgmt", {
+      body: {
+        action: "create_user",
+        name,
+        email,
+        role: createForm.role,
+        staffing_person_id: createForm.staffing_person_id || null,
+      },
+    });
+    setCreating(false);
+    if (error || data?.error) {
+      toast.error(error?.message || data?.error || "Failed to create user");
+      return;
+    }
+    toast.success(`${name} created`);
+    setCreateResult({ email: data.email, password: data.password });
+    await load();
+  };
 
   const changeRole = async (row: UserRow, newRole: AppRole) => {
     if (row.user_id === currentUser?.id && row.role === "admin" && newRole !== "admin") {
@@ -338,9 +401,19 @@ export function UsersTab() {
             {provisioning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Users className="h-3.5 w-3.5" />}
             Provision from People
           </Button>
-          <a href="/signup" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline">
-            <UserPlus className="h-3.5 w-3.5" /> Invite via signup link
-          </a>
+          {canDirectCreate ? (
+            <Button
+              size="sm"
+              className="h-8 gap-1.5 text-xs"
+              onClick={() => { resetCreateForm(); setCreateOpen(true); }}
+            >
+              <UserPlus className="h-3.5 w-3.5" /> Create user
+            </Button>
+          ) : (
+            <a href="/signup" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline">
+              <UserPlus className="h-3.5 w-3.5" /> Invite via signup link
+            </a>
+          )}
         </div>
       </div>
 
