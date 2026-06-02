@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { ROLE_LABELS, ROLE_ORDER, type AppRole } from "@/hooks/useUserRole";
+import { routeKeyLabel } from "@/lib/routeKey";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from "recharts";
 import {
   classifyStatus,
   daysSince,
@@ -67,9 +69,19 @@ interface RowWithVsd extends UsageRow {
   avg_session_min: number | null;
 }
 
+interface PageRoleData {
+  route_key: string;
+  label: string;
+  admin: number;
+  member: number;
+  user: number;
+  total: number;
+}
+
 export function UsageTab() {
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<RowWithVsd[]>([]);
+  const [pageRoleData, setPageRoleData] = useState<PageRoleData[]>([]);
   const [vsdList, setVsdList] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [statusChip, setStatusChip] = useState<StatusChip>("all");
@@ -253,6 +265,39 @@ export function UsageTab() {
       setRows(out);
       const vsds = Array.from(new Set(out.map((r) => r.vsd_name).filter(Boolean))).sort();
       setVsdList(vsds);
+
+      // Page-views aggregation by route_key × role (admin/member/user).
+      const { data: views } = await supabase
+        .from("user_page_views")
+        .select("user_id, route_key")
+        .gte("visited_at", since)
+        .limit(50000);
+
+      const roleByUserId = new Map<string, AppRole>();
+      rolesByUser.forEach((v, k) => roleByUserId.set(k, v));
+
+      const agg = new Map<string, { admin: number; member: number; user: number }>();
+      (views || []).forEach((v: any) => {
+        const rk = v.route_key || "unknown";
+        const role = roleByUserId.get(v.user_id) || "user";
+        const bucket = agg.get(rk) || { admin: 0, member: 0, user: 0 };
+        if (role === "admin") bucket.admin += 1;
+        else if (role === "member") bucket.member += 1;
+        else bucket.user += 1;
+        agg.set(rk, bucket);
+      });
+
+      const pageRows: PageRoleData[] = Array.from(agg.entries())
+        .map(([rk, b]) => ({
+          route_key: rk,
+          label: routeKeyLabel(rk),
+          admin: b.admin,
+          member: b.member,
+          user: b.user,
+          total: b.admin + b.member + b.user,
+        }))
+        .sort((a, b) => b.total - a.total);
+      setPageRoleData(pageRows);
     } catch (e: any) {
       toast.error(e?.message || "Failed to load usage");
     } finally {
@@ -411,6 +456,65 @@ export function UsageTab() {
         <KpiTile label="Active · 30d" value={kpis.active30} tone="positive" sub={`${pct(kpis.active30, kpis.expected)}%`} />
         <KpiTile label="Dormant" value={kpis.dormant} tone="warning" />
         <KpiTile label="Never signed in" value={kpis.never + kpis.notProv} tone="destructive" />
+      </div>
+
+      {/* Page activity by role */}
+      <div className="rounded-lg border border-border bg-card p-4">
+        <div className="mb-3 flex items-baseline justify-between">
+          <div>
+            <h3 className="text-sm font-medium text-foreground">Page activity by role</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Page visits in the last {rangeDays} days, stacked by role.
+            </p>
+          </div>
+          <div className="text-xs text-muted-foreground tabular-nums">
+            {pageRoleData.reduce((s, r) => s + r.total, 0).toLocaleString()} total visits
+          </div>
+        </div>
+        {pageRoleData.length === 0 ? (
+          <div className="py-12 text-center text-xs text-muted-foreground">
+            No page activity in this window yet.
+          </div>
+        ) : (
+          <div style={{ width: "100%", height: Math.max(220, pageRoleData.length * 36 + 60) }}>
+            <ResponsiveContainer>
+              <BarChart
+                data={pageRoleData}
+                layout="vertical"
+                margin={{ top: 8, right: 24, left: 8, bottom: 8 }}
+                barCategoryGap={6}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                <XAxis
+                  type="number"
+                  stroke="hsl(var(--muted-foreground))"
+                  tick={{ fontSize: 11 }}
+                  allowDecimals={false}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="label"
+                  stroke="hsl(var(--muted-foreground))"
+                  tick={{ fontSize: 11 }}
+                  width={120}
+                />
+                <Tooltip
+                  cursor={{ fill: "hsl(var(--muted) / 0.4)" }}
+                  contentStyle={{
+                    background: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: 6,
+                    fontSize: 12,
+                  }}
+                />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar dataKey="admin" name="Admin" stackId="r" fill="hsl(var(--primary))" />
+                <Bar dataKey="member" name="Member" stackId="r" fill="hsl(217 91% 60%)" />
+                <Bar dataKey="user" name="User" stackId="r" fill="hsl(142 71% 45%)" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
 
       {/* Status chips + search */}
