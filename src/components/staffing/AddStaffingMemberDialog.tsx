@@ -92,9 +92,14 @@ export function AddStaffingMemberDialog({
   const { data: taxonomy } = useTaxonomyQuery();
   const { data: dealsLite } = useDealsLiteQuery();
   const dealNameMap = useMemo(() => {
-    const m = new Map<string, { account: string; dealName: string }>();
+    const m = new Map<string, { account: string; dealName: string; dealStatus?: string }>();
     (dealsLite || []).forEach(d => {
-      m.set(d.id, { account: d.account || "", dealName: d.deal_name || "" });
+      const value = { account: d.account || "", dealName: d.deal_name || "", dealStatus: d.deal_status || undefined };
+      m.set(d.id, value);
+      if (d.deal_id) {
+        m.set(d.deal_id, value);
+        m.set(`d_${d.deal_id}`, value);
+      }
     });
     return m;
   }, [dealsLite]);
@@ -128,13 +133,18 @@ export function AddStaffingMemberDialog({
   }, [assignments]);
 
   const getDealName = useCallback((dId: string) => {
-    const d = deals.find(x => x.id === dId);
+    const d = deals.find(x => x.id === dId || x.dealId === dId || `d_${x.dealId}` === dId);
     if (d && (d.account || d.dealName)) return `${d.account || ""}${d.account && d.dealName ? " — " : ""}${d.dealName || ""}` || dId;
     const lite = dealNameMap.get(dId);
     if (lite && (lite.account || lite.dealName)) {
       return `${lite.account}${lite.account && lite.dealName ? " — " : ""}${lite.dealName}`;
     }
     return dId;
+  }, [deals, dealNameMap]);
+
+  const getDealStatus = useCallback((dId: string) => {
+    const d = deals.find(x => x.id === dId || x.dealId === dId || `d_${x.dealId}` === dId);
+    return d?.dealStatus || dealNameMap.get(dId)?.dealStatus || "";
   }, [deals, dealNameMap]);
 
   const reset = () => {
