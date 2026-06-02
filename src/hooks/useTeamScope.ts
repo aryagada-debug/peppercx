@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useUserRole } from "@/hooks/useUserRole";
-import { getDescendantPersonIds, type Person } from "@/data/staffingData";
+import { type Person } from "@/data/staffingData";
 
 export type ScopeMode = "all" | "team" | "none";
 
@@ -57,40 +57,26 @@ export function useTeamScope(allPeople: Person[]): TeamScope {
         inScopeByName: () => true,
       };
     }
-    if (role !== "member" && role !== "capability_lead") {
-      const empty = new Set<string>();
+    // VSDs and Capability Leaders see the full People Ops view (read-only).
+    // Add/Edit controls remain gated by `isAdmin` at the component level.
+    if (role === "member" || role === "capability_lead") {
       return {
         loading,
-        scopeMode: "none",
-        leaderPerson: null,
-        teamPersonIds: empty,
-        inScope: () => false,
-        inScopeByName: () => false,
+        scopeMode: "all",
+        leaderPerson: allPeople.find((p) => p.id === leaderPersonId) || null,
+        teamPersonIds: null,
+        inScope: () => true,
+        inScopeByName: () => true,
       };
     }
-
-    const leader = allPeople.find((p) => p.id === leaderPersonId) || null;
-    const ids = new Set<string>();
-    if (leader) {
-      ids.add(leader.id);
-      const descendants = getDescendantPersonIds([leader.name], allPeople);
-      descendants.forEach((id) => ids.add(id));
-    }
-    const namesLc = new Set<string>(
-      Array.from(ids)
-        .map((id) => allPeople.find((p) => p.id === id)?.name?.trim().toLowerCase())
-        .filter((n): n is string => !!n),
-    );
+    const empty = new Set<string>();
     return {
       loading,
-      scopeMode: "team",
-      leaderPerson: leader,
-      teamPersonIds: ids,
-      inScope: (pid: string) => ids.has(pid),
-      inScopeByName: (name) => {
-        const n = (name || "").trim().toLowerCase();
-        return n ? namesLc.has(n) : false;
-      },
+      scopeMode: "none",
+      leaderPerson: null,
+      teamPersonIds: empty,
+      inScope: () => false,
+      inScopeByName: () => false,
     };
   }, [authLoading, roleLoading, profileLoading, enabled, isAdmin, role, leaderPersonId, allPeople]);
 }
