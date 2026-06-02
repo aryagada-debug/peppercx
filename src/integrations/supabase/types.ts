@@ -1482,50 +1482,50 @@ export type Database = {
         Row: {
           allocation_pct: number
           created_at: string
-          deal_id: string
           end_date: string | null
           id: string
           person_id: string
           role_key: string
           role_type_id: string | null
+          staffing_deal_id: string
           start_date: string | null
           updated_at: string
         }
         Insert: {
           allocation_pct?: number
           created_at?: string
-          deal_id: string
           end_date?: string | null
           id: string
           person_id: string
           role_key: string
           role_type_id?: string | null
+          staffing_deal_id: string
           start_date?: string | null
           updated_at?: string
         }
         Update: {
           allocation_pct?: number
           created_at?: string
-          deal_id?: string
           end_date?: string | null
           id?: string
           person_id?: string
           role_key?: string
           role_type_id?: string | null
+          staffing_deal_id?: string
           start_date?: string | null
           updated_at?: string
         }
         Relationships: [
           {
             foreignKeyName: "staffing_assignments_deal_id_fkey"
-            columns: ["deal_id"]
+            columns: ["staffing_deal_id"]
             isOneToOne: false
             referencedRelation: "deals_unified"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "staffing_assignments_deal_id_fkey"
-            columns: ["deal_id"]
+            columns: ["staffing_deal_id"]
             isOneToOne: false
             referencedRelation: "staffing_deals"
             referencedColumns: ["id"]
@@ -1542,6 +1542,20 @@ export type Database = {
             columns: ["role_type_id"]
             isOneToOne: false
             referencedRelation: "staffing_role_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staffing_assignments_staffing_deal_id_fkey"
+            columns: ["staffing_deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals_unified"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staffing_assignments_staffing_deal_id_fkey"
+            columns: ["staffing_deal_id"]
+            isOneToOne: false
+            referencedRelation: "staffing_deals"
             referencedColumns: ["id"]
           },
         ]
@@ -1610,7 +1624,6 @@ export type Database = {
           creative_staffing: boolean
           customer_status: string
           customer_type: string
-          deal_id: string
           deal_name: string
           deal_status: string
           deal_status_cx: string
@@ -1677,7 +1690,6 @@ export type Database = {
           creative_staffing?: boolean
           customer_status?: string
           customer_type?: string
-          deal_id?: string
           deal_name?: string
           deal_status?: string
           deal_status_cx?: string
@@ -1744,7 +1756,6 @@ export type Database = {
           creative_staffing?: boolean
           customer_status?: string
           customer_type?: string
-          deal_id?: string
           deal_name?: string
           deal_status?: string
           deal_status_cx?: string
@@ -1882,6 +1893,7 @@ export type Database = {
           hourly_rate: number
           id: string
           leaving: boolean
+          manager_person_id: string | null
           name: string
           pod: string
           region: string
@@ -1906,6 +1918,7 @@ export type Database = {
           hourly_rate?: number
           id: string
           leaving?: boolean
+          manager_person_id?: string | null
           name: string
           pod?: string
           region?: string
@@ -1930,6 +1943,7 @@ export type Database = {
           hourly_rate?: number
           id?: string
           leaving?: boolean
+          manager_person_id?: string | null
           name?: string
           pod?: string
           region?: string
@@ -1950,6 +1964,13 @@ export type Database = {
             columns: ["department_id"]
             isOneToOne: false
             referencedRelation: "staffing_departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staffing_people_manager_person_id_fkey"
+            columns: ["manager_person_id"]
+            isOneToOne: false
+            referencedRelation: "staffing_people"
             referencedColumns: ["id"]
           },
           {
@@ -2311,6 +2332,30 @@ export type Database = {
         }
         Relationships: []
       }
+      user_page_views: {
+        Row: {
+          id: string
+          path: string
+          route_key: string
+          user_id: string
+          visited_at: string
+        }
+        Insert: {
+          id?: string
+          path?: string
+          route_key: string
+          user_id: string
+          visited_at?: string
+        }
+        Update: {
+          id?: string
+          path?: string
+          route_key?: string
+          user_id?: string
+          visited_at?: string
+        }
+        Relationships: []
+      }
       user_pins: {
         Row: {
           entity_id: string
@@ -2449,6 +2494,30 @@ export type Database = {
         }
         Relationships: []
       }
+      user_sessions: {
+        Row: {
+          id: string
+          last_seen_at: string
+          started_at: string
+          user_agent: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          last_seen_at?: string
+          started_at?: string
+          user_agent?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          last_seen_at?: string
+          started_at?: string
+          user_agent?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       vsd_financial_targets: {
         Row: {
           contraction_actual: number
@@ -2521,7 +2590,6 @@ export type Database = {
           creative_staffing: boolean | null
           customer_status: string | null
           customer_type: string | null
-          deal_id: string | null
           deal_name: string | null
           deal_status: string | null
           deal_status_cx: string | null
@@ -2588,6 +2656,7 @@ export type Database = {
         Args: { _status: string }
         Returns: boolean
       }
+      _norm_name: { Args: { _n: string }; Returns: string }
       _recompute_deal_bopm_field: {
         Args: { _deal_id: string; _role_key: string }
         Returns: undefined
@@ -2628,6 +2697,12 @@ export type Database = {
         Args: { _role_key: string }
         Returns: string
       }
+      person_subtree: {
+        Args: { _root_id: string }
+        Returns: {
+          person_id: string
+        }[]
+      }
       resolve_assignee_user_id: {
         Args: { _staffing_person_id: string }
         Returns: {
@@ -2635,6 +2710,7 @@ export type Database = {
           user_id: string
         }[]
       }
+      resolve_current_person: { Args: { _user_id: string }; Returns: string }
       toggle_staffing_lock: {
         Args: { _deal_id: string; _lock: boolean }
         Returns: {
@@ -2650,7 +2726,6 @@ export type Database = {
           creative_staffing: boolean
           customer_status: string
           customer_type: string
-          deal_id: string
           deal_name: string
           deal_status: string
           deal_status_cx: string
@@ -2710,6 +2785,12 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      visible_deal_ids_for_user: {
+        Args: { _user_id: string }
+        Returns: {
+          deal_id: string
+        }[]
       }
     }
     Enums: {
