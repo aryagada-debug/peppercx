@@ -1,7 +1,6 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { UsersTab } from "@/pages/admin/UsersTab";
 import { AccessControlsTab } from "@/pages/admin/AccessControlsTab";
@@ -9,7 +8,6 @@ import { UsageTab } from "@/pages/admin/UsageTab";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useCurrencyVersion } from "@/contexts/CurrencyContext";
 import Targets from "@/pages/Targets";
-import { useEffect } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
 import { Switch } from "@/components/ui/switch";
