@@ -139,7 +139,7 @@ async function fetchMBRDeals(): Promise<MBRDeal[]> {
     .map((d: any) => ({
       id: d.id,
       pcCode: d.pc_code,
-      dealId: d.deal_id,
+      dealId: d.new_deal_id_formulated || "",
       account: d.account,
       dealName: d.deal_name,
       vsd: d.vsd || "Unknown",
