@@ -257,7 +257,7 @@ function LegacyDashboard() {
       const overdueMbrCount = overduePendingCount + missingMbrCount;
       const inactiveChannels = new Set((inact || []).map((i: any) => i.channel_id)).size;
       const noSlackChannelCount = dealList.filter((d: any) => !d.slack_channel_id).length;
-      const staffedDeals = new Set((assigns || []).map((a: any) => a.deal_id));
+      const staffedDeals = new Set((assigns || []).map((a: any) => a.staffing_deal_id));
       const unstaffedCount = dealList.filter((d: any) => !staffedDeals.has(d.id)).length;
 
       const builtAlerts: DashboardAlert[] = [];
