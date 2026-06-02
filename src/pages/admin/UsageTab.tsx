@@ -642,7 +642,7 @@ function Th({
   label, k, sortK, dir, onClick, align,
 }: {
   label: string;
-  k: "name" | "role" | "last" | "idle" | "writes" | "status";
+  k: "name" | "role" | "last" | "idle" | "writes" | "status" | "session";
   sortK: string;
   dir: 1 | -1;
   onClick: (k: any) => void;
