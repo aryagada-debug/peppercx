@@ -917,7 +917,7 @@ export default function Clients() {
             );
           })}
           </div>
-          {!(isCapLead || isCapMember) && (
+          {isCentralCx && (
             <div className="flex items-center gap-2 ml-auto">
               <Button variant="outline" size="sm" onClick={() => setClientDialogOpen(true)}>
                 <Plus className="h-4 w-4 mr-1" /> Add Client
