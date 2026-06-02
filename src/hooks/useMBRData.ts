@@ -126,7 +126,7 @@ const MBR_ENTRIES_KEY = ["mbr", "entries"] as const;
 async function fetchMBRDeals(): Promise<MBRDeal[]> {
   const { data } = await supabase
     .from("staffing_deals")
-    .select("id, pc_code, deal_id, account, deal_name, vsd, principal_bopm, senior_bopm, bopm, customer_status, customer_type, service_line_tagging, business_unit, mrr, total_deal_value, net_deal_value, deal_type");
+    .select("id, pc_code, new_deal_id_formulated, account, deal_name, vsd, principal_bopm, senior_bopm, bopm, customer_status, customer_type, service_line_tagging, business_unit, mrr, total_deal_value, net_deal_value, deal_type");
   if (!data) return [];
   return data
     .filter((d: any) => {
