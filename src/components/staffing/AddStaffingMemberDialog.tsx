@@ -96,10 +96,6 @@ export function AddStaffingMemberDialog({
     (dealsLite || []).forEach(d => {
       const value = { account: d.account || "", dealName: d.deal_name || "", dealStatus: d.deal_status || undefined };
       m.set(d.id, value);
-      if (d.deal_id) {
-        m.set(d.deal_id, value);
-        m.set(`d_${d.deal_id}`, value);
-      }
     });
     return m;
   }, [dealsLite]);
