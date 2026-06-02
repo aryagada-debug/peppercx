@@ -233,8 +233,8 @@ export function WeeklyStaffingGrid({ dealId, dealPeople, dealAssignments }: Prop
   );
 }
 
-// ─── Editable hours cell ───
-function HoursInput({ value, onSave, isDefault }: { value: number; onSave: (v: number) => void; isDefault?: boolean }) {
+// ─── Editable percentage cell ───
+function PctInput({ value, onSave, isDefault }: { value: number; onSave: (v: number) => void; isDefault?: boolean }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(value));
 
@@ -243,12 +243,12 @@ function HoursInput({ value, onSave, isDefault }: { value: number; onSave: (v: n
       <Input
         type="number"
         min={0}
-        max={60}
+        max={150}
         value={draft}
         autoFocus
         onChange={e => setDraft(e.target.value)}
         onBlur={() => {
-          const v = Math.max(0, Math.min(60, Number(draft) || 0));
+          const v = Math.max(0, Math.min(150, Number(draft) || 0));
           if (v !== value) onSave(v);
           setEditing(false);
         }}
@@ -266,14 +266,14 @@ function HoursInput({ value, onSave, isDefault }: { value: number; onSave: (v: n
       className={cn(
         "w-full h-7 text-xs font-mono tabular-nums hover:bg-accent/30 transition-colors",
         value === 0 && "text-muted-foreground/50",
-        value > 0 && value < 20 && "text-foreground",
-        value >= 20 && value < 40 && "text-warning font-medium",
-        value >= 40 && "text-destructive font-semibold",
+        value > 0 && value < 50 && "text-foreground",
+        value >= 50 && value < 100 && "text-warning font-medium",
+        value >= 100 && "text-destructive font-semibold",
         isDefault && value > 0 && "italic text-muted-foreground/70"
       )}
-      title={isDefault ? "Auto-populated from staffing allocation. Click to edit actual hours." : "Click to edit"}
+      title={isDefault ? "Auto-populated from staffing allocation. Click to edit %." : "Click to edit"}
     >
-      {value > 0 ? `${value}h` : "—"}
+      {value > 0 ? `${value}%` : "—"}
     </button>
   );
 }
