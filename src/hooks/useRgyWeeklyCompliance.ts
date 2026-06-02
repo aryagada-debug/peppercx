@@ -23,7 +23,7 @@ export interface ComplianceRow {
 }
 
 interface DealRec {
-  deal_id: string;
+  id: string;
   account: string | null;
   deal_name: string | null;
   pod: string | null;
@@ -53,7 +53,7 @@ export function useRgyWeeklyCompliance(weekStart: string) {
     (async () => {
       const { data } = await supabase
         .from("staffing_deals")
-        .select("deal_id, account, deal_name, pod, vsd, principal_bopm, senior_bopm, bopm, deal_status")
+        .select("id, account, deal_name, pod, vsd, principal_bopm, senior_bopm, bopm, deal_status")
         .in("deal_status", ACTIVE_STATUSES)
         .limit(2000);
       if (!cancelled) setDeals((data as DealRec[]) || []);
@@ -95,7 +95,7 @@ export function useRgyWeeklyCompliance(weekStart: string) {
       byDeal.get(n.deal_id)!.push(n);
     }
     return deals.map(d => {
-      const dealNotes = byDeal.get(d.deal_id) || [];
+      const dealNotes = byDeal.get(d.id) || [];
       const bopmCombined = [d.principal_bopm, d.senior_bopm, d.bopm]
         .filter(Boolean).join(", ");
 
@@ -127,7 +127,7 @@ export function useRgyWeeklyCompliance(weekStart: string) {
       }
 
       return {
-        dealId: d.deal_id,
+        dealId: d.id,
         account: d.account || "",
         dealName: d.deal_name || "",
         pod: d.pod || "",
