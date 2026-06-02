@@ -315,7 +315,7 @@ export function useStaffingMutations() {
       if (updates.personId !== undefined) dbUpdates.person_id = updates.personId;
       if (updates.allocationPct !== undefined) dbUpdates.allocation_pct = updates.allocationPct;
       if (updates.roleKey !== undefined) dbUpdates.role_key = normalizeRoleKey(updates.roleKey);
-      if (updates.dealId !== undefined) dbUpdates.deal_id = updates.dealId;
+      if (updates.dealId !== undefined) dbUpdates.staffing_deal_id = updates.dealId;
       if (updates.startDate !== undefined) dbUpdates.start_date = updates.startDate || null;
       if (updates.endDate !== undefined) dbUpdates.end_date = updates.endDate || null;
       const { error } = await supabase.from("staffing_assignments").update(dbUpdates).eq("id", id);

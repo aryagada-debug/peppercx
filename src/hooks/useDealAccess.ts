@@ -88,14 +88,14 @@ export function useDealAccess(): DealAccessState {
             .maybeSingle(),
           supabase
             .from("staffing_assignments")
-            .select("deal_id")
+            .select("staffing_deal_id")
             .eq("person_id", personId),
         ]);
         personName = (person as any)?.name || null;
         roleTitle = `${(person as any)?.role_title || ""} ${(person as any)?.designation || ""}`.trim();
         roleCategory = (person as any)?.role_category || "";
         designation = (person as any)?.designation || "";
-        assignedIds = new Set((assigns || []).map((a: any) => a.deal_id));
+        assignedIds = new Set((assigns || []).map((a: any) => a.staffing_deal_id));
       }
 
       const [deals, { data: peopleAll }] = await Promise.all([dealsP, allPeopleP]);
@@ -138,9 +138,9 @@ export function useDealAccess(): DealAccessState {
           if (teamPersonIds.size > 0) {
             const { data: teamAssigns } = await supabase
               .from("staffing_assignments")
-              .select("deal_id")
+              .select("staffing_deal_id")
               .in("person_id", Array.from(teamPersonIds));
-            teamDealIds = new Set((teamAssigns || []).map((a: any) => a.deal_id));
+            teamDealIds = new Set((teamAssigns || []).map((a: any) => a.staffing_deal_id));
           }
         }
       }
