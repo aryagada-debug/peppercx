@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useUserRole } from "@/hooks/useUserRole";
-import { getDescendantPersonIds, type Person } from "@/data/staffingData";
+import { type Person } from "@/data/staffingData";
 
 export type ScopeMode = "all" | "team" | "none";
 
