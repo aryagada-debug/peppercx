@@ -487,7 +487,14 @@ export default function Clients() {
     }
     if (activeBopm !== "All") {
       const staffed = dealsStaffedByName(activeBopm, people, assignments);
-      d = d.filter(deal => dealMatchesBopm(deal as any, activeBopm, allPersonNames, staffed));
+      // Match by staffing assignment OR by text-cell tagging. Strict-only
+      // mode hides deals where the person is named in the BOPM cell but not
+      // yet wired into staffing_assignments (and vice versa).
+      d = d.filter(deal => {
+        const id = (deal as any).id;
+        if (id && staffed.has(id)) return true;
+        return dealMatchesBopm(deal as any, activeBopm, allPersonNames);
+      });
     }
     if (search) {
       const q = search.toLowerCase();
