@@ -135,9 +135,9 @@ export default function HomePage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("staffing_assignments")
-        .select("deal_id")
+        .select("staffing_deal_id")
         .eq("person_id", staffingPersonId!);
-      return new Set<string>((data || []).map((r: any) => r.deal_id).filter(Boolean));
+      return new Set<string>((data || []).map((r: any) => r.staffing_deal_id).filter(Boolean));
     },
   });
 

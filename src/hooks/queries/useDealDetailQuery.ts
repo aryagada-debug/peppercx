@@ -56,7 +56,7 @@ export function useDealTeam(dealId: string, enabled = false) {
       const { data, error } = await supabase
         .from("staffing_assignments")
         .select("*")
-        .eq("deal_id", dealId);
+        .eq("staffing_deal_id", dealId);
       if (error) throw error;
       return data ?? [];
     },

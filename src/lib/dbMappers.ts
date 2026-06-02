@@ -27,10 +27,10 @@ export const STAFFING_PEOPLE_SELECT =
   "id,name,role_category,role_title,pod,region,leaving,tbh,department,designation,reporting_manager,band,hourly_rate,email,slack_user_id,sub_team,revenue_target_per_person,revenue_target_currency,department_id,role_type_id";
 
 export const STAFFING_DEALS_SELECT =
-  "id,pc_code,deal_id,business_unit,capability_line,account,deal_name,deal_type,deal_status,staffing_status,validation,deal_status_cx,vsd,seo_staffing,creative_staffing,mrr,duration,retainer_deal_value,non_retainer_deal_value,total_deal_value,principal_bopm,senior_bopm,bopm,customer_status,customer_type,service_line_tagging,deal_value_lost,net_deal_value,rag,pod,start_date,end_date,payment_terms,pepper_business_unit,projected_outcomes,success_metrics,baseline_metrics,client_id,new_deal_id_formulated,new_deal_id_temp,validation_central_cx,month_closed_won,deal_target_status,total_mis_recognition,total_pending_recognition,consumption_value,mis_vs_consumption,invoiced_deal_value,undelivered_funnel,tcv_usd,strategy_bandwidth_required,pepper_bu_l2,input_currency,geo,staffing_locked_at,staffing_locked_by,staffing_locked_by_name";
+  "id,pc_code,business_unit,capability_line,account,deal_name,deal_type,deal_status,staffing_status,validation,deal_status_cx,vsd,seo_staffing,creative_staffing,mrr,duration,retainer_deal_value,non_retainer_deal_value,total_deal_value,principal_bopm,senior_bopm,bopm,customer_status,customer_type,service_line_tagging,deal_value_lost,net_deal_value,rag,pod,start_date,end_date,payment_terms,pepper_business_unit,projected_outcomes,success_metrics,baseline_metrics,client_id,new_deal_id_formulated,new_deal_id_temp,validation_central_cx,month_closed_won,deal_target_status,total_mis_recognition,total_pending_recognition,consumption_value,mis_vs_consumption,invoiced_deal_value,undelivered_funnel,tcv_usd,strategy_bandwidth_required,pepper_bu_l2,input_currency,geo,staffing_locked_at,staffing_locked_by,staffing_locked_by_name";
 
 export const STAFFING_ASSIGNMENTS_SELECT =
-  "id,deal_id,role_key,person_id,allocation_pct,start_date,end_date";
+  "id,staffing_deal_id,role_key,person_id,allocation_pct,start_date,end_date";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // People
@@ -90,7 +90,7 @@ export function dbToDeal(row: any): Deal {
   return {
     id: row.id,
     pcCode: row.pc_code,
-    dealId: row.deal_id,
+    dealId: row.new_deal_id_formulated || row.new_deal_id_temp || "",
     businessUnit: row.business_unit,
     capabilityLine: row.capability_line,
     account: row.account,
@@ -152,7 +152,6 @@ export function dealToDb(d: Deal): TablesInsert<"staffing_deals"> {
   return {
     id: d.id,
     pc_code: d.pcCode,
-    deal_id: d.dealId,
     business_unit: d.businessUnit,
     capability_line: d.capabilityLine,
     account: d.account,
@@ -187,7 +186,7 @@ export function dealToDb(d: Deal): TablesInsert<"staffing_deals"> {
 export function dbToAssignment(row: any): StaffingAssignment {
   return {
     id: row.id,
-    dealId: row.deal_id,
+    dealId: row.staffing_deal_id,
     roleKey: normalizeRoleKey(row.role_key),
     personId: row.person_id,
     allocationPct: Number(row.allocation_pct),
@@ -199,7 +198,7 @@ export function dbToAssignment(row: any): StaffingAssignment {
 export function assignmentToDb(a: StaffingAssignment): TablesInsert<"staffing_assignments"> {
   return {
     id: a.id,
-    deal_id: a.dealId,
+    staffing_deal_id: a.dealId,
     role_key: normalizeRoleKey(a.roleKey),
     person_id: a.personId,
     allocation_pct: a.allocationPct,

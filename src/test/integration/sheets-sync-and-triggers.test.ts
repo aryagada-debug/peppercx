@@ -41,7 +41,6 @@ describe("staffing_assignments → staffing_deals trigger", () => {
     // Seed a throwaway deal row we own.
     const { error: dErr } = await supabase.from("staffing_deals").upsert({
       id: TEST_DEAL_ID,
-      deal_id: "regtest",
       pc_code: "REGTEST",
       deal_name: "Regression Test Deal",
       account: "Regression Test",
@@ -55,7 +54,7 @@ describe("staffing_assignments → staffing_deals trigger", () => {
     // INSERT
     const { error: iErr } = await supabase.from("staffing_assignments").insert({
       id: TEST_ASSIGN_ID + "_vsd",
-      deal_id: TEST_DEAL_ID,
+      staffing_deal_id: TEST_DEAL_ID,
       person_id: personId,
       role_key: "vsd",
       allocation_pct: 25,
@@ -79,7 +78,7 @@ describe("staffing_assignments → staffing_deals trigger", () => {
   it("recomputes principal_bopm column on assignment insert", async () => {
     const { error: iErr } = await supabase.from("staffing_assignments").insert({
       id: TEST_ASSIGN_ID + "_pb",
-      deal_id: TEST_DEAL_ID,
+      staffing_deal_id: TEST_DEAL_ID,
       person_id: personId,
       role_key: "principal_bopm",
       allocation_pct: 50,
@@ -104,7 +103,7 @@ describe("sheets-sync-deals edge function", () => {
     // Pick a real synced deal currently in DB (proxy for being present in the sheet).
     const { data: existing, error: exErr } = await supabase
       .from("staffing_deals")
-      .select("id, pc_code, deal_id")
+      .select("id, pc_code")
       .not("pc_code", "is", null)
       .neq("pc_code", "")
       .limit(1);
@@ -132,7 +131,7 @@ describe("sheets-sync-deals edge function", () => {
 
     // The deleted deal should have been re-created from the sheet.
     const { data: restored } = await supabase
-      .from("staffing_deals").select("id, pc_code, deal_id").eq("id", probe.id).maybeSingle();
+      .from("staffing_deals").select("id, pc_code").eq("id", probe.id).maybeSingle();
     expect(restored?.id).toBe(probe.id);
   }, 120_000);
 });
