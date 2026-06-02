@@ -861,6 +861,7 @@ export default function RGYHealth() {
     // Render deals immediately so the page paints fast; RGY values fill in next.
     const baseRows: DealWithRGY[] = dealRows.map(d => ({
       ...d,
+      deal_id: d.id.startsWith("d_") ? d.id.slice(2) : d.id,
       pc_code: d.pc_code || "",
       customer: "", internal: "", content: "", seo: "",
       supply: "", copy: "", design: "", video: "",
