@@ -78,8 +78,7 @@ export function UsageTab() {
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState<10 | 25 | 50>(25);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [sortK, setSortK] = useState<"name" | "role" | "last" | "idle" | "writes" | "status">("status");
-  // 'session' sort key added below via union widening in toggleSort handler
+  const [sortK, setSortK] = useState<"name" | "role" | "last" | "idle" | "writes" | "status" | "session">("status");
   const [sortDir, setSortDir] = useState<1 | -1>(1);
 
   useEffect(() => { void load(rangeDays); }, [rangeDays]);
@@ -117,6 +116,30 @@ export function UsageTab() {
         supabase.from("slack_messages").select("sent_by_app_user").gte("created_at", since),
         supabase.from("approval_requests").select("requested_by").gte("created_at", since),
       ]);
+
+      // Session heartbeats — used to compute average session length per user.
+      // A "session" row's length is (last_seen_at - started_at).
+      const { data: sessions } = await supabase
+        .from("user_sessions")
+        .select("user_id, started_at, last_seen_at")
+        .gte("started_at", since);
+
+      const sessionAgg = new Map<string, { total: number; count: number }>();
+      (sessions || []).forEach((s: any) => {
+        const dur = (new Date(s.last_seen_at).getTime() - new Date(s.started_at).getTime()) / 60000;
+        // Ignore zero-length pings (single heartbeat) — only meaningful if > 0.
+        if (!isFinite(dur) || dur <= 0) return;
+        const a = sessionAgg.get(s.user_id) || { total: 0, count: 0 };
+        a.total += dur;
+        a.count += 1;
+        sessionAgg.set(s.user_id, a);
+      });
+      const avgSessionFor = (uid: string | null | undefined): number | null => {
+        if (!uid) return null;
+        const a = sessionAgg.get(uid);
+        if (!a || a.count === 0) return null;
+        return a.total / a.count;
+      };
 
       const authUsers: AuthUser[] = (authRes?.data?.users as AuthUser[]) || [];
       const authByEmail = new Map<string, AuthUser>();
@@ -202,6 +225,7 @@ export function UsageTab() {
           writes_30d: auth ? writes.get(auth.id) || 0 : 0,
           status: classifyStatus(!!auth, auth?.last_sign_in_at ?? null),
           vsd_name: resolveVsd(p.id),
+          avg_session_min: avgSessionFor(auth?.id),
         });
       });
 
@@ -222,6 +246,7 @@ export function UsageTab() {
           writes_30d: writes.get(u.id) || 0,
           status: classifyStatus(true, u.last_sign_in_at),
           vsd_name: "",
+          avg_session_min: avgSessionFor(u.id),
         });
       });
 
@@ -272,6 +297,7 @@ export function UsageTab() {
         case "idle": return (a.days_since_login ?? -1) - (b.days_since_login ?? -1);
         case "writes": return a.writes_30d - b.writes_30d;
         case "status": return order.indexOf(a.status) - order.indexOf(b.status);
+        case "session": return (a.avg_session_min ?? -1) - (b.avg_session_min ?? -1);
       }
     };
     return [...base].sort((a, b) => cmp(a, b) * sortDir);
