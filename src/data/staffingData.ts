@@ -46,7 +46,6 @@ export const ACTIVE_DEAL_STATUSES: ReadonlySet<string> = new Set([
   "Active Deal",
   "New Deal in SLA/PO",
   "Deal Disputed",
-  "Deal in Renewal Process",
 ]);
 
 export type RoleCategory =
