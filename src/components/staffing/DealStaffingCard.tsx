@@ -177,7 +177,7 @@ export function DealStaffingCard({
             </div>
             <div className="text-xs text-muted-foreground truncate">
               {[
-                deal.dealId ? `ID ${deal.dealId}` : null,
+                deal.pcCode ? `ID ${deal.pcCode}` : (deal.dealId && !/^[0-9a-f]{8}-/i.test(deal.dealId) ? `ID ${deal.dealId}` : null),
                 deal.geo,
                 deal.pod,
                 deal.dealStatus,
