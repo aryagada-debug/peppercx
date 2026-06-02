@@ -458,6 +458,65 @@ export function UsageTab() {
         <KpiTile label="Never signed in" value={kpis.never + kpis.notProv} tone="destructive" />
       </div>
 
+      {/* Page activity by role */}
+      <div className="rounded-lg border border-border bg-card p-4">
+        <div className="mb-3 flex items-baseline justify-between">
+          <div>
+            <h3 className="text-sm font-medium text-foreground">Page activity by role</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Page visits in the last {rangeDays} days, stacked by role.
+            </p>
+          </div>
+          <div className="text-xs text-muted-foreground tabular-nums">
+            {pageRoleData.reduce((s, r) => s + r.total, 0).toLocaleString()} total visits
+          </div>
+        </div>
+        {pageRoleData.length === 0 ? (
+          <div className="py-12 text-center text-xs text-muted-foreground">
+            No page activity in this window yet.
+          </div>
+        ) : (
+          <div style={{ width: "100%", height: Math.max(220, pageRoleData.length * 36 + 60) }}>
+            <ResponsiveContainer>
+              <BarChart
+                data={pageRoleData}
+                layout="vertical"
+                margin={{ top: 8, right: 24, left: 8, bottom: 8 }}
+                barCategoryGap={6}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                <XAxis
+                  type="number"
+                  stroke="hsl(var(--muted-foreground))"
+                  tick={{ fontSize: 11 }}
+                  allowDecimals={false}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="label"
+                  stroke="hsl(var(--muted-foreground))"
+                  tick={{ fontSize: 11 }}
+                  width={120}
+                />
+                <Tooltip
+                  cursor={{ fill: "hsl(var(--muted) / 0.4)" }}
+                  contentStyle={{
+                    background: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: 6,
+                    fontSize: 12,
+                  }}
+                />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar dataKey="admin" name="Admin" stackId="r" fill="hsl(var(--primary))" />
+                <Bar dataKey="member" name="Member" stackId="r" fill="hsl(217 91% 60%)" />
+                <Bar dataKey="user" name="User" stackId="r" fill="hsl(142 71% 45%)" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+
       {/* Status chips + search */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
