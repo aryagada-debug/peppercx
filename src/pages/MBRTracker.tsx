@@ -287,7 +287,7 @@ export default function MBRTracker() {
       d = d.filter(deal => deal.account.toLowerCase().includes(s) || deal.dealName.toLowerCase().includes(s));
     }
     return d;
-  }, [deals, dealMeta, activeVsd, activeBopm, search, showClosed, vsdForDeal, isBopmPersona, accessLoading, visibleDealIds, accountTypeFilter]);
+  }, [deals, dealMeta, activeVsd, activeBopm, search, showClosed, vsdForDeal, hasAllDealAccess, accessLoading, visibleDealIds, accountTypeFilter]);
 
   // BOPM persona is locked to the table-view, current month only.
   useEffect(() => {
