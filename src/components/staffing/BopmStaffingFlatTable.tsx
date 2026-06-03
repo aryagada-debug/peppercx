@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { Search, Plus, RotateCcw, X, Send, Info, Columns3, Check, GripVertical, Trash2, Lock, Unlock } from "lucide-react";
+import { Search, Plus, RotateCcw, X, Send, Info, Columns3, Check, GripVertical, Trash2, Lock, Unlock, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatINR } from "@/lib/csvTargets";
 import type { Deal, Person, StaffingAssignment, RoleCategory } from "@/data/staffingData";
@@ -1216,6 +1216,78 @@ export function BopmStaffingFlatTable({
 
   const dealsWithDrafts = Object.keys(drafts).filter(dId => draftCount(drafts[dId]) > 0);
 
+  // ── CSV export of the currently filtered Sheet view ──────────────────────
+  const handleExportCsv = useCallback(() => {
+    const esc = (v: unknown) => {
+      const s = v === undefined || v === null ? "" : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const headers = [
+      "Client",
+      "Deal Name",
+      "Deal ID",
+      "Deal Status",
+      "Role Category",
+      "Role",
+      "Person",
+      "Allocation %",
+      "Allocation (hrs/month)",
+      "Staffed",
+    ];
+    const rows: string[][] = [];
+    for (const d of filteredDeals) {
+      const byRole = dealRoleMap.get(d.id) || new Map<string, CellEntry[]>();
+      for (const rk of orderedRoleKeys) {
+        const cat = ROLE_CATEGORY_OF(rk);
+        const role = ROLE_LABEL_OF(rk);
+        const entries = (byRole.get(rk) || []).filter(e => !e.isMarkedRemove);
+        if (entries.length === 0) {
+          rows.push([
+            d.account || "",
+            d.dealName || "",
+            (d as any).dealId || d.id,
+            (d as any).dealStatus || "",
+            cat,
+            role,
+            "",
+            "",
+            "",
+            "Not Staffed",
+          ]);
+          continue;
+        }
+        for (const e of entries) {
+          const p = allPersonById.get(e.personId);
+          const pct = Number(e.allocationPct) || 0;
+          const hrs = Math.round((pct / 100) * MONTH_HOURS * 10) / 10;
+          rows.push([
+            d.account || "",
+            d.dealName || "",
+            (d as any).dealId || d.id,
+            (d as any).dealStatus || "",
+            cat,
+            role,
+            p?.name || e.rawText || "—",
+            String(pct),
+            String(hrs),
+            "Staffed",
+          ]);
+        }
+      }
+    }
+    const csv = [headers, ...rows].map(r => r.map(esc).join(",")).join("\n");
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const stamp = new Date().toISOString().slice(0, 10);
+    a.download = `staffing-sheet-${stamp}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, [filteredDeals, dealRoleMap, orderedRoleKeys, allPersonById]);
+
   const dealsForAdd = useMemo(() => deals.slice().sort((a, b) =>
     (a.account || "").localeCompare(b.account || "") || (a.dealName || "").localeCompare(b.dealName || "")
   ), [deals]);
@@ -1545,6 +1617,15 @@ export function BopmStaffingFlatTable({
                 </div>
               )}
             </div>
+            <button
+              type="button"
+              onClick={handleExportCsv}
+              className="h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md border border-border bg-background text-xs text-foreground hover:bg-secondary/50"
+              title="Download CSV of the current Sheet view"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Download
+            </button>
             {!directEdit && (
               <select
                 onChange={e => { if (e.target.value) { setRequestForDeal({ dealId: e.target.value }); e.target.value = ""; } }}
