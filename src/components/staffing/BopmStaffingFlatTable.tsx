@@ -1553,17 +1553,6 @@ export function BopmStaffingFlatTable({
                   {visibleRoleKeys.length}/{orderedRoleKeys.length}
                 </span>
               </button>
-            </div>
-            <button
-              type="button"
-              onClick={handleExportCsv}
-              className="h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md border border-border bg-background text-xs text-foreground hover:bg-secondary/50"
-              title="Download CSV of the current Sheet view"
-            >
-              <Download className="h-3.5 w-3.5" />
-              Download
-            </button>
-            <div className="hidden">
               {pickerOpen && (
                 <div className="absolute right-0 mt-1 z-30 w-80 max-h-[70vh] overflow-y-auto rounded-md border border-border bg-popover shadow-lg p-2 text-xs">
                   <div className="flex items-center justify-between px-1.5 py-1">
