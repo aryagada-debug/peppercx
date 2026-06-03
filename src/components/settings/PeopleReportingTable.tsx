@@ -960,9 +960,10 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                           <div className="text-[10px] uppercase tracking-wider text-primary font-medium">
                                             Deals tagged ({personDeals.length})
                                           </div>
-                                          <table className="text-xs" style={{ tableLayout: "fixed", width: 820 }}>
+                                          <table className="text-xs" style={{ tableLayout: "fixed", width: 1000 }}>
                                             <colgroup>
                                               <col style={{ width: 90 }} />
+                                              <col style={{ width: 180 }} />
                                               <col style={{ width: 300 }} />
                                               <col style={{ width: 120 }} />
                                               <col style={{ width: 100 }} />
@@ -973,6 +974,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                             <thead>
                                               <tr className="text-muted-foreground border-b border-border/60">
                                                 <ColHeader label="Deal ID" colKey="subDealId" sortKey="subDealId" sortState={subSort} onSort={onSubSort} colFilters={subFilters} openFilter={subOpenFilter} setOpenFilter={setSubOpenFilter} setFilter={setSubFilter} clearFilter={clearSubFilter} />
+                                                <ColHeader label="Client" colKey="subClient" sortKey="subClient" sortState={subSort} onSort={onSubSort} colFilters={subFilters} openFilter={subOpenFilter} setOpenFilter={setSubOpenFilter} setFilter={setSubFilter} clearFilter={clearSubFilter} />
                                                 <ColHeader label="Deal" colKey="subDeal" sortKey="subDeal" sortState={subSort} onSort={onSubSort} colFilters={subFilters} openFilter={subOpenFilter} setOpenFilter={setSubOpenFilter} setFilter={setSubFilter} clearFilter={clearSubFilter} />
                                                 <ColHeader label="Status" colKey="subStatus" sortKey="subStatus" options={dealStatusOptions} sortState={subSort} onSort={onSubSort} colFilters={subFilters} openFilter={subOpenFilter} setOpenFilter={setSubOpenFilter} setFilter={setSubFilter} clearFilter={clearSubFilter} />
                                                 <ColHeader label="Type" colKey="subType" sortKey="subType" options={dealTypeOptions} sortState={subSort} onSort={onSubSort} colFilters={subFilters} openFilter={subOpenFilter} setOpenFilter={setSubOpenFilter} setFilter={setSubFilter} clearFilter={clearSubFilter} />
