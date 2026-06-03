@@ -1216,6 +1216,78 @@ export function BopmStaffingFlatTable({
 
   const dealsWithDrafts = Object.keys(drafts).filter(dId => draftCount(drafts[dId]) > 0);
 
+  // ── CSV export of the currently filtered Sheet view ──────────────────────
+  const handleExportCsv = useCallback(() => {
+    const esc = (v: unknown) => {
+      const s = v === undefined || v === null ? "" : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const headers = [
+      "Client",
+      "Deal Name",
+      "Deal ID",
+      "Deal Status",
+      "Role Category",
+      "Role",
+      "Person",
+      "Allocation %",
+      "Allocation (hrs/month)",
+      "Staffed",
+    ];
+    const rows: string[][] = [];
+    for (const d of filteredDeals) {
+      const byRole = dealRoleMap.get(d.id) || new Map<string, CellEntry[]>();
+      for (const rk of orderedRoleKeys) {
+        const cat = ROLE_CATEGORY_OF(rk);
+        const role = ROLE_LABEL_OF(rk);
+        const entries = (byRole.get(rk) || []).filter(e => !e.isMarkedRemove);
+        if (entries.length === 0) {
+          rows.push([
+            d.account || "",
+            d.dealName || "",
+            (d as any).dealId || d.id,
+            (d as any).dealStatus || "",
+            cat,
+            role,
+            "",
+            "",
+            "",
+            "Not Staffed",
+          ]);
+          continue;
+        }
+        for (const e of entries) {
+          const p = allPersonById.get(e.personId);
+          const pct = Number(e.allocationPct) || 0;
+          const hrs = Math.round((pct / 100) * MONTH_HOURS * 10) / 10;
+          rows.push([
+            d.account || "",
+            d.dealName || "",
+            (d as any).dealId || d.id,
+            (d as any).dealStatus || "",
+            cat,
+            role,
+            p?.name || e.rawText || "—",
+            String(pct),
+            String(hrs),
+            "Staffed",
+          ]);
+        }
+      }
+    }
+    const csv = [headers, ...rows].map(r => r.map(esc).join(",")).join("\n");
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const stamp = new Date().toISOString().slice(0, 10);
+    a.download = `staffing-sheet-${stamp}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, [filteredDeals, dealRoleMap, orderedRoleKeys, allPersonById]);
+
   const dealsForAdd = useMemo(() => deals.slice().sort((a, b) =>
     (a.account || "").localeCompare(b.account || "") || (a.dealName || "").localeCompare(b.dealName || "")
   ), [deals]);
