@@ -31,7 +31,24 @@ Deno.serve(async (req) => {
     url.searchParams.set("limit", String(Math.min(Number(limit) || 100, 200)));
     const r = await fetch(url, { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } });
     const j = await r.json();
-    if (!j.ok) throw new Error(j.error || "slack_error");
+    if (!j.ok) {
+      // Common, non-fatal: bot isn't in the channel yet. Return empty history
+      // with a friendly hint instead of a 500 so the UI doesn't blank-screen.
+      if (j.error === "not_in_channel" || j.error === "channel_not_found" || j.error === "missing_scope") {
+        return new Response(
+          JSON.stringify({
+            messages: [],
+            users: {},
+            warning: j.error,
+            hint: j.error === "not_in_channel"
+              ? "Invite the Lovable bot to this Slack channel to load history."
+              : j.error,
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      throw new Error(j.error || "slack_error");
+    }
 
     const raw: SlackMsg[] = (j.messages || []).filter((m: SlackMsg) => m.type === "message" && (!m.subtype || m.subtype === "thread_broadcast" || m.subtype === "bot_message"));
 
