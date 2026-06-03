@@ -793,6 +793,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                 .filter((x) => x.d);
                               // Apply sub-table filters
                               const fDealId = (subFilters.subDealId || "").trim().toLowerCase();
+                              const fClient = (subFilters.subClient || "").trim().toLowerCase();
                               const fDealName = (subFilters.subDeal || "").trim().toLowerCase();
                               const fStatus = subFilters.subStatus || "";
                               const fType = subFilters.subType || "";
@@ -800,6 +801,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                               const fMrrN = subFilters.subMrr ? Number(subFilters.subMrr) : null;
                               let visibleDeals = personDeals.filter(({ a, d }) => {
                                 if (fDealId && !(d!.dealId || "").toLowerCase().includes(fDealId)) return false;
+                                if (fClient && !((d!.account || "").toLowerCase().includes(fClient))) return false;
                                 if (fDealName && !((d!.dealName || d!.account || "").toLowerCase().includes(fDealName))) return false;
                                 if (fStatus && d!.dealStatus !== fStatus) return false;
                                 if (fType && d!.dealType !== fType) return false;
@@ -813,6 +815,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                   let av: any, bv: any;
                                   switch (subSort.sortKey) {
                                     case "subDealId": av = x.d!.dealId || ""; bv = y.d!.dealId || ""; break;
+                                    case "subClient": av = x.d!.account || ""; bv = y.d!.account || ""; break;
                                     case "subDeal": av = x.d!.dealName || x.d!.account || ""; bv = y.d!.dealName || y.d!.account || ""; break;
                                     case "subStatus": av = x.d!.dealStatus || ""; bv = y.d!.dealStatus || ""; break;
                                     case "subType": av = x.d!.dealType || ""; bv = y.d!.dealType || ""; break;
