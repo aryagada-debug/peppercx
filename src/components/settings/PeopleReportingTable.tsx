@@ -793,6 +793,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                 .filter((x) => x.d);
                               // Apply sub-table filters
                               const fDealId = (subFilters.subDealId || "").trim().toLowerCase();
+                              const fClient = (subFilters.subClient || "").trim().toLowerCase();
                               const fDealName = (subFilters.subDeal || "").trim().toLowerCase();
                               const fStatus = subFilters.subStatus || "";
                               const fType = subFilters.subType || "";
@@ -800,6 +801,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                               const fMrrN = subFilters.subMrr ? Number(subFilters.subMrr) : null;
                               let visibleDeals = personDeals.filter(({ a, d }) => {
                                 if (fDealId && !(d!.dealId || "").toLowerCase().includes(fDealId)) return false;
+                                if (fClient && !((d!.account || "").toLowerCase().includes(fClient))) return false;
                                 if (fDealName && !((d!.dealName || d!.account || "").toLowerCase().includes(fDealName))) return false;
                                 if (fStatus && d!.dealStatus !== fStatus) return false;
                                 if (fType && d!.dealType !== fType) return false;
@@ -813,6 +815,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                   let av: any, bv: any;
                                   switch (subSort.sortKey) {
                                     case "subDealId": av = x.d!.dealId || ""; bv = y.d!.dealId || ""; break;
+                                    case "subClient": av = x.d!.account || ""; bv = y.d!.account || ""; break;
                                     case "subDeal": av = x.d!.dealName || x.d!.account || ""; bv = y.d!.dealName || y.d!.account || ""; break;
                                     case "subStatus": av = x.d!.dealStatus || ""; bv = y.d!.dealStatus || ""; break;
                                     case "subType": av = x.d!.dealType || ""; bv = y.d!.dealType || ""; break;
@@ -960,9 +963,10 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                           <div className="text-[10px] uppercase tracking-wider text-primary font-medium">
                                             Deals tagged ({personDeals.length})
                                           </div>
-                                          <table className="text-xs" style={{ tableLayout: "fixed", width: 820 }}>
+                                          <table className="text-xs" style={{ tableLayout: "fixed", width: 1000 }}>
                                             <colgroup>
                                               <col style={{ width: 90 }} />
+                                              <col style={{ width: 180 }} />
                                               <col style={{ width: 300 }} />
                                               <col style={{ width: 120 }} />
                                               <col style={{ width: 100 }} />
@@ -973,6 +977,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                             <thead>
                                               <tr className="text-muted-foreground border-b border-border/60">
                                                 <ColHeader label="Deal ID" colKey="subDealId" sortKey="subDealId" sortState={subSort} onSort={onSubSort} colFilters={subFilters} openFilter={subOpenFilter} setOpenFilter={setSubOpenFilter} setFilter={setSubFilter} clearFilter={clearSubFilter} />
+                                                <ColHeader label="Client" colKey="subClient" sortKey="subClient" sortState={subSort} onSort={onSubSort} colFilters={subFilters} openFilter={subOpenFilter} setOpenFilter={setSubOpenFilter} setFilter={setSubFilter} clearFilter={clearSubFilter} />
                                                 <ColHeader label="Deal" colKey="subDeal" sortKey="subDeal" sortState={subSort} onSort={onSubSort} colFilters={subFilters} openFilter={subOpenFilter} setOpenFilter={setSubOpenFilter} setFilter={setSubFilter} clearFilter={clearSubFilter} />
                                                 <ColHeader label="Status" colKey="subStatus" sortKey="subStatus" options={dealStatusOptions} sortState={subSort} onSort={onSubSort} colFilters={subFilters} openFilter={subOpenFilter} setOpenFilter={setSubOpenFilter} setFilter={setSubFilter} clearFilter={clearSubFilter} />
                                                 <ColHeader label="Type" colKey="subType" sortKey="subType" options={dealTypeOptions} sortState={subSort} onSort={onSubSort} colFilters={subFilters} openFilter={subOpenFilter} setOpenFilter={setSubOpenFilter} setFilter={setSubFilter} clearFilter={clearSubFilter} />
@@ -995,6 +1000,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                                     className="group/dealrow cursor-pointer border-t border-border/30 even:bg-secondary/20 hover:bg-primary/5 transition-colors"
                                                   >
                                                     <td className="py-1 pr-2 font-mono text-[11px] text-muted-foreground truncate">{d!.dealId || "—"}</td>
+                                                    <td className="py-1 pr-2 text-foreground truncate">{d!.account || "—"}</td>
                                                     <td className="py-1 pr-2 font-medium text-foreground truncate group-hover/dealrow:text-primary">{d!.dealName || d!.account}</td>
                                                     <td className="py-1 pr-2"><StatusPill status={d!.dealStatus} /></td>
                                                     <td className="py-1 pr-2">
