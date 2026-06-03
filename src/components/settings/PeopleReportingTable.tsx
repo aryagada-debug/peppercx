@@ -1000,6 +1000,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                                     className="group/dealrow cursor-pointer border-t border-border/30 even:bg-secondary/20 hover:bg-primary/5 transition-colors"
                                                   >
                                                     <td className="py-1 pr-2 font-mono text-[11px] text-muted-foreground truncate">{d!.dealId || "—"}</td>
+                                                    <td className="py-1 pr-2 text-foreground truncate">{d!.account || "—"}</td>
                                                     <td className="py-1 pr-2 font-medium text-foreground truncate group-hover/dealrow:text-primary">{d!.dealName || d!.account}</td>
                                                     <td className="py-1 pr-2"><StatusPill status={d!.dealStatus} /></td>
                                                     <td className="py-1 pr-2">
