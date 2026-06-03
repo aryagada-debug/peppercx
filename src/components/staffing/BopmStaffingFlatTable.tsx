@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { Search, Plus, RotateCcw, X, Send, Info, Columns3, Check, GripVertical, Trash2, Lock, Unlock } from "lucide-react";
+import { Search, Plus, RotateCcw, X, Send, Info, Columns3, Check, GripVertical, Trash2, Lock, Unlock, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatINR } from "@/lib/csvTargets";
 import type { Deal, Person, StaffingAssignment, RoleCategory } from "@/data/staffingData";
