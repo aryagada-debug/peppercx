@@ -125,6 +125,8 @@ Deno.serve(async (req) => {
     if (action === "bulk_provision") {
       const sendInvite = body.send_invite !== false;
       const DEFAULT_PASSWORD = "Pepper@2026";
+      // unused; silence linter
+      void sendInvite;
       // Load all staffing_people with non-empty email
       const { data: people, error: pErr } = await adminClient
         .from("staffing_people")
@@ -213,6 +215,167 @@ Deno.serve(async (req) => {
     }
 
     if (action === "provision_person") {
+      // handled below
+    }
+
+    if (action === "create_user") {
+      const DEFAULT_PASSWORD = "Pepper@2026";
+      const email = String(body.email || "").trim().toLowerCase();
+      const password = String(body.password || DEFAULT_PASSWORD);
+      const fullName = String(body.full_name || "").trim();
+      const role = String(body.role || "user");
+      const linkMode = body.link_mode === "existing" ? "existing" : "new";
+      const personId: string | undefined = body.person_id;
+      const newPerson = body.new_person || {};
+      const overrides: { route_key: string; access_mode: "hidden" | "read" | "edit" }[] =
+        Array.isArray(body.overrides) ? body.overrides : [];
+
+      const validRoles = ["admin", "member", "user", "capability_lead", "capability_member", "view_only"];
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return new Response(JSON.stringify({ error: "Valid email is required" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (!fullName) {
+        return new Response(JSON.stringify({ error: "Full name is required" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (!validRoles.includes(role)) {
+        return new Response(JSON.stringify({ error: "Invalid role" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (password.length < 6) {
+        return new Response(JSON.stringify({ error: "Password must be at least 6 characters" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // 1. Reject duplicate auth email
+      const { data: authList } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
+      if ((authList?.users || []).some((u) => (u.email || "").toLowerCase() === email)) {
+        return new Response(JSON.stringify({ error: "A user with this email already exists" }), {
+          status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // 2. Resolve person link
+      let resolvedPersonId: string | null = null;
+      if (linkMode === "existing") {
+        if (!personId) {
+          return new Response(JSON.stringify({ error: "person_id required when linking to existing person" }), {
+            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        const { data: existsPerson } = await adminClient
+          .from("staffing_people").select("id").eq("id", personId).maybeSingle();
+        if (!existsPerson) {
+          return new Response(JSON.stringify({ error: "Selected person not found" }), {
+            status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        resolvedPersonId = personId!;
+        // Sync the staffing person's email if missing
+        await adminClient.from("staffing_people").update({ email }).eq("id", personId!)
+          .then((r) => r, () => null);
+      } else {
+        // create new staffing_people row
+        const slug = fullName.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+        const baseId = `p_${slug || crypto.randomUUID().slice(0, 8)}`;
+        let candidateId = baseId;
+        for (let i = 2; i < 50; i++) {
+          const { data: clash } = await adminClient
+            .from("staffing_people").select("id").eq("id", candidateId).maybeSingle();
+          if (!clash) break;
+          candidateId = `${baseId}_${i}`;
+        }
+        const insertRow: Record<string, unknown> = {
+          id: candidateId,
+          name: fullName,
+          email,
+          role_category: String(newPerson.role_category || "Other"),
+          role_title: String(newPerson.designation || newPerson.role_title || ""),
+          department: String(newPerson.department || ""),
+          sub_team: String(newPerson.sub_team || ""),
+          designation: String(newPerson.designation || ""),
+          band: String(newPerson.band || ""),
+          reporting_manager: String(newPerson.reporting_manager || ""),
+          region: String(newPerson.region || "India"),
+          department_id: newPerson.department_id || null,
+          role_type_id: newPerson.role_type_id || null,
+          leaving: false,
+          tbh: false,
+        };
+        const { error: insErr } = await adminClient.from("staffing_people").insert(insertRow);
+        if (insErr) {
+          return new Response(JSON.stringify({ error: `Failed to create person: ${insErr.message}` }), {
+            status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        resolvedPersonId = candidateId;
+      }
+
+      // 3. Create auth user
+      const { data: newUser, error: cErr } = await adminClient.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { full_name: fullName },
+      });
+      if (cErr || !newUser?.user) {
+        return new Response(JSON.stringify({ error: cErr?.message || "Failed to create auth user" }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const userId = newUser.user.id;
+
+      // 4. Profile link
+      const { error: profErr } = await adminClient.from("profiles").upsert(
+        { user_id: userId, display_name: fullName, staffing_person_id: resolvedPersonId },
+        { onConflict: "user_id" },
+      );
+      if (profErr) {
+        await adminClient.auth.admin.deleteUser(userId).catch(() => {});
+        return new Response(JSON.stringify({ error: `Failed to link profile: ${profErr.message}` }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // 5. Replace any auto-assigned roles
+      await adminClient.from("user_roles").delete().eq("user_id", userId);
+      const { error: rErr } = await adminClient
+        .from("user_roles").insert({ user_id: userId, role });
+      if (rErr) {
+        await adminClient.auth.admin.deleteUser(userId).catch(() => {});
+        return new Response(JSON.stringify({ error: `Failed to assign role: ${rErr.message}` }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // 6. Optional per-route overrides
+      if (overrides.length > 0) {
+        const rows = overrides
+          .filter((o) => o && o.route_key && ["hidden", "read", "edit"].includes(o.access_mode))
+          .map((o) => ({
+            user_id: userId,
+            route_key: o.route_key,
+            access_mode: o.access_mode,
+            visible: o.access_mode !== "hidden",
+          }));
+        if (rows.length) {
+          await adminClient.from("user_route_overrides").insert(rows)
+            .then((r) => r, () => null);
+        }
+      }
+
+      return new Response(
+        JSON.stringify({ ok: true, user_id: userId, person_id: resolvedPersonId, email, password }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    if (action === "provision_person_legacy_marker") {
       const DEFAULT_PASSWORD = "Pepper@2026";
       const personId: string | undefined = body.person_id;
       if (!personId) {
