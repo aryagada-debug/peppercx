@@ -196,7 +196,25 @@ export function useDealAccess(): DealAccessState {
 
     // Capability Leader → sees deals their whole team is staffed on.
     if (role === "capability_lead") {
+      // Union: deals their reportees are staffed on + deals THEY are
+      // personally staffed on + deals where they're tagged in a VSD/BOPM
+      // cell. Without the personal-assignment union, a cap lead who is
+      // directly staffed on a deal but whose team isn't, sees nothing.
       const visibleDealIds = new Set<string>(myTeamDealIds);
+      for (const id of myAssignedDealIds) visibleDealIds.add(id);
+      if (me) {
+        for (const d of allDeals) {
+          if (visibleDealIds.has(d.id)) continue;
+          if (
+            dealCellMatchesPerson(d.vsd, me, allPersonNames) ||
+            dealCellMatchesPerson(d.principal_bopm, me, allPersonNames) ||
+            dealCellMatchesPerson(d.senior_bopm, me, allPersonNames) ||
+            dealCellMatchesPerson(d.bopm, me, allPersonNames)
+          ) {
+            visibleDealIds.add(d.id);
+          }
+        }
+      }
       // Editing on staffing/RGY for those deals; record visibility in clients/etc is read-only via Access Controls.
       const editableDealIds = new Set<string>();
       const visibleClientIds = new Set<string>();
