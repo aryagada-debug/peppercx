@@ -252,7 +252,7 @@ Deno.serve(async (req) => {
       const { data: authList } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
       if ((authList?.users || []).some((u) => (u.email || "").toLowerCase() === email)) {
         return new Response(JSON.stringify({ error: "A user with this email already exists" }), {
-          status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
