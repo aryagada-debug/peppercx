@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { ALL_ROUTE_KEYS, ROLE_LABELS, ROLE_ORDER, type AppRole } from "@/hooks/useUserRole";
 import { DemoLoginsCard } from "@/components/admin/DemoLoginsCard";
+import { AddUserDialog } from "@/components/settings/AddUserDialog";
 
 const ROUTE_LABELS: Record<string, string> = {
   "dashboard": "Dashboard",
@@ -61,6 +62,7 @@ export function UsersTab() {
   const [roleFilter, setRoleFilter] = useState<AppRole | "all">("all");
   const [savingEmail, setSavingEmail] = useState<string | null>(null);
   const [showMissing, setShowMissing] = useState(false);
+  const [addUserOpen, setAddUserOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -340,11 +342,17 @@ export function UsersTab() {
             {provisioning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Users className="h-3.5 w-3.5" />}
             Provision from People
           </Button>
-          <a href="/signup" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline">
-            <UserPlus className="h-3.5 w-3.5" /> Invite via signup link
-          </a>
+          <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setAddUserOpen(true)}>
+            <UserPlus className="h-3.5 w-3.5" /> Add user
+          </Button>
         </div>
       </div>
+
+      <AddUserDialog
+        open={addUserOpen}
+        onOpenChange={setAddUserOpen}
+        onCreated={() => load()}
+      />
 
       {showMissing && missingPeople.length > 0 && (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
