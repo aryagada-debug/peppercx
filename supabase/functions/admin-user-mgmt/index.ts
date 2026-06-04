@@ -214,10 +214,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (action === "provision_person") {
-      // handled below
-    }
-
     if (action === "create_user") {
       const DEFAULT_PASSWORD = "Pepper@2026";
       const email = String(body.email || "").trim().toLowerCase();
