@@ -371,7 +371,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (action === "provision_person_legacy_marker") {
+    if (action === "provision_person") {
       const DEFAULT_PASSWORD = "Pepper@2026";
       const personId: string | undefined = body.person_id;
       if (!personId) {
