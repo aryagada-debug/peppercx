@@ -941,14 +941,16 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                     />
                                   </td>
                                   <td className="px-2 py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
-                                    <button
-                                      type="button"
-                                      onClick={() => onRequestDelete(p)}
-                                      className="text-muted-foreground hover:text-red-600"
-                                      title="Delete"
-                                    >
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                    </button>
+                                    {isAdmin && (
+                                      <button
+                                        type="button"
+                                        onClick={() => onRequestDelete(p)}
+                                        className="text-muted-foreground hover:text-red-600"
+                                        title="Delete"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </button>
+                                    )}
                                   </td>
                                 </tr>
                                 {isExpanded && (
