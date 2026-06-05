@@ -89,7 +89,7 @@ export function DealFormWizard({ open, onOpenChange, clients, preSelectedClientI
     mrr: "", totalDealValue: "", retainerDealValue: "", nonRetainerDealValue: "",
     inputCurrency: "INR",
     vsd: "", principalBopm: "", seniorBopm: "", bopm: "",
-    paymentTerms: "", pepperBusinessUnit: "", pod: "", dealStatus: "Won",
+    paymentTerms: "", pepperBusinessUnit: "", pod: "", dealStatus: "Active Deal",
     pcCode: "", capabilityLine: "", customerType: "",
     sowItems: [{ scope: "", revenueShare: 0, teamCapability: "" }],
     successMetrics: [{ name: "", value: "", unit: "", frequency: "" }],
