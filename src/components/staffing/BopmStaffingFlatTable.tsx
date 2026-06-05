@@ -4,7 +4,7 @@ import { Search, Plus, RotateCcw, X, Send, Info, Columns3, Check, GripVertical, 
 import { cn } from "@/lib/utils";
 import { formatINR } from "@/lib/csvTargets";
 import type { Deal, Person, StaffingAssignment, RoleCategory } from "@/data/staffingData";
-import { uid, ROLE_SLOTS, ROLE_TO_PEOPLE_FILTER, ROLE_SENIORITY_PARENTS, getDescendantPersonIds, isAssignmentExpired, ACTIVE_DEAL_STATUSES } from "@/data/staffingData";
+import { uid, ROLE_SLOTS, ROLE_TO_PEOPLE_FILTER, ROLE_SENIORITY_PARENTS, getDescendantPersonIds, isAssignmentExpired, ACTIVE_DEAL_STATUSES, normalizeRoleKey } from "@/data/staffingData";
 import { submitStaffingBatch, type BatchItem } from "@/lib/approvals";
 import { AddStaffingMemberDialog } from "./AddStaffingMemberDialog";
 import { RequestStaffingDialog } from "./RequestStaffingDialog";
@@ -984,7 +984,8 @@ export function BopmStaffingFlatTable({
           endDate: effectiveEnd,
           isExpired: isAssignmentExpired({ endDate: effectiveEnd }),
         };
-        const key = patch?.roleKey ?? a.roleKey ?? "—";
+        const rawKey = patch?.roleKey ?? a.roleKey ?? "—";
+        const key = rawKey === "—" ? "—" : normalizeRoleKey(rawKey);
         if (!byRole.has(key)) byRole.set(key, []);
         byRole.get(key)!.push(entry);
       }
@@ -999,7 +1000,8 @@ export function BopmStaffingFlatTable({
           startDate: a.startDate,
           endDate: a.endDate,
         };
-        const key = a.roleKey || "—";
+        const rawAddKey = a.roleKey || "—";
+        const key = rawAddKey === "—" ? "—" : normalizeRoleKey(rawAddKey);
         if (!byRole.has(key)) byRole.set(key, []);
         byRole.get(key)!.push(entry);
       }
