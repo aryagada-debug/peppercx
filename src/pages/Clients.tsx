@@ -628,7 +628,7 @@ export default function Clients() {
 
     const dealRow: any = {
       id: newId,
-      deal_id: dealIdStr,
+      new_deal_id_temp: dealIdStr,
       deal_name: data.dealName,
       deal_type: data.dealType,
       deal_status: data.dealStatus,
