@@ -12,17 +12,29 @@ import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { useStakeholders, type Stakeholder } from "./useStakeholders";
 
-const FUNCTIONS = ["Marketing", "Finance", "Product", "Technology", "Legal", "Operations", "Other"] as const;
+const FUNCTIONS = [
+  "SEO Team",
+  "Content Team",
+  "Performance Marketing Team",
+  "Corp Comm/PR Team",
+  "Digital/Growth Marketing Team",
+  "Brand Marketing Team",
+  "Creative Team",
+  "Marketing (No Specific Team)",
+  "Overall Marketing",
+] as const;
 const SENIORITIES = ["C-Suite · CXO", "C-1 · VP", "C-2 · Director", "C-3 · Sr Mgr", "C-3 · Mgr", "C-4 · Lead", "Other"] as const;
 
 const FUNCTION_DOT: Record<string, string> = {
-  Marketing: "bg-primary",
-  Finance: "bg-emerald-500",
-  Product: "bg-blue-500",
-  Technology: "bg-orange-600",
-  Legal: "bg-muted-foreground",
-  Operations: "bg-amber-500",
-  Other: "bg-muted-foreground/60",
+  "SEO Team": "bg-primary",
+  "Content Team": "bg-emerald-500",
+  "Performance Marketing Team": "bg-blue-500",
+  "Corp Comm/PR Team": "bg-orange-600",
+  "Digital/Growth Marketing Team": "bg-amber-500",
+  "Brand Marketing Team": "bg-rose-500",
+  "Creative Team": "bg-purple-500",
+  "Marketing (No Specific Team)": "bg-muted-foreground/60",
+  "Overall Marketing": "bg-muted-foreground",
 };
 
 const TAG_STYLES: Record<string, string> = {
