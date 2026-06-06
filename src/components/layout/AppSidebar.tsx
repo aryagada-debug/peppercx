@@ -77,7 +77,7 @@ export function AppSidebar() {
     if (typeof window === "undefined") return false;
     return localStorage.getItem(COLLAPSE_KEY) === "1";
   });
-  const { visibleRoutes, loading, isAdmin } = useUserRole();
+  const { visibleRoutes, loading, isAdmin, isActuallyAdmin } = useUserRole();
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -92,7 +92,7 @@ export function AppSidebar() {
     if (section.label !== "Core") return section;
     return {
       ...section,
-      items: isAdmin
+      items: (isAdmin || isActuallyAdmin)
         ? [...section.items, { to: "/contacts", icon: Contact, label: "Contacts", routeKey: "home" }]
         : section.items,
     };

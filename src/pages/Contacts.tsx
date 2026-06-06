@@ -33,7 +33,8 @@ function joinBopm(d: { principal_bopm?: string | null; senior_bopm?: string | nu
 }
 
 export default function Contacts() {
-  const { isAdmin, loading: roleLoading } = useUserRole();
+  const { isAdmin, isActuallyAdmin, loading: roleLoading } = useUserRole();
+  const canView = isAdmin || isActuallyAdmin;
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
@@ -43,7 +44,7 @@ export default function Contacts() {
   const [influenceF, setInfluenceF] = useState("all");
 
   useEffect(() => {
-    if (roleLoading || !isAdmin) return;
+    if (roleLoading || !canView) return;
     let cancelled = false;
     (async () => {
       setLoading(true);
@@ -87,7 +88,7 @@ export default function Contacts() {
       }
     })();
     return () => { cancelled = true; };
-  }, [isAdmin, roleLoading]);
+  }, [canView, roleLoading]);
 
   const teams = useMemo(() => Array.from(new Set(rows.map(r => r.function).filter(Boolean))).sort(), [rows]);
   const regions = useMemo(() => Array.from(new Set(rows.map(r => r.region).filter(Boolean))).sort(), [rows]);
@@ -132,7 +133,7 @@ export default function Contacts() {
     toast.success("Exported contacts");
   };
 
-  if (!roleLoading && !isAdmin) return <Navigate to="/home" replace />;
+  if (!roleLoading && !canView) return <Navigate to="/home" replace />;
 
   return (
     <div className="p-6 space-y-5 animate-fade-in">
