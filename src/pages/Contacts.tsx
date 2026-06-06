@@ -49,7 +49,7 @@ export default function Contacts() {
       setLoading(true);
       const [{ data: people, error: e1 }, { data: deals, error: e2 }, { data: clients, error: e3 }] = await Promise.all([
         supabase.from("deal_stakeholders").select("id,name,linkedin_url,email,phone,role,function,decision_power,deal_id,client_name"),
-        supabase.from("staffing_deals").select("id,client_name,vsd,principal_bopm,senior_bopm,bopm,geo,client_id"),
+        supabase.from("staffing_deals").select("id,account,deal_name,vsd,principal_bopm,senior_bopm,bopm,geo,client_id"),
         supabase.from("clients").select("id,name,geography"),
       ]);
       if (e1 || e2 || e3) {
@@ -75,7 +75,7 @@ export default function Contacts() {
           function: p.function || "",
           decision_power: p.decision_power || 0,
           deal_id: p.deal_id || "",
-          client_name: d?.client_name || p.client_name || "",
+          client_name: c?.name || d?.account || d?.deal_name || p.client_name || "",
           vsd: d?.vsd || "",
           bopm: d ? joinBopm(d) : "",
           region: d?.geo || c?.geography || "",
