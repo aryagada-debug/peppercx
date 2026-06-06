@@ -2,7 +2,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Briefcase, Users, UserCheck, DollarSign,
   Target, Activity, FileText, MessageSquare, Clock,
- CheckSquare, Settings, Building2, BookOpen,
+  CheckSquare, Settings, Building2, BookOpen, Contact,
   ChevronDown, Home, ChevronsLeft, ChevronsRight,
   Trash2,
 } from "lucide-react";
@@ -25,6 +25,7 @@ const routePrefetch: Record<string, () => Promise<unknown>> = {
   "/settings": () => import("@/pages/Settings"),
   "/help": () => import("@/pages/Help"),
   "/trash": () => import("@/pages/Trash"),
+  "/contacts": () => import("@/pages/Contacts"),
 };
 const prefetched = new Set<string>();
 const prefetchRoute = (to: string) => {
@@ -76,7 +77,7 @@ export function AppSidebar() {
     if (typeof window === "undefined") return false;
     return localStorage.getItem(COLLAPSE_KEY) === "1";
   });
-  const { visibleRoutes, loading } = useUserRole();
+  const { visibleRoutes, loading, isAdmin } = useUserRole();
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -87,7 +88,17 @@ export function AppSidebar() {
     setGroupCollapsed(prev => ({ ...prev, [label]: !prev[label] }));
   };
 
-  const filteredSections = navSections
+  const sectionsWithAdmin = navSections.map(section => {
+    if (section.label !== "Core") return section;
+    return {
+      ...section,
+      items: isAdmin
+        ? [...section.items, { to: "/contacts", icon: Contact, label: "Contacts", routeKey: "home" }]
+        : section.items,
+    };
+  });
+
+  const filteredSections = sectionsWithAdmin
     .map(section => ({
       ...section,
       items: section.items.filter(item => loading || visibleRoutes.has(item.routeKey)),

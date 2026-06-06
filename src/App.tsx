@@ -35,6 +35,7 @@ const SettingsPage = lazy(() => import("./pages/Settings"));
 const Help = lazy(() => import("./pages/Help"));
 const Trash = lazy(() => import("./pages/Trash"));
 const PeopleOps = lazy(() => import("./pages/PeopleOps"));
+const Contacts = lazy(() => import("./pages/Contacts"));
 
 // Mounts the one-shot seeder under the auth provider so it can read the
 // session and only fire when staffing_people is empty.
@@ -95,6 +96,7 @@ const App = () => (
             <Route path="/settings" element={<ProtectedRoute routeKey="settings"><SettingsPage /></ProtectedRoute>} />
             <Route path="/help" element={<ProtectedRoute routeKey="home"><Help /></ProtectedRoute>} />
             <Route path="/trash" element={<ProtectedRoute routeKey="settings"><Trash /></ProtectedRoute>} />
+            <Route path="/contacts" element={<ProtectedRoute routeKey="home"><Contacts /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
           </Suspense>
