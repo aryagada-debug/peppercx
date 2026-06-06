@@ -1,71 +1,44 @@
-## Goal
+## Contacts (admin-only)
 
-Replace the "Invite via signup link" link in Settings → Users & Roles with an **Add user** button that opens a comprehensive dialog. Admins can create a fully working account in one shot — auth login + profile + app role + linked person in the People directory — without sending the user through self-signup.
+New page that aggregates every person from Org Mapping across all deals into one searchable, filterable, exportable table.
 
-## UI changes
+### Access
+- Sidebar item **Contacts** (icon: Contact/Users) under "Core", visible only when `isAdmin` (from `useUserRole`).
+- Route `/contacts` wrapped in `ProtectedRoute` with an in-page admin gate that redirects non-admins to `/home`.
 
-`src/pages/admin/UsersTab.tsx`
-- Remove the `<a href="/signup">Invite via signup link</a>` anchor.
-- Add an **Add user** button (primary style, `UserPlus` icon) that opens a new `AddUserDialog`.
-- On success, refresh the list and toast `"<name> added. Password: Pepper@2026"` (or custom).
+### Data
+Source: `deal_stakeholders` joined with `staffing_deals` on `deal_id`, joined with `clients` for region fallback.
 
-## New component
+Columns shown in table (and exported to Excel):
+1. Name of Person (`name`)
+2. LinkedIn Link (`linkedin_url`) — clickable
+3. Email (`email`)
+4. Phone Number (`phone`)
+5. Designation (`role`)
+6. Team Name (`function`) — the new SEO/Content/etc. taxonomy
+7. Level of Influence (`decision_power`, 1–5)
+8. Deal (`staffing_deals.client_name` + deal id) — clickable to `/deals/:id`
+9. VSD (`staffing_deals.vsd`)
+10. BOPM (`principal_bopm` / `senior_bopm` / `bopm` combined, comma-separated, non-empty only)
+11. Region (`staffing_deals.geo` ?? `clients.geography`)
 
-`src/components/settings/AddUserDialog.tsx` — one dialog with logically grouped sections:
+### UI
+- Header: "Contacts" + subtitle "All people mapped across deals · admin only".
+- Toolbar:
+  - Search (name, email, role, deal, client)
+  - Filters: Team Name, Region, VSD, Influence level
+  - **Export to Excel** button (uses `xlsx` / `SheetJS`) → file `contacts-YYYY-MM-DD.xlsx`, single sheet with the columns above, auto-width.
+- Table: dense, sortable headers, sticky header, follows existing design system (flat, purple primary, thin borders).
+- Empty state when no rows.
+- Counts pill: "X contacts across Y deals".
 
-**1. Account (auth)**
-- Full name * 
-- Work email * (validated, lowercased, uniqueness checked server-side)
-- Password (defaults to `Pepper@2026`, editable, "auto-confirm email" always on for admin-created accounts)
-- App role * — Admin / Capability Lead / Member / User (uses existing `ROLE_LABELS` / `ROLE_ORDER`)
+### Files
+- `src/pages/Contacts.tsx` — new page (query + table + export).
+- `src/components/layout/AppSidebar.tsx` — add Contacts nav item, admin-gated.
+- `src/App.tsx` — register `/contacts` route (lazy).
+- `package.json` — add `xlsx` dependency if not present.
 
-**2. Link to person directory**
-- Radio: *Link to existing person* vs *Create new person*
-- If existing: searchable select of `staffing_people` (shows name + current email + designation). Useful when the person already exists from the Google Sheet sync but has no login yet.
-- If new: same fields as the existing `AddPersonDialog` — Department (taxonomy), Role type (taxonomy), Legacy team, Sub-team, Designation, Band, Reports to, Region (default India), tbh=false.
-
-**3. Initial access (optional, collapsible)**
-- Per-route overrides table (same widget already used in the Overrides dialog) so admin can grant `hidden / read / edit` per route at creation time. Default: inherit from role.
-
-Validation, inline errors, single **Create user** button (disabled while saving). Cancel resets state.
-
-## Backend
-
-Add one new action to `supabase/functions/admin-user-mgmt/index.ts`: **`create_user`**. Already protected by the existing admin-only guard at the top of the file.
-
-Payload:
-```ts
-{
-  action: "create_user",
-  email, password, full_name, role,           // auth + role
-  link_mode: "existing" | "new",
-  person_id?: string,                          // when existing
-  new_person?: {                               // when new
-    name, email, department, sub_team, designation, band,
-    reporting_manager, department_id, role_type_id, region
-  },
-  overrides?: { route_key, access_mode }[]
-}
-```
-
-Server flow (all using service-role admin client):
-1. Reject if email already exists in `auth.users` (return clear error).
-2. If `link_mode === "new"`: insert into `staffing_people` (generate `id` like `p_<slug>`, leaving=false, tbh=false). Capture `person_id`.
-3. `auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { full_name } })`.
-4. `profiles.upsert({ user_id, display_name: full_name, staffing_person_id: person_id })` — overrides whatever `handle_new_user` trigger guessed.
-5. Replace any auto roles: `delete from user_roles where user_id` → `insert { user_id, role }`.
-6. If `overrides` provided, insert into `user_route_overrides`.
-7. Return `{ user_id, person_id, email, password }`.
-
-Errors at any step roll back best-effort (delete the auth user if profile/role write fails) and return a 4xx/5xx with a readable message.
-
-## Files touched
-
-- `src/pages/admin/UsersTab.tsx` — swap signup link for Add user button, wire dialog, refresh on success.
-- `src/components/settings/AddUserDialog.tsx` — new.
-- `supabase/functions/admin-user-mgmt/index.ts` — add `create_user` action.
-
-## Out of scope
-
-- No email-sending invite flow (matches current "Provision from People" behaviour — admin shares the password manually).
-- Capability group membership stays in its own Access Controls tab; not duplicated here.
+### Notes / out of scope
+- Read-only view; editing still happens inside each Deal → Org Map tab.
+- No new DB tables or migrations; uses existing `deal_stakeholders`, `staffing_deals`, `clients`.
+- No de-duplication across deals — same person on 2 deals shows as 2 rows (matches the "deal level" export requirement).
