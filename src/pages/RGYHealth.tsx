@@ -1100,6 +1100,93 @@ export default function RGYHealth() {
     toast.success("Issue saved & task created");
   }, [issueFormDeal, deals]);
 
+  // ── Mark RGY (per-row): single upsert for the current week, then prompt
+  // for a combined issue if any dimension ended up Red.
+  const handleMarkRGYSave = useCallback(async (next: MarkRGYDimension[]) => {
+    if (!markRGYDeal) return;
+    setMarkRGYSaving(true);
+    try {
+      const deal = markRGYDeal;
+      const weekStart = getCurrentWeekStart();
+
+      const payload: Record<string, string> = {};
+      next.forEach(d => { payload[d.key] = d.value || ""; });
+
+      // Resolve current user for audit fields
+      let updatedById: string | null = null;
+      let updatedByName = "";
+      try {
+        const { data: u } = await supabase.auth.getUser();
+        updatedById = u?.user?.id || null;
+        if (updatedById) {
+          const { data: prof } = await supabase
+            .from("profiles").select("display_name").eq("user_id", updatedById).maybeSingle();
+          updatedByName = (prof as any)?.display_name || u?.user?.email || "";
+        }
+      } catch {}
+      const nowIso = new Date().toISOString();
+
+      let rowId = deal.rgy_row_id;
+      if (rowId && deal.rgy_week_start === weekStart) {
+        await supabase.from("deal_rgy_weekly").update({
+          ...payload,
+          updated_at: nowIso,
+          updated_by: updatedById,
+          updated_by_name: updatedByName,
+        } as any).eq("id", rowId);
+      } else {
+        const { data: inserted } = await supabase.from("deal_rgy_weekly").insert({
+          deal_id: deal.id,
+          week_start: weekStart,
+          ...payload,
+          account_health: payload.customer || "",
+          finance_billing: "",
+          capability_seo: payload.seo || "",
+          capability_creative: "",
+          updated_by: updatedById,
+          updated_by_name: updatedByName,
+        } as any).select("id").single();
+        rowId = inserted?.id;
+      }
+
+      // Audit log changed dims
+      for (const dim of next) {
+        const prev = (deal[dim.key as keyof DealWithRGY] as string) || "";
+        if (prev !== (dim.value || "")) {
+          logRGYChange({
+            dealId: deal.id,
+            dimension: dim.key,
+            fromValue: prev,
+            toValue: dim.value || "",
+            weekStart,
+          });
+        }
+      }
+
+      // Update local state with new values + row metadata
+      const patch: Partial<DealWithRGY> = {
+        rgy_row_id: rowId,
+        rgy_week_start: weekStart,
+        rgy_updated_at: nowIso,
+        rgy_updated_by_name: updatedByName,
+      };
+      for (const dim of next) (patch as any)[dim.key] = dim.value || "";
+      setDeals(prev => prev.map(d => d.id === deal.id ? { ...d, ...patch } as DealWithRGY : d));
+
+      const updatedDeal: DealWithRGY = { ...deal, ...patch } as DealWithRGY;
+      const hasRed = next.some(d => d.value === "R");
+      setMarkRGYDeal(null);
+      if (hasRed) {
+        toast.success("RGY saved — log the combined issue");
+        setCombinedIssuesDeal(updatedDeal);
+      } else {
+        toast.success("RGY saved");
+      }
+    } finally {
+      setMarkRGYSaving(false);
+    }
+  }, [markRGYDeal]);
+
   // Filtering
   const filteredDeals = useMemo(() => {
     let d = deals;
