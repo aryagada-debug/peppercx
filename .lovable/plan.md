@@ -1,72 +1,66 @@
-## Leadership Intervention Needed (RGY)
+## Unified RGY Marking — One Card, One Combined Issue
 
-A lightweight flag any user can raise on a deal when leadership help is needed, visible to Admin / VSDs / Capability Leads with a status workflow and comment thread.
+Today every R/Y click triggers the issue dialog, so users get a pop-up per dimension. Rework it so all 8 dimensions are marked in a single card (like staffing), and a **single combined Issues card** appears only when the user clicks "Review issues" — never auto-popping per click.
 
-### Data model
+### New behavior
 
-New table `rgy_leadership_interventions`:
-- `deal_id` (FK → staffing_deals)
-- `rgy_week` (date, optional — auto-stamped from current RGY snapshot if raised from RGY tab)
-- `title`, `description`
-- `urgency` — High / Medium / Low
-- `status` — Open → Acknowledged → In Progress → Resolved
-- `raised_by_user_id`, `raised_by_name`
-- `resolved_at`, `resolved_by_user_id`
-- standard `created_at` / `updated_at`
+**Marking (auto-save, no pop-ups):**
+- Clicks on the R / Y / G / ⊘ / ⋯ toggles still save the dimension immediately (same as today's `EditableRGY`).
+- We **remove the per-save dialog trigger** (`setShowIssueForm(newlyRorY)` and the resulting `<Dialog>` `RGYIssueForm`). No more dialog appearing on each click.
+- A subtle "Saved" pulse / toast confirms the write; the dot color updates instantly.
 
-New table `rgy_leadership_intervention_comments`:
-- `intervention_id` (FK, cascade delete)
-- `user_id`, `author_name`
-- `body`
-- `created_at`
+**Status bar (new, inline below the dimension grid):**
+- A thin row showing counts: `2 Red · 1 Yellow · 4 Green · 1 Not Required`.
+- If any dim is **Red** with no open `[RGY Health]` task: a warning chip "Issues missing for X red dimension(s)" + a primary button **"Review issues"**.
+- If any dim is **Yellow** without an issue: a quieter chip "Optional: log context for X yellow dimension(s)" + secondary button **"Add context"**.
+- If everything is Green / NA: a small "All clear" line, no button.
 
-RLS:
-- Any authenticated user can INSERT (raise) and SELECT their own raised items.
-- Admin + users whose role matches VSD / Capability Lead patterns (reuse logic from `visible_deal_ids_for_user`) can SELECT/UPDATE all rows and post comments.
-- Status changes restricted to leadership viewers; raiser can edit title/description while status = Open.
+**Combined Issues card (`RGYCombinedIssuesDialog`):**
+- Opens only when the user explicitly clicks **Review issues** / **Add context** (or from a small "Edit issues" link on the status bar). No auto-open from toggle clicks.
+- Header lists every non-green dim with its current colour chip; user does NOT pick a dim per issue.
+- One combined form, applied to all reds (and optionally yellows) in one go:
+  - Issue date (defaults today)
+  - Issue details (textarea) — required
+  - Action plan (textarea) — required
+  - Resolution due date
+  - Status (Open / In Progress / Blocked)
+  - Assignees (multi-select from deal team)
+  - Optional sub-tasks list
+- **On Save** the dialog:
+  - Writes `issue_date / issue_details / action_plan / resolution_due_date / issue_status` onto the current week's `deal_rgy_weekly` row (same fields the old form wrote).
+  - Creates a **single** `[RGY Health]` task tagged with all affected dim labels in the title (e.g. `[RGY Health] Content, SEO — <summary>`), so the existing Tasks tab and Green-gate validation continue to work unchanged.
+  - Closes; the status bar updates to "Issue logged" with a link to view/edit it.
 
-### UI
+**Editing an existing issue:**
+- Clicking the status bar's "Issue logged" link reopens the same combined dialog pre-filled from the current week's `deal_rgy_weekly` issue fields + linked task, so editing is one form, not many.
 
-**Raise entry points (both):**
-1. Deal Detail → RGY tab: a "Flag Leadership Intervention" button next to the weekly RGY header. Pre-fills `deal_id` + `rgy_week`.
-2. RGY Health page: a small flag icon button on each deal row → opens same dialog pre-filled with that deal.
+**Green-gate stays as today:** moving a dim from R/Y → G still triggers the existing `ResolveIssuesDialog` to close out the open `[RGY Health]` tasks. That's separate from this change.
 
-**Raise dialog (minimal):**
-- Deal (locked when pre-filled, otherwise searchable)
-- Title (required)
-- Description (textarea, required)
-- Urgency (High/Med/Low, default Medium)
-- Submit → toast confirmation.
+### Where it applies (both)
 
-**Leadership queue — new page `/leadership-interventions`** (sidebar entry visible only to Admin + VSD + Capability Leads):
-- Filter chips: Status, Urgency, Pod/VSD, Raised by me
-- Table: Urgency · Deal · Title · Raised by · Raised on · Status · Comments count
-- Row click → side drawer with full description, status switcher (Open/Ack/In Progress/Resolved), and a comment thread (textarea + post).
-- Empty state when no items.
+1. **Deal Detail → RGY Health tab** (`src/pages/DealDetail.tsx`):
+   - Remove the `<RGYIssueForm>` mounts (lines ~2314 and ~2911) and the `showIssueForm` auto-open logic in `handleRGYSave`.
+   - Insert the new `<RGYStatusBar>` directly under `<EditableRGY>` and wire its buttons to the new `<RGYCombinedIssuesDialog>`.
+2. **RGY Health page** (`src/pages/RGYHealth.tsx`):
+   - Replace `RGYIssueFormDialog` (the per-deal dialog used at ~line 1862) with the same combined dialog. Cell clicks on the table continue to auto-save the colour; the dialog only opens when the user clicks the deal's "Review issues" affordance on the row's hover/action area.
 
-**Deal Detail RGY tab:** small badge under the week showing count of open interventions on this deal; clicking expands an inline list (same drawer).
+### Components to add
 
-### Access control
+- `src/components/rgy/RGYStatusBar.tsx` — the inline counts + CTA strip (pure presentational; takes current dim values + open issue + callbacks).
+- `src/components/rgy/RGYCombinedIssuesDialog.tsx` — the single combined form, replacing both `RGYIssueForm` (inline in `DealDetail.tsx`) and `RGYIssueFormDialog` (inline in `RGYHealth.tsx`). Shared by both pages.
 
-Sidebar visibility + page guard use the same "leadership viewer" check:
-- `has_role(uid, 'admin')` OR
-- user's `staffing_people` role matches VSD / Capability Lead patterns (group head, managing editor, SEO leader, principal/senior BOPM owning a tree — mirrors existing `visible_deal_ids_for_user` logic).
+### Files to edit
 
-A new SQL helper `is_leadership_viewer(_user_id uuid)` will encapsulate this and be used in RLS + a `useIsLeadershipViewer()` hook in the client.
+- `src/pages/DealDetail.tsx` — drop `RGYIssueForm` component + both mounts + `showIssueForm`/`prevRGYSnapshot` auto-open paths; add `<RGYStatusBar>` + `<RGYCombinedIssuesDialog>`.
+- `src/pages/RGYHealth.tsx` — drop `RGYIssueFormDialog`; wire the new combined dialog to a "Review issues" action on the row/dialog.
+- `src/components/deals/EditableRGY.tsx` — no behavioural change (still auto-saves), but remove the inline "re-toggle to capture details" hint copy since the flow is now explicit via the status bar.
 
-### Files to add / edit
+### Data / migration
 
-- Migration: create both tables, GRANTs, RLS policies, `is_leadership_viewer()` SQL function, `updated_at` triggers.
-- `src/hooks/useIsLeadershipViewer.ts`
-- `src/components/rgy/RaiseInterventionDialog.tsx`
-- `src/components/rgy/InterventionDrawer.tsx` (details + comments + status)
-- `src/pages/LeadershipInterventions.tsx` (queue page)
-- `src/App.tsx` — add route
-- `src/components/layout/AppSidebar.tsx` — add gated nav entry
-- `src/pages/RGYHealth.tsx` (or equivalent) — add flag button per row + count badge
-- Deal Detail RGY tab component — add "Flag Leadership Intervention" button + open-count badge
+- **No schema changes.** We continue to use the existing `deal_rgy_weekly` issue fields and the `[RGY Health]` task convention. The Tasks tab, Green-gate, RGY Health page table, and Leadership Intervention flow keep working unchanged.
 
-### Out of scope (for this pass)
+### Out of scope
 
-- Notifications/Slack pings on new interventions (can be added later via existing slack infra).
-- Attachments, requested-leader field, target dates (deferred per "Minimal" choice).
+- Per-Yellow / per-Red sub-blocks (user chose "Single combined issue").
+- Bulk-edit RGY across multiple deals at once.
+- Touching the RGY history/trend views.
