@@ -1793,24 +1793,6 @@ export default function RGYHealth() {
                                 </td>
                               );
                             })}
-                            {isColVisible("ai_summary") && (
-                              <td className="py-2 px-3 max-w-[180px]">
-                                {deal.rgy_issue_details ? (() => {
-                                  const clean = deal.rgy_issue_details.replace(/\s+/g, " ").trim();
-                                  const short = clean.length > 60 ? clean.slice(0, 60).trimEnd() + "…" : clean;
-                                  return (
-                                    <span
-                                      className="text-xs text-muted-foreground line-clamp-1 block"
-                                      title={clean}
-                                    >
-                                      {short}
-                                    </span>
-                                  );
-                                })() : (
-                                  <span className="text-xs text-muted-foreground/60">—</span>
-                                )}
-                              </td>
-                            )}
                             {isAdminPersona && isColVisible("updated_at") && (
                               <td className="py-2 px-3 text-xs text-muted-foreground whitespace-nowrap">
                                 {deal.rgy_updated_at
