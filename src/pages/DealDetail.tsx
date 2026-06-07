@@ -1760,6 +1760,21 @@ export default function DealDetail() {
   const [showIssueForm, setShowIssueForm] = useState(false);
   const [prevRGYSnapshot, setPrevRGYSnapshot] = useState<Record<string, string> | null>(null);
 
+  // Leadership Intervention state (RGY tab)
+  const [raiseInterventionOpen, setRaiseInterventionOpen] = useState(false);
+  const [interventions, setInterventions] = useState<Intervention[]>([]);
+  const [selectedIntervention, setSelectedIntervention] = useState<Intervention | null>(null);
+  const loadInterventions = useCallback(async () => {
+    if (!dealId) return;
+    const { data } = await supabase
+      .from("rgy_leadership_interventions")
+      .select("*")
+      .eq("deal_id", dealId)
+      .order("created_at", { ascending: false });
+    setInterventions((data || []) as Intervention[]);
+  }, [dealId]);
+  useEffect(() => { loadInterventions(); }, [loadInterventions]);
+
   // Staffing dialog states
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [requestStaffingOpen, setRequestStaffingOpen] = useState(false);
