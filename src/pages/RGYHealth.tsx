@@ -1722,6 +1722,21 @@ export default function RGYHealth() {
                                 </Button>
                               )}
                             </td>
+                            <td className="py-2 px-3">
+                              {(() => {
+                                const allMarked = DIMENSIONS.every(dim => (deal[dim.key as keyof DealWithRGY] as string));
+                                return (
+                                  <Button
+                                    size="sm"
+                                    variant={allMarked ? "outline" : "default"}
+                                    className="h-7 text-[11px]"
+                                    onClick={() => setMarkRGYDeal(deal)}
+                                  >
+                                    {allMarked ? "Update RGY" : "Mark RGY"}
+                                  </Button>
+                                );
+                              })()}
+                            </td>
                             {isColVisible("overall_rgy") && (() => {
                               const dims: Record<string, string> = {};
                               for (const d of DIMENSIONS) dims[d.key] = (deal[d.key as keyof DealWithRGY] as string) || "";
