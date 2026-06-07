@@ -192,3 +192,43 @@
     border: 1px dashed hsl(var(--border));
   }
 }
+
+@layer utilities {
+  /* Seamless horizontal scrolling across all wide tables / scroll regions.
+     Applies to any container Tailwind marks as overflow-x:auto, plus an
+     explicit `[data-h-scroll]` opt-in for custom wrappers. */
+  .overflow-x-auto,
+  .overflow-auto,
+  [data-h-scroll] {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scrollbar-gutter: stable;
+  }
+
+  .overflow-x-auto::-webkit-scrollbar,
+  .overflow-auto::-webkit-scrollbar,
+  [data-h-scroll]::-webkit-scrollbar {
+    height: 10px;
+    width: 10px;
+  }
+  .overflow-x-auto::-webkit-scrollbar-track,
+  .overflow-auto::-webkit-scrollbar-track,
+  [data-h-scroll]::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .overflow-x-auto::-webkit-scrollbar-thumb,
+  .overflow-auto::-webkit-scrollbar-thumb,
+  [data-h-scroll]::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  .overflow-x-auto:hover::-webkit-scrollbar-thumb,
+  .overflow-auto:hover::-webkit-scrollbar-thumb,
+  [data-h-scroll]:hover::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.45);
+    background-clip: content-box;
+  }
+}

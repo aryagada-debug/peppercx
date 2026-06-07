@@ -11,6 +11,7 @@ import { CurrencyProvider } from "@/contexts/CurrencyContext";
 import { GeoFilterProvider } from "@/contexts/GeoFilterContext";
 import { RouteFallback } from "./components/layout/RouteFallback";
 import { useStaffingSeeder } from "@/hooks/queries/useStaffingMutations";
+import { useGlobalHorizontalScroll } from "@/hooks/useGlobalHorizontalScroll";
 
 // Auth pages stay eager — login screen must paint instantly.
 import Login from "./pages/Login";
@@ -44,6 +45,12 @@ function StaffingSeederMount() {
   return null;
 }
 
+// Enables seamless wheel→horizontal scroll on wide tables across every module.
+function GlobalScrollMount() {
+  useGlobalHorizontalScroll();
+  return null;
+}
+
 // React Query defaults tuned for an internal data app: keep responses fresh
 // for 5 min and cache for 30 min so navigating between pages doesn't refetch
 // the same tables, and don't refetch on every window focus.
@@ -71,6 +78,7 @@ const App = () => (
           <CurrencyProvider>
           <GeoFilterProvider>
           <StaffingSeederMount />
+          <GlobalScrollMount />
           <Suspense fallback={<RouteFallback />}>
           <Routes>
             {/* Public auth routes */}
