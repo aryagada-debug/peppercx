@@ -1641,9 +1641,6 @@ export default function RGYHealth() {
                         {DIMENSIONS.filter(d => isColVisible(d.key)).map(d => (
                           <ColHeader key={d.key} label={d.label} colKey={d.key} align="center" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["Green","Yellow","Red","NA","Pending"]} width={colWidths[d.key]} onResizeStart={startResize(d.key)} />
                         ))}
-                        {isColVisible("ai_summary") && (
-                          <th className="text-left py-2 px-3 font-medium text-muted-foreground text-caption whitespace-nowrap">AI Summary</th>
-                        )}
                         {isAdminPersona && isColVisible("updated_at") && (
                           <ColHeader label="Last Updated At" colKey="updated_at" sortKey="rgy_updated_at" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.updated_at} onResizeStart={startResize("updated_at")} placeholder="Filter by date..." />
                         )}
