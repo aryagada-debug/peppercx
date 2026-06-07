@@ -1572,18 +1572,31 @@ export default function RGYHealth() {
               </div>}
 
               <div className="flex gap-1 bg-secondary rounded-lg p-1">
-                {(["All", "Red", "Yellow", "Green"] as const).map(f => (
+                {(["All", "Red", "Yellow", "Green", "Pending"] as const).map(f => (
                   <button key={f} onClick={() => setRgyFilter(f)} className={cn(
                     "px-2.5 py-1.5 rounded-md text-caption font-medium whitespace-nowrap transition-colors",
                     rgyFilter === f ? (
                       f === "Red" ? "bg-red-500 text-white shadow-sm" :
                       f === "Yellow" ? "bg-amber-500 text-white shadow-sm" :
                       f === "Green" ? "bg-emerald-500 text-white shadow-sm" :
+                      f === "Pending" ? "bg-muted-foreground text-background shadow-sm" :
                       "bg-primary text-primary-foreground shadow-sm"
                     ) : "text-muted-foreground hover:text-foreground"
                   )}>{f}</button>
                 ))}
               </div>
+
+              <Select value={segmentFilter} onValueChange={setSegmentFilter}>
+                <SelectTrigger className="h-8 w-[170px] text-[11px]">
+                  <SelectValue placeholder="All segments" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All" className="text-xs">All segments</SelectItem>
+                  {DIMENSIONS.map(d => (
+                    <SelectItem key={d.key} value={d.key} className="text-xs">{d.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
               <div className="flex gap-1 bg-secondary rounded-lg p-1">
                 {(["All", "Retainer", "Non-Retainer"] as const).map(f => (
