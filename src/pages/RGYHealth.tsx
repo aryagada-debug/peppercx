@@ -1933,6 +1933,82 @@ export default function RGYHealth() {
           onOpenChange={(open) => { if (!open) setSelectedDealId(null); }}
         />
 
+        {/* Per-row Mark RGY dialog (replaces inline cell editing) */}
+        {markRGYDeal && (
+          <MarkRGYDialog
+            open
+            onOpenChange={(o) => { if (!o) setMarkRGYDeal(null); }}
+            dealLabel={markRGYDeal.deal_name}
+            saving={markRGYSaving}
+            dimensions={DIMENSIONS.map(dim => ({
+              key: dim.key,
+              label: dim.label,
+              value: (markRGYDeal[dim.key as keyof DealWithRGY] as string) || "",
+            }))}
+            onSave={handleMarkRGYSave}
+          />
+        )}
+
+        {/* Combined-issues dialog: auto-opens after any Red is saved */}
+        {combinedIssuesDeal && (() => {
+          const nonGreen = DIMENSIONS
+            .map(dim => ({ key: dim.key, label: dim.label, value: (combinedIssuesDeal[dim.key as keyof DealWithRGY] as string) || "" }))
+            .filter(d => d.value === "R" || d.value === "Y");
+          const assigneeNames = Array.from(new Set([
+            combinedIssuesDeal.vsd, combinedIssuesDeal.principal_bopm, combinedIssuesDeal.senior_bopm, combinedIssuesDeal.bopm,
+          ].filter(Boolean) as string[]));
+          return (
+            <RGYCombinedIssuesDialog
+              open
+              onOpenChange={(o) => { if (!o) setCombinedIssuesDeal(null); }}
+              dealLabel={combinedIssuesDeal.deal_name}
+              nonGreenDims={nonGreen}
+              assigneeNames={assigneeNames}
+              initial={{
+                issueDetails: combinedIssuesDeal.rgy_issue_details || "",
+                actionPlan: combinedIssuesDeal.rgy_action_plan || "",
+                issueDate: combinedIssuesDeal.rgy_issue_date || undefined,
+              }}
+              onSave={async (data) => {
+                const deal = combinedIssuesDeal;
+                if (deal.rgy_row_id) {
+                  await supabase.from("deal_rgy_weekly").update({
+                    issue_date: data.issueDate,
+                    issue_details: data.issueDetails,
+                    action_plan: data.actionPlan,
+                    resolution_due_date: data.dueDate || null,
+                    issue_status: data.issueStatus,
+                  }).eq("id", deal.rgy_row_id);
+                }
+                if (data.assignees.length > 0 || data.actionPlan.trim() || data.subtasks.length > 0) {
+                  const redLabels = nonGreen.filter(d => d.value === "R").map(d => d.label).join(", ");
+                  await (supabase.from("deal_tasks") as any).insert({
+                    deal_id: deal.id,
+                    title: `[RGY Health]${redLabels ? ` ${redLabels} —` : ""} ${(data.actionPlan || data.issueDetails).trim().slice(0, 100)}`,
+                    description: `Issue Details: ${data.issueDetails}\nAction Plan: ${data.actionPlan}`,
+                    stage: "To Do",
+                    assignee: data.assignees[0] || "",
+                    assignees: data.assignees,
+                    urgency: "Medium",
+                    logged_hours: 0,
+                    sort_order: 0,
+                    start_date: data.issueDate,
+                    end_date: data.dueDate || null,
+                    subtasks: data.subtasks.map((s, i) => ({ id: `${Date.now()}-${i}`, title: s.title, completed: false })),
+                  });
+                }
+                setDeals(prev => prev.map(d => d.id === deal.id ? {
+                  ...d,
+                  rgy_issue_details: data.issueDetails,
+                  rgy_action_plan: data.actionPlan,
+                  rgy_issue_date: data.issueDate,
+                } : d));
+                toast.success("Issue saved & task created");
+              }}
+            />
+          );
+        })()}
+
         {/* RGY Summary drill-down dialog */}
         {rgyDrill && (() => {
           let scoped = filteredDeals;
