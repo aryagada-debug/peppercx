@@ -52,6 +52,8 @@ import { WeeklyComplianceTab } from "@/components/rgy/WeeklyComplianceTab";
 import { logRGYReviewedNoChange } from "@/lib/rgyHistory";
 import { weekRange } from "@/lib/rgyCompliance";
 import { RaiseInterventionDialog } from "@/components/rgy/RaiseInterventionDialog";
+import { MarkRGYDialog, type MarkRGYDimension } from "@/components/rgy/MarkRGYDialog";
+import { RGYCombinedIssuesDialog } from "@/components/rgy/RGYCombinedIssuesDialog";
 
 type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
@@ -187,68 +189,33 @@ function getWorstRGY(deal: DealWithRGY): "R" | "Y" | "G" | null {
   return computeOverallCustomerRGY(dims);
 }
 
-// ── Inline RGY Selector with blank-on-reclick ──
+// ── Read-only RGY Cell — editing happens via the per-row Mark RGY dialog ──
 function RGYCell({
-  dealId,
-  dimKey,
   value,
   label,
-  onUpdate,
 }: {
-  dealId: string;
-  dimKey: string;
   value: RGYCellValue;
   label: string;
-  onUpdate: (dealId: string, dimKey: string, newValue: RGYCellValue) => void;
 }) {
-  const [open, setOpen] = useState(false);
-
   return (
-    <div className="relative inline-block">
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
-            className={cn(
-              "inline-flex items-center justify-center rounded-md text-caption font-semibold cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all",
-              value === "PENDING" ? "px-2 h-7 text-[10px]" : "w-7 h-7",
-              cellColors[value]
-            )}
-            aria-label={`${label}: ${statusLabels[value]} — Click to change`}
-          >
-            {cellLabels[value]}
-          </button>
-        </TooltipTrigger>
-        <TooltipContent><p>{label} · {statusLabels[value]}</p></TooltipContent>
-      </Tooltip>
-
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute z-50 top-full mt-1 left-1/2 -translate-x-1/2 bg-popover border border-border rounded-lg shadow-lg p-1 flex gap-1 whitespace-nowrap">
-            {RGY_OPTIONS.map(opt => (
-              <button
-                key={opt.value}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onUpdate(dealId, dimKey, opt.value);
-                  setOpen(false);
-                }}
-                className={cn(
-                  "rounded-md text-caption font-semibold transition-all",
-                  opt.value === "PENDING" ? "px-2 h-7 text-[10px]" : "w-7 h-7",
-                  cellColors[opt.value],
-                  value === opt.value && "ring-2 ring-primary"
-                )}
-                title={opt.label}
-              >
-                {cellLabels[opt.value]}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className={cn(
+            "inline-flex items-center justify-center rounded-md text-caption font-semibold",
+            value === "PENDING" ? "px-2 h-7 text-[10px]" : "w-7 h-7",
+            cellColors[value]
+          )}
+          aria-label={`${label}: ${statusLabels[value]}`}
+        >
+          {cellLabels[value]}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>
+        <p>{label} · {statusLabels[value]}</p>
+        <p className="text-[10px] text-muted-foreground mt-0.5">Use “Mark RGY” to change</p>
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -760,6 +727,12 @@ export default function RGYHealth() {
   const [issueFormNonGreen, setIssueFormNonGreen] = useState<{ key: string; label: string; value: string }[]>([]);
   const [prevRGYSnapshot, setPrevRGYSnapshot] = useState<{ dealId: string; values: Record<string, string> } | null>(null);
 
+  // Mark RGY (per-row, replaces inline cell editing)
+  const [markRGYDeal, setMarkRGYDeal] = useState<DealWithRGY | null>(null);
+  const [markRGYSaving, setMarkRGYSaving] = useState(false);
+  // After Mark RGY save: if any dim is Red, open the combined-issues dialog
+  const [combinedIssuesDeal, setCombinedIssuesDeal] = useState<DealWithRGY | null>(null);
+
   // Green-gate state
   const [greenGate, setGreenGate] = useState<{
     dealId: string;
@@ -1126,6 +1099,93 @@ export default function RGYHealth() {
     setPrevRGYSnapshot(null);
     toast.success("Issue saved & task created");
   }, [issueFormDeal, deals]);
+
+  // ── Mark RGY (per-row): single upsert for the current week, then prompt
+  // for a combined issue if any dimension ended up Red.
+  const handleMarkRGYSave = useCallback(async (next: MarkRGYDimension[]) => {
+    if (!markRGYDeal) return;
+    setMarkRGYSaving(true);
+    try {
+      const deal = markRGYDeal;
+      const weekStart = getCurrentWeekStart();
+
+      const payload: Record<string, string> = {};
+      next.forEach(d => { payload[d.key] = d.value || ""; });
+
+      // Resolve current user for audit fields
+      let updatedById: string | null = null;
+      let updatedByName = "";
+      try {
+        const { data: u } = await supabase.auth.getUser();
+        updatedById = u?.user?.id || null;
+        if (updatedById) {
+          const { data: prof } = await supabase
+            .from("profiles").select("display_name").eq("user_id", updatedById).maybeSingle();
+          updatedByName = (prof as any)?.display_name || u?.user?.email || "";
+        }
+      } catch {}
+      const nowIso = new Date().toISOString();
+
+      let rowId = deal.rgy_row_id;
+      if (rowId && deal.rgy_week_start === weekStart) {
+        await supabase.from("deal_rgy_weekly").update({
+          ...payload,
+          updated_at: nowIso,
+          updated_by: updatedById,
+          updated_by_name: updatedByName,
+        } as any).eq("id", rowId);
+      } else {
+        const { data: inserted } = await supabase.from("deal_rgy_weekly").insert({
+          deal_id: deal.id,
+          week_start: weekStart,
+          ...payload,
+          account_health: payload.customer || "",
+          finance_billing: "",
+          capability_seo: payload.seo || "",
+          capability_creative: "",
+          updated_by: updatedById,
+          updated_by_name: updatedByName,
+        } as any).select("id").single();
+        rowId = inserted?.id;
+      }
+
+      // Audit log changed dims
+      for (const dim of next) {
+        const prev = (deal[dim.key as keyof DealWithRGY] as string) || "";
+        if (prev !== (dim.value || "")) {
+          logRGYChange({
+            dealId: deal.id,
+            dimension: dim.key,
+            fromValue: prev,
+            toValue: dim.value || "",
+            weekStart,
+          });
+        }
+      }
+
+      // Update local state with new values + row metadata
+      const patch: Partial<DealWithRGY> = {
+        rgy_row_id: rowId,
+        rgy_week_start: weekStart,
+        rgy_updated_at: nowIso,
+        rgy_updated_by_name: updatedByName,
+      };
+      for (const dim of next) (patch as any)[dim.key] = dim.value || "";
+      setDeals(prev => prev.map(d => d.id === deal.id ? { ...d, ...patch } as DealWithRGY : d));
+
+      const updatedDeal: DealWithRGY = { ...deal, ...patch } as DealWithRGY;
+      const hasRed = next.some(d => d.value === "R");
+      setMarkRGYDeal(null);
+      if (hasRed) {
+        toast.success("RGY saved — log the combined issue");
+        setCombinedIssuesDeal(updatedDeal);
+      } else {
+        toast.success("RGY saved");
+      }
+    } finally {
+      setMarkRGYSaving(false);
+    }
+  }, [markRGYDeal]);
 
   // Filtering
   const filteredDeals = useMemo(() => {
@@ -1578,6 +1638,7 @@ export default function RGYHealth() {
                           <ColHeader label="Status" colKey="deal_status" sortKey="deal_status" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={Object.keys(statusBadgeStyles)} width={colWidths.deal_status} onResizeStart={startResize("deal_status")} />
                         )}
                         <th className="text-left py-2 px-3 font-medium text-muted-foreground text-caption whitespace-nowrap">Reviewed — No Change</th>
+                        <th className="text-left py-2 px-3 font-medium text-muted-foreground text-caption whitespace-nowrap">Mark RGY</th>
                         {isColVisible("overall_rgy") && (
                           <ColHeader
                             label="Overall RGY"
@@ -1660,6 +1721,21 @@ export default function RGYHealth() {
                                   Mark reviewed
                                 </Button>
                               )}
+                            </td>
+                            <td className="py-2 px-3">
+                              {(() => {
+                                const allMarked = DIMENSIONS.every(dim => (deal[dim.key as keyof DealWithRGY] as string));
+                                return (
+                                  <Button
+                                    size="sm"
+                                    variant={allMarked ? "outline" : "default"}
+                                    className="h-7 text-[11px]"
+                                    onClick={() => setMarkRGYDeal(deal)}
+                                  >
+                                    {allMarked ? "Update RGY" : "Mark RGY"}
+                                  </Button>
+                                );
+                              })()}
                             </td>
                             {isColVisible("overall_rgy") && (() => {
                               const dims: Record<string, string> = {};
@@ -1750,7 +1826,7 @@ export default function RGYHealth() {
                               const val: RGYCellValue = raw === "" ? "PENDING" : (raw as RGYStatus);
                               return (
                                 <td key={dim.key} className="py-2 px-2 text-center">
-                                  <RGYCell dealId={deal.id} dimKey={dim.key} value={val} label={dim.label} onUpdate={handleRGYUpdate} />
+                                  <RGYCell value={val} label={dim.label} />
                                 </td>
                               );
                             })}
@@ -1856,6 +1932,82 @@ export default function RGYHealth() {
           open={!!selectedDealId}
           onOpenChange={(open) => { if (!open) setSelectedDealId(null); }}
         />
+
+        {/* Per-row Mark RGY dialog (replaces inline cell editing) */}
+        {markRGYDeal && (
+          <MarkRGYDialog
+            open
+            onOpenChange={(o) => { if (!o) setMarkRGYDeal(null); }}
+            dealLabel={markRGYDeal.deal_name}
+            saving={markRGYSaving}
+            dimensions={DIMENSIONS.map(dim => ({
+              key: dim.key,
+              label: dim.label,
+              value: (markRGYDeal[dim.key as keyof DealWithRGY] as string) || "",
+            }))}
+            onSave={handleMarkRGYSave}
+          />
+        )}
+
+        {/* Combined-issues dialog: auto-opens after any Red is saved */}
+        {combinedIssuesDeal && (() => {
+          const nonGreen = DIMENSIONS
+            .map(dim => ({ key: dim.key, label: dim.label, value: (combinedIssuesDeal[dim.key as keyof DealWithRGY] as string) || "" }))
+            .filter(d => d.value === "R" || d.value === "Y");
+          const assigneeNames = Array.from(new Set([
+            combinedIssuesDeal.vsd, combinedIssuesDeal.principal_bopm, combinedIssuesDeal.senior_bopm, combinedIssuesDeal.bopm,
+          ].filter(Boolean) as string[]));
+          return (
+            <RGYCombinedIssuesDialog
+              open
+              onOpenChange={(o) => { if (!o) setCombinedIssuesDeal(null); }}
+              dealLabel={combinedIssuesDeal.deal_name}
+              nonGreenDims={nonGreen}
+              assigneeNames={assigneeNames}
+              initial={{
+                issueDetails: combinedIssuesDeal.rgy_issue_details || "",
+                actionPlan: combinedIssuesDeal.rgy_action_plan || "",
+                issueDate: combinedIssuesDeal.rgy_issue_date || undefined,
+              }}
+              onSave={async (data) => {
+                const deal = combinedIssuesDeal;
+                if (deal.rgy_row_id) {
+                  await supabase.from("deal_rgy_weekly").update({
+                    issue_date: data.issueDate,
+                    issue_details: data.issueDetails,
+                    action_plan: data.actionPlan,
+                    resolution_due_date: data.dueDate || null,
+                    issue_status: data.issueStatus,
+                  }).eq("id", deal.rgy_row_id);
+                }
+                if (data.assignees.length > 0 || data.actionPlan.trim() || data.subtasks.length > 0) {
+                  const redLabels = nonGreen.filter(d => d.value === "R").map(d => d.label).join(", ");
+                  await (supabase.from("deal_tasks") as any).insert({
+                    deal_id: deal.id,
+                    title: `[RGY Health]${redLabels ? ` ${redLabels} —` : ""} ${(data.actionPlan || data.issueDetails).trim().slice(0, 100)}`,
+                    description: `Issue Details: ${data.issueDetails}\nAction Plan: ${data.actionPlan}`,
+                    stage: "To Do",
+                    assignee: data.assignees[0] || "",
+                    assignees: data.assignees,
+                    urgency: "Medium",
+                    logged_hours: 0,
+                    sort_order: 0,
+                    start_date: data.issueDate,
+                    end_date: data.dueDate || null,
+                    subtasks: data.subtasks.map((s, i) => ({ id: `${Date.now()}-${i}`, title: s.title, completed: false })),
+                  });
+                }
+                setDeals(prev => prev.map(d => d.id === deal.id ? {
+                  ...d,
+                  rgy_issue_details: data.issueDetails,
+                  rgy_action_plan: data.actionPlan,
+                  rgy_issue_date: data.issueDate,
+                } : d));
+                toast.success("Issue saved & task created");
+              }}
+            />
+          );
+        })()}
 
         {/* RGY Summary drill-down dialog */}
         {rgyDrill && (() => {
