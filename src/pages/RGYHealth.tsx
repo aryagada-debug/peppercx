@@ -743,36 +743,6 @@ export default function RGYHealth() {
   // R → Y: an optional resolve dialog opened after the change persisted.
   const [resolveAfterDowngrade, setResolveAfterDowngrade] = useState<{ dealId: string } | null>(null);
 
-  // Deals marked "Reviewed — no change" for the current week.
-  const [reviewedThisWeek, setReviewedThisWeek] = useState<Set<string>>(new Set());
-  useEffect(() => {
-    let cancelled = false;
-    const { start, end } = weekRange();
-    const load = async () => {
-      const { data } = await supabase
-        .from("deal_rgy_notes")
-        .select("deal_id")
-        .eq("dimension", "__review__")
-        .gte("created_at", start + "T00:00:00Z")
-        .lt("created_at", end + "T00:00:00Z")
-        .limit(5000);
-      if (!cancelled) setReviewedThisWeek(new Set((data || []).map((r: any) => r.deal_id)));
-    };
-    load();
-    const ch = supabase
-      .channel("rgy-reviewed-week")
-      .on("postgres_changes", { event: "*", schema: "public", table: "deal_rgy_notes" }, load)
-      .subscribe();
-    return () => { cancelled = true; supabase.removeChannel(ch); };
-  }, []);
-
-  const handleMarkReviewedNoChange = useCallback(async (dealId: string) => {
-    if (reviewedThisWeek.has(dealId)) return;
-    setReviewedThisWeek(prev => new Set(prev).add(dealId)); // optimistic
-    await logRGYReviewedNoChange({ dealId, weekStart: weekRange().start });
-    toast.success("Marked as reviewed — no change");
-  }, [reviewedThisWeek]);
-
   // Issues for insights — derived lazily, only after Insights tab is opened.
   const [insightsOpened, setInsightsOpened] = useState(false);
   useEffect(() => {
