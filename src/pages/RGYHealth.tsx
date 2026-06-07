@@ -1362,12 +1362,27 @@ export default function RGYHealth() {
           </Button>
         </div>
 
-        {/* KPI Strip */}
+        {/* KPI Strip — clicking a tile filters the table below */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3">
-          <KpiTile label="Red" value={String(kpis.red)} tone="destructive" icon={AlertTriangle} onClick={() => setKpiDrill("red")} />
-          <KpiTile label="Yellow" value={String(kpis.yellow)} tone="warning" icon={AlertCircle} onClick={() => setKpiDrill("yellow")} />
-          <KpiTile label="Green" value={String(kpis.green)} tone="positive" icon={CheckCircle2} onClick={() => setKpiDrill("green")} />
-          <KpiTile label="Pending" value={String(kpis.pending)} tone="muted" icon={Circle} onClick={() => setKpiDrill("pending")} />
+          {([
+            { f: "Red", label: "Red", value: kpis.red, tone: "destructive" as const, icon: AlertTriangle, ring: "ring-destructive" },
+            { f: "Yellow", label: "Yellow", value: kpis.yellow, tone: "warning" as const, icon: AlertCircle, ring: "ring-warning" },
+            { f: "Green", label: "Green", value: kpis.green, tone: "positive" as const, icon: CheckCircle2, ring: "ring-positive" },
+            { f: "Pending", label: "Pending", value: kpis.pending, tone: "muted" as const, icon: Circle, ring: "ring-muted-foreground" },
+          ] as const).map(t => (
+            <KpiTile
+              key={t.f}
+              label={t.label}
+              value={String(t.value)}
+              tone={t.tone}
+              icon={t.icon}
+              className={cn(rgyFilter === t.f && `ring-2 ${t.ring}`)}
+              onClick={() => {
+                setRgyFilter(prev => prev === t.f ? "All" : t.f);
+                setActiveTab("table");
+              }}
+            />
+          ))}
           <KpiTile label="Score" value={String(kpis.score)} suffix="/ 100" tone="primary" icon={Activity} onClick={() => setKpiDrill("score")} />
         </div>
 
