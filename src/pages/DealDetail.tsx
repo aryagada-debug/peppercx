@@ -1758,9 +1758,6 @@ export default function DealDetail() {
     return null;
   }, [rgyWeekly]);
 
-  // RGY issue form visibility
-  const [showIssueForm, setShowIssueForm] = useState(false);
-  const [prevRGYSnapshot, setPrevRGYSnapshot] = useState<Record<string, string> | null>(null);
 
   // Leadership Intervention state (RGY tab)
   const [raiseInterventionOpen, setRaiseInterventionOpen] = useState(false);
