@@ -2066,10 +2066,6 @@ export default function RGYHealth() {
             })
             .filter(r => {
               if (kpiDrill === "score") return true;
-              if (kpiDrill === "red") return r.worst === "R";
-              if (kpiDrill === "yellow") return r.worst === "Y";
-              if (kpiDrill === "green") return r.worst === "G";
-              if (kpiDrill === "pending") return r.worst === null || r.worst === undefined || (r.worst as string) === "" || (r.worst as string) === "P";
               if (kpiDrill === "marked") return r.worst === "R" || r.worst === "Y" || r.worst === "G";
               return false;
             })
@@ -2077,7 +2073,7 @@ export default function RGYHealth() {
               if (kpiDrill === "score") return (b.score ?? -1) - (a.score ?? -1);
               return a.deal.account.localeCompare(b.deal.account);
             });
-          const titleMap = { red: "Red Deals", yellow: "Yellow Deals", green: "Green Deals", score: "Overall Health Score", pending: "Pending RGY (unmarked)", marked: "Marked Deals" } as const;
+          const titleMap = { score: "Overall Health Score", marked: "Marked Deals" } as const;
           return (
             <Dialog open={!!kpiDrill} onOpenChange={(o) => !o && setKpiDrill(null)}>
               <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
