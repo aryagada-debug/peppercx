@@ -727,6 +727,12 @@ export default function RGYHealth() {
   const [issueFormNonGreen, setIssueFormNonGreen] = useState<{ key: string; label: string; value: string }[]>([]);
   const [prevRGYSnapshot, setPrevRGYSnapshot] = useState<{ dealId: string; values: Record<string, string> } | null>(null);
 
+  // Mark RGY (per-row, replaces inline cell editing)
+  const [markRGYDeal, setMarkRGYDeal] = useState<DealWithRGY | null>(null);
+  const [markRGYSaving, setMarkRGYSaving] = useState(false);
+  // After Mark RGY save: if any dim is Red, open the combined-issues dialog
+  const [combinedIssuesDeal, setCombinedIssuesDeal] = useState<DealWithRGY | null>(null);
+
   // Green-gate state
   const [greenGate, setGreenGate] = useState<{
     dealId: string;
