@@ -3065,6 +3065,72 @@ export default function DealDetail() {
         dealLabel={[deal?.account, deal?.dealName].filter(Boolean).join(" — ")}
         onChanged={() => { loadInterventions(); setSelectedIntervention(null); }}
       />
+
+      {/* Single combined RGY Issues dialog — opens only when the user clicks
+          'Review issues' / 'Edit issue' from the status bar. */}
+      {currentRGY && deal && (
+        <RGYCombinedIssuesDialog
+          open={combinedIssuesMode !== null}
+          onOpenChange={(o) => { if (!o) setCombinedIssuesMode(null); }}
+          dealLabel={deal.dealName || deal.account || "Deal"}
+          nonGreenDims={RGY_DIMENSIONS
+            .map(d => ({
+              key: d.key as string,
+              label: d.label === "Customer" ? "Overall Customer" : d.label,
+              value: (currentRGY as any)[d.key] || "G",
+            }))
+            .filter(d => d.value === "R" || d.value === "Y")
+          }
+          assigneeNames={Array.from(new Set([
+            ...dealPeople.map(p => p.name),
+            deal.vsd, deal.principalBopm, deal.seniorBopm, deal.bopm,
+          ].filter(Boolean) as string[]))}
+          initial={combinedIssuesMode === "edit" ? {
+            issueDate: (currentRGY as any).issueDate || "",
+            issueDetails: (currentRGY as any).issueDetails || "",
+            actionPlan: (currentRGY as any).actionPlan || "",
+            issueStatus: (currentRGY as any).issueStatus || "Open",
+            dueDate: (currentRGY as any).resolutionDueDate || "",
+          } : undefined}
+          onSave={async (issueData) => {
+            // Persist to the weekly RGY row
+            await updateRGYWeek(currentRGY.id, {
+              issueDate: issueData.issueDate,
+              issueDetails: issueData.issueDetails,
+              actionPlan: issueData.actionPlan,
+              resolutionDueDate: issueData.dueDate,
+              issueStatus: issueData.issueStatus,
+            });
+            // Build one combined task tagged with every affected dim label
+            const labels = RGY_DIMENSIONS
+              .map(d => ({ key: d.key as string, label: d.label === "Customer" ? "Overall Customer" : d.label, value: (currentRGY as any)[d.key] || "G" }))
+              .filter(d => d.value === "R" || d.value === "Y")
+              .map(d => d.label);
+            if (labels.length > 0) {
+              const summary = (issueData.actionPlan || issueData.issueDetails).trim().slice(0, 120);
+              await addTask({
+                dealId: dealId!,
+                title: `[RGY Health] ${labels.join(", ")} — ${summary}`,
+                description: `Issue Details: ${issueData.issueDetails}\nAction Plan: ${issueData.actionPlan}`,
+                stage: "To Do",
+                assignee: issueData.assignees[0] || "",
+                assignees: issueData.assignees,
+                urgency: "Medium",
+                loggedHours: 0,
+                sortOrder: 0,
+                startDate: issueData.issueDate,
+                endDate: issueData.dueDate || undefined,
+                subtasks: issueData.subtasks.map((s, i) => ({
+                  id: `${Date.now()}-${i}`,
+                  title: s.title,
+                  completed: false,
+                })),
+              });
+            }
+            toast.success("Combined issue saved");
+          }}
+        />
+      )}
     </AppLayout>
   );
 }
