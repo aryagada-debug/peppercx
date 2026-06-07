@@ -18,6 +18,8 @@ import { useNavigate } from "react-router-dom";
 import { normalizeRoleKey, uid, PEPPER_BUSINESS_UNITS, CAPABILITY_LINES } from "@/data/staffingData";
 import type { StaffingAssignment, Person, Deal, RoleCategory } from "@/data/staffingData";
 import { useDealDetail } from "@/hooks/useDealDetail";
+import { RaiseInterventionDialog } from "@/components/rgy/RaiseInterventionDialog";
+import { InterventionDrawer, type Intervention } from "@/components/rgy/InterventionDrawer";
 import { EditableRGY } from "@/components/deals/EditableRGY";
 import { ResolveIssuesDialog } from "@/components/rgy/ResolveIssuesDialog";
 import { FinancialsTab } from "@/components/deals/FinancialsTab";
@@ -1758,6 +1760,21 @@ export default function DealDetail() {
   const [showIssueForm, setShowIssueForm] = useState(false);
   const [prevRGYSnapshot, setPrevRGYSnapshot] = useState<Record<string, string> | null>(null);
 
+  // Leadership Intervention state (RGY tab)
+  const [raiseInterventionOpen, setRaiseInterventionOpen] = useState(false);
+  const [interventions, setInterventions] = useState<Intervention[]>([]);
+  const [selectedIntervention, setSelectedIntervention] = useState<Intervention | null>(null);
+  const loadInterventions = useCallback(async () => {
+    if (!dealId) return;
+    const { data } = await supabase
+      .from("rgy_leadership_interventions")
+      .select("*")
+      .eq("deal_id", dealId)
+      .order("created_at", { ascending: false });
+    setInterventions((data || []) as Intervention[]);
+  }, [dealId]);
+  useEffect(() => { loadInterventions(); }, [loadInterventions]);
+
   // Staffing dialog states
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [requestStaffingOpen, setRequestStaffingOpen] = useState(false);
@@ -2686,6 +2703,46 @@ export default function DealDetail() {
         {/* ══════════ RGY Health ══════════ */}
         {activeTab === "RGY Health" && (
           <div className="animate-fade-in space-y-5">
+            {/* Leadership Intervention — raise + list */}
+            {dealId && (
+              <div className="rounded-xl border border-border bg-card px-5 py-3 flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-3 flex-wrap min-w-0">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-warning" />
+                    <span className="text-sm font-medium">Leadership Intervention</span>
+                  </div>
+                  {(() => {
+                    const open = interventions.filter(i => i.status !== "Resolved");
+                    if (open.length === 0) {
+                      return <span className="text-xs text-muted-foreground">None raised. Click to flag if leadership help is needed.</span>;
+                    }
+                    return (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30">
+                          {open.length} open
+                        </Badge>
+                        {open.slice(0, 3).map(i => (
+                          <button
+                            key={i.id}
+                            type="button"
+                            onClick={() => setSelectedIntervention(i)}
+                            className="text-xs underline-offset-2 hover:underline truncate max-w-[260px] text-left"
+                            title={i.title}
+                          >
+                            {i.title}
+                          </button>
+                        ))}
+                        {open.length > 3 && <span className="text-xs text-muted-foreground">+{open.length - 3} more</span>}
+                      </div>
+                    );
+                  })()}
+                </div>
+                <Button size="sm" variant="outline" onClick={() => setRaiseInterventionOpen(true)}>
+                  <Plus className="h-3.5 w-3.5 mr-1" /> Flag Intervention
+                </Button>
+              </div>
+            )}
+
             {/* Overall Health — compact rollup card */}
             {(() => {
               const dimKeys = ["customer","internal","content","seo","supply","copy","design","video"] as const;
@@ -3105,6 +3162,24 @@ export default function DealDetail() {
       )}
 
       {dealId && deal && <SlackChatBot dealId={dealId} dealName={deal.dealName} />}
+
+      {dealId && (
+        <RaiseInterventionDialog
+          open={raiseInterventionOpen}
+          onOpenChange={setRaiseInterventionOpen}
+          dealId={dealId}
+          dealLabel={[deal?.account, deal?.dealName].filter(Boolean).join(" — ")}
+          rgyWeek={(currentRGY as any)?.week_start || null}
+          onCreated={loadInterventions}
+        />
+      )}
+      <InterventionDrawer
+        open={!!selectedIntervention}
+        onOpenChange={(o) => { if (!o) setSelectedIntervention(null); }}
+        intervention={selectedIntervention}
+        dealLabel={[deal?.account, deal?.dealName].filter(Boolean).join(" — ")}
+        onChanged={() => { loadInterventions(); setSelectedIntervention(null); }}
+      />
     </AppLayout>
   );
 }

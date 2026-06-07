@@ -51,6 +51,7 @@ import { getOverallCustomerRGY as computeOverallCustomerRGY, computeOverallCusto
 import { WeeklyComplianceTab } from "@/components/rgy/WeeklyComplianceTab";
 import { logRGYReviewedNoChange } from "@/lib/rgyHistory";
 import { weekRange } from "@/lib/rgyCompliance";
+import { RaiseInterventionDialog } from "@/components/rgy/RaiseInterventionDialog";
 
 type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
@@ -594,6 +595,7 @@ export default function RGYHealth() {
   const [loading, setLoading] = useState(true);
   const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
   const [activeVsd, setActiveVsd] = useState<VsdFilterKey>("All");
+  const [raiseInterventionOpen, setRaiseInterventionOpen] = useState(false);
   const [activeBopm, setActiveBopm] = useState<string>("All");
   const [showClosed, setShowClosed] = useState(false);
   const [search, setSearch] = useState("");
@@ -1334,6 +1336,10 @@ export default function RGYHealth() {
               {kpis.totalDeals} deals • {kpis.red + kpis.yellow + kpis.green} marked • {kpis.pending} pending • Click any RGY cell to update
             </p>
           </div>
+          <Button variant="outline" size="sm" onClick={() => setRaiseInterventionOpen(true)}>
+            <AlertTriangle className="h-3.5 w-3.5 mr-1 text-warning" />
+            Flag Leadership Intervention
+          </Button>
         </div>
 
         {/* KPI Strip */}
@@ -2022,6 +2028,10 @@ export default function RGYHealth() {
           );
         })()}
       </div>
+      <RaiseInterventionDialog
+        open={raiseInterventionOpen}
+        onOpenChange={setRaiseInterventionOpen}
+      />
     </AppLayout>
   );
 }

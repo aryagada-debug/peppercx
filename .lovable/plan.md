@@ -1,44 +1,72 @@
-## Contacts (admin-only)
+## Leadership Intervention Needed (RGY)
 
-New page that aggregates every person from Org Mapping across all deals into one searchable, filterable, exportable table.
+A lightweight flag any user can raise on a deal when leadership help is needed, visible to Admin / VSDs / Capability Leads with a status workflow and comment thread.
 
-### Access
-- Sidebar item **Contacts** (icon: Contact/Users) under "Core", visible only when `isAdmin` (from `useUserRole`).
-- Route `/contacts` wrapped in `ProtectedRoute` with an in-page admin gate that redirects non-admins to `/home`.
+### Data model
 
-### Data
-Source: `deal_stakeholders` joined with `staffing_deals` on `deal_id`, joined with `clients` for region fallback.
+New table `rgy_leadership_interventions`:
+- `deal_id` (FK → staffing_deals)
+- `rgy_week` (date, optional — auto-stamped from current RGY snapshot if raised from RGY tab)
+- `title`, `description`
+- `urgency` — High / Medium / Low
+- `status` — Open → Acknowledged → In Progress → Resolved
+- `raised_by_user_id`, `raised_by_name`
+- `resolved_at`, `resolved_by_user_id`
+- standard `created_at` / `updated_at`
 
-Columns shown in table (and exported to Excel):
-1. Name of Person (`name`)
-2. LinkedIn Link (`linkedin_url`) — clickable
-3. Email (`email`)
-4. Phone Number (`phone`)
-5. Designation (`role`)
-6. Team Name (`function`) — the new SEO/Content/etc. taxonomy
-7. Level of Influence (`decision_power`, 1–5)
-8. Deal (`staffing_deals.client_name` + deal id) — clickable to `/deals/:id`
-9. VSD (`staffing_deals.vsd`)
-10. BOPM (`principal_bopm` / `senior_bopm` / `bopm` combined, comma-separated, non-empty only)
-11. Region (`staffing_deals.geo` ?? `clients.geography`)
+New table `rgy_leadership_intervention_comments`:
+- `intervention_id` (FK, cascade delete)
+- `user_id`, `author_name`
+- `body`
+- `created_at`
+
+RLS:
+- Any authenticated user can INSERT (raise) and SELECT their own raised items.
+- Admin + users whose role matches VSD / Capability Lead patterns (reuse logic from `visible_deal_ids_for_user`) can SELECT/UPDATE all rows and post comments.
+- Status changes restricted to leadership viewers; raiser can edit title/description while status = Open.
 
 ### UI
-- Header: "Contacts" + subtitle "All people mapped across deals · admin only".
-- Toolbar:
-  - Search (name, email, role, deal, client)
-  - Filters: Team Name, Region, VSD, Influence level
-  - **Export to Excel** button (uses `xlsx` / `SheetJS`) → file `contacts-YYYY-MM-DD.xlsx`, single sheet with the columns above, auto-width.
-- Table: dense, sortable headers, sticky header, follows existing design system (flat, purple primary, thin borders).
-- Empty state when no rows.
-- Counts pill: "X contacts across Y deals".
 
-### Files
-- `src/pages/Contacts.tsx` — new page (query + table + export).
-- `src/components/layout/AppSidebar.tsx` — add Contacts nav item, admin-gated.
-- `src/App.tsx` — register `/contacts` route (lazy).
-- `package.json` — add `xlsx` dependency if not present.
+**Raise entry points (both):**
+1. Deal Detail → RGY tab: a "Flag Leadership Intervention" button next to the weekly RGY header. Pre-fills `deal_id` + `rgy_week`.
+2. RGY Health page: a small flag icon button on each deal row → opens same dialog pre-filled with that deal.
 
-### Notes / out of scope
-- Read-only view; editing still happens inside each Deal → Org Map tab.
-- No new DB tables or migrations; uses existing `deal_stakeholders`, `staffing_deals`, `clients`.
-- No de-duplication across deals — same person on 2 deals shows as 2 rows (matches the "deal level" export requirement).
+**Raise dialog (minimal):**
+- Deal (locked when pre-filled, otherwise searchable)
+- Title (required)
+- Description (textarea, required)
+- Urgency (High/Med/Low, default Medium)
+- Submit → toast confirmation.
+
+**Leadership queue — new page `/leadership-interventions`** (sidebar entry visible only to Admin + VSD + Capability Leads):
+- Filter chips: Status, Urgency, Pod/VSD, Raised by me
+- Table: Urgency · Deal · Title · Raised by · Raised on · Status · Comments count
+- Row click → side drawer with full description, status switcher (Open/Ack/In Progress/Resolved), and a comment thread (textarea + post).
+- Empty state when no items.
+
+**Deal Detail RGY tab:** small badge under the week showing count of open interventions on this deal; clicking expands an inline list (same drawer).
+
+### Access control
+
+Sidebar visibility + page guard use the same "leadership viewer" check:
+- `has_role(uid, 'admin')` OR
+- user's `staffing_people` role matches VSD / Capability Lead patterns (group head, managing editor, SEO leader, principal/senior BOPM owning a tree — mirrors existing `visible_deal_ids_for_user` logic).
+
+A new SQL helper `is_leadership_viewer(_user_id uuid)` will encapsulate this and be used in RLS + a `useIsLeadershipViewer()` hook in the client.
+
+### Files to add / edit
+
+- Migration: create both tables, GRANTs, RLS policies, `is_leadership_viewer()` SQL function, `updated_at` triggers.
+- `src/hooks/useIsLeadershipViewer.ts`
+- `src/components/rgy/RaiseInterventionDialog.tsx`
+- `src/components/rgy/InterventionDrawer.tsx` (details + comments + status)
+- `src/pages/LeadershipInterventions.tsx` (queue page)
+- `src/App.tsx` — add route
+- `src/components/layout/AppSidebar.tsx` — add gated nav entry
+- `src/pages/RGYHealth.tsx` (or equivalent) — add flag button per row + count badge
+- Deal Detail RGY tab component — add "Flag Leadership Intervention" button + open-count badge
+
+### Out of scope (for this pass)
+
+- Notifications/Slack pings on new interventions (can be added later via existing slack infra).
+- Attachments, requested-leader field, target dates (deferred per "Minimal" choice).
