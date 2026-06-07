@@ -51,6 +51,7 @@ import { getOverallCustomerRGY as computeOverallCustomerRGY, computeOverallCusto
 import { WeeklyComplianceTab } from "@/components/rgy/WeeklyComplianceTab";
 import { logRGYReviewedNoChange } from "@/lib/rgyHistory";
 import { weekRange } from "@/lib/rgyCompliance";
+import { RaiseInterventionDialog } from "@/components/rgy/RaiseInterventionDialog";
 
 type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
