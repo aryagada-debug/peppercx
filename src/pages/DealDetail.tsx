@@ -1766,6 +1766,9 @@ export default function DealDetail() {
   const [raiseInterventionOpen, setRaiseInterventionOpen] = useState(false);
   const [interventions, setInterventions] = useState<Intervention[]>([]);
   const [selectedIntervention, setSelectedIntervention] = useState<Intervention | null>(null);
+
+  // Combined RGY Issues dialog (replaces the old per-click pop-up)
+  const [combinedIssuesMode, setCombinedIssuesMode] = useState<"create" | "edit" | null>(null);
   const loadInterventions = useCallback(async () => {
     if (!dealId) return;
     const { data } = await supabase
