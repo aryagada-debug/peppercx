@@ -1849,20 +1849,6 @@ export default function DealDetail() {
       }
     }
 
-    // Snapshot current values before saving for potential revert
-    if (currentRGY) {
-      setPrevRGYSnapshot({
-        customer: currentRGY.customer,
-        internal: currentRGY.internal,
-        content: currentRGY.content,
-        seo: currentRGY.seo,
-        supply: currentRGY.supply,
-        copy: currentRGY.copy,
-        design: currentRGY.design,
-        video: currentRGY.video,
-      });
-    }
-
     // Always insert a new row for full history
     addRGYWeek({
       dealId,
@@ -1890,8 +1876,6 @@ export default function DealDetail() {
       planOfAction: planParts.join("; "),
     });
 
-    // Check if any dimension is Y or R to show issue form
-    const hasYorR = Object.values(rgyData).some(v => v === "Y" || v === "R");
     // Detect any improvement (R→Y, R→G, Y→G) so we can offer optional resolution dialog.
     const rank: Record<string, number> = { G: 0, Y: 1, R: 2 };
     let hadImprovement = false;
@@ -1904,13 +1888,9 @@ export default function DealDetail() {
         }
       }
     }
-    // Open issue form for newly-introduced R/Y (not for pure R→Y downgrades).
-    const newlyRorY = currentRGY
-      ? Object.entries(rgyData).some(([k, nv]) => (nv === "R" || nv === "Y") && (currentRGY as any)[k] !== nv && (currentRGY as any)[k] !== "R" && (currentRGY as any)[k] !== "Y")
-      : hasYorR;
-    setShowIssueForm(newlyRorY);
-    if (hadImprovement && !newlyRorY) setShowResolveOptional(true);
-    if (!newlyRorY) setPrevRGYSnapshot(null);
+    // New flow: never auto-open an issue dialog on dim change. Users explicitly
+    // open the combined Issues card from the status bar below the grid.
+    if (hadImprovement) setShowResolveOptional(true);
     toast.success("RGY health saved");
   }, [dealId, currentRGY, addRGYWeek, tasks]);
 
