@@ -184,9 +184,7 @@ export default function Clients() {
   const access = useDealAccess();
   const { matchesDeal: geoMatchesDeal, geo: geoFilter } = useGeoFilter();
   const isCentralCx = access.isAdmin;
-  const [view, setView] = useState<"analytics" | "table">(
-    isCentralCx ? "analytics" : "table"
-  );
+  const [view, setView] = useState<"analytics" | "table">("table");
   const { canEditAll, role } = useUserRole();
   const isCapLead = role === "capability_lead";
   const isCapMember = role === "capability_member";
@@ -331,16 +329,16 @@ export default function Clients() {
     { key: "rag", label: "RGY" },
   ]), []);
 
-  const DEFAULT_VISIBLE = ["account","dealName","dealId","pcCode","monthClosedWon","dealType","dealStatus","pepperBusinessUnit","capabilityLine","vsd","bopm","bopmOnly","contentLead","seoLead","mrr","totalDealValue","duration","rag"];
+  const DEFAULT_VISIBLE = ["rag","account","dealName","dealId","pcCode","monthClosedWon","dealType","dealStatus","pepperBusinessUnit","capabilityLine","vsd","bopm","bopmOnly","contentLead","seoLead","mrr","totalDealValue","duration"];
   const [visibleCols, setVisibleCols] = useState<string[]>(() => {
     try {
-      const raw = localStorage.getItem("clients-visible-cols-v2");
+      const raw = localStorage.getItem("clients-visible-cols-v3");
       if (raw) return JSON.parse(raw);
     } catch {}
     return DEFAULT_VISIBLE;
   });
   useEffect(() => {
-    try { localStorage.setItem("clients-visible-cols-v2", JSON.stringify(visibleCols)); } catch {}
+    try { localStorage.setItem("clients-visible-cols-v3", JSON.stringify(visibleCols)); } catch {}
   }, [visibleCols]);
   const isVisible = (k: string) => visibleCols.includes(k);
   const toggleCol = (k: string, required?: boolean) => {
@@ -352,8 +350,8 @@ export default function Clients() {
   // (per-deal ownership + revenue + RGY). Central CX (admin) keeps the full
   // customizable column picker.
   const NON_ADMIN_COLS = useMemo(() => ([
-    "account", "dealName", "dealType", "dealStatus", "pepperBusinessUnit",
-    "vsd", "bopm", "contentLead", "seoLead", "mrr", "totalDealValue", "rag",
+    "rag", "account", "dealName", "dealType", "dealStatus", "pepperBusinessUnit",
+    "vsd", "bopm", "contentLead", "seoLead", "mrr", "totalDealValue",
   ]), []);
   const effectiveVisibleCols = isCentralCx ? visibleCols : NON_ADMIN_COLS;
 
@@ -933,41 +931,41 @@ export default function Clients() {
           <div
             role="tablist"
             aria-label="Clients & Deals view"
-            className="flex items-center gap-1 mb-3 border-b border-border"
+            className="inline-flex items-center gap-1 mb-3 p-1 rounded-lg bg-secondary border border-border"
           >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={view === "analytics"}
-              onClick={() => setView("analytics")}
-              className={cn(
-                "inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
-                view === "analytics"
-                  ? "border-primary text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground hover:border-border",
-              )}
-            >
-              <BarChart3 className="h-4 w-4" /> Analytics
-            </button>
             <button
               type="button"
               role="tab"
               aria-selected={view === "table"}
               onClick={() => setView("table")}
               className={cn(
-                "inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
+                "inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md text-sm font-medium transition-colors",
                 view === "table"
-                  ? "border-primary text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground hover:border-border",
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <TableIcon className="h-4 w-4" /> Table
+              <TableIcon className="h-4 w-4" /> Deals Table
               <span className={cn(
                 "ml-1 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded text-[10px] font-medium",
-                view === "table" ? "bg-primary/10 text-primary" : "bg-secondary text-muted-foreground",
+                view === "table" ? "bg-primary/10 text-primary" : "bg-background text-muted-foreground",
               )}>
                 {filteredDeals.length}
               </span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={view === "analytics"}
+              onClick={() => setView("analytics")}
+              className={cn(
+                "inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md text-sm font-medium transition-colors",
+                view === "analytics"
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <BarChart3 className="h-4 w-4" /> Analytics
             </button>
           </div>
         )}
@@ -1032,10 +1030,25 @@ export default function Clients() {
               ))}
             </div>
           ) : (
-            <div className="relative max-w-[220px] flex-1">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <input type="text" placeholder="Search clients, deals or deal ID..." value={search} onChange={e => setSearch(e.target.value)}
-                className="w-full h-8 pl-8 pr-2 rounded-lg bg-card border border-border text-[12px] text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all" />
+            <div className="relative flex-1 min-w-[280px] max-w-[480px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search clients, deals or deal ID..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="w-full h-10 pl-10 pr-9 rounded-lg bg-card border border-border text-sm text-foreground placeholder:text-muted-foreground shadow-sm focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary"
+                  aria-label="Clear search"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
           )}
 
