@@ -1179,12 +1179,25 @@ export default function RGYHealth() {
       d = d.filter(deal => deal.account.toLowerCase().includes(s) || deal.deal_name.toLowerCase().includes(s) || deal.deal_id.toLowerCase().includes(s));
     }
     // RGY status filter
-    if (rgyFilter !== "All") {
+    if (rgyFilter !== "All" || segmentFilter !== "All") {
+      const code: "" | "R" | "Y" | "G" | null =
+        rgyFilter === "Red" ? "R" :
+        rgyFilter === "Yellow" ? "Y" :
+        rgyFilter === "Green" ? "G" :
+        rgyFilter === "Pending" ? "" :
+        null; // "All"
       d = d.filter(deal => {
+        if (segmentFilter !== "All") {
+          const raw = ((deal as any)[segmentFilter] as string) || "";
+          if (code === null) return raw !== ""; // any non-pending for that segment
+          if (code === "") return raw === ""; // Pending for that segment
+          return raw === code;
+        }
         const w = getWorstRGY(deal);
         if (rgyFilter === "Red") return w === "R";
         if (rgyFilter === "Yellow") return w === "Y";
         if (rgyFilter === "Green") return w === "G";
+        if (rgyFilter === "Pending") return w === null;
         return true;
       });
     }
@@ -1195,7 +1208,7 @@ export default function RGYHealth() {
       });
     }
     return d;
-  }, [deals, activeVsd, activeBopm, search, showClosed, rgyFilter, dealTypeFilter, vsdForDeal, hasAllDealAccess, accessLoading, visibleDealIds]);
+  }, [deals, activeVsd, activeBopm, search, showClosed, rgyFilter, segmentFilter, dealTypeFilter, vsdForDeal, hasAllDealAccess, accessLoading, visibleDealIds]);
 
   const aiSummaryDeals = useMemo(() => {
     if (hasAllDealAccess && !isVsdPersona && !isBopmPersona) return deals;
