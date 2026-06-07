@@ -1336,6 +1336,10 @@ export default function RGYHealth() {
               {kpis.totalDeals} deals • {kpis.red + kpis.yellow + kpis.green} marked • {kpis.pending} pending • Click any RGY cell to update
             </p>
           </div>
+          <Button variant="outline" size="sm" onClick={() => setRaiseInterventionOpen(true)}>
+            <AlertTriangle className="h-3.5 w-3.5 mr-1 text-warning" />
+            Flag Leadership Intervention
+          </Button>
         </div>
 
         {/* KPI Strip */}
