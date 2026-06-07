@@ -564,7 +564,8 @@ export default function RGYHealth() {
   const [activeBopm, setActiveBopm] = useState<string>("All");
   const [showClosed, setShowClosed] = useState(false);
   const [search, setSearch] = useState("");
-  const [rgyFilter, setRgyFilter] = useState<"All" | "Red" | "Yellow" | "Green">("All");
+  const [rgyFilter, setRgyFilter] = useState<"All" | "Red" | "Yellow" | "Green" | "Pending">("All");
+  const [segmentFilter, setSegmentFilter] = useState<string>("All");
   const [dealTypeFilter, setDealTypeFilter] = useState<"All" | "Retainer" | "Non-Retainer">("All");
 
   // Metadata column ordering (drag-to-reorder for left-side columns only)
