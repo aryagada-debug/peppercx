@@ -18,6 +18,8 @@ import { useNavigate } from "react-router-dom";
 import { normalizeRoleKey, uid, PEPPER_BUSINESS_UNITS, CAPABILITY_LINES } from "@/data/staffingData";
 import type { StaffingAssignment, Person, Deal, RoleCategory } from "@/data/staffingData";
 import { useDealDetail } from "@/hooks/useDealDetail";
+import { RaiseInterventionDialog } from "@/components/rgy/RaiseInterventionDialog";
+import { InterventionDrawer, type Intervention } from "@/components/rgy/InterventionDrawer";
 import { EditableRGY } from "@/components/deals/EditableRGY";
 import { ResolveIssuesDialog } from "@/components/rgy/ResolveIssuesDialog";
 import { FinancialsTab } from "@/components/deals/FinancialsTab";
