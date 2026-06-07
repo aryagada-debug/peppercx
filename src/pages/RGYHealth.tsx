@@ -52,6 +52,8 @@ import { WeeklyComplianceTab } from "@/components/rgy/WeeklyComplianceTab";
 import { logRGYReviewedNoChange } from "@/lib/rgyHistory";
 import { weekRange } from "@/lib/rgyCompliance";
 import { RaiseInterventionDialog } from "@/components/rgy/RaiseInterventionDialog";
+import { MarkRGYDialog, type MarkRGYDimension } from "@/components/rgy/MarkRGYDialog";
+import { RGYCombinedIssuesDialog } from "@/components/rgy/RGYCombinedIssuesDialog";
 
 type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
