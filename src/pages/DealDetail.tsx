@@ -2703,6 +2703,46 @@ export default function DealDetail() {
         {/* ══════════ RGY Health ══════════ */}
         {activeTab === "RGY Health" && (
           <div className="animate-fade-in space-y-5">
+            {/* Leadership Intervention — raise + list */}
+            {dealId && (
+              <div className="rounded-xl border border-border bg-card px-5 py-3 flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-3 flex-wrap min-w-0">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-warning" />
+                    <span className="text-sm font-medium">Leadership Intervention</span>
+                  </div>
+                  {(() => {
+                    const open = interventions.filter(i => i.status !== "Resolved");
+                    if (open.length === 0) {
+                      return <span className="text-xs text-muted-foreground">None raised. Click to flag if leadership help is needed.</span>;
+                    }
+                    return (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30">
+                          {open.length} open
+                        </Badge>
+                        {open.slice(0, 3).map(i => (
+                          <button
+                            key={i.id}
+                            type="button"
+                            onClick={() => setSelectedIntervention(i)}
+                            className="text-xs underline-offset-2 hover:underline truncate max-w-[260px] text-left"
+                            title={i.title}
+                          >
+                            {i.title}
+                          </button>
+                        ))}
+                        {open.length > 3 && <span className="text-xs text-muted-foreground">+{open.length - 3} more</span>}
+                      </div>
+                    );
+                  })()}
+                </div>
+                <Button size="sm" variant="outline" onClick={() => setRaiseInterventionOpen(true)}>
+                  <Plus className="h-3.5 w-3.5 mr-1" /> Flag Intervention
+                </Button>
+              </div>
+            )}
+
             {/* Overall Health — compact rollup card */}
             {(() => {
               const dimKeys = ["customer","internal","content","seo","supply","copy","design","video"] as const;
