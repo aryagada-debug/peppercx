@@ -1848,15 +1848,8 @@ export default function RGYHealth() {
           />
         )}
 
-        {/* Issue Form Dialog */}
-        {issueFormDeal && issueFormNonGreen.length > 0 && (
-          <RGYIssueFormDialog
-            deal={issueFormDeal}
-            nonGreenDims={issueFormNonGreen}
-            onSave={handleIssueSave}
-            onCancel={handleIssueCancel}
-          />
-        )}
+        {/* Per-click issue form removed — users now log a single combined issue
+            from the deal's RGY Health tab via the status bar. */}
 
         <DealDetailDialog
           deal={selectedDeal}
