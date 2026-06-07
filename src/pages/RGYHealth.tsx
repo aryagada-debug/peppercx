@@ -564,7 +564,8 @@ export default function RGYHealth() {
   const [activeBopm, setActiveBopm] = useState<string>("All");
   const [showClosed, setShowClosed] = useState(false);
   const [search, setSearch] = useState("");
-  const [rgyFilter, setRgyFilter] = useState<"All" | "Red" | "Yellow" | "Green">("All");
+  const [rgyFilter, setRgyFilter] = useState<"All" | "Red" | "Yellow" | "Green" | "Pending">("All");
+  const [segmentFilter, setSegmentFilter] = useState<string>("All");
   const [dealTypeFilter, setDealTypeFilter] = useState<"All" | "Retainer" | "Non-Retainer">("All");
 
   // Metadata column ordering (drag-to-reorder for left-side columns only)
@@ -612,7 +613,7 @@ export default function RGYHealth() {
   type RGYDrillMetric = "total" | "red" | "yellow" | "green" | "pending";
   const [rgyDrill, setRgyDrill] = useState<{ rowLabel: string; metric: RGYDrillMetric } | null>(null);
   // KPI strip drill (Red / Yellow / Green / Score)
-  const [kpiDrill, setKpiDrill] = useState<null | "red" | "yellow" | "green" | "score" | "pending" | "marked">(null);
+  const [kpiDrill, setKpiDrill] = useState<null | "score" | "marked">(null);
   // Column filter/sort state
   const [colFilters, setColFilters] = useState<Record<string, string>>({});
   const [openFilter, setOpenFilter] = useState<string | null>(null);
@@ -657,7 +658,6 @@ export default function RGYHealth() {
     { key: "copy", label: "Copy" },
     { key: "design", label: "Design" },
     { key: "video", label: "Video" },
-    { key: "ai_summary", label: "AI Summary" },
     ...(isAdminPersona ? [
       { key: "updated_at", label: "Last Updated At" },
       { key: "updated_by", label: "Last Updated By" },
@@ -665,8 +665,8 @@ export default function RGYHealth() {
   ]), [isAdminPersona]);
   // Show every column by default. Admin personas additionally see audit columns.
   const DEFAULT_VISIBLE = isAdminPersona
-    ? ["account","deal_name","deal_id","deal_status","overall_rgy","customer","internal","content","seo","supply","copy","design","video","ai_summary","updated_at","updated_by"]
-    : ["account","deal_name","deal_id","deal_status","overall_rgy","customer","internal","content","seo","supply","copy","design","video","ai_summary"];
+    ? ["account","deal_name","deal_id","deal_status","overall_rgy","customer","internal","content","seo","supply","copy","design","video","updated_at","updated_by"]
+    : ["account","deal_name","deal_id","deal_status","overall_rgy","customer","internal","content","seo","supply","copy","design","video"];
   const [visibleCols, setVisibleCols] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem("rgy-visible-cols-v2");
@@ -1179,12 +1179,25 @@ export default function RGYHealth() {
       d = d.filter(deal => deal.account.toLowerCase().includes(s) || deal.deal_name.toLowerCase().includes(s) || deal.deal_id.toLowerCase().includes(s));
     }
     // RGY status filter
-    if (rgyFilter !== "All") {
+    if (rgyFilter !== "All" || segmentFilter !== "All") {
+      const code: "" | "R" | "Y" | "G" | null =
+        rgyFilter === "Red" ? "R" :
+        rgyFilter === "Yellow" ? "Y" :
+        rgyFilter === "Green" ? "G" :
+        rgyFilter === "Pending" ? "" :
+        null; // "All"
       d = d.filter(deal => {
+        if (segmentFilter !== "All") {
+          const raw = ((deal as any)[segmentFilter] as string) || "";
+          if (code === null) return raw !== ""; // any non-pending for that segment
+          if (code === "") return raw === ""; // Pending for that segment
+          return raw === code;
+        }
         const w = getWorstRGY(deal);
         if (rgyFilter === "Red") return w === "R";
         if (rgyFilter === "Yellow") return w === "Y";
         if (rgyFilter === "Green") return w === "G";
+        if (rgyFilter === "Pending") return w === null;
         return true;
       });
     }
@@ -1195,7 +1208,7 @@ export default function RGYHealth() {
       });
     }
     return d;
-  }, [deals, activeVsd, activeBopm, search, showClosed, rgyFilter, dealTypeFilter, vsdForDeal, hasAllDealAccess, accessLoading, visibleDealIds]);
+  }, [deals, activeVsd, activeBopm, search, showClosed, rgyFilter, segmentFilter, dealTypeFilter, vsdForDeal, hasAllDealAccess, accessLoading, visibleDealIds]);
 
   const aiSummaryDeals = useMemo(() => {
     if (hasAllDealAccess && !isVsdPersona && !isBopmPersona) return deals;
@@ -1361,12 +1374,27 @@ export default function RGYHealth() {
           </Button>
         </div>
 
-        {/* KPI Strip */}
+        {/* KPI Strip — clicking a tile filters the table below */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3">
-          <KpiTile label="Red" value={String(kpis.red)} tone="destructive" icon={AlertTriangle} onClick={() => setKpiDrill("red")} />
-          <KpiTile label="Yellow" value={String(kpis.yellow)} tone="warning" icon={AlertCircle} onClick={() => setKpiDrill("yellow")} />
-          <KpiTile label="Green" value={String(kpis.green)} tone="positive" icon={CheckCircle2} onClick={() => setKpiDrill("green")} />
-          <KpiTile label="Pending" value={String(kpis.pending)} tone="muted" icon={Circle} onClick={() => setKpiDrill("pending")} />
+          {([
+            { f: "Red", label: "Red", value: kpis.red, tone: "destructive" as const, icon: AlertTriangle, ring: "ring-destructive" },
+            { f: "Yellow", label: "Yellow", value: kpis.yellow, tone: "warning" as const, icon: AlertCircle, ring: "ring-warning" },
+            { f: "Green", label: "Green", value: kpis.green, tone: "positive" as const, icon: CheckCircle2, ring: "ring-positive" },
+            { f: "Pending", label: "Pending", value: kpis.pending, tone: "muted" as const, icon: Circle, ring: "ring-muted-foreground" },
+          ] as const).map(t => (
+            <KpiTile
+              key={t.f}
+              label={t.label}
+              value={String(t.value)}
+              tone={t.tone}
+              icon={t.icon}
+              className={cn(rgyFilter === t.f && `ring-2 ${t.ring}`)}
+              onClick={() => {
+                setRgyFilter(prev => prev === t.f ? "All" : t.f);
+                setActiveTab("table");
+              }}
+            />
+          ))}
           <KpiTile label="Score" value={String(kpis.score)} suffix="/ 100" tone="primary" icon={Activity} onClick={() => setKpiDrill("score")} />
         </div>
 
@@ -1544,18 +1572,31 @@ export default function RGYHealth() {
               </div>}
 
               <div className="flex gap-1 bg-secondary rounded-lg p-1">
-                {(["All", "Red", "Yellow", "Green"] as const).map(f => (
+                {(["All", "Red", "Yellow", "Green", "Pending"] as const).map(f => (
                   <button key={f} onClick={() => setRgyFilter(f)} className={cn(
                     "px-2.5 py-1.5 rounded-md text-caption font-medium whitespace-nowrap transition-colors",
                     rgyFilter === f ? (
                       f === "Red" ? "bg-red-500 text-white shadow-sm" :
                       f === "Yellow" ? "bg-amber-500 text-white shadow-sm" :
                       f === "Green" ? "bg-emerald-500 text-white shadow-sm" :
+                      f === "Pending" ? "bg-muted-foreground text-background shadow-sm" :
                       "bg-primary text-primary-foreground shadow-sm"
                     ) : "text-muted-foreground hover:text-foreground"
                   )}>{f}</button>
                 ))}
               </div>
+
+              <Select value={segmentFilter} onValueChange={setSegmentFilter}>
+                <SelectTrigger className="h-8 w-[170px] text-[11px]">
+                  <SelectValue placeholder="All segments" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All" className="text-xs">All segments</SelectItem>
+                  {DIMENSIONS.map(d => (
+                    <SelectItem key={d.key} value={d.key} className="text-xs">{d.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
               <div className="flex gap-1 bg-secondary rounded-lg p-1">
                 {(["All", "Retainer", "Non-Retainer"] as const).map(f => (
@@ -1626,9 +1667,6 @@ export default function RGYHealth() {
                         {DIMENSIONS.filter(d => isColVisible(d.key)).map(d => (
                           <ColHeader key={d.key} label={d.label} colKey={d.key} align="center" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["Green","Yellow","Red","NA","Pending"]} width={colWidths[d.key]} onResizeStart={startResize(d.key)} />
                         ))}
-                        {isColVisible("ai_summary") && (
-                          <th className="text-left py-2 px-3 font-medium text-muted-foreground text-caption whitespace-nowrap">AI Summary</th>
-                        )}
                         {isAdminPersona && isColVisible("updated_at") && (
                           <ColHeader label="Last Updated At" colKey="updated_at" sortKey="rgy_updated_at" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.updated_at} onResizeStart={startResize("updated_at")} placeholder="Filter by date..." />
                         )}
@@ -1781,24 +1819,6 @@ export default function RGYHealth() {
                                 </td>
                               );
                             })}
-                            {isColVisible("ai_summary") && (
-                              <td className="py-2 px-3 max-w-[180px]">
-                                {deal.rgy_issue_details ? (() => {
-                                  const clean = deal.rgy_issue_details.replace(/\s+/g, " ").trim();
-                                  const short = clean.length > 60 ? clean.slice(0, 60).trimEnd() + "…" : clean;
-                                  return (
-                                    <span
-                                      className="text-xs text-muted-foreground line-clamp-1 block"
-                                      title={clean}
-                                    >
-                                      {short}
-                                    </span>
-                                  );
-                                })() : (
-                                  <span className="text-xs text-muted-foreground/60">—</span>
-                                )}
-                              </td>
-                            )}
                             {isAdminPersona && isColVisible("updated_at") && (
                               <td className="py-2 px-3 text-xs text-muted-foreground whitespace-nowrap">
                                 {deal.rgy_updated_at
@@ -2050,10 +2070,6 @@ export default function RGYHealth() {
             })
             .filter(r => {
               if (kpiDrill === "score") return true;
-              if (kpiDrill === "red") return r.worst === "R";
-              if (kpiDrill === "yellow") return r.worst === "Y";
-              if (kpiDrill === "green") return r.worst === "G";
-              if (kpiDrill === "pending") return r.worst === null || r.worst === undefined || (r.worst as string) === "" || (r.worst as string) === "P";
               if (kpiDrill === "marked") return r.worst === "R" || r.worst === "Y" || r.worst === "G";
               return false;
             })
@@ -2061,7 +2077,7 @@ export default function RGYHealth() {
               if (kpiDrill === "score") return (b.score ?? -1) - (a.score ?? -1);
               return a.deal.account.localeCompare(b.deal.account);
             });
-          const titleMap = { red: "Red Deals", yellow: "Yellow Deals", green: "Green Deals", score: "Overall Health Score", pending: "Pending RGY (unmarked)", marked: "Marked Deals" } as const;
+          const titleMap = { score: "Overall Health Score", marked: "Marked Deals" } as const;
           return (
             <Dialog open={!!kpiDrill} onOpenChange={(o) => !o && setKpiDrill(null)}>
               <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
