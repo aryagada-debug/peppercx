@@ -184,9 +184,7 @@ export default function Clients() {
   const access = useDealAccess();
   const { matchesDeal: geoMatchesDeal, geo: geoFilter } = useGeoFilter();
   const isCentralCx = access.isAdmin;
-  const [view, setView] = useState<"analytics" | "table">(
-    isCentralCx ? "analytics" : "table"
-  );
+  const [view, setView] = useState<"analytics" | "table">("table");
   const { canEditAll, role } = useUserRole();
   const isCapLead = role === "capability_lead";
   const isCapMember = role === "capability_member";
@@ -331,16 +329,16 @@ export default function Clients() {
     { key: "rag", label: "RGY" },
   ]), []);
 
-  const DEFAULT_VISIBLE = ["account","dealName","dealId","pcCode","monthClosedWon","dealType","dealStatus","pepperBusinessUnit","capabilityLine","vsd","bopm","bopmOnly","contentLead","seoLead","mrr","totalDealValue","duration","rag"];
+  const DEFAULT_VISIBLE = ["rag","account","dealName","dealId","pcCode","monthClosedWon","dealType","dealStatus","pepperBusinessUnit","capabilityLine","vsd","bopm","bopmOnly","contentLead","seoLead","mrr","totalDealValue","duration"];
   const [visibleCols, setVisibleCols] = useState<string[]>(() => {
     try {
-      const raw = localStorage.getItem("clients-visible-cols-v2");
+      const raw = localStorage.getItem("clients-visible-cols-v3");
       if (raw) return JSON.parse(raw);
     } catch {}
     return DEFAULT_VISIBLE;
   });
   useEffect(() => {
-    try { localStorage.setItem("clients-visible-cols-v2", JSON.stringify(visibleCols)); } catch {}
+    try { localStorage.setItem("clients-visible-cols-v3", JSON.stringify(visibleCols)); } catch {}
   }, [visibleCols]);
   const isVisible = (k: string) => visibleCols.includes(k);
   const toggleCol = (k: string, required?: boolean) => {
@@ -352,8 +350,8 @@ export default function Clients() {
   // (per-deal ownership + revenue + RGY). Central CX (admin) keeps the full
   // customizable column picker.
   const NON_ADMIN_COLS = useMemo(() => ([
-    "account", "dealName", "dealType", "dealStatus", "pepperBusinessUnit",
-    "vsd", "bopm", "contentLead", "seoLead", "mrr", "totalDealValue", "rag",
+    "rag", "account", "dealName", "dealType", "dealStatus", "pepperBusinessUnit",
+    "vsd", "bopm", "contentLead", "seoLead", "mrr", "totalDealValue",
   ]), []);
   const effectiveVisibleCols = isCentralCx ? visibleCols : NON_ADMIN_COLS;
 
