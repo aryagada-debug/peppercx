@@ -189,68 +189,33 @@ function getWorstRGY(deal: DealWithRGY): "R" | "Y" | "G" | null {
   return computeOverallCustomerRGY(dims);
 }
 
-// ── Inline RGY Selector with blank-on-reclick ──
+// ── Read-only RGY Cell — editing happens via the per-row Mark RGY dialog ──
 function RGYCell({
-  dealId,
-  dimKey,
   value,
   label,
-  onUpdate,
 }: {
-  dealId: string;
-  dimKey: string;
   value: RGYCellValue;
   label: string;
-  onUpdate: (dealId: string, dimKey: string, newValue: RGYCellValue) => void;
 }) {
-  const [open, setOpen] = useState(false);
-
   return (
-    <div className="relative inline-block">
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
-            className={cn(
-              "inline-flex items-center justify-center rounded-md text-caption font-semibold cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all",
-              value === "PENDING" ? "px-2 h-7 text-[10px]" : "w-7 h-7",
-              cellColors[value]
-            )}
-            aria-label={`${label}: ${statusLabels[value]} — Click to change`}
-          >
-            {cellLabels[value]}
-          </button>
-        </TooltipTrigger>
-        <TooltipContent><p>{label} · {statusLabels[value]}</p></TooltipContent>
-      </Tooltip>
-
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute z-50 top-full mt-1 left-1/2 -translate-x-1/2 bg-popover border border-border rounded-lg shadow-lg p-1 flex gap-1 whitespace-nowrap">
-            {RGY_OPTIONS.map(opt => (
-              <button
-                key={opt.value}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onUpdate(dealId, dimKey, opt.value);
-                  setOpen(false);
-                }}
-                className={cn(
-                  "rounded-md text-caption font-semibold transition-all",
-                  opt.value === "PENDING" ? "px-2 h-7 text-[10px]" : "w-7 h-7",
-                  cellColors[opt.value],
-                  value === opt.value && "ring-2 ring-primary"
-                )}
-                title={opt.label}
-              >
-                {cellLabels[opt.value]}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className={cn(
+            "inline-flex items-center justify-center rounded-md text-caption font-semibold",
+            value === "PENDING" ? "px-2 h-7 text-[10px]" : "w-7 h-7",
+            cellColors[value]
+          )}
+          aria-label={`${label}: ${statusLabels[value]}`}
+        >
+          {cellLabels[value]}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>
+        <p>{label} · {statusLabels[value]}</p>
+        <p className="text-[10px] text-muted-foreground mt-0.5">Use “Mark RGY” to change</p>
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
