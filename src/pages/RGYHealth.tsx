@@ -1375,8 +1375,9 @@ export default function RGYHealth() {
         </div>
 
         {/* KPI Strip — clicking a tile filters the table below */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-2 mb-3">
           {([
+            { f: "All", label: "All", value: kpis.totalDeals, tone: "primary" as const, icon: Activity, ring: "ring-primary" },
             { f: "Red", label: "Red", value: kpis.red, tone: "destructive" as const, icon: AlertTriangle, ring: "ring-destructive" },
             { f: "Yellow", label: "Yellow", value: kpis.yellow, tone: "warning" as const, icon: AlertCircle, ring: "ring-warning" },
             { f: "Green", label: "Green", value: kpis.green, tone: "positive" as const, icon: CheckCircle2, ring: "ring-positive" },
@@ -1390,7 +1391,7 @@ export default function RGYHealth() {
               icon={t.icon}
               className={cn(rgyFilter === t.f && `ring-2 ${t.ring}`)}
               onClick={() => {
-                setRgyFilter(prev => prev === t.f ? "All" : t.f);
+                setRgyFilter(t.f);
                 setActiveTab("table");
               }}
             />
