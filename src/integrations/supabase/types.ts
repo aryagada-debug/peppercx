@@ -1250,6 +1250,104 @@ export type Database = {
         }
         Relationships: []
       }
+      rgy_leadership_intervention_comments: {
+        Row: {
+          author_name: string
+          body: string
+          created_at: string
+          id: string
+          intervention_id: string
+          user_id: string
+        }
+        Insert: {
+          author_name?: string
+          body: string
+          created_at?: string
+          id?: string
+          intervention_id: string
+          user_id: string
+        }
+        Update: {
+          author_name?: string
+          body?: string
+          created_at?: string
+          id?: string
+          intervention_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rgy_leadership_intervention_comments_intervention_id_fkey"
+            columns: ["intervention_id"]
+            isOneToOne: false
+            referencedRelation: "rgy_leadership_interventions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rgy_leadership_interventions: {
+        Row: {
+          created_at: string
+          deal_id: string
+          description: string
+          id: string
+          raised_by_name: string
+          raised_by_user_id: string
+          resolved_at: string | null
+          resolved_by_user_id: string | null
+          rgy_week: string | null
+          status: string
+          title: string
+          updated_at: string
+          urgency: string
+        }
+        Insert: {
+          created_at?: string
+          deal_id: string
+          description?: string
+          id?: string
+          raised_by_name?: string
+          raised_by_user_id: string
+          resolved_at?: string | null
+          resolved_by_user_id?: string | null
+          rgy_week?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          urgency?: string
+        }
+        Update: {
+          created_at?: string
+          deal_id?: string
+          description?: string
+          id?: string
+          raised_by_name?: string
+          raised_by_user_id?: string
+          resolved_at?: string | null
+          resolved_by_user_id?: string | null
+          rgy_week?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          urgency?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rgy_leadership_interventions_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals_unified"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rgy_leadership_interventions_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "staffing_deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       route_access_summaries: {
         Row: {
           created_at: string
@@ -2693,6 +2791,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_leadership_viewer: { Args: { _user_id: string }; Returns: boolean }
       normalize_staffing_role_key: {
         Args: { _role_key: string }
         Returns: string
