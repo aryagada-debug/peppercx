@@ -49,8 +49,6 @@ import { BopmEmptyState } from "@/components/access/BopmEmptyState";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { getOverallCustomerRGY as computeOverallCustomerRGY, computeOverallCustomerScore } from "@/lib/overallCustomerRGY";
 import { WeeklyComplianceTab } from "@/components/rgy/WeeklyComplianceTab";
-import { logRGYReviewedNoChange } from "@/lib/rgyHistory";
-import { weekRange } from "@/lib/rgyCompliance";
 import { RaiseInterventionDialog } from "@/components/rgy/RaiseInterventionDialog";
 import { MarkRGYDialog, type MarkRGYDimension } from "@/components/rgy/MarkRGYDialog";
 import { RGYCombinedIssuesDialog } from "@/components/rgy/RGYCombinedIssuesDialog";
