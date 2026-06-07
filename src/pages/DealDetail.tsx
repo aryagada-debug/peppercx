@@ -2298,7 +2298,11 @@ export default function DealDetail() {
             {/* Status bar — opens the single combined Issues card on demand */}
             {currentRGY && (
               <RGYStatusBar
-                dims={RGY_DIM_DEFS.map(d => ({ key: d.key, label: d.label, value: (currentRGY as any)[d.key] || "G" }))}
+                dims={RGY_DIMENSIONS.map(d => ({
+                  key: d.key as string,
+                  label: d.label === "Customer" ? "Overall Customer" : d.label,
+                  value: (currentRGY as any)[d.key] || "G",
+                }))}
                 hasOpenIssue={tasks.some(t => t.title?.startsWith("[RGY Health]") && t.stage !== "Done" && t.stage !== "Dropped")}
                 onReview={() => setCombinedIssuesMode("create")}
                 onEdit={() => setCombinedIssuesMode("edit")}
