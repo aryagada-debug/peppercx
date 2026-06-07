@@ -595,6 +595,7 @@ export default function RGYHealth() {
   const [loading, setLoading] = useState(true);
   const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
   const [activeVsd, setActiveVsd] = useState<VsdFilterKey>("All");
+  const [raiseInterventionOpen, setRaiseInterventionOpen] = useState(false);
   const [activeBopm, setActiveBopm] = useState<string>("All");
   const [showClosed, setShowClosed] = useState(false);
   const [search, setSearch] = useState("");
