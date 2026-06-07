@@ -1638,6 +1638,7 @@ export default function RGYHealth() {
                           <ColHeader label="Status" colKey="deal_status" sortKey="deal_status" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={Object.keys(statusBadgeStyles)} width={colWidths.deal_status} onResizeStart={startResize("deal_status")} />
                         )}
                         <th className="text-left py-2 px-3 font-medium text-muted-foreground text-caption whitespace-nowrap">Reviewed — No Change</th>
+                        <th className="text-left py-2 px-3 font-medium text-muted-foreground text-caption whitespace-nowrap">Mark RGY</th>
                         {isColVisible("overall_rgy") && (
                           <ColHeader
                             label="Overall RGY"
