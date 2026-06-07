@@ -20,6 +20,8 @@ import type { StaffingAssignment, Person, Deal, RoleCategory } from "@/data/staf
 import { useDealDetail } from "@/hooks/useDealDetail";
 import { RaiseInterventionDialog } from "@/components/rgy/RaiseInterventionDialog";
 import { InterventionDrawer, type Intervention } from "@/components/rgy/InterventionDrawer";
+import { RGYCombinedIssuesDialog, type RGYCombinedIssuePayload } from "@/components/rgy/RGYCombinedIssuesDialog";
+import { RGYStatusBar } from "@/components/rgy/RGYStatusBar";
 import { EditableRGY } from "@/components/deals/EditableRGY";
 import { ResolveIssuesDialog } from "@/components/rgy/ResolveIssuesDialog";
 import { FinancialsTab } from "@/components/deals/FinancialsTab";
