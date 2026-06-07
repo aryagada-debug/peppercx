@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Search, Download, ExternalLink, Mail, Phone, Linkedin, Users } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
+import { AppLayout } from "@/components/layout/AppLayout";
 
 type Row = {
   id: string;
@@ -136,6 +137,7 @@ export default function Contacts() {
   if (!roleLoading && !canView) return <Navigate to="/home" replace />;
 
   return (
+    <AppLayout>
     <div className="p-6 space-y-5 animate-fade-in">
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -260,5 +262,6 @@ export default function Contacts() {
         </div>
       </div>
     </div>
+    </AppLayout>
   );
 }
