@@ -2292,64 +2292,13 @@ export default function DealDetail() {
               onSave={handleRGYSave}
             />
 
-            {/* Overview RGY Issue Form */}
-            {showIssueForm && currentRGY && (
-              <RGYIssueForm
-                dealId={dealId!}
-                currentRGY={currentRGY!}
-                assignees={dealPeople.map(p => ({ id: p.id, name: p.name }))}
-                teamMembers={[deal.vsd, deal.principalBopm, deal.seniorBopm, deal.bopm].filter(Boolean)}
-                onCancel={() => {
-                  setShowIssueForm(false);
-                  if (prevRGYSnapshot && currentRGY) {
-                    updateRGYWeek(currentRGY.id, {
-                      customer: prevRGYSnapshot.customer || "G",
-                      internal: prevRGYSnapshot.internal || "G",
-                      content: prevRGYSnapshot.content || "G",
-                      seo: prevRGYSnapshot.seo || "G",
-                      supply: prevRGYSnapshot.supply || "G",
-                      copy: prevRGYSnapshot.copy || "G",
-                      design: prevRGYSnapshot.design || "G",
-                      video: prevRGYSnapshot.video || "G",
-                    });
-                    toast.info("RGY changes reverted");
-                  }
-                  setPrevRGYSnapshot(null);
-                }}
-                onSaveIssue={async (issueData) => {
-                  if (currentRGY) {
-                    await updateRGYWeek(currentRGY.id, {
-                      issueDate: issueData.issueDate,
-                      issueDetails: issueData.issueDetails,
-                      actionPlan: issueData.actionPlan,
-                      resolutionDueDate: issueData.dueDate,
-                      issueStatus: issueData.issueStatus,
-                    });
-                  }
-                  if (issueData.assignees.length > 0 || issueData.actionPlan.trim() || issueData.subtasks.length > 0) {
-                    await addTask({
-                      dealId: dealId!,
-                      title: `[RGY Health] ${(issueData.actionPlan || issueData.issueDetails).trim().slice(0, 120)}`,
-                      description: `Issue Details: ${issueData.issueDetails}\nAction Plan: ${issueData.actionPlan}`,
-                      stage: "To Do",
-                      assignee: issueData.assignees[0] || "",
-                      assignees: issueData.assignees,
-                      urgency: "Medium",
-                      loggedHours: 0,
-                      sortOrder: 0,
-                      startDate: issueData.issueDate,
-                      endDate: issueData.dueDate || undefined,
-                      subtasks: issueData.subtasks.map((s, i) => ({
-                        id: `${Date.now()}-${i}`,
-                        title: s.title,
-                        completed: false,
-                      })),
-                    });
-                  }
-                  setShowIssueForm(false);
-                  setPrevRGYSnapshot(null);
-                  toast.success("Issue saved & task created");
-                }}
+            {/* Status bar — opens the single combined Issues card on demand */}
+            {currentRGY && (
+              <RGYStatusBar
+                dims={RGY_DIM_DEFS.map(d => ({ key: d.key, label: d.label, value: (currentRGY as any)[d.key] || "G" }))}
+                hasOpenIssue={tasks.some(t => t.title?.startsWith("[RGY Health]") && t.stage !== "Done" && t.stage !== "Dropped")}
+                onReview={() => setCombinedIssuesMode("create")}
+                onEdit={() => setCombinedIssuesMode("edit")}
               />
             )}
 
