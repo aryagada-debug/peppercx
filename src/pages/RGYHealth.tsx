@@ -1038,18 +1038,9 @@ export default function RGYHealth() {
 
     // If new value is R or Y, show issue form
     if (newValue === "R" || newValue === "Y") {
-      const latestDeal = { ...deal, [dimKey]: newValue };
-      const nonGreen = DIMENSIONS
-        .map(dim => ({
-          key: dim.key,
-          label: dim.label,
-          value: (latestDeal[dim.key as keyof DealWithRGY] as string) || "NA",
-        }))
-        .filter(d => d.value === "R" || d.value === "Y");
-
-      setPrevRGYSnapshot({ dealId, values: oldValues });
-      setIssueFormDeal(latestDeal as DealWithRGY);
-      setIssueFormNonGreen(nonGreen);
+      // New flow: do NOT auto-open the issue form on every cell change.
+      // The user logs one combined issue from the deal's RGY tab via the
+      // status bar there. This keeps the table click as a pure auto-save.
     }
   }, []);
 
