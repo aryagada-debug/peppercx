@@ -3162,6 +3162,24 @@ export default function DealDetail() {
       )}
 
       {dealId && deal && <SlackChatBot dealId={dealId} dealName={deal.dealName} />}
+
+      {dealId && (
+        <RaiseInterventionDialog
+          open={raiseInterventionOpen}
+          onOpenChange={setRaiseInterventionOpen}
+          dealId={dealId}
+          dealLabel={[deal?.account, deal?.dealName].filter(Boolean).join(" — ")}
+          rgyWeek={(currentRGY as any)?.week_start || null}
+          onCreated={loadInterventions}
+        />
+      )}
+      <InterventionDrawer
+        open={!!selectedIntervention}
+        onOpenChange={(o) => { if (!o) setSelectedIntervention(null); }}
+        intervention={selectedIntervention}
+        dealLabel={[deal?.account, deal?.dealName].filter(Boolean).join(" — ")}
+        onChanged={() => { loadInterventions(); setSelectedIntervention(null); }}
+      />
     </AppLayout>
   );
 }
