@@ -4,11 +4,12 @@ import {
   Target, Activity, FileText, MessageSquare, Clock,
   CheckSquare, Settings, Building2, BookOpen, Contact,
   ChevronDown, Home, ChevronsLeft, ChevronsRight,
-  Trash2,
+  Trash2, AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useIsLeadershipViewer } from "@/hooks/useIsLeadershipViewer";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // Prefetch lazy route chunks on hover/focus so clicking a sidebar item
@@ -26,6 +27,7 @@ const routePrefetch: Record<string, () => Promise<unknown>> = {
   "/help": () => import("@/pages/Help"),
   "/trash": () => import("@/pages/Trash"),
   "/contacts": () => import("@/pages/Contacts"),
+  "/leadership-interventions": () => import("@/pages/LeadershipInterventions"),
 };
 const prefetched = new Set<string>();
 const prefetchRoute = (to: string) => {
@@ -78,6 +80,7 @@ export function AppSidebar() {
     return localStorage.getItem(COLLAPSE_KEY) === "1";
   });
   const { visibleRoutes, loading, isAdmin, isActuallyAdmin } = useUserRole();
+  const isLeader = useIsLeadershipViewer();
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -89,13 +92,24 @@ export function AppSidebar() {
   };
 
   const sectionsWithAdmin = navSections.map(section => {
-    if (section.label !== "Core") return section;
-    return {
-      ...section,
-      items: (isAdmin || isActuallyAdmin)
-        ? [...section.items, { to: "/contacts", icon: Contact, label: "Contacts", routeKey: "home" }]
-        : section.items,
-    };
+    if (section.label === "Core") {
+      return {
+        ...section,
+        items: (isAdmin || isActuallyAdmin)
+          ? [...section.items, { to: "/contacts", icon: Contact, label: "Contacts", routeKey: "home" }]
+          : section.items,
+      };
+    }
+    if (section.label === "Health & Reviews" && isLeader) {
+      return {
+        ...section,
+        items: [
+          ...section.items,
+          { to: "/leadership-interventions", icon: AlertTriangle, label: "Leadership Interventions", routeKey: "home" },
+        ],
+      };
+    }
+    return section;
   });
 
   const filteredSections = sectionsWithAdmin
