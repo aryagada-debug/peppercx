@@ -658,7 +658,6 @@ export default function RGYHealth() {
     { key: "copy", label: "Copy" },
     { key: "design", label: "Design" },
     { key: "video", label: "Video" },
-    { key: "ai_summary", label: "AI Summary" },
     ...(isAdminPersona ? [
       { key: "updated_at", label: "Last Updated At" },
       { key: "updated_by", label: "Last Updated By" },
@@ -666,8 +665,8 @@ export default function RGYHealth() {
   ]), [isAdminPersona]);
   // Show every column by default. Admin personas additionally see audit columns.
   const DEFAULT_VISIBLE = isAdminPersona
-    ? ["account","deal_name","deal_id","deal_status","overall_rgy","customer","internal","content","seo","supply","copy","design","video","ai_summary","updated_at","updated_by"]
-    : ["account","deal_name","deal_id","deal_status","overall_rgy","customer","internal","content","seo","supply","copy","design","video","ai_summary"];
+    ? ["account","deal_name","deal_id","deal_status","overall_rgy","customer","internal","content","seo","supply","copy","design","video","updated_at","updated_by"]
+    : ["account","deal_name","deal_id","deal_status","overall_rgy","customer","internal","content","seo","supply","copy","design","video"];
   const [visibleCols, setVisibleCols] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem("rgy-visible-cols-v2");
