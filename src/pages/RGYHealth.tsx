@@ -49,8 +49,6 @@ import { BopmEmptyState } from "@/components/access/BopmEmptyState";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { getOverallCustomerRGY as computeOverallCustomerRGY, computeOverallCustomerScore } from "@/lib/overallCustomerRGY";
 import { WeeklyComplianceTab } from "@/components/rgy/WeeklyComplianceTab";
-import { logRGYReviewedNoChange } from "@/lib/rgyHistory";
-import { weekRange } from "@/lib/rgyCompliance";
 import { RaiseInterventionDialog } from "@/components/rgy/RaiseInterventionDialog";
 import { MarkRGYDialog, type MarkRGYDimension } from "@/components/rgy/MarkRGYDialog";
 import { RGYCombinedIssuesDialog } from "@/components/rgy/RGYCombinedIssuesDialog";
@@ -744,36 +742,6 @@ export default function RGYHealth() {
   const [pendingGreen, setPendingGreen] = useState<{ dealId: string; dimKey: string; dimLabel: string; oldValue: RGYCellValue } | null>(null);
   // R → Y: an optional resolve dialog opened after the change persisted.
   const [resolveAfterDowngrade, setResolveAfterDowngrade] = useState<{ dealId: string } | null>(null);
-
-  // Deals marked "Reviewed — no change" for the current week.
-  const [reviewedThisWeek, setReviewedThisWeek] = useState<Set<string>>(new Set());
-  useEffect(() => {
-    let cancelled = false;
-    const { start, end } = weekRange();
-    const load = async () => {
-      const { data } = await supabase
-        .from("deal_rgy_notes")
-        .select("deal_id")
-        .eq("dimension", "__review__")
-        .gte("created_at", start + "T00:00:00Z")
-        .lt("created_at", end + "T00:00:00Z")
-        .limit(5000);
-      if (!cancelled) setReviewedThisWeek(new Set((data || []).map((r: any) => r.deal_id)));
-    };
-    load();
-    const ch = supabase
-      .channel("rgy-reviewed-week")
-      .on("postgres_changes", { event: "*", schema: "public", table: "deal_rgy_notes" }, load)
-      .subscribe();
-    return () => { cancelled = true; supabase.removeChannel(ch); };
-  }, []);
-
-  const handleMarkReviewedNoChange = useCallback(async (dealId: string) => {
-    if (reviewedThisWeek.has(dealId)) return;
-    setReviewedThisWeek(prev => new Set(prev).add(dealId)); // optimistic
-    await logRGYReviewedNoChange({ dealId, weekStart: weekRange().start });
-    toast.success("Marked as reviewed — no change");
-  }, [reviewedThisWeek]);
 
   // Issues for insights — derived lazily, only after Insights tab is opened.
   const [insightsOpened, setInsightsOpened] = useState(false);
@@ -1637,7 +1605,6 @@ export default function RGYHealth() {
                         {isColVisible("deal_status") && (
                           <ColHeader label="Status" colKey="deal_status" sortKey="deal_status" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={Object.keys(statusBadgeStyles)} width={colWidths.deal_status} onResizeStart={startResize("deal_status")} />
                         )}
-                        <th className="text-left py-2 px-3 font-medium text-muted-foreground text-caption whitespace-nowrap">Reviewed — No Change</th>
                         <th className="text-left py-2 px-3 font-medium text-muted-foreground text-caption whitespace-nowrap">Mark RGY</th>
                         {isColVisible("overall_rgy") && (
                           <ColHeader
@@ -1706,22 +1673,6 @@ export default function RGYHealth() {
                                 </Badge>
                               </td>
                             )}
-                            <td className="py-2 px-3">
-                              {reviewedThisWeek.has(deal.deal_id) ? (
-                                <Badge variant="outline" className="gap-1 font-normal text-[10px] bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/30">
-                                  <Check className="h-3 w-3" /> Reviewed this week
-                                </Badge>
-                              ) : (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7 text-[11px]"
-                                  onClick={() => handleMarkReviewedNoChange(deal.deal_id)}
-                                >
-                                  Mark reviewed
-                                </Button>
-                              )}
-                            </td>
                             <td className="py-2 px-3">
                               {(() => {
                                 const allMarked = DIMENSIONS.every(dim => (deal[dim.key as keyof DealWithRGY] as string));
