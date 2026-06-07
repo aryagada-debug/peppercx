@@ -2028,6 +2028,10 @@ export default function RGYHealth() {
           );
         })()}
       </div>
+      <RaiseInterventionDialog
+        open={raiseInterventionOpen}
+        onOpenChange={setRaiseInterventionOpen}
+      />
     </AppLayout>
   );
 }
