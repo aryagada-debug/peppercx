@@ -2244,51 +2244,6 @@ export type Database = {
         }
         Relationships: []
       }
-      sync_runs: {
-        Row: {
-          clients_created: number
-          created_at: string
-          deals_upserted: number
-          error_log: Json
-          financials_upserted: number
-          finished_at: string | null
-          id: string
-          rows_skipped: number
-          source: string
-          started_at: string
-          status: string
-          triggered_by: string
-        }
-        Insert: {
-          clients_created?: number
-          created_at?: string
-          deals_upserted?: number
-          error_log?: Json
-          financials_upserted?: number
-          finished_at?: string | null
-          id?: string
-          rows_skipped?: number
-          source?: string
-          started_at?: string
-          status?: string
-          triggered_by?: string
-        }
-        Update: {
-          clients_created?: number
-          created_at?: string
-          deals_upserted?: number
-          error_log?: Json
-          financials_upserted?: number
-          finished_at?: string | null
-          id?: string
-          rows_skipped?: number
-          source?: string
-          started_at?: string
-          status?: string
-          triggered_by?: string
-        }
-        Relationships: []
-      }
       task_templates: {
         Row: {
           created_at: string
