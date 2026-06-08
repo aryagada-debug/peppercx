@@ -1,7 +1,6 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { UsersTab } from "@/pages/admin/UsersTab";
 import { AccessControlsTab } from "@/pages/admin/AccessControlsTab";
@@ -20,7 +19,6 @@ const tabs = [
   "Usage",
   "Targets",
   "Notifications",
-  "Data Sync",
 ] as const;
 type SettingsTab = typeof tabs[number];
 
@@ -88,16 +86,6 @@ export default function SettingsPage() {
 
         {activeTab === "Targets" && (
           <Targets embedded />
-        )}
-
-        {activeTab === "Data Sync" && (
-          isActuallyAdmin ? (
-            <DataSyncPanel />
-          ) : (
-            <div className="rounded-xl border border-border bg-card p-8 text-center">
-              <p className="text-sm text-muted-foreground">Admin access required.</p>
-            </div>
-          )
         )}
       </div>
     </AppLayout>
