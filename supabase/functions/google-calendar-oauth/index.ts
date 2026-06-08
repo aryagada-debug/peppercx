@@ -124,7 +124,20 @@ Deno.serve(async (req) => {
     const action = body.action as Action;
     if (!action) return json({ error: "Missing action" }, 400);
 
-    const user = await getUser(req);
+    // `status` is a read-only probe used during app boot — when the caller
+    // isn't signed in (e.g. /login route, expired token), return a clean
+    // "not connected" instead of 401 so it doesn't surface as a runtime
+    // error. All other actions still require a valid session.
+    let user;
+    if (action === "status") {
+      try {
+        user = await getUser(req);
+      } catch {
+        return json({ connected: false, googleEmail: null, updatedAt: null });
+      }
+    } else {
+      user = await getUser(req);
+    }
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
     if (action === "status") {
