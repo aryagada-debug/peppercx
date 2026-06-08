@@ -12,6 +12,7 @@ import { useEffect } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
 import { Switch } from "@/components/ui/switch";
+import { Loader2, Download } from "lucide-react";
 
 const tabs = [
   "Users & Roles",
@@ -19,6 +20,7 @@ const tabs = [
   "Usage",
   "Targets",
   "Notifications",
+  "Staffing Exports",
 ] as const;
 type SettingsTab = typeof tabs[number];
 
@@ -87,6 +89,16 @@ export default function SettingsPage() {
         {activeTab === "Targets" && (
           <Targets embedded />
         )}
+
+        {activeTab === "Staffing Exports" && (
+          isActuallyAdmin ? (
+            <StaffingExportsPanel />
+          ) : (
+            <div className="rounded-xl border border-border bg-card p-8 text-center">
+              <p className="text-sm text-muted-foreground">Admin access required.</p>
+            </div>
+          )
+        )}
       </div>
     </AppLayout>
   );
@@ -138,6 +150,109 @@ function NotificationsPanel() {
         <button onClick={sendTest} disabled={sendingTest} className="text-xs text-primary hover:underline disabled:opacity-50">
           {sendingTest ? "Sending…" : "Send me a test Slack DM now"}
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Staffing Exports panel ─────────────────────────────────────────────────
+function StaffingExportsPanel() {
+  const [files, setFiles] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+
+  const load = async () => {
+    const { data, error } = await supabase.storage
+      .from("staffing-exports")
+      .list("", { limit: 30, sortBy: { column: "name", order: "desc" } });
+    if (error) toast.error(error.message);
+    setFiles(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const generateNow = async () => {
+    setGenerating(true);
+    toast.info("Generating today's staffing export…");
+    const { data, error } = await supabase.functions.invoke("staffing-daily-export", { body: {} });
+    setGenerating(false);
+    if (error) { toast.error(error.message); return; }
+    if ((data as any)?.ok === false) { toast.error((data as any).error || "Export failed"); return; }
+    toast.success(`Export ready — ${(data as any)?.deals ?? 0} deals`);
+    load();
+  };
+
+  const download = async (name: string) => {
+    const { data, error } = await supabase.storage.from("staffing-exports").createSignedUrl(name, 3600);
+    if (error) { toast.error(error.message); return; }
+    window.open(data.signedUrl, "_blank");
+  };
+
+  const fmtBytes = (b?: number) => {
+    if (!b) return "—";
+    if (b < 1024) return `${b} B`;
+    if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+    return `${(b / 1024 / 1024).toFixed(2)} MB`;
+  };
+  const fmtDate = (s?: string | null) => (s ? new Date(s).toLocaleString() : "—");
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold text-foreground">Daily staffing export</h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              One row per deal, one column per role, with every staffed person and their allocation %. Generated automatically every day at 06:00 IST. Files older than 30 days are auto-deleted.
+            </p>
+          </div>
+          <button
+            onClick={generateNow}
+            disabled={generating}
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+          >
+            {generating && <Loader2 className="h-3 w-3 animate-spin" />}
+            {generating ? "Generating…" : "Generate now"}
+          </button>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <div className="px-4 py-2.5 border-b border-border">
+          <h3 className="text-xs font-medium text-foreground">Recent exports</h3>
+        </div>
+        {loading ? (
+          <div className="px-4 py-6 text-xs text-muted-foreground">Loading…</div>
+        ) : (
+          <table className="w-full text-xs">
+            <thead className="bg-secondary/30 text-muted-foreground">
+              <tr>
+                <th className="text-left px-4 py-2 font-medium">File</th>
+                <th className="text-left px-4 py-2 font-medium">Generated</th>
+                <th className="text-right px-4 py-2 font-medium">Size</th>
+                <th className="text-right px-4 py-2 font-medium">Download</th>
+              </tr>
+            </thead>
+            <tbody>
+              {files.map((f) => (
+                <tr key={f.name} className="border-t border-border/50">
+                  <td className="px-4 py-2 font-mono">{f.name}</td>
+                  <td className="px-4 py-2">{fmtDate(f.created_at || f.updated_at)}</td>
+                  <td className="px-4 py-2 text-right">{fmtBytes(f.metadata?.size)}</td>
+                  <td className="px-4 py-2 text-right">
+                    <button onClick={() => download(f.name)} className="inline-flex items-center gap-1 text-primary hover:underline">
+                      <Download className="h-3 w-3" /> Download
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {files.length === 0 && (
+                <tr><td colSpan={4} className="px-4 py-6 text-center text-muted-foreground">No exports yet — click “Generate now”.</td></tr>
+              )}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
