@@ -1211,7 +1211,17 @@ export default function Clients() {
                       </td>
                     ),
                     dealId: (
-                      <td key="dealId" className="py-2 px-3 text-xs font-mono text-muted-foreground truncate">{deal.dealId}</td>
+                      <td key="dealId" className="py-2 px-3 text-xs font-mono text-muted-foreground truncate">
+                        {access.isAdmin ? (
+                          <InlineEditCell
+                            value={deal.dealId || ""}
+                            onSave={(v) => { guardedUpdateDeal(deal.id, { dealId: v.trim() } as any); toast.success("Deal ID updated"); }}
+                            placeholder="—"
+                          />
+                        ) : (
+                          deal.dealId || "—"
+                        )}
+                      </td>
                     ),
                     pcCode: (
                       <td key="pcCode" className="py-2 px-3 text-xs font-mono text-muted-foreground truncate" title={deal.pcCode || ""}>
