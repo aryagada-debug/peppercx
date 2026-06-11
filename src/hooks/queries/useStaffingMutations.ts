@@ -486,6 +486,13 @@ export function useStaffingMutations() {
       patch.deals((prev) => prev.map((d) => (d.id === dealId ? { ...d, ...updates } : d)));
       const dbUpdates: TablesUpdate<"staffing_deals"> = {};
       Object.entries(updates).forEach(([k, v]) => {
+        // Special-case: the camelCase `dealId` field maps to the
+        // human-facing identifier column `new_deal_id_formulated`
+        // (not a non-existent `deal_id` column).
+        if (k === "dealId") {
+          (dbUpdates as any).new_deal_id_formulated = v;
+          return;
+        }
         const snakeKey = k.replace(/([A-Z])/g, "_$1").toLowerCase();
         (dbUpdates as any)[snakeKey] = v;
       });
