@@ -48,7 +48,6 @@ export const TRASH_REGISTRY: Record<TrashEntityType, EntityConfig> = {
       { table: "staffing_assignments", fk: "staffing_deal_id" },
       { table: "deal_financials", fk: "deal_id" },
       { table: "deal_sow_items", fk: "deal_id" },
-      { table: "deal_tasks", fk: "deal_id" },
       { table: "deal_onboarding_steps", fk: "deal_id" },
       { table: "deal_rgy_weekly", fk: "deal_id" },
       { table: "deal_revenue_monthly", fk: "deal_id" },
