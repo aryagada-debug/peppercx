@@ -515,6 +515,8 @@ export default function RGYHealth() {
   const { vsdUsers, isVsdName, canonVsd } = useVsdUsers();
   const { vsdForDeal, bopmsForVsd, allBopms } = useVsdHierarchy();
   const { role } = useUserRole();
+  const { canEdit: canEditRgy } = useCanEditRgy();
+  const [assignmentAssigneeNames, setAssignmentAssigneeNames] = useState<string[]>([]);
   const { visibleDealIds, loading: accessLoading, isAdmin: hasAllDealAccess } = useDealAccess();
   const isBopmPersona = role === "user" || role === "capability_member";
   const isVsdPersona = role === "member";
