@@ -243,6 +243,11 @@ function Row({ stakeholder: s, isOpen, onToggle, onUpdate, onDuplicate, onAskDel
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-semibold text-foreground truncate">{s.name || "Untitled"}</span>
+              {!isStakeholderComplete(s) && (
+                <span className="text-[9px] tracking-wider uppercase font-semibold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300">
+                  Incomplete
+                </span>
+              )}
               {s.tags.slice(0, 2).map(t => (
                 <span key={t} className={cn("text-[9px] tracking-wider uppercase font-semibold px-1.5 py-0.5 rounded-full", TAG_STYLES[t] ?? "bg-muted text-muted-foreground")}>{t}</span>
               ))}
