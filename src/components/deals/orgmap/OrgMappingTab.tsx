@@ -350,6 +350,11 @@ function DetailPanel({ stakeholder: s, onUpdate, onDuplicate, onAskDelete, onClo
               if (linkedin !== s.linkedin_url) onUpdate({ linkedin_url: linkedin });
             }} placeholder="https://linkedin.com/in/…" />
           </Field>
+          <Field label="Location / city" icon={<MapPin className="h-3 w-3" />} required error={!city.trim() ? "Required" : undefined}>
+            <Input value={city} onChange={e => setCity(e.target.value)} onBlur={() => {
+              if (city !== (s.city || "")) onUpdate({ city });
+            }} placeholder="e.g. Bengaluru, Mumbai…" />
+          </Field>
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Function" required error={!s.function ? "Required" : undefined}>
@@ -422,7 +427,28 @@ function DetailPanel({ stakeholder: s, onUpdate, onDuplicate, onAskDelete, onClo
             <Button variant="outline" size="sm" onClick={onDuplicate}><Copy className="h-3.5 w-3.5" /> Duplicate</Button>
             {s.email && <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(s.email); toast.success("Email copied"); }}><Mail className="h-3.5 w-3.5" /> Copy email</Button>}
           </div>
-          <Button variant="ghost" size="sm" onClick={onAskDelete} className="text-destructive hover:text-destructive hover:bg-destructive/10"><Trash2 className="h-3.5 w-3.5" /> Delete person</Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={onAskDelete} className="text-destructive hover:text-destructive hover:bg-destructive/10"><Trash2 className="h-3.5 w-3.5" /> Delete person</Button>
+            <Button
+              size="sm"
+              disabled={!isStakeholderComplete({ ...s, name, role, email, linkedin_url: linkedin, city })}
+              onClick={async () => {
+                const patch: Partial<Stakeholder> = {};
+                if (name !== s.name) patch.name = name;
+                if (role !== s.role) patch.role = role;
+                if (email !== s.email) patch.email = email;
+                if (phone !== s.phone) patch.phone = phone;
+                if (linkedin !== s.linkedin_url) patch.linkedin_url = linkedin;
+                if (city !== (s.city || "")) patch.city = city;
+                if (notes !== s.notes) patch.notes = notes;
+                if (Object.keys(patch).length) await onUpdate(patch);
+                toast.success("Stakeholder saved");
+                onClose();
+              }}
+            >
+              <Check className="h-3.5 w-3.5" /> Save
+            </Button>
+          </div>
         </div>
       </div>
     </div>
