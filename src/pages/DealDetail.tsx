@@ -1674,6 +1674,7 @@ export default function DealDetail() {
   const { deals, people, assignments, loading: staffLoading } = useStaffingQueries();
   const { updateDeal, updatePerson, addAssignment, updateAssignment, deleteAssignment } = useStaffingMutations();
   const { isAdmin, role } = useUserRole();
+  const { canEdit: canEditRgy } = useCanEditRgy();
   const isVsd = role === "member";
   const access = useDealAccess();
   const navigate = useNavigate();
@@ -2291,6 +2292,7 @@ export default function DealDetail() {
                 { key: "video", label: "Video", owner: "Video", value: currentRGY?.video || "G", planOfAction: "" },
               ]}
               onSave={handleRGYSave}
+              readOnly={!canEditRgy}
             />
 
             {/* Status bar — opens the single combined Issues card on demand */}
