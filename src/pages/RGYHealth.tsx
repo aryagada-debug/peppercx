@@ -734,6 +734,24 @@ export default function RGYHealth() {
   // After Mark RGY save: if any dim is Red, open the combined-issues dialog
   const [combinedIssuesDeal, setCombinedIssuesDeal] = useState<DealWithRGY | null>(null);
 
+  // Load every person staffed on the deal so they all appear as assignees
+  useEffect(() => {
+    if (!combinedIssuesDeal) { setAssignmentAssigneeNames([]); return; }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("staffing_assignments")
+        .select("staffing_people(name)")
+        .eq("staffing_deal_id", combinedIssuesDeal.id);
+      if (cancelled) return;
+      const names = Array.from(new Set(((data || []) as any[])
+        .map(r => r.staffing_people?.name)
+        .filter(Boolean) as string[]));
+      setAssignmentAssigneeNames(names);
+    })();
+    return () => { cancelled = true; };
+  }, [combinedIssuesDeal]);
+
   // Green-gate state
   const [greenGate, setGreenGate] = useState<{
     dealId: string;
