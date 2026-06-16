@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { useDealAccess } from "@/hooks/useDealAccess";
 import { toast } from "sonner";
 import { Loader2, AlertTriangle } from "lucide-react";
 
@@ -23,6 +24,7 @@ interface Props {
 
 export function RaiseInterventionDialog({ open, onOpenChange, dealId, dealLabel, rgyWeek, onCreated }: Props) {
   const { user } = useAuth();
+  const { visibleDealIds, isAdmin, loading: accessLoading } = useDealAccess();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [urgency, setUrgency] = useState<"High" | "Medium" | "Low">("Medium");
@@ -54,10 +56,14 @@ export function RaiseInterventionDialog({ open, onOpenChange, dealId, dealLabel,
         .select("id, deal_name, account")
         .order("account", { ascending: true })
         .limit(500);
-      if (!cancelled) setDeals(((data || []) as any[]).map((d) => ({ id: d.id, deal_name: d.deal_name || "", account: d.account || "" })));
+      if (cancelled) return;
+      const all = ((data || []) as any[]).map((d) => ({ id: d.id, deal_name: d.deal_name || "", account: d.account || "" }));
+      // Scope to deals this user can see (admins/cap leads see all via useDealAccess).
+      const scoped = isAdmin ? all : all.filter((d) => visibleDealIds.has(d.id));
+      setDeals(scoped);
     })();
     return () => { cancelled = true; };
-  }, [open, dealId, changingDeal]);
+  }, [open, dealId, changingDeal, isAdmin, visibleDealIds]);
 
   const filteredDeals = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -66,6 +72,14 @@ export function RaiseInterventionDialog({ open, onOpenChange, dealId, dealLabel,
       d.deal_name.toLowerCase().includes(q) || d.account.toLowerCase().includes(q),
     ).slice(0, 50);
   }, [deals, search]);
+
+  const selectedDealLabel = useMemo(() => {
+    if (!selectedDealId) return "";
+    if (dealId && selectedDealId === dealId && dealLabel) return dealLabel;
+    const d = deals.find((x) => x.id === selectedDealId);
+    if (!d) return dealLabel || selectedDealId;
+    return [d.account, d.deal_name].filter(Boolean).join(" — ") || d.deal_name || selectedDealId;
+  }, [selectedDealId, deals, dealId, dealLabel]);
 
   const canSubmit = !!selectedDealId && title.trim().length > 0 && description.trim().length > 0 && !saving;
 
@@ -113,13 +127,13 @@ export function RaiseInterventionDialog({ open, onOpenChange, dealId, dealLabel,
 
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label>Deal</Label>
-            {dealId && !changingDeal ? (
+            <Label>Deal <span className="text-destructive">*</span></Label>
+            {selectedDealId && !changingDeal ? (
               <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
-                <span className="truncate">{dealLabel || dealId}</span>
+                <span className="truncate">{selectedDealLabel}</span>
                 <button
                   type="button"
-                  onClick={() => setChangingDeal(true)}
+                  onClick={() => { setChangingDeal(true); setSearch(""); }}
                   className="text-xs text-primary hover:underline shrink-0 ml-2"
                 >
                   Change
@@ -133,14 +147,18 @@ export function RaiseInterventionDialog({ open, onOpenChange, dealId, dealLabel,
                   onChange={(e) => setSearch(e.target.value)}
                 />
                 <div className="max-h-40 overflow-auto rounded-md border border-border divide-y divide-border">
-                  {filteredDeals.length === 0 && (
-                    <div className="px-3 py-2 text-xs text-muted-foreground">No deals match.</div>
+                  {accessLoading ? (
+                    <div className="px-3 py-2 text-xs text-muted-foreground">Loading your deals…</div>
+                  ) : filteredDeals.length === 0 && (
+                    <div className="px-3 py-2 text-xs text-muted-foreground">
+                      {deals.length === 0 ? "You don't have any deals to raise an intervention on." : "No deals match."}
+                    </div>
                   )}
                   {filteredDeals.map((d) => (
                     <button
                       key={d.id}
                       type="button"
-                      onClick={() => setSelectedDealId(d.id)}
+                      onClick={() => { setSelectedDealId(d.id); setChangingDeal(false); setSearch(""); }}
                       className={`w-full text-left px-3 py-1.5 text-sm hover:bg-accent ${selectedDealId === d.id ? "bg-accent" : ""}`}
                     >
                       <div className="truncate">{d.deal_name || "(unnamed)"}</div>
@@ -162,7 +180,7 @@ export function RaiseInterventionDialog({ open, onOpenChange, dealId, dealLabel,
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="rli-title">Title</Label>
+            <Label htmlFor="rli-title">Title <span className="text-destructive">*</span></Label>
             <Input
               id="rli-title"
               value={title}
@@ -173,7 +191,7 @@ export function RaiseInterventionDialog({ open, onOpenChange, dealId, dealLabel,
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="rli-desc">Context</Label>
+            <Label htmlFor="rli-desc">Context <span className="text-destructive">*</span></Label>
             <Textarea
               id="rli-desc"
               value={description}
@@ -184,7 +202,7 @@ export function RaiseInterventionDialog({ open, onOpenChange, dealId, dealLabel,
           </div>
 
           <div className="space-y-1.5">
-            <Label>Urgency</Label>
+            <Label>Urgency <span className="text-destructive">*</span></Label>
             <Select value={urgency} onValueChange={(v) => setUrgency(v as any)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
