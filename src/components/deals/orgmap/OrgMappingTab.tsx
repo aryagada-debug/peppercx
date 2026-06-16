@@ -322,30 +322,42 @@ function DetailPanel({ stakeholder: s, onUpdate, onDuplicate, onAskDelete }: {
         <div className="space-y-4">
           <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Identity & contact</h4>
 
-          <Field label="Name">
-            <Input value={name} onChange={e => setName(e.target.value)} onBlur={() => name !== s.name && onUpdate({ name })} />
+          <Field label="Name" required error={!name.trim() ? "Required" : undefined}>
+            <Input value={name} onChange={e => setName(e.target.value)} onBlur={() => {
+              if (!name.trim()) { setName(s.name); return; }
+              if (name !== s.name) onUpdate({ name });
+            }} />
           </Field>
-          <Field label="Role / title">
-            <Input value={role} onChange={e => setRole(e.target.value)} onBlur={() => role !== s.role && onUpdate({ role })} />
+          <Field label="Role / title" required error={!role.trim() ? "Required" : undefined}>
+            <Input value={role} onChange={e => setRole(e.target.value)} onBlur={() => {
+              if (!role.trim()) { setRole(s.role); return; }
+              if (role !== s.role) onUpdate({ role });
+            }} />
           </Field>
-          <Field label="Email" icon={<Mail className="h-3 w-3" />}>
-            <Input value={email} onChange={e => setEmail(e.target.value)} onBlur={() => email !== s.email && onUpdate({ email })} placeholder="name@company.com" />
+          <Field label="Email" icon={<Mail className="h-3 w-3" />} required error={!email.trim() ? "Required" : undefined}>
+            <Input value={email} onChange={e => setEmail(e.target.value)} onBlur={() => {
+              if (!email.trim()) { setEmail(s.email); return; }
+              if (email !== s.email) onUpdate({ email });
+            }} placeholder="name@company.com" />
           </Field>
           <Field label="Phone" icon={<Phone className="h-3 w-3" />}>
             <Input value={phone} onChange={e => setPhone(e.target.value)} onBlur={() => phone !== s.phone && onUpdate({ phone })} placeholder="+91 …" />
           </Field>
-          <Field label="LinkedIn" icon={<Linkedin className="h-3 w-3" />}>
-            <Input value={linkedin} onChange={e => setLinkedin(e.target.value)} onBlur={() => linkedin !== s.linkedin_url && onUpdate({ linkedin_url: linkedin })} placeholder="https://linkedin.com/in/…" />
+          <Field label="LinkedIn" icon={<Linkedin className="h-3 w-3" />} required error={!linkedin.trim() ? "Required" : undefined}>
+            <Input value={linkedin} onChange={e => setLinkedin(e.target.value)} onBlur={() => {
+              if (!linkedin.trim()) { setLinkedin(s.linkedin_url); return; }
+              if (linkedin !== s.linkedin_url) onUpdate({ linkedin_url: linkedin });
+            }} placeholder="https://linkedin.com/in/…" />
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Function">
+            <Field label="Function" required error={!s.function ? "Required" : undefined}>
               <Select value={s.function || ""} onValueChange={(v) => onUpdate({ function: v })}>
                 <SelectTrigger className="h-9"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>{FUNCTIONS.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
               </Select>
             </Field>
-            <Field label="Seniority">
+            <Field label="Seniority" required error={!s.seniority ? "Required" : undefined}>
               <Select value={s.seniority || ""} onValueChange={(v) => onUpdate({ seniority: v })}>
                 <SelectTrigger className="h-9"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>{SENIORITIES.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
