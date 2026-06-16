@@ -11,7 +11,7 @@ import { AlertTriangle, MessageSquare, Search, Plus, Loader2 } from "lucide-reac
 import { format } from "date-fns";
 import { InterventionDrawer, type Intervention } from "@/components/rgy/InterventionDrawer";
 import { RaiseInterventionDialog } from "@/components/rgy/RaiseInterventionDialog";
-import { Navigate } from "react-router-dom";
+import { Navigate, Link } from "react-router-dom";
 
 type Row = Intervention & {
   deal_label: string;
@@ -185,7 +185,11 @@ export default function LeadershipInterventions() {
                 ) : filtered.map((r) => (
                   <tr key={r.id} className="hover:bg-accent/40 cursor-pointer" onClick={() => setDrawerRow(r)}>
                     <td className="px-3 py-2"><Badge variant="outline" className={urgencyClass(r.urgency)}>{r.urgency}</Badge></td>
-                    <td className="px-3 py-2 max-w-[260px] truncate" title={r.deal_label}>{r.deal_label}</td>
+                    <td className="px-3 py-2 max-w-[260px] truncate" title={r.deal_label} onClick={(e) => e.stopPropagation()}>
+                      <Link to={`/deals/${r.deal_id}`} className="text-primary hover:underline">
+                        {r.deal_label}
+                      </Link>
+                    </td>
                     <td className="px-3 py-2 max-w-[360px] truncate" title={r.title}>{r.title}</td>
                     <td className="px-3 py-2 whitespace-nowrap">{r.raised_by_name || "—"}</td>
                     <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{format(new Date(r.created_at), "MMM d, yyyy")}</td>

@@ -1,67 +1,69 @@
-## Goal
+## 1. Gate RGY edit by role + staffing title
 
-Generate a detailed Excel file every day with **one row per deal** and **one column per staffing role**. Each role cell lists every person staffed on that deal in that role (with allocation %). Available for download from the app and refreshed automatically.
+**New hook** `src/hooks/useCanEditRgy.ts`:
 
-## What the Excel looks like
+- Returns `true` if `actualRole` is `admin`, `member` (VSD) or `capability_lead`.
+- Otherwise resolves the signed-in user's `staffing_people.role_title` (via `profiles.staffing_person_id` → `staffing_people`) and returns `true` when the normalized title is one of: `principal_bopm`, `senior_bopm`, `vsd`, or matches "group bopm".
+- Plain "BOPM" → `false`.
 
-### Columns
+**Apply in:**
 
-**Deal identity (left side)**
-- Deal ID • PC Code • Account • Deal Name • Pod • Geo • Deal Status • Staffing Status • MRR • Total Deal Value • Start Date • End Date
+- `EditableRGY` (Deal Detail RGY tab) — disable status buttons + "Raise intervention" prompt when read-only; show a small "Read-only — only Sr/Principal/Group BOPM, VSD or Admin can edit" hint.
+- `MarkRGYDialog` trigger in `RGYHealth.tsx` — hide/disable the "Mark RGY" button per row for non-editors.
+- `RGYCombinedIssuesDialog` save button — disable when read-only.
 
-**Leadership (one column each)**
-- VSD • Principal BOPM • Senior BOPM • BOPM
+## 2. Show all staffed people in assign-issue popup
 
-**Capability roles (one column each — derived from all role keys in `staffing_assignments`)**
-- SEO Capability Leader • SEO Growth Lead • SEO Operations • Content Capability Leader • Content Lead • Content Editor • Video Capability Leader • Video Editor • Creative Producer • Creative Strategist • Copywriter • CD/SCD Copy • CD/SCD Design • ACD/AGH Design • Graphic Designer • AD Creative Producer • Influencer Team • Performance Marketing Team
-- (Any new role keys auto-appear as new columns the next day.)
+In `RGYCombinedIssuesDialog` usages, replace the 4-name (VSD + 3 BOPM) `assigneeNames` list with everyone staffed on the deal:
 
-**Meta (right side)**
-- # of People Staffed • Total Allocation % • Snapshot Date
+- **RGYHealth.tsx (combinedIssuesDeal block):** fetch the deal's `staffing_assignments` joined with `staffing_people.name` once when the dialog opens, dedupe, and pass to `assigneeNames`. Fall back to the 4 BOPM/VSD names if there are no assignments.
+- **DealDetail.tsx:** already merges `dealPeople`; verify `dealPeople` includes everyone in `staffing_assignments` (not just BOPM roles) and broaden the query if it filters.
 
-### Cell format
+No schema change.
 
-If multiple people share a role on a deal, they're concatenated:
-`Prithvi Pujari (2.5%), Asha Rao (10%)`
-Empty roles show as blank.
+## 3. Flag leadership intervention — make deal clickable (both places)
 
-### One reference row (real data from your DB right now)
+- `**RaiseInterventionDialog`:** when `dealId` is pre-filled, replace the locked `<div>` with a row that shows the deal label and a small "Change" link that swaps to the existing searchable picker. Selected deal still defaults to `dealId`.
+- `**LeadershipInterventions.tsx`:** wrap the deal cell `<td>` content in a `<Link to={`/deals/${r.deal_id}`}>` (stop row click propagation) so clicking the deal label opens the deal in a new tab, while clicking elsewhere on the row still opens the drawer.
+- `**InterventionDrawer`:** turn the `SheetDescription` deal label into a `Link` to `/deals/:dealId`.
 
-```text
-Deal ID:               id_332_wrrot
-Account:               Akeyless
-Deal Name:             Backlinking Upsell
-Pod:                   US B2B
-Deal Status:           Active Deal
-MRR:                   —
-VSD:                   Neema Jayadas
-Principal BOPM:        (empty)
-Senior BOPM:           Anshika Sharma, Vivek Teotia
-BOPM:                  (empty)
-SEO Growth Lead:       Prithvi Pujari (2.5%)
-Content Lead:          Maleeha Mukhtar (2.5%)
-(other role columns):  (empty)
-# People Staffed:      4
-Total Allocation %:    5.0
-Snapshot Date:         2026-06-08
-```
+## 4. Org mapping required fields
 
-## How it works
+In `src/components/deals/orgmap/OrgMappingTab.tsx` (`DetailPanel`):
 
-1. **Edge function `staffing-daily-export`** queries `staffing_deals` + `staffing_assignments` + `staffing_people`, pivots assignments by normalized `role_key`, builds the workbook with `xlsx` (SheetJS via esm.sh), and uploads `staffing-export-YYYY-MM-DD.xlsx` to a new private storage bucket `staffing-exports/`.
-2. **Daily cron** at 06:00 IST (00:30 UTC) calls the function. (Uses `pg_cron` + `pg_net`, same pattern as other scheduled jobs.)
-3. **Settings → "Staffing exports" panel** (admins only) shows the last 14 snapshots from the bucket with date, size, and a Download button. A **"Generate now"** button runs the function on demand and refreshes the list.
-4. Exports are kept for 30 days; older files auto-deleted by the same function on each run.
+- Mark Name, Role/title, Email, LinkedIn, Function, Seniority as required (red asterisk on `<Field>` labels).
+- On blur of any required field, if empty show inline error and revert (don't save empty).
+- Add a row-level validity badge in the table: rows missing any required field show an amber "Incomplete" pill.
+- Block `add()` from auto-saving "New stakeholder" as final — keep current behaviour (row is created, immediately opened for edit) but show the row as Incomplete until all required fields are filled.
+- Block `duplicate()` only if source is complete (it will be — duplicates inherit values).
+- Phone stays optional.
 
-## Technical notes
+Validation helper lives in the same file.
 
-- All active + closed deals included by default; a future filter can scope to active-only if you want.
-- Role columns are built dynamically from a small allow-list of `normalize_staffing_role_key()` values so spelling variants ("Sr. BOPM" vs "senior bopm") collapse into the same column.
-- Read-only operation — no writes to `staffing_deals` or `staffing_assignments`, so this can't repeat the June 8 incident.
-- File download via signed URL (60 min expiry); bucket stays private.
+## 5. Google sign-in for all email/password users
 
-## Out of scope (ask if you want them)
+**Migration (data update via supabase--insert):**
 
-- Per-week / per-month historical comparison sheet.
-- People-level pivot (one row per person, deals as columns).
-- Email/Slack delivery of the daily file.
+- Set `email_confirmed_at = now()` on every `auth.users` row where `email_confirmed_at IS NULL` AND `email ILIKE '%@peppercontent.io'`. This lets Lovable Cloud auto-link a Google sign-in to the existing account when emails match.
+
+**Login UX (`src/pages/Login.tsx`):**
+
+- After `lovable.auth.signInWithOAuth("google", …)` returns, if `result.error` includes "User already registered" / "Email link" / generic failure, show a precise toast: "Your account exists with email/password. Please sign in with your password, or contact admin to enable Google for your account."
+- On success, verify `supabase.auth.getSession()` and route to `/home`.
+
+No `hd:` domain restriction (per user choice).
+
+---
+
+### Technical notes
+
+- `useCanEditRgy` caches the result per user (single fetch on mount). Uses `useAuth` + a small `useQuery` against `profiles` joined to `staffing_people`.
+- `staffing_assignments` query for assignees: `select person_id, staffing_people(name) where staffing_deal_id = eq.<id>`.
+- No new tables, no RLS changes.
+- Existing `normalize_staffing_role_key` DB function already maps "Group BOPM" → `principal_bopm`; we'll mirror that mapping client-side in `useCanEditRgy` so the check is one round-trip.
+
+### Files touched
+
+- new: `src/hooks/useCanEditRgy.ts`
+- edit: `src/components/deals/EditableRGY.tsx`, `src/components/rgy/MarkRGYDialog.tsx` (trigger guards in pages), `src/components/rgy/RGYCombinedIssuesDialog.tsx`, `src/components/rgy/RaiseInterventionDialog.tsx`, `src/components/rgy/InterventionDrawer.tsx`, `src/pages/RGYHealth.tsx`, `src/pages/DealDetail.tsx`, `src/pages/LeadershipInterventions.tsx`, `src/components/deals/orgmap/OrgMappingTab.tsx`, `src/pages/Login.tsx`
+- data migration: bulk `UPDATE auth.users SET email_confirmed_at = now() …` via insert tool.

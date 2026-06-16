@@ -52,6 +52,7 @@ import { WeeklyComplianceTab } from "@/components/rgy/WeeklyComplianceTab";
 import { RaiseInterventionDialog } from "@/components/rgy/RaiseInterventionDialog";
 import { MarkRGYDialog, type MarkRGYDimension } from "@/components/rgy/MarkRGYDialog";
 import { RGYCombinedIssuesDialog } from "@/components/rgy/RGYCombinedIssuesDialog";
+import { useCanEditRgy } from "@/hooks/useCanEditRgy";
 
 type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
@@ -514,6 +515,8 @@ export default function RGYHealth() {
   const { vsdUsers, isVsdName, canonVsd } = useVsdUsers();
   const { vsdForDeal, bopmsForVsd, allBopms } = useVsdHierarchy();
   const { role } = useUserRole();
+  const { canEdit: canEditRgy } = useCanEditRgy();
+  const [assignmentAssigneeNames, setAssignmentAssigneeNames] = useState<string[]>([]);
   const { visibleDealIds, loading: accessLoading, isAdmin: hasAllDealAccess } = useDealAccess();
   const isBopmPersona = role === "user" || role === "capability_member";
   const isVsdPersona = role === "member";
@@ -730,6 +733,24 @@ export default function RGYHealth() {
   const [markRGYSaving, setMarkRGYSaving] = useState(false);
   // After Mark RGY save: if any dim is Red, open the combined-issues dialog
   const [combinedIssuesDeal, setCombinedIssuesDeal] = useState<DealWithRGY | null>(null);
+
+  // Load every person staffed on the deal so they all appear as assignees
+  useEffect(() => {
+    if (!combinedIssuesDeal) { setAssignmentAssigneeNames([]); return; }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("staffing_assignments")
+        .select("staffing_people(name)")
+        .eq("staffing_deal_id", combinedIssuesDeal.id);
+      if (cancelled) return;
+      const names = Array.from(new Set(((data || []) as any[])
+        .map(r => r.staffing_people?.name)
+        .filter(Boolean) as string[]));
+      setAssignmentAssigneeNames(names);
+    })();
+    return () => { cancelled = true; };
+  }, [combinedIssuesDeal]);
 
   // Green-gate state
   const [greenGate, setGreenGate] = useState<{
@@ -1721,6 +1742,8 @@ export default function RGYHealth() {
                                     variant={allMarked ? "outline" : "default"}
                                     className="h-7 text-[11px]"
                                     onClick={() => setMarkRGYDeal(deal)}
+                                    disabled={!canEditRgy}
+                                    title={!canEditRgy ? "Only Sr/Principal/Group BOPM, VSD or Admin can edit RGY" : undefined}
                                   >
                                     {allMarked ? "Update RGY" : "Mark RGY"}
                                   </Button>
@@ -1927,6 +1950,7 @@ export default function RGYHealth() {
             .map(dim => ({ key: dim.key, label: dim.label, value: (combinedIssuesDeal[dim.key as keyof DealWithRGY] as string) || "" }))
             .filter(d => d.value === "R" || d.value === "Y");
           const assigneeNames = Array.from(new Set([
+            ...assignmentAssigneeNames,
             combinedIssuesDeal.vsd, combinedIssuesDeal.principal_bopm, combinedIssuesDeal.senior_bopm, combinedIssuesDeal.bopm,
           ].filter(Boolean) as string[]));
           return (
@@ -1936,6 +1960,7 @@ export default function RGYHealth() {
               dealLabel={combinedIssuesDeal.deal_name}
               nonGreenDims={nonGreen}
               assigneeNames={assigneeNames}
+              readOnly={!canEditRgy}
               initial={{
                 issueDetails: combinedIssuesDeal.rgy_issue_details || "",
                 actionPlan: combinedIssuesDeal.rgy_action_plan || "",

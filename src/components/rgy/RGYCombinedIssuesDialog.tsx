@@ -32,6 +32,7 @@ export interface RGYCombinedIssuesDialogProps {
   /** Pre-fill from existing weekly issue (when editing) */
   initial?: Partial<RGYCombinedIssuePayload>;
   onSave: (data: RGYCombinedIssuePayload) => Promise<void>;
+  readOnly?: boolean;
 }
 
 /**
@@ -46,6 +47,7 @@ export function RGYCombinedIssuesDialog({
   assigneeNames,
   initial,
   onSave,
+  readOnly,
 }: RGYCombinedIssuesDialogProps) {
   const [issueDate, setIssueDate] = useState<Date>(new Date());
   const [issueDetails, setIssueDetails] = useState("");
@@ -242,7 +244,7 @@ export function RGYCombinedIssuesDialog({
 
           <div className="flex gap-2 justify-end pt-2 border-t border-border">
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
-            <Button onClick={submit} disabled={saving} className="gap-1.5">
+            <Button onClick={submit} disabled={saving || readOnly} className="gap-1.5" title={readOnly ? "Only Sr/Principal/Group BOPM, VSD or Admin can save" : undefined}>
               {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
               Save combined issue
             </Button>

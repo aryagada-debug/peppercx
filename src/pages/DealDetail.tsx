@@ -23,6 +23,7 @@ import { InterventionDrawer, type Intervention } from "@/components/rgy/Interven
 import { RGYCombinedIssuesDialog, type RGYCombinedIssuePayload } from "@/components/rgy/RGYCombinedIssuesDialog";
 import { RGYStatusBar } from "@/components/rgy/RGYStatusBar";
 import { EditableRGY } from "@/components/deals/EditableRGY";
+import { useCanEditRgy } from "@/hooks/useCanEditRgy";
 import { ResolveIssuesDialog } from "@/components/rgy/ResolveIssuesDialog";
 import { FinancialsTab } from "@/components/deals/FinancialsTab";
 import { TaskKanban } from "@/components/deals/TaskKanban";
@@ -1673,6 +1674,7 @@ export default function DealDetail() {
   const { deals, people, assignments, loading: staffLoading } = useStaffingQueries();
   const { updateDeal, updatePerson, addAssignment, updateAssignment, deleteAssignment } = useStaffingMutations();
   const { isAdmin, role } = useUserRole();
+  const { canEdit: canEditRgy } = useCanEditRgy();
   const isVsd = role === "member";
   const access = useDealAccess();
   const navigate = useNavigate();
@@ -2290,6 +2292,7 @@ export default function DealDetail() {
                 { key: "video", label: "Video", owner: "Video", value: currentRGY?.video || "G", planOfAction: "" },
               ]}
               onSave={handleRGYSave}
+              readOnly={!canEditRgy}
             />
 
             {/* Status bar — opens the single combined Issues card on demand */}
@@ -3085,6 +3088,7 @@ export default function DealDetail() {
             ...dealPeople.map(p => p.name),
             deal.vsd, deal.principalBopm, deal.seniorBopm, deal.bopm,
           ].filter(Boolean) as string[]))}
+          readOnly={!canEditRgy}
           initial={combinedIssuesMode === "edit" ? {
             issueDate: (currentRGY as any).issueDate || "",
             issueDetails: (currentRGY as any).issueDetails || "",

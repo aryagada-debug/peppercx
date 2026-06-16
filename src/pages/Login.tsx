@@ -37,7 +37,12 @@ export default function Login() {
       redirect_uri: window.location.origin,
     });
     if (result.error) {
-      toast.error("Google sign-in failed");
+      const msg = (result.error as any)?.message?.toLowerCase() || "";
+      if (msg.includes("already registered") || msg.includes("email link") || msg.includes("identity")) {
+        toast.error("Your account exists with email/password. Sign in with your password, or contact your admin to enable Google for your account.");
+      } else {
+        toast.error("Google sign-in failed. If your account uses email/password, sign in below or contact your admin.");
+      }
       setLoading(false);
       return;
     }

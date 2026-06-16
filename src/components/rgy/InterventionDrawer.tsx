@@ -10,6 +10,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { useIsLeadershipViewer } from "@/hooks/useIsLeadershipViewer";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { Link } from "react-router-dom";
 
 export interface Intervention {
   id: string;
@@ -173,7 +174,9 @@ export function InterventionDrawer({ open, onOpenChange, intervention, onChanged
         <SheetHeader>
           <SheetTitle className="text-base">{intervention.title}</SheetTitle>
           <SheetDescription>
-            {dealLabel || intervention.deal_id}
+            <Link to={`/deals/${intervention.deal_id}`} className="text-primary hover:underline">
+              {dealLabel || intervention.deal_id}
+            </Link>
             {intervention.rgy_week ? ` • Week of ${format(new Date(intervention.rgy_week), "MMM d, yyyy")}` : ""}
           </SheetDescription>
         </SheetHeader>
