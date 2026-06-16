@@ -192,10 +192,20 @@ function getWorstRGY(deal: DealWithRGY): "R" | "Y" | "G" | null {
 function RGYCell({
   value,
   label,
+  issueDetails,
+  actionPlan,
+  issueDate,
+  updatedByName,
 }: {
   value: RGYCellValue;
   label: string;
+  issueDetails?: string;
+  actionPlan?: string;
+  issueDate?: string | null;
+  updatedByName?: string | null;
 }) {
+  const showContext = (value === "R" || value === "Y");
+  const hasContext = showContext && !!((issueDetails && issueDetails.trim()) || (actionPlan && actionPlan.trim()));
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -210,9 +220,35 @@ function RGYCell({
           {cellLabels[value]}
         </span>
       </TooltipTrigger>
-      <TooltipContent>
-        <p>{label} · {statusLabels[value]}</p>
-        <p className="text-[10px] text-muted-foreground mt-0.5">Use “Mark RGY” to change</p>
+      <TooltipContent className={cn(showContext && hasContext && "max-w-xs")}>
+        <p className="font-medium">{label} · {statusLabels[value]}</p>
+        {showContext && hasContext ? (
+          <div className="mt-1.5 space-y-1.5">
+            {issueDetails && issueDetails.trim() && (
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Issue</p>
+                <p className="text-[11px] whitespace-pre-wrap leading-snug">{issueDetails}</p>
+              </div>
+            )}
+            {actionPlan && actionPlan.trim() && (
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Action plan</p>
+                <p className="text-[11px] whitespace-pre-wrap leading-snug">{actionPlan}</p>
+              </div>
+            )}
+            {(issueDate || updatedByName) && (
+              <p className="text-[10px] text-muted-foreground pt-0.5 border-t border-border/40">
+                {issueDate ? `Logged ${issueDate}` : ""}
+                {issueDate && updatedByName ? " · " : ""}
+                {updatedByName || ""}
+              </p>
+            )}
+          </div>
+        ) : showContext ? (
+          <p className="text-[10px] text-muted-foreground mt-0.5 italic">No issue logged yet — use “Mark RGY” to add details</p>
+        ) : (
+          <p className="text-[10px] text-muted-foreground mt-0.5">Use “Mark RGY” to change</p>
+        )}
       </TooltipContent>
     </Tooltip>
   );
