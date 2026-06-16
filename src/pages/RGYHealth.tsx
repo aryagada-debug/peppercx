@@ -1724,6 +1724,8 @@ export default function RGYHealth() {
                                     variant={allMarked ? "outline" : "default"}
                                     className="h-7 text-[11px]"
                                     onClick={() => setMarkRGYDeal(deal)}
+                                    disabled={!canEditRgy}
+                                    title={!canEditRgy ? "Only Sr/Principal/Group BOPM, VSD or Admin can edit RGY" : undefined}
                                   >
                                     {allMarked ? "Update RGY" : "Mark RGY"}
                                   </Button>
