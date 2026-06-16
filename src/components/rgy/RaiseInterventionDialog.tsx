@@ -30,6 +30,7 @@ export function RaiseInterventionDialog({ open, onOpenChange, dealId, dealLabel,
   const [search, setSearch] = useState("");
   const [deals, setDeals] = useState<DealOption[]>([]);
   const [saving, setSaving] = useState(false);
+  const [changingDeal, setChangingDeal] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -38,12 +39,14 @@ export function RaiseInterventionDialog({ open, onOpenChange, dealId, dealLabel,
       setUrgency("Medium");
       setSelectedDealId(dealId || "");
       setSearch("");
+      setChangingDeal(false);
     }
   }, [open, dealId]);
 
-  // Load a small searchable list of deals only when no deal is pre-filled.
+  // Load a small searchable list of deals when no deal is pre-filled OR when the user clicks Change.
   useEffect(() => {
-    if (!open || dealId) return;
+    if (!open) return;
+    if (dealId && !changingDeal) return;
     let cancelled = false;
     (async () => {
       const { data } = await supabase
@@ -54,7 +57,7 @@ export function RaiseInterventionDialog({ open, onOpenChange, dealId, dealLabel,
       if (!cancelled) setDeals(((data || []) as any[]).map((d) => ({ id: d.id, deal_name: d.deal_name || "", account: d.account || "" })));
     })();
     return () => { cancelled = true; };
-  }, [open, dealId]);
+  }, [open, dealId, changingDeal]);
 
   const filteredDeals = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -111,9 +114,16 @@ export function RaiseInterventionDialog({ open, onOpenChange, dealId, dealLabel,
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label>Deal</Label>
-            {dealId ? (
-              <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
-                {dealLabel || dealId}
+            {dealId && !changingDeal ? (
+              <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
+                <span className="truncate">{dealLabel || dealId}</span>
+                <button
+                  type="button"
+                  onClick={() => setChangingDeal(true)}
+                  className="text-xs text-primary hover:underline shrink-0 ml-2"
+                >
+                  Change
+                </button>
               </div>
             ) : (
               <>
@@ -138,6 +148,15 @@ export function RaiseInterventionDialog({ open, onOpenChange, dealId, dealLabel,
                     </button>
                   ))}
                 </div>
+                {dealId && changingDeal && (
+                  <button
+                    type="button"
+                    onClick={() => { setChangingDeal(false); setSelectedDealId(dealId); }}
+                    className="text-xs text-muted-foreground hover:underline"
+                  >
+                    Cancel change
+                  </button>
+                )}
               </>
             )}
           </div>
