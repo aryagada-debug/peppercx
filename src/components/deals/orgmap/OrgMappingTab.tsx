@@ -25,6 +25,11 @@ const FUNCTIONS = [
 ] as const;
 const SENIORITIES = ["C-Suite · CXO", "C-1 · VP", "C-2 · Director", "C-3 · Sr Mgr", "C-3 · Mgr", "C-4 · Lead", "Other"] as const;
 
+function isStakeholderComplete(s: { name: string; role: string; email: string; linkedin_url: string; function: string; seniority: string }) {
+  return !!(s.name?.trim() && s.role?.trim() && s.email?.trim() && s.linkedin_url?.trim() && s.function?.trim() && s.seniority?.trim()
+    && s.name.trim() !== "New stakeholder");
+}
+
 const FUNCTION_DOT: Record<string, string> = {
   "SEO Team": "bg-primary",
   "Content Team": "bg-emerald-500",
