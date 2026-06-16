@@ -1875,7 +1875,14 @@ export default function RGYHealth() {
                               const val: RGYCellValue = raw === "" ? "PENDING" : (raw as RGYStatus);
                               return (
                                 <td key={dim.key} className="py-2 px-2 text-center">
-                                  <RGYCell value={val} label={dim.label} />
+                                  <RGYCell
+                                    value={val}
+                                    label={dim.label}
+                                    issueDetails={deal.rgy_issue_details}
+                                    actionPlan={deal.rgy_action_plan}
+                                    issueDate={deal.rgy_issue_date}
+                                    updatedByName={deal.rgy_updated_by_name}
+                                  />
                                 </td>
                               );
                             })}
