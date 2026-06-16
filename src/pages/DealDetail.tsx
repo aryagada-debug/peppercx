@@ -23,6 +23,7 @@ import { InterventionDrawer, type Intervention } from "@/components/rgy/Interven
 import { RGYCombinedIssuesDialog, type RGYCombinedIssuePayload } from "@/components/rgy/RGYCombinedIssuesDialog";
 import { RGYStatusBar } from "@/components/rgy/RGYStatusBar";
 import { EditableRGY } from "@/components/deals/EditableRGY";
+import { useCanEditRgy } from "@/hooks/useCanEditRgy";
 import { ResolveIssuesDialog } from "@/components/rgy/ResolveIssuesDialog";
 import { FinancialsTab } from "@/components/deals/FinancialsTab";
 import { TaskKanban } from "@/components/deals/TaskKanban";
