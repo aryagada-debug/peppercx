@@ -3088,6 +3088,7 @@ export default function DealDetail() {
             ...dealPeople.map(p => p.name),
             deal.vsd, deal.principalBopm, deal.seniorBopm, deal.bopm,
           ].filter(Boolean) as string[]))}
+          readOnly={!canEditRgy}
           initial={combinedIssuesMode === "edit" ? {
             issueDate: (currentRGY as any).issueDate || "",
             issueDetails: (currentRGY as any).issueDetails || "",
