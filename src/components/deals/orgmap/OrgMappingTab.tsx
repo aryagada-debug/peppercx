@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Plus, Search, Filter, Download, ChevronRight, MoreHorizontal, Mail, Phone, Linkedin, Copy, Trash2, Users } from "lucide-react";
+import { Plus, Search, Filter, Download, ChevronRight, MoreHorizontal, Mail, Phone, Linkedin, Copy, Trash2, Users, MapPin, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,9 +25,9 @@ const FUNCTIONS = [
 ] as const;
 const SENIORITIES = ["C-Suite · CXO", "C-1 · VP", "C-2 · Director", "C-3 · Sr Mgr", "C-3 · Mgr", "C-4 · Lead", "Other"] as const;
 
-function isStakeholderComplete(s: { name: string; role: string; email: string; linkedin_url: string; function: string; seniority: string }) {
-  return !!(s.name?.trim() && s.role?.trim() && s.email?.trim() && s.linkedin_url?.trim() && s.function?.trim() && s.seniority?.trim()
-    && s.name.trim() !== "New stakeholder");
+function isStakeholderComplete(s: { name: string; role: string; email: string; linkedin_url: string; function: string; seniority: string; city: string }) {
+  return !!(s.name?.trim() && s.role?.trim() && s.email?.trim() && s.linkedin_url?.trim() && s.function?.trim() && s.seniority?.trim() && s.city?.trim()
+    && s.name.trim().toLowerCase() !== "new stakeholder");
 }
 
 const FUNCTION_DOT: Record<string, string> = {
