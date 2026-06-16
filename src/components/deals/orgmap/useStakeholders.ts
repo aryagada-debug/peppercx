@@ -14,6 +14,7 @@ export type Stakeholder = {
   email: string;
   phone: string;
   linkedin_url: string;
+  city: string;
   decision_power: number;
   tags: string[];
   notes: string;
@@ -56,7 +57,7 @@ export function useStakeholders(dealId: string, clientName: string) {
     const sort = data.length ? Math.max(...data.map(d => d.sort_order)) + 1 : 0;
     const { data: inserted, error } = await supabase
       .from("deal_stakeholders")
-      .insert({ deal_id: dealId, client_name: clientName || "", name: "New stakeholder", sort_order: sort })
+      .insert({ deal_id: dealId, client_name: clientName || "", name: "", sort_order: sort })
       .select()
       .single();
     if (error || !inserted) { toast.error("Failed to add"); return null; }

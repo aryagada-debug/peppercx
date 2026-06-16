@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Plus, Search, Filter, Download, ChevronRight, MoreHorizontal, Mail, Phone, Linkedin, Copy, Trash2, Users } from "lucide-react";
+import { Plus, Search, Filter, Download, ChevronRight, MoreHorizontal, Mail, Phone, Linkedin, Copy, Trash2, Users, MapPin, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,9 +25,9 @@ const FUNCTIONS = [
 ] as const;
 const SENIORITIES = ["C-Suite · CXO", "C-1 · VP", "C-2 · Director", "C-3 · Sr Mgr", "C-3 · Mgr", "C-4 · Lead", "Other"] as const;
 
-function isStakeholderComplete(s: { name: string; role: string; email: string; linkedin_url: string; function: string; seniority: string }) {
-  return !!(s.name?.trim() && s.role?.trim() && s.email?.trim() && s.linkedin_url?.trim() && s.function?.trim() && s.seniority?.trim()
-    && s.name.trim() !== "New stakeholder");
+function isStakeholderComplete(s: { name: string; role: string; email: string; linkedin_url: string; function: string; seniority: string; city: string }) {
+  return !!(s.name?.trim() && s.role?.trim() && s.email?.trim() && s.linkedin_url?.trim() && s.function?.trim() && s.seniority?.trim() && s.city?.trim()
+    && s.name.trim().toLowerCase() !== "new stakeholder");
 }
 
 const FUNCTION_DOT: Record<string, string> = {
@@ -289,21 +289,22 @@ function Row({ stakeholder: s, isOpen, onToggle, onUpdate, onDuplicate, onAskDel
         </div>
       </div>
 
-      {isOpen && <DetailPanel stakeholder={s} onUpdate={onUpdate} onDuplicate={onDuplicate} onAskDelete={onAskDelete} />}
+      {isOpen && <DetailPanel stakeholder={s} onUpdate={onUpdate} onDuplicate={onDuplicate} onAskDelete={onAskDelete} onClose={onToggle} />}
     </div>
   );
 }
 
-function DetailPanel({ stakeholder: s, onUpdate, onDuplicate, onAskDelete }: {
+function DetailPanel({ stakeholder: s, onUpdate, onDuplicate, onAskDelete, onClose }: {
   stakeholder: Stakeholder;
   onUpdate: (patch: Partial<Stakeholder>) => void;
-  onDuplicate: () => void; onAskDelete: () => void;
+  onDuplicate: () => void; onAskDelete: () => void; onClose: () => void;
 }) {
   const [name, setName] = useState(s.name);
   const [role, setRole] = useState(s.role);
   const [email, setEmail] = useState(s.email);
   const [phone, setPhone] = useState(s.phone);
   const [linkedin, setLinkedin] = useState(s.linkedin_url);
+  const [city, setCity] = useState(s.city || "");
   const [notes, setNotes] = useState(s.notes);
   const [newTag, setNewTag] = useState("");
 
@@ -348,6 +349,11 @@ function DetailPanel({ stakeholder: s, onUpdate, onDuplicate, onAskDelete }: {
               if (!linkedin.trim()) { setLinkedin(s.linkedin_url); return; }
               if (linkedin !== s.linkedin_url) onUpdate({ linkedin_url: linkedin });
             }} placeholder="https://linkedin.com/in/…" />
+          </Field>
+          <Field label="Location / city" icon={<MapPin className="h-3 w-3" />} required error={!city.trim() ? "Required" : undefined}>
+            <Input value={city} onChange={e => setCity(e.target.value)} onBlur={() => {
+              if (city !== (s.city || "")) onUpdate({ city });
+            }} placeholder="e.g. Bengaluru, Mumbai…" />
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
@@ -421,7 +427,28 @@ function DetailPanel({ stakeholder: s, onUpdate, onDuplicate, onAskDelete }: {
             <Button variant="outline" size="sm" onClick={onDuplicate}><Copy className="h-3.5 w-3.5" /> Duplicate</Button>
             {s.email && <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(s.email); toast.success("Email copied"); }}><Mail className="h-3.5 w-3.5" /> Copy email</Button>}
           </div>
-          <Button variant="ghost" size="sm" onClick={onAskDelete} className="text-destructive hover:text-destructive hover:bg-destructive/10"><Trash2 className="h-3.5 w-3.5" /> Delete person</Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={onAskDelete} className="text-destructive hover:text-destructive hover:bg-destructive/10"><Trash2 className="h-3.5 w-3.5" /> Delete person</Button>
+            <Button
+              size="sm"
+              disabled={!isStakeholderComplete({ ...s, name, role, email, linkedin_url: linkedin, city })}
+              onClick={async () => {
+                const patch: Partial<Stakeholder> = {};
+                if (name !== s.name) patch.name = name;
+                if (role !== s.role) patch.role = role;
+                if (email !== s.email) patch.email = email;
+                if (phone !== s.phone) patch.phone = phone;
+                if (linkedin !== s.linkedin_url) patch.linkedin_url = linkedin;
+                if (city !== (s.city || "")) patch.city = city;
+                if (notes !== s.notes) patch.notes = notes;
+                if (Object.keys(patch).length) await onUpdate(patch);
+                toast.success("Stakeholder saved");
+                onClose();
+              }}
+            >
+              <Check className="h-3.5 w-3.5" /> Save
+            </Button>
+          </div>
         </div>
       </div>
     </div>

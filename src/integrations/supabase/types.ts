@@ -844,6 +844,7 @@ export type Database = {
       }
       deal_stakeholders: {
         Row: {
+          city: string
           client_name: string
           created_at: string
           deal_id: string
@@ -862,6 +863,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          city?: string
           client_name?: string
           created_at?: string
           deal_id: string
@@ -880,6 +882,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          city?: string
           client_name?: string
           created_at?: string
           deal_id?: string
