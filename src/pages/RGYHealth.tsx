@@ -1199,10 +1199,10 @@ export default function RGYHealth() {
       setDeals(prev => prev.map(d => d.id === deal.id ? { ...d, ...patch } as DealWithRGY : d));
 
       const updatedDeal: DealWithRGY = { ...deal, ...patch } as DealWithRGY;
-      const hasRed = next.some(d => d.value === "R");
+      const hasRedOrYellow = next.some(d => d.value === "R" || d.value === "Y");
       setMarkRGYDeal(null);
-      if (hasRed) {
-        toast.success("RGY saved — log the combined issue");
+      if (hasRedOrYellow) {
+        toast.success("RGY saved — log the issue & action plan");
         setCombinedIssuesDeal(updatedDeal);
       } else {
         toast.success("RGY saved");
