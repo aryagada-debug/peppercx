@@ -30,10 +30,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Handle OAuth callback tokens that the Lovable broker returns in the
+    // URL hash (#access_token=...&refresh_token=...). The Supabase client
+    // defaults to PKCE flow and does NOT auto-consume hash-style tokens,
+    // so without this step the user lands on "/" with valid tokens in the
+    // URL, no session, and ProtectedRoute kicks them back to /login.
+    const consumeHashTokens = async (): Promise<boolean> => {
+      if (typeof window === "undefined") return false;
+      const hash = window.location.hash?.startsWith("#")
+        ? window.location.hash.slice(1)
+        : "";
+      if (!hash) return false;
+      const params = new URLSearchParams(hash);
+      const access_token = params.get("access_token");
+      const refresh_token = params.get("refresh_token");
+      if (!access_token || !refresh_token) return false;
+      try {
+        const { error } = await supabase.auth.setSession({ access_token, refresh_token });
+        if (error) {
+          console.error("[auth] setSession from hash failed", error);
+          return false;
+        }
+        // Clean tokens out of the URL so they don't leak into history / referrers.
+        const cleanUrl = window.location.pathname + window.location.search;
+        window.history.replaceState({}, document.title, cleanUrl);
+        return true;
+      } catch (e) {
+        console.error("[auth] setSession from hash threw", e);
+        return false;
+      }
+    };
+
+    (async () => {
+      await consumeHashTokens();
+      const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
       setLoading(false);
-    });
+    })();
 
     return () => subscription.unsubscribe();
   }, []);
