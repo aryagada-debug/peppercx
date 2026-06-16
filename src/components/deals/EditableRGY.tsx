@@ -24,6 +24,7 @@ interface Props {
   onSave: (dimensions: RGYDimension[]) => void;
   issuesByDim?: Record<string, RGYIssueDetail[]>;
   onIssueClick?: (issue: RGYIssueDetail) => void;
+  readOnly?: boolean;
 }
 
 const RGY_BUTTONS = [
@@ -67,7 +68,7 @@ const dotColor = (v: string) =>
   : v === "TBU" ? "bg-transparent border border-dashed border-muted-foreground"
   : "bg-muted-foreground/40";
 
-export function EditableRGY({ dimensions, onSave, issuesByDim, onIssueClick }: Props) {
+export function EditableRGY({ dimensions, onSave, issuesByDim, onIssueClick, readOnly }: Props) {
   const [local, setLocal] = useState<RGYDimension[]>(dimensions);
 
   // Sync local state when parent dimensions change
@@ -76,6 +77,7 @@ export function EditableRGY({ dimensions, onSave, issuesByDim, onIssueClick }: P
   }, [dimensions.map(d => d.value).join(",")]);
 
   const update = (key: string, value: string) => {
+    if (readOnly) return;
     const next = local.map(d => (d.key === key ? { ...d, value } : d));
     setLocal(next);
     onSave(next); // immediate save — parent decides whether to open issue form
@@ -91,6 +93,11 @@ export function EditableRGY({ dimensions, onSave, issuesByDim, onIssueClick }: P
         <div className="flex items-center justify-between px-5 py-3 border-b border-border">
           <h3 className="text-sm font-medium text-foreground">Health Status</h3>
           <div className="flex items-center gap-4">
+            {readOnly && (
+              <span className="text-[11px] text-muted-foreground italic">
+                Read-only — only Sr/Principal/Group BOPM, VSD or Admin can edit
+              </span>
+            )}
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
               {[
                 { label: "Green", color: "bg-[hsl(95_50%_55%)]" },
@@ -135,11 +142,13 @@ export function EditableRGY({ dimensions, onSave, issuesByDim, onIssueClick }: P
                     <button
                       key={btn.value}
                       onClick={() => update(dim.key, btn.value)}
+                      disabled={readOnly}
                       className={cn(
                         "w-7 h-7 rounded-full text-xs font-medium border transition-all flex items-center justify-center leading-none",
                         isActive
                           ? btn.active
-                          : "bg-secondary/60 text-muted-foreground border-border hover:bg-secondary"
+                          : "bg-secondary/60 text-muted-foreground border-border hover:bg-secondary",
+                        readOnly && "opacity-60 cursor-not-allowed hover:bg-secondary/60"
                       )}
                       title={btn.value === "NA" ? "Not Required" : btn.value === "TBU" ? "To Be Updated" : btn.value}
                     >
