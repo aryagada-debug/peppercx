@@ -192,10 +192,20 @@ function getWorstRGY(deal: DealWithRGY): "R" | "Y" | "G" | null {
 function RGYCell({
   value,
   label,
+  issueDetails,
+  actionPlan,
+  issueDate,
+  updatedByName,
 }: {
   value: RGYCellValue;
   label: string;
+  issueDetails?: string;
+  actionPlan?: string;
+  issueDate?: string | null;
+  updatedByName?: string | null;
 }) {
+  const showContext = (value === "R" || value === "Y");
+  const hasContext = showContext && !!((issueDetails && issueDetails.trim()) || (actionPlan && actionPlan.trim()));
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -210,9 +220,35 @@ function RGYCell({
           {cellLabels[value]}
         </span>
       </TooltipTrigger>
-      <TooltipContent>
-        <p>{label} · {statusLabels[value]}</p>
-        <p className="text-[10px] text-muted-foreground mt-0.5">Use “Mark RGY” to change</p>
+      <TooltipContent className={cn(showContext && hasContext && "max-w-xs")}>
+        <p className="font-medium">{label} · {statusLabels[value]}</p>
+        {showContext && hasContext ? (
+          <div className="mt-1.5 space-y-1.5">
+            {issueDetails && issueDetails.trim() && (
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Issue</p>
+                <p className="text-[11px] whitespace-pre-wrap leading-snug">{issueDetails}</p>
+              </div>
+            )}
+            {actionPlan && actionPlan.trim() && (
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Action plan</p>
+                <p className="text-[11px] whitespace-pre-wrap leading-snug">{actionPlan}</p>
+              </div>
+            )}
+            {(issueDate || updatedByName) && (
+              <p className="text-[10px] text-muted-foreground pt-0.5 border-t border-border/40">
+                {issueDate ? `Logged ${issueDate}` : ""}
+                {issueDate && updatedByName ? " · " : ""}
+                {updatedByName || ""}
+              </p>
+            )}
+          </div>
+        ) : showContext ? (
+          <p className="text-[10px] text-muted-foreground mt-0.5 italic">No issue logged yet — use “Mark RGY” to add details</p>
+        ) : (
+          <p className="text-[10px] text-muted-foreground mt-0.5">Use “Mark RGY” to change</p>
+        )}
       </TooltipContent>
     </Tooltip>
   );
@@ -1163,10 +1199,10 @@ export default function RGYHealth() {
       setDeals(prev => prev.map(d => d.id === deal.id ? { ...d, ...patch } as DealWithRGY : d));
 
       const updatedDeal: DealWithRGY = { ...deal, ...patch } as DealWithRGY;
-      const hasRed = next.some(d => d.value === "R");
+      const hasRedOrYellow = next.some(d => d.value === "R" || d.value === "Y");
       setMarkRGYDeal(null);
-      if (hasRed) {
-        toast.success("RGY saved — log the combined issue");
+      if (hasRedOrYellow) {
+        toast.success("RGY saved — log the issue & action plan");
         setCombinedIssuesDeal(updatedDeal);
       } else {
         toast.success("RGY saved");
@@ -1839,7 +1875,14 @@ export default function RGYHealth() {
                               const val: RGYCellValue = raw === "" ? "PENDING" : (raw as RGYStatus);
                               return (
                                 <td key={dim.key} className="py-2 px-2 text-center">
-                                  <RGYCell value={val} label={dim.label} />
+                                  <RGYCell
+                                    value={val}
+                                    label={dim.label}
+                                    issueDetails={deal.rgy_issue_details}
+                                    actionPlan={deal.rgy_action_plan}
+                                    issueDate={deal.rgy_issue_date}
+                                    updatedByName={deal.rgy_updated_by_name}
+                                  />
                                 </td>
                               );
                             })}
