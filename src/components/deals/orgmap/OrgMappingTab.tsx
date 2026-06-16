@@ -428,11 +428,15 @@ function DetailPanel({ stakeholder: s, onUpdate, onDuplicate, onAskDelete }: {
   );
 }
 
-function Field({ label, icon, children }: { label: string; icon?: React.ReactNode; children: React.ReactNode }) {
+function Field({ label, icon, children, required, error }: { label: string; icon?: React.ReactNode; children: React.ReactNode; required?: boolean; error?: string }) {
   return (
     <div className="space-y-1.5">
-      <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">{icon}{label}</label>
+      <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+        {icon}{label}
+        {required && <span className="text-destructive">*</span>}
+      </label>
       {children}
+      {error && <p className="text-[10px] text-destructive">{error}</p>}
     </div>
   );
 }
