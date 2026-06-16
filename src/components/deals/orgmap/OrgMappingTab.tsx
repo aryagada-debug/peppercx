@@ -289,21 +289,22 @@ function Row({ stakeholder: s, isOpen, onToggle, onUpdate, onDuplicate, onAskDel
         </div>
       </div>
 
-      {isOpen && <DetailPanel stakeholder={s} onUpdate={onUpdate} onDuplicate={onDuplicate} onAskDelete={onAskDelete} />}
+      {isOpen && <DetailPanel stakeholder={s} onUpdate={onUpdate} onDuplicate={onDuplicate} onAskDelete={onAskDelete} onClose={onToggle} />}
     </div>
   );
 }
 
-function DetailPanel({ stakeholder: s, onUpdate, onDuplicate, onAskDelete }: {
+function DetailPanel({ stakeholder: s, onUpdate, onDuplicate, onAskDelete, onClose }: {
   stakeholder: Stakeholder;
   onUpdate: (patch: Partial<Stakeholder>) => void;
-  onDuplicate: () => void; onAskDelete: () => void;
+  onDuplicate: () => void; onAskDelete: () => void; onClose: () => void;
 }) {
   const [name, setName] = useState(s.name);
   const [role, setRole] = useState(s.role);
   const [email, setEmail] = useState(s.email);
   const [phone, setPhone] = useState(s.phone);
   const [linkedin, setLinkedin] = useState(s.linkedin_url);
+  const [city, setCity] = useState(s.city || "");
   const [notes, setNotes] = useState(s.notes);
   const [newTag, setNewTag] = useState("");
 
