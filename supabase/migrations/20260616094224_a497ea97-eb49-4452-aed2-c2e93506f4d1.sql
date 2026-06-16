@@ -1,0 +1,1 @@
+ALTER TABLE public.deal_stakeholders ADD COLUMN IF NOT EXISTS city text NOT NULL DEFAULT '';
