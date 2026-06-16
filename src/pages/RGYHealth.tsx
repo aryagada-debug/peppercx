@@ -1950,6 +1950,7 @@ export default function RGYHealth() {
             .map(dim => ({ key: dim.key, label: dim.label, value: (combinedIssuesDeal[dim.key as keyof DealWithRGY] as string) || "" }))
             .filter(d => d.value === "R" || d.value === "Y");
           const assigneeNames = Array.from(new Set([
+            ...assignmentAssigneeNames,
             combinedIssuesDeal.vsd, combinedIssuesDeal.principal_bopm, combinedIssuesDeal.senior_bopm, combinedIssuesDeal.bopm,
           ].filter(Boolean) as string[]));
           return (
@@ -1959,6 +1960,7 @@ export default function RGYHealth() {
               dealLabel={combinedIssuesDeal.deal_name}
               nonGreenDims={nonGreen}
               assigneeNames={assigneeNames}
+              readOnly={!canEditRgy}
               initial={{
                 issueDetails: combinedIssuesDeal.rgy_issue_details || "",
                 actionPlan: combinedIssuesDeal.rgy_action_plan || "",
