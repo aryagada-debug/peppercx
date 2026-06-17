@@ -2013,6 +2013,22 @@ export default function RGYHealth() {
               nonGreenDims={nonGreen}
               assigneeNames={assigneeNames}
               readOnly={!canEditRgy}
+              onCancel={() => {
+                // User closed the issue dialog without saving — revert any
+                // RGY dims that were just moved to R/Y for this deal.
+                const snap = prevRGYSnapshot;
+                if (snap && snap.dealId === combinedIssuesDeal.id) {
+                  setDeals(prev => prev.map(d => d.id === snap.dealId
+                    ? { ...d, ...(snap.values as any) }
+                    : d));
+                  const deal = deals.find(d => d.id === snap.dealId);
+                  if (deal?.rgy_row_id) {
+                    supabase.from("deal_rgy_weekly").update(snap.values as any).eq("id", deal.rgy_row_id);
+                  }
+                  setPrevRGYSnapshot(null);
+                  toast.info("RGY reverted — issue is mandatory for R/Y");
+                }
+              }}
               initial={{
                 issueDetails: combinedIssuesDeal.rgy_issue_details || "",
                 actionPlan: combinedIssuesDeal.rgy_action_plan || "",
@@ -2052,6 +2068,7 @@ export default function RGYHealth() {
                   rgy_action_plan: data.actionPlan,
                   rgy_issue_date: data.issueDate,
                 } : d));
+                setPrevRGYSnapshot(null);
                 toast.success("Issue saved & task created");
               }}
             />
