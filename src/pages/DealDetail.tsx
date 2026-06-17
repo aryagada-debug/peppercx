@@ -1884,18 +1884,27 @@ export default function DealDetail() {
     // Detect any improvement (R→Y, R→G, Y→G) so we can offer optional resolution dialog.
     const rank: Record<string, number> = { G: 0, Y: 1, R: 2 };
     let hadImprovement = false;
+    let hasNewRedYellow = false;
+    const prevValuesForRevert: Record<string, string> = {};
     if (currentRGY) {
       for (const [k, nv] of Object.entries(rgyData)) {
         const ov = (currentRGY as any)[k];
         if (rank[nv] !== undefined && rank[ov] !== undefined && rank[nv] < rank[ov]) {
           hadImprovement = true;
-          break;
+        }
+        if ((nv === "R" || nv === "Y") && ov !== nv) {
+          hasNewRedYellow = true;
+          prevValuesForRevert[k] = ov || "G";
         }
       }
     }
-    // New flow: never auto-open an issue dialog on dim change. Users explicitly
-    // open the combined Issues card from the status bar below the grid.
     if (hadImprovement) setShowResolveOptional(true);
+    // Mandatory issue logging: when any dim moved newly into R/Y, open the
+    // combined-issues dialog. Cancelling reverts via rgyRevertSnapshot.
+    if (hasNewRedYellow) {
+      setRgyRevertSnapshot(prevValuesForRevert);
+      setCombinedIssuesMode("create");
+    }
     toast.success("RGY health saved");
   }, [dealId, currentRGY, addRGYWeek, tasks]);
 
