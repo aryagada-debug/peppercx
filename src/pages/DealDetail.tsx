@@ -1768,6 +1768,9 @@ export default function DealDetail() {
 
   // Combined RGY Issues dialog (replaces the old per-click pop-up)
   const [combinedIssuesMode, setCombinedIssuesMode] = useState<"create" | "edit" | null>(null);
+  // Snapshot of the previous RGY values for an inline R/Y change, so we can
+  // revert if the user closes the mandatory issue dialog without saving.
+  const [rgyRevertSnapshot, setRgyRevertSnapshot] = useState<Record<string, string> | null>(null);
   const loadInterventions = useCallback(async () => {
     if (!dealId) return;
     const { data } = await supabase
