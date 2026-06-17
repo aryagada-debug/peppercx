@@ -3088,6 +3088,52 @@ export default function DealDetail() {
           open={combinedIssuesMode !== null}
           onOpenChange={(o) => { if (!o) setCombinedIssuesMode(null); }}
           dealLabel={deal.dealName || deal.account || "Deal"}
+          onCancel={() => {
+            // User closed the mandatory issue dialog without saving — revert
+            // the just-applied R/Y change(s) by appending another RGY week
+            // row that restores the previous values.
+            const snap = rgyRevertSnapshot;
+            if (snap && Object.keys(snap).length > 0 && dealId) {
+              const merged: Record<string, string> = {
+                customer: currentRGY?.customer || "G",
+                internal: currentRGY?.internal || "G",
+                content: currentRGY?.content || "G",
+                seo: currentRGY?.seo || "G",
+                supply: currentRGY?.supply || "G",
+                copy: currentRGY?.copy || "G",
+                design: currentRGY?.design || "G",
+                video: currentRGY?.video || "G",
+                ...snap,
+              };
+              addRGYWeek({
+                dealId,
+                weekStart: (() => {
+                  const today = new Date();
+                  const dow = today.getDay();
+                  const mon = new Date(today);
+                  mon.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
+                  return mon.toISOString().split("T")[0];
+                })(),
+                internal: merged.internal,
+                customer: merged.customer,
+                delivery: "G",
+                consumption: "G",
+                content: merged.content,
+                seo: merged.seo,
+                supply: merged.supply,
+                copy: merged.copy,
+                design: merged.design,
+                video: merged.video,
+                accountHealth: merged.customer,
+                financeBilling: "G",
+                capabilitySeo: merged.seo,
+                capabilityCreative: "G",
+                planOfAction: "",
+              } as any);
+              toast.info("RGY reverted — issue is mandatory for R/Y");
+            }
+            setRgyRevertSnapshot(null);
+          }}
           nonGreenDims={RGY_DIMENSIONS
             .map(d => ({
               key: d.key as string,
@@ -3143,6 +3189,7 @@ export default function DealDetail() {
                 })),
               });
             }
+            setRgyRevertSnapshot(null);
             toast.success("Combined issue saved");
           }}
         />
