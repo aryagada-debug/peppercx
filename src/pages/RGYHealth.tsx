@@ -1781,7 +1781,13 @@ export default function RGYHealth() {
                             <td className="py-2 px-3">
                               {(() => {
                                 const allMarked = DIMENSIONS.every(dim => (deal[dim.key as keyof DealWithRGY] as string));
+                                const hasNonGreen = DIMENSIONS.some(dim => {
+                                  const v = (deal[dim.key as keyof DealWithRGY] as string) || "";
+                                  return v === "R" || v === "Y";
+                                });
+                                const hasIssue = !!(deal.rgy_issue_details || "").trim();
                                 return (
+                                  <div className="flex items-center gap-1">
                                   <Button
                                     size="sm"
                                     variant={allMarked ? "outline" : "default"}
@@ -1792,6 +1798,19 @@ export default function RGYHealth() {
                                   >
                                     {allMarked ? "Update RGY" : "Mark RGY"}
                                   </Button>
+                                  {hasNonGreen && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-7 text-[11px] px-2"
+                                      onClick={() => setCombinedIssuesDeal(deal)}
+                                      disabled={!canEditRgy}
+                                      title={hasIssue ? "Edit logged issue" : "Log issue"}
+                                    >
+                                      {hasIssue ? "Edit issue" : "Add issue"}
+                                    </Button>
+                                  )}
+                                  </div>
                                 );
                               })()}
                             </td>
