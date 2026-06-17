@@ -1137,6 +1137,11 @@ export default function RGYHealth() {
       const payload: Record<string, string> = {};
       next.forEach(d => { payload[d.key] = d.value || ""; });
 
+      // Snapshot the previous dim values so we can revert if the user
+      // cancels the mandatory issue dialog for any new R/Y.
+      const prevValues: Record<string, string> = {};
+      next.forEach(d => { prevValues[d.key] = (deal[d.key as keyof DealWithRGY] as string) || ""; });
+
       // Resolve current user for audit fields
       let updatedById: string | null = null;
       let updatedByName = "";
@@ -1199,10 +1204,14 @@ export default function RGYHealth() {
       setDeals(prev => prev.map(d => d.id === deal.id ? { ...d, ...patch } as DealWithRGY : d));
 
       const updatedDeal: DealWithRGY = { ...deal, ...patch } as DealWithRGY;
-      const hasRedOrYellow = next.some(d => d.value === "R" || d.value === "Y");
+      // Only require an issue when a dim NEWLY moved into R/Y this save.
+      const newRedOrYellow = next.some(d =>
+        (d.value === "R" || d.value === "Y") && prevValues[d.key] !== d.value
+      );
       setMarkRGYDeal(null);
-      if (hasRedOrYellow) {
+      if (newRedOrYellow) {
         toast.success("RGY saved — log the issue & action plan");
+        setPrevRGYSnapshot({ dealId: deal.id, values: prevValues });
         setCombinedIssuesDeal(updatedDeal);
       } else {
         toast.success("RGY saved");
