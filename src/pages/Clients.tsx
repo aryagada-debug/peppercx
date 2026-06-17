@@ -686,6 +686,28 @@ export default function Clients() {
       );
     }
 
+    // Auto-seed staffing assignments for VSD / BOPM-family roles with 0%
+    // allocation so they show up on the Staffing tab without consuming
+    // capacity. The sync_bopm_fields_from_assignment trigger keeps the
+    // matching deal columns in sync.
+    const norm = (s: string) => (s || "").trim().toLowerCase();
+    const seedRoles: { name: string; roleKey: "vsd" | "principal_bopm" | "senior_bopm" | "bopm" }[] = [
+      { name: data.vsd, roleKey: "vsd" },
+      { name: data.principalBopm, roleKey: "principal_bopm" },
+      { name: data.seniorBopm, roleKey: "senior_bopm" },
+      { name: data.bopm, roleKey: "bopm" },
+    ];
+    for (const { name, roleKey } of seedRoles) {
+      if (!name) continue;
+      const person = people.find(p => norm(p.name) === norm(name));
+      if (!person) continue;
+      try {
+        await addAssignment({ id: uid(), dealId: newId, roleKey, personId: person.id, allocationPct: 0 });
+      } catch (e) {
+        console.warn("Failed to seed staffing assignment", roleKey, e);
+      }
+    }
+
     toast.success("Deal created successfully");
     refreshStaffing();
   };

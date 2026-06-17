@@ -1,69 +1,34 @@
-## 1. Gate RGY edit by role + staffing title
+## 1. Auto-seed staffing assignments on deal creation
 
-**New hook** `src/hooks/useCanEditRgy.ts`:
+When a new deal is created via the Deal Wizard (`handleCreateDeal` in `src/pages/Clients.tsx`), immediately after `staffing_deals` insert succeeds, insert one row per filled BOPM-family role into `staffing_assignments` with **`allocation_pct = 0`** (no % mapping) and no week / start / end date so they appear on the Staffing tab but don't consume capacity:
 
-- Returns `true` if `actualRole` is `admin`, `member` (VSD) or `capability_lead`.
-- Otherwise resolves the signed-in user's `staffing_people.role_title` (via `profiles.staffing_person_id` → `staffing_people`) and returns `true` when the normalized title is one of: `principal_bopm`, `senior_bopm`, `vsd`, or matches "group bopm".
-- Plain "BOPM" → `false`.
+For each of `vsd`, `principalBopm`, `seniorBopm`, `bopm` in the wizard data:
+- Look up the person id in the already-loaded `people` list by name (case-insensitive match).
+- If found, insert `{ staffing_deal_id: newId, person_id, role_key: <vsd|principal_bopm|senior_bopm|bopm>, allocation_pct: 0 }`.
+- Skip silently if the name is empty or no person matches (no toast spam).
 
-**Apply in:**
+The existing `sync_bopm_fields_from_assignment` trigger keeps the deal's BOPM columns in sync, so no extra recompute is needed. The same seeding will also be applied in the approval-execute path so deals created via approval get the same rows (mirror logic into `supabase/functions/approval-execute/index.ts` for the `deal.create` branch).
 
-- `EditableRGY` (Deal Detail RGY tab) — disable status buttons + "Raise intervention" prompt when read-only; show a small "Read-only — only Sr/Principal/Group BOPM, VSD or Admin can edit" hint.
-- `MarkRGYDialog` trigger in `RGYHealth.tsx` — hide/disable the "Mark RGY" button per row for non-editors.
-- `RGYCombinedIssuesDialog` save button — disable when read-only.
+## 2. RGY: assignee mandatory + edit existing issue
 
-## 2. Show all staffed people in assign-issue popup
+### Make assignee compulsory in `RGYCombinedIssuesDialog`
+- In `submit()`: add a guard — if `taskAssignees.length === 0`, `toast.error("Please assign at least one person")` and return.
+- Disable the Save button when assignees are empty (in addition to existing disabled conditions); show a small helper line under the chips: "At least one assignee is required."
+- Keep existing issue-details + action-plan required guards.
 
-In `RGYCombinedIssuesDialog` usages, replace the 4-name (VSD + 3 BOPM) `assigneeNames` list with everyone staffed on the deal:
+### Block RGY save until issue is logged
+Currently a Red/Yellow is persisted first and the issue dialog opens after. Change the flow so RGY can't stay R/Y without a logged issue:
 
-- **RGYHealth.tsx (combinedIssuesDeal block):** fetch the deal's `staffing_assignments` joined with `staffing_people.name` once when the dialog opens, dedupe, and pass to `assigneeNames`. Fall back to the 4 BOPM/VSD names if there are no assignments.
-- **DealDetail.tsx:** already merges `dealPeople`; verify `dealPeople` includes everyone in `staffing_assignments` (not just BOPM roles) and broaden the query if it filters.
+- In `src/pages/RGYHealth.tsx` `handleMarkRGYSave`: if any dim ends up R/Y, persist the RGY change then open the combined-issues dialog as today, BUT if the user cancels/closes that dialog without saving, revert the affected dims back to their prior value (snapshot the pre-save values before persisting; on cancel, write the snapshot back via the same update path and show a toast "RGY reverted — issue is mandatory for R/Y").
+- Same revert wiring in `src/pages/DealDetail.tsx` where R/Y is set inline via `EditableRGY`. Track the pre-change value, open `RGYCombinedIssuesDialog` (mode `"create"`), and on close-without-save revert the dimension.
+- Existing weekly rows that already have `issue_details` filled don't trigger the dialog — only newly-introduced R/Y values do.
 
-No schema change.
+### Edit existing issue
+- `DealDetail` already has an "Edit issue" entry via `combinedIssuesMode === "edit"`. Make sure the status-bar "Review issues" button stays visible whenever the deal has any R/Y dim and opens the dialog in edit mode pre-filled with `issue_details`, `action_plan`, `due_date`, `issue_status`, and the assignees (read existing `deal_tasks` row tagged `[RGY Health]` for the current week to pre-fill the assignees chip selection).
+- In `RGYHealth.tsx`, add an "Edit issue" link/button on each row that has R/Y + an existing issue, opening `RGYCombinedIssuesDialog` with `initial` pre-filled from `rgy_issue_details / rgy_action_plan / rgy_issue_date` and the matching `deal_tasks` row's `assignees`. Save path updates the same `deal_rgy_weekly` row and updates (not re-inserts) the matching task.
 
-## 3. Flag leadership intervention — make deal clickable (both places)
+## Technical notes
 
-- `**RaiseInterventionDialog`:** when `dealId` is pre-filled, replace the locked `<div>` with a row that shows the deal label and a small "Change" link that swaps to the existing searchable picker. Selected deal still defaults to `dealId`.
-- `**LeadershipInterventions.tsx`:** wrap the deal cell `<td>` content in a `<Link to={`/deals/${r.deal_id}`}>` (stop row click propagation) so clicking the deal label opens the deal in a new tab, while clicking elsewhere on the row still opens the drawer.
-- `**InterventionDrawer`:** turn the `SheetDescription` deal label into a `Link` to `/deals/:dealId`.
-
-## 4. Org mapping required fields
-
-In `src/components/deals/orgmap/OrgMappingTab.tsx` (`DetailPanel`):
-
-- Mark Name, Role/title, Email, LinkedIn, Function, Seniority as required (red asterisk on `<Field>` labels).
-- On blur of any required field, if empty show inline error and revert (don't save empty).
-- Add a row-level validity badge in the table: rows missing any required field show an amber "Incomplete" pill.
-- Block `add()` from auto-saving "New stakeholder" as final — keep current behaviour (row is created, immediately opened for edit) but show the row as Incomplete until all required fields are filled.
-- Block `duplicate()` only if source is complete (it will be — duplicates inherit values).
-- Phone stays optional.
-
-Validation helper lives in the same file.
-
-## 5. Google sign-in for all email/password users
-
-**Migration (data update via supabase--insert):**
-
-- Set `email_confirmed_at = now()` on every `auth.users` row where `email_confirmed_at IS NULL` AND `email ILIKE '%@peppercontent.io'`. This lets Lovable Cloud auto-link a Google sign-in to the existing account when emails match.
-
-**Login UX (`src/pages/Login.tsx`):**
-
-- After `lovable.auth.signInWithOAuth("google", …)` returns, if `result.error` includes "User already registered" / "Email link" / generic failure, show a precise toast: "Your account exists with email/password. Please sign in with your password, or contact admin to enable Google for your account."
-- On success, verify `supabase.auth.getSession()` and route to `/home`.
-
-No `hd:` domain restriction (per user choice).
-
----
-
-### Technical notes
-
-- `useCanEditRgy` caches the result per user (single fetch on mount). Uses `useAuth` + a small `useQuery` against `profiles` joined to `staffing_people`.
-- `staffing_assignments` query for assignees: `select person_id, staffing_people(name) where staffing_deal_id = eq.<id>`.
-- No new tables, no RLS changes.
-- Existing `normalize_staffing_role_key` DB function already maps "Group BOPM" → `principal_bopm`; we'll mirror that mapping client-side in `useCanEditRgy` so the check is one round-trip.
-
-### Files touched
-
-- new: `src/hooks/useCanEditRgy.ts`
-- edit: `src/components/deals/EditableRGY.tsx`, `src/components/rgy/MarkRGYDialog.tsx` (trigger guards in pages), `src/components/rgy/RGYCombinedIssuesDialog.tsx`, `src/components/rgy/RaiseInterventionDialog.tsx`, `src/components/rgy/InterventionDrawer.tsx`, `src/pages/RGYHealth.tsx`, `src/pages/DealDetail.tsx`, `src/pages/LeadershipInterventions.tsx`, `src/components/deals/orgmap/OrgMappingTab.tsx`, `src/pages/Login.tsx`
-- data migration: bulk `UPDATE auth.users SET email_confirmed_at = now() …` via insert tool.
+- Files changed: `src/pages/Clients.tsx`, `supabase/functions/approval-execute/index.ts`, `src/components/rgy/RGYCombinedIssuesDialog.tsx`, `src/pages/RGYHealth.tsx`, `src/pages/DealDetail.tsx`.
+- No schema migration required — `staffing_assignments`, `deal_rgy_weekly`, and `deal_tasks` already support all needed columns.
+- The 0% allocations will be visible in `WeeklyStaffingGrid` / `DealStaffingCard` but won't count toward person capacity (capacity sums `allocation_pct`).

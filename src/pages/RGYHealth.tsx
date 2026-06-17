@@ -1137,6 +1137,11 @@ export default function RGYHealth() {
       const payload: Record<string, string> = {};
       next.forEach(d => { payload[d.key] = d.value || ""; });
 
+      // Snapshot the previous dim values so we can revert if the user
+      // cancels the mandatory issue dialog for any new R/Y.
+      const prevValues: Record<string, string> = {};
+      next.forEach(d => { prevValues[d.key] = (deal[d.key as keyof DealWithRGY] as string) || ""; });
+
       // Resolve current user for audit fields
       let updatedById: string | null = null;
       let updatedByName = "";
@@ -1199,10 +1204,14 @@ export default function RGYHealth() {
       setDeals(prev => prev.map(d => d.id === deal.id ? { ...d, ...patch } as DealWithRGY : d));
 
       const updatedDeal: DealWithRGY = { ...deal, ...patch } as DealWithRGY;
-      const hasRedOrYellow = next.some(d => d.value === "R" || d.value === "Y");
+      // Only require an issue when a dim NEWLY moved into R/Y this save.
+      const newRedOrYellow = next.some(d =>
+        (d.value === "R" || d.value === "Y") && prevValues[d.key] !== d.value
+      );
       setMarkRGYDeal(null);
-      if (hasRedOrYellow) {
+      if (newRedOrYellow) {
         toast.success("RGY saved — log the issue & action plan");
+        setPrevRGYSnapshot({ dealId: deal.id, values: prevValues });
         setCombinedIssuesDeal(updatedDeal);
       } else {
         toast.success("RGY saved");
@@ -1772,7 +1781,13 @@ export default function RGYHealth() {
                             <td className="py-2 px-3">
                               {(() => {
                                 const allMarked = DIMENSIONS.every(dim => (deal[dim.key as keyof DealWithRGY] as string));
+                                const hasNonGreen = DIMENSIONS.some(dim => {
+                                  const v = (deal[dim.key as keyof DealWithRGY] as string) || "";
+                                  return v === "R" || v === "Y";
+                                });
+                                const hasIssue = !!(deal.rgy_issue_details || "").trim();
                                 return (
+                                  <div className="flex items-center gap-1">
                                   <Button
                                     size="sm"
                                     variant={allMarked ? "outline" : "default"}
@@ -1783,6 +1798,19 @@ export default function RGYHealth() {
                                   >
                                     {allMarked ? "Update RGY" : "Mark RGY"}
                                   </Button>
+                                  {hasNonGreen && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-7 text-[11px] px-2"
+                                      onClick={() => setCombinedIssuesDeal(deal)}
+                                      disabled={!canEditRgy}
+                                      title={hasIssue ? "Edit logged issue" : "Log issue"}
+                                    >
+                                      {hasIssue ? "Edit issue" : "Add issue"}
+                                    </Button>
+                                  )}
+                                  </div>
                                 );
                               })()}
                             </td>
@@ -2004,6 +2032,22 @@ export default function RGYHealth() {
               nonGreenDims={nonGreen}
               assigneeNames={assigneeNames}
               readOnly={!canEditRgy}
+              onCancel={() => {
+                // User closed the issue dialog without saving — revert any
+                // RGY dims that were just moved to R/Y for this deal.
+                const snap = prevRGYSnapshot;
+                if (snap && snap.dealId === combinedIssuesDeal.id) {
+                  setDeals(prev => prev.map(d => d.id === snap.dealId
+                    ? { ...d, ...(snap.values as any) }
+                    : d));
+                  const deal = deals.find(d => d.id === snap.dealId);
+                  if (deal?.rgy_row_id) {
+                    supabase.from("deal_rgy_weekly").update(snap.values as any).eq("id", deal.rgy_row_id);
+                  }
+                  setPrevRGYSnapshot(null);
+                  toast.info("RGY reverted — issue is mandatory for R/Y");
+                }
+              }}
               initial={{
                 issueDetails: combinedIssuesDeal.rgy_issue_details || "",
                 actionPlan: combinedIssuesDeal.rgy_action_plan || "",
@@ -2043,6 +2087,7 @@ export default function RGYHealth() {
                   rgy_action_plan: data.actionPlan,
                   rgy_issue_date: data.issueDate,
                 } : d));
+                setPrevRGYSnapshot(null);
                 toast.success("Issue saved & task created");
               }}
             />

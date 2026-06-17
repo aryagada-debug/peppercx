@@ -1768,6 +1768,9 @@ export default function DealDetail() {
 
   // Combined RGY Issues dialog (replaces the old per-click pop-up)
   const [combinedIssuesMode, setCombinedIssuesMode] = useState<"create" | "edit" | null>(null);
+  // Snapshot of the previous RGY values for an inline R/Y change, so we can
+  // revert if the user closes the mandatory issue dialog without saving.
+  const [rgyRevertSnapshot, setRgyRevertSnapshot] = useState<Record<string, string> | null>(null);
   const loadInterventions = useCallback(async () => {
     if (!dealId) return;
     const { data } = await supabase
@@ -1881,18 +1884,27 @@ export default function DealDetail() {
     // Detect any improvement (R→Y, R→G, Y→G) so we can offer optional resolution dialog.
     const rank: Record<string, number> = { G: 0, Y: 1, R: 2 };
     let hadImprovement = false;
+    let hasNewRedYellow = false;
+    const prevValuesForRevert: Record<string, string> = {};
     if (currentRGY) {
       for (const [k, nv] of Object.entries(rgyData)) {
         const ov = (currentRGY as any)[k];
         if (rank[nv] !== undefined && rank[ov] !== undefined && rank[nv] < rank[ov]) {
           hadImprovement = true;
-          break;
+        }
+        if ((nv === "R" || nv === "Y") && ov !== nv) {
+          hasNewRedYellow = true;
+          prevValuesForRevert[k] = ov || "G";
         }
       }
     }
-    // New flow: never auto-open an issue dialog on dim change. Users explicitly
-    // open the combined Issues card from the status bar below the grid.
     if (hadImprovement) setShowResolveOptional(true);
+    // Mandatory issue logging: when any dim moved newly into R/Y, open the
+    // combined-issues dialog. Cancelling reverts via rgyRevertSnapshot.
+    if (hasNewRedYellow) {
+      setRgyRevertSnapshot(prevValuesForRevert);
+      setCombinedIssuesMode("create");
+    }
     toast.success("RGY health saved");
   }, [dealId, currentRGY, addRGYWeek, tasks]);
 
@@ -3076,6 +3088,52 @@ export default function DealDetail() {
           open={combinedIssuesMode !== null}
           onOpenChange={(o) => { if (!o) setCombinedIssuesMode(null); }}
           dealLabel={deal.dealName || deal.account || "Deal"}
+          onCancel={() => {
+            // User closed the mandatory issue dialog without saving — revert
+            // the just-applied R/Y change(s) by appending another RGY week
+            // row that restores the previous values.
+            const snap = rgyRevertSnapshot;
+            if (snap && Object.keys(snap).length > 0 && dealId) {
+              const merged: Record<string, string> = {
+                customer: currentRGY?.customer || "G",
+                internal: currentRGY?.internal || "G",
+                content: currentRGY?.content || "G",
+                seo: currentRGY?.seo || "G",
+                supply: currentRGY?.supply || "G",
+                copy: currentRGY?.copy || "G",
+                design: currentRGY?.design || "G",
+                video: currentRGY?.video || "G",
+                ...snap,
+              };
+              addRGYWeek({
+                dealId,
+                weekStart: (() => {
+                  const today = new Date();
+                  const dow = today.getDay();
+                  const mon = new Date(today);
+                  mon.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
+                  return mon.toISOString().split("T")[0];
+                })(),
+                internal: merged.internal,
+                customer: merged.customer,
+                delivery: "G",
+                consumption: "G",
+                content: merged.content,
+                seo: merged.seo,
+                supply: merged.supply,
+                copy: merged.copy,
+                design: merged.design,
+                video: merged.video,
+                accountHealth: merged.customer,
+                financeBilling: "G",
+                capabilitySeo: merged.seo,
+                capabilityCreative: "G",
+                planOfAction: "",
+              } as any);
+              toast.info("RGY reverted — issue is mandatory for R/Y");
+            }
+            setRgyRevertSnapshot(null);
+          }}
           nonGreenDims={RGY_DIMENSIONS
             .map(d => ({
               key: d.key as string,
@@ -3131,6 +3189,7 @@ export default function DealDetail() {
                 })),
               });
             }
+            setRgyRevertSnapshot(null);
             toast.success("Combined issue saved");
           }}
         />

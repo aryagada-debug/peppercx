@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,8 @@ export interface RGYCombinedIssuesDialogProps {
   /** Pre-fill from existing weekly issue (when editing) */
   initial?: Partial<RGYCombinedIssuePayload>;
   onSave: (data: RGYCombinedIssuePayload) => Promise<void>;
+  /** Called when the dialog closes WITHOUT a successful save (cancel / X / escape). */
+  onCancel?: () => void;
   readOnly?: boolean;
 }
 
@@ -47,6 +49,7 @@ export function RGYCombinedIssuesDialog({
   assigneeNames,
   initial,
   onSave,
+  onCancel,
   readOnly,
 }: RGYCombinedIssuesDialogProps) {
   const [issueDate, setIssueDate] = useState<Date>(new Date());
@@ -57,10 +60,12 @@ export function RGYCombinedIssuesDialog({
   const [taskAssignees, setTaskAssignees] = useState<string[]>([]);
   const [subtasks, setSubtasks] = useState<{ title: string }[]>([]);
   const [saving, setSaving] = useState(false);
+  const savedRef = useRef(false);
 
   // Reset / pre-fill on open
   useEffect(() => {
     if (!open) return;
+    savedRef.current = false;
     setIssueDate(initial?.issueDate ? new Date(initial.issueDate) : new Date());
     setIssueDetails(initial?.issueDetails || "");
     setActionPlan(initial?.actionPlan || "");
@@ -76,6 +81,7 @@ export function RGYCombinedIssuesDialog({
   const submit = async () => {
     if (!issueDetails.trim()) { toast.error("Please fill in issue details"); return; }
     if (!actionPlan.trim()) { toast.error("Please fill in the action plan"); return; }
+    if (taskAssignees.length === 0) { toast.error("Please assign at least one person"); return; }
     setSaving(true);
     try {
       await onSave({
@@ -87,14 +93,22 @@ export function RGYCombinedIssuesDialog({
         dueDate: dueDate?.toISOString().split("T")[0] || "",
         subtasks: subtasks.filter(s => s.title.trim()),
       });
+      savedRef.current = true;
       onOpenChange(false);
     } finally {
       setSaving(false);
     }
   };
 
+  const handleOpenChange = (o: boolean) => {
+    if (!o && !savedRef.current) {
+      onCancel?.();
+    }
+    onOpenChange(o);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -194,6 +208,12 @@ export function RGYCombinedIssuesDialog({
                 <span className="text-[11px] text-muted-foreground italic">No team members available</span>
               )}
             </div>
+            <p className={cn(
+              "text-[11px] mt-1",
+              taskAssignees.length === 0 ? "text-destructive" : "text-muted-foreground"
+            )}>
+              At least one assignee is required.
+            </p>
           </div>
 
           <div>
@@ -243,8 +263,13 @@ export function RGYCombinedIssuesDialog({
           </div>
 
           <div className="flex gap-2 justify-end pt-2 border-t border-border">
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
-            <Button onClick={submit} disabled={saving || readOnly} className="gap-1.5" title={readOnly ? "Only Sr/Principal/Group BOPM, VSD or Admin can save" : undefined}>
+            <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={saving}>Cancel</Button>
+            <Button
+              onClick={submit}
+              disabled={saving || readOnly || !issueDetails.trim() || !actionPlan.trim() || taskAssignees.length === 0}
+              className="gap-1.5"
+              title={readOnly ? "Only Sr/Principal/Group BOPM, VSD or Admin can save" : undefined}
+            >
               {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
               Save combined issue
             </Button>
