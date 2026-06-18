@@ -539,12 +539,12 @@ export default function HomePage() {
     }));
     const shouldShowPersonalTodos = taskViewAs === "me" || taskViewAs === "all" || taskViewAs === "created";
     const todoItems = shouldShowPersonalTodos
-      ? todos.filter(t => !t.done).map(t => ({
+      ? todos.map(t => ({
         id: toTodoTaskId(t.id),
         dealId: "",
         title: t.title,
         description: t.notes || "",
-        stage: "To Do",
+        stage: (t as any).stage || (t.done ? "Done" : "To Do"),
         assignee: t.assignee_name || staffingName || displayName || "",
         assignees: [t.assignee_name || staffingName || displayName || ""].filter(Boolean),
         startDate: undefined,
