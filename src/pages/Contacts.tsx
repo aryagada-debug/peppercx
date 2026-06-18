@@ -335,6 +335,110 @@ export default function Contacts() {
           </table>
         </div>
       </div>
+        </TabsContent>
+
+        <TabsContent value="insights" className="space-y-4 mt-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={insightsStatusF} onValueChange={setInsightsStatusF}>
+              <SelectTrigger className="h-9 w-[200px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                {dealStatuses.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={insightsVsdF} onValueChange={setInsightsVsdF}>
+              <SelectTrigger className="h-9 w-[200px]"><SelectValue placeholder="All VSDs" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All VSDs</SelectItem>
+                {insightsVsdOptions.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Button
+              size="sm"
+              variant={insightsOnlyMissing ? "default" : "outline"}
+              onClick={() => setInsightsOnlyMissing(v => !v)}
+              className="h-9"
+            >
+              <AlertTriangle className="h-4 w-4" />
+              {insightsOnlyMissing ? "Showing missing only" : "Show missing only"}
+            </Button>
+            <div className="ml-auto text-xs text-muted-foreground">
+              {insightsGroups.reduce((s, g) => s + g.deals.length, 0)} deals ·{" "}
+              <span className="text-destructive font-medium">
+                {insightsGroups.reduce((s, g) => s + g.missing, 0)} missing contacts
+              </span>
+            </div>
+          </div>
+
+          {loading && (
+            <div className="text-center text-sm text-muted-foreground py-10">Loading insights…</div>
+          )}
+          {!loading && insightsGroups.length === 0 && (
+            <div className="rounded-lg border border-border bg-card py-12 text-center">
+              <Users className="h-8 w-8 mx-auto text-muted-foreground/50 mb-3" />
+              <p className="text-sm text-foreground font-medium">No deals match</p>
+            </div>
+          )}
+          {!loading && insightsGroups.map(g => (
+            <div key={g.vsd} className="rounded-lg border border-border bg-card overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2.5 bg-muted/40 border-b border-border">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-foreground">{g.vsd}</span>
+                  <Badge variant="secondary" className="text-[10px]">{g.deals.length} deals</Badge>
+                  <Badge variant="outline" className="text-[10px]">{g.total} contacts</Badge>
+                </div>
+                {g.missing > 0 && (
+                  <Badge variant="outline" className="text-[10px] bg-destructive/10 text-destructive border-destructive/30">
+                    <AlertTriangle className="h-3 w-3 mr-1" />
+                    {g.missing} missing
+                  </Badge>
+                )}
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="border-b border-border text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <tr>
+                      <th className="text-left px-3 py-2">Account</th>
+                      <th className="text-left px-3 py-2">Deal</th>
+                      <th className="text-left px-3 py-2">BOPM</th>
+                      <th className="text-left px-3 py-2">Region</th>
+                      <th className="text-left px-3 py-2">Status</th>
+                      <th className="text-right px-3 py-2"># Contacts</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {g.deals.map(d => {
+                      const missing = d.contactCount === 0;
+                      return (
+                        <tr key={d.id} className={`border-b border-border last:border-b-0 hover:bg-muted/30 transition-colors ${missing ? "bg-destructive/5" : ""}`}>
+                          <td className="px-3 py-2 text-foreground whitespace-nowrap">{d.account || "—"}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            <Link to={`/deals/${d.id}`} className="text-primary hover:underline inline-flex items-center gap-1">
+                              {d.deal_name || d.id} <ExternalLink className="h-3 w-3" />
+                            </Link>
+                          </td>
+                          <td className="px-3 py-2 text-muted-foreground">{d.bopm || "—"}</td>
+                          <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{d.region || "—"}</td>
+                          <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{d.deal_status || "—"}</td>
+                          <td className="px-3 py-2 text-right font-mono tabular-nums">
+                            {missing ? (
+                              <span className="inline-flex items-center gap-1 text-destructive font-semibold">
+                                <AlertTriangle className="h-3 w-3" /> 0
+                              </span>
+                            ) : (
+                              <span className="text-foreground">{d.contactCount}</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </TabsContent>
+      </Tabs>
     </div>
     </AppLayout>
   );
