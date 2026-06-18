@@ -1373,7 +1373,7 @@ export default function RGYHealth() {
       else if (w === "Y") row.yellow++;
       else if (w === "G") row.green++;
       else row.pending++;
-      if (w === null && ACTIVE_STATUSES.has((deal.deal_status || "").trim())) row.pendingActive++;
+      if (w === null && (deal.deal_status || "").trim() === "Active Deal") row.pendingActive++;
     };
 
     if (showBopmRgyInsights) {
@@ -2129,7 +2129,7 @@ export default function RGYHealth() {
               case "yellow": return w === "Y";
               case "green": return w === "G";
               case "pending": return w === null;
-              case "pendingActive": return w === null && ACTIVE_STATUSES.has((deal.deal_status || "").trim());
+              case "pendingActive": return w === null && (deal.deal_status || "").trim() === "Active Deal";
             }
           };
           const rows = scoped.filter(matchMetric);
