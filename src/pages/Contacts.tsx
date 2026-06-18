@@ -27,6 +27,8 @@ type Row = {
   vsd: string;
   bopm: string;
   region: string;
+  seniority: string;
+  city: string;
 };
 
 type DealLite = {
@@ -44,6 +46,15 @@ function joinBopm(d: { principal_bopm?: string | null; senior_bopm?: string | nu
     .map(v => (v || "").trim())
     .filter(Boolean)
     .join(", ");
+}
+
+// Mirror of OrgMappingTab's `isStakeholderComplete` — a stakeholder counts
+// as "filled" only when every compulsory field is set.
+function isContactComplete(r: { name?: string; role?: string; email?: string; linkedin_url?: string; function?: string; seniority?: string; city?: string }) {
+  const n = (r.name || "").trim();
+  return !!(n && (r.role || "").trim() && (r.email || "").trim() && (r.linkedin_url || "").trim()
+    && (r.function || "").trim() && (r.seniority || "").trim() && (r.city || "").trim()
+    && n.toLowerCase() !== "new stakeholder");
 }
 
 export default function Contacts() {
@@ -64,7 +75,7 @@ export default function Contacts() {
     (async () => {
       setLoading(true);
       const [{ data: people, error: e1 }, { data: deals, error: e2 }, { data: clients, error: e3 }] = await Promise.all([
-        supabase.from("deal_stakeholders").select("id,name,linkedin_url,email,phone,role,function,decision_power,deal_id,client_name"),
+        supabase.from("deal_stakeholders").select("id,name,linkedin_url,email,phone,role,function,seniority,city,decision_power,deal_id,client_name"),
         supabase.from("staffing_deals").select("id,account,deal_name,vsd,principal_bopm,senior_bopm,bopm,geo,client_id,deal_status"),
         supabase.from("clients").select("id,name,geography"),
       ]);
@@ -95,6 +106,8 @@ export default function Contacts() {
           vsd: d?.vsd || "",
           bopm: d ? joinBopm(d) : "",
           region: d?.geo || c?.geography || "",
+          seniority: p.seniority || "",
+          city: p.city || "",
         };
       });
       if (!cancelled) {
@@ -155,7 +168,12 @@ export default function Contacts() {
   );
   const contactsByDeal = useMemo(() => {
     const m = new Map<string, number>();
-    for (const r of rows) m.set(r.deal_id, (m.get(r.deal_id) || 0) + 1);
+    // Insights only counts contacts whose compulsory fields are filled,
+    // matching the "complete" rule used in the deal's Org Mapping tab.
+    for (const r of rows) {
+      if (!isContactComplete(r)) continue;
+      m.set(r.deal_id, (m.get(r.deal_id) || 0) + 1);
+    }
     return m;
   }, [rows]);
   const insightsGroups = useMemo(() => {
