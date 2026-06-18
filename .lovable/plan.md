@@ -1,34 +1,30 @@
-## 1. Auto-seed staffing assignments on deal creation
+## Goal
+Make Org Mapping deal-specific. Today, `useStakeholders` loads/saves by `client_name`, so every deal of the same client sees and edits the same people. Switch to deal-scoped storage, and add an opt-in "Populate from another deal" action when other deals exist for the same client.
 
-When a new deal is created via the Deal Wizard (`handleCreateDeal` in `src/pages/Clients.tsx`), immediately after `staffing_deals` insert succeeds, insert one row per filled BOPM-family role into `staffing_assignments` with **`allocation_pct = 0`** (no % mapping) and no week / start / end date so they appear on the Staffing tab but don't consume capacity:
+## Changes
 
-For each of `vsd`, `principalBopm`, `seniorBopm`, `bopm` in the wizard data:
-- Look up the person id in the already-loaded `people` list by name (case-insensitive match).
-- If found, insert `{ staffing_deal_id: newId, person_id, role_key: <vsd|principal_bopm|senior_bopm|bopm>, allocation_pct: 0 }`.
-- Skip silently if the name is empty or no person matches (no toast spam).
+### 1. `src/components/deals/orgmap/useStakeholders.ts`
+- Load: query `deal_stakeholders` strictly by `deal_id` (drop the `client_name` branch).
+- `add` / `duplicate`: continue to write `deal_id = current dealId`; keep `client_name` populated for reference/filters but no longer use it as a load key.
+- Add a new helper `listSiblingDeals()` that returns other deals for the same `client_name` (id, deal_name, count of stakeholders) using `staffing_deals` + a count query on `deal_stakeholders`.
+- Add a new helper `copyFromDeal(sourceDealId)` that:
+  - Reads stakeholders for `sourceDealId`.
+  - Inserts copies into the current `deal_id` (new ids, preserved fields, `sort_order` continues after existing rows).
+  - Reloads and toasts.
 
-The existing `sync_bopm_fields_from_assignment` trigger keeps the deal's BOPM columns in sync, so no extra recompute is needed. The same seeding will also be applied in the approval-execute path so deals created via approval get the same rows (mirror logic into `supabase/functions/approval-execute/index.ts` for the `deal.create` branch).
+### 2. `src/components/deals/orgmap/OrgMappingTab.tsx`
+- Header: keep "Add person" button; add a secondary "Populate from another deal" button, **only shown** when:
+  - `clientName` is set, AND
+  - sibling deals with at least one stakeholder exist.
+- Clicking it opens a small picker (Popover or Dialog) listing sibling deals with their stakeholder count; selecting one calls `copyFromDeal(thatDealId)`.
+- If the current deal already has stakeholders, confirm before copying ("Append N people from <deal>?"). No merge/dedupe — straightforward append; the user can then edit/remove.
+- Empty state copy: when `data.length === 0` and sibling deals exist, surface the populate option inline as a secondary CTA below "Add person".
 
-## 2. RGY: assignee mandatory + edit existing issue
+### 3. Data model
+- No schema change. `deal_stakeholders.deal_id` is already present; we're just changing the read filter and adding a copy action.
+- Existing rows that were shared across deals (because they were stored once and queried by `client_name`) will now only show on the specific `deal_id` they were originally inserted against. We will **not** auto-fan-out historic rows — that matches the user's intent ("don't directly populate"). Users can use the new populate action on each deal as needed.
 
-### Make assignee compulsory in `RGYCombinedIssuesDialog`
-- In `submit()`: add a guard — if `taskAssignees.length === 0`, `toast.error("Please assign at least one person")` and return.
-- Disable the Save button when assignees are empty (in addition to existing disabled conditions); show a small helper line under the chips: "At least one assignee is required."
-- Keep existing issue-details + action-plan required guards.
-
-### Block RGY save until issue is logged
-Currently a Red/Yellow is persisted first and the issue dialog opens after. Change the flow so RGY can't stay R/Y without a logged issue:
-
-- In `src/pages/RGYHealth.tsx` `handleMarkRGYSave`: if any dim ends up R/Y, persist the RGY change then open the combined-issues dialog as today, BUT if the user cancels/closes that dialog without saving, revert the affected dims back to their prior value (snapshot the pre-save values before persisting; on cancel, write the snapshot back via the same update path and show a toast "RGY reverted — issue is mandatory for R/Y").
-- Same revert wiring in `src/pages/DealDetail.tsx` where R/Y is set inline via `EditableRGY`. Track the pre-change value, open `RGYCombinedIssuesDialog` (mode `"create"`), and on close-without-save revert the dimension.
-- Existing weekly rows that already have `issue_details` filled don't trigger the dialog — only newly-introduced R/Y values do.
-
-### Edit existing issue
-- `DealDetail` already has an "Edit issue" entry via `combinedIssuesMode === "edit"`. Make sure the status-bar "Review issues" button stays visible whenever the deal has any R/Y dim and opens the dialog in edit mode pre-filled with `issue_details`, `action_plan`, `due_date`, `issue_status`, and the assignees (read existing `deal_tasks` row tagged `[RGY Health]` for the current week to pre-fill the assignees chip selection).
-- In `RGYHealth.tsx`, add an "Edit issue" link/button on each row that has R/Y + an existing issue, opening `RGYCombinedIssuesDialog` with `initial` pre-filled from `rgy_issue_details / rgy_action_plan / rgy_issue_date` and the matching `deal_tasks` row's `assignees`. Save path updates the same `deal_rgy_weekly` row and updates (not re-inserts) the matching task.
-
-## Technical notes
-
-- Files changed: `src/pages/Clients.tsx`, `supabase/functions/approval-execute/index.ts`, `src/components/rgy/RGYCombinedIssuesDialog.tsx`, `src/pages/RGYHealth.tsx`, `src/pages/DealDetail.tsx`.
-- No schema migration required — `staffing_assignments`, `deal_rgy_weekly`, and `deal_tasks` already support all needed columns.
-- The 0% allocations will be visible in `WeeklyStaffingGrid` / `DealStaffingCard` but won't count toward person capacity (capacity sums `allocation_pct`).
+## Out of scope
+- No changes to `deal_stakeholders` schema or RLS.
+- No changes to Contacts page or other consumers.
+- No global "client-level contacts" view.
