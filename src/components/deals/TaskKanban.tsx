@@ -340,6 +340,7 @@ export function TaskKanban({ tasks, dealId, assignees, onAdd, onUpdate, onDelete
       {/* Kanban columns with DnD */}
       <DndContext
         sensors={sensors}
+        collisionDetection={closestCorners}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
@@ -368,14 +369,19 @@ export function TaskKanban({ tasks, dealId, assignees, onAdd, onUpdate, onDelete
 
                 {/* Droppable zone */}
                 <DroppableColumn stage={stage} compact={compact}>
-                  {stageTasks.map(task => (
-                    <DraggableTaskCard
-                      key={task.id}
-                      task={task}
-                      onClick={() => setEditTask(task)}
-                      meta={dealMeta?.[task.dealId]}
-                    />
-                  ))}
+                  <SortableContext
+                    items={stageTasks.map(t => t.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {stageTasks.map(task => (
+                      <DraggableTaskCard
+                        key={task.id}
+                        task={task}
+                        onClick={() => setEditTask(task)}
+                        meta={dealMeta?.[task.dealId]}
+                      />
+                    ))}
+                  </SortableContext>
 
                   {stageTasks.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-8 text-center">
