@@ -650,7 +650,7 @@ export default function RGYHealth() {
     return norm(a || "") === norm(b);
   };
   // Drill-down for RGY Summary numeric cells
-  type RGYDrillMetric = "total" | "red" | "yellow" | "green" | "pending";
+  type RGYDrillMetric = "total" | "red" | "yellow" | "green" | "pending" | "pendingActive";
   const [rgyDrill, setRgyDrill] = useState<{ rowLabel: string; metric: RGYDrillMetric } | null>(null);
   // KPI strip drill (Red / Yellow / Green / Score)
   const [kpiDrill, setKpiDrill] = useState<null | "score" | "marked">(null);
