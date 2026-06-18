@@ -150,6 +150,7 @@ interface DealWithRGY {
   rgy_created_at?: string | null;
   rgy_updated_at?: string | null;
   rgy_updated_by_name?: string | null;
+  deal_created_at?: string | null;
   customer: string;
   internal: string;
   content: string;
@@ -649,7 +650,7 @@ export default function RGYHealth() {
     return norm(a || "") === norm(b);
   };
   // Drill-down for RGY Summary numeric cells
-  type RGYDrillMetric = "total" | "red" | "yellow" | "green" | "pending";
+  type RGYDrillMetric = "total" | "red" | "yellow" | "green" | "pending" | "pendingActive";
   const [rgyDrill, setRgyDrill] = useState<{ rowLabel: string; metric: RGYDrillMetric } | null>(null);
   // KPI strip drill (Red / Yellow / Green / Score)
   const [kpiDrill, setKpiDrill] = useState<null | "score" | "marked">(null);
@@ -846,7 +847,7 @@ export default function RGYHealth() {
     // Fire deals + recent RGY in parallel.
     const dealsPromise = supabase
       .from("staffing_deals")
-      .select("id, new_deal_id_formulated, deal_name, account, bopm, deal_status, pod, mrr, total_deal_value, vsd, principal_bopm, senior_bopm, start_date, end_date, payment_terms, pc_code, deal_type, customer_type")
+      .select("id, new_deal_id_formulated, deal_name, account, bopm, deal_status, pod, mrr, total_deal_value, vsd, principal_bopm, senior_bopm, start_date, end_date, payment_terms, pc_code, deal_type, customer_type, created_at")
       .order("deal_name");
 
     const rgyPromise = supabase
@@ -863,6 +864,7 @@ export default function RGYHealth() {
       ...d,
       deal_id: (d as any).new_deal_id_formulated || "",
       pc_code: d.pc_code || "",
+      deal_created_at: (d as any).created_at || null,
       customer: "", internal: "", content: "", seo: "",
       supply: "", copy: "", design: "", video: "",
     }));
@@ -1360,7 +1362,7 @@ export default function RGYHealth() {
 
   // ── RGY Summary Insights ──
   // "All" → group by VSD. Specific VSD → group by Sr/Principal BOPM in that pod (with Pod Overall row).
-  type RGYSummaryRow = { name: string; total: number; red: number; yellow: number; green: number; pending: number };
+  type RGYSummaryRow = { name: string; total: number; red: number; yellow: number; green: number; pending: number; pendingActive: number };
   const showBopmRgyInsights = activeVsd !== "All" && activeVsd !== "Unassigned";
 
   const rgySummary = useMemo<RGYSummaryRow[]>(() => {
@@ -1371,11 +1373,12 @@ export default function RGYHealth() {
       else if (w === "Y") row.yellow++;
       else if (w === "G") row.green++;
       else row.pending++;
+      if (w === null && ACTIVE_STATUSES.has((deal.deal_status || "").trim())) row.pendingActive++;
     };
 
     if (showBopmRgyInsights) {
       const map = new Map<string, RGYSummaryRow>();
-      const overall: RGYSummaryRow = { name: "Pod Overall", total: 0, red: 0, yellow: 0, green: 0, pending: 0 };
+      const overall: RGYSummaryRow = { name: "Pod Overall", total: 0, red: 0, yellow: 0, green: 0, pending: 0, pendingActive: 0 };
       for (const deal of filteredDeals) {
         const raw = (deal.principal_bopm || deal.senior_bopm || "").trim();
         const lower = raw.toLowerCase();
@@ -1387,7 +1390,7 @@ export default function RGYHealth() {
           lower === "unassigned" ||
           lower === "not assigned";
         const bucket = isPlaceholder ? "Unassigned" : raw;
-        if (!map.has(bucket)) map.set(bucket, { name: bucket, total: 0, red: 0, yellow: 0, green: 0, pending: 0 });
+        if (!map.has(bucket)) map.set(bucket, { name: bucket, total: 0, red: 0, yellow: 0, green: 0, pending: 0, pendingActive: 0 });
         tally(map.get(bucket)!, deal);
         tally(overall, deal);
       }
@@ -1400,7 +1403,7 @@ export default function RGYHealth() {
     for (const deal of filteredDeals) {
       const v = vsdForDeal(deal as any);
       const bucket = v || "Unassigned";
-      if (!map.has(bucket)) map.set(bucket, { name: bucket, total: 0, red: 0, yellow: 0, green: 0, pending: 0 });
+      if (!map.has(bucket)) map.set(bucket, { name: bucket, total: 0, red: 0, yellow: 0, green: 0, pending: 0, pendingActive: 0 });
       tally(map.get(bucket)!, deal);
     }
     return Array.from(map.values()).filter(r => r.total > 0).sort((a, b) => b.total - a.total);
@@ -1541,7 +1544,7 @@ export default function RGYHealth() {
             <table className="w-full text-ui">
               <thead>
                 <tr className="bg-secondary/40 border-b border-border">
-                  {[showBopmRgyInsights ? "Sr / Principal BOPM" : "VSD", "Active Deals", "🔴 Red", "🟡 Yellow", "🟢 Green", "Pending"].map(h => (
+                  {[showBopmRgyInsights ? "Sr / Principal BOPM" : "VSD", "Active Deals", "🔴 Red", "🟡 Yellow", "🟢 Green", "Pending", "Pending (Active)"].map(h => (
                     <th key={h} className="text-left py-2.5 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{h}</th>
                   ))}
                 </tr>
@@ -1574,11 +1577,12 @@ export default function RGYHealth() {
                       <td className="py-2.5 px-3"><NumBtn value={r.yellow} metric="yellow" className="text-warning font-semibold" /></td>
                       <td className="py-2.5 px-3"><NumBtn value={r.green} metric="green" className="text-positive font-semibold" /></td>
                       <td className="py-2.5 px-3"><NumBtn value={r.pending} metric="pending" className="text-muted-foreground" /></td>
+                      <td className="py-2.5 px-3"><NumBtn value={r.pendingActive} metric="pendingActive" className="text-amber-600 dark:text-amber-400 font-semibold" /></td>
                     </tr>
                   );
                 })}
                 {rgySummary.length === 0 && (
-                  <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">No data</td></tr>
+                  <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">No data</td></tr>
                 )}
               </tbody>
             </table>
@@ -2125,12 +2129,14 @@ export default function RGYHealth() {
               case "yellow": return w === "Y";
               case "green": return w === "G";
               case "pending": return w === null;
+              case "pendingActive": return w === null && ACTIVE_STATUSES.has((deal.deal_status || "").trim());
             }
           };
           const rows = scoped.filter(matchMetric);
           const metricLabel: Record<RGYDrillMetric, string> = {
-            total: "Active Deals", red: "Red", yellow: "Yellow", green: "Green", pending: "Pending",
+            total: "Active Deals", red: "Red", yellow: "Yellow", green: "Green", pending: "Pending", pendingActive: "Pending (Active)",
           };
+          const showActivePending = rgyDrill.metric === "pendingActive";
           return (
             <Dialog open={!!rgyDrill} onOpenChange={(o) => !o && setRgyDrill(null)}>
               <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
@@ -2147,6 +2153,12 @@ export default function RGYHealth() {
                         <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Deal ID</th>
                         <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Deal Name</th>
                         <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Status</th>
+                        {showActivePending && (
+                          <>
+                            <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Sr / Principal BOPM</th>
+                            <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Deal Created</th>
+                          </>
+                        )}
                       </tr>
                     </thead>
                     <tbody>
@@ -2160,10 +2172,26 @@ export default function RGYHealth() {
                             </Link>
                           </td>
                           <td className="py-2 px-3 text-muted-foreground">{d.deal_status || "—"}</td>
+                          {showActivePending && (
+                            <>
+                              <td className="py-2 px-3 text-muted-foreground">
+                                {(d.principal_bopm || d.senior_bopm) ? (
+                                  <span>
+                                    {d.principal_bopm || "—"}
+                                    {d.senior_bopm && d.principal_bopm && d.senior_bopm !== d.principal_bopm ? ` / ${d.senior_bopm}` : ""}
+                                    {!d.principal_bopm && d.senior_bopm ? d.senior_bopm : ""}
+                                  </span>
+                                ) : "—"}
+                              </td>
+                              <td className="py-2 px-3 text-muted-foreground font-mono tabular-nums">
+                                {d.deal_created_at ? format(new Date(d.deal_created_at), "dd MMM yyyy") : "—"}
+                              </td>
+                            </>
+                          )}
                         </tr>
                       ))}
                       {rows.length === 0 && (
-                        <tr><td colSpan={4} className="text-center py-6 text-muted-foreground">No matching deals.</td></tr>
+                        <tr><td colSpan={showActivePending ? 6 : 4} className="text-center py-6 text-muted-foreground">No matching deals.</td></tr>
                       )}
                     </tbody>
                   </table>
