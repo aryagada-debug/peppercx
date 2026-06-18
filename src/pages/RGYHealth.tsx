@@ -2129,12 +2129,14 @@ export default function RGYHealth() {
               case "yellow": return w === "Y";
               case "green": return w === "G";
               case "pending": return w === null;
+              case "pendingActive": return w === null && ACTIVE_STATUSES.has((deal.deal_status || "").trim());
             }
           };
           const rows = scoped.filter(matchMetric);
           const metricLabel: Record<RGYDrillMetric, string> = {
-            total: "Active Deals", red: "Red", yellow: "Yellow", green: "Green", pending: "Pending",
+            total: "Active Deals", red: "Red", yellow: "Yellow", green: "Green", pending: "Pending", pendingActive: "Pending (Active)",
           };
+          const showActivePending = rgyDrill.metric === "pendingActive";
           return (
             <Dialog open={!!rgyDrill} onOpenChange={(o) => !o && setRgyDrill(null)}>
               <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
@@ -2151,6 +2153,12 @@ export default function RGYHealth() {
                         <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Deal ID</th>
                         <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Deal Name</th>
                         <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Status</th>
+                        {showActivePending && (
+                          <>
+                            <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Sr / Principal BOPM</th>
+                            <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Deal Created</th>
+                          </>
+                        )}
                       </tr>
                     </thead>
                     <tbody>
@@ -2164,10 +2172,26 @@ export default function RGYHealth() {
                             </Link>
                           </td>
                           <td className="py-2 px-3 text-muted-foreground">{d.deal_status || "—"}</td>
+                          {showActivePending && (
+                            <>
+                              <td className="py-2 px-3 text-muted-foreground">
+                                {(d.principal_bopm || d.senior_bopm) ? (
+                                  <span>
+                                    {d.principal_bopm || "—"}
+                                    {d.senior_bopm && d.principal_bopm && d.senior_bopm !== d.principal_bopm ? ` / ${d.senior_bopm}` : ""}
+                                    {!d.principal_bopm && d.senior_bopm ? d.senior_bopm : ""}
+                                  </span>
+                                ) : "—"}
+                              </td>
+                              <td className="py-2 px-3 text-muted-foreground font-mono tabular-nums">
+                                {d.deal_created_at ? format(new Date(d.deal_created_at), "dd MMM yyyy") : "—"}
+                              </td>
+                            </>
+                          )}
                         </tr>
                       ))}
                       {rows.length === 0 && (
-                        <tr><td colSpan={4} className="text-center py-6 text-muted-foreground">No matching deals.</td></tr>
+                        <tr><td colSpan={showActivePending ? 6 : 4} className="text-center py-6 text-muted-foreground">No matching deals.</td></tr>
                       )}
                     </tbody>
                   </table>
