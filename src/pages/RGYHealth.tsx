@@ -150,6 +150,7 @@ interface DealWithRGY {
   rgy_created_at?: string | null;
   rgy_updated_at?: string | null;
   rgy_updated_by_name?: string | null;
+  deal_created_at?: string | null;
   customer: string;
   internal: string;
   content: string;
