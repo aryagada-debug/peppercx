@@ -131,6 +131,49 @@ export default function Contacts() {
 
   const dealCount = useMemo(() => new Set(filtered.map(r => r.deal_id)).size, [filtered]);
 
+  // ── Insights: per-deal contact counts grouped by VSD ──
+  const [insightsVsdF, setInsightsVsdF] = useState("all");
+  const [insightsStatusF, setInsightsStatusF] = useState("Active Deal");
+  const [insightsOnlyMissing, setInsightsOnlyMissing] = useState(false);
+  const dealStatuses = useMemo(
+    () => Array.from(new Set(allDeals.map(d => d.deal_status).filter(Boolean))).sort(),
+    [allDeals],
+  );
+  const insightsVsdOptions = useMemo(
+    () => Array.from(new Set(allDeals.map(d => d.vsd || "Unassigned"))).sort(),
+    [allDeals],
+  );
+  const contactsByDeal = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of rows) m.set(r.deal_id, (m.get(r.deal_id) || 0) + 1);
+    return m;
+  }, [rows]);
+  const insightsGroups = useMemo(() => {
+    const scoped = allDeals.filter(d => {
+      if (insightsStatusF !== "all" && d.deal_status !== insightsStatusF) return false;
+      const vsd = d.vsd || "Unassigned";
+      if (insightsVsdF !== "all" && vsd !== insightsVsdF) return false;
+      if (insightsOnlyMissing && (contactsByDeal.get(d.id) || 0) > 0) return false;
+      return true;
+    });
+    const byVsd = new Map<string, { vsd: string; deals: (DealLite & { contactCount: number })[]; total: number; missing: number }>();
+    for (const d of scoped) {
+      const vsd = d.vsd || "Unassigned";
+      const count = contactsByDeal.get(d.id) || 0;
+      if (!byVsd.has(vsd)) byVsd.set(vsd, { vsd, deals: [], total: 0, missing: 0 });
+      const g = byVsd.get(vsd)!;
+      g.deals.push({ ...d, contactCount: count });
+      g.total += count;
+      if (count === 0) g.missing++;
+    }
+    return Array.from(byVsd.values())
+      .map(g => ({
+        ...g,
+        deals: g.deals.sort((a, b) => a.contactCount - b.contactCount || a.account.localeCompare(b.account)),
+      }))
+      .sort((a, b) => b.missing - a.missing || a.vsd.localeCompare(b.vsd));
+  }, [allDeals, contactsByDeal, insightsVsdF, insightsStatusF, insightsOnlyMissing]);
+
   const exportXlsx = () => {
     const data = filtered.map(r => ({
       "Name of Person": r.name,
