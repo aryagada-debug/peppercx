@@ -847,7 +847,7 @@ export default function RGYHealth() {
     // Fire deals + recent RGY in parallel.
     const dealsPromise = supabase
       .from("staffing_deals")
-      .select("id, new_deal_id_formulated, deal_name, account, bopm, deal_status, pod, mrr, total_deal_value, vsd, principal_bopm, senior_bopm, start_date, end_date, payment_terms, pc_code, deal_type, customer_type")
+      .select("id, new_deal_id_formulated, deal_name, account, bopm, deal_status, pod, mrr, total_deal_value, vsd, principal_bopm, senior_bopm, start_date, end_date, payment_terms, pc_code, deal_type, customer_type, created_at")
       .order("deal_name");
 
     const rgyPromise = supabase
@@ -864,6 +864,7 @@ export default function RGYHealth() {
       ...d,
       deal_id: (d as any).new_deal_id_formulated || "",
       pc_code: d.pc_code || "",
+      deal_created_at: (d as any).created_at || null,
       customer: "", internal: "", content: "", seo: "",
       supply: "", copy: "", design: "", video: "",
     }));
