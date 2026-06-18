@@ -5,10 +5,12 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Download, ExternalLink, Mail, Phone, Linkedin, Users } from "lucide-react";
+import { Search, Download, ExternalLink, Mail, Phone, Linkedin, Users, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 
 type Row = {
   id: string;
@@ -26,6 +28,16 @@ type Row = {
   region: string;
 };
 
+type DealLite = {
+  id: string;
+  account: string;
+  deal_name: string;
+  vsd: string;
+  bopm: string;
+  region: string;
+  deal_status: string;
+};
+
 function joinBopm(d: { principal_bopm?: string | null; senior_bopm?: string | null; bopm?: string | null }) {
   return [d.principal_bopm, d.senior_bopm, d.bopm]
     .map(v => (v || "").trim())
@@ -37,6 +49,7 @@ export default function Contacts() {
   const { isAdmin, isActuallyAdmin, loading: roleLoading } = useUserRole();
   const canView = isAdmin || isActuallyAdmin;
   const [rows, setRows] = useState<Row[]>([]);
+  const [allDeals, setAllDeals] = useState<DealLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [teamF, setTeamF] = useState("all");
@@ -51,7 +64,7 @@ export default function Contacts() {
       setLoading(true);
       const [{ data: people, error: e1 }, { data: deals, error: e2 }, { data: clients, error: e3 }] = await Promise.all([
         supabase.from("deal_stakeholders").select("id,name,linkedin_url,email,phone,role,function,decision_power,deal_id,client_name"),
-        supabase.from("staffing_deals").select("id,account,deal_name,vsd,principal_bopm,senior_bopm,bopm,geo,client_id"),
+        supabase.from("staffing_deals").select("id,account,deal_name,vsd,principal_bopm,senior_bopm,bopm,geo,client_id,deal_status"),
         supabase.from("clients").select("id,name,geography"),
       ]);
       if (e1 || e2 || e3) {
@@ -85,6 +98,15 @@ export default function Contacts() {
       });
       if (!cancelled) {
         setRows(merged);
+        setAllDeals((deals || []).map((d: any) => ({
+          id: d.id,
+          account: d.account || "",
+          deal_name: d.deal_name || "",
+          vsd: d.vsd || "",
+          bopm: joinBopm(d),
+          region: d.geo || "",
+          deal_status: d.deal_status || "",
+        })));
         setLoading(false);
       }
     })();
@@ -108,6 +130,49 @@ export default function Contacts() {
   }, [rows, q, teamF, regionF, vsdF, influenceF]);
 
   const dealCount = useMemo(() => new Set(filtered.map(r => r.deal_id)).size, [filtered]);
+
+  // ── Insights: per-deal contact counts grouped by VSD ──
+  const [insightsVsdF, setInsightsVsdF] = useState("all");
+  const [insightsStatusF, setInsightsStatusF] = useState("Active Deal");
+  const [insightsOnlyMissing, setInsightsOnlyMissing] = useState(false);
+  const dealStatuses = useMemo(
+    () => Array.from(new Set(allDeals.map(d => d.deal_status).filter(Boolean))).sort(),
+    [allDeals],
+  );
+  const insightsVsdOptions = useMemo(
+    () => Array.from(new Set(allDeals.map(d => d.vsd || "Unassigned"))).sort(),
+    [allDeals],
+  );
+  const contactsByDeal = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of rows) m.set(r.deal_id, (m.get(r.deal_id) || 0) + 1);
+    return m;
+  }, [rows]);
+  const insightsGroups = useMemo(() => {
+    const scoped = allDeals.filter(d => {
+      if (insightsStatusF !== "all" && d.deal_status !== insightsStatusF) return false;
+      const vsd = d.vsd || "Unassigned";
+      if (insightsVsdF !== "all" && vsd !== insightsVsdF) return false;
+      if (insightsOnlyMissing && (contactsByDeal.get(d.id) || 0) > 0) return false;
+      return true;
+    });
+    const byVsd = new Map<string, { vsd: string; deals: (DealLite & { contactCount: number })[]; total: number; missing: number }>();
+    for (const d of scoped) {
+      const vsd = d.vsd || "Unassigned";
+      const count = contactsByDeal.get(d.id) || 0;
+      if (!byVsd.has(vsd)) byVsd.set(vsd, { vsd, deals: [], total: 0, missing: 0 });
+      const g = byVsd.get(vsd)!;
+      g.deals.push({ ...d, contactCount: count });
+      g.total += count;
+      if (count === 0) g.missing++;
+    }
+    return Array.from(byVsd.values())
+      .map(g => ({
+        ...g,
+        deals: g.deals.sort((a, b) => a.contactCount - b.contactCount || a.account.localeCompare(b.account)),
+      }))
+      .sort((a, b) => b.missing - a.missing || a.vsd.localeCompare(b.vsd));
+  }, [allDeals, contactsByDeal, insightsVsdF, insightsStatusF, insightsOnlyMissing]);
 
   const exportXlsx = () => {
     const data = filtered.map(r => ({
@@ -151,12 +216,21 @@ export default function Contacts() {
             )}
           </p>
         </div>
-        <Button size="sm" onClick={exportXlsx} disabled={!filtered.length}>
-          <Download className="h-4 w-4" /> Export to Excel
-        </Button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <Tabs defaultValue="contacts" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="contacts">Contacts</TabsTrigger>
+          <TabsTrigger value="insights">Insights</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="contacts" className="space-y-4 mt-0">
+          <div className="flex justify-end">
+            <Button size="sm" onClick={exportXlsx} disabled={!filtered.length}>
+              <Download className="h-4 w-4" /> Export to Excel
+            </Button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[240px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Search name, email, role, deal, VSD…" className="pl-9 h-9" />
@@ -261,6 +335,110 @@ export default function Contacts() {
           </table>
         </div>
       </div>
+        </TabsContent>
+
+        <TabsContent value="insights" className="space-y-4 mt-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={insightsStatusF} onValueChange={setInsightsStatusF}>
+              <SelectTrigger className="h-9 w-[200px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                {dealStatuses.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={insightsVsdF} onValueChange={setInsightsVsdF}>
+              <SelectTrigger className="h-9 w-[200px]"><SelectValue placeholder="All VSDs" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All VSDs</SelectItem>
+                {insightsVsdOptions.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Button
+              size="sm"
+              variant={insightsOnlyMissing ? "default" : "outline"}
+              onClick={() => setInsightsOnlyMissing(v => !v)}
+              className="h-9"
+            >
+              <AlertTriangle className="h-4 w-4" />
+              {insightsOnlyMissing ? "Showing missing only" : "Show missing only"}
+            </Button>
+            <div className="ml-auto text-xs text-muted-foreground">
+              {insightsGroups.reduce((s, g) => s + g.deals.length, 0)} deals ·{" "}
+              <span className="text-destructive font-medium">
+                {insightsGroups.reduce((s, g) => s + g.missing, 0)} missing contacts
+              </span>
+            </div>
+          </div>
+
+          {loading && (
+            <div className="text-center text-sm text-muted-foreground py-10">Loading insights…</div>
+          )}
+          {!loading && insightsGroups.length === 0 && (
+            <div className="rounded-lg border border-border bg-card py-12 text-center">
+              <Users className="h-8 w-8 mx-auto text-muted-foreground/50 mb-3" />
+              <p className="text-sm text-foreground font-medium">No deals match</p>
+            </div>
+          )}
+          {!loading && insightsGroups.map(g => (
+            <div key={g.vsd} className="rounded-lg border border-border bg-card overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2.5 bg-muted/40 border-b border-border">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-foreground">{g.vsd}</span>
+                  <Badge variant="secondary" className="text-[10px]">{g.deals.length} deals</Badge>
+                  <Badge variant="outline" className="text-[10px]">{g.total} contacts</Badge>
+                </div>
+                {g.missing > 0 && (
+                  <Badge variant="outline" className="text-[10px] bg-destructive/10 text-destructive border-destructive/30">
+                    <AlertTriangle className="h-3 w-3 mr-1" />
+                    {g.missing} missing
+                  </Badge>
+                )}
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="border-b border-border text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <tr>
+                      <th className="text-left px-3 py-2">Account</th>
+                      <th className="text-left px-3 py-2">Deal</th>
+                      <th className="text-left px-3 py-2">BOPM</th>
+                      <th className="text-left px-3 py-2">Region</th>
+                      <th className="text-left px-3 py-2">Status</th>
+                      <th className="text-right px-3 py-2"># Contacts</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {g.deals.map(d => {
+                      const missing = d.contactCount === 0;
+                      return (
+                        <tr key={d.id} className={`border-b border-border last:border-b-0 hover:bg-muted/30 transition-colors ${missing ? "bg-destructive/5" : ""}`}>
+                          <td className="px-3 py-2 text-foreground whitespace-nowrap">{d.account || "—"}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            <Link to={`/deals/${d.id}`} className="text-primary hover:underline inline-flex items-center gap-1">
+                              {d.deal_name || d.id} <ExternalLink className="h-3 w-3" />
+                            </Link>
+                          </td>
+                          <td className="px-3 py-2 text-muted-foreground">{d.bopm || "—"}</td>
+                          <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{d.region || "—"}</td>
+                          <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{d.deal_status || "—"}</td>
+                          <td className="px-3 py-2 text-right font-mono tabular-nums">
+                            {missing ? (
+                              <span className="inline-flex items-center gap-1 text-destructive font-semibold">
+                                <AlertTriangle className="h-3 w-3" /> 0
+                              </span>
+                            ) : (
+                              <span className="text-foreground">{d.contactCount}</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </TabsContent>
+      </Tabs>
     </div>
     </AppLayout>
   );
