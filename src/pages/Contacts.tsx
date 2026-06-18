@@ -216,12 +216,21 @@ export default function Contacts() {
             )}
           </p>
         </div>
-        <Button size="sm" onClick={exportXlsx} disabled={!filtered.length}>
-          <Download className="h-4 w-4" /> Export to Excel
-        </Button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <Tabs defaultValue="contacts" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="contacts">Contacts</TabsTrigger>
+          <TabsTrigger value="insights">Insights</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="contacts" className="space-y-4 mt-0">
+          <div className="flex justify-end">
+            <Button size="sm" onClick={exportXlsx} disabled={!filtered.length}>
+              <Download className="h-4 w-4" /> Export to Excel
+            </Button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[240px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Search name, email, role, deal, VSD…" className="pl-9 h-9" />
