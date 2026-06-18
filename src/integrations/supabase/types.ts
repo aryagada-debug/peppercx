@@ -1215,6 +1215,7 @@ export type Database = {
           notes: string
           priority: string
           sort_order: number
+          stage: string
           title: string
           updated_at: string
           user_id: string | null
@@ -1231,6 +1232,7 @@ export type Database = {
           notes?: string
           priority?: string
           sort_order?: number
+          stage?: string
           title?: string
           updated_at?: string
           user_id?: string | null
@@ -1247,6 +1249,7 @@ export type Database = {
           notes?: string
           priority?: string
           sort_order?: number
+          stage?: string
           title?: string
           updated_at?: string
           user_id?: string | null
@@ -2767,6 +2770,7 @@ export type Database = {
           notes: string
           priority: string
           sort_order: number
+          stage: string
           title: string
           updated_at: string
           user_id: string | null
