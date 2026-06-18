@@ -11,6 +11,7 @@ import * as XLSX from "xlsx";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { ColHeader, type SortState } from "@/components/table/ColHeader";
 
 type Row = {
   id: string;
@@ -135,6 +136,15 @@ export default function Contacts() {
   const [insightsVsdF, setInsightsVsdF] = useState("all");
   const [insightsStatusF, setInsightsStatusF] = useState("Active Deal");
   const [insightsOnlyMissing, setInsightsOnlyMissing] = useState(false);
+  const [insightsSort, setInsightsSort] = useState<SortState>({ sortKey: "contactCount", sortDir: "asc" });
+  const [insightsColFilters, setInsightsColFilters] = useState<Record<string, string>>({});
+  const [insightsOpenFilter, setInsightsOpenFilter] = useState<string | null>(null);
+  const setInsightsFilter = (k: string, v: string) =>
+    setInsightsColFilters(prev => (v ? { ...prev, [k]: v } : Object.fromEntries(Object.entries(prev).filter(([kk]) => kk !== k))));
+  const clearInsightsFilter = (k: string) =>
+    setInsightsColFilters(prev => Object.fromEntries(Object.entries(prev).filter(([kk]) => kk !== k)));
+  const toggleInsightsSort = (k: string) =>
+    setInsightsSort(s => (s.sortKey === k ? { sortKey: k, sortDir: s.sortDir === "asc" ? "desc" : "asc" } : { sortKey: k, sortDir: "asc" }));
   const dealStatuses = useMemo(
     () => Array.from(new Set(allDeals.map(d => d.deal_status).filter(Boolean))).sort(),
     [allDeals],
@@ -149,11 +159,24 @@ export default function Contacts() {
     return m;
   }, [rows]);
   const insightsGroups = useMemo(() => {
+    const accountF = (insightsColFilters.account || "").toLowerCase();
+    const dealF = (insightsColFilters.deal || "").toLowerCase();
+    const bopmF = (insightsColFilters.bopm || "").toLowerCase();
+    const regionF = (insightsColFilters.region || "").toLowerCase();
+    const statusF = (insightsColFilters.status || "").toLowerCase();
+    const countF = insightsColFilters.contactCount;
     const scoped = allDeals.filter(d => {
       if (insightsStatusF !== "all" && d.deal_status !== insightsStatusF) return false;
       const vsd = d.vsd || "Unassigned";
       if (insightsVsdF !== "all" && vsd !== insightsVsdF) return false;
-      if (insightsOnlyMissing && (contactsByDeal.get(d.id) || 0) > 0) return false;
+      const count = contactsByDeal.get(d.id) || 0;
+      if (insightsOnlyMissing && count > 0) return false;
+      if (accountF && !(d.account || "").toLowerCase().includes(accountF)) return false;
+      if (dealF && !(d.deal_name || "").toLowerCase().includes(dealF)) return false;
+      if (bopmF && !(d.bopm || "").toLowerCase().includes(bopmF)) return false;
+      if (regionF && (d.region || "").toLowerCase() !== regionF) return false;
+      if (statusF && (d.deal_status || "").toLowerCase() !== statusF) return false;
+      if (countF !== undefined && countF !== "" && count !== Number(countF)) return false;
       return true;
     });
     const byVsd = new Map<string, { vsd: string; deals: (DealLite & { contactCount: number })[]; total: number; missing: number }>();
@@ -166,13 +189,31 @@ export default function Contacts() {
       g.total += count;
       if (count === 0) g.missing++;
     }
+    const sk = insightsSort.sortKey;
+    const dir = insightsSort.sortDir === "asc" ? 1 : -1;
+    const cmp = (a: any, b: any) => {
+      if (!sk) return 0;
+      const av = (a as any)[sk] ?? "";
+      const bv = (b as any)[sk] ?? "";
+      if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
+      return String(av).localeCompare(String(bv)) * dir;
+    };
     return Array.from(byVsd.values())
       .map(g => ({
         ...g,
-        deals: g.deals.sort((a, b) => a.contactCount - b.contactCount || a.account.localeCompare(b.account)),
+        deals: g.deals.sort(cmp),
       }))
       .sort((a, b) => b.missing - a.missing || a.vsd.localeCompare(b.vsd));
-  }, [allDeals, contactsByDeal, insightsVsdF, insightsStatusF, insightsOnlyMissing]);
+  }, [allDeals, contactsByDeal, insightsVsdF, insightsStatusF, insightsOnlyMissing, insightsColFilters, insightsSort]);
+
+  const insightsRegionOpts = useMemo(
+    () => Array.from(new Set(allDeals.map(d => d.region).filter(Boolean))).sort(),
+    [allDeals],
+  );
+  const insightsStatusOpts = useMemo(
+    () => Array.from(new Set(allDeals.map(d => d.deal_status).filter(Boolean))).sort(),
+    [allDeals],
+  );
 
   const exportXlsx = () => {
     const data = filtered.map(r => ({
