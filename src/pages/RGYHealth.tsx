@@ -1362,7 +1362,7 @@ export default function RGYHealth() {
 
   // ── RGY Summary Insights ──
   // "All" → group by VSD. Specific VSD → group by Sr/Principal BOPM in that pod (with Pod Overall row).
-  type RGYSummaryRow = { name: string; total: number; red: number; yellow: number; green: number; pending: number };
+  type RGYSummaryRow = { name: string; total: number; red: number; yellow: number; green: number; pending: number; pendingActive: number };
   const showBopmRgyInsights = activeVsd !== "All" && activeVsd !== "Unassigned";
 
   const rgySummary = useMemo<RGYSummaryRow[]>(() => {
@@ -1373,11 +1373,12 @@ export default function RGYHealth() {
       else if (w === "Y") row.yellow++;
       else if (w === "G") row.green++;
       else row.pending++;
+      if (w === null && ACTIVE_STATUSES.has((deal.deal_status || "").trim())) row.pendingActive++;
     };
 
     if (showBopmRgyInsights) {
       const map = new Map<string, RGYSummaryRow>();
-      const overall: RGYSummaryRow = { name: "Pod Overall", total: 0, red: 0, yellow: 0, green: 0, pending: 0 };
+      const overall: RGYSummaryRow = { name: "Pod Overall", total: 0, red: 0, yellow: 0, green: 0, pending: 0, pendingActive: 0 };
       for (const deal of filteredDeals) {
         const raw = (deal.principal_bopm || deal.senior_bopm || "").trim();
         const lower = raw.toLowerCase();
@@ -1389,7 +1390,7 @@ export default function RGYHealth() {
           lower === "unassigned" ||
           lower === "not assigned";
         const bucket = isPlaceholder ? "Unassigned" : raw;
-        if (!map.has(bucket)) map.set(bucket, { name: bucket, total: 0, red: 0, yellow: 0, green: 0, pending: 0 });
+        if (!map.has(bucket)) map.set(bucket, { name: bucket, total: 0, red: 0, yellow: 0, green: 0, pending: 0, pendingActive: 0 });
         tally(map.get(bucket)!, deal);
         tally(overall, deal);
       }
@@ -1402,7 +1403,7 @@ export default function RGYHealth() {
     for (const deal of filteredDeals) {
       const v = vsdForDeal(deal as any);
       const bucket = v || "Unassigned";
-      if (!map.has(bucket)) map.set(bucket, { name: bucket, total: 0, red: 0, yellow: 0, green: 0, pending: 0 });
+      if (!map.has(bucket)) map.set(bucket, { name: bucket, total: 0, red: 0, yellow: 0, green: 0, pending: 0, pendingActive: 0 });
       tally(map.get(bucket)!, deal);
     }
     return Array.from(map.values()).filter(r => r.total > 0).sort((a, b) => b.total - a.total);
