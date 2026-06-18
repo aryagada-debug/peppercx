@@ -437,14 +437,14 @@ export default function Contacts() {
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="border-b border-border text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    <tr>
-                      <th className="text-left px-3 py-2">Account</th>
-                      <th className="text-left px-3 py-2">Deal</th>
-                      <th className="text-left px-3 py-2">BOPM</th>
-                      <th className="text-left px-3 py-2">Region</th>
-                      <th className="text-left px-3 py-2">Status</th>
-                      <th className="text-right px-3 py-2"># Contacts</th>
+                  <thead className="border-b border-border">
+                    <tr className="group/headrow">
+                      <ColHeader label="Account" colKey="account" sortKey="account" sortState={insightsSort} onSort={toggleInsightsSort} colFilters={insightsColFilters} openFilter={insightsOpenFilter} setOpenFilter={setInsightsOpenFilter} setFilter={setInsightsFilter} clearFilter={clearInsightsFilter} />
+                      <ColHeader label="Deal" colKey="deal" sortKey="deal_name" sortState={insightsSort} onSort={toggleInsightsSort} colFilters={insightsColFilters} openFilter={insightsOpenFilter} setOpenFilter={setInsightsOpenFilter} setFilter={setInsightsFilter} clearFilter={clearInsightsFilter} />
+                      <ColHeader label="BOPM" colKey="bopm" sortKey="bopm" sortState={insightsSort} onSort={toggleInsightsSort} colFilters={insightsColFilters} openFilter={insightsOpenFilter} setOpenFilter={setInsightsOpenFilter} setFilter={setInsightsFilter} clearFilter={clearInsightsFilter} />
+                      <ColHeader label="Region" colKey="region" sortKey="region" sortState={insightsSort} onSort={toggleInsightsSort} colFilters={insightsColFilters} openFilter={insightsOpenFilter} setOpenFilter={setInsightsOpenFilter} setFilter={setInsightsFilter} clearFilter={clearInsightsFilter} options={insightsRegionOpts} />
+                      <ColHeader label="Status" colKey="status" sortKey="deal_status" sortState={insightsSort} onSort={toggleInsightsSort} colFilters={insightsColFilters} openFilter={insightsOpenFilter} setOpenFilter={setInsightsOpenFilter} setFilter={setInsightsFilter} clearFilter={clearInsightsFilter} options={insightsStatusOpts} />
+                      <ColHeader label="# Contacts" colKey="contactCount" sortKey="contactCount" align="right" numeric sortState={insightsSort} onSort={toggleInsightsSort} colFilters={insightsColFilters} openFilter={insightsOpenFilter} setOpenFilter={setInsightsOpenFilter} setFilter={setInsightsFilter} clearFilter={clearInsightsFilter} />
                     </tr>
                   </thead>
                   <tbody>
