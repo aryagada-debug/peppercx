@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Plus, Search, Filter, Download, ChevronRight, MoreHorizontal, Mail, Phone, Linkedin, Copy, Trash2, Users, MapPin, Check } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Plus, Search, Filter, Download, ChevronRight, MoreHorizontal, Mail, Phone, Linkedin, Copy, Trash2, Users, MapPin, Check, Users2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { useStakeholders, type Stakeholder } from "./useStakeholders";
+import { supabase } from "@/integrations/supabase/client";
 
 const FUNCTIONS = [
   "SEO Team",
@@ -68,12 +69,42 @@ function avatarColor(id: string) {
 }
 
 export function OrgMappingTab({ dealId, clientName }: { dealId: string; clientName: string }) {
-  const { data, loading, lastSavedAt, add, update, remove, duplicate } = useStakeholders(dealId, clientName);
+  const { data, loading, lastSavedAt, add, update, remove, duplicate, copyFromDeal } = useStakeholders(dealId, clientName);
   const [search, setSearch] = useState("");
   const [fnFilter, setFnFilter] = useState<string>("all");
   const [powerFilter, setPowerFilter] = useState<string>("all");
   const [openId, setOpenId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Stakeholder | null>(null);
+  const [siblingDeals, setSiblingDeals] = useState<{ id: string; deal_name: string; count: number }[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [confirmCopy, setConfirmCopy] = useState<{ id: string; deal_name: string; count: number } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!clientName) { setSiblingDeals([]); return; }
+      const { data: deals, error } = await supabase
+        .from("staffing_deals")
+        .select("id, deal_name, account")
+        .eq("account", clientName);
+      if (error || !deals) { if (!cancelled) setSiblingDeals([]); return; }
+      const others = deals.filter((d: any) => d.id !== dealId);
+      if (others.length === 0) { if (!cancelled) setSiblingDeals([]); return; }
+      const ids = others.map((d: any) => d.id);
+      const { data: shRows } = await supabase
+        .from("deal_stakeholders")
+        .select("deal_id")
+        .in("deal_id", ids);
+      const counts = new Map<string, number>();
+      (shRows || []).forEach((r: any) => counts.set(r.deal_id, (counts.get(r.deal_id) || 0) + 1));
+      const result = others
+        .map((d: any) => ({ id: d.id, deal_name: d.deal_name || d.id, count: counts.get(d.id) || 0 }))
+        .filter((d) => d.count > 0)
+        .sort((a, b) => b.count - a.count);
+      if (!cancelled) setSiblingDeals(result);
+    })();
+    return () => { cancelled = true; };
+  }, [dealId, clientName, data.length]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -95,6 +126,15 @@ export function OrgMappingTab({ dealId, clientName }: { dealId: string; clientNa
   const handleAdd = async () => {
     const created = await add();
     if (created) setOpenId(created.id);
+  };
+
+  const handlePickSibling = (s: { id: string; deal_name: string; count: number }) => {
+    setPickerOpen(false);
+    if (data.length > 0) {
+      setConfirmCopy(s);
+    } else {
+      copyFromDeal(s.id);
+    }
   };
 
   const exportCsv = () => {
@@ -127,7 +167,35 @@ export function OrgMappingTab({ dealId, clientName }: { dealId: string; clientNa
             )}
           </p>
         </div>
-        <Button onClick={handleAdd} size="sm"><Plus className="h-4 w-4" /> Add person</Button>
+        <div className="flex items-center gap-2">
+          {siblingDeals.length > 0 && (
+            <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Users2 className="h-4 w-4" /> Populate from another deal
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-72 p-1">
+                <div className="px-2 py-1.5 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
+                  Other deals for {clientName}
+                </div>
+                <div className="max-h-72 overflow-y-auto">
+                  {siblingDeals.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => handlePickSibling(s)}
+                      className="w-full flex items-center justify-between gap-2 px-2 py-2 text-sm rounded-md hover:bg-muted/50 text-left"
+                    >
+                      <span className="truncate">{s.deal_name}</span>
+                      <span className="text-xs text-muted-foreground shrink-0">{s.count}</span>
+                    </button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
+          <Button onClick={handleAdd} size="sm"><Plus className="h-4 w-4" /> Add person</Button>
+        </div>
       </div>
 
       {/* Toolbar */}
@@ -179,6 +247,11 @@ export function OrgMappingTab({ dealId, clientName }: { dealId: string; clientNa
             <Users className="h-8 w-8 mx-auto text-muted-foreground/50 mb-3" />
             <p className="text-sm text-foreground font-medium">{data.length === 0 ? "No stakeholders mapped yet" : "No matches for this filter"}</p>
             <p className="text-xs text-muted-foreground mt-1">{data.length === 0 ? "Map the people you interact with at this client." : "Try a different search or filter."}</p>
+            {data.length === 0 && siblingDeals.length > 0 && (
+              <Button variant="outline" size="sm" className="mt-4" onClick={() => setPickerOpen(true)}>
+                <Users2 className="h-4 w-4" /> Populate from another deal
+              </Button>
+            )}
           </div>
         )}
 
@@ -208,6 +281,21 @@ export function OrgMappingTab({ dealId, clientName }: { dealId: string; clientNa
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={() => { if (confirmDelete) remove(confirmDelete.id); setConfirmDelete(null); }}>Remove</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!confirmCopy} onOpenChange={(o) => { if (!o) setConfirmCopy(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Copy stakeholders?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Append {confirmCopy?.count} stakeholder{confirmCopy?.count === 1 ? "" : "s"} from <span className="font-medium">{confirmCopy?.deal_name}</span> to this deal. You can edit or remove them afterward.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (confirmCopy) copyFromDeal(confirmCopy.id); setConfirmCopy(null); }}>Copy</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
