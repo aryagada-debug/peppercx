@@ -5,10 +5,12 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Download, ExternalLink, Mail, Phone, Linkedin, Users } from "lucide-react";
+import { Search, Download, ExternalLink, Mail, Phone, Linkedin, Users, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 
 type Row = {
   id: string;
@@ -26,6 +28,16 @@ type Row = {
   region: string;
 };
 
+type DealLite = {
+  id: string;
+  account: string;
+  deal_name: string;
+  vsd: string;
+  bopm: string;
+  region: string;
+  deal_status: string;
+};
+
 function joinBopm(d: { principal_bopm?: string | null; senior_bopm?: string | null; bopm?: string | null }) {
   return [d.principal_bopm, d.senior_bopm, d.bopm]
     .map(v => (v || "").trim())
@@ -37,6 +49,7 @@ export default function Contacts() {
   const { isAdmin, isActuallyAdmin, loading: roleLoading } = useUserRole();
   const canView = isAdmin || isActuallyAdmin;
   const [rows, setRows] = useState<Row[]>([]);
+  const [allDeals, setAllDeals] = useState<DealLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [teamF, setTeamF] = useState("all");
@@ -51,7 +64,7 @@ export default function Contacts() {
       setLoading(true);
       const [{ data: people, error: e1 }, { data: deals, error: e2 }, { data: clients, error: e3 }] = await Promise.all([
         supabase.from("deal_stakeholders").select("id,name,linkedin_url,email,phone,role,function,decision_power,deal_id,client_name"),
-        supabase.from("staffing_deals").select("id,account,deal_name,vsd,principal_bopm,senior_bopm,bopm,geo,client_id"),
+        supabase.from("staffing_deals").select("id,account,deal_name,vsd,principal_bopm,senior_bopm,bopm,geo,client_id,deal_status"),
         supabase.from("clients").select("id,name,geography"),
       ]);
       if (e1 || e2 || e3) {
@@ -85,6 +98,15 @@ export default function Contacts() {
       });
       if (!cancelled) {
         setRows(merged);
+        setAllDeals((deals || []).map((d: any) => ({
+          id: d.id,
+          account: d.account || "",
+          deal_name: d.deal_name || "",
+          vsd: d.vsd || "",
+          bopm: joinBopm(d),
+          region: d.geo || "",
+          deal_status: d.deal_status || "",
+        })));
         setLoading(false);
       }
     })();
