@@ -1544,7 +1544,7 @@ export default function RGYHealth() {
             <table className="w-full text-ui">
               <thead>
                 <tr className="bg-secondary/40 border-b border-border">
-                  {[showBopmRgyInsights ? "Sr / Principal BOPM" : "VSD", "Active Deals", "🔴 Red", "🟡 Yellow", "🟢 Green", "Pending"].map(h => (
+                  {[showBopmRgyInsights ? "Sr / Principal BOPM" : "VSD", "Active Deals", "🔴 Red", "🟡 Yellow", "🟢 Green", "Pending", "Pending (Active)"].map(h => (
                     <th key={h} className="text-left py-2.5 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{h}</th>
                   ))}
                 </tr>
@@ -1577,11 +1577,12 @@ export default function RGYHealth() {
                       <td className="py-2.5 px-3"><NumBtn value={r.yellow} metric="yellow" className="text-warning font-semibold" /></td>
                       <td className="py-2.5 px-3"><NumBtn value={r.green} metric="green" className="text-positive font-semibold" /></td>
                       <td className="py-2.5 px-3"><NumBtn value={r.pending} metric="pending" className="text-muted-foreground" /></td>
+                      <td className="py-2.5 px-3"><NumBtn value={r.pendingActive} metric="pendingActive" className="text-amber-600 dark:text-amber-400 font-semibold" /></td>
                     </tr>
                   );
                 })}
                 {rgySummary.length === 0 && (
-                  <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">No data</td></tr>
+                  <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">No data</td></tr>
                 )}
               </tbody>
             </table>
