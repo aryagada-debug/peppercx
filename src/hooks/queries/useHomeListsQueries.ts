@@ -19,6 +19,7 @@ export interface PersonalTodo {
   title: string;
   notes: string;
   done: boolean;
+  stage?: string;
   due_date: string | null;
   priority: string;
   sort_order: number;

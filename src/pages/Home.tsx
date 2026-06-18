@@ -539,12 +539,12 @@ export default function HomePage() {
     }));
     const shouldShowPersonalTodos = taskViewAs === "me" || taskViewAs === "all" || taskViewAs === "created";
     const todoItems = shouldShowPersonalTodos
-      ? todos.filter(t => !t.done).map(t => ({
+      ? todos.map(t => ({
         id: toTodoTaskId(t.id),
         dealId: "",
         title: t.title,
         description: t.notes || "",
-        stage: "To Do",
+        stage: (t as any).stage || (t.done ? "Done" : "To Do"),
         assignee: t.assignee_name || staffingName || displayName || "",
         assignees: [t.assignee_name || staffingName || displayName || ""].filter(Boolean),
         startDate: undefined,
@@ -599,7 +599,10 @@ export default function HomePage() {
       if (updates.description !== undefined) dbUpdates.notes = updates.description;
       if (updates.endDate !== undefined) dbUpdates.due_date = updates.endDate || null;
       if (updates.urgency !== undefined) dbUpdates.priority = updates.urgency;
-      if (updates.stage === "Done" || updates.stage === "Dropped") dbUpdates.done = true;
+      if (updates.stage !== undefined) {
+        dbUpdates.stage = updates.stage;
+        dbUpdates.done = updates.stage === "Done" || updates.stage === "Dropped";
+      }
       if (Object.keys(dbUpdates).length === 0) return;
       patchTodos(prev => prev.map(t => t.id === todoId ? { ...t, ...dbUpdates } : t));
       const { error } = await supabase.from("personal_todos").update(dbUpdates).eq("id", todoId);
