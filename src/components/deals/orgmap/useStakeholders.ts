@@ -29,14 +29,16 @@ export function useStakeholders(dealId: string, clientName: string) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    // Stakeholders are scoped per deal. Other deals for the same client can
-    // be opted into via `copyFromDeal`.
-    const { data, error } = await supabase
+    // Stakeholders are shared per client. We key on client_name; fall back to
+    // this deal's rows if the client isn't yet known (e.g. brand-new client).
+    const query = supabase
       .from("deal_stakeholders")
       .select("*")
-      .eq("deal_id", dealId)
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: true });
+    const { data, error } = clientName
+      ? await query.eq("client_name", clientName)
+      : await query.eq("deal_id", dealId);
     if (error) {
       toast.error("Failed to load stakeholders");
     } else {
@@ -94,29 +96,5 @@ export function useStakeholders(dealId: string, clientName: string) {
     setLastSavedAt(new Date().toISOString());
   }, [data, dealId, clientName]);
 
-  const copyFromDeal = useCallback(async (sourceDealId: string) => {
-    if (!sourceDealId || sourceDealId === dealId) return;
-    const { data: src, error } = await supabase
-      .from("deal_stakeholders")
-      .select("*")
-      .eq("deal_id", sourceDealId)
-      .order("sort_order", { ascending: true });
-    if (error) { toast.error("Failed to read source deal"); return; }
-    if (!src || src.length === 0) { toast.info("No stakeholders to copy"); return; }
-    let sort = data.length ? Math.max(...data.map(d => d.sort_order)) + 1 : 0;
-    const rows = (src as Stakeholder[]).map((s) => {
-      const { id: _i, updated_at: _u, ...rest } = s;
-      return { ...rest, deal_id: dealId, client_name: clientName || rest.client_name || "", sort_order: sort++ };
-    });
-    const { data: inserted, error: insErr } = await supabase
-      .from("deal_stakeholders")
-      .insert(rows)
-      .select();
-    if (insErr) { toast.error("Copy failed"); return; }
-    setData((prev) => [...prev, ...((inserted || []) as Stakeholder[])]);
-    setLastSavedAt(new Date().toISOString());
-    toast.success(`Copied ${inserted?.length || 0} stakeholder${(inserted?.length || 0) === 1 ? "" : "s"}`);
-  }, [data, dealId, clientName]);
-
-  return { data, loading, lastSavedAt, add, update, remove, duplicate, copyFromDeal, reload: load };
+  return { data, loading, lastSavedAt, add, update, remove, duplicate, reload: load };
 }
