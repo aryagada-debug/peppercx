@@ -292,6 +292,9 @@ function MbrReminderCard() {
       // Find all active retainer deals that don't have a logged MBR for current month.
       const now = new Date();
       const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      const monthStart = `${ym}-01`;
+      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      const nextStart = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, "0")}-01`;
       const { data: deals } = await supabase
         .from("staffing_deals")
         .select("id, deal_status, type_of_engagement");
@@ -301,9 +304,10 @@ function MbrReminderCard() {
       if (activeIds.length === 0) { toast.info("No active deals to remind."); setSending(false); return; }
       const { data: entries } = await supabase
         .from("mbr_entries")
-        .select("deal_id, month_year, status")
+        .select("deal_id, week_start, status")
         .in("deal_id", activeIds)
-        .eq("month_year", ym);
+        .gte("week_start", monthStart)
+        .lt("week_start", nextStart);
       const done = new Set((entries || []).filter((e: any) => e.status === "Done" || e.status === "Not Required").map((e: any) => e.deal_id));
       const pending = activeIds.filter((id) => !done.has(id));
       if (pending.length === 0) { toast.success("All caught up — no pending MBRs this month."); setSending(false); return; }
