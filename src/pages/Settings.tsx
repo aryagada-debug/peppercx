@@ -297,7 +297,7 @@ function MbrReminderCard() {
       const nextStart = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, "0")}-01`;
       const { data: deals } = await supabase
         .from("staffing_deals")
-        .select("id, deal_status, type_of_engagement");
+        .select("id, deal_status");
       const activeIds = (deals || [])
         .filter((d: any) => ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"].includes((d.deal_status || "").trim()))
         .map((d: any) => d.id as string);
