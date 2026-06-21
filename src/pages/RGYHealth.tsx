@@ -51,6 +51,7 @@ import { getOverallCustomerRGY as computeOverallCustomerRGY, computeOverallCusto
 import { WeeklyComplianceTab } from "@/components/rgy/WeeklyComplianceTab";
 import { RaiseInterventionDialog } from "@/components/rgy/RaiseInterventionDialog";
 import { MarkRGYDialog, type MarkRGYDimension } from "@/components/rgy/MarkRGYDialog";
+import { sendAppEmail } from "@/lib/appEmail";
 import { RGYCombinedIssuesDialog } from "@/components/rgy/RGYCombinedIssuesDialog";
 import { useCanEditRgy } from "@/hooks/useCanEditRgy";
 
