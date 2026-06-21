@@ -12,7 +12,9 @@ import { useEffect } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Download } from "lucide-react";
+import { Loader2, Download, Mail, CheckCircle2, AlertCircle, Send } from "lucide-react";
+import { getCentralMailboxStatus, setCentralMailbox, sendCentralTest, sendAppEmail } from "@/lib/appEmail";
+import { connectGmail, useGmailStatus } from "@/hooks/useGmail";
 
 const tabs = [
   "Users & Roles",
