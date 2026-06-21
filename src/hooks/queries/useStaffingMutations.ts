@@ -35,6 +35,7 @@ import {
   assignmentToDb,
   hiringToDb,
 } from "@/lib/dbMappers";
+import { sendAppEmail } from "@/lib/appEmail";
 
 async function batchUpsert<T extends Record<string, unknown>>(
   table: string,
@@ -209,6 +210,27 @@ export function useStaffingMutations() {
           body: { kind: "staffing", personId, dealId, roleKey, allocationPct },
         })
         .catch((err) => console.warn("[notify-assignment] staffing failed", err));
+    },
+    [],
+  );
+
+  const emailStaffing = useCallback(
+    (
+      event: "staffed" | "staffing_changed" | "staffing_removed",
+      a: { personId: string; dealId: string; roleKey: string; allocationPct: number; startDate?: string; endDate?: string },
+    ) => {
+      if (!a.personId || !a.dealId) return;
+      sendAppEmail({
+        event,
+        dealId: a.dealId,
+        personId: a.personId,
+        payload: {
+          roleKey: a.roleKey,
+          allocationPct: a.allocationPct,
+          startDate: a.startDate,
+          endDate: a.endDate,
+        },
+      });
     },
     [],
   );
