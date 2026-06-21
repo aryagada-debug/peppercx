@@ -51,6 +51,7 @@ import { getOverallCustomerRGY as computeOverallCustomerRGY, computeOverallCusto
 import { WeeklyComplianceTab } from "@/components/rgy/WeeklyComplianceTab";
 import { RaiseInterventionDialog } from "@/components/rgy/RaiseInterventionDialog";
 import { MarkRGYDialog, type MarkRGYDimension } from "@/components/rgy/MarkRGYDialog";
+import { sendAppEmail } from "@/lib/appEmail";
 import { RGYCombinedIssuesDialog } from "@/components/rgy/RGYCombinedIssuesDialog";
 import { useCanEditRgy } from "@/hooks/useCanEditRgy";
 
@@ -1211,6 +1212,14 @@ export default function RGYHealth() {
         (d.value === "R" || d.value === "Y") && prevValues[d.key] !== d.value
       );
       setMarkRGYDeal(null);
+      // Email leadership when any dimension newly degrades to Red or Yellow.
+      const newlyRed = next.filter(d => d.value === "R" && prevValues[d.key] !== d.value).map(d => d.label);
+      const newlyYellow = next.filter(d => d.value === "Y" && prevValues[d.key] !== d.value).map(d => d.label);
+      if (newlyRed.length > 0) {
+        sendAppEmail({ event: "rgy_alert", dealId: deal.id, payload: { status: "R", dimensions: newlyRed } });
+      } else if (newlyYellow.length > 0) {
+        sendAppEmail({ event: "rgy_alert", dealId: deal.id, payload: { status: "Y", dimensions: newlyYellow } });
+      }
       if (newRedOrYellow) {
         toast.success("RGY saved — log the issue & action plan");
         setPrevRGYSnapshot({ dealId: deal.id, values: prevValues });

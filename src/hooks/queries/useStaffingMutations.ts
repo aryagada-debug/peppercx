@@ -35,6 +35,7 @@ import {
   assignmentToDb,
   hiringToDb,
 } from "@/lib/dbMappers";
+import { sendAppEmail } from "@/lib/appEmail";
 
 async function batchUpsert<T extends Record<string, unknown>>(
   table: string,
@@ -213,6 +214,27 @@ export function useStaffingMutations() {
     [],
   );
 
+  const emailStaffing = useCallback(
+    (
+      event: "staffed" | "staffing_changed" | "staffing_removed",
+      a: { personId: string; dealId: string; roleKey: string; allocationPct: number; startDate?: string; endDate?: string },
+    ) => {
+      if (!a.personId || !a.dealId) return;
+      sendAppEmail({
+        event,
+        dealId: a.dealId,
+        personId: a.personId,
+        payload: {
+          roleKey: a.roleKey,
+          allocationPct: a.allocationPct,
+          startDate: a.startDate,
+          endDate: a.endDate,
+        },
+      });
+    },
+    [],
+  );
+
   const addAssignment = useCallback(
     async (assignment: StaffingAssignment) => {
       if (!canEditAll) {
@@ -264,6 +286,7 @@ export function useStaffingMutations() {
         void qc.refetchQueries({ queryKey: qk.deals(), type: "active" });
         void qc.invalidateQueries({ queryKey: ["deal-access"] });
         notifyStaffing(merged.personId, merged.dealId, merged.roleKey, merged.allocationPct);
+        emailStaffing("staffing_changed", merged);
         return;
       }
       patch.assignments((prev) => [...prev, normalizedAssignment]);
@@ -284,8 +307,9 @@ export function useStaffingMutations() {
       void qc.refetchQueries({ queryKey: qk.deals(), type: "active" });
       void qc.invalidateQueries({ queryKey: ["deal-access"] });
       notifyStaffing(normalizedAssignment.personId, normalizedAssignment.dealId, normalizedAssignment.roleKey, normalizedAssignment.allocationPct);
+      emailStaffing("staffed", normalizedAssignment);
     },
-    [notifyStaffing, canEditAll, patch, qc, getAssignments],
+    [notifyStaffing, emailStaffing, canEditAll, patch, qc, getAssignments],
   );
 
   const updateAssignment = useCallback(
@@ -332,9 +356,12 @@ export function useStaffingMutations() {
       qc.invalidateQueries({ queryKey: ["deal-access"] });
       if (next && updates.personId) {
         notifyStaffing(next.personId, next.dealId, next.roleKey, next.allocationPct);
+        emailStaffing("staffed", next);
+      } else if (next) {
+        emailStaffing("staffing_changed", next);
       }
     },
-    [notifyStaffing, canEditAll, getAssignments, patch, qc],
+    [notifyStaffing, emailStaffing, canEditAll, getAssignments, patch, qc],
   );
 
   const deleteAssignment = useCallback(
@@ -358,6 +385,7 @@ export function useStaffingMutations() {
         qc.invalidateQueries({ queryKey: qk.assignments() });
         qc.invalidateQueries({ queryKey: qk.deals() });
         qc.invalidateQueries({ queryKey: ["deal-access"] });
+        if (prevSnapshot) emailStaffing("staffing_removed", prevSnapshot);
       } catch (err) {
         console.error("[deleteAssignment] failed", err);
         if (prevSnapshot) {
@@ -366,7 +394,7 @@ export function useStaffingMutations() {
         toast.error("Couldn't remove staffing — please retry");
       }
     },
-    [canEditAll, getAssignments, patch, qc],
+    [canEditAll, emailStaffing, getAssignments, patch, qc],
   );
 
   const upsertAssignmentByRole = useCallback(
@@ -434,6 +462,7 @@ export function useStaffingMutations() {
         if (existing) {
           patch.assignments((prev) => prev.filter((a) => a.id !== existing.id));
           await softDelete("staffing_assignment", existing.id);
+          emailStaffing("staffing_removed", existing);
         }
         return;
       }
@@ -460,6 +489,9 @@ export function useStaffingMutations() {
         await supabase.from("staffing_assignments").update(upd).eq("id", existing.id);
         if (existing.personId !== personId) {
           notifyStaffing(personId, dealId, normalizedRoleKey, allocationPct);
+          emailStaffing("staffed", { ...existing, personId, allocationPct });
+        } else {
+          emailStaffing("staffing_changed", { ...existing, personId, allocationPct });
         }
       } else {
         const id = uid();
@@ -475,9 +507,10 @@ export function useStaffingMutations() {
         patch.assignments((prev) => [...prev, newAssignment]);
         await supabase.from("staffing_assignments").insert(assignmentToDb(newAssignment));
         notifyStaffing(personId, dealId, normalizedRoleKey, allocationPct);
+        emailStaffing("staffed", newAssignment);
       }
     },
-    [getAssignments, notifyStaffing, canEditAll, patch],
+    [getAssignments, notifyStaffing, emailStaffing, canEditAll, patch],
   );
 
   // ── Deals ──
