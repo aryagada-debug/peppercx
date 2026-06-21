@@ -1007,6 +1007,48 @@ export type Database = {
         }
         Relationships: []
       }
+      email_send_log: {
+        Row: {
+          created_at: string
+          deal_id: string | null
+          error: string | null
+          event: string
+          gmail_message_id: string | null
+          id: string
+          payload: Json | null
+          recipient_email: string
+          status: string
+          subject: string | null
+          triggered_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          deal_id?: string | null
+          error?: string | null
+          event: string
+          gmail_message_id?: string | null
+          id?: string
+          payload?: Json | null
+          recipient_email: string
+          status?: string
+          subject?: string | null
+          triggered_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          deal_id?: string | null
+          error?: string | null
+          event?: string
+          gmail_message_id?: string | null
+          id?: string
+          payload?: Json | null
+          recipient_email?: string
+          status?: string
+          subject?: string | null
+          triggered_by?: string | null
+        }
+        Relationships: []
+      }
       gmail_connections: {
         Row: {
           access_token: string
@@ -1014,6 +1056,7 @@ export type Database = {
           expires_at: string
           google_email: string | null
           id: string
+          is_central: boolean
           refresh_token: string
           scopes: string
           updated_at: string
@@ -1025,6 +1068,7 @@ export type Database = {
           expires_at: string
           google_email?: string | null
           id?: string
+          is_central?: boolean
           refresh_token: string
           scopes?: string
           updated_at?: string
@@ -1036,6 +1080,7 @@ export type Database = {
           expires_at?: string
           google_email?: string | null
           id?: string
+          is_central?: boolean
           refresh_token?: string
           scopes?: string
           updated_at?: string
