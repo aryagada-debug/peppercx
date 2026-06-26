@@ -153,11 +153,25 @@ export default function Contacts() {
     () => Array.from(new Set(allDeals.map(d => d.vsd || "Unassigned"))).sort(),
     [allDeals],
   );
-  const contactsByDeal = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const r of rows) m.set(r.deal_id, (m.get(r.deal_id) || 0) + 1);
-    return m;
+  // Org Mapping shares stakeholders across all deals of the same client (keyed
+  // on client_name). Mirror that here so Insights doesn't flag a deal as
+  // "missing" when opening its Org Map would actually show contacts.
+  const normKey = (s: string) => (s || "").trim().toLowerCase();
+  const { contactsByClient, contactsByDealFallback } = useMemo(() => {
+    const byClient = new Map<string, number>();
+    const byDeal = new Map<string, number>();
+    for (const r of rows) {
+      const ck = normKey(r.client_name);
+      if (ck) byClient.set(ck, (byClient.get(ck) || 0) + 1);
+      else if (r.deal_id) byDeal.set(r.deal_id, (byDeal.get(r.deal_id) || 0) + 1);
+    }
+    return { contactsByClient: byClient, contactsByDealFallback: byDeal };
   }, [rows]);
+  const getDealContactCount = (d: DealLite) => {
+    const ck = normKey(d.account);
+    if (ck && contactsByClient.has(ck)) return contactsByClient.get(ck) || 0;
+    return contactsByDealFallback.get(d.id) || 0;
+  };
   const insightsGroups = useMemo(() => {
     const accountF = (insightsColFilters.account || "").toLowerCase();
     const dealF = (insightsColFilters.deal || "").toLowerCase();
@@ -169,7 +183,7 @@ export default function Contacts() {
       if (insightsStatusF !== "all" && d.deal_status !== insightsStatusF) return false;
       const vsd = d.vsd || "Unassigned";
       if (insightsVsdF !== "all" && vsd !== insightsVsdF) return false;
-      const count = contactsByDeal.get(d.id) || 0;
+      const count = getDealContactCount(d);
       if (insightsOnlyMissing && count > 0) return false;
       if (accountF && !(d.account || "").toLowerCase().includes(accountF)) return false;
       if (dealF && !(d.deal_name || "").toLowerCase().includes(dealF)) return false;
@@ -182,7 +196,7 @@ export default function Contacts() {
     const byVsd = new Map<string, { vsd: string; deals: (DealLite & { contactCount: number })[]; total: number; missing: number }>();
     for (const d of scoped) {
       const vsd = d.vsd || "Unassigned";
-      const count = contactsByDeal.get(d.id) || 0;
+      const count = getDealContactCount(d);
       if (!byVsd.has(vsd)) byVsd.set(vsd, { vsd, deals: [], total: 0, missing: 0 });
       const g = byVsd.get(vsd)!;
       g.deals.push({ ...d, contactCount: count });
@@ -204,7 +218,7 @@ export default function Contacts() {
         deals: g.deals.sort(cmp),
       }))
       .sort((a, b) => b.missing - a.missing || a.vsd.localeCompare(b.vsd));
-  }, [allDeals, contactsByDeal, insightsVsdF, insightsStatusF, insightsOnlyMissing, insightsColFilters, insightsSort]);
+  }, [allDeals, contactsByClient, contactsByDealFallback, insightsVsdF, insightsStatusF, insightsOnlyMissing, insightsColFilters, insightsSort]);
 
   const insightsRegionOpts = useMemo(
     () => Array.from(new Set(allDeals.map(d => d.region).filter(Boolean))).sort(),
