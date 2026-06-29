@@ -1,6 +1,6 @@
 import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -58,14 +58,74 @@ function GlobalScrollMount() {
   return null;
 }
 
-function RootRoute() {
+function isPublicSurveyRequest(location?: ReturnType<typeof useLocation>) {
   if (typeof window !== "undefined") {
     const params = new URLSearchParams(window.location.search);
     const hasSurveyQuery = !!params.get("survey");
     const hasSurveyHash = /^#\/s\//.test(window.location.hash || "");
-    if (hasSurveyQuery || hasSurveyHash) return <PublicSurvey />;
+    const hasSurveyPath = /^\/s\/[^/]+/.test(location?.pathname || window.location.pathname || "");
+    return hasSurveyQuery || hasSurveyHash || hasSurveyPath;
   }
+  return /^\/s\/[^/]+/.test(location?.pathname || "");
+}
+
+function RootRoute() {
+  if (isPublicSurveyRequest()) return <PublicSurvey />;
   return <Navigate to="/home" replace />;
+}
+
+function AppRoutes() {
+  return (
+    <AuthProvider>
+      <UserRoleProvider>
+        <CurrencyProvider>
+          <GeoFilterProvider>
+            <StaffingSeederMount />
+            <GlobalScrollMount />
+            <Routes>
+              {/* Public auth routes */}
+              <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/calendar/callback" element={<CalendarCallback />} />
+              <Route path="/gmail/callback" element={<GmailCallback />} />
+
+              {/* Protected routes */}
+              <Route path="/home" element={<ProtectedRoute routeKey="home"><Home /></ProtectedRoute>} />
+              <Route path="/" element={<RootRoute />} />
+              <Route path="/dashboard" element={<Navigate to="/home" replace />} />
+              <Route path="/clients" element={<ProtectedRoute routeKey="clients"><Clients /></ProtectedRoute>} />
+              <Route path="/deals" element={<Navigate to="/clients" replace />} />
+              <Route path="/deals/:dealId" element={<ProtectedRoute routeKey="clients"><DealDetail /></ProtectedRoute>} />
+              <Route path="/staffing" element={<ProtectedRoute routeKey="staffing"><Staffing /></ProtectedRoute>} />
+              <Route path="/people-ops" element={<ProtectedRoute routeKey="people-ops"><PeopleOps /></ProtectedRoute>} />
+              <Route path="/targets" element={<ProtectedRoute routeKey="targets"><Targets /></ProtectedRoute>} />
+              <Route path="/rgy-health" element={<ProtectedRoute routeKey="rgy-health"><RGYHealth /></ProtectedRoute>} />
+              <Route path="/pulse-nps" element={<ProtectedRoute routeKey="rgy-health"><PulseNPS /></ProtectedRoute>} />
+              <Route path="/pulse-nps/analytics" element={<ProtectedRoute routeKey="rgy-health"><PulseNPSAnalytics /></ProtectedRoute>} />
+              <Route path="/deal-handover" element={<ProtectedRoute routeKey="home"><DealHandover /></ProtectedRoute>} />
+              <Route path="/mbr-tracker" element={<ProtectedRoute routeKey="mbr-tracker"><MBRTracker /></ProtectedRoute>} />
+              <Route path="/onboarding" element={<ProtectedRoute routeKey="onboarding"><Onboarding /></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute routeKey="settings"><SettingsPage /></ProtectedRoute>} />
+              <Route path="/help" element={<ProtectedRoute routeKey="home"><Help /></ProtectedRoute>} />
+              <Route path="/trash" element={<ProtectedRoute routeKey="settings"><Trash /></ProtectedRoute>} />
+              <Route path="/contacts" element={<ProtectedRoute routeKey="home"><Contacts /></ProtectedRoute>} />
+              <Route path="/leadership-interventions" element={<ProtectedRoute routeKey="home"><LeadershipInterventions /></ProtectedRoute>} />
+              <Route path="/inbox" element={<ProtectedRoute routeKey="home"><Inbox /></ProtectedRoute>} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </GeoFilterProvider>
+        </CurrencyProvider>
+      </UserRoleProvider>
+    </AuthProvider>
+  );
+}
+
+function RouterSwitch() {
+  const location = useLocation();
+  if (isPublicSurveyRequest(location)) return <PublicSurvey />;
+  return <AppRoutes />;
 }
 
 // React Query defaults tuned for an internal data app: keep responses fresh
@@ -90,52 +150,9 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <AuthProvider>
-          <UserRoleProvider>
-          <CurrencyProvider>
-          <GeoFilterProvider>
-          <StaffingSeederMount />
-          <GlobalScrollMount />
           <Suspense fallback={<RouteFallback />}>
-          <Routes>
-            {/* Public auth routes */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
-            <Route path="/calendar/callback" element={<CalendarCallback />} />
-            <Route path="/gmail/callback" element={<GmailCallback />} />
-            <Route path="/s/:token" element={<PublicSurvey />} />
-
-            {/* Protected routes */}
-            <Route path="/home" element={<ProtectedRoute routeKey="home"><Home /></ProtectedRoute>} />
-            <Route path="/" element={<RootRoute />} />
-            <Route path="/dashboard" element={<Navigate to="/home" replace />} />
-            <Route path="/clients" element={<ProtectedRoute routeKey="clients"><Clients /></ProtectedRoute>} />
-            <Route path="/deals" element={<Navigate to="/clients" replace />} />
-            <Route path="/deals/:dealId" element={<ProtectedRoute routeKey="clients"><DealDetail /></ProtectedRoute>} />
-            <Route path="/staffing" element={<ProtectedRoute routeKey="staffing"><Staffing /></ProtectedRoute>} />
-            <Route path="/people-ops" element={<ProtectedRoute routeKey="people-ops"><PeopleOps /></ProtectedRoute>} />
-            <Route path="/targets" element={<ProtectedRoute routeKey="targets"><Targets /></ProtectedRoute>} />
-            <Route path="/rgy-health" element={<ProtectedRoute routeKey="rgy-health"><RGYHealth /></ProtectedRoute>} />
-            <Route path="/pulse-nps" element={<ProtectedRoute routeKey="rgy-health"><PulseNPS /></ProtectedRoute>} />
-            <Route path="/pulse-nps/analytics" element={<ProtectedRoute routeKey="rgy-health"><PulseNPSAnalytics /></ProtectedRoute>} />
-            <Route path="/deal-handover" element={<ProtectedRoute routeKey="home"><DealHandover /></ProtectedRoute>} />
-            <Route path="/mbr-tracker" element={<ProtectedRoute routeKey="mbr-tracker"><MBRTracker /></ProtectedRoute>} />
-            <Route path="/onboarding" element={<ProtectedRoute routeKey="onboarding"><Onboarding /></ProtectedRoute>} />
-            <Route path="/settings" element={<ProtectedRoute routeKey="settings"><SettingsPage /></ProtectedRoute>} />
-            <Route path="/help" element={<ProtectedRoute routeKey="home"><Help /></ProtectedRoute>} />
-            <Route path="/trash" element={<ProtectedRoute routeKey="settings"><Trash /></ProtectedRoute>} />
-            <Route path="/contacts" element={<ProtectedRoute routeKey="home"><Contacts /></ProtectedRoute>} />
-            <Route path="/leadership-interventions" element={<ProtectedRoute routeKey="home"><LeadershipInterventions /></ProtectedRoute>} />
-            <Route path="/inbox" element={<ProtectedRoute routeKey="home"><Inbox /></ProtectedRoute>} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+            <RouterSwitch />
           </Suspense>
-          </GeoFilterProvider>
-          </CurrencyProvider>
-          </UserRoleProvider>
-          </AuthProvider>
         </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
