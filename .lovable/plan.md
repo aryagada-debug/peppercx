@@ -1,43 +1,51 @@
-## Goal
-Make the Pulse / NPS top filter bar match the Clients & Deals page, and let users bulk-select every visible deal in the left pane.
+# Pulse / NPS Analytics
 
-## Changes
+Add a single analytics view that turns `survey_invites` + `survey_responses` data into one rollup table, controlled by a **Group By** filter at the top.
 
-### 1. Replace the current VSD/BOPM dropdowns with the Clients-style chip bar
-In `src/components/rgy/PulseSurveyTab.tsx`:
-- Reuse the same building blocks as `src/pages/Clients.tsx`:
-  - `useVsdUsers`, `nameKey` from `@/hooks/queries/legacy`
-  - `BopmFilter` from `@/components/access/BopmFilter`
-  - `UNASSIGNED_VSD_VALUES` constant (copied/imported)
-- Render the same chip row in this order:
-  - `All` · one chip per VSD user · `Other` · `Unassigned`
-  - `BopmFilter` dropdown (scoped to selected VSD when a specific VSD chip is active, matching Clients behavior)
-  - Search box with the same `Search clients, deals or deal ID…` placeholder, clear button, identical styling
-  - `Closed` checkbox at the right (see point 3)
-- Drop the existing `Select` based VSD/BOPM filters and the small "Clear filters" link — the chip bar replaces them.
-- Filtering logic mirrors Clients:
-  - `Unassigned` → `vsd` value is empty / "Not Assigned" / etc.
-  - `Other` → has a vsd value that isn't in the known VSD list
-  - specific VSD → `canonVsd(deal.vsd) === activeVsd`
-  - BOPM filter matches against `principal_bopm` / `senior_bopm` / `bopm`
-- Search matches account, deal_name, or `deal_id`.
-- Only show the VSD chip row to admins / capability leads (same gate as Clients via `useUserRole().canEditAll` or equivalent). Non-leadership users still see BOPM filter + search.
+## Route & nav
+- New route `/pulse-nps/analytics` (page `src/pages/PulseNPSAnalytics.tsx`), wrapped in `AppLayout`, gated by `rgy-health` route key like `PulseNPS`.
+- Tab strip at the top of `PulseNPS` and the new page: **Send** | **Analytics** (no new sidebar item).
 
-### 2. "Select all deals" in the left deals pane
-- Above the deal list (next to the existing "X deals" count / search), add a `Select all` / `Clear all` toggle that operates on `filteredDeals`:
-  - When none/some of `filteredDeals` are selected → button reads `Select all (N)`, clicking adds every `filteredDeals[i].deal_id` to `selectedDealIds`.
-  - When all of `filteredDeals` are already selected → button reads `Clear selection`, clicking empties `selectedDealIds`.
-- Auto-population of `selectedEmails` for newly opened deals already exists, so bulk selection will lazily load stakeholders and pre-check their emails as the per-deal queries resolve.
-- Guardrail: if `filteredDeals.length > 50`, show a confirm toast ("Select all 137 deals? Stakeholders will load in the background.") before applying, to avoid accidental huge sends.
+## Filters (top bar)
+- **Group by** (single-select, drives the table dimension): VSD · BOPM · Deal · Capability. Default: VSD.
+- Date range (presets: 30d / 90d / QTD / YTD / All; default 90d).
+- VSD chips (All / specific / Other / Unassigned) — same component as `PulseSurveyTab`.
+- BOPM filter scoped to selected VSDs.
+- Capability multi-select (from `normalize_staffing_role_key`).
+- Deal search + "Include closed" toggle.
+- All filters apply before grouping.
 
-### 3. Closed deals toggle
-- Today `src/pages/PulseNPS.tsx` only queries `staffing_deals` whose `deal_status` is in the active set. The Clients filter bar has a `Closed` checkbox, so add the same control.
-- Lift a `showClosed` state into `PulseNPS.tsx` (or pass it down) and:
-  - When unchecked (default) → keep the current `ACTIVE_STATUSES` filter.
-  - When checked → drop the `.in("deal_status", …)` filter so closed deals also load.
-- Render the checkbox inside the filter row in `PulseSurveyTab` and surface its value to the parent via a prop, mirroring the Clients UX.
+## KPI strip
+Invites Sent · Opened · Completed · Response % · **NPS** (9–10 promoter, 7–8 passive, 0–6 detractor) · **Avg CSAT** · **Avg CES** · Renewal intent mix · Churn-risk mix.
 
-## Out of scope
-- No schema/RLS changes.
-- No edits to send-survey logic; selection mechanics stay as-is.
-- No change to the right-hand recipients panel, summary stats, or recent invites table.
+## Single results table (re-pivots by Group By)
+Columns common to every grouping:
+- Group label (VSD / BOPM name / Deal / Capability)
+- Sent, Completed, Response %
+- NPS, Avg CSAT, Avg CES
+- Promoters / Passives / Detractors
+- Churn-risk High count
+- Last response date
+
+Per-column sort + filter (same UX as Contacts → Insights). Row click → drawer with the underlying responses (recipient, deal, NPS, CSAT, CES, mood, churn risk, comments from `payload`, submitted_at).
+
+Bar chart above the table showing NPS by current group (top 15).
+
+## Data layer
+- Single query: `survey_responses` joined to `survey_invites` (for VSD/BOPM/account/deal snapshots), filtered by date + `visible_deal_ids_for_user`.
+- For Capability grouping, expand each response into one row per capability via `staffing_assignments` + `normalize_staffing_role_key` (a response with multiple capabilities counts for each).
+- For BOPM grouping, split snapshot fields on `,` / `/` and normalize via `_norm_name`; a toggle picks tier (Principal / Senior / BOPM / Any).
+- All aggregation done client-side with `useMemo`; React Query key `["pulse-analytics", filters]`.
+- Lazy-load — only fetch when Analytics tab is active.
+
+## Export
+"Export CSV" button — flattens the current grouped table with applied filters.
+
+## Empty / loading
+Skeleton rows during fetch. Empty card: "No survey responses yet for these filters" + link back to Send tab.
+
+## Technical details
+- Files: `src/pages/PulseNPSAnalytics.tsx`, `src/components/pulse/AnalyticsKpis.tsx`, `src/components/pulse/AnalyticsTable.tsx`, `src/components/pulse/useAnalyticsData.ts`.
+- Reuse `BopmFilter`, VSD chip filter, and column sort/filter primitives.
+- Charts: Recharts.
+- Route added in `src/App.tsx`; tab strip added in `PulseNPS.tsx`. No schema changes.
