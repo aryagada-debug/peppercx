@@ -98,7 +98,7 @@ function Scale({ value, onChange, min = 1, max = 5, end, compact }: { value: num
               flex: compact ? 1 : "0 0 auto",
               minWidth: 44, height: 44, borderRadius: 10,
               border: selected ? "1px solid var(--brand,#5b3df5)" : "1px solid var(--line,#e7e4ef)",
-              background: selected ? "var(--brand,#5b3df5)" : "white",
+              background: selected ? "var(--brand,#5b3df5)" : "var(--card)",
               color: selected ? "white" : "var(--ink,#15131f)",
               fontSize: 14, fontWeight: 500, cursor: "pointer",
             }}>{n}</button>
@@ -124,7 +124,7 @@ function LabelScale({ value, onChange, labels }: { value: number | null; onChang
           <button key={n} onClick={() => onChange(n)} style={{
             flex: "1 1 120px", minHeight: 48, padding: "8px 12px", borderRadius: 10,
             border: selected ? "1px solid var(--brand,#5b3df5)" : "1px solid var(--line,#e7e4ef)",
-            background: selected ? "var(--brand-soft,#efeaff)" : "white",
+            background: selected ? "var(--brand-soft,#efeaff)" : "var(--card)",
             color: "var(--ink,#15131f)", fontSize: 13, fontWeight: selected ? 500 : 400, cursor: "pointer",
             textAlign: "center",
           }}>{label}</button>
@@ -146,7 +146,7 @@ function NPSScale({ value, onChange }: { value: number | null; onChange: (n: num
             <button key={n} onClick={() => onChange(n)} style={{
               height: 48, borderRadius: 10,
               border: selected ? `1px solid ${color}` : "1px solid var(--line,#e7e4ef)",
-              background: selected ? color : "white",
+              background: selected ? color : "var(--card)",
               color: selected ? "white" : "var(--ink,#15131f)",
               fontSize: 14, fontWeight: 500, cursor: "pointer",
             }}>{n}</button>
@@ -166,7 +166,7 @@ function ChoiceCard({ selected, onClick, icon, title, desc }: { selected: boolea
       display: "flex", gap: 14, alignItems: "flex-start", width: "100%", textAlign: "left",
       padding: 16, borderRadius: 12,
       border: selected ? "2px solid var(--brand,#5b3df5)" : "1px solid var(--line,#e7e4ef)",
-      background: selected ? "var(--brand-soft,#efeaff)" : "white",
+      background: selected ? "var(--brand-soft,#efeaff)" : "var(--card)",
       cursor: "pointer", marginBottom: 10,
     }}>
       {icon && <span style={{ fontSize: 22, lineHeight: 1 }}>{icon}</span>}
@@ -189,7 +189,7 @@ function MultiChip({ selected, onClick, icon, title, desc }: { selected: boolean
       display: "flex", gap: 14, alignItems: "flex-start", width: "100%", textAlign: "left",
       padding: 14, borderRadius: 12,
       border: selected ? "2px solid var(--brand,#5b3df5)" : "1px solid var(--line,#e7e4ef)",
-      background: selected ? "var(--brand-soft,#efeaff)" : "white",
+      background: selected ? "var(--brand-soft,#efeaff)" : "var(--card)",
       cursor: "pointer", marginBottom: 8,
     }}>
       {icon && <span style={{ fontSize: 20 }}>{icon}</span>}
@@ -200,7 +200,7 @@ function MultiChip({ selected, onClick, icon, title, desc }: { selected: boolean
       <span style={{
         width: 18, height: 18, borderRadius: 4, marginTop: 2,
         border: selected ? "2px solid var(--brand,#5b3df5)" : "1.5px solid var(--line,#e7e4ef)",
-        background: selected ? "var(--brand,#5b3df5)" : "white",
+        background: selected ? "var(--brand,#5b3df5)" : "var(--card)",
         display: "flex", alignItems: "center", justifyContent: "center",
         color: "white", fontSize: 12,
       }}>{selected ? "✓" : ""}</span>
@@ -442,7 +442,7 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
                     }} style={{
                       padding: "8px 14px", borderRadius: 999, fontSize: 13,
                       border: sel ? "1px solid var(--brand,#5b3df5)" : "1px solid var(--line,#e7e4ef)",
-                      background: sel ? "var(--brand-soft,#efeaff)" : "white", cursor: "pointer", color: "var(--ink,#15131f)",
+                      background: sel ? "var(--brand-soft,#efeaff)" : "var(--card)", cursor: "pointer", color: "var(--ink,#15131f)",
                     }}>{opt}</button>
                   );
                 })}
@@ -470,7 +470,7 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
                     }} style={{
                       padding: "8px 14px", borderRadius: 999, fontSize: 13,
                       border: sel ? "1px solid var(--brand,#5b3df5)" : "1px solid var(--line,#e7e4ef)",
-                      background: sel ? "var(--brand-soft,#efeaff)" : "white", cursor: "pointer", color: "var(--ink,#15131f)",
+                      background: sel ? "var(--brand-soft,#efeaff)" : "var(--card)", cursor: "pointer", color: "var(--ink,#15131f)",
                     }}>{opt}</button>
                   );
                 })}
@@ -646,7 +646,7 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
               <button key={m.value} onClick={() => updateA((p) => ({ ...p, sentiment: { ...p.sentiment, mood: m.value as any } }))} style={{
                 padding: 14, borderRadius: 12, fontSize: 13,
                 border: sel ? "2px solid var(--brand,#5b3df5)" : "1px solid var(--line,#e7e4ef)",
-                background: sel ? "var(--brand-soft,#efeaff)" : "white", cursor: "pointer",
+                background: sel ? "var(--brand-soft,#efeaff)" : "var(--card)", cursor: "pointer",
                 display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
               }}>
                 <span style={{ fontSize: 24 }}>{m.icon}</span>
@@ -674,7 +674,7 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
                 <button key={v} onClick={() => updateA((p) => ({ ...p, respondent: { ...p.respondent, wants_followup: v as any } }))} style={{
                   flex: 1, padding: 12, borderRadius: 10, textTransform: "capitalize",
                   border: sel ? "1px solid var(--brand,#5b3df5)" : "1px solid var(--line,#e7e4ef)",
-                  background: sel ? "var(--brand,#5b3df5)" : "white", color: sel ? "white" : "var(--ink,#15131f)",
+                  background: sel ? "var(--brand,#5b3df5)" : "var(--card)", color: sel ? "white" : "var(--ink,#15131f)",
                   cursor: "pointer", fontSize: 14,
                 }}>{v}</button>
               );
