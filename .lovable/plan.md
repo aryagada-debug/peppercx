@@ -1,76 +1,84 @@
-## Sales Handover → Deal Creation Flow
+# Sales → Delivery Handover — Wizard Rebuild
 
-A new sidebar page **"Deal Handover"** where any signed-in user can submit a handover form. Arya, Anirudh and Priyanka receive an email, then complete their respective fields. Once both `Deal ID + Deal Name` (Priyanka) and `VSD` (Anirudh) are filled, the deal is auto-created in Clients & Deals.
+Rebuild the **Submit handover** tab on `/deal-handover` as a multi-step wizard exactly per spec. The existing Queue tab, drawer (Priyanka edits Deal ID/Name; Anirudh confirms VSD), auto-create trigger, and lead notifications stay as-is.
 
----
+## 1. Database (migration)
 
-### 1. Database (one migration)
+Extend `public.deal_handovers`:
 
-New table `public.deal_handovers`:
+- Add `reference text` (unique, nullable until first submit so old rows survive; new inserts always set it).
+- Add CHECK constraints with the **exact** option lists from the spec:
+  - `stage` ∈ {Pre-Proposal, Proposal, Negotiation, (Free) Pilot before SLA, (Paid) Pilot before SLA, SLA back-and-forth, SLA signed; awaiting contraction, SLA signed & contraction is on the platform, SLA signed & contraction is on the platform AND escalated, ''}
+  - `bu` ∈ {Pepper SEO/GEO + Content, Pepper Content, Pepper Creative, Integrated, Content Studios, Others, Not Applicable, ''}
+  - `capability` ∈ the 13 listed lines + Other + ''
+  - `deal_type` ∈ {Retainer, Non-retainer, ''}
+  - `vsd_suggested` ∈ {Aamir Khan, Aditya Shaw, Sneha Iyer, Neema Jayadas, Sumit Shekhawat, ''}
+- Add CHECK: when `deal_type = 'Retainer'` then `mrr IS NOT NULL`; when `'Non-retainer'` then `mrr IS NULL`.
+- Keep `mrr` / `total_amount` as `numeric` storing integer rupees (form rounds before save).
+- Empty strings ('') stay allowed so the legacy rows + drafts continue to load.
 
-- Salesperson block: `submitter_user_id`, `sp_name`, `sp_email`, `sp_team`, `handover_date`
-- Client block: `company_name`, `industry`, `website`
-- Documents: `sow_url` (required), `strategy_deck_url`, `keywords_url`, `geo_audit_url`, `fireflies_url`, `docs_notes`
-- Deal block: `stage`, `bu`, `capability`, `deal_type`, `mrr`, `total_amount`, `duration_months`, `start_date`, `vsd_suggested`, `deal_notes`
-- Contacts: `contacts jsonb` (array of `{name, role, email, phone}`)
-- Completion fields (filled later):
-  - `deal_id` (Priyanka), `deal_name` (Priyanka), `deal_id_filled_at`, `deal_id_filled_by`
-  - `vsd_confirmed` (Anirudh), `vsd_filled_at`, `vsd_filled_by`
-- Status: `status` text ∈ `submitted | partially_filled | created | cancelled`
-- `created_deal_id` (FK-style text → `staffing_deals.id`), `created_at`, `updated_at`
+No changes to RLS, the auto-create trigger, or email templates.
 
-RLS / GRANTs:
-- `authenticated` may `INSERT` (anyone can submit) and `SELECT` (everyone tracks status).
-- `UPDATE` restricted to admins + the three named handover-leads (via email match on `auth.users.email`).
-- `service_role` full access for the edge function.
-- `updated_at` trigger.
+## 2. Frontend wizard (`src/pages/DealHandover.tsx` + new `src/components/handover/`)
 
-### 2. Auto-create deal trigger
+Replace the existing single-page submit form with a wizard:
 
-DB trigger on `deal_handovers AFTER UPDATE`: when `deal_id IS NOT NULL AND deal_name IS NOT NULL AND vsd_confirmed IS NOT NULL` and `status <> 'created'`:
-1. Insert into `clients` if `company_name` isn't already there → get `client_id`.
-2. Insert into `staffing_deals` with: `id = deal_id`, `account = company_name`, `deal_name`, `vsd = vsd_confirmed`, `deal_status = stage` (mapped to a valid lifecycle status), MRR/total/duration/start, `client_id`, `created_at`.
-3. Seed leadership `staffing_assignments` rows for VSD (matching existing wizard behaviour).
-4. Update handover row: `status = 'created'`, `created_deal_id = deal_id`.
+```
+[ 1 Salesperson ] → [ 2 Client ] → [ 3 Documents ] → [ 4 Deal ] → [ Review ] → [ Submitted ]
+```
 
-### 3. Edge function `handover-notify`
+Shared shell:
+- Progress indicator (5 dots + labels). Completed steps are clickable to jump back; future steps locked until reached.
+- Sticky footer: **Back** / **Continue** (Continue → **Submit** on Review).
+- Per-step validation on Continue: collect errors, scroll to + focus the first invalid field (using refs map keyed by field id).
+- Form state held in a single object via `useState`; not persisted across reloads.
 
-Triggered from the client after submit AND after each update. Sends emails via the existing `send-app-email` central mailbox to:
-- `Arya.gada@peppercontent.io`, `Anirudh@peppercontent.io`, `Priyanka.sharma@peppercontent.io`
+### Step 1 — Salesperson
+Fields: `sp_name*`, `sp_email*` (email regex), `sp_team`, `handover_date*` (date, defaults today).
 
-Event types:
-- `handover.submitted` → all three
-- `handover.deal_id_filled` → Anirudh (his turn) + sales submitter cc
-- `handover.vsd_filled` → Priyanka + sales submitter cc
-- `handover.completed` → all three + submitter, with link to the created deal
+### Step 2 — Client
+Fields: `company_name*`, `industry`, `website*`.
+Contacts (JSONB on row): repeatable list, min 1. "Add another contact" appends; "Remove" shows only when >1. Each contact: `name*`, `role`, `email*` (regex), `phone`.
 
-### 4. Frontend
+### Step 3 — Documents
+`sow_url*`, `strategy_deck_url`, `keywords_url`, `geo_audit_url`, `fireflies_url`, `docs_notes` (textarea).
 
-New route `/deal-handover` + sidebar entry `Deal Handover` (icon: `ClipboardCheck`).
+### Step 4 — Deal
+- `stage*`, `bu*`, `capability*` as Selects with the exact lists above.
+- `deal_type*` as a 2-option radio/segmented control (Retainer | Non-retainer).
+- `mrr` currency — visible & required only when Retainer; hidden + cleared on switch to Non-retainer.
+- `total_amount*` currency.
+- `duration_months` (number).
+- `start_date*` (date, defaults today).
+- `vsd_suggested` Select with the 5 names (optional, with "— None —").
+- `deal_notes` textarea ("Special terms / context").
 
-`src/pages/DealHandover.tsx` — two tabs:
+**Currency input** (`CurrencyInput` component): masks input to digits, formats display with `Intl.NumberFormat('en-IN')`, stores integer rupees in form state. Helper text below shows `= ₹X.XX Cr` when value ≥ 1,00,00,000 else `= ₹X.XX L` (hidden when 0/empty).
 
-**Tab "Submit"** — multi-step form mirroring the uploaded HTML (Salesperson → Client → Documents → Contacts → Deal). Re-built with our shadcn components + tailwind tokens (purple primary, flat borders). Validation: required marks, URL/email validators. SoW link required.
+### Review step
+Read-only summary, grouped into 4 cards (Salesperson / Client / Documents / Deal) each with an **Edit** button that jumps to its step. Contacts rendered as a list. Currency values shown formatted.
 
-**Tab "Queue"** — table of handovers with columns: Company, Submitted by, Date, Deal ID (badge if missing), VSD (badge if missing), Status. Row click opens a side drawer:
-- Read-only view of all submitted info.
-- Inline editable: `Deal ID` + `Deal Name` (visible to Priyanka/admin), `VSD` (Anirudh/admin) — picker from staffing_people with VSD role.
-- "Created" banner with deep-link to the deal once `status = 'created'`.
+### Submit
+On Submit:
+1. Generate `reference = HND-${year}-${5 alphanum upper}` and `submitted_at = new Date().toISOString()` (we still rely on DB `created_at` server-side, but show this in the UI).
+2. Insert into `deal_handovers` with all spec fields + `reference`.
+3. Fire the existing `sendAppEmail` `handover_submitted` notification (unchanged).
+4. Move to **Submitted** step.
 
-Permission gating on the editable fields done by email match against `auth.jwt() -> 'email'` + admin role.
+### Submitted step
+- Shows the reference prominently.
+- **Copy handover summary** → builds a plain-text digest of all fields + contacts and writes to clipboard (toast on success).
+- **New handover** → resets form (dates back to today, `deal_type` cleared, MRR hidden, contacts reset to single empty row) and returns to Step 1.
+- Link to the Queue tab.
 
-### 5. Files to add/edit
+## 3. Files touched
 
-- `supabase/migrations/<ts>_deal_handovers.sql` (table, grants, RLS, trigger fn, trigger)
-- `supabase/functions/handover-notify/index.ts`
-- `supabase/functions/send-app-email/index.ts` — add new event templates (`handover.*`)
-- `src/pages/DealHandover.tsx`
-- `src/components/handover/HandoverForm.tsx`
-- `src/components/handover/HandoverQueueTable.tsx`
-- `src/components/handover/HandoverDetailDrawer.tsx`
-- `src/hooks/queries/useDealHandovers.ts`
-- `src/components/layout/AppSidebar.tsx` — add nav item
-- `src/App.tsx` — add route
+- New migration: constraints + `reference` column on `deal_handovers`.
+- `src/pages/DealHandover.tsx` — replace the Submit-tab body with `<HandoverWizard />`; Queue tab and drawer untouched.
+- New `src/components/handover/HandoverWizard.tsx` (state + step routing + submit).
+- New `src/components/handover/steps/{Step1Salesperson,Step2Client,Step3Documents,Step4Deal,StepReview,StepSubmitted}.tsx`.
+- New `src/components/handover/CurrencyInput.tsx` (Indian grouping + L/Cr helper).
+- New `src/components/handover/constants.ts` (option lists, VSD names, contact factory, reference generator).
 
-### Open assumption
-Handover edits map `stage` → a valid `staffing_deals.deal_status` (default "New Deal in SLA/PO"). Let me know if a different default is preferred.
+## Out of scope
+Visual polish beyond default shadcn components, draft autosave, edit-after-submit, and any change to the Queue/drawer behavior or the auto-create trigger.
