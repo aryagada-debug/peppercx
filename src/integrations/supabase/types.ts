@@ -3181,6 +3181,10 @@ export type Database = {
         Returns: boolean
       }
       is_leadership_viewer: { Args: { _user_id: string }; Returns: boolean }
+      mark_survey_invite: {
+        Args: { _state: string; _token: string }
+        Returns: undefined
+      }
       normalize_staffing_role_key: {
         Args: { _role_key: string }
         Returns: string
