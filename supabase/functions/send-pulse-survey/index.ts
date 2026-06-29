@@ -238,6 +238,20 @@ Deno.serve(async (req) => {
     }
     if (!fromEmail) return json({ error: "central_mailbox_missing_email" }, 412);
 
+    // Load editable template (singleton); fall back to defaults.
+    const { data: tplRow } = await admin
+      .from("pulse_email_templates")
+      .select("subject, greeting, body, cta_label, footer_note")
+      .eq("id", "default")
+      .maybeSingle();
+    const tpl = {
+      subject: tplRow?.subject || DEFAULT_TEMPLATE.subject,
+      greeting: tplRow?.greeting || DEFAULT_TEMPLATE.greeting,
+      body: tplRow?.body || DEFAULT_TEMPLATE.body,
+      cta_label: tplRow?.cta_label || DEFAULT_TEMPLATE.cta_label,
+      footer_note: tplRow?.footer_note || DEFAULT_TEMPLATE.footer_note,
+    };
+
     const results: Array<Record<string, unknown>> = [];
     for (const rcp of recipients) {
       const inviteToken = randomToken();
@@ -262,13 +276,19 @@ Deno.serve(async (req) => {
       if (insErr) { results.push({ email: rcp.email, ok: false, error: insErr.message }); continue; }
 
       const link = `${APP_ORIGIN}/survey.html?t=${inviteToken}`;
-      const html = emailHtml({
-        recipientName: rcp.name || "",
+      const firstName = (rcp.name || "").trim().split(/\s+/)[0] || "there";
+      const vars: Record<string, string> = {
+        recipient_name: rcp.name || "",
+        first_name: firstName,
         account: deal.account || "",
-        dealName: deal.deal_name || "",
+        deal_name: deal.deal_name || "",
+        vsd: deal.vsd || "",
+        sender_name: "Pepper CX",
         link,
-      });
-      const subject = `How are we doing on ${[deal.account, deal.deal_name].filter(Boolean).join(" — ") || deal.id}?`;
+      };
+      const label = [deal.account, deal.deal_name].filter(Boolean).join(" — ") || deal.id;
+      const html = emailHtml({ vars, tpl, label });
+      const subject = renderTemplate(tpl.subject, vars) || `How are we doing on ${label}?`;
       const raw = buildRaw({ to: [rcp.email], cc: ccEmails, subject, html, from: fromEmail });
 
       const sendRes = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
