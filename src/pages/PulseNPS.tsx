@@ -6,6 +6,8 @@ import { useCanEditRgy } from "@/hooks/useCanEditRgy";
 import { Loader2 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PulseTabs } from "@/components/pulse/PulseTabs";
+import SurveyFormEditor from "@/components/pulse/SurveyFormEditor";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const ACTIVE_STATUSES = [
   "Active Deal",
@@ -79,11 +81,22 @@ export default function PulseNPS() {
           <Loader2 className="h-4 w-4 animate-spin" /> Loading deals…
         </div>
       ) : (
-        <PulseSurveyTab
-          deals={deals as any}
-          showClosed={showClosed}
-          onShowClosedChange={setShowClosed}
-        />
+        <Tabs defaultValue="send" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="send">Send surveys</TabsTrigger>
+            <TabsTrigger value="form">Survey form</TabsTrigger>
+          </TabsList>
+          <TabsContent value="send">
+            <PulseSurveyTab
+              deals={deals as any}
+              showClosed={showClosed}
+              onShowClosedChange={setShowClosed}
+            />
+          </TabsContent>
+          <TabsContent value="form">
+            <SurveyFormEditor />
+          </TabsContent>
+        </Tabs>
       )}
     </div>
     </AppLayout>
