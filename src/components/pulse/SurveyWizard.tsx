@@ -31,10 +31,23 @@ interface Props {
 
 const CARD_STYLE: React.CSSProperties = {
   background: "var(--card,#fff)",
-  borderRadius: 16,
-  boxShadow: "0 10px 40px rgba(38,28,80,.10)",
+  borderRadius: 14,
+  boxShadow: "var(--shadow-pulse, 0 10px 40px rgba(38,28,80,.10))",
   padding: 32,
   border: "1px solid var(--line,#e7e4ef)",
+};
+
+const INPUT_STYLE: React.CSSProperties = {
+  width: "100%",
+  padding: "12px 14px",
+  borderRadius: 10,
+  border: "1px solid var(--line,#e7e4ef)",
+  background: "var(--field,var(--card))",
+  color: "var(--ink,#15131f)",
+  caretColor: "var(--brand,#5b3df5)",
+  fontSize: 14,
+  fontFamily: "inherit",
+  outline: "none",
 };
 
 function Pill({ children }: { children: React.ReactNode }) {
