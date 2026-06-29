@@ -1485,6 +1485,7 @@ export default function RGYHealth() {
               {isBopmPersona && <TabsTrigger value="insights">Insights</TabsTrigger>}
               <TabsTrigger value="table">Table</TabsTrigger>
               {!isBopmPersona && <TabsTrigger value="insights">Insights</TabsTrigger>}
+              {canEditRgy && <TabsTrigger value="pulse">Pulse / NPS</TabsTrigger>}
             </TabsList>
             {activeTab === "table" && (
               <Popover>
