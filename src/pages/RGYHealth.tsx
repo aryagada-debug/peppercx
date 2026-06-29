@@ -1977,6 +1977,12 @@ export default function RGYHealth() {
               summaryDeals={aiSummaryDeals}
             />
           </TabsContent>
+
+          {canEditRgy && (
+            <TabsContent value="pulse" className="mt-0">
+              <PulseSurveyTab deals={filteredDeals as any} />
+            </TabsContent>
+          )}
         </Tabs>
 
         {/* R/Y → G Resolve Issues Dialog (mandatory) */}
