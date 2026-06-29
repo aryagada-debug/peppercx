@@ -223,6 +223,43 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
   if (ev === "test") {
     const to = (input.recipients || []).filter((e) => /@/.test(e));
     if (to.length === 0) return null;
+    // Reuse this envelope for ad-hoc app notifications (e.g. Deal Handover)
+    // when payload.kind is provided, so we keep the central mailbox flow.
+    const kind = String((input.payload as any)?.kind || "");
+    if (kind === "handover_submitted" || kind === "handover_partial" || kind === "handover_completed") {
+      const company = String((input.payload as any)?.company || "");
+      const submitter = String((input.payload as any)?.submitter || "");
+      const dealId = String((input.payload as any)?.deal_id || "");
+      const dealName = String((input.payload as any)?.deal_name || "");
+      const vsd = String((input.payload as any)?.vsd || "");
+      const titleMap: Record<string, string> = {
+        handover_submitted: `New sales handover — ${company}`,
+        handover_partial: `Handover update — ${company}`,
+        handover_completed: `Handover completed — ${company}`,
+      };
+      const introMap: Record<string, string> = {
+        handover_submitted: `A new sales handover has been submitted for <b>${escapeHtml(company)}</b>. Priyanka please add Deal ID & Name. Anirudh please confirm the VSD.`,
+        handover_partial: `An update was made on the handover for <b>${escapeHtml(company)}</b>. Your action may be next.`,
+        handover_completed: `The handover for <b>${escapeHtml(company)}</b> is complete — the deal has been created in Clients & Deals.`,
+      };
+      return {
+        to,
+        subject: titleMap[kind],
+        html: layout({
+          title: titleMap[kind],
+          intro: introMap[kind],
+          rows: [
+            ["Company", company],
+            ["Submitted by", submitter],
+            ["Deal ID", dealId],
+            ["Deal Name", dealName],
+            ["VSD", vsd],
+          ],
+          ctaLabel: "Open Deal Handover",
+          ctaHref: `${APP_ORIGIN}/deal-handover`,
+        }),
+      };
+    }
     return {
       to,
       subject: "Pepper CX — Central mailbox test",
