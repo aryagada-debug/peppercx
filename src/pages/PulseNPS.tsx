@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import PulseSurveyTab from "@/components/rgy/PulseSurveyTab";
 import { useCanEditRgy } from "@/hooks/useCanEditRgy";
@@ -14,17 +15,19 @@ const ACTIVE_STATUSES = [
 
 export default function PulseNPS() {
   const { canEdit: canEditRgy, loading: roleLoading } = useCanEditRgy();
+  const [showClosed, setShowClosed] = useState(false);
 
   const { data: deals = [], isLoading } = useQuery({
-    queryKey: ["pulse-nps-deals"],
+    queryKey: ["pulse-nps-deals", showClosed],
     enabled: canEditRgy,
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("staffing_deals")
         .select("id, new_deal_id_formulated, deal_name, account, vsd, principal_bopm, senior_bopm, bopm, deal_status")
-        .in("deal_status", ACTIVE_STATUSES)
         .order("account", { ascending: true })
-        .limit(500);
+        .limit(1000);
+      if (!showClosed) q = q.in("deal_status", ACTIVE_STATUSES);
+      const { data, error } = await q;
       if (error) throw error;
       return (data || []).map((d: any) => ({
         deal_id: d.new_deal_id_formulated || d.id,
@@ -72,7 +75,11 @@ export default function PulseNPS() {
           <Loader2 className="h-4 w-4 animate-spin" /> Loading deals…
         </div>
       ) : (
-        <PulseSurveyTab deals={deals as any} />
+        <PulseSurveyTab
+          deals={deals as any}
+          showClosed={showClosed}
+          onShowClosedChange={setShowClosed}
+        />
       )}
     </div>
     </AppLayout>
