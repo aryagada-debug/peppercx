@@ -2331,6 +2331,182 @@ export type Database = {
         }
         Relationships: []
       }
+      survey_invites: {
+        Row: {
+          account_snapshot: string
+          bopm: string
+          cc_emails: string[]
+          completed_at: string | null
+          created_at: string
+          deal_id: string
+          deal_name_snapshot: string
+          email_status: string
+          error: string | null
+          gmail_message_id: string | null
+          id: string
+          opened_at: string | null
+          principal_bopm: string
+          recipient_email: string
+          recipient_name: string
+          senior_bopm: string
+          sent_at: string | null
+          sent_by: string | null
+          stakeholder_id: string | null
+          token: string
+          updated_at: string
+          vsd_name: string
+        }
+        Insert: {
+          account_snapshot?: string
+          bopm?: string
+          cc_emails?: string[]
+          completed_at?: string | null
+          created_at?: string
+          deal_id: string
+          deal_name_snapshot?: string
+          email_status?: string
+          error?: string | null
+          gmail_message_id?: string | null
+          id?: string
+          opened_at?: string | null
+          principal_bopm?: string
+          recipient_email: string
+          recipient_name?: string
+          senior_bopm?: string
+          sent_at?: string | null
+          sent_by?: string | null
+          stakeholder_id?: string | null
+          token: string
+          updated_at?: string
+          vsd_name?: string
+        }
+        Update: {
+          account_snapshot?: string
+          bopm?: string
+          cc_emails?: string[]
+          completed_at?: string | null
+          created_at?: string
+          deal_id?: string
+          deal_name_snapshot?: string
+          email_status?: string
+          error?: string | null
+          gmail_message_id?: string | null
+          id?: string
+          opened_at?: string | null
+          principal_bopm?: string
+          recipient_email?: string
+          recipient_name?: string
+          senior_bopm?: string
+          sent_at?: string | null
+          sent_by?: string | null
+          stakeholder_id?: string | null
+          token?: string
+          updated_at?: string
+          vsd_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_invites_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals_unified"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_invites_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "staffing_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_invites_stakeholder_id_fkey"
+            columns: ["stakeholder_id"]
+            isOneToOne: false
+            referencedRelation: "deal_stakeholders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      survey_responses: {
+        Row: {
+          ces: number | null
+          churn_risk: string | null
+          created_at: string
+          csat_avg: number | null
+          deal_id: string | null
+          id: string
+          invite_id: string | null
+          mood: string | null
+          nps: number | null
+          payload: Json
+          renew: string | null
+          respondent_company: string | null
+          respondent_email: string | null
+          respondent_name: string | null
+          submitted_at: string
+          wants_followup: string | null
+        }
+        Insert: {
+          ces?: number | null
+          churn_risk?: string | null
+          created_at?: string
+          csat_avg?: number | null
+          deal_id?: string | null
+          id?: string
+          invite_id?: string | null
+          mood?: string | null
+          nps?: number | null
+          payload?: Json
+          renew?: string | null
+          respondent_company?: string | null
+          respondent_email?: string | null
+          respondent_name?: string | null
+          submitted_at?: string
+          wants_followup?: string | null
+        }
+        Update: {
+          ces?: number | null
+          churn_risk?: string | null
+          created_at?: string
+          csat_avg?: number | null
+          deal_id?: string | null
+          id?: string
+          invite_id?: string | null
+          mood?: string | null
+          nps?: number | null
+          payload?: Json
+          renew?: string | null
+          respondent_company?: string | null
+          respondent_email?: string | null
+          respondent_name?: string | null
+          submitted_at?: string
+          wants_followup?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_responses_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals_unified"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_responses_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "staffing_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_responses_invite_id_fkey"
+            columns: ["invite_id"]
+            isOneToOne: false
+            referencedRelation: "survey_invites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_templates: {
         Row: {
           created_at: string
@@ -2826,6 +3002,17 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      get_survey_invite_by_token: {
+        Args: { _token: string }
+        Returns: {
+          account_snapshot: string
+          completed: boolean
+          deal_name_snapshot: string
+          invite_id: string
+          recipient_email: string
+          recipient_name: string
+        }[]
       }
       has_role: {
         Args: {
