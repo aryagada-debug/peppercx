@@ -416,7 +416,7 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
           <FieldRow label={c.value.buyer_outcome.q}>
             <input type="text" placeholder={c.value.buyer_outcome.hint} value={a.value.target_outcome}
               onChange={(e) => updateA((p) => ({ ...p, value: { ...p.value, target_outcome: e.target.value } }))}
-              style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid var(--line,#e7e4ef)", fontSize: 14, outline: "none" }} />
+              style={INPUT_STYLE} />
           </FieldRow>
         </Reveal>
       </>
@@ -640,7 +640,7 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
         <Reveal when={showWho}>
           <input type="text" placeholder={c.expansion.referral_who} value={a.expansion.referral_lead}
             onChange={(e) => updateA((p) => ({ ...p, expansion: { ...p.expansion, referral_lead: e.target.value } }))}
-            style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid var(--line,#e7e4ef)", fontSize: 14, outline: "none" }} />
+            style={INPUT_STYLE} />
         </Reveal>
       </>
     );
