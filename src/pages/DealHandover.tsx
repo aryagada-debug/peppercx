@@ -6,6 +6,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { useUserRole } from "@/hooks/useUserRole";
 import { sendAppEmail } from "@/lib/appEmail";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { HandoverWizard } from "@/components/handover/HandoverWizard";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,32 +63,6 @@ const HANDOVER_LEADS = [
   "priyanka.sharma@peppercontent.io",
 ];
 
-const emptyForm = () => ({
-  sp_name: "",
-  sp_email: "",
-  sp_team: "",
-  handover_date: new Date().toISOString().slice(0, 10),
-  company_name: "",
-  industry: "",
-  website: "",
-  sow_url: "",
-  strategy_deck_url: "",
-  keywords_url: "",
-  geo_audit_url: "",
-  fireflies_url: "",
-  docs_notes: "",
-  stage: "",
-  bu: "",
-  capability: "",
-  deal_type: "Retainer",
-  mrr: "",
-  total_amount: "",
-  duration_months: "",
-  start_date: "",
-  vsd_suggested: "",
-  deal_notes: "",
-  contacts: [{ name: "", role: "", email: "", phone: "" }] as Contact[],
-});
 
 function StatusBadge({ row }: { row: HandoverRow }) {
   if (row.status === "created") return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Created</Badge>;
@@ -107,19 +82,6 @@ export default function DealHandover() {
   const canEditVsd = isAdmin || userEmail === "anirudh@peppercontent.io";
 
   const [tab, setTab] = useState("submit");
-  const [form, setForm] = useState(emptyForm);
-  const [submitting, setSubmitting] = useState(false);
-  const [rows, setRows] = useState<HandoverRow[]>([]);
-  const [loadingRows, setLoadingRows] = useState(true);
-  const [open, setOpen] = useState<HandoverRow | null>(null);
-
-  // Prefill submitter info
-  useEffect(() => {
-    if (user?.email && !form.sp_email) {
-      setForm((f) => ({ ...f, sp_email: user.email || "", sp_name: (user.user_metadata as any)?.full_name || "" }));
-    }
-  }, [user]); // eslint-disable-line
-
   const loadRows = async () => {
     setLoadingRows(true);
     const { data, error } = await supabase
@@ -133,82 +95,9 @@ export default function DealHandover() {
     }
     setLoadingRows(false);
   };
-
   useEffect(() => {
     loadRows();
   }, []);
-
-  const updateField = (k: string, v: any) => setForm((f) => ({ ...f, [k]: v }));
-  const updateContact = (i: number, k: keyof Contact, v: string) =>
-    setForm((f) => ({ ...f, contacts: f.contacts.map((c, idx) => (idx === i ? { ...c, [k]: v } : c)) }));
-  const addContact = () =>
-    setForm((f) => ({ ...f, contacts: [...f.contacts, { name: "", role: "", email: "", phone: "" }] }));
-  const removeContact = (i: number) =>
-    setForm((f) => ({ ...f, contacts: f.contacts.filter((_, idx) => idx !== i) }));
-
-  const submit = async () => {
-    // Minimal required validation
-    const missing: string[] = [];
-    if (!form.sp_name.trim()) missing.push("Salesperson name");
-    if (!form.sp_email.trim()) missing.push("Salesperson email");
-    if (!form.company_name.trim()) missing.push("Company name");
-    if (!form.sow_url.trim()) missing.push("SoW link");
-    if (!form.contacts.length || !form.contacts[0].name.trim()) missing.push("At least one contact name");
-    if (missing.length) {
-      toast({ title: "Please fill required fields", description: missing.join(", "), variant: "destructive" });
-      return;
-    }
-    setSubmitting(true);
-    const payload = {
-      submitter_user_id: user?.id || null,
-      sp_name: form.sp_name.trim(),
-      sp_email: form.sp_email.trim(),
-      sp_team: form.sp_team.trim(),
-      handover_date: form.handover_date || null,
-      company_name: form.company_name.trim(),
-      industry: form.industry.trim(),
-      website: form.website.trim(),
-      sow_url: form.sow_url.trim(),
-      strategy_deck_url: form.strategy_deck_url.trim(),
-      keywords_url: form.keywords_url.trim(),
-      geo_audit_url: form.geo_audit_url.trim(),
-      fireflies_url: form.fireflies_url.trim(),
-      docs_notes: form.docs_notes.trim(),
-      stage: form.stage,
-      bu: form.bu,
-      capability: form.capability,
-      deal_type: form.deal_type,
-      mrr: form.mrr ? Number(form.mrr) : null,
-      total_amount: form.total_amount ? Number(form.total_amount) : null,
-      duration_months: form.duration_months ? Number(form.duration_months) : null,
-      start_date: form.start_date || null,
-      vsd_suggested: form.vsd_suggested.trim(),
-      deal_notes: form.deal_notes.trim(),
-      contacts: form.contacts.filter((c) => c.name || c.email),
-      status: "submitted",
-    };
-    const { data, error } = await supabase.from("deal_handovers" as any).insert(payload).select().single();
-    setSubmitting(false);
-    if (error) {
-      toast({ title: "Failed to submit", description: error.message, variant: "destructive" });
-      return;
-    }
-    // Notify the three leads via the central mailbox
-    sendAppEmail({
-      event: "test", // re-using test envelope so the central mailbox sends to arbitrary recipients
-      recipients: HANDOVER_LEADS,
-      payload: {
-        kind: "handover_submitted",
-        company: payload.company_name,
-        submitter: `${payload.sp_name} <${payload.sp_email}>`,
-      },
-    });
-    toast({ title: "Handover submitted", description: "Arya, Anirudh and Priyanka have been notified." });
-    setForm(emptyForm());
-    setTab("queue");
-    loadRows();
-  };
-
   const saveLeadUpdate = async (row: HandoverRow, patch: Partial<HandoverRow>) => {
     const stamped: any = { ...patch };
     if (patch.deal_id !== undefined || patch.deal_name !== undefined) {
@@ -272,151 +161,7 @@ export default function DealHandover() {
           </TabsList>
 
           <TabsContent value="submit" className="mt-4">
-            <Card className="p-6 space-y-6">
-              <Section title="Salesperson">
-                <Grid>
-                  <Field label="Full name" required>
-                    <Input value={form.sp_name} onChange={(e) => updateField("sp_name", e.target.value)} placeholder="e.g. Aarav Mehta" />
-                  </Field>
-                  <Field label="Work email" required>
-                    <Input type="email" value={form.sp_email} onChange={(e) => updateField("sp_email", e.target.value)} placeholder="name@peppercontent.io" />
-                  </Field>
-                  <Field label="Sales team / region">
-                    <Input value={form.sp_team} onChange={(e) => updateField("sp_team", e.target.value)} placeholder="e.g. Enterprise · West" />
-                  </Field>
-                  <Field label="Handover date">
-                    <Input type="date" value={form.handover_date} onChange={(e) => updateField("handover_date", e.target.value)} />
-                  </Field>
-                </Grid>
-              </Section>
-
-              <Section title="Client">
-                <Grid>
-                  <Field label="Company name" required>
-                    <Input value={form.company_name} onChange={(e) => updateField("company_name", e.target.value)} placeholder="e.g. Northbeam Technologies Pvt. Ltd." />
-                  </Field>
-                  <Field label="Industry">
-                    <Input value={form.industry} onChange={(e) => updateField("industry", e.target.value)} placeholder="e.g. B2B SaaS" />
-                  </Field>
-                  <Field label="Website">
-                    <Input value={form.website} onChange={(e) => updateField("website", e.target.value)} placeholder="https://" />
-                  </Field>
-                </Grid>
-              </Section>
-
-              <Section title="Documents">
-                <Grid>
-                  <Field label="SoW link" required>
-                    <Input value={form.sow_url} onChange={(e) => updateField("sow_url", e.target.value)} placeholder="Link to the signed SOW" />
-                  </Field>
-                  <Field label="Strategy deck">
-                    <Input value={form.strategy_deck_url} onChange={(e) => updateField("strategy_deck_url", e.target.value)} placeholder="Link to the strategy deck" />
-                  </Field>
-                  <Field label="Keywords / projections">
-                    <Input value={form.keywords_url} onChange={(e) => updateField("keywords_url", e.target.value)} placeholder="Link to the keywords sheet" />
-                  </Field>
-                  <Field label="GEO audit deck">
-                    <Input value={form.geo_audit_url} onChange={(e) => updateField("geo_audit_url", e.target.value)} placeholder="Link to the GEO audit deck" />
-                  </Field>
-                  <Field label="Fireflies call recording">
-                    <Input value={form.fireflies_url} onChange={(e) => updateField("fireflies_url", e.target.value)} placeholder="Fireflies link" />
-                  </Field>
-                </Grid>
-                <Field label="Notes on documents">
-                  <Textarea rows={3} value={form.docs_notes} onChange={(e) => updateField("docs_notes", e.target.value)} placeholder="Pending signatures, version caveats, access still to be granted…" />
-                </Field>
-              </Section>
-
-              <Section title="Contacts">
-                <div className="space-y-3">
-                  {form.contacts.map((c, i) => (
-                    <div key={i} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
-                      <div className="md:col-span-3">
-                        <Label className="text-xs">Name {i === 0 && <span className="text-destructive">*</span>}</Label>
-                        <Input value={c.name} onChange={(e) => updateContact(i, "name", e.target.value)} placeholder="e.g. Priya Nair" />
-                      </div>
-                      <div className="md:col-span-3">
-                        <Label className="text-xs">Designation</Label>
-                        <Input value={c.role} onChange={(e) => updateContact(i, "role", e.target.value)} placeholder="e.g. Head of Marketing" />
-                      </div>
-                      <div className="md:col-span-3">
-                        <Label className="text-xs">Email</Label>
-                        <Input value={c.email} onChange={(e) => updateContact(i, "email", e.target.value)} placeholder="priya@company.com" />
-                      </div>
-                      <div className="md:col-span-2">
-                        <Label className="text-xs">Phone</Label>
-                        <Input value={c.phone} onChange={(e) => updateContact(i, "phone", e.target.value)} placeholder="+91 …" />
-                      </div>
-                      <div className="md:col-span-1">
-                        <Button type="button" variant="ghost" size="icon" onClick={() => removeContact(i)} disabled={form.contacts.length === 1}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                  <Button type="button" variant="outline" size="sm" onClick={addContact}>
-                    <Plus className="h-4 w-4 mr-1" /> Add contact
-                  </Button>
-                </div>
-              </Section>
-
-              <Section title="Deal">
-                <Grid>
-                  <Field label="Opportunity stage">
-                    <Select value={form.stage} onValueChange={(v) => updateField("stage", v)}>
-                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="New Deal in SLA/PO">New Deal in SLA/PO</SelectItem>
-                        <SelectItem value="Active Deal">Active Deal</SelectItem>
-                        <SelectItem value="Deal in Renewal Process">Deal in Renewal Process</SelectItem>
-                        <SelectItem value="Deal Disputed">Deal Disputed</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Field label="Pepper BU">
-                    <Input value={form.bu} onChange={(e) => updateField("bu", e.target.value)} placeholder="e.g. Content / SEO / Creative" />
-                  </Field>
-                  <Field label="Capability line">
-                    <Input value={form.capability} onChange={(e) => updateField("capability", e.target.value)} />
-                  </Field>
-                  <Field label="Deal type">
-                    <Select value={form.deal_type} onValueChange={(v) => updateField("deal_type", v)}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Retainer">Retainer</SelectItem>
-                        <SelectItem value="Project">Project</SelectItem>
-                        <SelectItem value="Hybrid">Hybrid</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Field label="MRR">
-                    <Input type="number" value={form.mrr} onChange={(e) => updateField("mrr", e.target.value)} placeholder="Monthly recurring revenue" />
-                  </Field>
-                  <Field label="Total amount">
-                    <Input type="number" value={form.total_amount} onChange={(e) => updateField("total_amount", e.target.value)} placeholder="Total contract value" />
-                  </Field>
-                  <Field label="Duration (months)">
-                    <Input type="number" value={form.duration_months} onChange={(e) => updateField("duration_months", e.target.value)} placeholder="e.g. 12" />
-                  </Field>
-                  <Field label="Start date">
-                    <Input type="date" value={form.start_date} onChange={(e) => updateField("start_date", e.target.value)} />
-                  </Field>
-                  <Field label="Suggested VSD">
-                    <Input value={form.vsd_suggested} onChange={(e) => updateField("vsd_suggested", e.target.value)} placeholder="Sales suggestion (Anirudh confirms later)" />
-                  </Field>
-                </Grid>
-                <Field label="Special terms / context for delivery">
-                  <Textarea rows={3} value={form.deal_notes} onChange={(e) => updateField("deal_notes", e.target.value)} placeholder="Custom SLAs, promised deliverables, key stakeholders…" />
-                </Field>
-              </Section>
-
-              <div className="flex justify-end gap-2 pt-2 border-t">
-                <Button variant="ghost" onClick={() => setForm(emptyForm())} disabled={submitting}>Reset</Button>
-                <Button onClick={submit} disabled={submitting}>
-                  {submitting ? "Submitting…" : "Submit handover"}
-                </Button>
-              </div>
-            </Card>
+            <HandoverWizard onSubmitted={() => { setTab("queue"); loadRows(); }} />
           </TabsContent>
 
           <TabsContent value="queue" className="mt-4">

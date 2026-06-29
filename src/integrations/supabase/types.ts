@@ -604,6 +604,7 @@ export type Database = {
           industry: string
           keywords_url: string
           mrr: number | null
+          reference: string | null
           sow_url: string
           sp_email: string
           sp_name: string
@@ -643,6 +644,7 @@ export type Database = {
           industry?: string
           keywords_url?: string
           mrr?: number | null
+          reference?: string | null
           sow_url?: string
           sp_email?: string
           sp_name?: string
@@ -682,6 +684,7 @@ export type Database = {
           industry?: string
           keywords_url?: string
           mrr?: number | null
+          reference?: string | null
           sow_url?: string
           sp_email?: string
           sp_name?: string
