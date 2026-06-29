@@ -98,27 +98,17 @@ export default function SurveyForm() {
           email: invite.recipient_email,
           company: invite.account_snapshot,
         },
-        comment,
       };
-      const { error: insErr } = await supabase
-        .from("survey_responses" as any)
-        .insert({
-          invite_id: invite.invite_id,
-          nps,
-          csat_avg: csat,
-          respondent_name: invite.recipient_name || null,
-          respondent_email: invite.recipient_email || null,
-          respondent_company: invite.account_snapshot || null,
-          payload,
-        } as any);
-      if (insErr) {
-        if (/duplicate|unique|already/i.test(insErr.message)) {
-          setSubmitted(true);
-          return;
-        }
-        throw insErr;
-      }
-      await supabase.rpc("mark_survey_invite" as any, { _token: token, _state: "completed" });
+      const { data, error: rpcErr } = await supabase.rpc("submit_survey_response" as any, {
+        _token: token,
+        _nps: nps,
+        _csat: csat,
+        _comment: comment || null,
+        _payload: payload,
+      });
+      if (rpcErr) throw rpcErr;
+      const res = (data || {}) as { ok?: boolean; error?: string };
+      if (res.error) throw new Error(res.error);
       setSubmitted(true);
     } catch (e: any) {
       setError(e?.message || "Could not submit. Please try again.");
