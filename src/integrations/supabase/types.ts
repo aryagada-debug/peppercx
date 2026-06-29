@@ -581,6 +581,126 @@ export type Database = {
         }
         Relationships: []
       }
+      deal_handovers: {
+        Row: {
+          bu: string
+          capability: string
+          company_name: string
+          contacts: Json
+          created_at: string
+          created_deal_id: string | null
+          deal_id: string | null
+          deal_id_filled_at: string | null
+          deal_id_filled_by: string | null
+          deal_name: string | null
+          deal_notes: string
+          deal_type: string
+          docs_notes: string
+          duration_months: number | null
+          fireflies_url: string
+          geo_audit_url: string
+          handover_date: string | null
+          id: string
+          industry: string
+          keywords_url: string
+          mrr: number | null
+          sow_url: string
+          sp_email: string
+          sp_name: string
+          sp_team: string
+          stage: string
+          start_date: string | null
+          status: string
+          strategy_deck_url: string
+          submitter_user_id: string | null
+          total_amount: number | null
+          updated_at: string
+          vsd_confirmed: string | null
+          vsd_filled_at: string | null
+          vsd_filled_by: string | null
+          vsd_suggested: string
+          website: string
+        }
+        Insert: {
+          bu?: string
+          capability?: string
+          company_name: string
+          contacts?: Json
+          created_at?: string
+          created_deal_id?: string | null
+          deal_id?: string | null
+          deal_id_filled_at?: string | null
+          deal_id_filled_by?: string | null
+          deal_name?: string | null
+          deal_notes?: string
+          deal_type?: string
+          docs_notes?: string
+          duration_months?: number | null
+          fireflies_url?: string
+          geo_audit_url?: string
+          handover_date?: string | null
+          id?: string
+          industry?: string
+          keywords_url?: string
+          mrr?: number | null
+          sow_url?: string
+          sp_email?: string
+          sp_name?: string
+          sp_team?: string
+          stage?: string
+          start_date?: string | null
+          status?: string
+          strategy_deck_url?: string
+          submitter_user_id?: string | null
+          total_amount?: number | null
+          updated_at?: string
+          vsd_confirmed?: string | null
+          vsd_filled_at?: string | null
+          vsd_filled_by?: string | null
+          vsd_suggested?: string
+          website?: string
+        }
+        Update: {
+          bu?: string
+          capability?: string
+          company_name?: string
+          contacts?: Json
+          created_at?: string
+          created_deal_id?: string | null
+          deal_id?: string | null
+          deal_id_filled_at?: string | null
+          deal_id_filled_by?: string | null
+          deal_name?: string | null
+          deal_notes?: string
+          deal_type?: string
+          docs_notes?: string
+          duration_months?: number | null
+          fireflies_url?: string
+          geo_audit_url?: string
+          handover_date?: string | null
+          id?: string
+          industry?: string
+          keywords_url?: string
+          mrr?: number | null
+          sow_url?: string
+          sp_email?: string
+          sp_name?: string
+          sp_team?: string
+          stage?: string
+          start_date?: string | null
+          status?: string
+          strategy_deck_url?: string
+          submitter_user_id?: string | null
+          total_amount?: number | null
+          updated_at?: string
+          vsd_confirmed?: string | null
+          vsd_filled_at?: string | null
+          vsd_filled_by?: string | null
+          vsd_suggested?: string
+          website?: string
+        }
+        Relationships: []
+      }
       deal_onboarding_steps: {
         Row: {
           category: string
