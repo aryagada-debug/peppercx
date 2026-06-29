@@ -105,11 +105,38 @@ const BRAND_BORDER = "#e7e4ef";
 const BRAND_TEXT = "#15131f";
 const BRAND_MUTED = "#6b6878";
 
-function emailHtml({ recipientName, account, dealName, link }: {
-  recipientName: string; account: string; dealName: string; link: string;
+export const DEFAULT_TEMPLATE = {
+  subject: "How are we doing on {{account}} — {{deal_name}}?",
+  greeting: "Hi {{first_name}},",
+  body: "Your honest feedback shapes what we fix, build, and prioritise next on this engagement.\n\nIt takes about 4 minutes — and the whole team reads every response.",
+  cta_label: "Share your feedback →",
+  footer_note: "Sent by the Pepper Customer Success team. Reply to this email to reach us directly.",
+};
+
+export function renderTemplate(str: string, vars: Record<string, string>): string {
+  return String(str || "").replace(/\{\{\s*([a-zA-Z_]+)\s*\}\}/g, (_, k) => vars[k] ?? "");
+}
+
+function paragraphsHtml(body: string): string {
+  return String(body || "")
+    .split(/\n\s*\n/)
+    .map(p => p.trim())
+    .filter(Boolean)
+    .map(p => `<p style="margin:0 0 14px;font-size:14px;line-height:1.6;color:${BRAND_TEXT};">${escapeHtml(p).replace(/\n/g, "<br>")}</p>`)
+    .join("");
+}
+
+function emailHtml({ vars, tpl, label }: {
+  vars: Record<string, string>;
+  tpl: typeof DEFAULT_TEMPLATE;
+  label: string;
 }) {
-  const hello = recipientName ? `Hi ${escapeHtml(recipientName.split(" ")[0])},` : "Hi there,";
-  const label = [account, dealName].filter(Boolean).join(" — ");
+  const greeting = renderTemplate(tpl.greeting, vars);
+  // Strip any {{link}} from body — link is always the CTA button.
+  const bodyText = renderTemplate(tpl.body, { ...vars, link: "" });
+  const ctaLabel = renderTemplate(tpl.cta_label, vars);
+  const footer = renderTemplate(tpl.footer_note, vars);
+  const link = vars.link || "";
   return `<!doctype html><html><body style="margin:0;padding:0;background:${BRAND_BG};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
   <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:${BRAND_BG};padding:24px 12px;">
     <tr><td align="center">
@@ -119,13 +146,10 @@ function emailHtml({ recipientName, account, dealName, link }: {
           <div style="font-size:20px;font-weight:600;color:${BRAND_TEXT};margin-top:4px;">How are we doing on ${escapeHtml(label)}?</div>
         </td></tr>
         <tr><td style="padding:22px 26px;">
-          <p style="margin:0 0 14px;font-size:14px;line-height:1.6;color:${BRAND_TEXT};">${hello}</p>
-          <p style="margin:0 0 14px;font-size:14px;line-height:1.6;color:${BRAND_TEXT};">
-            Your honest feedback shapes what we fix, build, and prioritise next on this engagement.
-            It takes about 4 minutes — and the whole team reads every response.
-          </p>
+          <p style="margin:0 0 14px;font-size:14px;line-height:1.6;color:${BRAND_TEXT};">${escapeHtml(greeting)}</p>
+          ${paragraphsHtml(bodyText)}
           <div style="margin:22px 0;">
-            <a href="${escapeHtml(link)}" style="display:inline-block;background:${BRAND_PRIMARY};color:#fff;text-decoration:none;font-size:14px;font-weight:600;padding:12px 22px;border-radius:10px;">Share your feedback →</a>
+            <a href="${escapeHtml(link)}" style="display:inline-block;background:${BRAND_PRIMARY};color:#fff;text-decoration:none;font-size:14px;font-weight:600;padding:12px 22px;border-radius:10px;">${escapeHtml(ctaLabel)}</a>
           </div>
           <p style="margin:0;font-size:12.5px;color:${BRAND_MUTED};line-height:1.5;">
             If the button doesn't work, paste this link into your browser:<br>
@@ -134,7 +158,7 @@ function emailHtml({ recipientName, account, dealName, link }: {
         </td></tr>
         <tr><td style="padding:14px 26px;border-top:1px solid ${BRAND_BORDER};background:${BRAND_BG};">
           <p style="margin:0;font-size:11.5px;color:${BRAND_MUTED};line-height:1.5;">
-            Sent by the Pepper Customer Success team. Reply to this email to reach us directly.
+            ${escapeHtml(footer)}
           </p>
         </td></tr>
       </table>
