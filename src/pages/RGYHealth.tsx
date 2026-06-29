@@ -54,7 +54,6 @@ import { MarkRGYDialog, type MarkRGYDimension } from "@/components/rgy/MarkRGYDi
 import { sendAppEmail } from "@/lib/appEmail";
 import { RGYCombinedIssuesDialog } from "@/components/rgy/RGYCombinedIssuesDialog";
 import { useCanEditRgy } from "@/hooks/useCanEditRgy";
-import PulseSurveyTab from "@/components/rgy/PulseSurveyTab";
 
 type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
@@ -637,7 +636,7 @@ export default function RGYHealth() {
       return arrayMove(prev, from, to);
     });
   }, []);
-  const [activeTab, setActiveTab] = useState<"health" | "table" | "insights" | "pulse">("table");
+  const [activeTab, setActiveTab] = useState<"health" | "table" | "insights">("table");
   useEffect(() => {
     if (isVsdPersona && myVsdName && activeVsd !== myVsdName) setActiveVsd(myVsdName);
   }, [isVsdPersona, myVsdName, activeVsd]);
@@ -1486,7 +1485,6 @@ export default function RGYHealth() {
               {isBopmPersona && <TabsTrigger value="insights">Insights</TabsTrigger>}
               <TabsTrigger value="table">Table</TabsTrigger>
               {!isBopmPersona && <TabsTrigger value="insights">Insights</TabsTrigger>}
-              {canEditRgy && <TabsTrigger value="pulse">Pulse / NPS</TabsTrigger>}
             </TabsList>
             {activeTab === "table" && (
               <Popover>
@@ -1978,12 +1976,6 @@ export default function RGYHealth() {
               summaryDeals={aiSummaryDeals}
             />
           </TabsContent>
-
-          {canEditRgy && (
-            <TabsContent value="pulse" className="mt-0">
-              <PulseSurveyTab deals={filteredDeals as any} />
-            </TabsContent>
-          )}
         </Tabs>
 
         {/* R/Y → G Resolve Issues Dialog (mandatory) */}
