@@ -719,13 +719,13 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
             <ScoreCard label="Mood" value={moodIcon} sub="" />
           </div>
           {done.serverError && (
-            <div style={{ background: "#fff4f4", border: "1px solid #ffd9d9", padding: 12, borderRadius: 10, fontSize: 13, color: "var(--bad,#d8413c)", marginBottom: 12 }}>
+            <div style={{ background: "var(--brand-soft)", border: "1px solid var(--line)", padding: 12, borderRadius: 10, fontSize: 13, color: "var(--bad,#d8413c)", marginBottom: 12 }}>
               Couldn't save online ({done.serverError}). Copy or download your response so we don't lose it.
             </div>
           )}
           <details>
             <summary style={{ cursor: "pointer", color: "var(--muted,#6b6878)", fontSize: 13, marginBottom: 8 }}>Show raw response</summary>
-            <pre style={{ background: "#f7f5fc", padding: 12, borderRadius: 10, overflow: "auto", fontSize: 11, maxHeight: 300 }}>{jsonStr}</pre>
+            <pre style={{ background: "var(--brand-soft)", padding: 12, borderRadius: 10, overflow: "auto", fontSize: 11, maxHeight: 300 }}>{jsonStr}</pre>
           </details>
           <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
             <button onClick={() => navigator.clipboard?.writeText(jsonStr)} style={ghostBtn}>Copy JSON</button>
