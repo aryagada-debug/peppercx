@@ -1,39 +1,35 @@
-## Issue
+## Root cause found
 
-The survey email links point to `https://peppercx.lovable.app/survey.html?t=...`. Fetching that URL returns the React 404 page — Lovable's SPA host is serving `index.html` instead of the static `public/survey.html` file, so the survey never loads. (The static page also has 822 lines of hand-rolled HTML/JS calling Supabase from anon — fragile and out of step with the app's auth/styling.)
+The survey feature has **no created invites or responses in the database** (`survey_invites = 0`, `survey_responses = 0`). That means the survey page cannot open for any real token because no token rows exist to look up. The route `/s/:token` exists, but the full send → invite → open → submit chain is not completing.
 
-## Fix
+There is also a risky access setup: the survey tables have broad anon table privileges but the app relies on a security-definer lookup and an edge function for public access. I’ll tighten this so public users can only access surveys through the token flow, and logged-in users can still see analytics through existing deal visibility rules.
 
-Replace the static page with a proper public React route inside the SPA, which is guaranteed to render on Lovable hosting.
+## Plan
 
-1. **New page** `src/pages/PublicSurvey.tsx`
-   - Path: `/s/:token` (public, no auth wrap).
-   - Reads token from the URL, calls `supabase.rpc("get_survey_invite_by_token", { _token })`.
-   - Shows the recipient name + deal/account, NPS 0–10 scale, CSAT 1–5, comment box, submit button.
-   - On submit, posts to the existing `survey-submit` edge function via `supabase.functions.invoke`.
-   - Handles already-completed and invalid-token states with friendly messages.
-   - Uses the app's design tokens (matches the existing email template look).
+1. **Fix invite creation visibility**
+   - Update the Pulse send flow so failed email sending still leaves a clear invite row with failure reason.
+   - Make the UI surface send results prominently: recipients attempted, invites created, emails sent/failed, and exact reason if Gmail/central mailbox blocks sending.
+   - Ensure the generated link always uses the current app origin instead of a stale/hardcoded domain when needed.
 
-2. **Register the route** in `src/App.tsx` alongside the other public routes (`/login`, `/calendar/callback`), outside `ProtectedRoute`.
+2. **Fix public survey opening**
+   - Keep `/s/:token` as the correct public route.
+   - Make token lookup resilient and return only safe invite fields.
+   - Add proper error states for invalid token, expired/missing invite, already submitted, and backend error.
 
-3. **Update link generation** in `supabase/functions/send-pulse-survey/index.ts`:
-   - Change `${APP_ORIGIN}/survey.html?t=${inviteToken}` → `${APP_ORIGIN}/s/${inviteToken}`.
-   - Also update the same link in the `pulse_email_templates` rendering path / preview if hard-coded.
+3. **Fix response submission/storage**
+   - Harden `survey-submit` validation so NPS must be 0–10 and CSAT must be 1–5.
+   - Store submitted response rows with invite ID, deal ID, respondent details, NPS, CSAT, comment payload, and completion timestamp.
+   - Mark the invite completed only after the response insert succeeds.
 
-4. **Update the in-app email template preview** (`PulseEmailTemplateEditor.tsx`) sample link to `/s/<token>`.
+4. **Audit database access rules**
+   - Replace broad public table access with a safer token-only function/edge-function model.
+   - Keep authenticated analytics access scoped to deals the user can see.
+   - Keep service access for functions that create invites and responses.
 
-5. **Delete `public/survey.html`** so nothing references the old broken path.
-
-6. (Optional safety) Add a tiny `/survey.html` → `/s/:t` client-side redirect inside the SPA router so any already-sent emails still work after publish.
-
-## Why this works
-
-Lovable's SPA fallback always serves `index.html` for client-routed paths, so `/s/<token>` will hit the React app every time, no hosting/static-file race. The existing `get_survey_invite_by_token` RPC and `survey-submit` edge function are already public and unchanged — only the rendering layer moves.
-
-## Files touched
-
-- add: `src/pages/PublicSurvey.tsx`
-- edit: `src/App.tsx`, `supabase/functions/send-pulse-survey/index.ts`, `src/components/rgy/PulseEmailTemplateEditor.tsx`
-- delete: `public/survey.html`
-
-No DB migration needed.
+5. **Verify end to end**
+   - Create/use a test invite path, open `/s/:token`, submit NPS/CSAT, and confirm:
+     - invite `opened_at` is set,
+     - one response row is created,
+     - invite `completed_at` is set,
+     - analytics queries can read the response.
+   - Check function logs/network status for the send and submit functions after the fix.

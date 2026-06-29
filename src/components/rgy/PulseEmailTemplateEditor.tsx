@@ -38,15 +38,18 @@ const PLACEHOLDERS: { key: string; label: string }[] = [
   { key: "link", label: "Survey link" },
 ];
 
-const SAMPLE = {
-  first_name: "Ananya",
-  recipient_name: "Ananya Sharma",
-  account: "HDFC Bank",
-  deal_name: "SEO Retainer",
-  vsd: "Sumit",
-  sender_name: "Pepper CX",
-  link: "https://peppercx.lovable.app/s/preview",
-};
+function getSample() {
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://peppercx.lovable.app";
+  return {
+    first_name: "Ananya",
+    recipient_name: "Ananya Sharma",
+    account: "HDFC Bank",
+    deal_name: "SEO Retainer",
+    vsd: "Sumit",
+    sender_name: "Pepper CX",
+    link: `${origin}/?survey=preview`,
+  };
+}
 
 function render(str: string, vars: Record<string, string>) {
   return String(str || "").replace(/\{\{\s*([a-zA-Z_]+)\s*\}\}/g, (_, k) => vars[k] ?? "");
@@ -68,6 +71,7 @@ function paragraphsHtml(body: string, color: string) {
 }
 
 function buildPreviewHtml(tpl: Tpl): string {
+  const SAMPLE = getSample();
   const BRAND_PRIMARY = "#5b3df5";
   const BRAND_BG = "#faf9fc";
   const BRAND_BORDER = "#e7e4ef";

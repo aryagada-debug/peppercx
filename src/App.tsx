@@ -58,6 +58,16 @@ function GlobalScrollMount() {
   return null;
 }
 
+function RootRoute() {
+  if (typeof window !== "undefined") {
+    const params = new URLSearchParams(window.location.search);
+    const hasSurveyQuery = !!params.get("survey");
+    const hasSurveyHash = /^#\/s\//.test(window.location.hash || "");
+    if (hasSurveyQuery || hasSurveyHash) return <PublicSurvey />;
+  }
+  return <Navigate to="/home" replace />;
+}
+
 // React Query defaults tuned for an internal data app: keep responses fresh
 // for 5 min and cache for 30 min so navigating between pages doesn't refetch
 // the same tables, and don't refetch on every window focus.
@@ -99,7 +109,7 @@ const App = () => (
 
             {/* Protected routes */}
             <Route path="/home" element={<ProtectedRoute routeKey="home"><Home /></ProtectedRoute>} />
-            <Route path="/" element={<Navigate to="/home" replace />} />
+            <Route path="/" element={<RootRoute />} />
             <Route path="/dashboard" element={<Navigate to="/home" replace />} />
             <Route path="/clients" element={<ProtectedRoute routeKey="clients"><Clients /></ProtectedRoute>} />
             <Route path="/deals" element={<Navigate to="/clients" replace />} />
