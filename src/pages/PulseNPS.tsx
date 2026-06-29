@@ -14,35 +14,16 @@ const ACTIVE_STATUSES = [
 export default function PulseNPS() {
   const { canEdit: canEditRgy, loading: roleLoading } = useCanEditRgy();
 
-  const { data: visibleIds } = useQuery({
-    queryKey: ["pulse-visible-deal-ids"],
-    enabled: canEditRgy,
-    staleTime: 5 * 60_000,
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("visible_deal_ids_for_user", {
-        _user_id: (await supabase.auth.getUser()).data.user?.id,
-      });
-      if (error) throw error;
-      return (data || []).map((r: any) => r.deal_id as string);
-    },
-  });
-
   const { data: deals = [], isLoading } = useQuery({
-    queryKey: ["pulse-nps-deals", visibleIds?.length ?? 0],
-    enabled: canEditRgy && visibleIds !== undefined,
+    queryKey: ["pulse-nps-deals"],
+    enabled: canEditRgy,
     queryFn: async () => {
-      let q = supabase
+      const { data, error } = await supabase
         .from("staffing_deals")
         .select("id, new_deal_id_formulated, deal_name, account, vsd, principal_bopm, senior_bopm, bopm, deal_status")
         .in("deal_status", ACTIVE_STATUSES)
         .order("account", { ascending: true })
         .limit(500);
-      if (visibleIds && visibleIds.length > 0) {
-        q = q.in("id", visibleIds);
-      } else if (visibleIds && visibleIds.length === 0) {
-        return [];
-      }
-      const { data, error } = await q;
       if (error) throw error;
       return (data || []).map((d: any) => ({
         deal_id: d.new_deal_id_formulated || d.id,
