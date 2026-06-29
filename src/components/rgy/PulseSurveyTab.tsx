@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { useVsdUsers, nameKey } from "@/hooks/queries/legacy";
 import { BopmFilter } from "@/components/access/BopmFilter";
 import { useUserRole } from "@/hooks/useUserRole";
+import PulseEmailTemplateEditor from "./PulseEmailTemplateEditor";
 
 const UNASSIGNED_VSD_VALUES = new Set([
   "", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned",
@@ -445,6 +446,7 @@ export default function PulseSurveyTab({
 
   return (
     <div className="space-y-4">
+      <PulseEmailTemplateEditor />
       {/* Top filters — mirrors Clients & Deals */}
       <div className="flex items-center gap-2 flex-wrap">
         {showVsdChips && (
