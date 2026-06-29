@@ -390,16 +390,30 @@ export default function PulseSurveyTab({ deals }: { deals: Deal[] }) {
             <ul className="divide-y">
               {filteredDeals.map(d => {
                 const on = selectedDealIds.includes(d.deal_id);
+                const cc = contactCounts[d.deal_id] ?? 0;
+                const agg = inviteAggByDeal[d.deal_id];
                 return (
                   <li key={d.deal_id}>
                     <button
                       onClick={() => toggleDeal(d.deal_id)}
+                      onMouseEnter={() => prefetchDeal(d)}
                       className={cn("w-full text-left px-3 py-2 text-xs flex items-start gap-2 hover:bg-muted/40", on && "bg-primary/5")}
                     >
                       <Checkbox checked={on} className="mt-0.5" tabIndex={-1} />
                       <div className="min-w-0 flex-1">
                         <div className="font-medium truncate">{d.account || "—"}</div>
                         <div className="text-muted-foreground truncate">{d.deal_name || d.deal_id}</div>
+                        <div className="mt-1 flex flex-wrap gap-1 text-[10px] text-muted-foreground">
+                          <span className={cn("px-1.5 py-0.5 rounded bg-muted", cc === 0 && "text-amber-700 bg-amber-50")}>
+                            {cc} contact{cc === 1 ? "" : "s"}
+                          </span>
+                          {agg?.sent ? (
+                            <span className="px-1.5 py-0.5 rounded bg-muted">{agg.sent} sent</span>
+                          ) : null}
+                          {agg?.completed ? (
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700">{agg.completed} done</span>
+                          ) : null}
+                        </div>
                       </div>
                     </button>
                   </li>
