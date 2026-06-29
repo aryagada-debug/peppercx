@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import PulseSurveyTab from "@/components/rgy/PulseSurveyTab";
 import { useCanEditRgy } from "@/hooks/useCanEditRgy";
 import { Loader2 } from "lucide-react";
+import { AppLayout } from "@/components/layout/AppLayout";
 
 const ACTIVE_STATUSES = [
   "Active Deal",
@@ -41,21 +42,26 @@ export default function PulseNPS() {
 
   if (roleLoading) {
     return (
-      <div className="p-8 flex items-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" /> Loading…
-      </div>
+      <AppLayout>
+        <div className="p-8 flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+        </div>
+      </AppLayout>
     );
   }
 
   if (!canEditRgy) {
     return (
-      <div className="p-8 text-sm text-muted-foreground">
-        You don't have access to Pulse / NPS surveys.
-      </div>
+      <AppLayout>
+        <div className="p-8 text-sm text-muted-foreground">
+          You don't have access to Pulse / NPS surveys.
+        </div>
+      </AppLayout>
     );
   }
 
   return (
+    <AppLayout>
     <div className="p-6 space-y-4">
       <div>
         <h1 className="text-xl font-semibold text-foreground">Pulse / NPS</h1>
@@ -69,5 +75,6 @@ export default function PulseNPS() {
         <PulseSurveyTab deals={deals as any} />
       )}
     </div>
+    </AppLayout>
   );
 }
