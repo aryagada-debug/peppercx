@@ -82,6 +82,9 @@ export default function DealHandover() {
   const canEditVsd = isAdmin || userEmail === "anirudh@peppercontent.io";
 
   const [tab, setTab] = useState("submit");
+  const [rows, setRows] = useState<HandoverRow[]>([]);
+  const [loadingRows, setLoadingRows] = useState(false);
+  const [open, setOpen] = useState<HandoverRow | null>(null);
   const loadRows = async () => {
     setLoadingRows(true);
     const { data, error } = await supabase
