@@ -68,10 +68,9 @@ type SendResult = {
 const PAGE_SIZE = 50;
 
 function surveyLinkForToken(token: string) {
-  const origin = typeof window !== "undefined" && !window.location.hostname.endsWith(".lovableproject.com")
-    ? window.location.origin
-    : "https://peppercx.lovable.app";
-  return `${origin}/?survey=${token}`;
+  // Always use the published production domain so external recipients never
+  // hit Lovable's editor auth wall (preview/editor origins require login).
+  return `https://peppercx.lovable.app/survey/${token}`;
 }
 
 async function fetchStakeholdersFor(dealIds: string[], accounts: string[]) {
