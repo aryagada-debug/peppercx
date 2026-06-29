@@ -42,6 +42,7 @@ const LeadershipInterventions = lazy(() => import("./pages/LeadershipInterventio
 const Inbox = lazy(() => import("./pages/Inbox"));
 const PulseNPS = lazy(() => import("./pages/PulseNPS"));
 const PulseNPSAnalytics = lazy(() => import("./pages/PulseNPSAnalytics"));
+const DealHandover = lazy(() => import("./pages/DealHandover"));
 
 // Mounts the one-shot seeder under the auth provider so it can read the
 // session and only fire when staffing_people is empty.
@@ -107,6 +108,7 @@ const App = () => (
             <Route path="/rgy-health" element={<ProtectedRoute routeKey="rgy-health"><RGYHealth /></ProtectedRoute>} />
             <Route path="/pulse-nps" element={<ProtectedRoute routeKey="rgy-health"><PulseNPS /></ProtectedRoute>} />
             <Route path="/pulse-nps/analytics" element={<ProtectedRoute routeKey="rgy-health"><PulseNPSAnalytics /></ProtectedRoute>} />
+            <Route path="/deal-handover" element={<ProtectedRoute routeKey="home"><DealHandover /></ProtectedRoute>} />
             <Route path="/mbr-tracker" element={<ProtectedRoute routeKey="mbr-tracker"><MBRTracker /></ProtectedRoute>} />
             <Route path="/onboarding" element={<ProtectedRoute routeKey="onboarding"><Onboarding /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute routeKey="settings"><SettingsPage /></ProtectedRoute>} />
