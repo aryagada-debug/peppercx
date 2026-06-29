@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -13,12 +13,14 @@ import { cn } from "@/lib/utils";
 
 type Deal = {
   deal_id: string;
+  raw_id?: string;
   account: string | null;
   deal_name: string | null;
   vsd: string | null;
   principal_bopm: string | null;
   senior_bopm: string | null;
   bopm: string | null;
+  deal_status?: string | null;
 };
 
 type Stakeholder = {
@@ -46,6 +48,24 @@ type Invite = {
   error: string | null;
 };
 
+const PAGE_SIZE = 50;
+
+async function fetchStakeholdersFor(dealIds: string[], accounts: string[]) {
+  if (dealIds.length === 0) return [] as Stakeholder[];
+  const filters: string[] = [];
+  filters.push(`deal_id.in.(${dealIds.map(s => `"${s}"`).join(",")})`);
+  if (accounts.length) {
+    filters.push(`client_name.in.(${accounts.map(s => `"${s.replace(/"/g, '\\"')}"`).join(",")})`);
+  }
+  const { data, error } = await supabase
+    .from("deal_stakeholders")
+    .select("id, name, role, email, phone, deal_id, client_name")
+    .or(filters.join(","))
+    .limit(2000);
+  if (error) throw error;
+  return (data as Stakeholder[]) || [];
+}
+
 export default function PulseSurveyTab({ deals }: { deals: Deal[] }) {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
@@ -53,6 +73,75 @@ export default function PulseSurveyTab({ deals }: { deals: Deal[] }) {
   const [selectedEmails, setSelectedEmails] = useState<Record<string, string[]>>({});
   const [adhoc, setAdhoc] = useState("");
   const [removedCc, setRemovedCc] = useState<Record<string, string[]>>({});
+  const [page, setPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState<"all" | "sent" | "failed" | "completed">("all");
+
+  // Aggregates: contacts per deal/account, invites sent/completed per deal.
+  const dealIds = useMemo(() => deals.map(d => d.deal_id), [deals]);
+  const accountsAll = useMemo(
+    () => Array.from(new Set(deals.map(d => d.account).filter(Boolean) as string[])),
+    [deals]
+  );
+
+  const { data: contactCounts = {} } = useQuery({
+    queryKey: ["pulse-contact-counts", dealIds.length, accountsAll.length],
+    enabled: dealIds.length > 0,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const filters: string[] = [];
+      filters.push(`deal_id.in.(${dealIds.map(s => `"${s}"`).join(",")})`);
+      if (accountsAll.length) {
+        filters.push(`client_name.in.(${accountsAll.map(s => `"${s.replace(/"/g, '\\"')}"`).join(",")})`);
+      }
+      const { data, error } = await supabase
+        .from("deal_stakeholders")
+        .select("deal_id, client_name, email")
+        .or(filters.join(","))
+        .limit(5000);
+      if (error) throw error;
+      // Aggregate by deal_id and by client_name (account).
+      const byDeal: Record<string, Set<string>> = {};
+      const byAccount: Record<string, Set<string>> = {};
+      for (const r of (data || []) as any[]) {
+        const em = (r.email || "").toLowerCase();
+        if (!em || !em.includes("@")) continue;
+        if (r.deal_id) {
+          (byDeal[r.deal_id] ||= new Set()).add(em);
+        }
+        if (r.client_name) {
+          (byAccount[r.client_name] ||= new Set()).add(em);
+        }
+      }
+      const out: Record<string, number> = {};
+      for (const d of deals) {
+        const direct = byDeal[d.deal_id]?.size ?? 0;
+        const viaAccount = d.account ? byAccount[d.account]?.size ?? 0 : 0;
+        out[d.deal_id] = Math.max(direct, viaAccount);
+      }
+      return out;
+    },
+  });
+
+  const { data: inviteAggByDeal = {} } = useQuery({
+    queryKey: ["pulse-invite-agg", dealIds.length],
+    enabled: dealIds.length > 0,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("survey_invites")
+        .select("deal_id, sent_at, completed_at")
+        .in("deal_id", dealIds)
+        .limit(5000);
+      if (error) throw error;
+      const map: Record<string, { sent: number; completed: number }> = {};
+      for (const r of (data || []) as any[]) {
+        const m = (map[r.deal_id] ||= { sent: 0, completed: 0 });
+        if (r.sent_at) m.sent += 1;
+        if (r.completed_at) m.completed += 1;
+      }
+      return map;
+    },
+  });
 
   const filteredDeals = useMemo(() => {
     const s = search.trim().toLowerCase();
@@ -79,17 +168,7 @@ export default function PulseSurveyTab({ deals }: { deals: Deal[] }) {
   );
   const { data: stakeholders = [], isLoading: shLoading } = useQuery({
     queryKey: ["pulse-stakeholders", accounts, selectedDealIds],
-    queryFn: async () => {
-      if (selectedDealIds.length === 0) return [];
-      const filters: string[] = [];
-      if (selectedDealIds.length) filters.push(`deal_id.in.(${selectedDealIds.map(s => `"${s}"`).join(",")})`);
-      if (accounts.length) filters.push(`client_name.in.(${accounts.map(s => `"${s.replace(/"/g, '\\"')}"`).join(",")})`);
-      let q = supabase.from("deal_stakeholders").select("id, name, role, email, phone, deal_id, client_name");
-      if (filters.length) q = q.or(filters.join(","));
-      const { data, error } = await q.limit(2000);
-      if (error) throw error;
-      return (data as Stakeholder[]) || [];
-    },
+    queryFn: () => fetchStakeholdersFor(selectedDealIds, accounts),
     enabled: selectedDealIds.length > 0,
     staleTime: 60_000,
   });
@@ -114,19 +193,96 @@ export default function PulseSurveyTab({ deals }: { deals: Deal[] }) {
     return m;
   }, [selectedDeals, stakeholders]);
 
-  // Recent invites
+  // Auto-select all stakeholder emails for newly opened deals.
+  useEffect(() => {
+    if (selectedDealIds.length === 0) return;
+    setSelectedEmails(prev => {
+      const next = { ...prev };
+      let changed = false;
+      for (const id of selectedDealIds) {
+        if (next[id] !== undefined) continue;
+        const emails = (dealStakeholders[id] || []).map(s => s.email!).filter(Boolean);
+        if (emails.length === 0) continue;
+        next[id] = emails;
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [selectedDealIds, dealStakeholders]);
+
+  // Recent invites (paginated).
   const { data: invites = [] } = useQuery({
-    queryKey: ["pulse-invites"],
+    queryKey: ["pulse-invites", page, statusFilter],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("survey_invites")
         .select("id, deal_id, account_snapshot, deal_name_snapshot, recipient_name, recipient_email, email_status, cc_emails, sent_at, opened_at, completed_at, error")
         .order("created_at", { ascending: false })
-        .limit(50);
+        .limit(page * PAGE_SIZE);
+      if (statusFilter === "sent") q = q.eq("email_status", "sent");
+      if (statusFilter === "failed") q = q.eq("email_status", "failed");
+      if (statusFilter === "completed") q = q.not("completed_at", "is", null);
+      const { data, error } = await q;
       if (error) throw error;
       return (data as Invite[]) || [];
     },
     staleTime: 30_000,
+  });
+
+  // Response rows for the current invite page.
+  const inviteIds = useMemo(() => invites.map(i => i.id), [invites]);
+  const { data: responsesByInvite = {} } = useQuery({
+    queryKey: ["pulse-responses", inviteIds],
+    enabled: inviteIds.length > 0,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("survey_responses")
+        .select("invite_id, nps, csat_avg, submitted_at")
+        .in("invite_id", inviteIds);
+      if (error) throw error;
+      const m: Record<string, { nps: number | null; csat: number | null }> = {};
+      for (const r of (data || []) as any[]) {
+        if (!r.invite_id) continue;
+        m[r.invite_id] = { nps: r.nps ?? null, csat: r.csat_avg != null ? Number(r.csat_avg) : null };
+      }
+      return m;
+    },
+  });
+
+  // 30-day summary stats.
+  const { data: summary } = useQuery({
+    queryKey: ["pulse-summary-30d"],
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const [inv, resp] = await Promise.all([
+        supabase.from("survey_invites")
+          .select("id, sent_at, opened_at, completed_at", { count: "exact" })
+          .gte("created_at", since)
+          .limit(2000),
+        supabase.from("survey_responses")
+          .select("nps, csat_avg, submitted_at")
+          .gte("submitted_at", since)
+          .limit(2000),
+      ]);
+      if (inv.error) throw inv.error;
+      if (resp.error) throw resp.error;
+      const sent = (inv.data || []).filter((r: any) => r.sent_at).length;
+      const opened = (inv.data || []).filter((r: any) => r.opened_at).length;
+      const completed = (inv.data || []).filter((r: any) => r.completed_at).length;
+      const npsVals = (resp.data || []).map((r: any) => r.nps).filter((n: any) => typeof n === "number");
+      const csatVals = (resp.data || []).map((r: any) => r.csat_avg).filter((n: any) => n != null).map(Number);
+      const avg = (arr: number[]) => arr.length ? Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) * 10) / 10 : null;
+      // NPS score = %promoters (9-10) - %detractors (0-6)
+      let npsScore: number | null = null;
+      if (npsVals.length) {
+        const promoters = npsVals.filter((n: number) => n >= 9).length;
+        const detractors = npsVals.filter((n: number) => n <= 6).length;
+        npsScore = Math.round(((promoters - detractors) / npsVals.length) * 100);
+      }
+      return { sent, opened, completed, avgCsat: avg(csatVals), nps: npsScore, responses: resp.data?.length || 0 };
+    },
   });
 
   const sendMut = useMutation({
@@ -176,6 +332,8 @@ export default function PulseSurveyTab({ deals }: { deals: Deal[] }) {
       setSelectedEmails({});
       setAdhoc("");
       qc.invalidateQueries({ queryKey: ["pulse-invites"] });
+      qc.invalidateQueries({ queryKey: ["pulse-invite-agg"] });
+      qc.invalidateQueries({ queryKey: ["pulse-summary-30d"] });
     },
     onError: (e: any) => {
       toast({ title: "Send failed", description: e?.message || "Try again.", variant: "destructive" });
@@ -184,6 +342,16 @@ export default function PulseSurveyTab({ deals }: { deals: Deal[] }) {
 
   const toggleDeal = (id: string) =>
     setSelectedDealIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+
+  const prefetchDeal = (d: Deal) => {
+    const ids = [d.deal_id];
+    const accts = d.account ? [d.account] : [];
+    qc.prefetchQuery({
+      queryKey: ["pulse-stakeholders", accts, ids],
+      queryFn: () => fetchStakeholdersFor(ids, accts),
+      staleTime: 60_000,
+    });
+  };
 
   const toggleEmail = (dealId: string, email: string) => {
     setSelectedEmails(prev => {
