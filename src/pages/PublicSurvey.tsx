@@ -23,6 +23,8 @@ export default function PublicSurvey() {
     if (typeof window === "undefined") return "";
     const queryToken = new URLSearchParams(window.location.search).get("survey") || "";
     if (queryToken) return queryToken;
+    const pathMatch = window.location.pathname.match(/^\/s\/([^/?#]+)/);
+    if (pathMatch?.[1]) return decodeURIComponent(pathMatch[1]);
     const hash = window.location.hash || "";
     const match = hash.match(/^#\/s\/([^?&/]+)/);
     return match?.[1] ? decodeURIComponent(match[1]) : "";
