@@ -34,7 +34,6 @@ export default function PulseNPS() {
       let q = supabase
         .from("staffing_deals")
         .select("id, new_deal_id_formulated, deal_name, account, vsd, principal_bopm, senior_bopm, bopm, deal_status")
-        .is("deleted_at", null)
         .in("deal_status", ACTIVE_STATUSES)
         .order("account", { ascending: true })
         .limit(500);
