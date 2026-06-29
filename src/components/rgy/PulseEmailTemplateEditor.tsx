@@ -39,7 +39,6 @@ const PLACEHOLDERS: { key: string; label: string }[] = [
 ];
 
 function getSample() {
-  const origin = typeof window !== "undefined" ? window.location.origin : "https://peppercx.lovable.app";
   return {
     first_name: "Ananya",
     recipient_name: "Ananya Sharma",
@@ -47,7 +46,7 @@ function getSample() {
     deal_name: "SEO Retainer",
     vsd: "Sumit",
     sender_name: "Pepper CX",
-    link: `${origin}/?survey=preview`,
+    link: `https://peppercx.lovable.app/survey/preview`,
   };
 }
 
