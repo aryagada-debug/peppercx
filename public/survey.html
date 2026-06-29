@@ -168,6 +168,40 @@ const A = {};            // all answers
 let step = 0;
 let _sent = false;
 
+/* Prefill name/email/company from invite token. */
+if (SURVEY_TOKEN) {
+  fetch(`${SUPABASE_URL}/rest/v1/rpc/get_survey_invite_by_token`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON,
+      'Authorization': `Bearer ${SUPABASE_ANON}`,
+    },
+    body: JSON.stringify({ _token: SURVEY_TOKEN }),
+  }).then(r => r.json()).then(rows => {
+    const row = Array.isArray(rows) ? rows[0] : null;
+    if (!row) return;
+    if (row.completed) {
+      const w = document.querySelector('.wrap');
+      if (w) w.innerHTML = '<div class="card"><h1>You\'ve already responded</h1><p class="lede">Thank you — we\'ve recorded your earlier response. Reach out to centralcx@peppercontent.io if you\'d like to update it.</p></div>';
+      return;
+    }
+    A.name = row.recipient_name || '';
+    A.email = row.recipient_email || '';
+    A.company = row.account_snapshot || '';
+    // Mark opened (best-effort).
+    fetch(`${SUPABASE_URL}/functions/v1/survey-submit`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON,
+        'Authorization': `Bearer ${SUPABASE_ANON}`,
+      },
+      body: JSON.stringify({ token: SURVEY_TOKEN, action: 'opened' }),
+    }).catch(() => {});
+  }).catch(() => {});
+}
+
 /* ---------------- helpers ---------------- */
 const $ = (s,r=document)=>r.querySelector(s);
 const el = (t,c,h)=>{const e=document.createElement(t); if(c)e.className=c; if(h!=null)e.innerHTML=h; return e;};
