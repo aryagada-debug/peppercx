@@ -402,8 +402,23 @@ Deno.serve(async (req) => {
       ? (body as { events: SendInput[] }).events
       : [body as SendInput];
 
-    const { token, email: fromEmail } = await getCentralToken(admin);
-    if (!fromEmail) throw new Error("central_mailbox_missing_email");
+    let token: string;
+    let fromEmail: string | null;
+    try {
+      const c = await getCentralToken(admin);
+      token = c.token;
+      fromEmail = c.email;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg === "central_mailbox_not_connected" || msg === "gmail_oauth_not_configured") {
+        // Soft no-op: notifications are optional; don't break user flows.
+        return json({ ok: true, skipped: true, reason: msg, results: [] });
+      }
+      throw e;
+    }
+    if (!fromEmail) {
+      return json({ ok: true, skipped: true, reason: "central_mailbox_missing_email", results: [] });
+    }
 
     const results: Array<Record<string, unknown>> = [];
     for (const inp of inputs) {
