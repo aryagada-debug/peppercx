@@ -7,8 +7,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CALENDAR_CLIENT_ID") || "";
 const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CALENDAR_CLIENT_SECRET") || "";
-const APP_ORIGIN = Deno.env.get("APP_ORIGIN") || "https://peppercx.lovable.app";
-const PUBLIC_SURVEY_BASE = (Deno.env.get("PUBLIC_SURVEY_BASE") || "").trim();
+const PUBLIC_SURVEY_BASE = "https://peppercx.lovable.app";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -37,10 +36,9 @@ function randomToken(): string {
 }
 
 function surveyLinkFor(_req: Request, token: string): string {
-  // Single source of truth: the published app. We never derive the link from
-  // the request Origin so editor/preview hosts can't leak into invite emails.
-  const base = (PUBLIC_SURVEY_BASE || APP_ORIGIN).replace(/\/$/, "");
-  return `${base}/survey/${token}`;
+  // Single source of truth: the published app. Do not read request Origin or
+  // environment overrides, because stale preview hosts cause Access denied.
+  return `${PUBLIC_SURVEY_BASE}/survey/${token}`;
 }
 
 function publicErrorMessage(error: unknown): string {
