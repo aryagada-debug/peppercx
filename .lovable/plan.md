@@ -1,53 +1,82 @@
-## Goal
-The "Access denied" screen in the screenshot is Lovable's editor auth wall — the survey link the recipient clicked points at an `id-preview--*.lovable.app` (editor) URL, not the published `peppercx.lovable.app` domain. Even with the recent edge-function fix, any invite created or copied from inside the editor preview still produces an editor-hosted link, and a few helpers still embed the wrong host. We will replace this with a fully standalone, anonymous public form that:
+## Pepper Customer Pulse — multi-step survey
 
-- Lives on a dedicated route on the **published** domain, with no `AuthProvider`, no `ProtectedRoute`, no role checks.
-- Writes the response directly to Supabase via the anon key (no edge function dependency, no JWT).
-- Looks identical to today's survey UI so brand stays consistent.
+Replace the current single-card survey with a branching wizard, and add a "View / Edit" surface so the team can preview and tweak the question copy without redeploying.
 
-## Scope
+### 1. Database (one migration)
 
-### 1. New public route (no auth)
-- Add `src/pages/SurveyForm.tsx` — a self-contained component that:
-  - Reads the token from `/survey/:token`, `?token=...`, or `?survey=...`.
-  - Loads invite metadata via the existing `get_survey_invite_by_token` RPC (already `SECURITY DEFINER`, safe for anon).
-  - Calls `supabase.from('survey_responses').insert({...})` directly using the anon client. No `functions.invoke`, no auth headers.
-  - Marks the invite `opened_at` / `completed_at` via a new tiny `SECURITY DEFINER` RPC `mark_survey_invite(_token, _state)` so anon can update without broad table grants.
-- Mount it in `src/App.tsx` **outside** `AuthProvider`:
-  - `/survey/:token`
-  - `/survey`
-  - Keep existing `/s/:token` and `/?survey=...` as redirects → `/survey/:token` so old links keep working.
+Extend `survey_responses` with broken-out columns for fast querying (payload already holds the full nested object):
 
-### 2. Database (single migration)
-- `survey_responses` already has 2 policies. Add:
-  - `GRANT INSERT ON public.survey_responses TO anon;`
-  - Policy `"Anon can submit a survey response with valid token"` `FOR INSERT TO anon WITH CHECK (invite_id IN (SELECT id FROM survey_invites WHERE completed_at IS NULL))`.
-- Add `mark_survey_invite(_token text, _state text)` SECURITY DEFINER function (sets `opened_at` or `completed_at`, scoped by token).
-- Grant `EXECUTE` on the new function + existing `get_survey_invite_by_token` to `anon`.
+- `nps_category` text  — Detractor / Passive / Promoter
+- `renewal_intent` text
+- `mood` text
+- `churn_risk` text  — LOW / MEDIUM / HIGH
+- `churn_reasons` text[]
+- `expansion_ready` boolean
+- `respondent_role` text  — buyer / user / both
+- `capabilities` text[]
 
-### 3. Link generation hardening
-- `src/components/rgy/PulseSurveyTab.tsx` → `surveyLinkForToken` returns `https://peppercx.lovable.app/survey/${token}`.
-- `supabase/functions/send-pulse-survey/index.ts` → `surveyLinkFor` always returns `${APP_ORIGIN}/survey/${token}`, ignoring the request `Origin` entirely (single source of truth: the published domain). Email body and "copy link" actions use the same helper.
+Add `pulse_survey_config` (single row, admin-editable) so question copy, eyebrow text, lede lines and option labels live in the DB:
 
-### 4. Audit (after build)
-- Headless Playwright run from the sandbox:
-  1. Pick an open invite, POST the new form anonymously, verify a row lands in `survey_responses` and the invite gets `completed_at`.
-  2. Re-open the same link → should show the "already submitted" thank-you state instead of a fresh form.
-  3. Hit `/survey/invalid-token` → "Survey unavailable" card, no crash.
-- Run `supabase--read_query` to confirm: `select count(*) from survey_responses where created_at > now() - interval '5 min'` increments, and the invite row's `completed_at` is set.
-- Document the result inline in chat (counts + screenshot of the form).
+- `id` uuid PK, `version` int, `config` jsonb (full step/question tree), `updated_at`, `updated_by`
+- Grants + RLS: anon `SELECT` (needed by public form), admins can `UPDATE/INSERT`.
 
-## Technical notes
+Seed one row with the defaults from the spec.
 
-```text
-Old:  email link → id-preview--*.lovable.app/?survey=TOKEN → Lovable editor auth wall (Access denied)
-New:  email link → peppercx.lovable.app/survey/TOKEN       → SurveyForm.tsx (anon) → survey_responses
-```
+### 2. Public wizard — `src/pages/SurveyForm.tsx`
 
-- No edge-function invocation from the form, so even if `send-app-email` / central mailbox is mis-configured the form still records responses.
-- `AuthProvider` is never mounted on `/survey/*`, so there is no session check, no redirect, no role gating.
-- All existing analytics (`PulseNPSAnalytics`, `useAnalyticsData`) read from `survey_responses` — no changes needed there.
+Full rewrite as a stepper. Token resolution + invite lookup stays the same (`get_survey_invite_by_token` RPC). New pieces:
 
-## Out of scope
-- Re-sending old invites with corrected links (user can re-trigger from the Pulse tab once the new route is live).
-- Visual redesign of the form (keeps current layout).
+- Loads `pulse_survey_config` once; falls back to bundled defaults if fetch fails.
+- State machine: `answers` object mirroring the payload schema in the spec.
+- Top progress bar (`step / totalSteps * 100`), step meta line, Back / Continue, inline red validation copy.
+- Step components (one card on screen at a time, fade+rise animation):
+  1. Role (3 big cards) — sets `isBuyer`, `isUser`
+  2. Capabilities (multi, ≥1)
+  3. NPS 0-10 with colour-banded selection + dynamic follow-up textarea
+  4. Value & ROI (2 scales; buyer-only outcome input)
+  5. Capability deep-dive — only renders sections for picked capabilities, incl. GEO highlighted box
+  6. Experience CSAT star matrix (rows depend on role) + N/A + follow-up
+  7. CES + friction textarea
+  8. Renewal intent + conditional save-lever textarea
+  9. Expansion (multi with "happy as-is" mutual-exclusive) + referral scale + conditional name
+  10. Wrap-up — mood, optional contact, follow-up call choice
+- Reusable inputs: `Scale`, `NPSScale`, `SingleChoice`, `MultiChoice` (with mutex rule), `StarMatrix`, `RevealBlock`, `Textarea600`.
+- Submit:
+  - Computes `nps.category`, `experience.avg`, `expansion_ready`, `flags.churn_risk` + `reasons` per the scoring rules.
+  - Calls a new RPC `submit_pulse_response(_token, _payload, _meta)` that writes to `survey_responses` (broken-out columns + payload) and marks the invite completed. This keeps anon writes safe via SECURITY DEFINER, same pattern as `submit_survey_response`.
+  - On failure, still shows the thank-you screen with Copy JSON / Download .json fallback so no answer is lost.
+- Thank-you screen: 🎉, NPS + category, avg experience /5, mood emoji, collapsible JSON, "New response" reset.
+
+### 3. Design tokens
+
+Scope the spec's tokens (`--ink`, `--brand`, `--brand-soft`, gradient bg, 16px radius, soft purple shadow) to the public survey route only via a wrapper class in `SurveyForm.tsx` + a small `survey.css` (or inline `<style>`) so it does not bleed into the app theme.
+
+### 4. View / Edit survey copy
+
+New admin tab inside the existing **Pulse / NPS** page (`src/pages/PulseNPS.tsx`) called **"Survey form"**:
+
+- Left: live preview of the wizard (read-only, uses the same components, points at the working draft config).
+- Right: structured editor for each step — eyebrow, h1, lede, option labels, scale end-labels, required toggle. Backed by `pulse_survey_config.config` jsonb.
+- Save writes a new row (versioned) and bumps `version`; "Reset to defaults" restores the seeded version.
+- Gated by `useCanEditRgy` (already used on this page).
+
+### 5. Slack alert on HIGH churn risk
+
+New edge function `pulse-churn-alert`:
+
+- Triggered from the client immediately after a successful insert when `churn_risk === 'HIGH'` (simpler than DB webhook, no extra infra).
+- Posts to `SLACK_WEBHOOK` (request as a secret if not present) with the formatted 🚨 message from the spec.
+
+### 6. Acceptance checks (manually verified after build)
+
+- Content-only buyer vs SEO+Creative user see different deep-dive + experience sections.
+- Per-step required gating with the warm error copy.
+- "Happy as-is" mutex + star-row N/A clearing.
+- HIGH-risk submission fires exactly one Slack alert; LOW/MEDIUM do not.
+- Row in `survey_responses` has both `payload` and broken-out columns populated.
+- Existing invite-token flow + thank-you-on-completed-invite still works.
+
+### Out of scope (call out)
+
+- No change to invite sending, email templates, or analytics page — they keep reading `nps`, `csat_avg`, and `payload` which all still populate.
+- `csat_avg` will be set to `experience.avg` (rounded to nearest int 1-5) so the existing analytics keep working without changes.

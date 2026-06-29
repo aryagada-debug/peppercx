@@ -1496,6 +1496,36 @@ export type Database = {
         }
         Relationships: []
       }
+      pulse_survey_config: {
+        Row: {
+          config: Json
+          created_at: string
+          id: string
+          is_active: boolean
+          updated_at: string
+          updated_by: string | null
+          version: number
+        }
+        Insert: {
+          config: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Relationships: []
+      }
       rgy_leadership_intervention_comments: {
         Row: {
           author_name: string
@@ -2589,56 +2619,80 @@ export type Database = {
       }
       survey_responses: {
         Row: {
+          capabilities: string[] | null
           ces: number | null
+          churn_reasons: string[] | null
           churn_risk: string | null
+          churn_risk_level: string | null
           created_at: string
           csat_avg: number | null
           deal_id: string | null
+          expansion_ready: boolean | null
           id: string
           invite_id: string | null
           mood: string | null
+          mood_v2: string | null
           nps: number | null
+          nps_category: string | null
           payload: Json
           renew: string | null
+          renewal_intent: string | null
           respondent_company: string | null
           respondent_email: string | null
           respondent_name: string | null
+          respondent_role: string | null
           submitted_at: string
           wants_followup: string | null
         }
         Insert: {
+          capabilities?: string[] | null
           ces?: number | null
+          churn_reasons?: string[] | null
           churn_risk?: string | null
+          churn_risk_level?: string | null
           created_at?: string
           csat_avg?: number | null
           deal_id?: string | null
+          expansion_ready?: boolean | null
           id?: string
           invite_id?: string | null
           mood?: string | null
+          mood_v2?: string | null
           nps?: number | null
+          nps_category?: string | null
           payload?: Json
           renew?: string | null
+          renewal_intent?: string | null
           respondent_company?: string | null
           respondent_email?: string | null
           respondent_name?: string | null
+          respondent_role?: string | null
           submitted_at?: string
           wants_followup?: string | null
         }
         Update: {
+          capabilities?: string[] | null
           ces?: number | null
+          churn_reasons?: string[] | null
           churn_risk?: string | null
+          churn_risk_level?: string | null
           created_at?: string
           csat_avg?: number | null
           deal_id?: string | null
+          expansion_ready?: boolean | null
           id?: string
           invite_id?: string | null
           mood?: string | null
+          mood_v2?: string | null
           nps?: number | null
+          nps_category?: string | null
           payload?: Json
           renew?: string | null
+          renewal_intent?: string | null
           respondent_company?: string | null
           respondent_email?: string | null
           respondent_name?: string | null
+          respondent_role?: string | null
           submitted_at?: string
           wants_followup?: string | null
         }
@@ -3203,6 +3257,10 @@ export type Database = {
         }[]
       }
       resolve_current_person: { Args: { _user_id: string }; Returns: string }
+      submit_pulse_response: {
+        Args: { _payload: Json; _token: string }
+        Returns: Json
+      }
       submit_survey_response: {
         Args: {
           _comment?: string
