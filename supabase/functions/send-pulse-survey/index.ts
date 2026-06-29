@@ -36,22 +36,11 @@ function randomToken(): string {
   return Array.from(buf, b => b.toString(16).padStart(2, "0")).join("");
 }
 
-function appOriginFor(req: Request): string {
-  const origin = (req.headers.get("Origin") || "").trim();
-  // Never put Lovable editor/preview origins in customer-facing survey links:
-  // external recipients hit Lovable's editor auth wall there. Survey links must
-  // always resolve on the published app unless an explicit public base is set.
-  if (/^https?:\/\//i.test(origin) && !/\.lovableproject\.com$/i.test(new URL(origin).hostname)) {
-    return origin.replace(/\/$/, "");
-  }
-  return APP_ORIGIN.replace(/\/$/, "");
-}
-
-function surveyLinkFor(req: Request, token: string): string {
-  const override = PUBLIC_SURVEY_BASE.replace(/\/$/, "");
-  if (override) return `${override}/s/${token}`;
-  const origin = appOriginFor(req);
-  return `${origin}/?survey=${token}`;
+function surveyLinkFor(_req: Request, token: string): string {
+  // Single source of truth: the published app. We never derive the link from
+  // the request Origin so editor/preview hosts can't leak into invite emails.
+  const base = (PUBLIC_SURVEY_BASE || APP_ORIGIN).replace(/\/$/, "");
+  return `${base}/survey/${token}`;
 }
 
 function publicErrorMessage(error: unknown): string {

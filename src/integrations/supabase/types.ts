@@ -3181,6 +3181,10 @@ export type Database = {
         Returns: boolean
       }
       is_leadership_viewer: { Args: { _user_id: string }; Returns: boolean }
+      mark_survey_invite: {
+        Args: { _state: string; _token: string }
+        Returns: undefined
+      }
       normalize_staffing_role_key: {
         Args: { _role_key: string }
         Returns: string
@@ -3199,6 +3203,16 @@ export type Database = {
         }[]
       }
       resolve_current_person: { Args: { _user_id: string }; Returns: string }
+      submit_survey_response: {
+        Args: {
+          _comment?: string
+          _csat: number
+          _nps: number
+          _payload?: Json
+          _token: string
+        }
+        Returns: Json
+      }
       toggle_staffing_lock: {
         Args: { _deal_id: string; _lock: boolean }
         Returns: {

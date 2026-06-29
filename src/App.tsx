@@ -44,6 +44,7 @@ const PulseNPS = lazy(() => import("./pages/PulseNPS"));
 const PulseNPSAnalytics = lazy(() => import("./pages/PulseNPSAnalytics"));
 const DealHandover = lazy(() => import("./pages/DealHandover"));
 const PublicSurvey = lazy(() => import("./pages/PublicSurvey"));
+const SurveyForm = lazy(() => import("./pages/SurveyForm"));
 
 // Mounts the one-shot seeder under the auth provider so it can read the
 // session and only fire when staffing_people is empty.
@@ -63,14 +64,15 @@ function isPublicSurveyRequest(location?: ReturnType<typeof useLocation>) {
     const params = new URLSearchParams(window.location.search);
     const hasSurveyQuery = !!params.get("survey");
     const hasSurveyHash = /^#\/s\//.test(window.location.hash || "");
-    const hasSurveyPath = /^\/s\/[^/]+/.test(location?.pathname || window.location.pathname || "");
+    const path = location?.pathname || window.location.pathname || "";
+    const hasSurveyPath = /^\/(?:s|survey)(?:\/|$)/.test(path);
     return hasSurveyQuery || hasSurveyHash || hasSurveyPath;
   }
-  return /^\/s\/[^/]+/.test(location?.pathname || "");
+  return /^\/(?:s|survey)(?:\/|$)/.test(location?.pathname || "");
 }
 
 function RootRoute() {
-  if (isPublicSurveyRequest()) return <PublicSurvey />;
+  if (isPublicSurveyRequest()) return <SurveyForm />;
   return <Navigate to="/home" replace />;
 }
 
@@ -124,7 +126,7 @@ function AppRoutes() {
 
 function RouterSwitch() {
   const location = useLocation();
-  if (isPublicSurveyRequest(location)) return <PublicSurvey />;
+  if (isPublicSurveyRequest(location)) return <SurveyForm />;
   return <AppRoutes />;
 }
 
