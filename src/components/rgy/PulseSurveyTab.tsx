@@ -362,7 +362,13 @@ export default function PulseSurveyTab({
         };
         calls.push(
           supabase.functions.invoke("send-pulse-survey", { body }).then(({ data, error }) => {
-            if (error) throw error;
+            if (error) {
+              const msg = (data as any)?.error || error.message || "";
+              if (typeof msg === "string" && msg.includes("central_mailbox")) {
+                throw new Error("Central mailbox not connected. Ask an admin to connect centralcx@peppercontent.io in Settings → Email.");
+              }
+              throw error;
+            }
             // filter ccEmails post-hoc for UI; the function already auto-CCs.
             return data;
           }).then(data => {
