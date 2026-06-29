@@ -1,84 +1,74 @@
-# Sales → Delivery Handover — Wizard Rebuild
+# Editable NPS/CSAT Email Body + Live Preview
 
-Rebuild the **Submit handover** tab on `/deal-handover` as a multi-step wizard exactly per spec. The existing Queue tab, drawer (Priyanka edits Deal ID/Name; Anirudh confirms VSD), auto-create trigger, and lead notifications stay as-is.
+Today the invitation email is hardcoded inside the `send-pulse-survey` edge function — you can't change wording without a code push, and there's no way to see what recipients receive. This adds an in-app editor with placeholders, a live preview that shows the rendered email with the survey link, and makes the edge function read whatever you save.
 
-## 1. Database (migration)
+## What you'll see in the app
 
-Extend `public.deal_handovers`:
+In **Pulse / NPS → Send**, a new collapsible panel **"Email template"** above the recipient picker:
 
-- Add `reference text` (unique, nullable until first submit so old rows survive; new inserts always set it).
-- Add CHECK constraints with the **exact** option lists from the spec:
-  - `stage` ∈ {Pre-Proposal, Proposal, Negotiation, (Free) Pilot before SLA, (Paid) Pilot before SLA, SLA back-and-forth, SLA signed; awaiting contraction, SLA signed & contraction is on the platform, SLA signed & contraction is on the platform AND escalated, ''}
-  - `bu` ∈ {Pepper SEO/GEO + Content, Pepper Content, Pepper Creative, Integrated, Content Studios, Others, Not Applicable, ''}
-  - `capability` ∈ the 13 listed lines + Other + ''
-  - `deal_type` ∈ {Retainer, Non-retainer, ''}
-  - `vsd_suggested` ∈ {Aamir Khan, Aditya Shaw, Sneha Iyer, Neema Jayadas, Sumit Shekhawat, ''}
-- Add CHECK: when `deal_type = 'Retainer'` then `mrr IS NOT NULL`; when `'Non-retainer'` then `mrr IS NULL`.
-- Keep `mrr` / `total_amount` as `numeric` storing integer rupees (form rounds before save).
-- Empty strings ('') stay allowed so the legacy rows + drafts continue to load.
+- **Subject** (single line input) — supports placeholders
+- **Greeting** (single line) — e.g. `Hi {{first_name}},`
+- **Body** (multi-line rich text-ish textarea) — supports placeholders, line breaks become paragraphs
+- **CTA button label** (default: *Share your feedback →*)
+- **Footer note** (small print line at the bottom)
+- Available placeholders chip row (click to insert): `{{recipient_name}}`, `{{first_name}}`, `{{account}}`, `{{deal_name}}`, `{{vsd}}`, `{{sender_name}}`, `{{link}}`
+- **Save** / **Reset to default** buttons
+- **Live preview** pane to the right (or below on narrow screens) showing the fully-rendered branded email exactly as Gmail will render it, with:
+  - Sample recipient: *Ananya Sharma — HDFC Bank — SEO Retainer*
+  - A real-looking sample survey URL `https://peppercx.lovable.app/survey.html?t=preview`
+  - A purple **"Share your feedback →"** button that's clickable in preview (opens the survey in a new tab so you can click through end-to-end)
+- "Last edited by … on …" stamp
 
-No changes to RLS, the auto-create trigger, or email templates.
+When you click **Send Pulse**, each recipient gets your saved template, with their own first name and a unique tokenised link substituted in.
 
-## 2. Frontend wizard (`src/pages/DealHandover.tsx` + new `src/components/handover/`)
+## Layout sketch
 
-Replace the existing single-page submit form with a wizard:
-
+```text
+┌─ Email template ─────────────────────────────────────────────┐
+│ Subject:  [ How are we doing on {{account}} — {{deal_name}}? ] │
+│ Greeting: [ Hi {{first_name}},                              ] │
+│ Body:                                                         │
+│ ┌────────────────────────────┐   ┌─ Live preview ──────────┐│
+│ │ Your honest feedback…      │   │  [rendered email card]  ││
+│ │                            │   │   ── header             ││
+│ │ {{link}} appears as button │   │   ── greeting           ││
+│ └────────────────────────────┘   │   ── body paragraphs    ││
+│ CTA label: [ Share your feedback → ]   ── purple CTA      ││
+│ Footer:    [ Sent by Pepper CS… ]      ── footer          ││
+│ Placeholders: [recipient_name][first_name][account]…       ││
+│ [Reset to default]                     [Save template]      ││
+└──────────────────────────────────────────────────────────────┘
 ```
-[ 1 Salesperson ] → [ 2 Client ] → [ 3 Documents ] → [ 4 Deal ] → [ Review ] → [ Submitted ]
-```
 
-Shared shell:
-- Progress indicator (5 dots + labels). Completed steps are clickable to jump back; future steps locked until reached.
-- Sticky footer: **Back** / **Continue** (Continue → **Submit** on Review).
-- Per-step validation on Continue: collect errors, scroll to + focus the first invalid field (using refs map keyed by field id).
-- Form state held in a single object via `useState`; not persisted across reloads.
+## Technical details
 
-### Step 1 — Salesperson
-Fields: `sp_name*`, `sp_email*` (email regex), `sp_team`, `handover_date*` (date, defaults today).
+**New table** `pulse_email_templates` (singleton row, `id='default'`):
+- columns: `subject`, `greeting`, `body`, `cta_label`, `footer_note`, `updated_by`, `updated_at`
+- RLS: read for any authenticated user; update only for admins + leadership roles (VSD / Sr BOPM / Principal BOPM) — matches RGY edit gating already in the app
+- GRANTs to `authenticated` and `service_role`
 
-### Step 2 — Client
-Fields: `company_name*`, `industry`, `website*`.
-Contacts (JSONB on row): repeatable list, min 1. "Add another contact" appends; "Remove" shows only when >1. Each contact: `name*`, `role`, `email*` (regex), `phone`.
+**Edge function** `send-pulse-survey/index.ts`:
+- Before sending, load the template row; fall back to current hardcoded defaults if absent
+- Add a small `renderTemplate(str, vars)` that swaps `{{key}}` tokens
+- Reuse the existing branded HTML shell — only the subject, greeting, body paragraphs, CTA label, and footer text become variable; brand colors/structure stay fixed so emails always look on-brand
+- Body: split on blank lines into `<p>` blocks; `{{link}}` inside body is removed (link is always the CTA button)
 
-### Step 3 — Documents
-`sow_url*`, `strategy_deck_url`, `keywords_url`, `geo_audit_url`, `fireflies_url`, `docs_notes` (textarea).
+**Frontend**
+- New `src/components/rgy/PulseEmailTemplateEditor.tsx`:
+  - Loads/saves the template row
+  - `renderPreview()` mirrors the edge function's render logic so what you see is what gets sent
+  - Renders the preview inside a sandboxed `<iframe srcDoc>` so the email styles can't leak into the app
+- Mounted at the top of `src/components/rgy/PulseSurveyTab.tsx`, collapsed by default with a "Edit email" toggle so the existing Send flow stays uncluttered
+- A small **"Send me a test"** button that calls `send-pulse-survey` with the current user as the sole recipient and a throwaway preview deal selection — optional, only enabled once a deal is picked
 
-### Step 4 — Deal
-- `stage*`, `bu*`, `capability*` as Selects with the exact lists above.
-- `deal_type*` as a 2-option radio/segmented control (Retainer | Non-retainer).
-- `mrr` currency — visible & required only when Retainer; hidden + cleared on switch to Non-retainer.
-- `total_amount*` currency.
-- `duration_months` (number).
-- `start_date*` (date, defaults today).
-- `vsd_suggested` Select with the 5 names (optional, with "— None —").
-- `deal_notes` textarea ("Special terms / context").
+**Non-goals (call out so we're aligned)**
+- Per-deal or per-VSD template variants — single global template for now
+- Rich text editor (bold/italic/lists) — plain text with paragraph breaks; we can add later if you want
+- Editing the survey form itself (this plan is only the invitation email)
 
-**Currency input** (`CurrencyInput` component): masks input to digits, formats display with `Intl.NumberFormat('en-IN')`, stores integer rupees in form state. Helper text below shows `= ₹X.XX Cr` when value ≥ 1,00,00,000 else `= ₹X.XX L` (hidden when 0/empty).
+## Files touched
 
-### Review step
-Read-only summary, grouped into 4 cards (Salesperson / Client / Documents / Deal) each with an **Edit** button that jumps to its step. Contacts rendered as a list. Currency values shown formatted.
-
-### Submit
-On Submit:
-1. Generate `reference = HND-${year}-${5 alphanum upper}` and `submitted_at = new Date().toISOString()` (we still rely on DB `created_at` server-side, but show this in the UI).
-2. Insert into `deal_handovers` with all spec fields + `reference`.
-3. Fire the existing `sendAppEmail` `handover_submitted` notification (unchanged).
-4. Move to **Submitted** step.
-
-### Submitted step
-- Shows the reference prominently.
-- **Copy handover summary** → builds a plain-text digest of all fields + contacts and writes to clipboard (toast on success).
-- **New handover** → resets form (dates back to today, `deal_type` cleared, MRR hidden, contacts reset to single empty row) and returns to Step 1.
-- Link to the Queue tab.
-
-## 3. Files touched
-
-- New migration: constraints + `reference` column on `deal_handovers`.
-- `src/pages/DealHandover.tsx` — replace the Submit-tab body with `<HandoverWizard />`; Queue tab and drawer untouched.
-- New `src/components/handover/HandoverWizard.tsx` (state + step routing + submit).
-- New `src/components/handover/steps/{Step1Salesperson,Step2Client,Step3Documents,Step4Deal,StepReview,StepSubmitted}.tsx`.
-- New `src/components/handover/CurrencyInput.tsx` (Indian grouping + L/Cr helper).
-- New `src/components/handover/constants.ts` (option lists, VSD names, contact factory, reference generator).
-
-## Out of scope
-Visual polish beyond default shadcn components, draft autosave, edit-after-submit, and any change to the Queue/drawer behavior or the auto-create trigger.
+- `supabase/migrations/<new>.sql` — table + RLS + GRANTs + seed default row
+- `supabase/functions/send-pulse-survey/index.ts` — load template, render with vars
+- `src/components/rgy/PulseEmailTemplateEditor.tsx` — new editor + preview
+- `src/components/rgy/PulseSurveyTab.tsx` — mount the editor panel
