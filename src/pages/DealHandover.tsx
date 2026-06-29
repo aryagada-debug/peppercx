@@ -1,0 +1,649 @@
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { ExternalLink, Plus, Trash2, ClipboardCheck, AlertCircle } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { useUserRole } from "@/hooks/useUserRole";
+import { sendAppEmail } from "@/lib/appEmail";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { toast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+
+type Contact = { name: string; role: string; email: string; phone: string };
+
+interface HandoverRow {
+  id: string;
+  submitter_user_id: string | null;
+  sp_name: string;
+  sp_email: string;
+  sp_team: string;
+  handover_date: string | null;
+  company_name: string;
+  industry: string;
+  website: string;
+  sow_url: string;
+  strategy_deck_url: string;
+  keywords_url: string;
+  geo_audit_url: string;
+  fireflies_url: string;
+  docs_notes: string;
+  stage: string;
+  bu: string;
+  capability: string;
+  deal_type: string;
+  mrr: number | null;
+  total_amount: number | null;
+  duration_months: number | null;
+  start_date: string | null;
+  vsd_suggested: string;
+  deal_notes: string;
+  contacts: Contact[];
+  deal_id: string | null;
+  deal_name: string | null;
+  vsd_confirmed: string | null;
+  status: string;
+  created_deal_id: string | null;
+  created_at: string;
+}
+
+const HANDOVER_LEADS = [
+  "arya.gada@peppercontent.io",
+  "anirudh@peppercontent.io",
+  "priyanka.sharma@peppercontent.io",
+];
+
+const emptyForm = () => ({
+  sp_name: "",
+  sp_email: "",
+  sp_team: "",
+  handover_date: new Date().toISOString().slice(0, 10),
+  company_name: "",
+  industry: "",
+  website: "",
+  sow_url: "",
+  strategy_deck_url: "",
+  keywords_url: "",
+  geo_audit_url: "",
+  fireflies_url: "",
+  docs_notes: "",
+  stage: "",
+  bu: "",
+  capability: "",
+  deal_type: "Retainer",
+  mrr: "",
+  total_amount: "",
+  duration_months: "",
+  start_date: "",
+  vsd_suggested: "",
+  deal_notes: "",
+  contacts: [{ name: "", role: "", email: "", phone: "" }] as Contact[],
+});
+
+function StatusBadge({ row }: { row: HandoverRow }) {
+  if (row.status === "created") return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Created</Badge>;
+  const haveDealId = !!(row.deal_id && row.deal_name);
+  const haveVsd = !!row.vsd_confirmed;
+  if (haveDealId && haveVsd) return <Badge variant="secondary">Processing</Badge>;
+  if (haveDealId || haveVsd) return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">In progress</Badge>;
+  return <Badge variant="outline">Submitted</Badge>;
+}
+
+export default function DealHandover() {
+  const { user } = useAuth();
+  const { isAdmin } = useUserRole();
+  const userEmail = (user?.email || "").toLowerCase();
+  const isLead = HANDOVER_LEADS.includes(userEmail);
+  const canEditDealId = isAdmin || userEmail === "priyanka.sharma@peppercontent.io";
+  const canEditVsd = isAdmin || userEmail === "anirudh@peppercontent.io";
+
+  const [tab, setTab] = useState("submit");
+  const [form, setForm] = useState(emptyForm);
+  const [submitting, setSubmitting] = useState(false);
+  const [rows, setRows] = useState<HandoverRow[]>([]);
+  const [loadingRows, setLoadingRows] = useState(true);
+  const [open, setOpen] = useState<HandoverRow | null>(null);
+
+  // Prefill submitter info
+  useEffect(() => {
+    if (user?.email && !form.sp_email) {
+      setForm((f) => ({ ...f, sp_email: user.email || "", sp_name: (user.user_metadata as any)?.full_name || "" }));
+    }
+  }, [user]); // eslint-disable-line
+
+  const loadRows = async () => {
+    setLoadingRows(true);
+    const { data, error } = await supabase
+      .from("deal_handovers" as any)
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) {
+      toast({ title: "Failed to load handovers", description: error.message, variant: "destructive" });
+    } else {
+      setRows((data as any[]).map((r) => ({ ...r, contacts: Array.isArray(r.contacts) ? r.contacts : [] })));
+    }
+    setLoadingRows(false);
+  };
+
+  useEffect(() => {
+    loadRows();
+  }, []);
+
+  const updateField = (k: string, v: any) => setForm((f) => ({ ...f, [k]: v }));
+  const updateContact = (i: number, k: keyof Contact, v: string) =>
+    setForm((f) => ({ ...f, contacts: f.contacts.map((c, idx) => (idx === i ? { ...c, [k]: v } : c)) }));
+  const addContact = () =>
+    setForm((f) => ({ ...f, contacts: [...f.contacts, { name: "", role: "", email: "", phone: "" }] }));
+  const removeContact = (i: number) =>
+    setForm((f) => ({ ...f, contacts: f.contacts.filter((_, idx) => idx !== i) }));
+
+  const submit = async () => {
+    // Minimal required validation
+    const missing: string[] = [];
+    if (!form.sp_name.trim()) missing.push("Salesperson name");
+    if (!form.sp_email.trim()) missing.push("Salesperson email");
+    if (!form.company_name.trim()) missing.push("Company name");
+    if (!form.sow_url.trim()) missing.push("SoW link");
+    if (!form.contacts.length || !form.contacts[0].name.trim()) missing.push("At least one contact name");
+    if (missing.length) {
+      toast({ title: "Please fill required fields", description: missing.join(", "), variant: "destructive" });
+      return;
+    }
+    setSubmitting(true);
+    const payload = {
+      submitter_user_id: user?.id || null,
+      sp_name: form.sp_name.trim(),
+      sp_email: form.sp_email.trim(),
+      sp_team: form.sp_team.trim(),
+      handover_date: form.handover_date || null,
+      company_name: form.company_name.trim(),
+      industry: form.industry.trim(),
+      website: form.website.trim(),
+      sow_url: form.sow_url.trim(),
+      strategy_deck_url: form.strategy_deck_url.trim(),
+      keywords_url: form.keywords_url.trim(),
+      geo_audit_url: form.geo_audit_url.trim(),
+      fireflies_url: form.fireflies_url.trim(),
+      docs_notes: form.docs_notes.trim(),
+      stage: form.stage,
+      bu: form.bu,
+      capability: form.capability,
+      deal_type: form.deal_type,
+      mrr: form.mrr ? Number(form.mrr) : null,
+      total_amount: form.total_amount ? Number(form.total_amount) : null,
+      duration_months: form.duration_months ? Number(form.duration_months) : null,
+      start_date: form.start_date || null,
+      vsd_suggested: form.vsd_suggested.trim(),
+      deal_notes: form.deal_notes.trim(),
+      contacts: form.contacts.filter((c) => c.name || c.email),
+      status: "submitted",
+    };
+    const { data, error } = await supabase.from("deal_handovers" as any).insert(payload).select().single();
+    setSubmitting(false);
+    if (error) {
+      toast({ title: "Failed to submit", description: error.message, variant: "destructive" });
+      return;
+    }
+    // Notify the three leads via the central mailbox
+    sendAppEmail({
+      event: "test", // re-using test envelope so the central mailbox sends to arbitrary recipients
+      recipients: HANDOVER_LEADS,
+      payload: {
+        kind: "handover_submitted",
+        company: payload.company_name,
+        submitter: `${payload.sp_name} <${payload.sp_email}>`,
+      },
+    });
+    toast({ title: "Handover submitted", description: "Arya, Anirudh and Priyanka have been notified." });
+    setForm(emptyForm());
+    setTab("queue");
+    loadRows();
+  };
+
+  const saveLeadUpdate = async (row: HandoverRow, patch: Partial<HandoverRow>) => {
+    const stamped: any = { ...patch };
+    if (patch.deal_id !== undefined || patch.deal_name !== undefined) {
+      stamped.deal_id_filled_at = new Date().toISOString();
+      stamped.deal_id_filled_by = user?.id || null;
+    }
+    if (patch.vsd_confirmed !== undefined) {
+      stamped.vsd_filled_at = new Date().toISOString();
+      stamped.vsd_filled_by = user?.id || null;
+    }
+    const { data, error } = await supabase
+      .from("deal_handovers" as any)
+      .update(stamped)
+      .eq("id", row.id)
+      .select()
+      .single();
+    if (error) {
+      toast({ title: "Save failed", description: error.message, variant: "destructive" });
+      return;
+    }
+    const updated = { ...(data as any), contacts: Array.isArray((data as any).contacts) ? (data as any).contacts : [] } as HandoverRow;
+    setRows((rs) => rs.map((r) => (r.id === row.id ? updated : r)));
+    setOpen(updated);
+    // Notify next-in-line
+    const nextRecipients: string[] = [];
+    if (patch.deal_id !== undefined || patch.deal_name !== undefined) nextRecipients.push("anirudh@peppercontent.io");
+    if (patch.vsd_confirmed !== undefined) nextRecipients.push("priyanka.sharma@peppercontent.io");
+    if (updated.status === "created") nextRecipients.push(...HANDOVER_LEADS);
+    if (nextRecipients.length) {
+      sendAppEmail({
+        event: "test",
+        recipients: Array.from(new Set(nextRecipients)),
+        payload: {
+          kind: updated.status === "created" ? "handover_completed" : "handover_partial",
+          company: updated.company_name,
+          deal_id: updated.deal_id,
+          deal_name: updated.deal_name,
+          vsd: updated.vsd_confirmed,
+        },
+      });
+    }
+    toast({ title: "Saved", description: updated.status === "created" ? "Deal created in Clients & Deals." : "Updated." });
+  };
+
+  return (
+    <AppLayout>
+      <div className="p-6 max-w-7xl mx-auto space-y-4">
+        <div className="flex items-center gap-2">
+          <ClipboardCheck className="h-5 w-5 text-primary" />
+          <h1 className="text-xl font-semibold">Deal Handover</h1>
+        </div>
+        <p className="text-sm text-muted-foreground -mt-2">
+          Sales fills the handover form. Priyanka adds Deal ID + Deal Name; Anirudh adds the VSD. Once both are filled the deal
+          is auto-created in Clients & Deals.
+        </p>
+
+        <Tabs value={tab} onValueChange={setTab}>
+          <TabsList>
+            <TabsTrigger value="submit">Submit handover</TabsTrigger>
+            <TabsTrigger value="queue">Queue ({rows.length})</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="submit" className="mt-4">
+            <Card className="p-6 space-y-6">
+              <Section title="Salesperson">
+                <Grid>
+                  <Field label="Full name" required>
+                    <Input value={form.sp_name} onChange={(e) => updateField("sp_name", e.target.value)} placeholder="e.g. Aarav Mehta" />
+                  </Field>
+                  <Field label="Work email" required>
+                    <Input type="email" value={form.sp_email} onChange={(e) => updateField("sp_email", e.target.value)} placeholder="name@peppercontent.io" />
+                  </Field>
+                  <Field label="Sales team / region">
+                    <Input value={form.sp_team} onChange={(e) => updateField("sp_team", e.target.value)} placeholder="e.g. Enterprise · West" />
+                  </Field>
+                  <Field label="Handover date">
+                    <Input type="date" value={form.handover_date} onChange={(e) => updateField("handover_date", e.target.value)} />
+                  </Field>
+                </Grid>
+              </Section>
+
+              <Section title="Client">
+                <Grid>
+                  <Field label="Company name" required>
+                    <Input value={form.company_name} onChange={(e) => updateField("company_name", e.target.value)} placeholder="e.g. Northbeam Technologies Pvt. Ltd." />
+                  </Field>
+                  <Field label="Industry">
+                    <Input value={form.industry} onChange={(e) => updateField("industry", e.target.value)} placeholder="e.g. B2B SaaS" />
+                  </Field>
+                  <Field label="Website">
+                    <Input value={form.website} onChange={(e) => updateField("website", e.target.value)} placeholder="https://" />
+                  </Field>
+                </Grid>
+              </Section>
+
+              <Section title="Documents">
+                <Grid>
+                  <Field label="SoW link" required>
+                    <Input value={form.sow_url} onChange={(e) => updateField("sow_url", e.target.value)} placeholder="Link to the signed SOW" />
+                  </Field>
+                  <Field label="Strategy deck">
+                    <Input value={form.strategy_deck_url} onChange={(e) => updateField("strategy_deck_url", e.target.value)} placeholder="Link to the strategy deck" />
+                  </Field>
+                  <Field label="Keywords / projections">
+                    <Input value={form.keywords_url} onChange={(e) => updateField("keywords_url", e.target.value)} placeholder="Link to the keywords sheet" />
+                  </Field>
+                  <Field label="GEO audit deck">
+                    <Input value={form.geo_audit_url} onChange={(e) => updateField("geo_audit_url", e.target.value)} placeholder="Link to the GEO audit deck" />
+                  </Field>
+                  <Field label="Fireflies call recording">
+                    <Input value={form.fireflies_url} onChange={(e) => updateField("fireflies_url", e.target.value)} placeholder="Fireflies link" />
+                  </Field>
+                </Grid>
+                <Field label="Notes on documents">
+                  <Textarea rows={3} value={form.docs_notes} onChange={(e) => updateField("docs_notes", e.target.value)} placeholder="Pending signatures, version caveats, access still to be granted…" />
+                </Field>
+              </Section>
+
+              <Section title="Contacts">
+                <div className="space-y-3">
+                  {form.contacts.map((c, i) => (
+                    <div key={i} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
+                      <div className="md:col-span-3">
+                        <Label className="text-xs">Name {i === 0 && <span className="text-destructive">*</span>}</Label>
+                        <Input value={c.name} onChange={(e) => updateContact(i, "name", e.target.value)} placeholder="e.g. Priya Nair" />
+                      </div>
+                      <div className="md:col-span-3">
+                        <Label className="text-xs">Designation</Label>
+                        <Input value={c.role} onChange={(e) => updateContact(i, "role", e.target.value)} placeholder="e.g. Head of Marketing" />
+                      </div>
+                      <div className="md:col-span-3">
+                        <Label className="text-xs">Email</Label>
+                        <Input value={c.email} onChange={(e) => updateContact(i, "email", e.target.value)} placeholder="priya@company.com" />
+                      </div>
+                      <div className="md:col-span-2">
+                        <Label className="text-xs">Phone</Label>
+                        <Input value={c.phone} onChange={(e) => updateContact(i, "phone", e.target.value)} placeholder="+91 …" />
+                      </div>
+                      <div className="md:col-span-1">
+                        <Button type="button" variant="ghost" size="icon" onClick={() => removeContact(i)} disabled={form.contacts.length === 1}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                  <Button type="button" variant="outline" size="sm" onClick={addContact}>
+                    <Plus className="h-4 w-4 mr-1" /> Add contact
+                  </Button>
+                </div>
+              </Section>
+
+              <Section title="Deal">
+                <Grid>
+                  <Field label="Opportunity stage">
+                    <Select value={form.stage} onValueChange={(v) => updateField("stage", v)}>
+                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="New Deal in SLA/PO">New Deal in SLA/PO</SelectItem>
+                        <SelectItem value="Active Deal">Active Deal</SelectItem>
+                        <SelectItem value="Deal in Renewal Process">Deal in Renewal Process</SelectItem>
+                        <SelectItem value="Deal Disputed">Deal Disputed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field label="Pepper BU">
+                    <Input value={form.bu} onChange={(e) => updateField("bu", e.target.value)} placeholder="e.g. Content / SEO / Creative" />
+                  </Field>
+                  <Field label="Capability line">
+                    <Input value={form.capability} onChange={(e) => updateField("capability", e.target.value)} />
+                  </Field>
+                  <Field label="Deal type">
+                    <Select value={form.deal_type} onValueChange={(v) => updateField("deal_type", v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Retainer">Retainer</SelectItem>
+                        <SelectItem value="Project">Project</SelectItem>
+                        <SelectItem value="Hybrid">Hybrid</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field label="MRR">
+                    <Input type="number" value={form.mrr} onChange={(e) => updateField("mrr", e.target.value)} placeholder="Monthly recurring revenue" />
+                  </Field>
+                  <Field label="Total amount">
+                    <Input type="number" value={form.total_amount} onChange={(e) => updateField("total_amount", e.target.value)} placeholder="Total contract value" />
+                  </Field>
+                  <Field label="Duration (months)">
+                    <Input type="number" value={form.duration_months} onChange={(e) => updateField("duration_months", e.target.value)} placeholder="e.g. 12" />
+                  </Field>
+                  <Field label="Start date">
+                    <Input type="date" value={form.start_date} onChange={(e) => updateField("start_date", e.target.value)} />
+                  </Field>
+                  <Field label="Suggested VSD">
+                    <Input value={form.vsd_suggested} onChange={(e) => updateField("vsd_suggested", e.target.value)} placeholder="Sales suggestion (Anirudh confirms later)" />
+                  </Field>
+                </Grid>
+                <Field label="Special terms / context for delivery">
+                  <Textarea rows={3} value={form.deal_notes} onChange={(e) => updateField("deal_notes", e.target.value)} placeholder="Custom SLAs, promised deliverables, key stakeholders…" />
+                </Field>
+              </Section>
+
+              <div className="flex justify-end gap-2 pt-2 border-t">
+                <Button variant="ghost" onClick={() => setForm(emptyForm())} disabled={submitting}>Reset</Button>
+                <Button onClick={submit} disabled={submitting}>
+                  {submitting ? "Submitting…" : "Submit handover"}
+                </Button>
+              </div>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="queue" className="mt-4">
+            <Card className="overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Company</TableHead>
+                    <TableHead>Submitted by</TableHead>
+                    <TableHead>Submitted</TableHead>
+                    <TableHead>Deal ID</TableHead>
+                    <TableHead>VSD</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loadingRows ? (
+                    <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>
+                  ) : rows.length === 0 ? (
+                    <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No handovers yet.</TableCell></TableRow>
+                  ) : (
+                    rows.map((r) => (
+                      <TableRow key={r.id} className="cursor-pointer hover:bg-muted/40" onClick={() => setOpen(r)}>
+                        <TableCell className="font-medium">{r.company_name}</TableCell>
+                        <TableCell className="text-sm">{r.sp_name || r.sp_email}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{new Date(r.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell className="text-sm">
+                          {r.deal_id ? <span className="font-mono">{r.deal_id}</span> : <Badge variant="outline" className="text-amber-700 border-amber-300">Pending</Badge>}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {r.vsd_confirmed ? r.vsd_confirmed : <Badge variant="outline" className="text-amber-700 border-amber-300">Pending</Badge>}
+                        </TableCell>
+                        <TableCell><StatusBadge row={r} /></TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+        <HandoverDrawer
+          row={open}
+          onClose={() => setOpen(null)}
+          canEditDealId={canEditDealId}
+          canEditVsd={canEditVsd}
+          onSave={saveLeadUpdate}
+        />
+      </div>
+    </AppLayout>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-3">
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{title}</h2>
+      {children}
+    </div>
+  );
+}
+function Grid({ children }: { children: React.ReactNode }) {
+  return <div className="grid grid-cols-1 md:grid-cols-2 gap-3">{children}</div>;
+}
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs">{label} {required && <span className="text-destructive">*</span>}</Label>
+      {children}
+    </div>
+  );
+}
+
+function HandoverDrawer({
+  row, onClose, canEditDealId, canEditVsd, onSave,
+}: {
+  row: HandoverRow | null;
+  onClose: () => void;
+  canEditDealId: boolean;
+  canEditVsd: boolean;
+  onSave: (row: HandoverRow, patch: Partial<HandoverRow>) => Promise<void>;
+}) {
+  const [dealId, setDealId] = useState("");
+  const [dealName, setDealName] = useState("");
+  const [vsd, setVsd] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setDealId(row?.deal_id || "");
+    setDealName(row?.deal_name || "");
+    setVsd(row?.vsd_confirmed || "");
+  }, [row?.id]); // eslint-disable-line
+
+  if (!row) return null;
+
+  const saveDealId = async () => {
+    if (!dealId.trim() || !dealName.trim()) {
+      toast({ title: "Add both Deal ID and Deal Name", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    await onSave(row, { deal_id: dealId.trim(), deal_name: dealName.trim() });
+    setSaving(false);
+  };
+  const saveVsd = async () => {
+    if (!vsd.trim()) return;
+    setSaving(true);
+    await onSave(row, { vsd_confirmed: vsd.trim() });
+    setSaving(false);
+  };
+
+  return (
+    <Sheet open={!!row} onOpenChange={(o) => !o && onClose()}>
+      <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2">
+            {row.company_name} <StatusBadge row={row} />
+          </SheetTitle>
+        </SheetHeader>
+
+        {row.status === "created" && row.created_deal_id && (
+          <div className="mt-4 rounded-md bg-green-50 border border-green-200 px-3 py-2 text-sm flex items-center justify-between">
+            <span>Deal created in Clients &amp; Deals.</span>
+            <Button asChild size="sm" variant="outline">
+              <Link to={`/deals/${encodeURIComponent(row.created_deal_id)}`}><ExternalLink className="h-3 w-3 mr-1" /> Open deal</Link>
+            </Button>
+          </div>
+        )}
+
+        <div className="mt-4 space-y-4">
+          <Card className="p-3 space-y-2">
+            <h3 className="text-xs font-semibold uppercase text-muted-foreground">Priyanka — Deal ID & Name</h3>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs">Deal ID</Label>
+                <Input value={dealId} onChange={(e) => setDealId(e.target.value)} disabled={!canEditDealId || row.status === "created"} placeholder="e.g. D-2026-001" />
+              </div>
+              <div>
+                <Label className="text-xs">Deal Name</Label>
+                <Input value={dealName} onChange={(e) => setDealName(e.target.value)} disabled={!canEditDealId || row.status === "created"} placeholder="e.g. HDFC — SEO Retainer" />
+              </div>
+            </div>
+            {canEditDealId && row.status !== "created" && (
+              <div className="flex justify-end">
+                <Button size="sm" onClick={saveDealId} disabled={saving}>Save Deal ID</Button>
+              </div>
+            )}
+            {!canEditDealId && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1"><AlertCircle className="h-3 w-3" /> Only Priyanka / admin can edit.</p>
+            )}
+          </Card>
+
+          <Card className="p-3 space-y-2">
+            <h3 className="text-xs font-semibold uppercase text-muted-foreground">Anirudh — Confirmed VSD</h3>
+            <Input value={vsd} onChange={(e) => setVsd(e.target.value)} disabled={!canEditVsd || row.status === "created"} placeholder="VSD name" />
+            {row.vsd_suggested && <p className="text-xs text-muted-foreground">Sales suggested: <b>{row.vsd_suggested}</b></p>}
+            {canEditVsd && row.status !== "created" && (
+              <div className="flex justify-end">
+                <Button size="sm" onClick={saveVsd} disabled={saving}>Save VSD</Button>
+              </div>
+            )}
+            {!canEditVsd && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1"><AlertCircle className="h-3 w-3" /> Only Anirudh / admin can edit.</p>
+            )}
+          </Card>
+
+          <Card className="p-3 space-y-2">
+            <h3 className="text-xs font-semibold uppercase text-muted-foreground">Submitted details</h3>
+            <DL k="Submitted by" v={`${row.sp_name} <${row.sp_email}>`} />
+            <DL k="Team" v={row.sp_team} />
+            <DL k="Handover date" v={row.handover_date || ""} />
+            <DL k="Company" v={row.company_name} />
+            <DL k="Industry" v={row.industry} />
+            <DL k="Website" v={row.website} />
+            <DL k="Stage" v={row.stage} />
+            <DL k="BU / Capability" v={[row.bu, row.capability].filter(Boolean).join(" / ")} />
+            <DL k="Deal type" v={row.deal_type} />
+            <DL k="MRR" v={row.mrr ? String(row.mrr) : ""} />
+            <DL k="Total amount" v={row.total_amount ? String(row.total_amount) : ""} />
+            <DL k="Duration" v={row.duration_months ? `${row.duration_months} months` : ""} />
+            <DL k="Start date" v={row.start_date || ""} />
+            <DL k="Notes" v={row.deal_notes} />
+          </Card>
+
+          <Card className="p-3 space-y-2">
+            <h3 className="text-xs font-semibold uppercase text-muted-foreground">Documents</h3>
+            <LinkRow label="SoW" url={row.sow_url} />
+            <LinkRow label="Strategy deck" url={row.strategy_deck_url} />
+            <LinkRow label="Keywords" url={row.keywords_url} />
+            <LinkRow label="GEO audit" url={row.geo_audit_url} />
+            <LinkRow label="Fireflies" url={row.fireflies_url} />
+            {row.docs_notes && <p className="text-sm text-muted-foreground">{row.docs_notes}</p>}
+          </Card>
+
+          <Card className="p-3 space-y-2">
+            <h3 className="text-xs font-semibold uppercase text-muted-foreground">Contacts</h3>
+            {(row.contacts || []).length === 0 && <p className="text-xs text-muted-foreground">None</p>}
+            {(row.contacts || []).map((c, i) => (
+              <div key={i} className="text-sm border-b last:border-0 pb-1">
+                <div className="font-medium">{c.name}{c.role && <span className="text-muted-foreground"> — {c.role}</span>}</div>
+                <div className="text-xs text-muted-foreground">{[c.email, c.phone].filter(Boolean).join(" · ")}</div>
+              </div>
+            ))}
+          </Card>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+function DL({ k, v }: { k: string; v: string }) {
+  if (!v) return null;
+  return (
+    <div className="flex text-sm gap-2">
+      <span className="text-muted-foreground w-32 flex-shrink-0">{k}</span>
+      <span className="flex-1 break-words">{v}</span>
+    </div>
+  );
+}
+function LinkRow({ label, url }: { label: string; url: string }) {
+  if (!url) return null;
+  return (
+    <div className="flex text-sm gap-2 items-center">
+      <span className="text-muted-foreground w-32 flex-shrink-0">{label}</span>
+      <a href={url} target="_blank" rel="noreferrer" className="text-primary hover:underline truncate flex items-center gap-1">
+        <ExternalLink className="h-3 w-3" /> {url}
+      </a>
+    </div>
+  );
+}
