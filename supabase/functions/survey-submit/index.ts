@@ -23,12 +23,20 @@ type Body = {
   payload?: Record<string, unknown>;
 };
 
+function numberInRange(value: unknown, min: number, max: number): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  if (!Number.isInteger(value)) return null;
+  if (value < min || value > max) return null;
+  return value;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const body = (await req.json().catch(() => ({}))) as Body;
     const token = (body.token || "").trim();
     if (!token) return json({ error: "missing_token" }, 400);
+    if (token.length < 12 || token.length > 256) return json({ error: "invalid_token" }, 404);
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
@@ -55,8 +63,10 @@ Deno.serve(async (req) => {
 
     const payload = body.payload || {};
     const p = payload as Record<string, any>;
-    const nps = p?.nps?.score ?? null;
-    const csat = p?.experience?.avg ?? null;
+    const nps = numberInRange(p?.nps?.score, 0, 10);
+    const csat = numberInRange(p?.experience?.avg, 1, 5);
+    if (nps === null) return json({ error: "invalid_nps" }, 400);
+    if (csat === null) return json({ error: "invalid_csat" }, 400);
     const ces = p?.effort?.ces ?? null;
     const renew = p?.retention?.renewal_intent ?? null;
     const mood = p?.sentiment?.mood ?? null;
@@ -66,8 +76,8 @@ Deno.serve(async (req) => {
     const { error: insErr } = await admin.from("survey_responses").insert({
       invite_id: invite.id,
       deal_id: invite.deal_id,
-      nps: typeof nps === "number" ? nps : null,
-      csat_avg: typeof csat === "number" ? csat : null,
+      nps,
+      csat_avg: csat,
       ces: typeof ces === "number" ? ces : null,
       renew,
       mood,
@@ -85,7 +95,7 @@ Deno.serve(async (req) => {
       .update({ completed_at: new Date().toISOString() })
       .eq("id", invite.id);
 
-    return json({ ok: true });
+    return json({ ok: true, inviteId: invite.id });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return json({ error: msg }, 500);

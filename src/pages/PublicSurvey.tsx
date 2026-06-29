@@ -16,7 +16,20 @@ type Invite = {
 };
 
 export default function PublicSurvey() {
-  const { token = "" } = useParams();
+  const params = useParams();
+  const token = useMemo(() => {
+    const routeToken = params.token || "";
+    if (routeToken) return routeToken;
+    if (typeof window === "undefined") return "";
+    const queryToken = new URLSearchParams(window.location.search).get("survey") || "";
+    if (queryToken) return queryToken;
+    const pathMatch = window.location.pathname.match(/^\/s\/([^/?#]+)/);
+    if (pathMatch?.[1]) return decodeURIComponent(pathMatch[1]);
+    const hash = window.location.hash || "";
+    const match = hash.match(/^#\/s\/([^?&/]+)/);
+    return match?.[1] ? decodeURIComponent(match[1]) : "";
+  }, [params.token]);
+  const isPreview = token === "preview" || token === "demo";
   const [loading, setLoading] = useState(true);
   const [invite, setInvite] = useState<Invite | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +43,19 @@ export default function PublicSurvey() {
     let cancelled = false;
     (async () => {
       try {
+        if (isPreview) {
+          if (cancelled) return;
+          setInvite({
+            invite_id: "preview",
+            recipient_name: "Ananya Sharma",
+            recipient_email: "ananya@example.com",
+            account_snapshot: "HDFC Bank",
+            deal_name_snapshot: "SEO Retainer",
+            completed: false,
+          });
+          setLoading(false);
+          return;
+        }
         const { data, error } = await supabase.rpc("get_survey_invite_by_token" as any, { _token: token });
         if (cancelled) return;
         if (error) throw error;
@@ -46,7 +72,7 @@ export default function PublicSurvey() {
       }
     })();
     return () => { cancelled = true; };
-  }, [token]);
+  }, [token, isPreview]);
 
   const canSubmit = useMemo(() => nps !== null && csat !== null && !submitting, [nps, csat, submitting]);
 
@@ -54,6 +80,10 @@ export default function PublicSurvey() {
     if (!canSubmit) return;
     setSubmitting(true);
     try {
+      if (isPreview) {
+        setSubmitted(true);
+        return;
+      }
       const { error } = await supabase.functions.invoke("survey-submit", {
         body: {
           token,
@@ -68,7 +98,9 @@ export default function PublicSurvey() {
       if (error) throw error;
       setSubmitted(true);
     } catch (e: any) {
-      setError(e?.message || "Could not submit. Please try again.");
+      const msg = e?.context?.error || e?.message || "Could not submit. Please try again.";
+      if (String(msg).includes("already_submitted")) setSubmitted(true);
+      else setError(String(msg));
     } finally {
       setSubmitting(false);
     }
@@ -107,7 +139,7 @@ export default function PublicSurvey() {
           <Card className="p-8 text-center space-y-3">
             <CheckCircle2 className="h-10 w-10 mx-auto text-green-600" />
             <h2 className="text-lg font-semibold">Thank you!</h2>
-            <p className="text-sm text-muted-foreground">Your feedback has been recorded.</p>
+            <p className="text-sm text-muted-foreground">{isPreview ? "This is a preview of the survey experience." : "Your feedback has been recorded."}</p>
           </Card>
         ) : (
           <Card className="p-6 space-y-6">

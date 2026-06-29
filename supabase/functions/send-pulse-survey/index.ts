@@ -8,6 +8,7 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CALENDAR_CLIENT_ID") || "";
 const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CALENDAR_CLIENT_SECRET") || "";
 const APP_ORIGIN = Deno.env.get("APP_ORIGIN") || "https://peppercx.lovable.app";
+const PUBLIC_SURVEY_BASE = (Deno.env.get("PUBLIC_SURVEY_BASE") || "").trim();
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -33,6 +34,32 @@ function randomToken(): string {
   const buf = new Uint8Array(24);
   crypto.getRandomValues(buf);
   return Array.from(buf, b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function appOriginFor(req: Request): string {
+  const origin = (req.headers.get("Origin") || "").trim();
+  // Never put Lovable editor/preview origins in customer-facing survey links:
+  // external recipients hit Lovable's editor auth wall there. Survey links must
+  // always resolve on the published app unless an explicit public base is set.
+  if (/^https?:\/\//i.test(origin) && !/\.lovableproject\.com$/i.test(new URL(origin).hostname)) {
+    return origin.replace(/\/$/, "");
+  }
+  return APP_ORIGIN.replace(/\/$/, "");
+}
+
+function surveyLinkFor(req: Request, token: string): string {
+  const override = PUBLIC_SURVEY_BASE.replace(/\/$/, "");
+  if (override) return `${override}/s/${token}`;
+  const origin = appOriginFor(req);
+  return `${origin}/?survey=${token}`;
+}
+
+function publicErrorMessage(error: unknown): string {
+  const msg = error instanceof Error ? error.message : String(error || "unknown_error");
+  if (msg === "central_mailbox_not_connected") return "central_mailbox_not_connected";
+  if (msg === "gmail_oauth_not_configured") return "gmail_oauth_not_configured";
+  if (msg === "central_mailbox_missing_email") return "central_mailbox_missing_email";
+  return msg.slice(0, 300);
 }
 
 function getCreds() {
@@ -223,21 +250,6 @@ Deno.serve(async (req) => {
     }
     ccEmails = Array.from(new Set(ccEmails.map(e => e.toLowerCase())));
 
-    let token: string;
-    let fromEmail: string | null;
-    try {
-      const c = await getCentralToken(admin);
-      token = c.token;
-      fromEmail = c.email;
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (msg === "central_mailbox_not_connected" || msg === "gmail_oauth_not_configured") {
-        return json({ error: msg }, 412);
-      }
-      throw e;
-    }
-    if (!fromEmail) return json({ error: "central_mailbox_missing_email" }, 412);
-
     // Load editable template (singleton); fall back to defaults.
     const { data: tplRow } = await admin
       .from("pulse_email_templates")
@@ -253,8 +265,18 @@ Deno.serve(async (req) => {
     };
 
     const results: Array<Record<string, unknown>> = [];
+    const prepared: Array<{
+      email: string;
+      inviteId: string;
+      token: string;
+      link: string;
+      html: string;
+      subject: string;
+    }> = [];
+
     for (const rcp of recipients) {
       const inviteToken = randomToken();
+      const link = surveyLinkFor(req, inviteToken);
       const inviteRow = {
         token: inviteToken,
         deal_id: deal.id,
@@ -275,7 +297,6 @@ Deno.serve(async (req) => {
         .from("survey_invites").insert(inviteRow).select("id").single();
       if (insErr) { results.push({ email: rcp.email, ok: false, error: insErr.message }); continue; }
 
-      const link = `${APP_ORIGIN}/s/${inviteToken}`;
       const firstName = (rcp.name || "").trim().split(/\s+/)[0] || "there";
       const vars: Record<string, string> = {
         recipient_name: rcp.name || "",
@@ -289,7 +310,33 @@ Deno.serve(async (req) => {
       const label = [deal.account, deal.deal_name].filter(Boolean).join(" — ") || deal.id;
       const html = emailHtml({ vars, tpl, label });
       const subject = renderTemplate(tpl.subject, vars) || `How are we doing on ${label}?`;
-      const raw = buildRaw({ to: [rcp.email], cc: ccEmails, subject, html, from: fromEmail });
+      prepared.push({ email: rcp.email, inviteId: inserted.id, token: inviteToken, link, html, subject });
+    }
+
+    if (prepared.length === 0) {
+      return json({ ok: false, error: "invite_creation_failed", results }, 500);
+    }
+
+    let token: string;
+    let fromEmail: string | null;
+    try {
+      const c = await getCentralToken(admin);
+      token = c.token;
+      fromEmail = c.email;
+      if (!fromEmail) throw new Error("central_mailbox_missing_email");
+    } catch (e) {
+      const msg = publicErrorMessage(e);
+      await admin.from("survey_invites").update({
+        email_status: "failed",
+        error: msg,
+        updated_at: new Date().toISOString(),
+      }).in("id", prepared.map(p => p.inviteId));
+      prepared.forEach(p => results.push({ email: p.email, ok: false, inviteId: p.inviteId, link: p.link, error: msg }));
+      return json({ ok: false, error: msg, ccEmails, results });
+    }
+
+    for (const item of prepared) {
+      const raw = buildRaw({ to: [item.email], cc: ccEmails, subject: item.subject, html: item.html, from: fromEmail });
 
       const sendRes = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
         method: "POST",
@@ -304,21 +351,22 @@ Deno.serve(async (req) => {
         sent_at: new Date().toISOString(),
         gmail_message_id: ok ? (sendData.id as string) : null,
         error: ok ? null : (sendData?.error?.message || "gmail_send_failed"),
-      }).eq("id", inserted.id);
+        updated_at: new Date().toISOString(),
+      }).eq("id", item.inviteId);
 
       await admin.from("email_send_log").insert([{
         event: "pulse_survey",
         deal_id: deal.id,
-        recipient_email: rcp.email,
-        subject,
+        recipient_email: item.email,
+        subject: item.subject,
         status: ok ? "sent" : "failed",
         gmail_message_id: ok ? (sendData.id as string) : null,
         error: ok ? null : (sendData?.error?.message || "gmail_send_failed"),
         triggered_by: user.id,
-        payload: { cc: ccEmails, token: inviteToken },
+        payload: { cc: ccEmails, token: item.token, link: item.link },
       }]);
 
-      results.push({ email: rcp.email, ok, inviteId: inserted.id, error: ok ? null : sendData?.error?.message });
+      results.push({ email: item.email, ok, inviteId: item.inviteId, link: item.link, error: ok ? null : sendData?.error?.message });
     }
 
     return json({ ok: true, ccEmails, results });

@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Search, Send, Mail, X } from "lucide-react";
+import { Copy, ExternalLink, Loader2, Search, Send, Mail, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useVsdUsers, nameKey } from "@/hooks/queries/legacy";
 import { BopmFilter } from "@/components/access/BopmFilter";
@@ -43,6 +43,7 @@ type Stakeholder = {
 
 type Invite = {
   id: string;
+  token: string;
   deal_id: string;
   account_snapshot: string | null;
   deal_name_snapshot: string | null;
@@ -56,7 +57,22 @@ type Invite = {
   error: string | null;
 };
 
+type SendResult = {
+  email: string;
+  ok: boolean;
+  inviteId?: string;
+  link?: string;
+  error?: string | null;
+};
+
 const PAGE_SIZE = 50;
+
+function surveyLinkForToken(token: string) {
+  const origin = typeof window !== "undefined" && !window.location.hostname.endsWith(".lovableproject.com")
+    ? window.location.origin
+    : "https://peppercx.lovable.app";
+  return `${origin}/?survey=${token}`;
+}
 
 async function fetchStakeholdersFor(dealIds: string[], accounts: string[]) {
   if (dealIds.length === 0) return [] as Stakeholder[];
@@ -268,7 +284,7 @@ export default function PulseSurveyTab({
     queryFn: async () => {
       let q = supabase
         .from("survey_invites")
-        .select("id, deal_id, account_snapshot, deal_name_snapshot, recipient_name, recipient_email, email_status, cc_emails, sent_at, opened_at, completed_at, error")
+        .select("id, token, deal_id, account_snapshot, deal_name_snapshot, recipient_name, recipient_email, email_status, cc_emails, sent_at, opened_at, completed_at, error")
         .order("created_at", { ascending: false })
         .limit(page * PAGE_SIZE);
       if (statusFilter === "sent") q = q.eq("email_status", "sent");
@@ -339,7 +355,7 @@ export default function PulseSurveyTab({
 
   const sendMut = useMutation({
     mutationFn: async () => {
-      const calls: Promise<any>[] = [];
+      const calls: Promise<{ ok?: boolean; error?: string; results?: SendResult[] }>[] = [];
       for (const d of selectedDeals) {
         const chosen = selectedEmails[d.deal_id] || [];
         if (chosen.length === 0) continue;
@@ -364,7 +380,7 @@ export default function PulseSurveyTab({
         calls.push(
           supabase.functions.invoke("send-pulse-survey", { body }).then(({ data, error }) => {
             if (error) {
-              const msg = (data as any)?.error || error.message || "";
+              const msg = (data as any)?.error || (error as any)?.context?.error || error.message || "";
               if (typeof msg === "string" && msg.includes("central_mailbox")) {
                 throw new Error("Central mailbox not connected. Ask an admin to connect centralcx@peppercontent.io in Settings → Email.");
               }
@@ -381,12 +397,29 @@ export default function PulseSurveyTab({
           })
         );
       }
+      if (calls.length === 0) throw new Error("Select at least one recipient email.");
       const results = await Promise.allSettled(calls);
-      const failed = results.filter(r => r.status === "rejected").length;
-      return { sent: results.length - failed, failed };
+      const payloads = results.flatMap(r =>
+        r.status === "fulfilled"
+          ? [r.value]
+          : [{ ok: false, error: r.reason?.message || "send_failed", results: [] as SendResult[] }]
+      );
+      const recipientResults = payloads.flatMap(p => p.results || []);
+      const inviteCount = recipientResults.filter(r => r.inviteId).length;
+      const sentCount = recipientResults.filter(r => r.ok).length;
+      const failedCount = recipientResults.filter(r => !r.ok).length + results.filter(r => r.status === "rejected").length;
+      const topError = payloads.find(p => !p.ok && p.error)?.error || recipientResults.find(r => r.error)?.error || null;
+      return { batches: calls.length, inviteCount, sentCount, failedCount, topError };
     },
     onSuccess: (r) => {
-      toast({ title: "Surveys sent", description: `${r.sent} batch(es) sent${r.failed ? `, ${r.failed} failed` : ""}.` });
+      const centralMissing = String(r.topError || "").includes("central_mailbox");
+      toast({
+        title: r.sentCount > 0 ? "Surveys sent" : r.inviteCount > 0 ? "Survey links created" : "Send failed",
+        description: centralMissing
+          ? `${r.inviteCount} survey link(s) were created, but email was not sent because centralcx@peppercontent.io is not connected.`
+          : `${r.inviteCount} link(s) created · ${r.sentCount} email(s) sent${r.failedCount ? ` · ${r.failedCount} failed` : ""}.`,
+        variant: r.sentCount === 0 && r.failedCount > 0 ? "destructive" : undefined,
+      });
       setSelectedEmails({});
       setAdhoc("");
       qc.invalidateQueries({ queryKey: ["pulse-invites"] });
@@ -421,6 +454,15 @@ export default function PulseSurveyTab({
 
   const totalRecipients = Object.values(selectedEmails).reduce((a, v) => a + v.length, 0)
     + adhoc.split(/[,;\s]+/).filter(e => /@/.test(e)).length;
+
+  const copyText = async (text: string, label = "Copied") => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({ title: label });
+    } catch {
+      toast({ title: "Copy failed", description: text, variant: "destructive" });
+    }
+  };
 
   // Select-all helpers for the left deal pane.
   const allFilteredSelected = filteredDeals.length > 0
@@ -717,14 +759,16 @@ export default function PulseSurveyTab({
                 <th className="text-left px-3 py-2">Completed</th>
                 <th className="text-left px-3 py-2">NPS</th>
                 <th className="text-left px-3 py-2">CSAT</th>
+                <th className="text-left px-3 py-2">Link</th>
               </tr>
             </thead>
             <tbody>
               {invites.length === 0 && (
-                <tr><td colSpan={9} className="px-3 py-6 text-center text-muted-foreground">No invites sent yet.</td></tr>
+                <tr><td colSpan={10} className="px-3 py-6 text-center text-muted-foreground">No invites sent yet.</td></tr>
               )}
               {invites.map(inv => {
                 const r = responsesByInvite[inv.id];
+                const link = surveyLinkForToken(inv.token);
                 return (
                 <tr key={inv.id} className="border-t">
                   <td className="px-3 py-2">
@@ -754,6 +798,29 @@ export default function PulseSurveyTab({
                   </td>
                   <td className="px-3 py-2 text-muted-foreground">{r?.nps ?? "—"}</td>
                   <td className="px-3 py-2 text-muted-foreground">{r?.csat ?? "—"}</td>
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => copyText(link, "Survey link copied")}
+                        className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                        aria-label="Copy survey link"
+                        title="Copy survey link"
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                      </button>
+                      <a
+                        href={link}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                        aria-label="Open survey link"
+                        title="Open survey link"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    </div>
+                  </td>
                 </tr>
                 );
               })}
