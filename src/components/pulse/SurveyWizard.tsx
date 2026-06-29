@@ -668,16 +668,16 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
             );
           })}
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12 }}>
           <input placeholder="Name (optional)" value={a.respondent.name}
             onChange={(e) => updateA((p) => ({ ...p, respondent: { ...p.respondent, name: e.target.value } }))}
-            style={{ padding: 12, borderRadius: 10, border: "1px solid var(--line,#e7e4ef)", fontSize: 14, outline: "none" }} />
+            style={INPUT_STYLE} />
           <input placeholder="Work email (optional)" value={a.respondent.email}
             onChange={(e) => updateA((p) => ({ ...p, respondent: { ...p.respondent, email: e.target.value } }))}
-            style={{ padding: 12, borderRadius: 10, border: "1px solid var(--line,#e7e4ef)", fontSize: 14, outline: "none" }} />
+            style={INPUT_STYLE} />
           <input placeholder="Company / account (optional)" value={a.respondent.company}
             onChange={(e) => updateA((p) => ({ ...p, respondent: { ...p.respondent, company: e.target.value } }))}
-            style={{ padding: 12, borderRadius: 10, border: "1px solid var(--line,#e7e4ef)", fontSize: 14, outline: "none" }} />
+            style={{ ...INPUT_STYLE, gridColumn: "1 / -1" }} />
         </div>
         <FieldRow label={c.wrap.followup_q}>
           <div style={{ display: "flex", gap: 8 }}>
