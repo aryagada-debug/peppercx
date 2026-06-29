@@ -520,10 +520,41 @@ export default function PulseSurveyTab({ deals }: { deals: Deal[] }) {
 
       {/* Sent invites */}
       <div>
-        <div className="flex items-center gap-2 mb-2">
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
           <Mail className="h-3.5 w-3.5" />
           <h3 className="text-sm font-semibold">Recent invites</h3>
+          <div className="ml-auto flex items-center gap-1">
+            {(["all","sent","completed","failed"] as const).map(s => (
+              <button
+                key={s}
+                onClick={() => { setStatusFilter(s); setPage(1); }}
+                className={cn(
+                  "px-2 py-0.5 rounded text-[11px] border",
+                  statusFilter === s ? "bg-primary text-primary-foreground border-primary" : "bg-card hover:bg-muted/40"
+                )}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
         </div>
+
+        {/* 30-day summary strip */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-3">
+          {[
+            { label: "Sent (30d)", value: summary?.sent ?? "—" },
+            { label: "Opened", value: summary?.opened ?? "—" },
+            { label: "Completed", value: summary?.completed ?? "—" },
+            { label: "NPS", value: summary?.nps ?? "—" },
+            { label: "Avg CSAT", value: summary?.avgCsat ?? "—" },
+          ].map(s => (
+            <div key={s.label} className="border rounded-md p-2 bg-card">
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{s.label}</div>
+              <div className="text-base font-semibold">{s.value as any}</div>
+            </div>
+          ))}
+        </div>
+
         <div className="border rounded-lg overflow-hidden">
           <table className="w-full text-xs">
             <thead className="bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -535,13 +566,17 @@ export default function PulseSurveyTab({ deals }: { deals: Deal[] }) {
                 <th className="text-left px-3 py-2">Sent</th>
                 <th className="text-left px-3 py-2">Opened</th>
                 <th className="text-left px-3 py-2">Completed</th>
+                <th className="text-left px-3 py-2">NPS</th>
+                <th className="text-left px-3 py-2">CSAT</th>
               </tr>
             </thead>
             <tbody>
               {invites.length === 0 && (
-                <tr><td colSpan={7} className="px-3 py-6 text-center text-muted-foreground">No invites sent yet.</td></tr>
+                <tr><td colSpan={9} className="px-3 py-6 text-center text-muted-foreground">No invites sent yet.</td></tr>
               )}
-              {invites.map(inv => (
+              {invites.map(inv => {
+                const r = responsesByInvite[inv.id];
+                return (
                 <tr key={inv.id} className="border-t">
                   <td className="px-3 py-2">
                     <div className="font-medium">{inv.account_snapshot || "—"}</div>
@@ -568,10 +603,23 @@ export default function PulseSurveyTab({ deals }: { deals: Deal[] }) {
                       ? <Badge className="text-[10px] bg-emerald-100 text-emerald-700 hover:bg-emerald-100">Completed</Badge>
                       : <span className="text-muted-foreground">—</span>}
                   </td>
+                  <td className="px-3 py-2 text-muted-foreground">{r?.nps ?? "—"}</td>
+                  <td className="px-3 py-2 text-muted-foreground">{r?.csat ?? "—"}</td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
+          {invites.length >= page * PAGE_SIZE && (
+            <div className="p-2 border-t bg-muted/20 text-center">
+              <button
+                onClick={() => setPage(p => p + 1)}
+                className="text-xs text-primary hover:underline"
+              >
+                Load more
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
