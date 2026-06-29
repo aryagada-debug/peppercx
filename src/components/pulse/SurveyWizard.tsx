@@ -777,12 +777,50 @@ function downloadJson(s: string) {
 }
 
 function PulseFrame({ children, progress, headerSubtitle }: { children: React.ReactNode; progress: number; headerSubtitle?: string }) {
+  const [isDark, setIsDark] = useState(false);
+  useEffect(() => {
+    const el = document.documentElement;
+    const update = () => setIsDark(el.classList.contains("dark"));
+    update();
+    const obs = new MutationObserver(update);
+    obs.observe(el, { attributes: true, attributeFilter: ["class"] });
+    return () => obs.disconnect();
+  }, []);
+  const vars: Record<string, string> = isDark
+    ? {
+        "--ink": "#f1eef9",
+        "--muted": "#a09cb3",
+        "--line": "#2c2740",
+        "--bg": "#15131f",
+        "--card": "#1c1930",
+        "--brand": "#8b6cff",
+        "--brand-2": "#a78bff",
+        "--brand-soft": "#2a2247",
+        "--good": "#34c98a",
+        "--warn": "#f0a755",
+        "--bad": "#ef5a55",
+      }
+    : {
+        "--ink": "#15131f",
+        "--muted": "#6b6878",
+        "--line": "#e7e4ef",
+        "--bg": "#faf9fc",
+        "--card": "#fff",
+        "--brand": "#5b3df5",
+        "--brand-2": "#8b6cff",
+        "--brand-soft": "#efeaff",
+        "--good": "#1d9d6c",
+        "--warn": "#e0922f",
+        "--bad": "#d8413c",
+      };
   return (
     <div style={{
-      "--ink": "#15131f", "--muted": "#6b6878", "--line": "#e7e4ef", "--bg": "#faf9fc",
-      "--card": "#fff", "--brand": "#5b3df5", "--brand-2": "#8b6cff", "--brand-soft": "#efeaff",
-      "--good": "#1d9d6c", "--warn": "#e0922f", "--bad": "#d8413c",
-      minHeight: "100vh", background: "linear-gradient(180deg,#f4f1fc 0%,#faf9fc 280px)",
+      ...vars,
+      minHeight: "100vh",
+      background: isDark
+        ? "linear-gradient(180deg,#1a1730 0%,#15131f 280px)"
+        : "linear-gradient(180deg,#f4f1fc 0%,#faf9fc 280px)",
+      color: "var(--ink)",
       fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
       padding: "32px 16px 64px",
     } as React.CSSProperties}>
