@@ -73,6 +73,15 @@ function StatusBadge({ row }: { row: HandoverRow }) {
   return <Badge variant="outline">Submitted</Badge>;
 }
 
+function StaffingBadge({ row, staffingMap }: { row: HandoverRow; staffingMap: Record<string, { locked: boolean }> }) {
+  if (row.status !== "created" || !row.created_deal_id) {
+    return <Badge variant="outline">Open</Badge>;
+  }
+  const info = staffingMap[row.created_deal_id];
+  if (info?.locked) return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Staffed</Badge>;
+  return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">Staffing pending</Badge>;
+}
+
 export default function DealHandover() {
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
