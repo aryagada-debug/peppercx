@@ -844,8 +844,27 @@ function PulseFrame({ children, progress, headerSubtitle }: { children: React.Re
       fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
       padding: "32px 16px 64px",
     } as React.CSSProperties}>
-      <style>{`@keyframes pulseRise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }`}</style>
-      <div style={{ maxWidth: 680, margin: "0 auto" }}>
+      <style>{`
+        @keyframes pulseRise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+        .pepper-pulse-shell input,
+        .pepper-pulse-shell textarea {
+          background: var(--field) !important;
+          color: var(--ink) !important;
+          border-color: var(--line) !important;
+        }
+        .pepper-pulse-shell input::placeholder,
+        .pepper-pulse-shell textarea::placeholder { color: var(--placeholder); opacity: 1; }
+        .pepper-pulse-shell input:focus,
+        .pepper-pulse-shell textarea:focus { border-color: var(--brand) !important; }
+        .pepper-pulse-shell input:-webkit-autofill,
+        .pepper-pulse-shell input:-webkit-autofill:hover,
+        .pepper-pulse-shell input:-webkit-autofill:focus {
+          -webkit-text-fill-color: var(--ink) !important;
+          box-shadow: 0 0 0 1000px var(--field) inset !important;
+          transition: background-color 9999s ease-in-out 0s;
+        }
+      `}</style>
+      <div className="pepper-pulse-shell" style={{ maxWidth: 680, margin: "0 auto" }}>
         <header style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
           <div style={{
             width: 30, height: 30, borderRadius: 8,
