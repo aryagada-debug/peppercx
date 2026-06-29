@@ -5,6 +5,7 @@ import {
   CheckSquare, Settings, Building2, BookOpen, Contact,
   ChevronDown, Home, ChevronsLeft, ChevronsRight,
   Trash2, AlertTriangle, Mail, Sparkles,
+  ClipboardCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
@@ -30,6 +31,7 @@ const routePrefetch: Record<string, () => Promise<unknown>> = {
   "/leadership-interventions": () => import("@/pages/LeadershipInterventions"),
   "/inbox": () => import("@/pages/Inbox"),
   "/pulse-nps": () => import("@/pages/PulseNPS"),
+  "/deal-handover": () => import("@/pages/DealHandover"),
 };
 const prefetched = new Set<string>();
 const prefetchRoute = (to: string) => {
@@ -46,6 +48,7 @@ const navSections = [
     items: [
       { to: "/home", icon: Home, label: "Home", routeKey: "home" },
       { to: "/clients", icon: Building2, label: "Clients & Deals", routeKey: "clients" },
+      { to: "/deal-handover", icon: ClipboardCheck, label: "Deal Handover", routeKey: "home" },
       { to: "/inbox", icon: Mail, label: "Inbox", routeKey: "home" },
     ],
   },
