@@ -6,7 +6,7 @@ import { useCanEditRgy } from "@/hooks/useCanEditRgy";
 import { Loader2 } from "lucide-react";
 
 export default function PulseNPS() {
-  const canEditRgy = useCanEditRgy();
+  const { canEdit: canEditRgy, loading: roleLoading } = useCanEditRgy();
 
   const { data: deals = [], isLoading } = useQuery({
     queryKey: ["pulse-nps-deals"],
@@ -28,6 +28,14 @@ export default function PulseNPS() {
       }));
     },
   });
+
+  if (roleLoading) {
+    return (
+      <div className="p-8 flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+      </div>
+    );
+  }
 
   if (!canEditRgy) {
     return (
