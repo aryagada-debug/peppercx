@@ -54,6 +54,7 @@ import { MarkRGYDialog, type MarkRGYDimension } from "@/components/rgy/MarkRGYDi
 import { sendAppEmail } from "@/lib/appEmail";
 import { RGYCombinedIssuesDialog } from "@/components/rgy/RGYCombinedIssuesDialog";
 import { useCanEditRgy } from "@/hooks/useCanEditRgy";
+import PulseSurveyTab from "@/components/rgy/PulseSurveyTab";
 
 type VsdFilterKey = string;
 const UNASSIGNED_VSD_VALUES = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
