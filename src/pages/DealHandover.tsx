@@ -6,6 +6,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { useUserRole } from "@/hooks/useUserRole";
 import { sendAppEmail } from "@/lib/appEmail";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { HandoverWizard } from "@/components/handover/HandoverWizard";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,32 +63,6 @@ const HANDOVER_LEADS = [
   "priyanka.sharma@peppercontent.io",
 ];
 
-const emptyForm = () => ({
-  sp_name: "",
-  sp_email: "",
-  sp_team: "",
-  handover_date: new Date().toISOString().slice(0, 10),
-  company_name: "",
-  industry: "",
-  website: "",
-  sow_url: "",
-  strategy_deck_url: "",
-  keywords_url: "",
-  geo_audit_url: "",
-  fireflies_url: "",
-  docs_notes: "",
-  stage: "",
-  bu: "",
-  capability: "",
-  deal_type: "Retainer",
-  mrr: "",
-  total_amount: "",
-  duration_months: "",
-  start_date: "",
-  vsd_suggested: "",
-  deal_notes: "",
-  contacts: [{ name: "", role: "", email: "", phone: "" }] as Contact[],
-});
 
 function StatusBadge({ row }: { row: HandoverRow }) {
   if (row.status === "created") return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Created</Badge>;
@@ -107,19 +82,6 @@ export default function DealHandover() {
   const canEditVsd = isAdmin || userEmail === "anirudh@peppercontent.io";
 
   const [tab, setTab] = useState("submit");
-  const [form, setForm] = useState(emptyForm);
-  const [submitting, setSubmitting] = useState(false);
-  const [rows, setRows] = useState<HandoverRow[]>([]);
-  const [loadingRows, setLoadingRows] = useState(true);
-  const [open, setOpen] = useState<HandoverRow | null>(null);
-
-  // Prefill submitter info
-  useEffect(() => {
-    if (user?.email && !form.sp_email) {
-      setForm((f) => ({ ...f, sp_email: user.email || "", sp_name: (user.user_metadata as any)?.full_name || "" }));
-    }
-  }, [user]); // eslint-disable-line
-
   const loadRows = async () => {
     setLoadingRows(true);
     const { data, error } = await supabase
@@ -133,82 +95,9 @@ export default function DealHandover() {
     }
     setLoadingRows(false);
   };
-
   useEffect(() => {
     loadRows();
   }, []);
-
-  const updateField = (k: string, v: any) => setForm((f) => ({ ...f, [k]: v }));
-  const updateContact = (i: number, k: keyof Contact, v: string) =>
-    setForm((f) => ({ ...f, contacts: f.contacts.map((c, idx) => (idx === i ? { ...c, [k]: v } : c)) }));
-  const addContact = () =>
-    setForm((f) => ({ ...f, contacts: [...f.contacts, { name: "", role: "", email: "", phone: "" }] }));
-  const removeContact = (i: number) =>
-    setForm((f) => ({ ...f, contacts: f.contacts.filter((_, idx) => idx !== i) }));
-
-  const submit = async () => {
-    // Minimal required validation
-    const missing: string[] = [];
-    if (!form.sp_name.trim()) missing.push("Salesperson name");
-    if (!form.sp_email.trim()) missing.push("Salesperson email");
-    if (!form.company_name.trim()) missing.push("Company name");
-    if (!form.sow_url.trim()) missing.push("SoW link");
-    if (!form.contacts.length || !form.contacts[0].name.trim()) missing.push("At least one contact name");
-    if (missing.length) {
-      toast({ title: "Please fill required fields", description: missing.join(", "), variant: "destructive" });
-      return;
-    }
-    setSubmitting(true);
-    const payload = {
-      submitter_user_id: user?.id || null,
-      sp_name: form.sp_name.trim(),
-      sp_email: form.sp_email.trim(),
-      sp_team: form.sp_team.trim(),
-      handover_date: form.handover_date || null,
-      company_name: form.company_name.trim(),
-      industry: form.industry.trim(),
-      website: form.website.trim(),
-      sow_url: form.sow_url.trim(),
-      strategy_deck_url: form.strategy_deck_url.trim(),
-      keywords_url: form.keywords_url.trim(),
-      geo_audit_url: form.geo_audit_url.trim(),
-      fireflies_url: form.fireflies_url.trim(),
-      docs_notes: form.docs_notes.trim(),
-      stage: form.stage,
-      bu: form.bu,
-      capability: form.capability,
-      deal_type: form.deal_type,
-      mrr: form.mrr ? Number(form.mrr) : null,
-      total_amount: form.total_amount ? Number(form.total_amount) : null,
-      duration_months: form.duration_months ? Number(form.duration_months) : null,
-      start_date: form.start_date || null,
-      vsd_suggested: form.vsd_suggested.trim(),
-      deal_notes: form.deal_notes.trim(),
-      contacts: form.contacts.filter((c) => c.name || c.email),
-      status: "submitted",
-    };
-    const { data, error } = await supabase.from("deal_handovers" as any).insert(payload).select().single();
-    setSubmitting(false);
-    if (error) {
-      toast({ title: "Failed to submit", description: error.message, variant: "destructive" });
-      return;
-    }
-    // Notify the three leads via the central mailbox
-    sendAppEmail({
-      event: "test", // re-using test envelope so the central mailbox sends to arbitrary recipients
-      recipients: HANDOVER_LEADS,
-      payload: {
-        kind: "handover_submitted",
-        company: payload.company_name,
-        submitter: `${payload.sp_name} <${payload.sp_email}>`,
-      },
-    });
-    toast({ title: "Handover submitted", description: "Arya, Anirudh and Priyanka have been notified." });
-    setForm(emptyForm());
-    setTab("queue");
-    loadRows();
-  };
-
   const saveLeadUpdate = async (row: HandoverRow, patch: Partial<HandoverRow>) => {
     const stamped: any = { ...patch };
     if (patch.deal_id !== undefined || patch.deal_name !== undefined) {
