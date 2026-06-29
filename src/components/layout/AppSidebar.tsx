@@ -4,7 +4,7 @@ import {
   Target, Activity, FileText, MessageSquare, Clock,
   CheckSquare, Settings, Building2, BookOpen, Contact,
   ChevronDown, Home, ChevronsLeft, ChevronsRight,
-  Trash2, AlertTriangle, Mail,
+  Trash2, AlertTriangle, Mail, Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
@@ -29,6 +29,7 @@ const routePrefetch: Record<string, () => Promise<unknown>> = {
   "/contacts": () => import("@/pages/Contacts"),
   "/leadership-interventions": () => import("@/pages/LeadershipInterventions"),
   "/inbox": () => import("@/pages/Inbox"),
+  "/pulse-nps": () => import("@/pages/PulseNPS"),
 };
 const prefetched = new Set<string>();
 const prefetchRoute = (to: string) => {
@@ -59,6 +60,7 @@ const navSections = [
     label: "Health & Reviews",
     items: [
       { to: "/rgy-health", icon: Activity, label: "RGY Health", routeKey: "rgy-health" },
+      { to: "/pulse-nps", icon: Sparkles, label: "Pulse / NPS", routeKey: "rgy-health" },
       { to: "/mbr-tracker", icon: FileText, label: "MBR Tracker", routeKey: "mbr-tracker" },
     ],
   },
