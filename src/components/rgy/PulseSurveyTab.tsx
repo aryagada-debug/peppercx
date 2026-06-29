@@ -68,7 +68,9 @@ type SendResult = {
 const PAGE_SIZE = 50;
 
 function surveyLinkForToken(token: string) {
-  const origin = typeof window !== "undefined" ? window.location.origin : "https://peppercx.lovable.app";
+  const origin = typeof window !== "undefined" && !window.location.hostname.endsWith(".lovableproject.com")
+    ? window.location.origin
+    : "https://peppercx.lovable.app";
   return `${origin}/?survey=${token}`;
 }
 
