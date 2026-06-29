@@ -5,6 +5,7 @@ import PulseSurveyTab from "@/components/rgy/PulseSurveyTab";
 import { useCanEditRgy } from "@/hooks/useCanEditRgy";
 import { Loader2 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { PulseTabs } from "@/components/pulse/PulseTabs";
 
 const ACTIVE_STATUSES = [
   "Active Deal",
@@ -66,9 +67,12 @@ export default function PulseNPS() {
   return (
     <AppLayout>
     <div className="p-6 space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold text-foreground">Pulse / NPS</h1>
-        <p className="text-sm text-muted-foreground">Send NPS/CSAT surveys to stakeholders mapped against your deals.</p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-xl font-semibold text-foreground">Pulse / NPS</h1>
+          <p className="text-sm text-muted-foreground">Send NPS/CSAT surveys to stakeholders mapped against your deals.</p>
+        </div>
+        <PulseTabs />
       </div>
       {isLoading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
