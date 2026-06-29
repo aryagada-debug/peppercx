@@ -43,6 +43,7 @@ const Inbox = lazy(() => import("./pages/Inbox"));
 const PulseNPS = lazy(() => import("./pages/PulseNPS"));
 const PulseNPSAnalytics = lazy(() => import("./pages/PulseNPSAnalytics"));
 const DealHandover = lazy(() => import("./pages/DealHandover"));
+const PublicSurvey = lazy(() => import("./pages/PublicSurvey"));
 
 // Mounts the one-shot seeder under the auth provider so it can read the
 // session and only fire when staffing_people is empty.
@@ -94,6 +95,7 @@ const App = () => (
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/calendar/callback" element={<CalendarCallback />} />
             <Route path="/gmail/callback" element={<GmailCallback />} />
+            <Route path="/s/:token" element={<PublicSurvey />} />
 
             {/* Protected routes */}
             <Route path="/home" element={<ProtectedRoute routeKey="home"><Home /></ProtectedRoute>} />

@@ -45,7 +45,7 @@ const SAMPLE = {
   deal_name: "SEO Retainer",
   vsd: "Sumit",
   sender_name: "Pepper CX",
-  link: "https://peppercx.lovable.app/survey.html?t=preview",
+  link: "https://peppercx.lovable.app/s/preview",
 };
 
 function render(str: string, vars: Record<string, string>) {
