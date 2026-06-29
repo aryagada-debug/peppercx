@@ -636,7 +636,7 @@ export default function RGYHealth() {
       return arrayMove(prev, from, to);
     });
   }, []);
-  const [activeTab, setActiveTab] = useState<"health" | "table" | "insights">("table");
+  const [activeTab, setActiveTab] = useState<"health" | "table" | "insights" | "pulse">("table");
   useEffect(() => {
     if (isVsdPersona && myVsdName && activeVsd !== myVsdName) setActiveVsd(myVsdName);
   }, [isVsdPersona, myVsdName, activeVsd]);
