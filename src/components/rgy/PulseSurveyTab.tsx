@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Search, Send, Mail, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type Deal = {
   deal_id: string;
@@ -75,6 +76,28 @@ export default function PulseSurveyTab({ deals }: { deals: Deal[] }) {
   const [removedCc, setRemovedCc] = useState<Record<string, string[]>>({});
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<"all" | "sent" | "failed" | "completed">("all");
+  const [vsdFilter, setVsdFilter] = useState<string>("All");
+  const [bopmFilter, setBopmFilter] = useState<string>("All");
+
+  // Build VSD + BOPM option lists from deals (split comma/slash separated names).
+  const splitNames = (s: string | null | undefined) =>
+    (s || "").split(/[,/]/).map(x => x.trim()).filter(Boolean);
+
+  const vsdOptions = useMemo(() => {
+    const set = new Set<string>();
+    deals.forEach(d => splitNames(d.vsd).forEach(n => set.add(n)));
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [deals]);
+
+  const bopmOptions = useMemo(() => {
+    const set = new Set<string>();
+    deals.forEach(d => {
+      splitNames(d.principal_bopm).forEach(n => set.add(n));
+      splitNames(d.senior_bopm).forEach(n => set.add(n));
+      splitNames(d.bopm).forEach(n => set.add(n));
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [deals]);
 
   // Aggregates: contacts per deal/account, invites sent/completed per deal.
   const dealIds = useMemo(() => deals.map(d => d.deal_id), [deals]);
@@ -145,16 +168,27 @@ export default function PulseSurveyTab({ deals }: { deals: Deal[] }) {
 
   const filteredDeals = useMemo(() => {
     const s = search.trim().toLowerCase();
-    const list = !s
-      ? deals
-      : deals.filter(d =>
-          (d.account || "").toLowerCase().includes(s) ||
-          (d.deal_name || "").toLowerCase().includes(s));
+    let list = deals;
+    if (vsdFilter !== "All") {
+      list = list.filter(d => splitNames(d.vsd).some(n => n === vsdFilter));
+    }
+    if (bopmFilter !== "All") {
+      list = list.filter(d =>
+        splitNames(d.principal_bopm).some(n => n === bopmFilter) ||
+        splitNames(d.senior_bopm).some(n => n === bopmFilter) ||
+        splitNames(d.bopm).some(n => n === bopmFilter)
+      );
+    }
+    if (s) {
+      list = list.filter(d =>
+        (d.account || "").toLowerCase().includes(s) ||
+        (d.deal_name || "").toLowerCase().includes(s));
+    }
     return [...list].sort((a, b) =>
       (a.account || "").localeCompare(b.account || "") ||
       (a.deal_name || "").localeCompare(b.deal_name || "")
     );
-  }, [deals, search]);
+  }, [deals, search, vsdFilter, bopmFilter]);
 
   const selectedDeals = useMemo(
     () => deals.filter(d => selectedDealIds.includes(d.deal_id)),
@@ -366,6 +400,41 @@ export default function PulseSurveyTab({ deals }: { deals: Deal[] }) {
 
   return (
     <div className="space-y-4">
+      {/* Top filters */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] text-muted-foreground">VSD</span>
+          <Select value={vsdFilter} onValueChange={setVsdFilter}>
+            <SelectTrigger className="h-8 w-[180px] text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All VSDs</SelectItem>
+              {vsdOptions.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] text-muted-foreground">BOPM</span>
+          <Select value={bopmFilter} onValueChange={setBopmFilter}>
+            <SelectTrigger className="h-8 w-[200px] text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All BOPMs</SelectItem>
+              {bopmOptions.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        {(vsdFilter !== "All" || bopmFilter !== "All") && (
+          <button
+            onClick={() => { setVsdFilter("All"); setBopmFilter("All"); }}
+            className="text-[11px] text-muted-foreground hover:underline"
+          >
+            Clear filters
+          </button>
+        )}
+        <div className="ml-auto text-[11px] text-muted-foreground">
+          {filteredDeals.length} deals
+        </div>
+      </div>
+
       <div className="grid lg:grid-cols-[320px,1fr] gap-4">
         {/* Deal picker */}
         <div className="border rounded-lg bg-card">
