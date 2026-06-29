@@ -275,7 +275,7 @@ Deno.serve(async (req) => {
         .from("survey_invites").insert(inviteRow).select("id").single();
       if (insErr) { results.push({ email: rcp.email, ok: false, error: insErr.message }); continue; }
 
-      const link = `${APP_ORIGIN}/survey.html?t=${inviteToken}`;
+      const link = `${APP_ORIGIN}/s/${inviteToken}`;
       const firstName = (rcp.name || "").trim().split(/\s+/)[0] || "there";
       const vars: Record<string, string> = {
         recipient_name: rcp.name || "",
