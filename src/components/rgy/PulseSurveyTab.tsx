@@ -10,7 +10,13 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Search, Send, Mail, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useVsdUsers, nameKey } from "@/hooks/queries/legacy";
+import { BopmFilter } from "@/components/access/BopmFilter";
+import { useUserRole } from "@/hooks/useUserRole";
+
+const UNASSIGNED_VSD_VALUES = new Set([
+  "", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned",
+]);
 
 type Deal = {
   deal_id: string;
@@ -67,8 +73,19 @@ async function fetchStakeholdersFor(dealIds: string[], accounts: string[]) {
   return (data as Stakeholder[]) || [];
 }
 
-export default function PulseSurveyTab({ deals }: { deals: Deal[] }) {
+export default function PulseSurveyTab({
+  deals,
+  showClosed,
+  onShowClosedChange,
+}: {
+  deals: Deal[];
+  showClosed?: boolean;
+  onShowClosedChange?: (v: boolean) => void;
+}) {
   const qc = useQueryClient();
+  const { isAdmin, canEditAll } = useUserRole();
+  const { vsdUsers, isVsdName, canonVsd } = useVsdUsers();
+  const showVsdChips = !!(isAdmin || canEditAll);
   const [search, setSearch] = useState("");
   const [selectedDealIds, setSelectedDealIds] = useState<string[]>([]);
   const [selectedEmails, setSelectedEmails] = useState<Record<string, string[]>>({});
@@ -76,28 +93,20 @@ export default function PulseSurveyTab({ deals }: { deals: Deal[] }) {
   const [removedCc, setRemovedCc] = useState<Record<string, string[]>>({});
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<"all" | "sent" | "failed" | "completed">("all");
-  const [vsdFilter, setVsdFilter] = useState<string>("All");
-  const [bopmFilter, setBopmFilter] = useState<string>("All");
+  const [activeVsd, setActiveVsd] = useState<string>("All");
+  const [activeBopm, setActiveBopm] = useState<string>("All");
 
-  // Build VSD + BOPM option lists from deals (split comma/slash separated names).
+  // Build chip list: All · {VSDs} · Other · Unassigned (mirrors Clients).
+  const VSD_FILTERS = useMemo(() => {
+    const items: { key: string; label: string }[] = [{ key: "All", label: "All" }];
+    vsdUsers.forEach((u: any) => items.push({ key: u.displayName, label: u.displayName }));
+    items.push({ key: "Other", label: "Other" });
+    items.push({ key: "Unassigned", label: "Unassigned" });
+    return items;
+  }, [vsdUsers]);
+
   const splitNames = (s: string | null | undefined) =>
     (s || "").split(/[,/]/).map(x => x.trim()).filter(Boolean);
-
-  const vsdOptions = useMemo(() => {
-    const set = new Set<string>();
-    deals.forEach(d => splitNames(d.vsd).forEach(n => set.add(n)));
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [deals]);
-
-  const bopmOptions = useMemo(() => {
-    const set = new Set<string>();
-    deals.forEach(d => {
-      splitNames(d.principal_bopm).forEach(n => set.add(n));
-      splitNames(d.senior_bopm).forEach(n => set.add(n));
-      splitNames(d.bopm).forEach(n => set.add(n));
-    });
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [deals]);
 
   // Aggregates: contacts per deal/account, invites sent/completed per deal.
   const dealIds = useMemo(() => deals.map(d => d.deal_id), [deals]);
@@ -169,26 +178,34 @@ export default function PulseSurveyTab({ deals }: { deals: Deal[] }) {
   const filteredDeals = useMemo(() => {
     const s = search.trim().toLowerCase();
     let list = deals;
-    if (vsdFilter !== "All") {
-      list = list.filter(d => splitNames(d.vsd).some(n => n === vsdFilter));
+    if (activeVsd === "Unassigned") {
+      list = list.filter(d => UNASSIGNED_VSD_VALUES.has((d.vsd || "").trim()));
+    } else if (activeVsd === "Other") {
+      list = list.filter(d => {
+        const v = (d.vsd || "").trim();
+        return !!v && !UNASSIGNED_VSD_VALUES.has(v) && !isVsdName(v);
+      });
+    } else if (activeVsd !== "All") {
+      list = list.filter(d => canonVsd(d.vsd) === activeVsd);
     }
-    if (bopmFilter !== "All") {
+    if (activeBopm !== "All") {
       list = list.filter(d =>
-        splitNames(d.principal_bopm).some(n => n === bopmFilter) ||
-        splitNames(d.senior_bopm).some(n => n === bopmFilter) ||
-        splitNames(d.bopm).some(n => n === bopmFilter)
+        splitNames(d.principal_bopm).some(n => n === activeBopm) ||
+        splitNames(d.senior_bopm).some(n => n === activeBopm) ||
+        splitNames(d.bopm).some(n => n === activeBopm)
       );
     }
     if (s) {
       list = list.filter(d =>
         (d.account || "").toLowerCase().includes(s) ||
-        (d.deal_name || "").toLowerCase().includes(s));
+        (d.deal_name || "").toLowerCase().includes(s) ||
+        (d.deal_id || "").toLowerCase().includes(s));
     }
     return [...list].sort((a, b) =>
       (a.account || "").localeCompare(b.account || "") ||
       (a.deal_name || "").localeCompare(b.deal_name || "")
     );
-  }, [deals, search, vsdFilter, bopmFilter]);
+  }, [deals, search, activeVsd, activeBopm, isVsdName, canonVsd]);
 
   const selectedDeals = useMemo(
     () => deals.filter(d => selectedDealIds.includes(d.deal_id)),
@@ -398,41 +415,87 @@ export default function PulseSurveyTab({ deals }: { deals: Deal[] }) {
   const totalRecipients = Object.values(selectedEmails).reduce((a, v) => a + v.length, 0)
     + adhoc.split(/[,;\s]+/).filter(e => /@/.test(e)).length;
 
+  // Select-all helpers for the left deal pane.
+  const allFilteredSelected = filteredDeals.length > 0
+    && filteredDeals.every(d => selectedDealIds.includes(d.deal_id));
+  const handleSelectAll = () => {
+    if (allFilteredSelected) {
+      setSelectedDealIds(prev => prev.filter(id => !filteredDeals.some(d => d.deal_id === id)));
+      return;
+    }
+    const apply = () => setSelectedDealIds(prev => {
+      const next = new Set(prev);
+      filteredDeals.forEach(d => next.add(d.deal_id));
+      return Array.from(next);
+    });
+    if (filteredDeals.length > 50) {
+      const ok = typeof window !== "undefined"
+        ? window.confirm(`Select all ${filteredDeals.length} deals? Stakeholders will load in the background.`)
+        : true;
+      if (!ok) return;
+    }
+    apply();
+  };
+
   return (
     <div className="space-y-4">
-      {/* Top filters */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1.5">
-          <span className="text-[11px] text-muted-foreground">VSD</span>
-          <Select value={vsdFilter} onValueChange={setVsdFilter}>
-            <SelectTrigger className="h-8 w-[180px] text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="All">All VSDs</SelectItem>
-              {vsdOptions.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-[11px] text-muted-foreground">BOPM</span>
-          <Select value={bopmFilter} onValueChange={setBopmFilter}>
-            <SelectTrigger className="h-8 w-[200px] text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="All">All BOPMs</SelectItem>
-              {bopmOptions.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        {(vsdFilter !== "All" || bopmFilter !== "All") && (
-          <button
-            onClick={() => { setVsdFilter("All"); setBopmFilter("All"); }}
-            className="text-[11px] text-muted-foreground hover:underline"
-          >
-            Clear filters
-          </button>
+      {/* Top filters — mirrors Clients & Deals */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {showVsdChips && (
+          <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5 overflow-x-auto max-w-full">
+            {VSD_FILTERS.map(v => (
+              <button
+                key={v.key}
+                onClick={() => setActiveVsd(v.key)}
+                className={cn(
+                  "px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
+                  activeVsd === v.key
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {v.label}
+              </button>
+            ))}
+          </div>
         )}
-        <div className="ml-auto text-[11px] text-muted-foreground">
-          {filteredDeals.length} deals
+
+        <BopmFilter
+          value={activeBopm}
+          onChange={setActiveBopm}
+          scopedVsd={showVsdChips && activeVsd !== "All" && activeVsd !== "Other" && activeVsd !== "Unassigned" ? activeVsd : undefined}
+        />
+
+        <div className="relative flex-1 min-w-[260px] max-w-[480px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search clients, deals or deal ID..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full h-9 pl-10 pr-9 rounded-lg bg-card border border-border text-sm text-foreground placeholder:text-muted-foreground shadow-sm focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary"
+              aria-label="Clear search"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
+
+        {onShowClosedChange && (
+          <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none">
+            <Checkbox
+              checked={!!showClosed}
+              onCheckedChange={(v) => onShowClosedChange(!!v)}
+            />
+            Closed
+          </label>
+        )}
       </div>
 
       <div className="grid lg:grid-cols-[320px,1fr] gap-4">
@@ -450,9 +513,18 @@ export default function PulseSurveyTab({ deals }: { deals: Deal[] }) {
             </div>
             <div className="flex items-center justify-between mt-2 px-1 text-[11px] text-muted-foreground">
               <span>{selectedDealIds.length} selected · {filteredDeals.length} deals</span>
-              {selectedDealIds.length > 0 && (
-                <button className="hover:underline" onClick={() => setSelectedDealIds([])}>Clear</button>
-              )}
+              <div className="flex items-center gap-2">
+                <button
+                  className="hover:underline disabled:opacity-50"
+                  onClick={handleSelectAll}
+                  disabled={filteredDeals.length === 0}
+                >
+                  {allFilteredSelected ? "Clear selection" : `Select all (${filteredDeals.length})`}
+                </button>
+                {selectedDealIds.length > 0 && !allFilteredSelected && (
+                  <button className="hover:underline" onClick={() => setSelectedDealIds([])}>Clear</button>
+                )}
+              </div>
             </div>
           </div>
           <ScrollArea className="h-[460px]">
