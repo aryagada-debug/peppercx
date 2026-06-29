@@ -661,6 +661,7 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
                 border: sel ? "2px solid var(--brand,#5b3df5)" : "1px solid var(--line,#e7e4ef)",
                 background: sel ? "var(--brand-soft,#efeaff)" : "var(--card)", cursor: "pointer",
                 display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+                color: "var(--ink,#15131f)",
               }}>
                 <span style={{ fontSize: 24 }}>{m.icon}</span>
                 <span>{m.label}</span>
