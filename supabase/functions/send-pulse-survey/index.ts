@@ -38,7 +38,12 @@ function randomToken(): string {
 
 function appOriginFor(req: Request): string {
   const origin = (req.headers.get("Origin") || "").trim();
-  if (/^https?:\/\//i.test(origin)) return origin.replace(/\/$/, "");
+  // Never put Lovable editor/preview origins in customer-facing survey links:
+  // external recipients hit Lovable's editor auth wall there. Survey links must
+  // always resolve on the published app unless an explicit public base is set.
+  if (/^https?:\/\//i.test(origin) && !/\.lovableproject\.com$/i.test(new URL(origin).hostname)) {
+    return origin.replace(/\/$/, "");
+  }
   return APP_ORIGIN.replace(/\/$/, "");
 }
 
