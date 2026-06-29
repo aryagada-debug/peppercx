@@ -712,27 +712,21 @@ function buildPayload(){
 /* ---------------- submission ---------------- */
 async function sendResponse(payload,statusEl){
   if(_sent) return; _sent=true;
-  if(!CONFIG.FORMSPREE_ENDPOINT){
-    if(statusEl){statusEl.style.color='var(--muted)';
-      statusEl.textContent='Demo mode — add your Formspree endpoint in CONFIG to collect responses automatically.';}
-    return;
-  }
   if(statusEl){statusEl.style.color='var(--muted)';statusEl.textContent='Sending your response…';}
   let ok=false;
   try{
-    const r=await fetch(CONFIG.FORMSPREE_ENDPOINT,{
+    const r=await fetch(`${SUPABASE_URL}/functions/v1/survey-submit`,{
       method:'POST',
-      headers:{'Content-Type':'application/json','Accept':'application/json'},
-      body:JSON.stringify(payload)
+      headers:{
+        'Content-Type':'application/json',
+        'Accept':'application/json',
+        'apikey': SUPABASE_ANON,
+        'Authorization': `Bearer ${SUPABASE_ANON}`,
+      },
+      body:JSON.stringify({ token: SURVEY_TOKEN, payload })
     });
     ok=r.ok;
   }catch(e){ok=false;}
-  // Slack alert only on the configured risk level
-  if(CONFIG.SLACK_WEBHOOK && payload.flags && payload.flags.churn_risk===CONFIG.ALERT_LEVEL){
-    try{
-      await fetch(CONFIG.SLACK_WEBHOOK,{method:'POST',mode:'no-cors',body:JSON.stringify({text:slackText(payload)})});
-    }catch(e){}
-  }
   if(statusEl){
     statusEl.style.color = ok?'var(--good)':'var(--bad)';
     statusEl.textContent = ok ? '✓ Response sent to your CS team' : '⚠ Could not auto-send — please copy or download below and share it.';
