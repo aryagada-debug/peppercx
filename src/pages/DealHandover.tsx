@@ -85,6 +85,7 @@ export default function DealHandover() {
   const [rows, setRows] = useState<HandoverRow[]>([]);
   const [loadingRows, setLoadingRows] = useState(false);
   const [open, setOpen] = useState<HandoverRow | null>(null);
+  const [staffingMap, setStaffingMap] = useState<Record<string, { locked: boolean }>>({});
   const loadRows = async () => {
     setLoadingRows(true);
     const { data, error } = await supabase
@@ -94,7 +95,20 @@ export default function DealHandover() {
     if (error) {
       toast({ title: "Failed to load handovers", description: error.message, variant: "destructive" });
     } else {
-      setRows((data as any[]).map((r) => ({ ...r, contacts: Array.isArray(r.contacts) ? r.contacts : [] })));
+      const mapped = (data as any[]).map((r) => ({ ...r, contacts: Array.isArray(r.contacts) ? r.contacts : [] }));
+      setRows(mapped);
+      const dealIds = Array.from(new Set(mapped.map((r) => r.created_deal_id).filter(Boolean))) as string[];
+      if (dealIds.length) {
+        const { data: sd } = await supabase
+          .from("staffing_deals")
+          .select("id, staffing_locked_at")
+          .in("id", dealIds);
+        const m: Record<string, { locked: boolean }> = {};
+        (sd || []).forEach((d: any) => { m[d.id] = { locked: !!d.staffing_locked_at }; });
+        setStaffingMap(m);
+      } else {
+        setStaffingMap({});
+      }
     }
     setLoadingRows(false);
   };
@@ -178,13 +192,14 @@ export default function DealHandover() {
                     <TableHead>Deal ID</TableHead>
                     <TableHead>VSD</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Staffing</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loadingRows ? (
-                    <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>
                   ) : rows.length === 0 ? (
-                    <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No handovers yet.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">No handovers yet.</TableCell></TableRow>
                   ) : (
                     rows.map((r) => (
                       <TableRow key={r.id} className="cursor-pointer hover:bg-muted/40" onClick={() => setOpen(r)}>
@@ -198,6 +213,7 @@ export default function DealHandover() {
                           {r.vsd_confirmed ? r.vsd_confirmed : <Badge variant="outline" className="text-amber-700 border-amber-300">Pending</Badge>}
                         </TableCell>
                         <TableCell><StatusBadge row={r} /></TableCell>
+                        <TableCell><StaffingBadge row={r} staffingMap={staffingMap} /></TableCell>
                       </TableRow>
                     ))
                   )}
