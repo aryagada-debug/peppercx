@@ -3203,6 +3203,16 @@ export type Database = {
         }[]
       }
       resolve_current_person: { Args: { _user_id: string }; Returns: string }
+      submit_survey_response: {
+        Args: {
+          _comment?: string
+          _csat: number
+          _nps: number
+          _payload?: Json
+          _token: string
+        }
+        Returns: Json
+      }
       toggle_staffing_lock: {
         Args: { _deal_id: string; _lock: boolean }
         Returns: {
