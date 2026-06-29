@@ -1460,6 +1460,42 @@ export type Database = {
         }
         Relationships: []
       }
+      pulse_email_templates: {
+        Row: {
+          body: string
+          created_at: string
+          cta_label: string
+          footer_note: string
+          greeting: string
+          id: string
+          subject: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          body?: string
+          created_at?: string
+          cta_label?: string
+          footer_note?: string
+          greeting?: string
+          id: string
+          subject?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          cta_label?: string
+          footer_note?: string
+          greeting?: string
+          id?: string
+          subject?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       rgy_leadership_intervention_comments: {
         Row: {
           author_name: string
