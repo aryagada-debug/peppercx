@@ -177,7 +177,7 @@ function ChoiceCard({ selected, onClick, icon, title, desc }: { selected: boolea
       <span style={{
         width: 18, height: 18, borderRadius: 999, marginTop: 4,
         border: selected ? "5px solid var(--brand,#5b3df5)" : "1.5px solid var(--line,#e7e4ef)",
-        background: "white",
+        background: "var(--card)",
       }} />
     </button>
   );
@@ -766,7 +766,7 @@ function ScoreCard({ label, value, sub }: { label: string; value: string; sub: s
 
 const ghostBtn: React.CSSProperties = {
   flex: 1, padding: "10px 14px", borderRadius: 10, border: "1px solid var(--line,#e7e4ef)",
-  background: "white", color: "var(--ink,#15131f)", fontSize: 13, cursor: "pointer",
+  background: "var(--card)", color: "var(--ink,#15131f)", fontSize: 13, cursor: "pointer",
 };
 
 function downloadJson(s: string) {
