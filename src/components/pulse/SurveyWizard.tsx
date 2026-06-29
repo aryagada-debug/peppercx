@@ -31,10 +31,23 @@ interface Props {
 
 const CARD_STYLE: React.CSSProperties = {
   background: "var(--card,#fff)",
-  borderRadius: 16,
-  boxShadow: "0 10px 40px rgba(38,28,80,.10)",
+  borderRadius: 14,
+  boxShadow: "var(--shadow-pulse, 0 10px 40px rgba(38,28,80,.10))",
   padding: 32,
   border: "1px solid var(--line,#e7e4ef)",
+};
+
+const INPUT_STYLE: React.CSSProperties = {
+  width: "100%",
+  padding: "12px 14px",
+  borderRadius: 10,
+  border: "1px solid var(--line,#e7e4ef)",
+  background: "var(--field,var(--card))",
+  color: "var(--ink,#15131f)",
+  caretColor: "var(--brand,#5b3df5)",
+  fontSize: 14,
+  fontFamily: "inherit",
+  outline: "none",
 };
 
 function Pill({ children }: { children: React.ReactNode }) {
@@ -230,7 +243,7 @@ function Textarea600({ value, onChange, placeholder, rows = 4 }: { value: string
       <textarea
         value={value} rows={rows} placeholder={placeholder}
         onChange={(e) => onChange(e.target.value.slice(0, 600))}
-        style={{ width: "100%", padding: 12, borderRadius: 10, border: "1px solid var(--line,#e7e4ef)", fontSize: 14, fontFamily: "inherit", resize: "vertical", outline: "none" }}
+        style={{ ...INPUT_STYLE, padding: 12, resize: "vertical" }}
         onFocus={(e) => (e.target.style.borderColor = "var(--brand,#5b3df5)")}
         onBlur={(e) => (e.target.style.borderColor = "var(--line,#e7e4ef)")}
       />
@@ -403,7 +416,7 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
           <FieldRow label={c.value.buyer_outcome.q}>
             <input type="text" placeholder={c.value.buyer_outcome.hint} value={a.value.target_outcome}
               onChange={(e) => updateA((p) => ({ ...p, value: { ...p.value, target_outcome: e.target.value } }))}
-              style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid var(--line,#e7e4ef)", fontSize: 14, outline: "none" }} />
+              style={INPUT_STYLE} />
           </FieldRow>
         </Reveal>
       </>
@@ -627,7 +640,7 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
         <Reveal when={showWho}>
           <input type="text" placeholder={c.expansion.referral_who} value={a.expansion.referral_lead}
             onChange={(e) => updateA((p) => ({ ...p, expansion: { ...p.expansion, referral_lead: e.target.value } }))}
-            style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid var(--line,#e7e4ef)", fontSize: 14, outline: "none" }} />
+            style={INPUT_STYLE} />
         </Reveal>
       </>
     );
@@ -648,6 +661,7 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
                 border: sel ? "2px solid var(--brand,#5b3df5)" : "1px solid var(--line,#e7e4ef)",
                 background: sel ? "var(--brand-soft,#efeaff)" : "var(--card)", cursor: "pointer",
                 display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+                color: "var(--ink,#15131f)",
               }}>
                 <span style={{ fontSize: 24 }}>{m.icon}</span>
                 <span>{m.label}</span>
@@ -655,16 +669,16 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
             );
           })}
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12 }}>
           <input placeholder="Name (optional)" value={a.respondent.name}
             onChange={(e) => updateA((p) => ({ ...p, respondent: { ...p.respondent, name: e.target.value } }))}
-            style={{ padding: 12, borderRadius: 10, border: "1px solid var(--line,#e7e4ef)", fontSize: 14, outline: "none" }} />
+            style={INPUT_STYLE} />
           <input placeholder="Work email (optional)" value={a.respondent.email}
             onChange={(e) => updateA((p) => ({ ...p, respondent: { ...p.respondent, email: e.target.value } }))}
-            style={{ padding: 12, borderRadius: 10, border: "1px solid var(--line,#e7e4ef)", fontSize: 14, outline: "none" }} />
+            style={INPUT_STYLE} />
           <input placeholder="Company / account (optional)" value={a.respondent.company}
             onChange={(e) => updateA((p) => ({ ...p, respondent: { ...p.respondent, company: e.target.value } }))}
-            style={{ padding: 12, borderRadius: 10, border: "1px solid var(--line,#e7e4ef)", fontSize: 14, outline: "none" }} />
+            style={{ ...INPUT_STYLE, gridColumn: "1 / -1" }} />
         </div>
         <FieldRow label={c.wrap.followup_q}>
           <div style={{ display: "flex", gap: 8 }}>
@@ -793,9 +807,12 @@ function PulseFrame({ children, progress, headerSubtitle }: { children: React.Re
         "--line": "#2c2740",
         "--bg": "#15131f",
         "--card": "#1c1930",
+        "--field": "#171426",
         "--brand": "#8b6cff",
         "--brand-2": "#a78bff",
         "--brand-soft": "#2a2247",
+        "--placeholder": "#77718e",
+        "--shadow-pulse": "none",
         "--good": "#34c98a",
         "--warn": "#f0a755",
         "--bad": "#ef5a55",
@@ -806,9 +823,12 @@ function PulseFrame({ children, progress, headerSubtitle }: { children: React.Re
         "--line": "#e7e4ef",
         "--bg": "#faf9fc",
         "--card": "#fff",
+        "--field": "#fff",
         "--brand": "#5b3df5",
         "--brand-2": "#8b6cff",
         "--brand-soft": "#efeaff",
+        "--placeholder": "#a19caf",
+        "--shadow-pulse": "0 10px 40px rgba(38,28,80,.10)",
         "--good": "#1d9d6c",
         "--warn": "#e0922f",
         "--bad": "#d8413c",
@@ -824,8 +844,27 @@ function PulseFrame({ children, progress, headerSubtitle }: { children: React.Re
       fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
       padding: "32px 16px 64px",
     } as React.CSSProperties}>
-      <style>{`@keyframes pulseRise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }`}</style>
-      <div style={{ maxWidth: 680, margin: "0 auto" }}>
+      <style>{`
+        @keyframes pulseRise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+        .pepper-pulse-shell input,
+        .pepper-pulse-shell textarea {
+          background: var(--field) !important;
+          color: var(--ink) !important;
+          border-color: var(--line) !important;
+        }
+        .pepper-pulse-shell input::placeholder,
+        .pepper-pulse-shell textarea::placeholder { color: var(--placeholder); opacity: 1; }
+        .pepper-pulse-shell input:focus,
+        .pepper-pulse-shell textarea:focus { border-color: var(--brand) !important; }
+        .pepper-pulse-shell input:-webkit-autofill,
+        .pepper-pulse-shell input:-webkit-autofill:hover,
+        .pepper-pulse-shell input:-webkit-autofill:focus {
+          -webkit-text-fill-color: var(--ink) !important;
+          box-shadow: 0 0 0 1000px var(--field) inset !important;
+          transition: background-color 9999s ease-in-out 0s;
+        }
+      `}</style>
+      <div className="pepper-pulse-shell" style={{ maxWidth: 680, margin: "0 auto" }}>
         <header style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
           <div style={{
             width: 30, height: 30, borderRadius: 8,
