@@ -243,7 +243,7 @@ function Textarea600({ value, onChange, placeholder, rows = 4 }: { value: string
       <textarea
         value={value} rows={rows} placeholder={placeholder}
         onChange={(e) => onChange(e.target.value.slice(0, 600))}
-        style={{ width: "100%", padding: 12, borderRadius: 10, border: "1px solid var(--line,#e7e4ef)", fontSize: 14, fontFamily: "inherit", resize: "vertical", outline: "none" }}
+        style={{ ...INPUT_STYLE, padding: 12, resize: "vertical" }}
         onFocus={(e) => (e.target.style.borderColor = "var(--brand,#5b3df5)")}
         onBlur={(e) => (e.target.style.borderColor = "var(--line,#e7e4ef)")}
       />
