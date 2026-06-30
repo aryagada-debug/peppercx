@@ -156,7 +156,7 @@ type DealRow = {
 async function loadDeal(admin: SupabaseClient, dealId: string): Promise<DealRow | null> {
   const { data } = await admin
     .from("staffing_deals")
-    .select("id, account, deal_name, vsd, principal_bopm, senior_bopm, bopm")
+    .select("id, account, deal_name, vsd, principal_bopm, senior_bopm, bopm, capability_line, business_unit, geo")
     .eq("id", dealId)
     .maybeSingle();
   return (data as DealRow) || null;
