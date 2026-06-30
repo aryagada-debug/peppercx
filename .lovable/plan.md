@@ -1,29 +1,64 @@
-## Changes to Deal Handover wizard
+# Deal Handover — "Open in Staffing" + suggested staffing
 
-### Step 2 — Client
-- **New first selector**: "Existing client?" toggle / radio with two options: *Existing client* or *New client*.
-  - If *Existing*: show a searchable dropdown of `clients` (name + pc_code). On select, autofill `company_name`, `industry`, `website` (read-only/locked, with an "edit" override). Also tag the handover to that client id so downstream deal creation links to the existing client instead of creating a duplicate.
-  - If *New*: show empty fields as today.
-- **Industry**: replace free text with a dropdown — `FMCG`, `BFSI`, `US B2B`, `India B2B`, `Miscellaneous`. (For existing clients with a different stored industry, prefill best-match; else default to *Miscellaneous*.)
+When a handover row reaches `Created`, expose a one-click path to that deal's row on the Staffing & Capacity page and surface a "Suggested staffing" panel built from comparable deals.
 
-### Step 3 — Documents
-Each document slot (SoW, Strategy deck, Keywords, GEO audit, Fireflies) becomes "**Link or Upload**":
-- Toggle per row: *Paste link* | *Upload file*.
-- Uploads go to a private Storage bucket `handover-docs/<reference-or-temp>/<filename>`; stored URL = the public/signed URL (resolved on read). The existing `*_url` columns are reused — no schema change.
+## 1. "Open in Staffing" link
 
-### Step 4 — Deal
-- **Remove** the "Assigned VSD (suggested)" field entirely. Drop `vsd_suggested` from the form & submit payload (column stays in DB, just unused — Anirudh still fills `vsd_confirmed` later).
-- **Auto-calc Total amount** when `deal_type = Retainer`:
-  - `total_amount = MRR × duration_months` (recompute whenever either changes).
-  - Field becomes read-only for Retainer (with a small "auto-calculated" hint); editable for Non-retainer.
-- **Rename** "Start date" → "Actual / Tentative start date" (label only; same field).
+In `src/pages/DealHandover.tsx`, in the drawer's green "Deal created" banner, add a second button next to **Open deal**:
 
-### Files touched
-- `src/components/handover/constants.ts` — add `INDUSTRY_OPTIONS`, drop `vsd_suggested` from required usage (keep field for back-compat in type, optional).
-- `src/components/handover/HandoverWizard.tsx` — Step2 existing/new client picker + industry select; Step3 link/upload toggle; Step4 remove VSD field, retainer auto-calc, relabel start date; Review section updated.
-- `src/pages/DealHandover.tsx` — drawer "Sales suggested" line removed.
-- New tiny helper for Storage upload (inline in Step3) using existing supabase client.
-- Storage bucket `handover-docs` (private) created via `supabase--storage_create_bucket`, with RLS allowing authenticated users to upload/read their own org's files.
+- Label: **Open in Staffing**
+- Route: `/staffing?tab=deal&deal=<created_deal_id>`
+- The Staffing page already reads `?tab` and `?deal` (see `Staffing.tsx` lines 41–43), so no Staffing-side changes are needed beyond confirming it auto-scrolls/expands the matching deal row. If it doesn't already, add a small `useEffect` that scrolls the matching row into view.
 
-### Out of scope
-No DB schema changes; no changes to how Priyanka/Anirudh complete the handover or how the deal is auto-created.
+## 2. Suggested staffing panel (in the drawer)
+
+Add a new `Card` titled **Suggested staffing (based on similar deals)** that appears when the handover row's deal type / BU / capability are present (works even before the deal is `Created`, using the handover form's own fields).
+
+### Matching logic
+
+1. Fetch up to ~20 `staffing_deals` that match the handover row, scored by:
+   - Same `capability_line` (+3)
+   - Same `business_unit` (+2)
+   - Same `vsd` name (+2)
+   - Same `deal_type` (+1)
+   - MRR within ±30% (+1)
+2. Drop the handover's own `created_deal_id` from results.
+3. Take the top 5 highest-scored matches.
+
+### Aggregation
+
+For those top deals, pull their `staffing_assignments` (role_key, person_id, allocation_pct). Group by `role_key` and compute:
+
+- Frequency (how many of the comparable deals had this role)
+- Median allocation %
+- Top 2 most-frequently-staffed people for that role (names from `staffing_people`)
+
+Render as a compact table:
+
+```text
+Role              Typical %   Frequency   Common people
+Senior BOPM       40%         4 / 5       Sneha I., Aamir K.
+Content Lead      60%         3 / 5       Riya P.
+SEO Manager       50%         3 / 5       Karan S.
+```
+
+Each row gets a small **Use** button that, when the deal is already `Created`, deep-links to `/staffing?tab=deal&deal=<id>&prefill_role=<role_key>` so the staffing grid can preselect that role. (Staffing.tsx already consumes `deal` — add a no-op read for `prefill_role` later if/when we wire that side.)
+
+If the deal isn't created yet, the suggestions are read-only; the panel shows a hint: *"Create the deal to apply these into Staffing."*
+
+### Empty state
+
+If fewer than 2 comparable deals are found, show: *"Not enough similar deals to suggest staffing yet."*
+
+## Files touched
+
+- `src/pages/DealHandover.tsx` — add **Open in Staffing** button; render the new `<SuggestedStaffingCard />`.
+- `src/components/handover/SuggestedStaffingCard.tsx` (new) — fetch + score + aggregate + render.
+
+No DB migrations, no edge functions.
+
+## Technical notes
+
+- Reuse `supabase` client; the queries are read-only against `staffing_deals`, `staffing_assignments`, `staffing_people`.
+- Use `useQuery` keyed by `(vsd, bu, capability, deal_type, mrr)` so suggestions are cached per handover row.
+- Role labels: pass `role_key` through `normalize_staffing_role_key` mapping that the app already uses, then humanize (e.g. `senior_bopm` → "Senior BOPM").
