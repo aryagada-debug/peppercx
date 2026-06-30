@@ -14,6 +14,7 @@ import { useClients } from "@/hooks/useClients";
 import { useDealAccess } from "@/hooks/useDealAccess";
 import { useUserRole } from "@/hooks/useUserRole";
 import { submitApprovalRequest } from "@/lib/approvals";
+import { sendAppEmail } from "@/lib/appEmail";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
