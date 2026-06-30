@@ -46,6 +46,15 @@ async function refreshAccessToken(userId: string, refreshToken: string) {
   });
   const refreshed = await res.json();
   if (!res.ok) {
+    // invalid_grant => refresh token has been revoked/expired. Clear the stored
+    // connection so the UI shows a Connect button instead of looping on 401s.
+    const reason = String(refreshed?.error || "");
+    if (reason === "invalid_grant" || reason === "unauthorized_client") {
+      await admin.from("google_calendar_connections").delete().eq("user_id", userId);
+      const err = new Error("calendar_refresh_token_missing");
+      (err as Error & { status?: number }).status = 428;
+      throw err;
+    }
     const err = new Error(refreshed?.error_description || refreshed?.error || "Google token refresh failed");
     (err as Error & { status?: number }).status = 428;
     throw err;
