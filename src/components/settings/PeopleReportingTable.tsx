@@ -694,12 +694,12 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
             <col style={{ width: widths.market }} />
             <col style={{ width: widths.revType }} />
             <col style={{ width: widths.timeUtil }} />
-            <col style={{ width: widths.revUtil }} />
+            {isAdmin && <col style={{ width: widths.revUtil }} />}
             <col style={{ width: 40 }} />
           </colgroup>
           <thead className="bg-secondary/40 text-muted-foreground">
             <tr>
-              {([
+              {(([
                 ["name", "Name", undefined],
                 ["designation", "Designation", undefined],
                 ["email", "Email", undefined],
@@ -707,8 +707,10 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                 ["market", "Market", ["US", "India"]],
                 ["revType", "Revenue capacity", undefined],
                 ["timeUtil", "Time utilisation", undefined],
-                ["revUtil", "Revenue utilisation", undefined],
-              ] as [ColKey, string, string[] | undefined][]).map(([k, label, options]) => (
+                ...(isAdmin
+                  ? [["revUtil", "Revenue utilisation", undefined]]
+                  : []),
+              ] as [ColKey, string, string[] | undefined][])).map(([k, label, options]) => (
                 <ColHeader
                   key={k}
                   label={label}
@@ -736,7 +738,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
               return (
                 <Fragment key={teamKey}>
                    <tr className="border-t border-border bg-secondary/30">
-                     <td colSpan={9} className="px-3 py-2">
+                     <td colSpan={isAdmin ? 9 : 8} className="px-3 py-2">
                       <button
                         type="button"
                         onClick={() => toggle(teamKey)}
@@ -762,7 +764,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                         <Fragment key={subKey}>
                            {hasSub && (
                              <tr className="border-t border-border/50 bg-secondary/10">
-                               <td colSpan={9} className="px-3 py-1.5 pl-8">
+                               <td colSpan={isAdmin ? 9 : 8} className="px-3 py-1.5 pl-8">
                                 <button
                                   type="button"
                                   onClick={() => toggle(subKey)}
@@ -930,16 +932,18 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                   <td className="px-3 py-1.5">
                                     <UtilBar value={u.time} hint={`${Math.round((u.time / 100) * 160)}h / 160h`} />
                                   </td>
-                                  <td className="px-3 py-1.5">
-                                    <UtilBar
-                                      value={u.revenue}
-                                      hint={
-                                        (capacityById.get(p.id) || 0) > 0
-                                          ? `${symbol}${fmt(Math.round(u.allocatedMrr))} / ${symbol}${fmt(capacityById.get(p.id) || 0)}`
-                                          : "No capacity set"
-                                      }
-                                    />
-                                  </td>
+                                   {isAdmin && (
+                                     <td className="px-3 py-1.5">
+                                       <UtilBar
+                                         value={u.revenue}
+                                         hint={
+                                           (capacityById.get(p.id) || 0) > 0
+                                             ? `${symbol}${fmt(Math.round(u.allocatedMrr))} / ${symbol}${fmt(capacityById.get(p.id) || 0)}`
+                                             : "No capacity set"
+                                         }
+                                       />
+                                     </td>
+                                   )}
                                   <td className="px-2 py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
                                     {isAdmin && (
                                       <button
@@ -955,7 +959,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                 </tr>
                                 {isExpanded && (
                                   <tr className="bg-primary/[0.03] border-t border-primary/15">
-                                    <td colSpan={9} className="px-3 py-3 pl-10">
+                                    <td colSpan={isAdmin ? 9 : 8} className="px-3 py-3 pl-10">
                                       {personDeals.length === 0 ? (
                                         <div className="rounded-lg border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
                                           Not staffed on any deals.
@@ -1038,7 +1042,7 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
             })}
             {grouped.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">
+                <td colSpan={isAdmin ? 9 : 8} className="px-4 py-10 text-center text-muted-foreground">
                   No people match "{search}".
                 </td>
               </tr>

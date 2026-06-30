@@ -57,16 +57,44 @@ export function useTeamScope(allPeople: Person[]): TeamScope {
         inScopeByName: () => true,
       };
     }
-    // VSDs and Capability Leaders see the full People Ops view (read-only).
-    // Add/Edit controls remain gated by `isAdmin` at the component level.
+    // VSDs and Capability Leaders see only themselves + their reportee subtree
+    // (mirrors Clients & Deals RLS scoping). Add/Edit controls remain gated by
+    // `isAdmin` at the component level.
     if (role === "member" || role === "capability_lead") {
+      const leader = allPeople.find((p) => p.id === leaderPersonId) || null;
+      const ids = new Set<string>();
+      const names = new Set<string>();
+      if (leader) {
+        ids.add(leader.id);
+        names.add(leader.name.trim().toLowerCase());
+        // BFS over reportingManager edges
+        const byManager = new Map<string, typeof allPeople>();
+        for (const p of allPeople) {
+          const mgr = (p.reportingManager || "").trim().toLowerCase();
+          if (!mgr) continue;
+          const arr = byManager.get(mgr) || [];
+          arr.push(p);
+          byManager.set(mgr, arr);
+        }
+        const queue: string[] = [leader.name.trim().toLowerCase()];
+        while (queue.length) {
+          const mgr = queue.shift()!;
+          const reports = byManager.get(mgr) || [];
+          for (const r of reports) {
+            if (ids.has(r.id)) continue;
+            ids.add(r.id);
+            names.add(r.name.trim().toLowerCase());
+            queue.push(r.name.trim().toLowerCase());
+          }
+        }
+      }
       return {
         loading,
-        scopeMode: "all",
-        leaderPerson: allPeople.find((p) => p.id === leaderPersonId) || null,
-        teamPersonIds: null,
-        inScope: () => true,
-        inScopeByName: () => true,
+        scopeMode: leader ? "team" : "none",
+        leaderPerson: leader,
+        teamPersonIds: ids,
+        inScope: (pid: string) => ids.has(pid),
+        inScopeByName: (n) => !!n && names.has(n.trim().toLowerCase()),
       };
     }
     const empty = new Set<string>();
