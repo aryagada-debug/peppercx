@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ExternalLink, Sparkles } from "lucide-react";
+import { Sparkles, Send } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -170,15 +172,54 @@ export function SuggestedStaffingCard({
 
   if (!enabled) return null;
 
+  const [sending, setSending] = useState(false);
+  const sendAllToStaffing = async () => {
+    if (!createdDealId || !data?.rows?.length) return;
+    setSending(true);
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const rows = data.rows.flatMap((r) => {
+        const people = r.common.filter(Boolean);
+        const base = {
+          staffing_deal_id: createdDealId,
+          role_key: r.role,
+          allocation_pct: r.medianPct || 0,
+          source: "handover",
+          status: "pending",
+          created_by: userData.user?.id ?? null,
+        };
+        if (!people.length) return [{ ...base, person_name: "" }];
+        return people.map((pname) => ({ ...base, person_name: pname }));
+      });
+      const { error } = await supabase
+        .from("staffing_suggestions")
+        .upsert(rows, { onConflict: "staffing_deal_id,role_key,person_name", ignoreDuplicates: false });
+      if (error) throw error;
+      toast.success("Suggestions sent to Staffing — open the deal to confirm or edit.");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to send suggestions");
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <Card className="p-3 space-y-2">
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1">
           <Sparkles className="h-3 w-3" /> Suggested staffing (based on similar deals)
         </h3>
-        {data && data.totalCompared > 0 && (
-          <Badge variant="outline" className="text-[10px]">{data.totalCompared} comparable</Badge>
-        )}
+        <div className="flex items-center gap-2">
+          {data && data.totalCompared > 0 && (
+            <Badge variant="outline" className="text-[10px]">{data.totalCompared} comparable</Badge>
+          )}
+          {createdDealId && data && data.rows.length > 0 && (
+            <Button size="sm" variant="default" onClick={sendAllToStaffing} disabled={sending}>
+              <Send className="h-3 w-3 mr-1" />
+              {sending ? "Sending…" : "Send all to Staffing"}
+            </Button>
+          )}
+        </div>
       </div>
       {vsd && vsd.trim() && (
         <p className="text-[11px] text-muted-foreground">
