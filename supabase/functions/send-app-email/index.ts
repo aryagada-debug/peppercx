@@ -465,6 +465,66 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
     };
   }
 
+  if (ev === "deal_created" || ev === "deal_unstaffed" || ev === "rgy_stale") {
+    const rule = await loadRule(admin, EVENT_TO_RULE[ev]);
+    if (rule && !rule.enabled) return null;
+    const recips = await expandTokens(admin, [...(rule?.to_tokens || []), ...(rule?.extra_to || [])], { deal });
+    if (recips.length === 0) return null;
+    const titleMap: Record<string, string> = {
+      deal_created: `New deal created — ${label}`,
+      deal_unstaffed: `Deal awaiting staffing — ${label}`,
+      rgy_stale: `RGY update pending — ${label}`,
+    };
+    const introMap: Record<string, string> = {
+      deal_created: `A new deal <b>${escapeHtml(label)}</b> has been created in Pepper CX.`,
+      deal_unstaffed: `<b>${escapeHtml(label)}</b> has been active for 7+ days without a staffing assignment. Please staff the deal.`,
+      rgy_stale: `RGY for <b>${escapeHtml(label)}</b> hasn't been updated in 7+ days. Please log the latest status.`,
+    };
+    const ctaMap: Record<string, [string, string]> = {
+      deal_created: ["Open deal", link],
+      deal_unstaffed: ["Open in Staffing", `${APP_ORIGIN}/staffing?tab=staffing&deal=${encodeURIComponent(deal.id)}`],
+      rgy_stale: ["Open RGY Health", `${APP_ORIGIN}/rgy`],
+    };
+    return {
+      to: recips,
+      subject: rule?.subject_template?.trim()
+        ? rule.subject_template.replace(/\{deal_label\}/g, label).replace(/\{month\}/g, "")
+        : titleMap[ev],
+      html: layout({
+        title: titleMap[ev],
+        intro: introMap[ev],
+        rows: [
+          ["Account", deal.account || ""],
+          ["Deal", deal.deal_name || ""],
+          ["Capability", deal.capability_line || ""],
+          ["VSD", deal.vsd || ""],
+          ["BOPM", deal.bopm || ""],
+        ],
+        ctaLabel: ctaMap[ev][0],
+        ctaHref: ctaMap[ev][1],
+      }),
+    };
+  }
+
+  if (ev === "handover_received") {
+    const rule = await loadRule(admin, "handover.received");
+    if (rule && !rule.enabled) return null;
+    const recips = await expandTokens(admin, [...(rule?.to_tokens || []), ...(rule?.extra_to || [])], { deal });
+    if (recips.length === 0) return null;
+    const company = String(input.payload?.company || deal.account || "");
+    return {
+      to: recips,
+      subject: `New sales handover — ${company}`,
+      html: layout({
+        title: `New sales handover — ${escapeHtml(company)}`,
+        intro: `A new sales handover has been submitted for <b>${escapeHtml(company)}</b>. Priyanka please add Deal ID & Name. Anirudh please confirm the VSD.`,
+        rows: [["Submitted by", String(input.payload?.submitter || "")]],
+        ctaLabel: "Open Deal Handover",
+        ctaHref: `${APP_ORIGIN}/deal-handover`,
+      }),
+    };
+  }
+
   return null;
 }
 
