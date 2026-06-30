@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { CalendarDays, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { invokeCalendarFunction } from "@/hooks/useGoogleCalendar";
+import { getCalendarCallbackUri, invokeCalendarFunction } from "@/hooks/useGoogleCalendar";
 import { useAuth } from "@/components/auth/AuthProvider";
 
 export default function CalendarCallback() {
@@ -31,19 +31,13 @@ export default function CalendarCallback() {
         setMessage("Missing Google Calendar callback details.");
         return;
       }
-      if (!session?.access_token) {
-        setFailed(true);
-        setMessage("Please sign in again before connecting Google Calendar.");
-        return;
-      }
-
       try {
         const data = await invokeCalendarFunction("google-calendar-oauth", {
           action: "callback",
           code,
           state,
-          redirectUri: `${window.location.origin}/calendar/callback`,
-        }, session.access_token);
+          redirectUri: getCalendarCallbackUri(),
+        }, session?.access_token);
         toast.success("Google Calendar connected");
         window.location.replace(data?.redirectTo || "/home");
       } catch (err) {
