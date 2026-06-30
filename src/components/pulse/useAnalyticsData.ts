@@ -28,6 +28,9 @@ export type InviteRow = {
   opened_at: string | null;
   completed_at: string | null;
   deal_status: string | null;
+  deal_value: number | null;
+  mrr: number | null;
+  deal_type: string | null;
 };
 
 export type ResponseRow = {
@@ -71,12 +74,20 @@ export function usePulseAnalyticsData(filters: AnalyticsFilters, enabled: boolea
       // Hydrate deal_status for closed-filter
       const ids = Array.from(new Set(invites.map(i => i.deal_id))).filter(Boolean);
       let statusMap = new Map<string, string>();
+      let dealMap = new Map<string, { deal_value: number | null; mrr: number | null; deal_type: string | null }>();
       if (ids.length) {
         const { data: dealsData } = await supabase
           .from("staffing_deals")
-          .select("id, deal_status")
+          .select("id, deal_status, total_deal_value, mrr, deal_type")
           .in("id", ids);
-        (dealsData || []).forEach((d: any) => statusMap.set(d.id, d.deal_status || ""));
+        (dealsData || []).forEach((d: any) => {
+          statusMap.set(d.id, d.deal_status || "");
+          dealMap.set(d.id, {
+            deal_value: d.total_deal_value ?? null,
+            mrr: d.mrr ?? null,
+            deal_type: d.deal_type ?? null,
+          });
+        });
       }
       return invites.map(i => ({
         id: i.id,
@@ -94,6 +105,9 @@ export function usePulseAnalyticsData(filters: AnalyticsFilters, enabled: boolea
         opened_at: i.opened_at,
         completed_at: i.completed_at,
         deal_status: statusMap.get(i.deal_id) ?? null,
+        deal_value: dealMap.get(i.deal_id)?.deal_value ?? null,
+        mrr: dealMap.get(i.deal_id)?.mrr ?? null,
+        deal_type: dealMap.get(i.deal_id)?.deal_type ?? null,
       })) as InviteRow[];
     },
   });

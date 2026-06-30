@@ -1,64 +1,62 @@
-# Deal Handover — "Open in Staffing" + suggested staffing
+## 1. Pulse / NPS Analytics — new "Responses" view
 
-When a handover row reaches `Created`, expose a one-click path to that deal's row on the Staffing & Capacity page and surface a "Suggested staffing" panel built from comparable deals.
+In `src/pages/PulseNPSAnalytics.tsx`, add a top-level toggle next to "Group by":
 
-## 1. "Open in Staffing" link
+- **Summary** (current grouped table + chart) — default
+- **Responses** (new flat table of every individual submission)
 
-In `src/pages/DealHandover.tsx`, in the drawer's green "Deal created" banner, add a second button next to **Open deal**:
+When **Responses** is selected, hide the "Group by" / "Tier" controls and render a new `AnalyticsResponsesTable` instead of `AnalyticsTable`. KPI strip and all existing filters (date range, VSD, BOPM, capability, search, include closed) continue to apply.
 
-- Label: **Open in Staffing**
-- Route: `/staffing?tab=deal&deal=<created_deal_id>`
-- The Staffing page already reads `?tab` and `?deal` (see `Staffing.tsx` lines 41–43), so no Staffing-side changes are needed beyond confirming it auto-scrolls/expands the matching deal row. If it doesn't already, add a small `useEffect` that scrolls the matching row into view.
+### New component: `src/components/pulse/AnalyticsResponsesTable.tsx`
 
-## 2. Suggested staffing panel (in the drawer)
+One row per `survey_responses` record (joined with its `survey_invites` row for context). Columns, all sortable + a free-text filter:
 
-Add a new `Card` titled **Suggested staffing (based on similar deals)** that appears when the handover row's deal type / BU / capability are present (works even before the deal is `Created`, using the handover form's own fields).
+| Column | Source |
+|---|---|
+| Submitted | `submitted_at` |
+| Deal ID | `invite.deal_id` |
+| Deal name | `invite.deal_name_snapshot` (fallback `account_snapshot`) |
+| Account | `invite.account_snapshot` |
+| VSD | `invite.vsd_name` |
+| S/P BOPM | `invite.principal_bopm` + `invite.senior_bopm` (comma-joined, "—" if empty) |
+| BOPM | `invite.bopm` |
+| Total deal value | `staffing_deals.mrr × 12` if retainer, else `staffing_deals.deal_value` (hydrated by adding `deal_value, mrr, deal_type` to the deals lookup already done in `useAnalyticsData.ts`); formatted via `formatCurrency` |
+| Respondent | `respondent_name` / `respondent_email` |
+| NPS / CSAT / CES | numeric |
+| Mood / Renew / Risk | string |
+| Q&A | "View" button → opens a side drawer showing every key/value in `payload` (question text + answer), so you can see exactly what was filled |
 
-### Matching logic
+Export-CSV button reuses the same rows.
 
-1. Fetch up to ~20 `staffing_deals` that match the handover row, scored by:
-   - Same `capability_line` (+3)
-   - Same `business_unit` (+2)
-   - Same `vsd` name (+2)
-   - Same `deal_type` (+1)
-   - MRR within ±30% (+1)
-2. Drop the handover's own `created_deal_id` from results.
-3. Take the top 5 highest-scored matches.
+### Data layer change: `src/components/pulse/useAnalyticsData.ts`
 
-### Aggregation
+- Extend `InviteRow` with `deal_value: number | null`, `mrr: number | null`, `deal_type: string | null`.
+- Update the `staffing_deals` hydration select to include those columns and map them onto each invite.
 
-For those top deals, pull their `staffing_assignments` (role_key, person_id, allocation_pct). Group by `role_key` and compute:
+## 2. Handover drawer — remove inline suggested staffing
 
-- Frequency (how many of the comparable deals had this role)
-- Median allocation %
-- Top 2 most-frequently-staffed people for that role (names from `staffing_people`)
+In `src/pages/DealHandover.tsx`:
 
-Render as a compact table:
+- Remove the `<SuggestedStaffingCard …/>` block (and its import) from the management drawer.
+- Suggestions continue to be generated/persisted in the original handover wizard flow and surface inside the deal's staffing card via the existing `SuggestedStaffingPanel` — which is exactly what the user wants when they click **Open in Staffing** from the drawer.
 
-```text
-Role              Typical %   Frequency   Common people
-Senior BOPM       40%         4 / 5       Sneha I., Aamir K.
-Content Lead      60%         3 / 5       Riya P.
-SEO Manager       50%         3 / 5       Karan S.
+No changes to `SuggestedStaffingCard.tsx`, `SuggestedStaffingPanel.tsx`, `staffing_suggestions`, or the Staffing page.
+
+## 3. Dark-mode fix for the "Deal created" banner
+
+Same file, the green success strip at line 317 uses hardcoded `bg-green-50 border-green-200` which is unreadable in dark mode. Replace with semantic tokens that adapt:
+
+```
+bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300
 ```
 
-Each row gets a small **Use** button that, when the deal is already `Created`, deep-links to `/staffing?tab=deal&deal=<id>&prefill_role=<role_key>` so the staffing grid can preselect that role. (Staffing.tsx already consumes `deal` — add a no-op read for `prefill_role` later if/when we wire that side.)
-
-If the deal isn't created yet, the suggestions are read-only; the panel shows a hint: *"Create the deal to apply these into Staffing."*
-
-### Empty state
-
-If fewer than 2 comparable deals are found, show: *"Not enough similar deals to suggest staffing yet."*
+(matches the token pattern already used elsewhere in the app for "good" tone strips.)
 
 ## Files touched
 
-- `src/pages/DealHandover.tsx` — add **Open in Staffing** button; render the new `<SuggestedStaffingCard />`.
-- `src/components/handover/SuggestedStaffingCard.tsx` (new) — fetch + score + aggregate + render.
+- `src/pages/PulseNPSAnalytics.tsx` — add view toggle, wire new table.
+- `src/components/pulse/AnalyticsResponsesTable.tsx` — **new**.
+- `src/components/pulse/useAnalyticsData.ts` — hydrate `deal_value/mrr/deal_type` onto invites.
+- `src/pages/DealHandover.tsx` — drop `SuggestedStaffingCard`, fix banner colors.
 
-No DB migrations, no edge functions.
-
-## Technical notes
-
-- Reuse `supabase` client; the queries are read-only against `staffing_deals`, `staffing_assignments`, `staffing_people`.
-- Use `useQuery` keyed by `(vsd, bu, capability, deal_type, mrr)` so suggestions are cached per handover row.
-- Role labels: pass `role_key` through `normalize_staffing_role_key` mapping that the app already uses, then humanize (e.g. `senior_bopm` → "Senior BOPM").
+No DB migrations, no edge function changes.
