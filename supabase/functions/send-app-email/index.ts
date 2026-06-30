@@ -630,6 +630,64 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
+    if (action === "send_test_rule") {
+      const eventKey = String((body as { eventKey?: string }).eventKey || "");
+      const to = String((body as { to?: string }).to || "").trim();
+      if (!eventKey || !/@/.test(to)) return json({ error: "eventKey_and_to_required" }, 400);
+      const rule = await loadRule(admin, eventKey);
+      if (!rule) return json({ error: "rule_not_found" }, 404);
+      const sampleCtx: Record<string, string> = {
+        "{deal_label}": "Acme Corp — Pepper Creative",
+        "{account}": "Acme Corp",
+        "{deal_name}": "Pepper Creative",
+        "{capability}": "Creative",
+        "{vsd}": "Sample VSD",
+        "{bopm}": "Sample BOPM",
+        "{assignee}": "Sample Person",
+        "{role}": "Account Manager",
+        "{pct}": "50%",
+        "{status}": "Red",
+        "{dimensions}": "Delivery, Sentiment",
+        "{month}": new Date().toISOString().slice(0, 7),
+        "{company}": "Acme Corp",
+        "{submitter}": "Sales Lead",
+      };
+      const subject = `[TEST] ${rule.subject_template?.trim() ? applyTokens(rule.subject_template, sampleCtx) : `${rule.event_key} preview`}`;
+      const intro = rule.body_template?.trim()
+        ? applyTokens(rule.body_template, sampleCtx)
+        : `This is a preview of the <b>${escapeHtml(rule.event_key)}</b> notification. No body template is set yet — actual sends will use the default copy.`;
+      const html = layout({
+        title: `Preview — ${escapeHtml(rule.event_key)}`,
+        intro,
+        rows: [
+          ["Event", rule.event_key],
+          ["Sample deal", sampleCtx["{deal_label}"]],
+          ["Sent at", new Date().toISOString()],
+        ],
+      });
+      try {
+        const { token, email: fromEmail } = await getCentralToken(admin);
+        if (!fromEmail) return json({ error: "central_mailbox_missing_email" }, 412);
+        const raw = buildRaw({ to: [to], subject, html, from: fromEmail });
+        const send = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ raw }),
+        });
+        const data = await send.json();
+        if (!send.ok) return json({ error: data?.error?.message || "gmail_send_failed" }, 500);
+        await admin.from("email_send_log").insert([{
+          event: `test:${rule.event_key}`, deal_id: null, recipient_email: to,
+          subject, status: "sent", gmail_message_id: data.id as string, error: null,
+          triggered_by: user.id, payload: { test: true },
+        }]);
+        return json({ ok: true, id: data.id });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return json({ error: msg }, msg === "central_mailbox_not_connected" ? 412 : 500);
+      }
+    }
+
     // action === "send"
     const inputs: SendInput[] = Array.isArray((body as { events?: SendInput[] }).events)
       ? (body as { events: SendInput[] }).events
