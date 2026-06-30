@@ -7,6 +7,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { sendAppEmail } from "@/lib/appEmail";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { HandoverWizard } from "@/components/handover/HandoverWizard";
+import { SuggestedStaffingCard } from "@/components/handover/SuggestedStaffingCard";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -312,15 +313,29 @@ function HandoverDrawer({
         </SheetHeader>
 
         {row.status === "created" && row.created_deal_id && (
-          <div className="mt-4 rounded-md bg-green-50 border border-green-200 px-3 py-2 text-sm flex items-center justify-between">
+          <div className="mt-4 rounded-md bg-green-50 border border-green-200 px-3 py-2 text-sm flex items-center justify-between gap-2">
             <span>Deal created in Clients &amp; Deals.</span>
-            <Button asChild size="sm" variant="outline">
-              <Link to={`/deals/${encodeURIComponent(row.created_deal_id)}`}><ExternalLink className="h-3 w-3 mr-1" /> Open deal</Link>
-            </Button>
+            <div className="flex gap-2">
+              <Button asChild size="sm" variant="outline">
+                <Link to={`/deals/${encodeURIComponent(row.created_deal_id)}`}><ExternalLink className="h-3 w-3 mr-1" /> Open deal</Link>
+              </Button>
+              <Button asChild size="sm" variant="outline">
+                <Link to={`/staffing?tab=staffing&deal=${encodeURIComponent(row.created_deal_id)}`}><ExternalLink className="h-3 w-3 mr-1" /> Open in Staffing</Link>
+              </Button>
+            </div>
           </div>
         )}
 
         <div className="mt-4 space-y-4">
+          <SuggestedStaffingCard
+            vsd={row.vsd_confirmed || ""}
+            bu={row.bu || ""}
+            capability={row.capability || ""}
+            dealType={row.deal_type || ""}
+            mrr={row.mrr}
+            excludeDealId={row.created_deal_id || undefined}
+            createdDealId={row.created_deal_id || undefined}
+          />
           <Card className="p-3 space-y-2">
             <h3 className="text-xs font-semibold uppercase text-muted-foreground">Priyanka — Deal ID & Name</h3>
             <div className="grid grid-cols-2 gap-2">
