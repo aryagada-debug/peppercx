@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { ArrowUpDown, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine, LabelList } from "recharts";
 import { ResponseRow, InviteRow, CapabilityRow, capabilityLabel, splitNames, normName } from "./useAnalyticsData";
 
 type GroupBy = "vsd" | "bopm" | "deal" | "capability";
