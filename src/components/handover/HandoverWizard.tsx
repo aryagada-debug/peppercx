@@ -163,7 +163,7 @@ export function HandoverWizard({ onSubmitted }: Props) {
       total_amount: form.total_amount,
       duration_months: form.duration_months ? Number(form.duration_months) : null,
       start_date: form.start_date || null,
-      vsd_suggested: form.vsd_suggested.trim(),
+      vsd_suggested: "",
       deal_notes: form.deal_notes.trim(),
       contacts: form.contacts.filter((c) => c.name || c.email),
       status: "submitted",
