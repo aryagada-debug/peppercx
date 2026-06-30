@@ -4,6 +4,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { Bell, Loader2, Save } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -17,6 +18,7 @@ interface RuleRow {
   extra_to: string[];
   extra_cc: string[];
   subject_template: string;
+  body_template: string;
 }
 
 interface CapLead {
@@ -37,6 +39,8 @@ export function NotificationRulesCard() {
   const [leads, setLeads] = useState<CapLead[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [testTo, setTestTo] = useState<Record<string, string>>({});
+  const [testingKey, setTestingKey] = useState<string | null>(null);
 
   const load = async () => {
     const [r, l] = await Promise.all([
@@ -62,9 +66,26 @@ export function NotificationRulesCard() {
       extra_to: rule.extra_to,
       extra_cc: rule.extra_cc,
       subject_template: rule.subject_template,
+      body_template: rule.body_template,
     }).eq("event_key", rule.event_key);
     setSavingKey(null);
     if (error) toast.error(error.message); else toast.success("Saved");
+  };
+
+  const sendTest = async (rule: RuleRow) => {
+    const to = (testTo[rule.event_key] || "").trim();
+    if (!/@/.test(to)) { toast.error("Enter a valid test email"); return; }
+    setTestingKey(rule.event_key);
+    const { data, error } = await supabase.functions.invoke("send-app-email", {
+      body: { action: "send_test_rule", eventKey: rule.event_key, to },
+    });
+    setTestingKey(null);
+    if (error) { toast.error(error.message); return; }
+    if (data && typeof data === "object" && "error" in (data as object)) {
+      toast.error((data as { error: string }).error);
+      return;
+    }
+    toast.success(`Test sent to ${to}`);
   };
 
   const saveLeads = async (lead: CapLead) => {
@@ -127,8 +148,30 @@ export function NotificationRulesCard() {
               <Field label="Subject template" className="md:col-span-2">
                 <Input value={r.subject_template} onChange={(e) => patchRule(r.event_key, { subject_template: e.target.value })} disabled={disabled} placeholder="Subject with {deal_label}" />
               </Field>
+              <Field label="Body template (HTML allowed)" className="md:col-span-2">
+                <Textarea
+                  rows={5}
+                  value={r.body_template || ""}
+                  onChange={(e) => patchRule(r.event_key, { body_template: e.target.value })}
+                  disabled={disabled}
+                  placeholder="e.g. Hi team, <b>{deal_label}</b> needs your attention. Capability: {capability}."
+                />
+              </Field>
             </div>
-            <div className="flex justify-end">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-1">
+              <div className="flex items-center gap-2">
+                <Input
+                  className="h-8 w-64"
+                  placeholder="test@peppercontent.io"
+                  value={testTo[r.event_key] || ""}
+                  onChange={(e) => setTestTo((m) => ({ ...m, [r.event_key]: e.target.value }))}
+                  disabled={disabled}
+                />
+                <Button size="sm" variant="secondary" onClick={() => sendTest(r)} disabled={disabled || testingKey === r.event_key}>
+                  {testingKey === r.event_key ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                  Send test
+                </Button>
+              </div>
               <Button size="sm" variant="outline" onClick={() => saveRule(r)} disabled={disabled || savingKey === r.event_key}>
                 {savingKey === r.event_key ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Save className="h-3 w-3 mr-1" />}
                 Save

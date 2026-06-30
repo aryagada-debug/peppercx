@@ -243,6 +243,15 @@ async function loadRule(admin: SupabaseClient, eventKey: string): Promise<RuleRo
   return (data as RuleRow) || null;
 }
 
+function applyTokens(template: string, ctx: Record<string, string>): string {
+  let out = template;
+  for (const [k, v] of Object.entries(ctx)) {
+    out = out.split(k).join(v ?? "");
+  }
+  // Replace any remaining unknown {tokens} with blank
+  return out.replace(/\{[a-z_]+\}/gi, "");
+}
+
 function capabilityBucket(deal: DealRow): string {
   const cap = (deal.capability_line || "").toLowerCase();
   const bu = (deal.business_unit || "").toLowerCase();
@@ -354,13 +363,21 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
     const recips = await expandTokens(admin, [...(rule?.to_tokens || []), ...(rule?.extra_to || [])], {});
     if (recips.length === 0) return null;
     const company = String(input.payload?.company || "");
+    const submitter = String(input.payload?.submitter || "");
+    const tctx = { "{company}": company, "{submitter}": submitter };
+    const subject = rule?.subject_template?.trim()
+      ? applyTokens(rule.subject_template, tctx)
+      : `New sales handover — ${company}`;
+    const intro = rule?.body_template?.trim()
+      ? applyTokens(rule.body_template, tctx)
+      : `A new sales handover has been submitted for <b>${escapeHtml(company)}</b>. Priyanka please add Deal ID & Name. Anirudh please confirm the VSD.`;
     return {
       to: recips,
-      subject: `New sales handover — ${company}`,
+      subject,
       html: layout({
         title: `New sales handover — ${escapeHtml(company)}`,
-        intro: `A new sales handover has been submitted for <b>${escapeHtml(company)}</b>. Priyanka please add Deal ID & Name. Anirudh please confirm the VSD.`,
-        rows: [["Submitted by", String(input.payload?.submitter || "")]],
+        intro,
+        rows: [["Submitted by", submitter]],
         ctaLabel: "Open Deal Handover",
         ctaHref: `${APP_ORIGIN}/deal-handover`,
       }),
@@ -379,13 +396,30 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
     if (!person?.email || !/@/.test(person.email)) return null;
     const pct = formatPct(input.payload?.allocationPct);
     const role = String(input.payload?.roleKey || "").replace(/_/g, " ");
+    const rule = await loadRule(admin, "assignment.created");
+    const tctx: Record<string, string> = {
+      "{deal_label}": label,
+      "{account}": deal.account || "",
+      "{deal_name}": deal.deal_name || "",
+      "{assignee}": person.name || "",
+      "{role}": role,
+      "{pct}": pct,
+      "{vsd}": deal.vsd || "",
+      "{bopm}": deal.bopm || "",
+    };
+    const customSubject = rule?.subject_template?.trim()
+      ? applyTokens(rule.subject_template, tctx)
+      : null;
+    const customIntro = rule?.body_template?.trim()
+      ? applyTokens(rule.body_template, tctx)
+      : null;
     if (ev === "staffed") {
       return {
         to: [person.email],
-        subject: `You've been staffed on ${label}`,
+        subject: customSubject || `You've been staffed on ${label}`,
         html: layout({
           title: `You're staffed on ${escapeHtml(label)}`,
-          intro: `Hi ${escapeHtml(person.name || "")}, you've been added to <b>${escapeHtml(label)}</b> at <b>${escapeHtml(pct)}</b> bandwidth.`,
+          intro: customIntro || `Hi ${escapeHtml(person.name || "")}, you've been added to <b>${escapeHtml(label)}</b> at <b>${escapeHtml(pct)}</b> bandwidth.`,
           rows: [
             ["Account", deal.account || ""],
             ["Deal", deal.deal_name || ""],
@@ -441,12 +475,19 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
     const dims = Array.isArray(input.payload?.dimensions)
       ? (input.payload!.dimensions as string[]).join(", ")
       : String(input.payload?.dimension || "");
+    const rule = await loadRule(admin, "rgy.alert");
+    const tctx: Record<string, string> = {
+      "{deal_label}": label, "{account}": deal.account || "", "{deal_name}": deal.deal_name || "",
+      "{status}": status, "{dimensions}": dims, "{vsd}": deal.vsd || "", "{bopm}": deal.bopm || "",
+    };
+    const sbj = rule?.subject_template?.trim() ? applyTokens(rule.subject_template, tctx) : null;
+    const intro = rule?.body_template?.trim() ? applyTokens(rule.body_template, tctx) : null;
     return {
       to: recips,
-      subject: `RGY ${status === "R" ? "Red" : status === "Y" ? "Yellow" : status} — ${label}`,
+      subject: sbj || `RGY ${status === "R" ? "Red" : status === "Y" ? "Yellow" : status} — ${label}`,
       html: layout({
         title: `RGY moved to ${status === "R" ? "Red" : status === "Y" ? "Yellow" : status}`,
-        intro: `<b>${escapeHtml(label)}</b> has a new ${escapeHtml(status === "R" ? "Red" : status === "Y" ? "Yellow" : status)} RGY signal. Please review and log the action plan in Pepper CX.`,
+        intro: intro || `<b>${escapeHtml(label)}</b> has a new ${escapeHtml(status === "R" ? "Red" : status === "Y" ? "Yellow" : status)} RGY signal. Please review and log the action plan in Pepper CX.`,
         rows: [
           ["Account", deal.account || ""],
           ["Deal", deal.deal_name || ""],
@@ -466,12 +507,19 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
       : await lookupEmailsByNames(admin, dealLeadershipNames(deal));
     if (recips.length === 0) return null;
     const month = String(input.payload?.month || "");
+    const rule = await loadRule(admin, "mbr.missing_prev_month");
+    const tctx: Record<string, string> = {
+      "{deal_label}": label, "{account}": deal.account || "", "{deal_name}": deal.deal_name || "",
+      "{month}": month, "{vsd}": deal.vsd || "", "{bopm}": deal.bopm || "",
+    };
+    const sbj = rule?.subject_template?.trim() ? applyTokens(rule.subject_template, tctx) : null;
+    const intro = rule?.body_template?.trim() ? applyTokens(rule.body_template, tctx) : null;
     return {
       to: recips,
-      subject: `MBR pending — ${label}${month ? ` (${month})` : ""}`,
+      subject: sbj || `MBR pending — ${label}${month ? ` (${month})` : ""}`,
       html: layout({
         title: `MBR pending for ${escapeHtml(label)}`,
-        intro: `The Monthly Business Review for <b>${escapeHtml(label)}</b> is still pending${month ? ` for <b>${escapeHtml(month)}</b>` : ""}. Please schedule and log it in Pepper CX.`,
+        intro: intro || `The Monthly Business Review for <b>${escapeHtml(label)}</b> is still pending${month ? ` for <b>${escapeHtml(month)}</b>` : ""}. Please schedule and log it in Pepper CX.`,
         rows: [
           ["Account", deal.account || ""],
           ["Deal", deal.deal_name || ""],
@@ -505,14 +553,25 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
       deal_unstaffed: ["Open in Staffing", `${APP_ORIGIN}/staffing?tab=staffing&deal=${encodeURIComponent(deal.id)}`],
       rgy_stale: ["Open RGY Health", `${APP_ORIGIN}/rgy`],
     };
+    const tokenCtx: Record<string, string> = {
+      "{deal_label}": label,
+      "{account}": deal.account || "",
+      "{deal_name}": deal.deal_name || "",
+      "{capability}": deal.capability_line || "",
+      "{vsd}": deal.vsd || "",
+      "{bopm}": deal.bopm || "",
+    };
+    const intro = rule?.body_template?.trim()
+      ? applyTokens(rule.body_template, tokenCtx)
+      : introMap[ev];
     return {
       to: recips,
       subject: rule?.subject_template?.trim()
-        ? rule.subject_template.replace(/\{deal_label\}/g, label).replace(/\{month\}/g, "")
+        ? applyTokens(rule.subject_template, tokenCtx)
         : titleMap[ev],
       html: layout({
         title: titleMap[ev],
-        intro: introMap[ev],
+        intro,
         rows: [
           ["Account", deal.account || ""],
           ["Deal", deal.deal_name || ""],
@@ -569,6 +628,64 @@ Deno.serve(async (req) => {
         .eq("user_id", targetUserId);
       if (upErr) throw upErr;
       return json({ ok: true });
+    }
+
+    if (action === "send_test_rule") {
+      const eventKey = String((body as { eventKey?: string }).eventKey || "");
+      const to = String((body as { to?: string }).to || "").trim();
+      if (!eventKey || !/@/.test(to)) return json({ error: "eventKey_and_to_required" }, 400);
+      const rule = await loadRule(admin, eventKey);
+      if (!rule) return json({ error: "rule_not_found" }, 404);
+      const sampleCtx: Record<string, string> = {
+        "{deal_label}": "Acme Corp — Pepper Creative",
+        "{account}": "Acme Corp",
+        "{deal_name}": "Pepper Creative",
+        "{capability}": "Creative",
+        "{vsd}": "Sample VSD",
+        "{bopm}": "Sample BOPM",
+        "{assignee}": "Sample Person",
+        "{role}": "Account Manager",
+        "{pct}": "50%",
+        "{status}": "Red",
+        "{dimensions}": "Delivery, Sentiment",
+        "{month}": new Date().toISOString().slice(0, 7),
+        "{company}": "Acme Corp",
+        "{submitter}": "Sales Lead",
+      };
+      const subject = `[TEST] ${rule.subject_template?.trim() ? applyTokens(rule.subject_template, sampleCtx) : `${rule.event_key} preview`}`;
+      const intro = rule.body_template?.trim()
+        ? applyTokens(rule.body_template, sampleCtx)
+        : `This is a preview of the <b>${escapeHtml(rule.event_key)}</b> notification. No body template is set yet — actual sends will use the default copy.`;
+      const html = layout({
+        title: `Preview — ${escapeHtml(rule.event_key)}`,
+        intro,
+        rows: [
+          ["Event", rule.event_key],
+          ["Sample deal", sampleCtx["{deal_label}"]],
+          ["Sent at", new Date().toISOString()],
+        ],
+      });
+      try {
+        const { token, email: fromEmail } = await getCentralToken(admin);
+        if (!fromEmail) return json({ error: "central_mailbox_missing_email" }, 412);
+        const raw = buildRaw({ to: [to], subject, html, from: fromEmail });
+        const send = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ raw }),
+        });
+        const data = await send.json();
+        if (!send.ok) return json({ error: data?.error?.message || "gmail_send_failed" }, 500);
+        await admin.from("email_send_log").insert([{
+          event: `test:${rule.event_key}`, deal_id: null, recipient_email: to,
+          subject, status: "sent", gmail_message_id: data.id as string, error: null,
+          triggered_by: user.id, payload: { test: true },
+        }]);
+        return json({ ok: true, id: data.id });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return json({ error: msg }, msg === "central_mailbox_not_connected" ? 412 : 500);
+      }
     }
 
     // action === "send"
