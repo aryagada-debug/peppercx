@@ -151,12 +151,13 @@ function layout({ title, intro, rows, ctaLabel, ctaHref, footerNote }: {
 type DealRow = {
   id: string; account: string | null; deal_name: string | null;
   vsd: string | null; principal_bopm: string | null; senior_bopm: string | null; bopm: string | null;
+  capability_line?: string | null; business_unit?: string | null; geo?: string | null;
 };
 
 async function loadDeal(admin: SupabaseClient, dealId: string): Promise<DealRow | null> {
   const { data } = await admin
     .from("staffing_deals")
-    .select("id, account, deal_name, vsd, principal_bopm, senior_bopm, bopm")
+    .select("id, account, deal_name, vsd, principal_bopm, senior_bopm, bopm, capability_line, business_unit, geo")
     .eq("id", dealId)
     .maybeSingle();
   return (data as DealRow) || null;
@@ -216,6 +217,82 @@ type SendInput = {
   payload?: Record<string, unknown>;
 };
 type Built = { to: string[]; subject: string; html: string };
+type BuiltOut = Built & { cc?: string[] };
+
+// ── Rules resolver ──────────────────────────────────────────────────────────
+type RuleRow = {
+  event_key: string; enabled: boolean;
+  to_tokens: string[]; cc_tokens: string[];
+  extra_to: string[]; extra_cc: string[];
+  subject_template: string; body_template: string;
+};
+
+const EVENT_TO_RULE: Record<string, string> = {
+  staffed: "assignment.created",
+  staffing_changed: "assignment.created",
+  staffing_removed: "assignment.created",
+  handover_received: "handover.received",
+  deal_created: "deal.created",
+  deal_unstaffed: "deal.unstaffed_7d",
+  mbr_reminder: "mbr.missing_prev_month",
+  rgy_stale: "rgy.stale_7d",
+};
+
+async function loadRule(admin: SupabaseClient, eventKey: string): Promise<RuleRow | null> {
+  const { data } = await admin.from("notification_rules").select("*").eq("event_key", eventKey).maybeSingle();
+  return (data as RuleRow) || null;
+}
+
+function capabilityBucket(deal: DealRow): string {
+  const cap = (deal.capability_line || "").toLowerCase();
+  const bu = (deal.business_unit || "").toLowerCase();
+  const geo = (deal.geo || "").toLowerCase();
+  const text = `${cap} ${bu}`;
+  if (text.includes("creative")) return "creative";
+  if (text.includes("seo")) return (geo.includes("us") || geo.includes("america")) ? "seo_us" : "seo_india";
+  if (text.includes("content studio") || text.includes("studio")) return "content_studio";
+  return "other";
+}
+
+async function emailsForCapabilityLead(admin: SupabaseClient, deal: DealRow): Promise<string[]> {
+  const bucket = capabilityBucket(deal);
+  const { data } = await admin.from("capability_leads").select("leads").eq("bucket", bucket).maybeSingle();
+  return ((data?.leads as string[]) || []).filter((e) => /@/.test(e));
+}
+
+async function emailForAssigneeManager(admin: SupabaseClient, personId: string): Promise<string[]> {
+  const { data: p } = await admin.from("staffing_people").select("manager_person_id").eq("id", personId).maybeSingle();
+  const mid = (p as { manager_person_id?: string } | null)?.manager_person_id;
+  if (!mid) return [];
+  const { data: m } = await admin.from("staffing_people").select("email").eq("id", mid).maybeSingle();
+  const e = (m as { email?: string } | null)?.email;
+  return e && /@/.test(e) ? [e] : [];
+}
+
+async function expandTokens(
+  admin: SupabaseClient,
+  tokens: string[],
+  ctx: { deal?: DealRow; personEmail?: string; personId?: string },
+): Promise<string[]> {
+  const out = new Set<string>();
+  for (const tok of tokens) {
+    const t = tok.trim();
+    if (!t) continue;
+    if (t === "{assignee}" && ctx.personEmail) out.add(ctx.personEmail);
+    else if (t === "{assignee_manager}" && ctx.personId) {
+      (await emailForAssigneeManager(admin, ctx.personId)).forEach((e) => out.add(e));
+    } else if (t === "{capability_lead}" && ctx.deal) {
+      (await emailsForCapabilityLead(admin, ctx.deal)).forEach((e) => out.add(e));
+    } else if ((t === "{vsd}" || t === "{principal_bopm}" || t === "{senior_bopm}" || t === "{bopm}") && ctx.deal) {
+      const field = t.slice(1, -1) as "vsd" | "principal_bopm" | "senior_bopm" | "bopm";
+      const names = ctx.deal[field] ? [ctx.deal[field] as string] : [];
+      (await lookupEmailsByNames(admin, names)).forEach((e) => out.add(e));
+    } else if (/@/.test(t)) {
+      out.add(t);
+    }
+  }
+  return Array.from(out);
+}
 
 async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Built | null> {
   const ev = input.event;
@@ -267,6 +344,25 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
         title: "Central mailbox is working",
         intro: "This is a test message sent from the central CX mailbox. If you received it, notifications are good to go.",
         rows: [["Sent at", new Date().toISOString()]],
+      }),
+    };
+  }
+
+  if (ev === "handover_received") {
+    const rule = await loadRule(admin, "handover.received");
+    if (rule && !rule.enabled) return null;
+    const recips = await expandTokens(admin, [...(rule?.to_tokens || []), ...(rule?.extra_to || [])], {});
+    if (recips.length === 0) return null;
+    const company = String(input.payload?.company || "");
+    return {
+      to: recips,
+      subject: `New sales handover — ${company}`,
+      html: layout({
+        title: `New sales handover — ${escapeHtml(company)}`,
+        intro: `A new sales handover has been submitted for <b>${escapeHtml(company)}</b>. Priyanka please add Deal ID & Name. Anirudh please confirm the VSD.`,
+        rows: [["Submitted by", String(input.payload?.submitter || "")]],
+        ctaLabel: "Open Deal Handover",
+        ctaHref: `${APP_ORIGIN}/deal-handover`,
       }),
     };
   }
@@ -389,6 +485,47 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
     };
   }
 
+  if (ev === "deal_created" || ev === "deal_unstaffed" || ev === "rgy_stale") {
+    const rule = await loadRule(admin, EVENT_TO_RULE[ev]);
+    if (rule && !rule.enabled) return null;
+    const recips = await expandTokens(admin, [...(rule?.to_tokens || []), ...(rule?.extra_to || [])], { deal });
+    if (recips.length === 0) return null;
+    const titleMap: Record<string, string> = {
+      deal_created: `New deal created — ${label}`,
+      deal_unstaffed: `Deal awaiting staffing — ${label}`,
+      rgy_stale: `RGY update pending — ${label}`,
+    };
+    const introMap: Record<string, string> = {
+      deal_created: `A new deal <b>${escapeHtml(label)}</b> has been created in Pepper CX.`,
+      deal_unstaffed: `<b>${escapeHtml(label)}</b> has been active for 7+ days without a staffing assignment. Please staff the deal.`,
+      rgy_stale: `RGY for <b>${escapeHtml(label)}</b> hasn't been updated in 7+ days. Please log the latest status.`,
+    };
+    const ctaMap: Record<string, [string, string]> = {
+      deal_created: ["Open deal", link],
+      deal_unstaffed: ["Open in Staffing", `${APP_ORIGIN}/staffing?tab=staffing&deal=${encodeURIComponent(deal.id)}`],
+      rgy_stale: ["Open RGY Health", `${APP_ORIGIN}/rgy`],
+    };
+    return {
+      to: recips,
+      subject: rule?.subject_template?.trim()
+        ? rule.subject_template.replace(/\{deal_label\}/g, label).replace(/\{month\}/g, "")
+        : titleMap[ev],
+      html: layout({
+        title: titleMap[ev],
+        intro: introMap[ev],
+        rows: [
+          ["Account", deal.account || ""],
+          ["Deal", deal.deal_name || ""],
+          ["Capability", deal.capability_line || ""],
+          ["VSD", deal.vsd || ""],
+          ["BOPM", deal.bopm || ""],
+        ],
+        ctaLabel: ctaMap[ev][0],
+        ctaHref: ctaMap[ev][1],
+      }),
+    };
+  }
+
   return null;
 }
 
@@ -465,7 +602,29 @@ Deno.serve(async (req) => {
           results.push({ event: inp.event, skipped: true, reason: "no_recipients_or_data" });
           continue;
         }
-        const raw = buildRaw({ to: built.to, subject: built.subject, html: built.html, from: fromEmail });
+        // Apply rule overrides: enabled, extra_to, extra_cc, cc_tokens.
+        const ruleKey = EVENT_TO_RULE[inp.event];
+        let cc: string[] = [];
+        const toSet = new Set<string>(built.to);
+        if (ruleKey) {
+          const rule = await loadRule(admin, ruleKey);
+          if (rule && !rule.enabled) {
+            results.push({ event: inp.event, skipped: true, reason: "rule_disabled" });
+            continue;
+          }
+          if (rule) {
+            const deal = inp.dealId ? await loadDeal(admin, inp.dealId) : undefined;
+            const person = inp.personId ? await loadPerson(admin, inp.personId) : null;
+            const ctx = { deal: deal || undefined, personEmail: person?.email || undefined, personId: inp.personId };
+            const extraTo = await expandTokens(admin, rule.extra_to || [], ctx);
+            const ccAll = await expandTokens(admin, [...(rule.cc_tokens || []), ...(rule.extra_cc || [])], ctx);
+            extraTo.forEach((e) => toSet.add(e));
+            // dedupe cc against to
+            cc = ccAll.filter((e) => !toSet.has(e));
+          }
+        }
+        const finalTo = Array.from(toSet);
+        const raw = buildRaw({ to: finalTo, cc: cc.length ? cc : undefined, subject: built.subject, html: built.html, from: fromEmail });
         const send = await fetch(
           "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
           {
@@ -477,7 +636,7 @@ Deno.serve(async (req) => {
         const data = await send.json();
         const ok = send.ok;
         // Log every recipient row.
-        const logRows = built.to.map((r) => ({
+        const logRows = [...finalTo, ...cc].map((r) => ({
           event: inp.event,
           deal_id: inp.dealId || null,
           recipient_email: r,
@@ -489,7 +648,7 @@ Deno.serve(async (req) => {
           payload: inp.payload || null,
         }));
         await admin.from("email_send_log").insert(logRows);
-        results.push({ event: inp.event, ok, id: data?.id, to: built.to, error: ok ? null : data?.error?.message });
+        results.push({ event: inp.event, ok, id: data?.id, to: finalTo, cc, error: ok ? null : data?.error?.message });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         results.push({ event: inp.event, ok: false, error: msg });

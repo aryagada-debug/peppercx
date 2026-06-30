@@ -153,6 +153,27 @@ export type Database = {
         }
         Relationships: []
       }
+      capability_leads: {
+        Row: {
+          bucket: string
+          display_name: string
+          leads: string[]
+          updated_at: string
+        }
+        Insert: {
+          bucket: string
+          display_name: string
+          leads?: string[]
+          updated_at?: string
+        }
+        Update: {
+          bucket?: string
+          display_name?: string
+          leads?: string[]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       capability_memberships: {
         Row: {
           capability_id: string
@@ -1367,6 +1388,75 @@ export type Database = {
           mbr_entry_id?: string
           reminder_type?: string
           sent_date?: string
+        }
+        Relationships: []
+      }
+      notification_dispatch_log: {
+        Row: {
+          deal_id: string | null
+          dedupe_key: string
+          event_key: string
+          id: string
+          sent_at: string
+        }
+        Insert: {
+          deal_id?: string | null
+          dedupe_key: string
+          event_key: string
+          id?: string
+          sent_at?: string
+        }
+        Update: {
+          deal_id?: string | null
+          dedupe_key?: string
+          event_key?: string
+          id?: string
+          sent_at?: string
+        }
+        Relationships: []
+      }
+      notification_rules: {
+        Row: {
+          body_template: string
+          cc_tokens: string[]
+          description: string
+          display_name: string
+          enabled: boolean
+          event_key: string
+          extra_cc: string[]
+          extra_to: string[]
+          subject_template: string
+          to_tokens: string[]
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          body_template?: string
+          cc_tokens?: string[]
+          description?: string
+          display_name: string
+          enabled?: boolean
+          event_key: string
+          extra_cc?: string[]
+          extra_to?: string[]
+          subject_template?: string
+          to_tokens?: string[]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          body_template?: string
+          cc_tokens?: string[]
+          description?: string
+          display_name?: string
+          enabled?: boolean
+          event_key?: string
+          extra_cc?: string[]
+          extra_to?: string[]
+          subject_template?: string
+          to_tokens?: string[]
+          updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }

@@ -14,6 +14,7 @@ import { useClients } from "@/hooks/useClients";
 import { useDealAccess } from "@/hooks/useDealAccess";
 import { useUserRole } from "@/hooks/useUserRole";
 import { submitApprovalRequest } from "@/lib/approvals";
+import { sendAppEmail } from "@/lib/appEmail";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -673,6 +674,9 @@ export default function Clients() {
       toast.error("Failed to create deal");
       return;
     }
+
+    // Fire deal.created notification (Arya + VSD + capability lead).
+    try { sendAppEmail({ event: "deal_created", dealId: newId }); } catch { /* best-effort */ }
 
     const validSow = data.sowItems.filter((s: any) => s.scope);
     if (validSow.length > 0) {

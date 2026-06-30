@@ -180,8 +180,7 @@ export function HandoverWizard({ onSubmitted }: Props) {
       return;
     }
     sendAppEmail({
-      event: "test",
-      recipients: HANDOVER_LEADS,
+      event: "handover_received",
       payload: {
         kind: "handover_submitted",
         company: payload.company_name,
