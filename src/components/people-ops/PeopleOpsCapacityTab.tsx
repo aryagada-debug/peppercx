@@ -245,7 +245,7 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
               <th className="px-3 py-2 font-medium">Manager</th>
               <th className="px-3 py-2 font-medium">BW Used</th>
               <th className="px-3 py-2 font-medium text-right"># Deals</th>
-              <th className="px-3 py-2 font-medium text-right">MRR (Actual)</th>
+              {isAdmin && <th className="px-3 py-2 font-medium text-right">MRR (Actual)</th>}
               {isAdmin && <th className="px-3 py-2 font-medium text-right">MRR Capacity</th>}
               {isAdmin && <th className="px-3 py-2 font-medium text-right">Revenue Utilisation</th>}
             </tr>
@@ -253,7 +253,7 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
           <tbody>
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={isAdmin ? 10 : 8} className="px-3 py-8 text-center text-xs text-muted-foreground">
+                <td colSpan={isAdmin ? 10 : 7} className="px-3 py-8 text-center text-xs text-muted-foreground">
                   No people match these filters.
                 </td>
               </tr>
@@ -288,7 +288,7 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
                       </div>
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums text-xs">{r.dealCount}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-xs">{formatINR(r.mrrActual)}</td>
+                    {isAdmin && <td className="px-3 py-2 text-right tabular-nums text-xs">{formatINR(r.mrrActual)}</td>}
                     {isAdmin && <td className="px-3 py-2 text-right tabular-nums text-xs text-muted-foreground">
                       {r.capacity > 0 ? formatINR(r.capacity) : "—"}
                     </td>}
@@ -326,7 +326,7 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
                         <span className="text-xs text-primary tabular-nums">{Math.round(s.pct)}%</span>
                       </td>
                       <td></td>
-                      <td className="px-3 py-1.5 text-right tabular-nums text-xs text-muted-foreground">{formatINR(s.mrrContribution)}</td>
+                      {isAdmin && <td className="px-3 py-1.5 text-right tabular-nums text-xs text-muted-foreground">{formatINR(s.mrrContribution)}</td>}
                       {isAdmin && <td colSpan={2}></td>}
                     </tr>
                   ))}
@@ -348,7 +348,7 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
                   <th className="px-3 py-2 font-medium">VSD / Pod</th>
                   <th className="px-3 py-2 font-medium text-right">People</th>
                   <th className="px-3 py-2 font-medium text-right">Avg BW</th>
-                  <th className="px-3 py-2 font-medium text-right">MRR (Actual)</th>
+                  {isAdmin && <th className="px-3 py-2 font-medium text-right">MRR (Actual)</th>}
                   {isAdmin && <th className="px-3 py-2 font-medium text-right">MRR Capacity</th>}
                   {isAdmin && <th className="px-3 py-2 font-medium text-right">Revenue Util.</th>}
                 </tr>
@@ -364,7 +364,7 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
                       <td className="px-3 py-2 text-foreground">{v.vsd}</td>
                       <td className="px-3 py-2 text-right tabular-nums text-xs">{v.people}</td>
                       <td className="px-3 py-2 text-right tabular-nums text-xs">{Math.round(avg)}%</td>
-                      <td className="px-3 py-2 text-right tabular-nums text-xs">{formatINR(v.mrr)}</td>
+                      {isAdmin && <td className="px-3 py-2 text-right tabular-nums text-xs">{formatINR(v.mrr)}</td>}
                       {isAdmin && <td className="px-3 py-2 text-right tabular-nums text-xs text-muted-foreground">
                         {v.capacity > 0 ? formatINR(v.capacity) : "—"}
                       </td>}
