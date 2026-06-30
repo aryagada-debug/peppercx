@@ -664,6 +664,16 @@ function Step3({ form, set, errors, fieldRefs }: StepProps) {
 
 /* ─── Step 4: Deal ────────────────────────────────────── */
 function Step4({ form, set, errors, fieldRefs }: StepProps) {
+  // Auto-calc total amount for retainer = MRR x duration
+  useEffect(() => {
+    if (form.deal_type !== "Retainer") return;
+    const months = Number(form.duration_months || 0);
+    if (form.mrr != null && months > 0) {
+      const computed = Math.round(form.mrr * months);
+      if (form.total_amount !== computed) set("total_amount", computed);
+    }
+  }, [form.deal_type, form.mrr, form.duration_months]); // eslint-disable-line
+  const totalLocked = form.deal_type === "Retainer";
   return (
     <div className="space-y-4">
       <SectionTitle>4. Deal details</SectionTitle>
@@ -734,15 +744,6 @@ function Step4({ form, set, errors, fieldRefs }: StepProps) {
             />
           </FieldShell>
         )}
-        <FieldShell id="total_amount" label="Total amount" required error={errors.total_amount}>
-          <CurrencyInput
-            id="total_amount"
-            ref={(n) => (fieldRefs.current.total_amount = n as HTMLElement | null)}
-            value={form.total_amount}
-            onChange={(v) => set("total_amount", v)}
-            placeholder="e.g. 60,00,000"
-          />
-        </FieldShell>
         <FieldShell id="duration_months" label="Duration (months)">
           <Input
             id="duration_months"
@@ -752,7 +753,23 @@ function Step4({ form, set, errors, fieldRefs }: StepProps) {
             onChange={(e) => set("duration_months", e.target.value)}
           />
         </FieldShell>
-        <FieldShell id="start_date" label="Start date" required error={errors.start_date}>
+        <FieldShell
+          id="total_amount"
+          label="Total amount"
+          required
+          error={errors.total_amount}
+          hint={totalLocked ? "Auto-calculated = MRR × Duration" : undefined}
+        >
+          <CurrencyInput
+            id="total_amount"
+            ref={(n) => (fieldRefs.current.total_amount = n as HTMLElement | null)}
+            value={form.total_amount}
+            onChange={(v) => set("total_amount", v)}
+            placeholder="e.g. 60,00,000"
+            disabled={totalLocked}
+          />
+        </FieldShell>
+        <FieldShell id="start_date" label="Actual / Tentative start date" required error={errors.start_date}>
           <Input
             id="start_date"
             type="date"
@@ -760,15 +777,6 @@ function Step4({ form, set, errors, fieldRefs }: StepProps) {
             value={form.start_date}
             onChange={(e) => set("start_date", e.target.value)}
           />
-        </FieldShell>
-        <FieldShell id="vsd_suggested" label="Assigned VSD">
-          <Select value={form.vsd_suggested || "__none__"} onValueChange={(v) => set("vsd_suggested", v === "__none__" ? "" : v)}>
-            <SelectTrigger id="vsd_suggested"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">— None —</SelectItem>
-              {VSD_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-            </SelectContent>
-          </Select>
         </FieldShell>
       </Grid>
       <FieldShell id="deal_notes" label="Special terms / context">
