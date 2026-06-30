@@ -564,32 +564,96 @@ function Step2({ form, set, errors, fieldRefs }: StepProps) {
 }
 
 /* ─── Step 3: Documents ───────────────────────────────── */
+function DocSlot({
+  id, label, required, value, error, onChange, fieldRefs,
+}: {
+  id: keyof HandoverForm & string;
+  label: string;
+  required?: boolean;
+  value: string;
+  error?: string;
+  onChange: (v: string) => void;
+  fieldRefs: StepProps["fieldRefs"];
+}) {
+  const [mode, setMode] = useState<"link" | "upload">("link");
+  const [uploading, setUploading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const handleUpload = async (file: File) => {
+    setUploading(true);
+    try {
+      const ext = file.name.split(".").pop() || "bin";
+      const path = `temp/${Date.now()}-${id}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("handover-docs").upload(path, file, { upsert: false });
+      if (upErr) throw upErr;
+      const { data: signed, error: sErr } = await supabase.storage.from("handover-docs").createSignedUrl(path, 60 * 60 * 24 * 365);
+      if (sErr) throw sErr;
+      onChange(signed.signedUrl);
+      toast({ title: "Uploaded", description: file.name });
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message || String(err), variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  };
+  return (
+    <FieldShell id={id} label={label} required={required} error={error}>
+      <div className="flex gap-1 mb-1">
+        {(["link", "upload"] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => setMode(m)}
+            className={cn(
+              "px-2 py-1 rounded text-[11px] border",
+              mode === m ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-accent",
+            )}
+          >
+            {m === "link" ? "Paste link" : "Upload file"}
+          </button>
+        ))}
+      </div>
+      {mode === "link" ? (
+        <Input
+          id={id}
+          ref={(n) => (fieldRefs.current[id] = n)}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="https://…"
+        />
+      ) : (
+        <div className="space-y-1">
+          <input
+            ref={inputRef}
+            type="file"
+            className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f); }}
+          />
+          <div className="flex gap-2 items-center">
+            <Button type="button" size="sm" variant="outline" disabled={uploading} onClick={() => inputRef.current?.click()}>
+              {uploading ? "Uploading…" : value ? "Replace file" : "Choose file"}
+            </Button>
+            {value && (
+              <a href={value} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline truncate">
+                View uploaded file
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+    </FieldShell>
+  );
+}
+
 function Step3({ form, set, errors, fieldRefs }: StepProps) {
   return (
     <div className="space-y-4">
       <SectionTitle>3. Documents shared</SectionTitle>
       <Grid>
-        <FieldShell id="sow_url" label="SoW document" required error={errors.sow_url}>
-          <Input
-            id="sow_url"
-            ref={(n) => (fieldRefs.current.sow_url = n)}
-            value={form.sow_url}
-            onChange={(e) => set("sow_url", e.target.value)}
-            placeholder="https://…"
-          />
-        </FieldShell>
-        <FieldShell id="strategy_deck_url" label="Strategy deck">
-          <Input id="strategy_deck_url" value={form.strategy_deck_url} onChange={(e) => set("strategy_deck_url", e.target.value)} placeholder="https://…" />
-        </FieldShell>
-        <FieldShell id="keywords_url" label="Keywords & projections">
-          <Input id="keywords_url" value={form.keywords_url} onChange={(e) => set("keywords_url", e.target.value)} placeholder="https://…" />
-        </FieldShell>
-        <FieldShell id="geo_audit_url" label="GEO audit deck">
-          <Input id="geo_audit_url" value={form.geo_audit_url} onChange={(e) => set("geo_audit_url", e.target.value)} placeholder="https://…" />
-        </FieldShell>
-        <FieldShell id="fireflies_url" label="Fireflies link">
-          <Input id="fireflies_url" value={form.fireflies_url} onChange={(e) => set("fireflies_url", e.target.value)} placeholder="https://…" />
-        </FieldShell>
+        <DocSlot id="sow_url" label="SoW document" required value={form.sow_url} error={errors.sow_url} onChange={(v) => set("sow_url", v)} fieldRefs={fieldRefs} />
+        <DocSlot id="strategy_deck_url" label="Strategy deck" value={form.strategy_deck_url} onChange={(v) => set("strategy_deck_url", v)} fieldRefs={fieldRefs} />
+        <DocSlot id="keywords_url" label="Keywords & projections" value={form.keywords_url} onChange={(v) => set("keywords_url", v)} fieldRefs={fieldRefs} />
+        <DocSlot id="geo_audit_url" label="GEO audit deck" value={form.geo_audit_url} onChange={(v) => set("geo_audit_url", v)} fieldRefs={fieldRefs} />
+        <DocSlot id="fireflies_url" label="Fireflies link" value={form.fireflies_url} onChange={(v) => set("fireflies_url", v)} fieldRefs={fieldRefs} />
       </Grid>
       <FieldShell id="docs_notes" label="Notes on documents">
         <Textarea id="docs_notes" rows={3} value={form.docs_notes} onChange={(e) => set("docs_notes", e.target.value)} />
