@@ -1,62 +1,43 @@
-## 1. Pulse / NPS Analytics — new "Responses" view
+## Goal
+Make Google email work for everyone in CX OS — per-user Gmail (read inbox, send/reply from your own address from the **Inbox** page and **Compose** dialog) plus the existing **central mailbox** (`centralcx@peppercontent.io`) for system notifications (staffing, RGY, MBR, Pulse surveys).
 
-In `src/pages/PulseNPSAnalytics.tsx`, add a top-level toggle next to "Group by":
+## What already exists (will be reused, not rebuilt)
+- Edge functions: `gmail-oauth` (init/callback/status/disconnect), `gmail-api` (list/get/send/modify), `send-app-email` (central mailbox).
+- DB: `gmail_connections` table per user.
+- UI: `/inbox` page, `ComposeEmailDialog`, `Settings → Email` central-mailbox card.
+- Google OAuth client (the existing `GOOGLE_CALENDAR_CLIENT_ID` / `_SECRET` are reused — same Cloud project, broader scopes).
+- Scopes requested: `gmail.send`, `gmail.readonly`, `gmail.modify` + openid/email/profile.
 
-- **Summary** (current grouped table + chart) — default
-- **Responses** (new flat table of every individual submission)
+## What's missing / to do
 
-When **Responses** is selected, hide the "Group by" / "Tier" controls and render a new `AnalyticsResponsesTable` instead of `AnalyticsTable`. KPI strip and all existing filters (date range, VSD, BOPM, capability, search, include closed) continue to apply.
+### 1. Google Cloud Console (one-time, user action — I'll give exact values)
+Verify the existing OAuth client has both redirect URIs allowed:
+- `https://peppercx.lovable.app/gmail/callback`
+- `https://id-preview--f5822717-2a1e-4473-97d8-aefa7ee45cc2.lovable.app/gmail/callback`
+- (already allowed) `…/calendar/callback`
 
-### New component: `src/components/pulse/AnalyticsResponsesTable.tsx`
+And the OAuth consent screen has Gmail scopes added: `.../auth/gmail.send`, `.../auth/gmail.readonly`, `.../auth/gmail.modify`. If the app is still in Testing, every CX OS user's Google address must be in the **Test users** list, or the app must be moved to Production.
 
-One row per `survey_responses` record (joined with its `survey_invites` row for context). Columns, all sortable + a free-text filter:
+### 2. App changes
+- **Sidebar Inbox link visible to all signed-in users** (currently present, just confirming it stays for non-admins).
+- **First-run nudge**: if a user opens Inbox or hits "Compose" without a Gmail connection, show the existing connect flow — already wired via `ensureGmailConnected()`. No new code needed; verify it still works after scope changes.
+- **Reconnect banner** when token scopes drift (e.g., user previously connected for Calendar only and now lacks Gmail scopes): in `Inbox.tsx`, if `status.scopes` doesn't include `gmail.send`, show "Reconnect Gmail to enable sending" linking to `connectGmail()`.
+- **Compose from anywhere**: add a small "Email" action button on Contact rows in `src/pages/Contacts.tsx` that opens `ComposeEmailDialog` prefilled with the contact's email. (Optional — confirm if you want this surfaced in Contacts/Org Mapping/Deal Detail.)
 
-| Column | Source |
-|---|---|
-| Submitted | `submitted_at` |
-| Deal ID | `invite.deal_id` |
-| Deal name | `invite.deal_name_snapshot` (fallback `account_snapshot`) |
-| Account | `invite.account_snapshot` |
-| VSD | `invite.vsd_name` |
-| S/P BOPM | `invite.principal_bopm` + `invite.senior_bopm` (comma-joined, "—" if empty) |
-| BOPM | `invite.bopm` |
-| Total deal value | `staffing_deals.mrr × 12` if retainer, else `staffing_deals.deal_value` (hydrated by adding `deal_value, mrr, deal_type` to the deals lookup already done in `useAnalyticsData.ts`); formatted via `formatCurrency` |
-| Respondent | `respondent_name` / `respondent_email` |
-| NPS / CSAT / CES | numeric |
-| Mood / Renew / Risk | string |
-| Q&A | "View" button → opens a side drawer showing every key/value in `payload` (question text + answer), so you can see exactly what was filled |
+### 3. Verification
+- Smoke test: connect a user → list inbox → open a message → reply → send a new email from Compose → mark unread/read.
+- Confirm central mailbox path still works (`Settings → Email → Connect Gmail as centralcx`).
 
-Export-CSV button reuses the same rows.
+## Out of scope (unless you say otherwise)
+- Threaded conversation view, labels management UI, attachments upload in Compose, draft saving, Gmail push notifications.
 
-### Data layer change: `src/components/pulse/useAnalyticsData.ts`
+## Reference (technical)
+- Per-user tokens stored in `gmail_connections` (RLS protected, only own row).
+- All Gmail calls go through `gmail-api` edge function (server-side token refresh, never exposing access tokens to the browser).
+- Central mailbox is just a special `gmail_connections` row keyed to the admin who signed in as `centralcx@peppercontent.io`; `send-app-email` reads it via service role.
 
-- Extend `InviteRow` with `deal_value: number | null`, `mrr: number | null`, `deal_type: string | null`.
-- Update the `staffing_deals` hydration select to include those columns and map them onto each invite.
+---
 
-## 2. Handover drawer — remove inline suggested staffing
-
-In `src/pages/DealHandover.tsx`:
-
-- Remove the `<SuggestedStaffingCard …/>` block (and its import) from the management drawer.
-- Suggestions continue to be generated/persisted in the original handover wizard flow and surface inside the deal's staffing card via the existing `SuggestedStaffingPanel` — which is exactly what the user wants when they click **Open in Staffing** from the drawer.
-
-No changes to `SuggestedStaffingCard.tsx`, `SuggestedStaffingPanel.tsx`, `staffing_suggestions`, or the Staffing page.
-
-## 3. Dark-mode fix for the "Deal created" banner
-
-Same file, the green success strip at line 317 uses hardcoded `bg-green-50 border-green-200` which is unreadable in dark mode. Replace with semantic tokens that adapt:
-
-```
-bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300
-```
-
-(matches the token pattern already used elsewhere in the app for "good" tone strips.)
-
-## Files touched
-
-- `src/pages/PulseNPSAnalytics.tsx` — add view toggle, wire new table.
-- `src/components/pulse/AnalyticsResponsesTable.tsx` — **new**.
-- `src/components/pulse/useAnalyticsData.ts` — hydrate `deal_value/mrr/deal_type` onto invites.
-- `src/pages/DealHandover.tsx` — drop `SuggestedStaffingCard`, fix banner colors.
-
-No DB migrations, no edge function changes.
+**Please confirm:**
+1. Use the **existing** Google OAuth client (shared with Calendar) — or create a dedicated "CX OS Gmail" client?
+2. Should I add a "Send email" button on Contact rows / Org Mapping / Deal stakeholders, or keep email composing only in `/inbox` for now?
