@@ -42,6 +42,10 @@ const median = (xs: number[]) => {
   return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2);
 };
 
+const BOPM_ROLES = new Set(["vsd", "principal_bopm", "senior_bopm", "bopm"]);
+const normName = (s?: string | null) =>
+  (s || "").toLowerCase().replace(/\s+/g, " ").trim();
+
 export function SuggestedStaffingCard({
   vsd, bu, capability, dealType, mrr, excludeDealId, createdDealId,
 }: Props) {
@@ -51,6 +55,33 @@ export function SuggestedStaffingCard({
     enabled,
     queryKey: ["handover-suggested-staffing", { vsd, bu, capability, dealType, mrr, excludeDealId }],
     queryFn: async () => {
+      // Resolve the confirmed VSD → person id → full reporting subtree.
+      // BOPM-type suggestions (Principal/Senior/BOPM) are restricted to this
+      // subtree so we never suggest a BOPM who doesn't actually roll up to
+      // the VSD Anirudh confirmed on the handover.
+      let vsdPersonId: string | null = null;
+      let vsdSubtreeIds: Set<string> | null = null;
+      if (vsd && vsd.trim()) {
+        const wanted = normName(vsd);
+        const { data: peoplePool } = await supabase
+          .from("staffing_people")
+          .select("id, name, role_title, designation, leaving, tbh")
+          .eq("leaving", false)
+          .eq("tbh", false);
+        const matches = ((peoplePool as any[]) || []).filter(p => normName(p.name) === wanted);
+        const vsdMatch =
+          matches.find(p =>
+            /\bvsd\b|vertical service delivery|service delivery (leader|director)/i
+              .test(`${p.role_title || ""} ${p.designation || ""}`),
+          ) || matches[0];
+        if (vsdMatch?.id) {
+          vsdPersonId = vsdMatch.id;
+          const { data: subtree } = await supabase.rpc("person_subtree", { _root_id: vsdMatch.id });
+          vsdSubtreeIds = new Set<string>(((subtree as any[]) || []).map((x) => x.person_id));
+          vsdSubtreeIds.add(vsdMatch.id);
+        }
+      }
+
       // Pull a candidate pool. Keep it bounded.
       const { data: deals } = await supabase
         .from("staffing_deals")
@@ -75,7 +106,7 @@ export function SuggestedStaffingCard({
         .slice(0, 5);
 
       const ids = scored.map((x) => x.id);
-      if (!ids.length) return { totalCompared: 0, rows: [] as any[] };
+      if (!ids.length) return { totalCompared: 0, rows: [] as any[], vsdName: vsd || "", vsdPersonId };
 
       const { data: assigns } = await supabase
         .from("staffing_assignments")
@@ -114,13 +145,26 @@ export function SuggestedStaffingCard({
           frequency: v.deals.size,
           medianPct: median(v.allocs),
           common: Array.from(v.persons.entries())
+            // For leadership roles, only keep people inside the confirmed
+            // VSD's reporting subtree so the "common people" never bleed
+            // across pods.
+            .filter(([pid]) =>
+              BOPM_ROLES.has(role) && vsdSubtreeIds ? vsdSubtreeIds.has(pid) : true,
+            )
             .sort((a, b) => b[1] - a[1])
             .slice(0, 2)
             .map(([pid]) => nameById.get(pid) || "—"),
         }))
         .sort((a, b) => b.frequency - a.frequency || b.medianPct - a.medianPct);
 
-      return { totalCompared: ids.length, rows };
+      // Make sure the confirmed VSD is always the first suggested row, even
+      // if no comparable deal had a VSD assignment row.
+      const hasVsdRow = rows.some(r => r.role === "vsd");
+      if (!hasVsdRow && vsd && vsd.trim()) {
+        rows.unshift({ role: "vsd", frequency: 0, medianPct: 0, common: [vsd.trim()] });
+      }
+
+      return { totalCompared: ids.length, rows, vsdName: vsd || "", vsdPersonId };
     },
   });
 
@@ -136,6 +180,11 @@ export function SuggestedStaffingCard({
           <Badge variant="outline" className="text-[10px]">{data.totalCompared} comparable</Badge>
         )}
       </div>
+      {vsd && vsd.trim() && (
+        <p className="text-[11px] text-muted-foreground">
+          VSD locked to <span className="font-medium text-foreground">{vsd}</span>. BOPM suggestions are limited to this VSD's pod.
+        </p>
+      )}
 
       {isLoading && <p className="text-xs text-muted-foreground">Analysing comparable deals…</p>}
 

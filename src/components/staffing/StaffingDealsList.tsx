@@ -4,7 +4,7 @@
  * deal-type filter, active-only toggle). Pages 20 cards at a time so a
  * 500-deal workspace doesn't try to mount everything at once.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,8 @@ interface Props {
   canLock?: boolean;
   enableBopmFilter?: boolean;
   bopmFilterScopedVsd?: string | null;
+  /** When provided, list collapses to this single deal and auto-expands it. */
+  focusDealId?: string | null;
   onAddAssignment: (a: StaffingAssignment) => void;
   onUpdateAssignment: (id: string, patch: Partial<StaffingAssignment>) => void;
   onDeleteAssignment: (id: string) => void;
@@ -33,7 +35,7 @@ interface Props {
 const PAGE_SIZE = 20;
 
 export function StaffingDealsList({
-  deals, people, assignments, isAdmin, canLock = false, enableBopmFilter = true, bopmFilterScopedVsd,
+  deals, people, assignments, isAdmin, canLock = false, enableBopmFilter = true, bopmFilterScopedVsd, focusDealId,
   onAddAssignment, onUpdateAssignment, onDeleteAssignment, onUpdatePerson,
 }: Props) {
   const [search, setSearch] = useState("");
@@ -61,6 +63,7 @@ export function StaffingDealsList({
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return deals.filter(d => {
+      if (focusDealId) return d.id === focusDealId;
       if (activeOnly && !ACTIVE_DEAL_STATUSES.has(d.dealStatus)) return false;
       if (!dealMatchesType(d.dealType, dealType)) return false;
       if (vsd !== "All" && (d.vsd || "").trim() !== vsd) return false;
@@ -71,14 +74,31 @@ export function StaffingDealsList({
       }
       return true;
     });
-  }, [deals, search, dealType, vsd, activeOnly, enableBopmFilter, bopm, registeredNames, staffedDealIds]);
+  }, [deals, search, dealType, vsd, activeOnly, enableBopmFilter, bopm, registeredNames, staffedDealIds, focusDealId]);
 
   const visible = filtered.slice(0, page * PAGE_SIZE);
 
+  useEffect(() => {
+    if (focusDealId) {
+      // Scroll the focused card into view once it mounts.
+      const t = setTimeout(() => {
+        const el = document.querySelector(`[data-deal-id="${focusDealId}"]`);
+        el?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 60);
+      return () => clearTimeout(t);
+    }
+  }, [focusDealId]);
+
   return (
     <div className="space-y-4">
+      {focusDealId && (
+        <div className="flex items-center justify-between bg-secondary border border-border rounded-lg px-3 py-2 text-xs">
+          <span>Showing single deal from deep link.</span>
+          <a href="?tab=staffing" className="underline">Show all deals</a>
+        </div>
+      )}
       {/* Filter bar */}
-      <div className="flex flex-wrap items-center gap-2 bg-card border border-border rounded-lg p-2.5">
+      <div className={cn("flex flex-wrap items-center gap-2 bg-card border border-border rounded-lg p-2.5", focusDealId && "hidden")}>
         <div className="relative flex-1 min-w-[220px]">
           <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -132,25 +152,26 @@ export function StaffingDealsList({
 
       {filtered.length === 0 ? (
         <div className="bg-card border border-border rounded-xl text-center py-12 text-sm text-muted-foreground">
-          No deals match the current filters.
+          {focusDealId ? "This deal isn't available in your workspace." : "No deals match the current filters."}
         </div>
       ) : (
         <div className="space-y-3">
           {visible.map(d => (
+            <div key={d.id} data-deal-id={d.id}>
             <DealStaffingCard
-              key={d.id}
               deal={d}
               deals={deals}
               people={people}
               assignments={assignments}
               isAdmin={isAdmin}
               canLock={canLock}
-              defaultOpen={visible.length <= 5}
+              defaultOpen={visible.length <= 5 || focusDealId === d.id}
               onAddAssignment={onAddAssignment}
               onUpdateAssignment={onUpdateAssignment}
               onDeleteAssignment={onDeleteAssignment}
               onUpdatePerson={onUpdatePerson}
             />
+            </div>
           ))}
           {visible.length < filtered.length && (
             <div className="flex justify-center pt-2">
