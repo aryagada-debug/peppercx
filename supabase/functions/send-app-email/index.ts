@@ -602,7 +602,29 @@ Deno.serve(async (req) => {
           results.push({ event: inp.event, skipped: true, reason: "no_recipients_or_data" });
           continue;
         }
-        const raw = buildRaw({ to: built.to, subject: built.subject, html: built.html, from: fromEmail });
+        // Apply rule overrides: enabled, extra_to, extra_cc, cc_tokens.
+        const ruleKey = EVENT_TO_RULE[inp.event];
+        let cc: string[] = [];
+        const toSet = new Set<string>(built.to);
+        if (ruleKey) {
+          const rule = await loadRule(admin, ruleKey);
+          if (rule && !rule.enabled) {
+            results.push({ event: inp.event, skipped: true, reason: "rule_disabled" });
+            continue;
+          }
+          if (rule) {
+            const deal = inp.dealId ? await loadDeal(admin, inp.dealId) : undefined;
+            const person = inp.personId ? await loadPerson(admin, inp.personId) : null;
+            const ctx = { deal: deal || undefined, personEmail: person?.email || undefined, personId: inp.personId };
+            const extraTo = await expandTokens(admin, rule.extra_to || [], ctx);
+            const ccAll = await expandTokens(admin, [...(rule.cc_tokens || []), ...(rule.extra_cc || [])], ctx);
+            extraTo.forEach((e) => toSet.add(e));
+            // dedupe cc against to
+            cc = ccAll.filter((e) => !toSet.has(e));
+          }
+        }
+        const finalTo = Array.from(toSet);
+        const raw = buildRaw({ to: finalTo, cc: cc.length ? cc : undefined, subject: built.subject, html: built.html, from: fromEmail });
         const send = await fetch(
           "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
           {
@@ -614,7 +636,7 @@ Deno.serve(async (req) => {
         const data = await send.json();
         const ok = send.ok;
         // Log every recipient row.
-        const logRows = built.to.map((r) => ({
+        const logRows = [...finalTo, ...cc].map((r) => ({
           event: inp.event,
           deal_id: inp.dealId || null,
           recipient_email: r,
@@ -626,7 +648,7 @@ Deno.serve(async (req) => {
           payload: inp.payload || null,
         }));
         await admin.from("email_send_log").insert(logRows);
-        results.push({ event: inp.event, ok, id: data?.id, to: built.to, error: ok ? null : data?.error?.message });
+        results.push({ event: inp.event, ok, id: data?.id, to: finalTo, cc, error: ok ? null : data?.error?.message });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         results.push({ event: inp.event, ok: false, error: msg });
