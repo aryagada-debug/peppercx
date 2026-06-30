@@ -48,7 +48,7 @@ const navSections = [
     items: [
       { to: "/home", icon: Home, label: "Home", routeKey: "home" },
       { to: "/clients", icon: Building2, label: "Clients & Deals", routeKey: "clients" },
-      { to: "/deal-handover", icon: ClipboardCheck, label: "Deal Handover", routeKey: "home" },
+      { to: "/deal-handover", icon: ClipboardCheck, label: "Deal Handover", routeKey: "home", adminOnly: true },
       { to: "/inbox", icon: Mail, label: "Inbox", routeKey: "home" },
     ],
   },
@@ -63,7 +63,7 @@ const navSections = [
     label: "Health & Reviews",
     items: [
       { to: "/rgy-health", icon: Activity, label: "RGY Health", routeKey: "rgy-health" },
-      { to: "/pulse-nps", icon: Sparkles, label: "Pulse / NPS", routeKey: "rgy-health" },
+      { to: "/pulse-nps", icon: Sparkles, label: "Pulse / NPS", routeKey: "rgy-health", adminOnly: true },
       { to: "/mbr-tracker", icon: FileText, label: "MBR Tracker", routeKey: "mbr-tracker" },
     ],
   },
@@ -122,7 +122,10 @@ export function AppSidebar() {
   const filteredSections = sectionsWithAdmin
     .map(section => ({
       ...section,
-      items: section.items.filter(item => loading || visibleRoutes.has(item.routeKey)),
+      items: section.items.filter(item => {
+        if ((item as any).adminOnly && !(isAdmin || isActuallyAdmin)) return false;
+        return loading || visibleRoutes.has(item.routeKey);
+      }),
     }))
     .filter(section => section.items.length > 0);
 
