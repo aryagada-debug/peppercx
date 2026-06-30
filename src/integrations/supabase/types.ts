@@ -2487,6 +2487,48 @@ export type Database = {
           },
         ]
       }
+      staffing_suggestions: {
+        Row: {
+          allocation_pct: number
+          created_at: string
+          created_by: string | null
+          id: string
+          person_id: string | null
+          person_name: string
+          role_key: string
+          source: string
+          staffing_deal_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          allocation_pct?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          person_id?: string | null
+          person_name?: string
+          role_key: string
+          source?: string
+          staffing_deal_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          allocation_pct?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          person_id?: string | null
+          person_name?: string
+          role_key?: string
+          source?: string
+          staffing_deal_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       staffing_weekly_allocations: {
         Row: {
           actual_hours: number
