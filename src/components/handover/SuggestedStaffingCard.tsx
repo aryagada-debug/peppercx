@@ -1,0 +1,183 @@
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+import { ExternalLink, Sparkles } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+
+type Props = {
+  vsd?: string | null;
+  bu?: string | null;
+  capability?: string | null;
+  dealType?: string | null;
+  mrr?: number | null;
+  excludeDealId?: string | null;
+  createdDealId?: string | null;
+};
+
+const ROLE_LABELS: Record<string, string> = {
+  vsd: "VSD",
+  principal_bopm: "Principal BOPM",
+  senior_bopm: "Senior BOPM",
+  bopm: "BOPM",
+  managing_editor: "Managing Editor",
+  content_lead: "Content Lead",
+  senior_editor: "Senior Editor",
+  seo_leader: "SEO Leader",
+  seo_group_head: "SEO Group Head",
+  sr_seo_manager: "Sr. SEO Manager",
+  seo_manager: "SEO Manager",
+  sr_seo_analyst: "Sr. SEO Analyst",
+  seo_analyst: "SEO Analyst",
+};
+const humanRole = (k: string) =>
+  ROLE_LABELS[k] || k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+const median = (xs: number[]) => {
+  if (!xs.length) return 0;
+  const s = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2);
+};
+
+export function SuggestedStaffingCard({
+  vsd, bu, capability, dealType, mrr, excludeDealId, createdDealId,
+}: Props) {
+  const enabled = !!(capability || bu || vsd || dealType);
+
+  const { data, isLoading } = useQuery({
+    enabled,
+    queryKey: ["handover-suggested-staffing", { vsd, bu, capability, dealType, mrr, excludeDealId }],
+    queryFn: async () => {
+      // Pull a candidate pool. Keep it bounded.
+      const { data: deals } = await supabase
+        .from("staffing_deals")
+        .select("id, vsd, business_unit, capability_line, deal_type, mrr")
+        .limit(800);
+      const pool = (deals as any[]) || [];
+      const mrrNum = typeof mrr === "number" ? mrr : null;
+
+      const scored = pool
+        .filter((d) => d.id !== excludeDealId)
+        .map((d) => {
+          let s = 0;
+          if (capability && d.capability_line && d.capability_line === capability) s += 3;
+          if (bu && d.business_unit && d.business_unit === bu) s += 2;
+          if (vsd && d.vsd && d.vsd.toLowerCase().includes(vsd.toLowerCase())) s += 2;
+          if (dealType && d.deal_type && d.deal_type === dealType) s += 1;
+          if (mrrNum && d.mrr && Math.abs(d.mrr - mrrNum) <= mrrNum * 0.3) s += 1;
+          return { id: d.id as string, score: s };
+        })
+        .filter((x) => x.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 5);
+
+      const ids = scored.map((x) => x.id);
+      if (!ids.length) return { totalCompared: 0, rows: [] as any[] };
+
+      const { data: assigns } = await supabase
+        .from("staffing_assignments")
+        .select("staffing_deal_id, role_key, person_id, allocation_pct")
+        .in("staffing_deal_id", ids);
+      const a = (assigns as any[]) || [];
+      const personIds = Array.from(new Set(a.map((x) => x.person_id).filter(Boolean)));
+      const { data: people } = personIds.length
+        ? await supabase.from("staffing_people").select("id, name").in("id", personIds)
+        : { data: [] as any[] };
+      const nameById = new Map<string, string>(((people as any[]) || []).map((p) => [p.id, p.name]));
+
+      // Group by normalized role
+      const norm = (k: string) =>
+        (k || "").toLowerCase().trim()
+          .replace(/^rt_/, "")
+          .replace(/\s+/g, "_")
+          .replace("group_bopm", "principal_bopm");
+
+      const byRole = new Map<string, { deals: Set<string>; allocs: number[]; persons: Map<string, number> }>();
+      for (const r of a) {
+        const rk = norm(r.role_key);
+        if (!rk) continue;
+        if (!byRole.has(rk)) byRole.set(rk, { deals: new Set(), allocs: [], persons: new Map() });
+        const slot = byRole.get(rk)!;
+        slot.deals.add(r.staffing_deal_id);
+        if (typeof r.allocation_pct === "number") slot.allocs.push(r.allocation_pct);
+        if (r.person_id) {
+          slot.persons.set(r.person_id, (slot.persons.get(r.person_id) || 0) + 1);
+        }
+      }
+
+      const rows = Array.from(byRole.entries())
+        .map(([role, v]) => ({
+          role,
+          frequency: v.deals.size,
+          medianPct: median(v.allocs),
+          common: Array.from(v.persons.entries())
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 2)
+            .map(([pid]) => nameById.get(pid) || "—"),
+        }))
+        .sort((a, b) => b.frequency - a.frequency || b.medianPct - a.medianPct);
+
+      return { totalCompared: ids.length, rows };
+    },
+  });
+
+  if (!enabled) return null;
+
+  return (
+    <Card className="p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1">
+          <Sparkles className="h-3 w-3" /> Suggested staffing (based on similar deals)
+        </h3>
+        {data && data.totalCompared > 0 && (
+          <Badge variant="outline" className="text-[10px]">{data.totalCompared} comparable</Badge>
+        )}
+      </div>
+
+      {isLoading && <p className="text-xs text-muted-foreground">Analysing comparable deals…</p>}
+
+      {!isLoading && data && data.totalCompared < 2 && (
+        <p className="text-xs text-muted-foreground">Not enough similar deals to suggest staffing yet.</p>
+      )}
+
+      {!isLoading && data && data.rows.length > 0 && (
+        <>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-xs">Role</TableHead>
+                <TableHead className="text-xs">Typical %</TableHead>
+                <TableHead className="text-xs">Frequency</TableHead>
+                <TableHead className="text-xs">Common people</TableHead>
+                <TableHead></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.rows.map((r) => (
+                <TableRow key={r.role}>
+                  <TableCell className="text-sm">{humanRole(r.role)}</TableCell>
+                  <TableCell className="text-sm">{r.medianPct ? `${r.medianPct}%` : "—"}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{r.frequency} / {data.totalCompared}</TableCell>
+                  <TableCell className="text-xs">{r.common.filter(Boolean).join(", ") || "—"}</TableCell>
+                  <TableCell className="text-right">
+                    {createdDealId ? (
+                      <Button asChild size="sm" variant="ghost">
+                        <Link to={`/staffing?tab=staffing&deal=${encodeURIComponent(createdDealId)}&prefill_role=${encodeURIComponent(r.role)}`}>Use</Link>
+                      </Button>
+                    ) : null}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          {!createdDealId && (
+            <p className="text-xs text-muted-foreground">Create the deal to apply these into Staffing.</p>
+          )}
+        </>
+      )}
+    </Card>
+  );
+}
