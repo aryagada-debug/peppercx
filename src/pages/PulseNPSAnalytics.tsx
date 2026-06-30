@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { PulseTabs } from "@/components/pulse/PulseTabs";
 import { AnalyticsKpis } from "@/components/pulse/AnalyticsKpis";
 import { AnalyticsTable } from "@/components/pulse/AnalyticsTable";
+import { AnalyticsResponsesTable } from "@/components/pulse/AnalyticsResponsesTable";
 import {
   usePulseAnalyticsData,
   splitNames,
@@ -21,6 +22,7 @@ import { cn } from "@/lib/utils";
 type GroupBy = "vsd" | "bopm" | "deal" | "capability";
 type Range = "30d" | "90d" | "qtd" | "ytd" | "all";
 type BopmTier = "any" | "principal" | "senior" | "bopm";
+type ViewMode = "summary" | "responses";
 
 const UNASSIGNED_VSD = new Set(["", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned"]);
 
@@ -47,6 +49,7 @@ export default function PulseNPSAnalytics() {
   const showVsdChips = !!(isAdmin || canEditAll);
 
   const [groupBy, setGroupBy] = useState<GroupBy>("vsd");
+  const [view, setView] = useState<ViewMode>("summary");
   const [range, setRange] = useState<Range>("90d");
   const [activeVsd, setActiveVsd] = useState("All");
   const [activeBopm, setActiveBopm] = useState("All");
@@ -159,19 +162,40 @@ export default function PulseNPSAnalytics() {
         {/* Filters */}
         <div className="rounded-lg border border-border bg-card p-3 space-y-3">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-muted-foreground mr-1">Group by</span>
+            <span className="text-xs text-muted-foreground mr-1">View</span>
             <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
-              {(["vsd","bopm","deal","capability"] as GroupBy[]).map(g => (
+              {([
+                { k: "summary", l: "Summary" },
+                { k: "responses", l: "Responses" },
+              ] as { k: ViewMode; l: string }[]).map(v => (
                 <button
-                  key={g}
-                  onClick={() => setGroupBy(g)}
-                  className={cn("px-2.5 py-1 rounded-md text-[11px] font-medium capitalize",
-                    groupBy === g ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
+                  key={v.k}
+                  onClick={() => setView(v.k)}
+                  className={cn("px-2.5 py-1 rounded-md text-[11px] font-medium",
+                    view === v.k ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
                 >
-                  {g}
+                  {v.l}
                 </button>
               ))}
             </div>
+
+            {view === "summary" && (
+              <>
+                <span className="text-xs text-muted-foreground ml-3 mr-1">Group by</span>
+                <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
+                  {(["vsd","bopm","deal","capability"] as GroupBy[]).map(g => (
+                    <button
+                      key={g}
+                      onClick={() => setGroupBy(g)}
+                      className={cn("px-2.5 py-1 rounded-md text-[11px] font-medium capitalize",
+                        groupBy === g ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
+                    >
+                      {g}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
 
             <span className="text-xs text-muted-foreground ml-3 mr-1">Range</span>
             <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
@@ -190,7 +214,7 @@ export default function PulseNPSAnalytics() {
               ))}
             </div>
 
-            {groupBy === "bopm" && (
+            {view === "summary" && groupBy === "bopm" && (
               <>
                 <span className="text-xs text-muted-foreground ml-3 mr-1">Tier</span>
                 <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
@@ -275,13 +299,17 @@ export default function PulseNPSAnalytics() {
         ) : (
           <>
             <AnalyticsKpis invites={filtered.invF} responses={filtered.respF} />
-            <AnalyticsTable
-              groupBy={groupBy}
-              bopmTier={bopmTier}
-              invites={filtered.invF}
-              responses={filtered.respF}
-              capabilities={capabilities}
-            />
+            {view === "summary" ? (
+              <AnalyticsTable
+                groupBy={groupBy}
+                bopmTier={bopmTier}
+                invites={filtered.invF}
+                responses={filtered.respF}
+                capabilities={capabilities}
+              />
+            ) : (
+              <AnalyticsResponsesTable invites={filtered.invF} responses={filtered.respF} />
+            )}
           </>
         )}
       </div>
