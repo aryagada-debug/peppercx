@@ -283,8 +283,6 @@ export function useStaffingMutations() {
           return;
         }
         void qc.refetchQueries({ queryKey: qk.assignments(), type: "active" });
-        void qc.refetchQueries({ queryKey: qk.deals(), type: "active" });
-        void qc.invalidateQueries({ queryKey: ["deal-access"] });
         notifyStaffing(merged.personId, merged.dealId, merged.roleKey, merged.allocationPct);
         emailStaffing("staffing_changed", merged);
         return;
@@ -299,13 +297,11 @@ export function useStaffingMutations() {
         toast.error("Couldn't add staffing — please retry");
         return;
       }
-      // Refresh assignments + deals so DB-side BOPM/VSD recompute triggers
-      // surface in the table without a manual page reload. Use refetch
-      // (not invalidate) so the cache is overwritten with mapped data
-      // immediately — invalidate-only can leave stale renders in flight.
-      void qc.refetchQueries({ queryKey: qk.assignments(), type: "active" });
-      void qc.refetchQueries({ queryKey: qk.deals(), type: "active" });
-      void qc.invalidateQueries({ queryKey: ["deal-access"] });
+      // Lightweight invalidation: the optimistic patch already shows the new
+      // row. We mark assignments stale so the next focus/refocus refetches,
+      // and skip the deals refetch entirely (the server-side BOPM/VSD sync
+      // trigger was removed, so deals no longer change on assignment writes).
+      void qc.invalidateQueries({ queryKey: qk.assignments(), refetchType: "none" });
       notifyStaffing(normalizedAssignment.personId, normalizedAssignment.dealId, normalizedAssignment.roleKey, normalizedAssignment.allocationPct);
       emailStaffing("staffed", normalizedAssignment);
     },
@@ -351,9 +347,7 @@ export function useStaffingMutations() {
         toast.error("Couldn't update staffing — please retry");
         return;
       }
-      qc.invalidateQueries({ queryKey: qk.assignments() });
-      qc.invalidateQueries({ queryKey: qk.deals() });
-      qc.invalidateQueries({ queryKey: ["deal-access"] });
+      qc.invalidateQueries({ queryKey: qk.assignments(), refetchType: "none" });
       if (next && updates.personId) {
         notifyStaffing(next.personId, next.dealId, next.roleKey, next.allocationPct);
         emailStaffing("staffed", next);
@@ -382,9 +376,7 @@ export function useStaffingMutations() {
       patch.assignments((prev) => prev.filter((a) => a.id !== id));
       try {
         await softDelete("staffing_assignment", id);
-        qc.invalidateQueries({ queryKey: qk.assignments() });
-        qc.invalidateQueries({ queryKey: qk.deals() });
-        qc.invalidateQueries({ queryKey: ["deal-access"] });
+        qc.invalidateQueries({ queryKey: qk.assignments(), refetchType: "none" });
         if (prevSnapshot) emailStaffing("staffing_removed", prevSnapshot);
       } catch (err) {
         console.error("[deleteAssignment] failed", err);
