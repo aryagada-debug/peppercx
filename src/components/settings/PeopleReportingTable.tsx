@@ -694,12 +694,12 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
             <col style={{ width: widths.market }} />
             <col style={{ width: widths.revType }} />
             <col style={{ width: widths.timeUtil }} />
-            <col style={{ width: widths.revUtil }} />
+            {isAdmin && <col style={{ width: widths.revUtil }} />}
             <col style={{ width: 40 }} />
           </colgroup>
           <thead className="bg-secondary/40 text-muted-foreground">
             <tr>
-              {([
+              {(([
                 ["name", "Name", undefined],
                 ["designation", "Designation", undefined],
                 ["email", "Email", undefined],
@@ -707,8 +707,10 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                 ["market", "Market", ["US", "India"]],
                 ["revType", "Revenue capacity", undefined],
                 ["timeUtil", "Time utilisation", undefined],
-                ["revUtil", "Revenue utilisation", undefined],
-              ] as [ColKey, string, string[] | undefined][]).map(([k, label, options]) => (
+                ...(isAdmin
+                  ? [["revUtil", "Revenue utilisation", undefined]]
+                  : []),
+              ] as [ColKey, string, string[] | undefined][])).map(([k, label, options]) => (
                 <ColHeader
                   key={k}
                   label={label}
