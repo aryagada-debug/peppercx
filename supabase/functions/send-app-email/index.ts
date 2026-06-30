@@ -218,6 +218,81 @@ type SendInput = {
 };
 type Built = { to: string[]; subject: string; html: string };
 
+// ── Rules resolver ──────────────────────────────────────────────────────────
+type RuleRow = {
+  event_key: string; enabled: boolean;
+  to_tokens: string[]; cc_tokens: string[];
+  extra_to: string[]; extra_cc: string[];
+  subject_template: string; body_template: string;
+};
+
+const EVENT_TO_RULE: Record<string, string> = {
+  staffed: "assignment.created",
+  staffing_changed: "assignment.created",
+  staffing_removed: "assignment.created",
+  handover_received: "handover.received",
+  deal_created: "deal.created",
+  deal_unstaffed: "deal.unstaffed_7d",
+  mbr_reminder: "mbr.missing_prev_month",
+  rgy_stale: "rgy.stale_7d",
+};
+
+async function loadRule(admin: SupabaseClient, eventKey: string): Promise<RuleRow | null> {
+  const { data } = await admin.from("notification_rules").select("*").eq("event_key", eventKey).maybeSingle();
+  return (data as RuleRow) || null;
+}
+
+function capabilityBucket(deal: DealRow): string {
+  const cap = (deal.capability_line || "").toLowerCase();
+  const bu = (deal.business_unit || "").toLowerCase();
+  const geo = (deal.geo || "").toLowerCase();
+  const text = `${cap} ${bu}`;
+  if (text.includes("creative")) return "creative";
+  if (text.includes("seo")) return (geo.includes("us") || geo.includes("america")) ? "seo_us" : "seo_india";
+  if (text.includes("content studio") || text.includes("studio")) return "content_studio";
+  return "other";
+}
+
+async function emailsForCapabilityLead(admin: SupabaseClient, deal: DealRow): Promise<string[]> {
+  const bucket = capabilityBucket(deal);
+  const { data } = await admin.from("capability_leads").select("leads").eq("bucket", bucket).maybeSingle();
+  return ((data?.leads as string[]) || []).filter((e) => /@/.test(e));
+}
+
+async function emailForAssigneeManager(admin: SupabaseClient, personId: string): Promise<string[]> {
+  const { data: p } = await admin.from("staffing_people").select("manager_person_id").eq("id", personId).maybeSingle();
+  const mid = (p as { manager_person_id?: string } | null)?.manager_person_id;
+  if (!mid) return [];
+  const { data: m } = await admin.from("staffing_people").select("email").eq("id", mid).maybeSingle();
+  const e = (m as { email?: string } | null)?.email;
+  return e && /@/.test(e) ? [e] : [];
+}
+
+async function expandTokens(
+  admin: SupabaseClient,
+  tokens: string[],
+  ctx: { deal?: DealRow; personEmail?: string; personId?: string },
+): Promise<string[]> {
+  const out = new Set<string>();
+  for (const tok of tokens) {
+    const t = tok.trim();
+    if (!t) continue;
+    if (t === "{assignee}" && ctx.personEmail) out.add(ctx.personEmail);
+    else if (t === "{assignee_manager}" && ctx.personId) {
+      (await emailForAssigneeManager(admin, ctx.personId)).forEach((e) => out.add(e));
+    } else if (t === "{capability_lead}" && ctx.deal) {
+      (await emailsForCapabilityLead(admin, ctx.deal)).forEach((e) => out.add(e));
+    } else if ((t === "{vsd}" || t === "{principal_bopm}" || t === "{senior_bopm}" || t === "{bopm}") && ctx.deal) {
+      const field = t.slice(1, -1) as "vsd" | "principal_bopm" | "senior_bopm" | "bopm";
+      const names = ctx.deal[field] ? [ctx.deal[field] as string] : [];
+      (await lookupEmailsByNames(admin, names)).forEach((e) => out.add(e));
+    } else if (/@/.test(t)) {
+      out.add(t);
+    }
+  }
+  return Array.from(out);
+}
+
 async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Built | null> {
   const ev = input.event;
 
