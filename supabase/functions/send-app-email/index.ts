@@ -243,6 +243,15 @@ async function loadRule(admin: SupabaseClient, eventKey: string): Promise<RuleRo
   return (data as RuleRow) || null;
 }
 
+function applyTokens(template: string, ctx: Record<string, string>): string {
+  let out = template;
+  for (const [k, v] of Object.entries(ctx)) {
+    out = out.split(k).join(v ?? "");
+  }
+  // Replace any remaining unknown {tokens} with blank
+  return out.replace(/\{[a-z_]+\}/gi, "");
+}
+
 function capabilityBucket(deal: DealRow): string {
   const cap = (deal.capability_line || "").toLowerCase();
   const bu = (deal.business_unit || "").toLowerCase();
