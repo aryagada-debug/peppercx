@@ -832,8 +832,7 @@ function Review({ form, onEdit }: { form: HandoverForm; onEdit: (i: number) => v
         )}
         <Row k="Total amount" v={form.total_amount != null ? `₹${formatINR(form.total_amount)} ${currencyHelper(form.total_amount).replace("= ", "(") + ")"}` : ""} />
         <Row k="Duration" v={form.duration_months ? `${form.duration_months} months` : ""} />
-        <Row k="Start date" v={form.start_date} />
-        <Row k="Assigned VSD" v={form.vsd_suggested} />
+        <Row k="Actual / Tentative start date" v={form.start_date} />
         <Row k="Special terms" v={form.deal_notes} />
       </Group>
     </div>
