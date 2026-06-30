@@ -8,6 +8,7 @@ import { sendAppEmail } from "@/lib/appEmail";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { HandoverWizard } from "@/components/handover/HandoverWizard";
 import { SuggestedStaffingCard } from "@/components/handover/SuggestedStaffingCard";
+import { VSD_OPTIONS } from "@/components/handover/constants";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -360,7 +361,12 @@ function HandoverDrawer({
 
           <Card className="p-3 space-y-2">
             <h3 className="text-xs font-semibold uppercase text-muted-foreground">Anirudh — Confirmed VSD</h3>
-            <Input value={vsd} onChange={(e) => setVsd(e.target.value)} disabled={!canEditVsd || row.status === "created"} placeholder="VSD name" />
+            <Select value={vsd} onValueChange={setVsd} disabled={!canEditVsd || row.status === "created"}>
+              <SelectTrigger><SelectValue placeholder="Select VSD" /></SelectTrigger>
+              <SelectContent>
+                {VSD_OPTIONS.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+              </SelectContent>
+            </Select>
             {canEditVsd && row.status !== "created" && (
               <div className="flex justify-end">
                 <Button size="sm" onClick={saveVsd} disabled={saving}>Save VSD</Button>
