@@ -674,6 +674,9 @@ export default function Clients() {
       return;
     }
 
+    // Fire deal.created notification (Arya + VSD + capability lead).
+    try { sendAppEmail({ event: "deal_created", dealId: newId }); } catch { /* best-effort */ }
+
     const validSow = data.sowItems.filter((s: any) => s.scope);
     if (validSow.length > 0) {
       await supabase.from("deal_sow_items").insert(
