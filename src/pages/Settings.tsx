@@ -155,6 +155,7 @@ function NotificationsPanel() {
       </div>
       <CentralMailboxCard />
       <MbrReminderCard />
+      <NotificationRulesCard />
     </div>
   );
 }
