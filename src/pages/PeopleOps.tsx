@@ -137,7 +137,7 @@ export default function PeopleOps() {
             <PeopleOpsAnalyticsStrip
               tiles={[
                 { label: "Headcount", value: analytics.headcount },
-                {
+                ...(isAdmin ? [{
                   label: "Avg Utilization",
                   value: `${Math.round(analytics.avgUtil)}%`,
                   tone:
@@ -145,11 +145,11 @@ export default function PeopleOps() {
                     : analytics.avgUtil >= 85 ? "warning"
                     : analytics.avgUtil >= 30 ? "positive"
                     : "info",
-                },
+                } as const] : []),
                 { label: "Hiring Gaps", value: analytics.tbh, tone: analytics.tbh > 0 ? "warning" : "default" },
                 { label: "Leavers", value: String(analytics.leavers).padStart(2, "0"), tone: analytics.leavers > 0 ? "destructive" : "default" },
                 { label: "TBH Roles", value: String(analytics.tbh).padStart(2, "0"), tone: "info" },
-                {
+                ...(isAdmin ? [{
                   label: "Capacity",
                   value: (
                     <>
@@ -157,8 +157,8 @@ export default function PeopleOps() {
                       <span className="text-xs text-muted-foreground font-normal">hrs</span>
                     </>
                   ),
-                },
-                { label: "Rev / Head", value: formatINR(analytics.revPerHead) },
+                }] : []),
+                ...(isAdmin ? [{ label: "Rev / Head", value: formatINR(analytics.revPerHead) }] : []),
               ]}
             />
             <DepartmentCardsGrid
