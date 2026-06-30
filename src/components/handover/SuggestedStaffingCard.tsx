@@ -170,18 +170,8 @@ export function SuggestedStaffingCard({
     },
   });
 
-  if (!enabled) return null;
-
-  return renderInner();
-
-  function renderInner() {
-  return null as any;
-  }
-}
-
-function _unused() {}
-
-// placeholder
+  const [sending, setSending] = useState(false);
+  const sendAllToStaffing = async () => {
     if (!createdDealId || !data?.rows?.length) return;
     setSending(true);
     try {
@@ -210,6 +200,8 @@ function _unused() {}
       setSending(false);
     }
   };
+
+  if (!enabled) return null;
 
   return (
     <Card className="p-3 space-y-2">
