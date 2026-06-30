@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
 import { ArrowUpDown, Download, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { InviteRow, ResponseRow } from "./useAnalyticsData";
 import { formatINR } from "@/lib/csvTargets";
+import { SurveyResponseView } from "./SurveyResponseView";
 
 type Row = {
   id: string;
@@ -170,9 +171,9 @@ export function AnalyticsResponsesTable({
         </div>
       </div>
 
-      <div className="rounded-lg border border-border overflow-hidden">
+      <div className="rounded-lg border border-border overflow-hidden w-full">
         <div className="overflow-x-auto">
-          <table className="w-full text-xs">
+          <table className="w-full text-xs min-w-[1400px]">
             <thead className="bg-secondary">
               <tr className="text-left">
                 <Th onClick={() => toggleSort("submitted_at")}>Submitted</Th>
@@ -237,18 +238,19 @@ export function AnalyticsResponsesTable({
         </div>
       </div>
 
-      <Drawer open={!!drillRow} onOpenChange={(o) => !o && setDrillRow(null)}>
-        <DrawerContent>
-          <DrawerHeader>
-            <DrawerTitle>
-              {drillRow?.deal_name || drillRow?.deal_id} — {drillRow?.respondent || "Anonymous"}
-            </DrawerTitle>
-          </DrawerHeader>
-          <div className="px-4 pb-6 max-h-[70vh] overflow-y-auto space-y-3">
-            {drillRow && <QnAView payload={drillRow.payload} />}
+      <Dialog open={!!drillRow} onOpenChange={(o) => !o && setDrillRow(null)}>
+        <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-hidden p-0 flex flex-col">
+          <DialogHeader className="px-6 pt-5 pb-3 border-b border-border">
+            <DialogTitle className="text-sm">
+              {drillRow?.deal_name || drillRow?.deal_id || "Response"}
+              {drillRow?.respondent && <span className="text-muted-foreground font-normal"> — {drillRow.respondent}</span>}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="px-6 py-5 overflow-y-auto bg-secondary/30">
+            {drillRow && <SurveyResponseView payload={drillRow.payload} />}
           </div>
-        </DrawerContent>
-      </Drawer>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
