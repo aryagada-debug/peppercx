@@ -349,8 +349,8 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
                   <th className="px-3 py-2 font-medium text-right">People</th>
                   <th className="px-3 py-2 font-medium text-right">Avg BW</th>
                   <th className="px-3 py-2 font-medium text-right">MRR (Actual)</th>
-                  <th className="px-3 py-2 font-medium text-right">MRR Capacity</th>
-                  <th className="px-3 py-2 font-medium text-right">Revenue Util.</th>
+                  {isAdmin && <th className="px-3 py-2 font-medium text-right">MRR Capacity</th>}
+                  {isAdmin && <th className="px-3 py-2 font-medium text-right">Revenue Util.</th>}
                 </tr>
               </thead>
               <tbody>
@@ -365,10 +365,10 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
                       <td className="px-3 py-2 text-right tabular-nums text-xs">{v.people}</td>
                       <td className="px-3 py-2 text-right tabular-nums text-xs">{Math.round(avg)}%</td>
                       <td className="px-3 py-2 text-right tabular-nums text-xs">{formatINR(v.mrr)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums text-xs text-muted-foreground">
+                      {isAdmin && <td className="px-3 py-2 text-right tabular-nums text-xs text-muted-foreground">
                         {v.capacity > 0 ? formatINR(v.capacity) : "—"}
-                      </td>
-                      <td className="px-3 py-2 text-right text-xs">
+                      </td>}
+                      {isAdmin && <td className="px-3 py-2 text-right text-xs">
                         {fill == null ? (
                           <span className="text-muted-foreground">—</span>
                         ) : (
@@ -384,7 +384,7 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
                             </span>
                           </div>
                         )}
-                      </td>
+                      </td>}
                     </tr>
                   );
                 })}
