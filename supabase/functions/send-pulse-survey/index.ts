@@ -120,9 +120,9 @@ const BRAND_TEXT = "#15131f";
 const BRAND_MUTED = "#6b6878";
 
 export const DEFAULT_TEMPLATE = {
-  subject: "How are we doing on {{account}} — {{deal_name}}?",
+  subject: "How are we doing on {{account}} - {{deal_name}}?",
   greeting: "Hi {{first_name}},",
-  body: "Your honest feedback shapes what we fix, build, and prioritise next on this engagement.\n\nIt takes about 4 minutes — and the whole team reads every response.",
+  body: "Your honest feedback shapes what we fix, build, and prioritise next on this engagement.\n\nIt takes about 4 minutes - and the whole team reads every response.",
   cta_label: "Share your feedback →",
   footer_note: "Sent by the Pepper Customer Success team. Reply to this email to reach us directly.",
 };
@@ -146,7 +146,7 @@ function emailHtml({ vars, tpl, label }: {
   label: string;
 }) {
   const greeting = renderTemplate(tpl.greeting, vars);
-  // Strip any {{link}} from body — link is always the CTA button.
+  // Strip any {{link}} from body - link is always the CTA button.
   const bodyText = renderTemplate(tpl.body, { ...vars, link: "" });
   const ctaLabel = renderTemplate(tpl.cta_label, vars);
   const footer = renderTemplate(tpl.footer_note, vars);
@@ -294,7 +294,7 @@ Deno.serve(async (req) => {
         sender_name: "Pepper CX",
         link,
       };
-      const label = [deal.account, deal.deal_name].filter(Boolean).join(" — ") || deal.id;
+      const label = [deal.account, deal.deal_name].filter(Boolean).join(" - ") || deal.id;
       const html = emailHtml({ vars, tpl, label });
       const subject = renderTemplate(tpl.subject, vars) || `How are we doing on ${label}?`;
       prepared.push({ email: rcp.email, inviteId: inserted.id, token: inviteToken, link, html, subject });

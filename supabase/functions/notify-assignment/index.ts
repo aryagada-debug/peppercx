@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-    // Resolve person — by id when available, else by exact name match.
+    // Resolve person - by id when available, else by exact name match.
     let personQuery = admin.from("staffing_people").select("id,name,email,slack_user_id").limit(1);
     if (body.personId) personQuery = personQuery.eq("id", body.personId);
     else personQuery = personQuery.ilike("name", body.assigneeName!.trim());
@@ -127,7 +127,7 @@ Deno.serve(async (req) => {
 
     // Compose VSD-branded message
     const vsdName = (deal.vsd || "").trim() || "Your VSD";
-    const dealLabel = `${deal.account ? `${deal.account} — ` : ""}${deal.deal_name || deal.id}`;
+    const dealLabel = `${deal.account ? `${deal.account} - ` : ""}${deal.deal_name || deal.id}`;
 
     let header = "";
     let detail = "";
