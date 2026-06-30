@@ -7,7 +7,6 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { sendAppEmail } from "@/lib/appEmail";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { HandoverWizard } from "@/components/handover/HandoverWizard";
-import { SuggestedStaffingCard } from "@/components/handover/SuggestedStaffingCard";
 import { VSD_OPTIONS } from "@/components/handover/constants";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -314,7 +313,7 @@ function HandoverDrawer({
         </SheetHeader>
 
         {row.status === "created" && row.created_deal_id && (
-          <div className="mt-4 rounded-md bg-green-50 border border-green-200 px-3 py-2 text-sm flex items-center justify-between gap-2">
+          <div className="mt-4 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 px-3 py-2 text-sm flex items-center justify-between gap-2">
             <span>Deal created in Clients &amp; Deals.</span>
             <div className="flex gap-2">
               <Button asChild size="sm" variant="outline">
@@ -328,15 +327,6 @@ function HandoverDrawer({
         )}
 
         <div className="mt-4 space-y-4">
-          <SuggestedStaffingCard
-            vsd={row.vsd_confirmed || ""}
-            bu={row.bu || ""}
-            capability={row.capability || ""}
-            dealType={row.deal_type || ""}
-            mrr={row.mrr}
-            excludeDealId={row.created_deal_id || undefined}
-            createdDealId={row.created_deal_id || undefined}
-          />
           <Card className="p-3 space-y-2">
             <h3 className="text-xs font-semibold uppercase text-muted-foreground">Priyanka — Deal ID & Name</h3>
             <div className="grid grid-cols-2 gap-2">
