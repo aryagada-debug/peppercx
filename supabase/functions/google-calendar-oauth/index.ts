@@ -127,7 +127,9 @@ Deno.serve(async (req) => {
     // `status` is a read-only probe used during app boot — when the caller
     // isn't signed in (e.g. /login route, expired token), return a clean
     // "not connected" instead of 401 so it doesn't surface as a runtime
-    // error. All other actions still require a valid session.
+    // error. `callback` is protected by the signed state generated during
+    // `init`, so it must not depend on the browser still having an app session
+    // on the callback origin after returning from Google.
     let user;
     if (action === "status") {
       try {
@@ -135,6 +137,8 @@ Deno.serve(async (req) => {
       } catch {
         return json({ connected: false, googleEmail: null, updatedAt: null });
       }
+    } else if (action === "callback") {
+      user = null;
     } else {
       user = await getUser(req);
     }
@@ -172,12 +176,12 @@ Deno.serve(async (req) => {
       if (!code || !state) return json({ error: "Missing Google callback details" }, 400);
       const redirectUri = parseCallbackUrl(body.redirectUri);
       const verified = await verifyState(state);
-      if (verified.userId !== user.id) return json({ error: "Calendar connection belongs to another user" }, 403);
+      const userId = verified.userId;
 
       const existing = await admin
         .from("google_calendar_connections")
         .select("refresh_token")
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .maybeSingle();
 
       const tokenData = await tokenRequest(new URLSearchParams({
@@ -206,7 +210,7 @@ Deno.serve(async (req) => {
       if (!refreshToken) return json({ error: "Google did not return an offline refresh token; remove app access in Google and try again" }, 400);
 
       const { error: upsertError } = await admin.from("google_calendar_connections").upsert({
-        user_id: user.id,
+        user_id: userId,
         google_email: googleEmail,
         access_token: tokenData.access_token,
         refresh_token: refreshToken,

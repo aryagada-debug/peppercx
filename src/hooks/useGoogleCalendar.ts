@@ -16,7 +16,10 @@ export interface GCalEvent {
   conferenceData?: any;
 }
 
-function getCalendarCallbackUri() {
+export function getCalendarCallbackUri() {
+  if (window.location.hostname.endsWith(".lovableproject.com") || window.location.hostname.startsWith("id-preview--")) {
+    return "https://peppercx.lovable.app/calendar/callback";
+  }
   return `${window.location.origin}/calendar/callback`;
 }
 
