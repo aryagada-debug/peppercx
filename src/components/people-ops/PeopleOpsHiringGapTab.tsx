@@ -141,7 +141,7 @@ export function PeopleOpsHiringGapTab({ people, assignments, deals, isAdmin }: P
             {replacementDeals.map((d) => (
               <div key={d.id} className="flex items-center gap-2 px-3 py-1.5 border border-amber-500/30 bg-amber-500/10 rounded-sm text-xs">
                 <span className="text-foreground">{d.dealName || d.account}</span>
-                {d.mrr ? <span className="text-emerald-600 tabular-nums">{formatINR(d.mrr)}</span> : null}
+                {isAdmin && d.mrr ? <span className="text-emerald-600 tabular-nums">{formatINR(d.mrr)}</span> : null}
               </div>
             ))}
           </div>
@@ -187,7 +187,7 @@ export function PeopleOpsHiringGapTab({ people, assignments, deals, isAdmin }: P
             {unstaffed.map((d) => (
               <div key={d.id} className="flex items-center gap-2 px-3 py-1.5 border border-destructive/30 bg-destructive/10 rounded-sm text-xs">
                 <span className="text-foreground">{d.dealName || d.account}</span>
-                {d.mrr ? <span className="text-emerald-600 tabular-nums">{formatINR(d.mrr)}</span> : null}
+                {isAdmin && d.mrr ? <span className="text-emerald-600 tabular-nums">{formatINR(d.mrr)}</span> : null}
               </div>
             ))}
           </div>
