@@ -505,14 +505,25 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
       deal_unstaffed: ["Open in Staffing", `${APP_ORIGIN}/staffing?tab=staffing&deal=${encodeURIComponent(deal.id)}`],
       rgy_stale: ["Open RGY Health", `${APP_ORIGIN}/rgy`],
     };
+    const tokenCtx: Record<string, string> = {
+      "{deal_label}": label,
+      "{account}": deal.account || "",
+      "{deal_name}": deal.deal_name || "",
+      "{capability}": deal.capability_line || "",
+      "{vsd}": deal.vsd || "",
+      "{bopm}": deal.bopm || "",
+    };
+    const intro = rule?.body_template?.trim()
+      ? applyTokens(rule.body_template, tokenCtx)
+      : introMap[ev];
     return {
       to: recips,
       subject: rule?.subject_template?.trim()
-        ? rule.subject_template.replace(/\{deal_label\}/g, label).replace(/\{month\}/g, "")
+        ? applyTokens(rule.subject_template, tokenCtx)
         : titleMap[ev],
       html: layout({
         title: titleMap[ev],
-        intro: introMap[ev],
+        intro,
         rows: [
           ["Account", deal.account || ""],
           ["Deal", deal.deal_name || ""],
