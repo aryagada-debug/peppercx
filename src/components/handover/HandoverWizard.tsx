@@ -398,11 +398,13 @@ function Step2({ form, set, errors, fieldRefs }: StepProps) {
   const add = () => set("contacts", [...form.contacts, emptyContact()]);
   const remove = (i: number) => set("contacts", form.contacts.filter((_, idx) => idx !== i));
   const [mode, setMode] = useState<"existing" | "new">(form.existing_client_id ? "existing" : "new");
-  const [clients, setClients] = useState<Array<{ id: string; name: string; pc_code: string; industry: string }>>([]);
+  const [clients, setClients] = useState<Array<{ id: string; name: string; pc_code: string; industry: string; website: string }>>([]);
   const [clientSearch, setClientSearch] = useState("");
+  const [orgContacts, setOrgContacts] = useState<Array<{ key: string; name: string; role: string; email: string; phone: string; deal_id: string }>>([]);
+  const [loadingOrg, setLoadingOrg] = useState(false);
   useEffect(() => {
     if (mode !== "existing") return;
-    supabase.from("clients").select("id, name, pc_code, industry").order("name").limit(500)
+    supabase.from("clients").select("id, name, pc_code, industry, website").order("name").limit(500)
       .then(({ data }) => setClients((data as any[]) || []));
   }, [mode]);
   const filteredClients = useMemo(() => {
@@ -410,13 +412,72 @@ function Step2({ form, set, errors, fieldRefs }: StepProps) {
     if (!q) return clients.slice(0, 50);
     return clients.filter(c => c.name.toLowerCase().includes(q) || (c.pc_code || "").toLowerCase().includes(q)).slice(0, 50);
   }, [clientSearch, clients]);
-  const pickExisting = (id: string) => {
+  const pickExisting = async (id: string) => {
     const c = clients.find(x => x.id === id);
     if (!c) return;
     set("existing_client_id", id);
     set("company_name", c.name);
     const ind = (INDUSTRY_OPTIONS as readonly string[]).includes(c.industry) ? c.industry : "Miscellaneous";
     set("industry", ind);
+    if (c.website) set("website", c.website);
+    // Pull POCs from org mapping (deal_stakeholders across this client's deals)
+    setLoadingOrg(true);
+    setOrgContacts([]);
+    try {
+      const { data: deals } = await supabase
+        .from("staffing_deals")
+        .select("id")
+        .eq("client_id", id);
+      const dealIds = (deals as any[] || []).map((d) => d.id);
+      let rows: any[] = [];
+      if (dealIds.length) {
+        const { data: sh } = await supabase
+          .from("deal_stakeholders")
+          .select("name, role, email, phone, deal_id")
+          .in("deal_id", dealIds);
+        rows = (sh as any[]) || [];
+      }
+      // Also try client_name match as a fallback (legacy rows without deal link)
+      const { data: shByName } = await supabase
+        .from("deal_stakeholders")
+        .select("name, role, email, phone, deal_id")
+        .eq("client_name", c.name);
+      rows = rows.concat((shByName as any[]) || []);
+      const seen = new Set<string>();
+      const deduped: typeof orgContacts = [];
+      for (const r of rows) {
+        const email = (r.email || "").trim().toLowerCase();
+        const k = email || `${(r.name || "").trim().toLowerCase()}|${r.deal_id}`;
+        if (!k || seen.has(k)) continue;
+        seen.add(k);
+        deduped.push({
+          key: k,
+          name: r.name || "",
+          role: r.role || "",
+          email: r.email || "",
+          phone: r.phone || "",
+          deal_id: r.deal_id || "",
+        });
+      }
+      setOrgContacts(deduped);
+    } finally {
+      setLoadingOrg(false);
+    }
+  };
+  const includeOrgContact = (oc: { name: string; role: string; email: string; phone: string }) => {
+    // Skip if already present (by email)
+    const exists = form.contacts.some((c) => c.email && c.email.trim().toLowerCase() === oc.email.trim().toLowerCase());
+    if (exists) {
+      toast({ title: "Already added", description: oc.email });
+      return;
+    }
+    // If only the empty starter row is present, replace it.
+    const firstEmpty = form.contacts.findIndex((c) => !c.name && !c.email);
+    const next = [...form.contacts];
+    const entry: Contact = { name: oc.name, role: oc.role, email: oc.email, phone: oc.phone };
+    if (firstEmpty >= 0) next[firstEmpty] = entry;
+    else next.push(entry);
+    set("contacts", next);
   };
 
   return (
