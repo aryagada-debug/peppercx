@@ -872,13 +872,34 @@ function Step4({ form, set, errors, fieldRefs }: StepProps) {
           />
         </FieldShell>
         <FieldShell id="start_date" label="Actual / Tentative start date" required error={errors.start_date}>
-          <Input
-            id="start_date"
-            type="date"
-            ref={(n) => (fieldRefs.current.start_date = n)}
-            value={form.start_date}
-            onChange={(e) => set("start_date", e.target.value)}
-          />
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                id="start_date"
+                type="button"
+                variant="outline"
+                ref={(n) => (fieldRefs.current.start_date = n as HTMLElement | null)}
+                className={cn(
+                  "w-full justify-start text-left font-normal",
+                  !form.start_date && "text-muted-foreground",
+                )}
+              >
+                <CalendarIcon className="h-4 w-4 mr-2" />
+                {form.start_date && isValid(parseISO(form.start_date))
+                  ? format(parseISO(form.start_date), "PPP")
+                  : "Pick a date"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={form.start_date ? parseISO(form.start_date) : undefined}
+                onSelect={(d) => set("start_date", d ? format(d, "yyyy-MM-dd") : "")}
+                initialFocus
+                className={cn("p-3 pointer-events-auto")}
+              />
+            </PopoverContent>
+          </Popover>
         </FieldShell>
       </Grid>
       <FieldShell id="deal_notes" label="Special terms / context">
