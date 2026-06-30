@@ -223,12 +223,42 @@ export function AnalyticsTable({
         <div className="rounded-lg border border-border bg-card p-3">
           <div className="text-xs text-muted-foreground mb-2">NPS by {labelFor(groupBy)} (top 15)</div>
           <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={chartData}>
+            <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 10 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} angle={-25} textAnchor="end" height={60} />
+              <XAxis
+                dataKey="name"
+                tick={false}
+                axisLine={false}
+                tickLine={false}
+                height={1}
+              />
               <YAxis tick={{ fontSize: 10 }} domain={[-100, 100]} />
               <Tooltip />
-              <Bar dataKey="nps" fill="hsl(var(--primary))" radius={[3, 3, 0, 0]} />
+              <ReferenceLine y={0} stroke="hsl(var(--foreground))" strokeOpacity={0.5} />
+              <Bar dataKey="nps" fill="hsl(var(--primary))" radius={[3, 3, 0, 0]}>
+                <LabelList
+                  dataKey="name"
+                  content={(props: any) => {
+                    const { x, y, width, height, value, index } = props;
+                    const v = chartData[index]?.nps ?? 0;
+                    // zero baseline pixel: bottom of bar for positive, top of bar for negative
+                    const zeroY = v >= 0 ? y + height : y;
+                    const cx = x + width / 2;
+                    const isNeg = v < 0;
+                    return (
+                      <text
+                        x={cx}
+                        y={zeroY + (isNeg ? -6 : 14)}
+                        textAnchor="middle"
+                        fontSize={10}
+                        fill="hsl(var(--muted-foreground))"
+                      >
+                        {String(value).length > 22 ? String(value).slice(0, 22) + "…" : value}
+                      </text>
+                    );
+                  }}
+                />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
