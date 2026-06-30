@@ -932,16 +932,18 @@ export function PeopleReportingTable({ people, assignments = [], deals = [], onA
                                   <td className="px-3 py-1.5">
                                     <UtilBar value={u.time} hint={`${Math.round((u.time / 100) * 160)}h / 160h`} />
                                   </td>
-                                  <td className="px-3 py-1.5">
-                                    <UtilBar
-                                      value={u.revenue}
-                                      hint={
-                                        (capacityById.get(p.id) || 0) > 0
-                                          ? `${symbol}${fmt(Math.round(u.allocatedMrr))} / ${symbol}${fmt(capacityById.get(p.id) || 0)}`
-                                          : "No capacity set"
-                                      }
-                                    />
-                                  </td>
+                                   {isAdmin && (
+                                     <td className="px-3 py-1.5">
+                                       <UtilBar
+                                         value={u.revenue}
+                                         hint={
+                                           (capacityById.get(p.id) || 0) > 0
+                                             ? `${symbol}${fmt(Math.round(u.allocatedMrr))} / ${symbol}${fmt(capacityById.get(p.id) || 0)}`
+                                             : "No capacity set"
+                                         }
+                                       />
+                                     </td>
+                                   )}
                                   <td className="px-2 py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
                                     {isAdmin && (
                                       <button
