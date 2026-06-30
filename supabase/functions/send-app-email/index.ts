@@ -200,12 +200,12 @@ function dealLink(dealId: string) {
   return `${APP_ORIGIN}/deals/${encodeURIComponent(dealId)}`;
 }
 function dealLabel(d: DealRow) {
-  return [d.account, d.deal_name].filter(Boolean).join(" — ") || d.id;
+  return [d.account, d.deal_name].filter(Boolean).join(" - ") || d.id;
 }
 
 function formatPct(n: unknown) {
   const v = Number(n);
-  return Number.isFinite(v) ? `${v}%` : "—";
+  return Number.isFinite(v) ? `${v}%` : "-";
 }
 
 // ── Event builders ─────────────────────────────────────────────────────────
@@ -319,14 +319,14 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
       const dealName = String((input.payload as any)?.deal_name || "");
       const vsd = String((input.payload as any)?.vsd || "");
       const titleMap: Record<string, string> = {
-        handover_submitted: `New sales handover — ${company}`,
-        handover_partial: `Handover update — ${company}`,
-        handover_completed: `Handover completed — ${company}`,
+        handover_submitted: `New sales handover - ${company}`,
+        handover_partial: `Handover update - ${company}`,
+        handover_completed: `Handover completed - ${company}`,
       };
       const introMap: Record<string, string> = {
         handover_submitted: `A new sales handover has been submitted for <b>${escapeHtml(company)}</b>. Priyanka please add Deal ID & Name. Anirudh please confirm the VSD.`,
         handover_partial: `An update was made on the handover for <b>${escapeHtml(company)}</b>. Your action may be next.`,
-        handover_completed: `The handover for <b>${escapeHtml(company)}</b> is complete — the deal has been created in Clients & Deals.`,
+        handover_completed: `The handover for <b>${escapeHtml(company)}</b> is complete - the deal has been created in Clients & Deals.`,
       };
       return {
         to,
@@ -348,7 +348,7 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
     }
     return {
       to,
-      subject: "Pepper CX — Central mailbox test",
+      subject: "Pepper CX - Central mailbox test",
       html: layout({
         title: "Central mailbox is working",
         intro: "This is a test message sent from the central CX mailbox. If you received it, notifications are good to go.",
@@ -367,7 +367,7 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
     const tctx = { "{company}": company, "{submitter}": submitter };
     const subject = rule?.subject_template?.trim()
       ? applyTokens(rule.subject_template, tctx)
-      : `New sales handover — ${company}`;
+      : `New sales handover - ${company}`;
     const intro = rule?.body_template?.trim()
       ? applyTokens(rule.body_template, tctx)
       : `A new sales handover has been submitted for <b>${escapeHtml(company)}</b>. Priyanka please add Deal ID & Name. Anirudh please confirm the VSD.`;
@@ -375,7 +375,7 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
       to: recips,
       subject,
       html: layout({
-        title: `New sales handover — ${escapeHtml(company)}`,
+        title: `New sales handover - ${escapeHtml(company)}`,
         intro,
         rows: [["Submitted by", submitter]],
         ctaLabel: "Open Deal Handover",
@@ -438,7 +438,7 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
         to: [person.email],
         subject: `Your staffing on ${label} was updated`,
         html: layout({
-          title: `Staffing updated — ${escapeHtml(label)}`,
+          title: `Staffing updated - ${escapeHtml(label)}`,
           intro: `Hi ${escapeHtml(person.name || "")}, your staffing on <b>${escapeHtml(label)}</b> was updated. Your bandwidth is now <b>${escapeHtml(pct)}</b>.`,
           rows: [
             ["Account", deal.account || ""],
@@ -484,7 +484,7 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
     const intro = rule?.body_template?.trim() ? applyTokens(rule.body_template, tctx) : null;
     return {
       to: recips,
-      subject: sbj || `RGY ${status === "R" ? "Red" : status === "Y" ? "Yellow" : status} — ${label}`,
+      subject: sbj || `RGY ${status === "R" ? "Red" : status === "Y" ? "Yellow" : status} - ${label}`,
       html: layout({
         title: `RGY moved to ${status === "R" ? "Red" : status === "Y" ? "Yellow" : status}`,
         intro: intro || `<b>${escapeHtml(label)}</b> has a new ${escapeHtml(status === "R" ? "Red" : status === "Y" ? "Yellow" : status)} RGY signal. Please review and log the action plan in Pepper CX.`,
@@ -516,7 +516,7 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
     const intro = rule?.body_template?.trim() ? applyTokens(rule.body_template, tctx) : null;
     return {
       to: recips,
-      subject: sbj || `MBR pending — ${label}${month ? ` (${month})` : ""}`,
+      subject: sbj || `MBR pending - ${label}${month ? ` (${month})` : ""}`,
       html: layout({
         title: `MBR pending for ${escapeHtml(label)}`,
         intro: intro || `The Monthly Business Review for <b>${escapeHtml(label)}</b> is still pending${month ? ` for <b>${escapeHtml(month)}</b>` : ""}. Please schedule and log it in Pepper CX.`,
@@ -539,9 +539,9 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
     const recips = await expandTokens(admin, [...(rule?.to_tokens || []), ...(rule?.extra_to || [])], { deal });
     if (recips.length === 0) return null;
     const titleMap: Record<string, string> = {
-      deal_created: `New deal created — ${label}`,
-      deal_unstaffed: `Deal awaiting staffing — ${label}`,
-      rgy_stale: `RGY update pending — ${label}`,
+      deal_created: `New deal created - ${label}`,
+      deal_unstaffed: `Deal awaiting staffing - ${label}`,
+      rgy_stale: `RGY update pending - ${label}`,
     };
     const introMap: Record<string, string> = {
       deal_created: `A new deal <b>${escapeHtml(label)}</b> has been created in Pepper CX.`,
@@ -637,7 +637,7 @@ Deno.serve(async (req) => {
       const rule = await loadRule(admin, eventKey);
       if (!rule) return json({ error: "rule_not_found" }, 404);
       const sampleCtx: Record<string, string> = {
-        "{deal_label}": "Acme Corp — Pepper Creative",
+        "{deal_label}": "Acme Corp - Pepper Creative",
         "{account}": "Acme Corp",
         "{deal_name}": "Pepper Creative",
         "{capability}": "Creative",
@@ -655,9 +655,9 @@ Deno.serve(async (req) => {
       const subject = `[TEST] ${rule.subject_template?.trim() ? applyTokens(rule.subject_template, sampleCtx) : `${rule.event_key} preview`}`;
       const intro = rule.body_template?.trim()
         ? applyTokens(rule.body_template, sampleCtx)
-        : `This is a preview of the <b>${escapeHtml(rule.event_key)}</b> notification. No body template is set yet — actual sends will use the default copy.`;
+        : `This is a preview of the <b>${escapeHtml(rule.event_key)}</b> notification. No body template is set yet - actual sends will use the default copy.`;
       const html = layout({
-        title: `Preview — ${escapeHtml(rule.event_key)}`,
+        title: `Preview - ${escapeHtml(rule.event_key)}`,
         intro,
         rows: [
           ["Event", rule.event_key],
