@@ -1,0 +1,1 @@
+ALTER TABLE public.staffing_suggestions ADD CONSTRAINT staffing_suggestions_deal_role_person_uniq UNIQUE (staffing_deal_id, role_key, person_name);
