@@ -217,6 +217,7 @@ type SendInput = {
   payload?: Record<string, unknown>;
 };
 type Built = { to: string[]; subject: string; html: string };
+type BuiltOut = Built & { cc?: string[] };
 
 // ── Rules resolver ──────────────────────────────────────────────────────────
 type RuleRow = {
