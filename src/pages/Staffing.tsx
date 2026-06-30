@@ -144,8 +144,21 @@ export default function Staffing() {
       : scoped;
     // Staffing & Capacity only cares about deals currently in flight — drop
     // closed/lost deals so counts (e.g. "158 active deals") match Clients & Deals.
-    return dedup.filter(d => geoMatchesDeal(d) && ACTIVE_DEAL_STATUSES.has(d.dealStatus));
-  }, [deals, shouldScopeToOwnDeals, accessLoading, visibleDealIds, geoMatchesDeal]);
+    const base = dedup.filter(d => geoMatchesDeal(d) && ACTIVE_DEAL_STATUSES.has(d.dealStatus));
+    // Deep-link from elsewhere (e.g. Deal Handover → "Open in Staffing"): if a
+    // specific deal is requested via ?deal=, make sure it's visible to the
+    // current user even if it would normally be filtered out by role scope
+    // or by the active-only filter. This keeps the link useful for the
+    // submitter who created the handover but isn't tagged on the deal yet.
+    if (dealParam) {
+      const already = base.some(d => d.id === dealParam);
+      if (!already) {
+        const extra = deals.find(d => d.id === dealParam);
+        if (extra) return [extra, ...base];
+      }
+    }
+    return base;
+  }, [deals, shouldScopeToOwnDeals, accessLoading, visibleDealIds, geoMatchesDeal, dealParam]);
 
   const scopedDeals = uniqueScopedDeals;
 
@@ -357,6 +370,7 @@ export default function Staffing() {
                   canLock={isActuallyAdmin}
                   enableBopmFilter
                   bopmFilterScopedVsd={myVsdName}
+                  focusDealId={dealParam}
                   onAddAssignment={addAssignment}
                   onUpdateAssignment={updateAssignment}
                   onDeleteAssignment={deleteAssignment}
