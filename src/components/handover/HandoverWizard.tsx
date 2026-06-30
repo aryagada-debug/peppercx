@@ -907,7 +907,6 @@ function SubmittedStep({
     lines.push(`  Total: ₹${formatINR(form.total_amount)} ${currencyHelper(form.total_amount)}`);
     if (form.duration_months) lines.push(`  Duration: ${form.duration_months} months`);
     lines.push(`  Start: ${form.start_date}`);
-    if (form.vsd_suggested) lines.push(`  Assigned VSD: ${form.vsd_suggested}`);
     if (form.deal_notes) lines.push(`  Notes: ${form.deal_notes}`);
     return lines.join("\n");
   };
