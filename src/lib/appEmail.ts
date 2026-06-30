@@ -6,6 +6,10 @@ export type AppEmailEvent =
   | "staffing_removed"
   | "rgy_alert"
   | "mbr_reminder"
+  | "deal_created"
+  | "deal_unstaffed"
+  | "rgy_stale"
+  | "handover_received"
   | "test";
 
 export interface AppEmailInput {
