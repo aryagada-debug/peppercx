@@ -537,6 +537,43 @@ function Step2({ form, set, errors, fieldRefs }: StepProps) {
           )}
         </Card>
       )}
+      {mode === "existing" && form.existing_client_id && (
+        <Card className="p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase text-muted-foreground">POCs from Org Mapping</span>
+            {loadingOrg && <span className="text-xs text-muted-foreground">Loading…</span>}
+          </div>
+          {!loadingOrg && orgContacts.length === 0 && (
+            <p className="text-xs text-muted-foreground">No stakeholders found in Org Mapping for this client.</p>
+          )}
+          {orgContacts.length > 0 && (
+            <div className="max-h-56 overflow-y-auto border rounded-md divide-y">
+              {orgContacts.map((oc) => {
+                const already = form.contacts.some(
+                  (c) => c.email && oc.email && c.email.trim().toLowerCase() === oc.email.trim().toLowerCase(),
+                );
+                return (
+                  <div key={oc.key} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">{oc.name || "(unnamed)"}{oc.role && <span className="text-muted-foreground"> — {oc.role}</span>}</div>
+                      <div className="text-xs text-muted-foreground truncate">{[oc.email, oc.phone].filter(Boolean).join(" · ")}</div>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={already ? "ghost" : "outline"}
+                      disabled={already}
+                      onClick={() => includeOrgContact(oc)}
+                    >
+                      {already ? "Added" : <><Plus className="h-3 w-3 mr-1" /> Include</>}
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      )}
       <Grid>
         <FieldShell id="company_name" label="Company name" required error={errors.company_name}>
           <Input
