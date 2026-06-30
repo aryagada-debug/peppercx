@@ -30,7 +30,35 @@ async function getUser(req: Request) {
   return { id: data.claims.sub as string };
 }
 
-async function getCalendarAccessToken(userId: string) {
+async function refreshAccessToken(userId: string, refreshToken: string) {
+  const googleClientId = GOOGLE_CLIENT_ID.trim().match(/\d+-[a-z0-9_-]+\.apps\.googleusercontent\.com/i)?.[0] || GOOGLE_CLIENT_ID.trim();
+  const googleClientSecret = GOOGLE_CLIENT_SECRET.trim();
+  const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: googleClientId,
+      client_secret: googleClientSecret,
+      refresh_token: refreshToken,
+      grant_type: "refresh_token",
+    }).toString(),
+  });
+  const refreshed = await res.json();
+  if (!res.ok) {
+    const err = new Error(refreshed?.error_description || refreshed?.error || "Google token refresh failed");
+    (err as Error & { status?: number }).status = 428;
+    throw err;
+  }
+  const expiresAtIso = new Date(Date.now() + Math.max(60, Number(refreshed.expires_in || 3600) - 60) * 1000).toISOString();
+  await admin
+    .from("google_calendar_connections")
+    .update({ access_token: refreshed.access_token, expires_at: expiresAtIso, scopes: refreshed.scope || undefined })
+    .eq("user_id", userId);
+  return refreshed.access_token as string;
+}
+
+async function getCalendarAccessToken(userId: string, forceRefresh = false) {
   const googleClientId = GOOGLE_CLIENT_ID.trim().match(/\d+-[a-z0-9_-]+\.apps\.googleusercontent\.com/i)?.[0] || GOOGLE_CLIENT_ID.trim();
   const googleClientSecret = GOOGLE_CLIENT_SECRET.trim();
   if (!googleClientId || !googleClientSecret) throw new Error("calendar_oauth_not_configured");
@@ -49,36 +77,16 @@ async function getCalendarAccessToken(userId: string) {
   }
 
   const expiresAt = new Date(data.expires_at).getTime();
-  if (expiresAt > Date.now() + 60_000) return data.access_token as string;
+  if (!forceRefresh && expiresAt > Date.now() + 60_000) return data.access_token as string;
   if (!data.refresh_token) throw new Error("calendar_refresh_token_missing");
-
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: googleClientId,
-      client_secret: googleClientSecret,
-      refresh_token: data.refresh_token,
-      grant_type: "refresh_token",
-    }).toString(),
-  });
-  const refreshed = await res.json();
-  if (!res.ok) throw new Error(refreshed?.error_description || refreshed?.error || "Google token refresh failed");
-
-  const expiresAtIso = new Date(Date.now() + Math.max(60, Number(refreshed.expires_in || 3600) - 60) * 1000).toISOString();
-  const { error: updateError } = await admin
-    .from("google_calendar_connections")
-    .update({ access_token: refreshed.access_token, expires_at: expiresAtIso, scopes: refreshed.scope || undefined })
-    .eq("user_id", userId);
-  if (updateError) throw updateError;
-  return refreshed.access_token as string;
+  return await refreshAccessToken(userId, data.refresh_token);
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const user = await getUser(req);
-    const accessToken = await getCalendarAccessToken(user.id);
+    let accessToken = await getCalendarAccessToken(user.id);
     const { timeMin: tMin, timeMax: tMax, q, maxResults } = await req.json().catch(() => ({}));
 
     const now = new Date();
@@ -93,9 +101,14 @@ Deno.serve(async (req) => {
     });
     if (q) params.set("q", String(q));
 
-    const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`;
+    let res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (res.status === 401) {
+      // Stored token rejected by Google — force refresh and retry once
+      await res.body?.cancel();
+      accessToken = await getCalendarAccessToken(user.id, true);
+      res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+    }
     const data = await res.json();
     if (!res.ok) return json({ error: "Google API error", details: data }, res.status);
     return json({ events: data.items || [] });
