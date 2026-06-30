@@ -71,6 +71,7 @@ export function HandoverWizard({ onSubmitted }: Props) {
       if (!form.handover_date) e.handover_date = "Required";
     } else if (s === 1) {
       if (!form.company_name.trim()) e.company_name = "Required";
+      if (!form.industry.trim()) e.industry = "Required";
       if (!form.website.trim()) e.website = "Required";
       if (!form.contacts.length) e["contact_0_name"] = "Add at least one contact";
       form.contacts.forEach((c, i) => {
