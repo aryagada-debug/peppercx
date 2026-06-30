@@ -22,6 +22,7 @@ import type { Deal, Person, StaffingAssignment } from "@/data/staffingData";
 import { DEPARTMENT_LABELS, ROLE_TYPE_TO_DEPT } from "@/data/staffingData";
 import { AddStaffingMemberDialog } from "./AddStaffingMemberDialog";
 import { RequestStaffingDialog } from "./RequestStaffingDialog";
+import { SuggestedStaffingPanel } from "./SuggestedStaffingPanel";
 import { useTaxonomyQuery } from "@/hooks/queries/useTaxonomyQuery";
 import { resolvePersonDepartmentId } from "@/lib/peopleGrouping";
 import { useCurrency } from "@/contexts/CurrencyContext";
@@ -241,6 +242,14 @@ export function DealStaffingCard({
 
       {open && (
         <div className="p-4 space-y-4">
+          <SuggestedStaffingPanel
+            deal={deal}
+            deals={deals}
+            people={people}
+            assignments={assignments}
+            onAddAssignment={onAddAssignment}
+            onUpdateAssignment={onUpdateAssignment}
+          />
           {/* KPI strip */}
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <div className="rounded-lg bg-secondary/50 p-3">
