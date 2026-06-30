@@ -172,8 +172,16 @@ export function SuggestedStaffingCard({
 
   if (!enabled) return null;
 
-  const [sending, setSending] = useState(false);
-  const sendAllToStaffing = async () => {
+  return renderInner();
+
+  function renderInner() {
+  return null as any;
+  }
+}
+
+function _unused() {}
+
+// placeholder
     if (!createdDealId || !data?.rows?.length) return;
     setSending(true);
     try {
