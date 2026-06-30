@@ -105,6 +105,15 @@ export default function Inbox() {
             </p>
           </div>
         ) : (
+          <>
+          {status.scopes !== undefined && !/(gmail\.send|gmail\.readonly|gmail\.modify)/.test(status.scopes || "") && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 flex items-center justify-between gap-3">
+              <div className="text-xs text-foreground">
+                Your Google account is connected but is missing Gmail permissions. Reconnect to enable sending and reading mail.
+              </div>
+              <Button size="sm" variant="outline" onClick={() => connectGmail()}>Reconnect Gmail</Button>
+            </div>
+          )}
           <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-4 h-[calc(100vh-220px)]">
             <div className="rounded-lg border border-border bg-card flex flex-col overflow-hidden">
               <div className="p-2 border-b border-border">
@@ -164,6 +173,7 @@ export default function Inbox() {
               )}
             </div>
           </div>
+          </>
         )}
       </div>
 
