@@ -246,14 +246,14 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
               <th className="px-3 py-2 font-medium">BW Used</th>
               <th className="px-3 py-2 font-medium text-right"># Deals</th>
               <th className="px-3 py-2 font-medium text-right">MRR (Actual)</th>
-              <th className="px-3 py-2 font-medium text-right">MRR Capacity</th>
-              <th className="px-3 py-2 font-medium text-right">Revenue Utilisation</th>
+              {isAdmin && <th className="px-3 py-2 font-medium text-right">MRR Capacity</th>}
+              {isAdmin && <th className="px-3 py-2 font-medium text-right">Revenue Utilisation</th>}
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-3 py-8 text-center text-xs text-muted-foreground">
+                <td colSpan={isAdmin ? 10 : 8} className="px-3 py-8 text-center text-xs text-muted-foreground">
                   No people match these filters.
                 </td>
               </tr>
@@ -289,10 +289,10 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums text-xs">{r.dealCount}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-xs">{formatINR(r.mrrActual)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-xs text-muted-foreground">
+                    {isAdmin && <td className="px-3 py-2 text-right tabular-nums text-xs text-muted-foreground">
                       {r.capacity > 0 ? formatINR(r.capacity) : "—"}
-                    </td>
-                    <td className="px-3 py-2 text-right text-xs">
+                    </td>}
+                    {isAdmin && <td className="px-3 py-2 text-right text-xs">
                       {r.fillPct == null ? (
                         <span className="text-muted-foreground">—</span>
                       ) : (
@@ -308,7 +308,7 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
                           </span>
                         </div>
                       )}
-                    </td>
+                    </td>}
                   </tr>
                   {isOpen && r.splits.map((s) => (
                     <tr key={`${r.person.id}-${s.dealId}`} className="border-t border-border/50 bg-muted/10">
@@ -327,7 +327,7 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
                       </td>
                       <td></td>
                       <td className="px-3 py-1.5 text-right tabular-nums text-xs text-muted-foreground">{formatINR(s.mrrContribution)}</td>
-                      <td colSpan={2}></td>
+                      {isAdmin && <td colSpan={2}></td>}
                     </tr>
                   ))}
                 </Fragment>
@@ -349,8 +349,8 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
                   <th className="px-3 py-2 font-medium text-right">People</th>
                   <th className="px-3 py-2 font-medium text-right">Avg BW</th>
                   <th className="px-3 py-2 font-medium text-right">MRR (Actual)</th>
-                  <th className="px-3 py-2 font-medium text-right">MRR Capacity</th>
-                  <th className="px-3 py-2 font-medium text-right">Revenue Util.</th>
+                  {isAdmin && <th className="px-3 py-2 font-medium text-right">MRR Capacity</th>}
+                  {isAdmin && <th className="px-3 py-2 font-medium text-right">Revenue Util.</th>}
                 </tr>
               </thead>
               <tbody>
@@ -365,10 +365,10 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
                       <td className="px-3 py-2 text-right tabular-nums text-xs">{v.people}</td>
                       <td className="px-3 py-2 text-right tabular-nums text-xs">{Math.round(avg)}%</td>
                       <td className="px-3 py-2 text-right tabular-nums text-xs">{formatINR(v.mrr)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums text-xs text-muted-foreground">
+                      {isAdmin && <td className="px-3 py-2 text-right tabular-nums text-xs text-muted-foreground">
                         {v.capacity > 0 ? formatINR(v.capacity) : "—"}
-                      </td>
-                      <td className="px-3 py-2 text-right text-xs">
+                      </td>}
+                      {isAdmin && <td className="px-3 py-2 text-right text-xs">
                         {fill == null ? (
                           <span className="text-muted-foreground">—</span>
                         ) : (
@@ -384,7 +384,7 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
                             </span>
                           </div>
                         )}
-                      </td>
+                      </td>}
                     </tr>
                   );
                 })}
