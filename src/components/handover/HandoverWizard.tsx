@@ -396,10 +396,85 @@ function Step2({ form, set, errors, fieldRefs }: StepProps) {
     set("contacts", form.contacts.map((c, idx) => (idx === i ? { ...c, [k]: v } : c)));
   const add = () => set("contacts", [...form.contacts, emptyContact()]);
   const remove = (i: number) => set("contacts", form.contacts.filter((_, idx) => idx !== i));
+  const [mode, setMode] = useState<"existing" | "new">(form.existing_client_id ? "existing" : "new");
+  const [clients, setClients] = useState<Array<{ id: string; name: string; pc_code: string; industry: string }>>([]);
+  const [clientSearch, setClientSearch] = useState("");
+  useEffect(() => {
+    if (mode !== "existing") return;
+    supabase.from("clients").select("id, name, pc_code, industry").order("name").limit(500)
+      .then(({ data }) => setClients((data as any[]) || []));
+  }, [mode]);
+  const filteredClients = useMemo(() => {
+    const q = clientSearch.trim().toLowerCase();
+    if (!q) return clients.slice(0, 50);
+    return clients.filter(c => c.name.toLowerCase().includes(q) || (c.pc_code || "").toLowerCase().includes(q)).slice(0, 50);
+  }, [clientSearch, clients]);
+  const pickExisting = (id: string) => {
+    const c = clients.find(x => x.id === id);
+    if (!c) return;
+    set("existing_client_id", id);
+    set("company_name", c.name);
+    const ind = (INDUSTRY_OPTIONS as readonly string[]).includes(c.industry) ? c.industry : "Miscellaneous";
+    set("industry", ind);
+  };
 
   return (
     <div className="space-y-5">
       <SectionTitle>2. Client details</SectionTitle>
+      <div className="flex gap-2">
+        {(["existing", "new"] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => {
+              setMode(m);
+              if (m === "new") {
+                set("existing_client_id", "");
+                set("company_name", "");
+                set("industry", "");
+                set("website", "");
+              }
+            }}
+            className={cn(
+              "px-3 py-2 rounded-md border text-sm",
+              mode === m ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-accent",
+            )}
+          >
+            {m === "existing" ? "Existing client" : "New client"}
+          </button>
+        ))}
+      </div>
+      {mode === "existing" && (
+        <Card className="p-3 space-y-2">
+          <Input
+            placeholder="Search by client name or PC code…"
+            value={clientSearch}
+            onChange={(e) => setClientSearch(e.target.value)}
+          />
+          <div className="max-h-56 overflow-y-auto border rounded-md divide-y">
+            {filteredClients.length === 0 && (
+              <div className="p-3 text-xs text-muted-foreground">No matching clients.</div>
+            )}
+            {filteredClients.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => pickExisting(c.id)}
+                className={cn(
+                  "w-full text-left px-3 py-2 text-sm hover:bg-accent flex justify-between gap-3",
+                  form.existing_client_id === c.id && "bg-accent",
+                )}
+              >
+                <span className="font-medium">{c.name}</span>
+                <span className="text-xs text-muted-foreground">{c.pc_code}</span>
+              </button>
+            ))}
+          </div>
+          {form.existing_client_id && (
+            <p className="text-xs text-muted-foreground">Selected: <b>{form.company_name}</b>. Fields below are auto-filled; edit if needed.</p>
+          )}
+        </Card>
+      )}
       <Grid>
         <FieldShell id="company_name" label="Company name" required error={errors.company_name}>
           <Input
@@ -409,8 +484,15 @@ function Step2({ form, set, errors, fieldRefs }: StepProps) {
             onChange={(e) => set("company_name", e.target.value)}
           />
         </FieldShell>
-        <FieldShell id="industry" label="Industry">
-          <Input id="industry" value={form.industry} onChange={(e) => set("industry", e.target.value)} />
+        <FieldShell id="industry" label="Industry" required error={errors.industry}>
+          <div ref={(n) => (fieldRefs.current.industry = n)}>
+            <Select value={form.industry} onValueChange={(v) => set("industry", v)}>
+              <SelectTrigger id="industry"><SelectValue placeholder="Select industry" /></SelectTrigger>
+              <SelectContent>
+                {INDUSTRY_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
         </FieldShell>
         <FieldShell id="website" label="Website" required error={errors.website}>
           <Input
