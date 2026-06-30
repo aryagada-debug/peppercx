@@ -526,25 +526,6 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
     };
   }
 
-  if (ev === "handover_received") {
-    const rule = await loadRule(admin, "handover.received");
-    if (rule && !rule.enabled) return null;
-    const recips = await expandTokens(admin, [...(rule?.to_tokens || []), ...(rule?.extra_to || [])], { deal });
-    if (recips.length === 0) return null;
-    const company = String(input.payload?.company || deal.account || "");
-    return {
-      to: recips,
-      subject: `New sales handover — ${company}`,
-      html: layout({
-        title: `New sales handover — ${escapeHtml(company)}`,
-        intro: `A new sales handover has been submitted for <b>${escapeHtml(company)}</b>. Priyanka please add Deal ID & Name. Anirudh please confirm the VSD.`,
-        rows: [["Submitted by", String(input.payload?.submitter || "")]],
-        ctaLabel: "Open Deal Handover",
-        ctaHref: `${APP_ORIGIN}/deal-handover`,
-      }),
-    };
-  }
-
   return null;
 }
 
