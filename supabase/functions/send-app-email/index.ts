@@ -363,13 +363,21 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
     const recips = await expandTokens(admin, [...(rule?.to_tokens || []), ...(rule?.extra_to || [])], {});
     if (recips.length === 0) return null;
     const company = String(input.payload?.company || "");
+    const submitter = String(input.payload?.submitter || "");
+    const tctx = { "{company}": company, "{submitter}": submitter };
+    const subject = rule?.subject_template?.trim()
+      ? applyTokens(rule.subject_template, tctx)
+      : `New sales handover — ${company}`;
+    const intro = rule?.body_template?.trim()
+      ? applyTokens(rule.body_template, tctx)
+      : `A new sales handover has been submitted for <b>${escapeHtml(company)}</b>. Priyanka please add Deal ID & Name. Anirudh please confirm the VSD.`;
     return {
       to: recips,
-      subject: `New sales handover — ${company}`,
+      subject,
       html: layout({
         title: `New sales handover — ${escapeHtml(company)}`,
-        intro: `A new sales handover has been submitted for <b>${escapeHtml(company)}</b>. Priyanka please add Deal ID & Name. Anirudh please confirm the VSD.`,
-        rows: [["Submitted by", String(input.payload?.submitter || "")]],
+        intro,
+        rows: [["Submitted by", submitter]],
         ctaLabel: "Open Deal Handover",
         ctaHref: `${APP_ORIGIN}/deal-handover`,
       }),
@@ -388,13 +396,30 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
     if (!person?.email || !/@/.test(person.email)) return null;
     const pct = formatPct(input.payload?.allocationPct);
     const role = String(input.payload?.roleKey || "").replace(/_/g, " ");
+    const rule = await loadRule(admin, "assignment.created");
+    const tctx: Record<string, string> = {
+      "{deal_label}": label,
+      "{account}": deal.account || "",
+      "{deal_name}": deal.deal_name || "",
+      "{assignee}": person.name || "",
+      "{role}": role,
+      "{pct}": pct,
+      "{vsd}": deal.vsd || "",
+      "{bopm}": deal.bopm || "",
+    };
+    const customSubject = rule?.subject_template?.trim()
+      ? applyTokens(rule.subject_template, tctx)
+      : null;
+    const customIntro = rule?.body_template?.trim()
+      ? applyTokens(rule.body_template, tctx)
+      : null;
     if (ev === "staffed") {
       return {
         to: [person.email],
-        subject: `You've been staffed on ${label}`,
+        subject: customSubject || `You've been staffed on ${label}`,
         html: layout({
           title: `You're staffed on ${escapeHtml(label)}`,
-          intro: `Hi ${escapeHtml(person.name || "")}, you've been added to <b>${escapeHtml(label)}</b> at <b>${escapeHtml(pct)}</b> bandwidth.`,
+          intro: customIntro || `Hi ${escapeHtml(person.name || "")}, you've been added to <b>${escapeHtml(label)}</b> at <b>${escapeHtml(pct)}</b> bandwidth.`,
           rows: [
             ["Account", deal.account || ""],
             ["Deal", deal.deal_name || ""],
@@ -450,12 +475,19 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
     const dims = Array.isArray(input.payload?.dimensions)
       ? (input.payload!.dimensions as string[]).join(", ")
       : String(input.payload?.dimension || "");
+    const rule = await loadRule(admin, "rgy.alert");
+    const tctx: Record<string, string> = {
+      "{deal_label}": label, "{account}": deal.account || "", "{deal_name}": deal.deal_name || "",
+      "{status}": status, "{dimensions}": dims, "{vsd}": deal.vsd || "", "{bopm}": deal.bopm || "",
+    };
+    const sbj = rule?.subject_template?.trim() ? applyTokens(rule.subject_template, tctx) : null;
+    const intro = rule?.body_template?.trim() ? applyTokens(rule.body_template, tctx) : null;
     return {
       to: recips,
-      subject: `RGY ${status === "R" ? "Red" : status === "Y" ? "Yellow" : status} — ${label}`,
+      subject: sbj || `RGY ${status === "R" ? "Red" : status === "Y" ? "Yellow" : status} — ${label}`,
       html: layout({
         title: `RGY moved to ${status === "R" ? "Red" : status === "Y" ? "Yellow" : status}`,
-        intro: `<b>${escapeHtml(label)}</b> has a new ${escapeHtml(status === "R" ? "Red" : status === "Y" ? "Yellow" : status)} RGY signal. Please review and log the action plan in Pepper CX.`,
+        intro: intro || `<b>${escapeHtml(label)}</b> has a new ${escapeHtml(status === "R" ? "Red" : status === "Y" ? "Yellow" : status)} RGY signal. Please review and log the action plan in Pepper CX.`,
         rows: [
           ["Account", deal.account || ""],
           ["Deal", deal.deal_name || ""],
@@ -475,12 +507,19 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
       : await lookupEmailsByNames(admin, dealLeadershipNames(deal));
     if (recips.length === 0) return null;
     const month = String(input.payload?.month || "");
+    const rule = await loadRule(admin, "mbr.missing_prev_month");
+    const tctx: Record<string, string> = {
+      "{deal_label}": label, "{account}": deal.account || "", "{deal_name}": deal.deal_name || "",
+      "{month}": month, "{vsd}": deal.vsd || "", "{bopm}": deal.bopm || "",
+    };
+    const sbj = rule?.subject_template?.trim() ? applyTokens(rule.subject_template, tctx) : null;
+    const intro = rule?.body_template?.trim() ? applyTokens(rule.body_template, tctx) : null;
     return {
       to: recips,
-      subject: `MBR pending — ${label}${month ? ` (${month})` : ""}`,
+      subject: sbj || `MBR pending — ${label}${month ? ` (${month})` : ""}`,
       html: layout({
         title: `MBR pending for ${escapeHtml(label)}`,
-        intro: `The Monthly Business Review for <b>${escapeHtml(label)}</b> is still pending${month ? ` for <b>${escapeHtml(month)}</b>` : ""}. Please schedule and log it in Pepper CX.`,
+        intro: intro || `The Monthly Business Review for <b>${escapeHtml(label)}</b> is still pending${month ? ` for <b>${escapeHtml(month)}</b>` : ""}. Please schedule and log it in Pepper CX.`,
         rows: [
           ["Account", deal.account || ""],
           ["Deal", deal.deal_name || ""],
