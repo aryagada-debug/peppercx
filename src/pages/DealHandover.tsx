@@ -346,7 +346,6 @@ function HandoverDrawer({
           <Card className="p-3 space-y-2">
             <h3 className="text-xs font-semibold uppercase text-muted-foreground">Anirudh — Confirmed VSD</h3>
             <Input value={vsd} onChange={(e) => setVsd(e.target.value)} disabled={!canEditVsd || row.status === "created"} placeholder="VSD name" />
-            {row.vsd_suggested && <p className="text-xs text-muted-foreground">Sales suggested: <b>{row.vsd_suggested}</b></p>}
             {canEditVsd && row.status !== "created" && (
               <div className="flex justify-end">
                 <Button size="sm" onClick={saveVsd} disabled={saving}>Save VSD</Button>

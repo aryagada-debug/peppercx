@@ -44,6 +44,14 @@ export const VSD_OPTIONS = [
   "Sumit Shekhawat",
 ] as const;
 
+export const INDUSTRY_OPTIONS = [
+  "FMCG",
+  "BFSI",
+  "US B2B",
+  "India B2B",
+  "Miscellaneous",
+] as const;
+
 export type Contact = { name: string; role: string; email: string; phone: string };
 
 export type HandoverForm = {
@@ -51,6 +59,7 @@ export type HandoverForm = {
   sp_email: string;
   sp_team: string;
   handover_date: string;
+  existing_client_id: string;
   company_name: string;
   industry: string;
   website: string;
@@ -82,6 +91,7 @@ export const emptyHandover = (): HandoverForm => ({
   sp_email: "",
   sp_team: "",
   handover_date: today(),
+  existing_client_id: "",
   company_name: "",
   industry: "",
   website: "",

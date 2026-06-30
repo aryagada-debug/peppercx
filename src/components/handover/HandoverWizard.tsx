@@ -18,8 +18,8 @@ import {
   Contact,
   EMAIL_RE,
   HandoverForm,
+  INDUSTRY_OPTIONS,
   STAGE_OPTIONS,
-  VSD_OPTIONS,
   currencyHelper,
   emptyContact,
   emptyHandover,
@@ -71,6 +71,7 @@ export function HandoverWizard({ onSubmitted }: Props) {
       if (!form.handover_date) e.handover_date = "Required";
     } else if (s === 1) {
       if (!form.company_name.trim()) e.company_name = "Required";
+      if (!form.industry.trim()) e.industry = "Required";
       if (!form.website.trim()) e.website = "Required";
       if (!form.contacts.length) e["contact_0_name"] = "Add at least one contact";
       form.contacts.forEach((c, i) => {
@@ -163,7 +164,7 @@ export function HandoverWizard({ onSubmitted }: Props) {
       total_amount: form.total_amount,
       duration_months: form.duration_months ? Number(form.duration_months) : null,
       start_date: form.start_date || null,
-      vsd_suggested: form.vsd_suggested.trim(),
+      vsd_suggested: "",
       deal_notes: form.deal_notes.trim(),
       contacts: form.contacts.filter((c) => c.name || c.email),
       status: "submitted",
@@ -396,10 +397,85 @@ function Step2({ form, set, errors, fieldRefs }: StepProps) {
     set("contacts", form.contacts.map((c, idx) => (idx === i ? { ...c, [k]: v } : c)));
   const add = () => set("contacts", [...form.contacts, emptyContact()]);
   const remove = (i: number) => set("contacts", form.contacts.filter((_, idx) => idx !== i));
+  const [mode, setMode] = useState<"existing" | "new">(form.existing_client_id ? "existing" : "new");
+  const [clients, setClients] = useState<Array<{ id: string; name: string; pc_code: string; industry: string }>>([]);
+  const [clientSearch, setClientSearch] = useState("");
+  useEffect(() => {
+    if (mode !== "existing") return;
+    supabase.from("clients").select("id, name, pc_code, industry").order("name").limit(500)
+      .then(({ data }) => setClients((data as any[]) || []));
+  }, [mode]);
+  const filteredClients = useMemo(() => {
+    const q = clientSearch.trim().toLowerCase();
+    if (!q) return clients.slice(0, 50);
+    return clients.filter(c => c.name.toLowerCase().includes(q) || (c.pc_code || "").toLowerCase().includes(q)).slice(0, 50);
+  }, [clientSearch, clients]);
+  const pickExisting = (id: string) => {
+    const c = clients.find(x => x.id === id);
+    if (!c) return;
+    set("existing_client_id", id);
+    set("company_name", c.name);
+    const ind = (INDUSTRY_OPTIONS as readonly string[]).includes(c.industry) ? c.industry : "Miscellaneous";
+    set("industry", ind);
+  };
 
   return (
     <div className="space-y-5">
       <SectionTitle>2. Client details</SectionTitle>
+      <div className="flex gap-2">
+        {(["existing", "new"] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => {
+              setMode(m);
+              if (m === "new") {
+                set("existing_client_id", "");
+                set("company_name", "");
+                set("industry", "");
+                set("website", "");
+              }
+            }}
+            className={cn(
+              "px-3 py-2 rounded-md border text-sm",
+              mode === m ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-accent",
+            )}
+          >
+            {m === "existing" ? "Existing client" : "New client"}
+          </button>
+        ))}
+      </div>
+      {mode === "existing" && (
+        <Card className="p-3 space-y-2">
+          <Input
+            placeholder="Search by client name or PC code…"
+            value={clientSearch}
+            onChange={(e) => setClientSearch(e.target.value)}
+          />
+          <div className="max-h-56 overflow-y-auto border rounded-md divide-y">
+            {filteredClients.length === 0 && (
+              <div className="p-3 text-xs text-muted-foreground">No matching clients.</div>
+            )}
+            {filteredClients.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => pickExisting(c.id)}
+                className={cn(
+                  "w-full text-left px-3 py-2 text-sm hover:bg-accent flex justify-between gap-3",
+                  form.existing_client_id === c.id && "bg-accent",
+                )}
+              >
+                <span className="font-medium">{c.name}</span>
+                <span className="text-xs text-muted-foreground">{c.pc_code}</span>
+              </button>
+            ))}
+          </div>
+          {form.existing_client_id && (
+            <p className="text-xs text-muted-foreground">Selected: <b>{form.company_name}</b>. Fields below are auto-filled; edit if needed.</p>
+          )}
+        </Card>
+      )}
       <Grid>
         <FieldShell id="company_name" label="Company name" required error={errors.company_name}>
           <Input
@@ -409,8 +485,15 @@ function Step2({ form, set, errors, fieldRefs }: StepProps) {
             onChange={(e) => set("company_name", e.target.value)}
           />
         </FieldShell>
-        <FieldShell id="industry" label="Industry">
-          <Input id="industry" value={form.industry} onChange={(e) => set("industry", e.target.value)} />
+        <FieldShell id="industry" label="Industry" required error={errors.industry}>
+          <div ref={(n) => (fieldRefs.current.industry = n)}>
+            <Select value={form.industry} onValueChange={(v) => set("industry", v)}>
+              <SelectTrigger id="industry"><SelectValue placeholder="Select industry" /></SelectTrigger>
+              <SelectContent>
+                {INDUSTRY_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
         </FieldShell>
         <FieldShell id="website" label="Website" required error={errors.website}>
           <Input
@@ -481,32 +564,96 @@ function Step2({ form, set, errors, fieldRefs }: StepProps) {
 }
 
 /* ─── Step 3: Documents ───────────────────────────────── */
+function DocSlot({
+  id, label, required, value, error, onChange, fieldRefs,
+}: {
+  id: keyof HandoverForm & string;
+  label: string;
+  required?: boolean;
+  value: string;
+  error?: string;
+  onChange: (v: string) => void;
+  fieldRefs: StepProps["fieldRefs"];
+}) {
+  const [mode, setMode] = useState<"link" | "upload">("link");
+  const [uploading, setUploading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const handleUpload = async (file: File) => {
+    setUploading(true);
+    try {
+      const ext = file.name.split(".").pop() || "bin";
+      const path = `temp/${Date.now()}-${id}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("handover-docs").upload(path, file, { upsert: false });
+      if (upErr) throw upErr;
+      const { data: signed, error: sErr } = await supabase.storage.from("handover-docs").createSignedUrl(path, 60 * 60 * 24 * 365);
+      if (sErr) throw sErr;
+      onChange(signed.signedUrl);
+      toast({ title: "Uploaded", description: file.name });
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message || String(err), variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  };
+  return (
+    <FieldShell id={id} label={label} required={required} error={error}>
+      <div className="flex gap-1 mb-1">
+        {(["link", "upload"] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => setMode(m)}
+            className={cn(
+              "px-2 py-1 rounded text-[11px] border",
+              mode === m ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-accent",
+            )}
+          >
+            {m === "link" ? "Paste link" : "Upload file"}
+          </button>
+        ))}
+      </div>
+      {mode === "link" ? (
+        <Input
+          id={id}
+          ref={(n) => (fieldRefs.current[id] = n)}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="https://…"
+        />
+      ) : (
+        <div className="space-y-1">
+          <input
+            ref={inputRef}
+            type="file"
+            className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f); }}
+          />
+          <div className="flex gap-2 items-center">
+            <Button type="button" size="sm" variant="outline" disabled={uploading} onClick={() => inputRef.current?.click()}>
+              {uploading ? "Uploading…" : value ? "Replace file" : "Choose file"}
+            </Button>
+            {value && (
+              <a href={value} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline truncate">
+                View uploaded file
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+    </FieldShell>
+  );
+}
+
 function Step3({ form, set, errors, fieldRefs }: StepProps) {
   return (
     <div className="space-y-4">
       <SectionTitle>3. Documents shared</SectionTitle>
       <Grid>
-        <FieldShell id="sow_url" label="SoW document" required error={errors.sow_url}>
-          <Input
-            id="sow_url"
-            ref={(n) => (fieldRefs.current.sow_url = n)}
-            value={form.sow_url}
-            onChange={(e) => set("sow_url", e.target.value)}
-            placeholder="https://…"
-          />
-        </FieldShell>
-        <FieldShell id="strategy_deck_url" label="Strategy deck">
-          <Input id="strategy_deck_url" value={form.strategy_deck_url} onChange={(e) => set("strategy_deck_url", e.target.value)} placeholder="https://…" />
-        </FieldShell>
-        <FieldShell id="keywords_url" label="Keywords & projections">
-          <Input id="keywords_url" value={form.keywords_url} onChange={(e) => set("keywords_url", e.target.value)} placeholder="https://…" />
-        </FieldShell>
-        <FieldShell id="geo_audit_url" label="GEO audit deck">
-          <Input id="geo_audit_url" value={form.geo_audit_url} onChange={(e) => set("geo_audit_url", e.target.value)} placeholder="https://…" />
-        </FieldShell>
-        <FieldShell id="fireflies_url" label="Fireflies link">
-          <Input id="fireflies_url" value={form.fireflies_url} onChange={(e) => set("fireflies_url", e.target.value)} placeholder="https://…" />
-        </FieldShell>
+        <DocSlot id="sow_url" label="SoW document" required value={form.sow_url} error={errors.sow_url} onChange={(v) => set("sow_url", v)} fieldRefs={fieldRefs} />
+        <DocSlot id="strategy_deck_url" label="Strategy deck" value={form.strategy_deck_url} onChange={(v) => set("strategy_deck_url", v)} fieldRefs={fieldRefs} />
+        <DocSlot id="keywords_url" label="Keywords & projections" value={form.keywords_url} onChange={(v) => set("keywords_url", v)} fieldRefs={fieldRefs} />
+        <DocSlot id="geo_audit_url" label="GEO audit deck" value={form.geo_audit_url} onChange={(v) => set("geo_audit_url", v)} fieldRefs={fieldRefs} />
+        <DocSlot id="fireflies_url" label="Fireflies link" value={form.fireflies_url} onChange={(v) => set("fireflies_url", v)} fieldRefs={fieldRefs} />
       </Grid>
       <FieldShell id="docs_notes" label="Notes on documents">
         <Textarea id="docs_notes" rows={3} value={form.docs_notes} onChange={(e) => set("docs_notes", e.target.value)} />
@@ -517,6 +664,16 @@ function Step3({ form, set, errors, fieldRefs }: StepProps) {
 
 /* ─── Step 4: Deal ────────────────────────────────────── */
 function Step4({ form, set, errors, fieldRefs }: StepProps) {
+  // Auto-calc total amount for retainer = MRR x duration
+  useEffect(() => {
+    if (form.deal_type !== "Retainer") return;
+    const months = Number(form.duration_months || 0);
+    if (form.mrr != null && months > 0) {
+      const computed = Math.round(form.mrr * months);
+      if (form.total_amount !== computed) set("total_amount", computed);
+    }
+  }, [form.deal_type, form.mrr, form.duration_months]); // eslint-disable-line
+  const totalLocked = form.deal_type === "Retainer";
   return (
     <div className="space-y-4">
       <SectionTitle>4. Deal details</SectionTitle>
@@ -587,15 +744,6 @@ function Step4({ form, set, errors, fieldRefs }: StepProps) {
             />
           </FieldShell>
         )}
-        <FieldShell id="total_amount" label="Total amount" required error={errors.total_amount}>
-          <CurrencyInput
-            id="total_amount"
-            ref={(n) => (fieldRefs.current.total_amount = n as HTMLElement | null)}
-            value={form.total_amount}
-            onChange={(v) => set("total_amount", v)}
-            placeholder="e.g. 60,00,000"
-          />
-        </FieldShell>
         <FieldShell id="duration_months" label="Duration (months)">
           <Input
             id="duration_months"
@@ -605,7 +753,23 @@ function Step4({ form, set, errors, fieldRefs }: StepProps) {
             onChange={(e) => set("duration_months", e.target.value)}
           />
         </FieldShell>
-        <FieldShell id="start_date" label="Start date" required error={errors.start_date}>
+        <FieldShell
+          id="total_amount"
+          label="Total amount"
+          required
+          error={errors.total_amount}
+          hint={totalLocked ? "Auto-calculated = MRR × Duration" : undefined}
+        >
+          <CurrencyInput
+            id="total_amount"
+            ref={(n) => (fieldRefs.current.total_amount = n as HTMLElement | null)}
+            value={form.total_amount}
+            onChange={(v) => set("total_amount", v)}
+            placeholder="e.g. 60,00,000"
+            disabled={totalLocked}
+          />
+        </FieldShell>
+        <FieldShell id="start_date" label="Actual / Tentative start date" required error={errors.start_date}>
           <Input
             id="start_date"
             type="date"
@@ -613,15 +777,6 @@ function Step4({ form, set, errors, fieldRefs }: StepProps) {
             value={form.start_date}
             onChange={(e) => set("start_date", e.target.value)}
           />
-        </FieldShell>
-        <FieldShell id="vsd_suggested" label="Assigned VSD">
-          <Select value={form.vsd_suggested || "__none__"} onValueChange={(v) => set("vsd_suggested", v === "__none__" ? "" : v)}>
-            <SelectTrigger id="vsd_suggested"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">— None —</SelectItem>
-              {VSD_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-            </SelectContent>
-          </Select>
         </FieldShell>
       </Grid>
       <FieldShell id="deal_notes" label="Special terms / context">
@@ -677,8 +832,7 @@ function Review({ form, onEdit }: { form: HandoverForm; onEdit: (i: number) => v
         )}
         <Row k="Total amount" v={form.total_amount != null ? `₹${formatINR(form.total_amount)} ${currencyHelper(form.total_amount).replace("= ", "(") + ")"}` : ""} />
         <Row k="Duration" v={form.duration_months ? `${form.duration_months} months` : ""} />
-        <Row k="Start date" v={form.start_date} />
-        <Row k="Assigned VSD" v={form.vsd_suggested} />
+        <Row k="Actual / Tentative start date" v={form.start_date} />
         <Row k="Special terms" v={form.deal_notes} />
       </Group>
     </div>
@@ -753,7 +907,6 @@ function SubmittedStep({
     lines.push(`  Total: ₹${formatINR(form.total_amount)} ${currencyHelper(form.total_amount)}`);
     if (form.duration_months) lines.push(`  Duration: ${form.duration_months} months`);
     lines.push(`  Start: ${form.start_date}`);
-    if (form.vsd_suggested) lines.push(`  Assigned VSD: ${form.vsd_suggested}`);
     if (form.deal_notes) lines.push(`  Notes: ${form.deal_notes}`);
     return lines.join("\n");
   };
