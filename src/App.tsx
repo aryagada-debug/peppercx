@@ -104,9 +104,9 @@ function AppRoutes() {
               <Route path="/people-ops" element={<ProtectedRoute routeKey="people-ops"><PeopleOps /></ProtectedRoute>} />
               <Route path="/targets" element={<ProtectedRoute routeKey="targets"><Targets /></ProtectedRoute>} />
               <Route path="/rgy-health" element={<ProtectedRoute routeKey="rgy-health"><RGYHealth /></ProtectedRoute>} />
-              <Route path="/pulse-nps" element={<ProtectedRoute routeKey="rgy-health"><PulseNPS /></ProtectedRoute>} />
-              <Route path="/pulse-nps/analytics" element={<ProtectedRoute routeKey="rgy-health"><PulseNPSAnalytics /></ProtectedRoute>} />
-              <Route path="/deal-handover" element={<ProtectedRoute routeKey="home"><DealHandover /></ProtectedRoute>} />
+              <Route path="/pulse-nps" element={<ProtectedRoute routeKey="rgy-health" adminOnly><PulseNPS /></ProtectedRoute>} />
+              <Route path="/pulse-nps/analytics" element={<ProtectedRoute routeKey="rgy-health" adminOnly><PulseNPSAnalytics /></ProtectedRoute>} />
+              <Route path="/deal-handover" element={<ProtectedRoute routeKey="home" adminOnly><DealHandover /></ProtectedRoute>} />
               <Route path="/mbr-tracker" element={<ProtectedRoute routeKey="mbr-tracker"><MBRTracker /></ProtectedRoute>} />
               <Route path="/onboarding" element={<ProtectedRoute routeKey="onboarding"><Onboarding /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute routeKey="settings"><SettingsPage /></ProtectedRoute>} />

@@ -5,11 +5,12 @@ import { useUserRole } from "@/hooks/useUserRole";
 interface Props {
   children: React.ReactNode;
   routeKey?: string;
+  adminOnly?: boolean;
 }
 
-export function ProtectedRoute({ children, routeKey }: Props) {
+export function ProtectedRoute({ children, routeKey, adminOnly }: Props) {
   const { session, loading } = useAuth();
-  const { visibleRoutes, loading: roleLoading, isAdmin } = useUserRole();
+  const { visibleRoutes, loading: roleLoading, isAdmin, isActuallyAdmin } = useUserRole();
 
   if (loading || roleLoading) {
     return (
@@ -21,6 +22,10 @@ export function ProtectedRoute({ children, routeKey }: Props) {
 
   if (!session) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (adminOnly && !(isAdmin || isActuallyAdmin)) {
+    return <Navigate to="/home" replace />;
   }
 
   // Route-level visibility check
