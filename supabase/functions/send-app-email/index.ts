@@ -108,10 +108,10 @@ function escapeHtml(s: string) {
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
-function layout({ title, intro, rows, ctaLabel, ctaHref, footerNote }: {
+function layout({ title, intro, rows, ctaLabel, ctaHref, footerNote, extraHtml }: {
   title: string; intro: string;
   rows: Array<[string, string]>;
-  ctaLabel?: string; ctaHref?: string; footerNote?: string;
+  ctaLabel?: string; ctaHref?: string; footerNote?: string; extraHtml?: string;
 }) {
   const rowsHtml = rows
     .filter(([, v]) => v && v.trim().length > 0)
@@ -139,6 +139,7 @@ function layout({ title, intro, rows, ctaLabel, ctaHref, footerNote }: {
           <div style="margin-top:18px;">
             <a href="${escapeHtml(ctaHref)}" style="display:inline-block;background:${BRAND_PRIMARY};color:#fff;text-decoration:none;font-size:13px;font-weight:500;padding:9px 14px;border-radius:8px;">${escapeHtml(ctaLabel)}</a>
           </div>` : ""}
+          ${extraHtml || ""}
         </td></tr>
         <tr><td style="padding:14px 22px;border-top:1px solid ${BRAND_BORDER};background:${BRAND_BG};">
           <p style="margin:0;font-size:11px;color:${BRAND_MUTED};line-height:1.5;">${escapeHtml(footerNote || "Automated notification from Pepper CX. Reply to this email to reach the central CX team.")}</p>
@@ -146,6 +147,107 @@ function layout({ title, intro, rows, ctaLabel, ctaHref, footerNote }: {
       </table>
     </td></tr>
   </table></body></html>`;
+}
+
+function fmtMoney(v: unknown): string {
+  const n = typeof v === "number" ? v : Number(v);
+  if (!isFinite(n) || !n) return "";
+  try { return "₹" + new Intl.NumberFormat("en-IN").format(Math.round(n)); } catch { return String(n); }
+}
+
+function renderHandoverDetails(d: any): string {
+  if (!d || typeof d !== "object") return "";
+  const sp = d.salesperson || {};
+  const cl = d.client || {};
+  const ai = cl.ai_summary || null;
+  const contacts: any[] = Array.isArray(d.contacts) ? d.contacts : [];
+  const docs = d.documents || {};
+  const deal = d.deal || {};
+
+  const section = (title: string, inner: string) => `
+    <div style="margin-top:18px;padding-top:12px;border-top:1px solid ${BRAND_BORDER};">
+      <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_MUTED};margin-bottom:6px;">${escapeHtml(title)}</div>
+      ${inner}
+    </div>`;
+  const kv = (rows: Array<[string, string]>) => `
+    <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+      ${rows.filter(([, v]) => v && String(v).trim().length).map(([k, v]) => `
+        <tr>
+          <td style="padding:4px 0;color:${BRAND_MUTED};font-size:12px;width:150px;vertical-align:top;">${escapeHtml(k)}</td>
+          <td style="padding:4px 0;color:${BRAND_TEXT};font-size:13px;">${escapeHtml(String(v))}</td>
+        </tr>`).join("")}
+    </table>`;
+  const linkRow = (label: string, url: string) => url
+    ? `<tr>
+        <td style="padding:4px 0;color:${BRAND_MUTED};font-size:12px;width:150px;vertical-align:top;">${escapeHtml(label)}</td>
+        <td style="padding:4px 0;font-size:13px;"><a href="${escapeHtml(url)}" style="color:${BRAND_PRIMARY};text-decoration:none;">Open link</a></td>
+      </tr>` : "";
+
+  const salespersonHtml = kv([
+    ["Name", sp.name || ""],
+    ["Email", sp.email || ""],
+    ["Sales region", sp.region || ""],
+    ["Handover date", sp.handover_date || ""],
+  ]);
+
+  const aiHtml = ai ? `
+    <div style="margin-top:8px;padding:10px 12px;background:${BRAND_BG};border:1px solid ${BRAND_BORDER};border-radius:8px;">
+      <div style="font-size:11px;color:${BRAND_MUTED};text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">AI company summary</div>
+      ${ai.industry ? `<div style="font-size:13px;color:${BRAND_TEXT};"><b>Industry:</b> ${escapeHtml(ai.industry)}</div>` : ""}
+      ${ai.what_they_do ? `<div style="font-size:13px;color:${BRAND_TEXT};margin-top:4px;"><b>What they do:</b> ${escapeHtml(ai.what_they_do)}</div>` : ""}
+      ${Array.isArray(ai.products) && ai.products.length ? `<div style="font-size:13px;color:${BRAND_TEXT};margin-top:4px;"><b>Products:</b> ${escapeHtml(ai.products.join(", "))}</div>` : ""}
+    </div>` : "";
+  const clientHtml = kv([
+    ["Company", cl.company || ""],
+    ["Industry", cl.industry || ""],
+    ["Location", cl.location || ""],
+    ["Website", cl.website || ""],
+  ]) + aiHtml;
+
+  const contactsHtml = contacts.length
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="font-size:13px;">
+        <tr style="color:${BRAND_MUTED};font-size:11px;text-transform:uppercase;">
+          <td style="padding:4px 6px 4px 0;">Name</td>
+          <td style="padding:4px 6px;">Role</td>
+          <td style="padding:4px 6px;">Email</td>
+          <td style="padding:4px 0 4px 6px;">Phone</td>
+        </tr>
+        ${contacts.map((c) => `
+          <tr style="border-top:1px solid ${BRAND_BORDER};">
+            <td style="padding:6px 6px 6px 0;">${escapeHtml(c.name || "")}</td>
+            <td style="padding:6px;">${escapeHtml(c.role || "")}</td>
+            <td style="padding:6px;">${escapeHtml(c.email || "")}</td>
+            <td style="padding:6px 0 6px 6px;">${escapeHtml(c.phone || "")}</td>
+          </tr>`).join("")}
+      </table>`
+    : `<div style="font-size:12px;color:${BRAND_MUTED};">No contacts provided</div>`;
+
+  const docsHtml = `<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+    ${linkRow("SoW", docs.sow_url || "")}
+    ${linkRow("Strategy deck", docs.strategy_deck_url || "")}
+    ${linkRow("Keywords", docs.keywords_url || "")}
+    ${linkRow("GEO audit", docs.geo_audit_url || "")}
+    ${linkRow("Fireflies", docs.fireflies_url || "")}
+    ${docs.docs_notes ? `<tr><td style="padding:4px 0;color:${BRAND_MUTED};font-size:12px;width:150px;vertical-align:top;">Notes</td><td style="padding:4px 0;color:${BRAND_TEXT};font-size:13px;">${escapeHtml(docs.docs_notes)}</td></tr>` : ""}
+  </table>`;
+
+  const dealHtml = kv([
+    ["Stage", deal.stage || ""],
+    ["Pepper BU", deal.bu || ""],
+    ["Capability", deal.capability || ""],
+    ["Deal type", deal.deal_type || ""],
+    ["MRR", fmtMoney(deal.mrr)],
+    ["Total amount", fmtMoney(deal.total_amount)],
+    ["Duration", deal.duration_months ? `${deal.duration_months} months` : ""],
+    ["Start date", deal.start_date || ""],
+    ["Notes", deal.notes || ""],
+  ]);
+
+  return section("Salesperson", salespersonHtml)
+    + section("Client", clientHtml)
+    + section("Contacts", contactsHtml)
+    + section("Documents", docsHtml)
+    + section("Deal", dealHtml);
 }
 
 type DealRow = {
@@ -364,6 +466,8 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
     if (recips.length === 0) return null;
     const company = String(input.payload?.company || "");
     const submitter = String(input.payload?.submitter || "");
+    const reference = String((input.payload as any)?.reference || "");
+    const details = (input.payload as any)?.details || {};
     const tctx = { "{company}": company, "{submitter}": submitter };
     const subject = rule?.subject_template?.trim()
       ? applyTokens(rule.subject_template, tctx)
@@ -377,9 +481,10 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
       html: layout({
         title: `New sales handover - ${escapeHtml(company)}`,
         intro,
-        rows: [["Submitted by", submitter]],
+        rows: [["Submitted by", submitter], ["Reference", reference]],
         ctaLabel: "Open Deal Handover",
         ctaHref: `${APP_ORIGIN}/deal-handover`,
+        extraHtml: renderHandoverDetails(details),
       }),
     };
   }

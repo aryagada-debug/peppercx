@@ -49,8 +49,34 @@ export const INDUSTRY_OPTIONS = [
   "BFSI",
   "US B2B",
   "India B2B",
-  "Miscellaneous",
+  "Others",
 ] as const;
+
+export const SALES_REGION_OPTIONS = ["India", "Global"] as const;
+
+export const COMPANY_LOCATION_OPTIONS = [
+  "Bengaluru",
+  "Mumbai",
+  "Delhi NCR",
+  "Hyderabad",
+  "Chennai",
+  "Pune",
+  "Kolkata",
+  "Ahmedabad",
+  "Singapore",
+  "Dubai",
+  "London",
+  "New York",
+  "San Francisco",
+  "Other",
+] as const;
+
+export type CompanyAISummary = {
+  industry?: string;
+  what_they_do?: string;
+  products?: string[];
+  website?: string;
+};
 
 export type Contact = { name: string; role: string; email: string; phone: string };
 
@@ -62,6 +88,10 @@ export type HandoverForm = {
   existing_client_id: string;
   company_name: string;
   industry: string;
+  industry_other: string;
+  company_location: string;
+  company_location_other: string;
+  company_ai_summary: CompanyAISummary | null;
   website: string;
   contacts: Contact[];
   sow_url: string;
@@ -94,6 +124,10 @@ export const emptyHandover = (): HandoverForm => ({
   existing_client_id: "",
   company_name: "",
   industry: "",
+  industry_other: "",
+  company_location: "",
+  company_location_other: "",
+  company_ai_summary: null,
   website: "",
   contacts: [emptyContact()],
   sow_url: "",

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronLeft, ChevronRight, Copy, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Copy, Plus, Trash2, Sparkles, Loader2, RefreshCw } from "lucide-react";
 import { CalendarIcon } from "lucide-react";
 import { format, parseISO, isValid } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,6 +24,9 @@ import {
   HandoverForm,
   INDUSTRY_OPTIONS,
   STAGE_OPTIONS,
+  SALES_REGION_OPTIONS,
+  COMPANY_LOCATION_OPTIONS,
+  CompanyAISummary,
   currencyHelper,
   emptyContact,
   emptyHandover,
@@ -72,10 +75,16 @@ export function HandoverWizard({ onSubmitted }: Props) {
       if (!form.sp_name.trim()) e.sp_name = "Required";
       if (!form.sp_email.trim()) e.sp_email = "Required";
       else if (!EMAIL_RE.test(form.sp_email.trim())) e.sp_email = "Invalid email";
+      if (!form.sp_team.trim()) e.sp_team = "Required";
       if (!form.handover_date) e.handover_date = "Required";
     } else if (s === 1) {
       if (!form.company_name.trim()) e.company_name = "Required";
       if (!form.industry.trim()) e.industry = "Required";
+      if (form.industry === "Others" && !form.industry_other.trim())
+        e.industry_other = "Please specify";
+      if (!form.company_location.trim()) e.company_location = "Required";
+      if (form.company_location === "Other" && !form.company_location_other.trim())
+        e.company_location_other = "Please specify";
       if (!form.website.trim()) e.website = "Required";
       if (!form.contacts.length) e["contact_0_name"] = "Add at least one contact";
       form.contacts.forEach((c, i) => {
@@ -144,6 +153,27 @@ export function HandoverWizard({ onSubmitted }: Props) {
     setSubmitting(true);
     const reference = generateReference();
     const submitted_at = new Date().toISOString();
+    const effectiveIndustry =
+      form.industry === "Others" && form.industry_other.trim()
+        ? `Others: ${form.industry_other.trim()}`
+        : form.industry;
+    const effectiveLocation =
+      form.company_location === "Other" && form.company_location_other.trim()
+        ? form.company_location_other.trim()
+        : form.company_location;
+    const extraNotesParts: string[] = [];
+    if (effectiveLocation) extraNotesParts.push(`Company location: ${effectiveLocation}`);
+    if (form.company_ai_summary) {
+      const s = form.company_ai_summary;
+      const bits: string[] = [];
+      if (s.industry) bits.push(`Industry: ${s.industry}`);
+      if (s.what_they_do) bits.push(`What they do: ${s.what_they_do}`);
+      if (s.products?.length) bits.push(`Products: ${s.products.join(", ")}`);
+      if (bits.length) extraNotesParts.push(`AI summary:\n  ${bits.join("\n  ")}`);
+    }
+    const combinedNotes = [form.deal_notes.trim(), extraNotesParts.join("\n")]
+      .filter(Boolean)
+      .join("\n\n");
     const payload: any = {
       reference,
       submitter_user_id: user?.id || null,
@@ -152,7 +182,7 @@ export function HandoverWizard({ onSubmitted }: Props) {
       sp_team: form.sp_team.trim(),
       handover_date: form.handover_date || null,
       company_name: form.company_name.trim(),
-      industry: form.industry.trim(),
+      industry: effectiveIndustry.trim(),
       website: form.website.trim(),
       sow_url: form.sow_url.trim(),
       strategy_deck_url: form.strategy_deck_url.trim(),
@@ -169,7 +199,7 @@ export function HandoverWizard({ onSubmitted }: Props) {
       duration_months: form.duration_months ? Number(form.duration_months) : null,
       start_date: form.start_date || null,
       vsd_suggested: "",
-      deal_notes: form.deal_notes.trim(),
+      deal_notes: combinedNotes,
       contacts: form.contacts.filter((c) => c.name || c.email),
       status: "submitted",
     };
@@ -186,6 +216,41 @@ export function HandoverWizard({ onSubmitted }: Props) {
         company: payload.company_name,
         submitter: `${payload.sp_name} <${payload.sp_email}>`,
         reference,
+        details: {
+          salesperson: {
+            name: payload.sp_name,
+            email: payload.sp_email,
+            region: payload.sp_team,
+            handover_date: payload.handover_date,
+          },
+          client: {
+            company: payload.company_name,
+            industry: payload.industry,
+            location: effectiveLocation,
+            website: payload.website,
+            ai_summary: form.company_ai_summary || null,
+          },
+          contacts: payload.contacts,
+          documents: {
+            sow_url: payload.sow_url,
+            strategy_deck_url: payload.strategy_deck_url,
+            keywords_url: payload.keywords_url,
+            geo_audit_url: payload.geo_audit_url,
+            fireflies_url: payload.fireflies_url,
+            docs_notes: payload.docs_notes,
+          },
+          deal: {
+            stage: payload.stage,
+            bu: payload.bu,
+            capability: payload.capability,
+            deal_type: payload.deal_type,
+            mrr: payload.mrr,
+            total_amount: payload.total_amount,
+            duration_months: payload.duration_months,
+            start_date: payload.start_date,
+            notes: form.deal_notes.trim(),
+          },
+        },
       },
     });
     setConfirmation({ reference, submitted_at });
@@ -372,13 +437,15 @@ function Step1({ form, set, errors, fieldRefs }: StepProps) {
             placeholder="name@peppercontent.io"
           />
         </FieldShell>
-        <FieldShell id="sp_team" label="Sales team / region">
-          <Input
-            id="sp_team"
-            value={form.sp_team}
-            onChange={(e) => set("sp_team", e.target.value)}
-            placeholder="e.g. India Enterprise"
-          />
+        <FieldShell id="sp_team" label="Sales team region" required error={errors.sp_team}>
+          <div ref={(n) => (fieldRefs.current.sp_team = n)}>
+            <Select value={form.sp_team} onValueChange={(v) => set("sp_team", v)}>
+              <SelectTrigger id="sp_team"><SelectValue placeholder="Select region" /></SelectTrigger>
+              <SelectContent>
+                {SALES_REGION_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
         </FieldShell>
         <FieldShell id="handover_date" label="Handover date" required error={errors.handover_date}>
           <Input
@@ -401,6 +468,41 @@ function Step2({ form, set, errors, fieldRefs }: StepProps) {
   const add = () => set("contacts", [...form.contacts, emptyContact()]);
   const remove = (i: number) => set("contacts", form.contacts.filter((_, idx) => idx !== i));
   const [mode, setMode] = useState<"existing" | "new">(form.existing_client_id ? "existing" : "new");
+  const [aiLoading, setAiLoading] = useState(false);
+  const runCompanyLookup = async () => {
+    if (!form.company_name.trim()) {
+      toast({ title: "Enter a company name first", variant: "destructive" });
+      return;
+    }
+    setAiLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("handover-company-lookup", {
+        body: { company_name: form.company_name.trim(), website: form.website.trim() || undefined },
+      });
+      if (error) throw error;
+      const summary: CompanyAISummary = {
+        industry: data?.industry_guess || "",
+        what_they_do: data?.what_they_do || "",
+        products: Array.isArray(data?.products) ? data.products : [],
+        website: data?.website || "",
+      };
+      set("company_ai_summary", summary);
+      if (!form.website.trim() && summary.website) set("website", summary.website);
+      if (!form.industry && summary.industry) {
+        if ((INDUSTRY_OPTIONS as readonly string[]).includes(summary.industry)) {
+          set("industry", summary.industry);
+        } else {
+          set("industry", "Others");
+          set("industry_other", summary.industry);
+        }
+      }
+      toast({ title: "Company details fetched" });
+    } catch (err: any) {
+      toast({ title: "Lookup failed", description: err.message || String(err), variant: "destructive" });
+    } finally {
+      setAiLoading(false);
+    }
+  };
   const [clients, setClients] = useState<Array<{ id: string; name: string; pc_code: string; industry: string; website: string }>>([]);
   const [clientSearch, setClientSearch] = useState("");
   const [orgContacts, setOrgContacts] = useState<Array<{ key: string; name: string; role: string; email: string; phone: string; deal_id: string }>>([]);
@@ -420,8 +522,15 @@ function Step2({ form, set, errors, fieldRefs }: StepProps) {
     if (!c) return;
     set("existing_client_id", id);
     set("company_name", c.name);
-    const ind = (INDUSTRY_OPTIONS as readonly string[]).includes(c.industry) ? c.industry : "Miscellaneous";
-    set("industry", ind);
+    if ((INDUSTRY_OPTIONS as readonly string[]).includes(c.industry)) {
+      set("industry", c.industry);
+      set("industry_other", "");
+    } else if (c.industry && c.industry.trim()) {
+      set("industry", "Others");
+      set("industry_other", c.industry.trim());
+    } else {
+      set("industry", "");
+    }
     if (c.website) set("website", c.website);
     // Pull POCs from org mapping (deal_stakeholders across this client's deals)
     setLoadingOrg(true);
@@ -596,16 +705,88 @@ function Step2({ form, set, errors, fieldRefs }: StepProps) {
             </Select>
           </div>
         </FieldShell>
-        <FieldShell id="website" label="Website" required error={errors.website}>
-          <Input
-            id="website"
-            ref={(n) => (fieldRefs.current.website = n)}
-            value={form.website}
-            onChange={(e) => set("website", e.target.value)}
-            placeholder="https://…"
-          />
+        {form.industry === "Others" && (
+          <FieldShell id="industry_other" label="Specify industry" required error={errors.industry_other}>
+            <Input
+              id="industry_other"
+              ref={(n) => (fieldRefs.current.industry_other = n)}
+              value={form.industry_other}
+              onChange={(e) => set("industry_other", e.target.value)}
+              placeholder="e.g. EdTech, Healthtech…"
+            />
+          </FieldShell>
+        )}
+        <FieldShell id="company_location" label="Company location" required error={errors.company_location}>
+          <div ref={(n) => (fieldRefs.current.company_location = n)}>
+            <Select value={form.company_location} onValueChange={(v) => set("company_location", v)}>
+              <SelectTrigger id="company_location"><SelectValue placeholder="Select city / region" /></SelectTrigger>
+              <SelectContent>
+                {COMPANY_LOCATION_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        </FieldShell>
+        {form.company_location === "Other" && (
+          <FieldShell id="company_location_other" label="Specify location" required error={errors.company_location_other}>
+            <Input
+              id="company_location_other"
+              ref={(n) => (fieldRefs.current.company_location_other = n)}
+              value={form.company_location_other}
+              onChange={(e) => set("company_location_other", e.target.value)}
+              placeholder="e.g. Tokyo"
+            />
+          </FieldShell>
+        )}
+        <FieldShell id="website" label="Website" required error={errors.website} hint="Use 'Fetch from web' to auto-fill from the company name.">
+          <div className="flex gap-2">
+            <Input
+              id="website"
+              ref={(n) => (fieldRefs.current.website = n)}
+              value={form.website}
+              onChange={(e) => set("website", e.target.value)}
+              placeholder="https://…"
+            />
+            <Button type="button" variant="outline" size="sm" disabled={aiLoading} onClick={runCompanyLookup}>
+              {aiLoading ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Sparkles className="h-3 w-3 mr-1" />}
+              Fetch
+            </Button>
+          </div>
         </FieldShell>
       </Grid>
+
+      {(form.company_ai_summary || aiLoading) && (
+        <Card className="p-3 space-y-2 bg-muted/30">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1">
+              <Sparkles className="h-3 w-3" /> AI company summary
+            </span>
+            <Button type="button" size="sm" variant="ghost" disabled={aiLoading} onClick={runCompanyLookup}>
+              <RefreshCw className={cn("h-3 w-3 mr-1", aiLoading && "animate-spin")} /> Regenerate
+            </Button>
+          </div>
+          {aiLoading && !form.company_ai_summary && (
+            <p className="text-xs text-muted-foreground">Fetching from the web…</p>
+          )}
+          {form.company_ai_summary && (
+            <div className="text-sm space-y-2">
+              {form.company_ai_summary.industry && (
+                <div><span className="text-xs text-muted-foreground">Industry: </span>{form.company_ai_summary.industry}</div>
+              )}
+              {form.company_ai_summary.what_they_do && (
+                <div><span className="text-xs text-muted-foreground">What they do: </span>{form.company_ai_summary.what_they_do}</div>
+              )}
+              {form.company_ai_summary.products && form.company_ai_summary.products.length > 0 && (
+                <div>
+                  <div className="text-xs text-muted-foreground">Products / offerings:</div>
+                  <ul className="list-disc list-inside text-sm">
+                    {form.company_ai_summary.products.map((p, i) => <li key={i}>{p}</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
+      )}
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
@@ -765,16 +946,15 @@ function Step3({ form, set, errors, fieldRefs }: StepProps) {
 
 /* ─── Step 4: Deal ────────────────────────────────────── */
 function Step4({ form, set, errors, fieldRefs }: StepProps) {
-  // Auto-calc total amount for retainer = MRR x duration
+  // Suggest total = MRR × Duration for retainers, but only when total is empty
   useEffect(() => {
     if (form.deal_type !== "Retainer") return;
+    if (form.total_amount != null) return;
     const months = Number(form.duration_months || 0);
     if (form.mrr != null && months > 0) {
-      const computed = Math.round(form.mrr * months);
-      if (form.total_amount !== computed) set("total_amount", computed);
+      set("total_amount", Math.round(form.mrr * months));
     }
   }, [form.deal_type, form.mrr, form.duration_months]); // eslint-disable-line
-  const totalLocked = form.deal_type === "Retainer";
   return (
     <div className="space-y-4">
       <SectionTitle>4. Deal details</SectionTitle>
@@ -859,7 +1039,7 @@ function Step4({ form, set, errors, fieldRefs }: StepProps) {
           label="Total amount"
           required
           error={errors.total_amount}
-          hint={totalLocked ? "Auto-calculated = MRR × Duration" : undefined}
+          hint={form.deal_type === "Retainer" ? "Suggested = MRR × Duration (editable)" : undefined}
         >
           <CurrencyInput
             id="total_amount"
@@ -867,7 +1047,6 @@ function Step4({ form, set, errors, fieldRefs }: StepProps) {
             value={form.total_amount}
             onChange={(v) => set("total_amount", v)}
             placeholder="e.g. 60,00,000"
-            disabled={totalLocked}
           />
         </FieldShell>
         <FieldShell id="start_date" label="Actual / Tentative start date" required error={errors.start_date}>
@@ -916,13 +1095,25 @@ function Review({ form, onEdit }: { form: HandoverForm; onEdit: (i: number) => v
       <Group title="Salesperson" onEdit={() => onEdit(0)}>
         <Row k="Full name" v={form.sp_name} />
         <Row k="Work email" v={form.sp_email} />
-        <Row k="Sales team / region" v={form.sp_team} />
+        <Row k="Sales team region" v={form.sp_team} />
         <Row k="Handover date" v={form.handover_date} />
       </Group>
       <Group title="Client" onEdit={() => onEdit(1)}>
         <Row k="Company" v={form.company_name} />
-        <Row k="Industry" v={form.industry} />
+        <Row k="Industry" v={form.industry === "Others" && form.industry_other ? `Others: ${form.industry_other}` : form.industry} />
+        <Row k="Location" v={form.company_location === "Other" ? form.company_location_other : form.company_location} />
         <Row k="Website" v={form.website} />
+        {form.company_ai_summary && (
+          <div className="text-sm">
+            <div className="text-muted-foreground text-xs mb-1">AI summary</div>
+            <div className="text-xs space-y-0.5">
+              {form.company_ai_summary.what_they_do && <div>{form.company_ai_summary.what_they_do}</div>}
+              {form.company_ai_summary.products?.length ? (
+                <div>Products: {form.company_ai_summary.products.join(", ")}</div>
+              ) : null}
+            </div>
+          </div>
+        )}
         <div className="text-sm">
           <div className="text-muted-foreground text-xs mb-1">Contacts</div>
           <ul className="space-y-1">
