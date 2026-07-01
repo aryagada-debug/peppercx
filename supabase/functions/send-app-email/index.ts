@@ -108,7 +108,7 @@ function escapeHtml(s: string) {
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
-function layout({ title, intro, rows, ctaLabel, ctaHref, footerNote }: {
+function layout({ title, intro, rows, ctaLabel, ctaHref, footerNote, extraHtml }: {
   title: string; intro: string;
   rows: Array<[string, string]>;
   ctaLabel?: string; ctaHref?: string; footerNote?: string; extraHtml?: string;
@@ -139,7 +139,7 @@ function layout({ title, intro, rows, ctaLabel, ctaHref, footerNote }: {
           <div style="margin-top:18px;">
             <a href="${escapeHtml(ctaHref)}" style="display:inline-block;background:${BRAND_PRIMARY};color:#fff;text-decoration:none;font-size:13px;font-weight:500;padding:9px 14px;border-radius:8px;">${escapeHtml(ctaLabel)}</a>
           </div>` : ""}
-          ${arguments[0]?.extraHtml || ""}
+          ${extraHtml || ""}
         </td></tr>
         <tr><td style="padding:14px 22px;border-top:1px solid ${BRAND_BORDER};background:${BRAND_BG};">
           <p style="margin:0;font-size:11px;color:${BRAND_MUTED};line-height:1.5;">${escapeHtml(footerNote || "Automated notification from Pepper CX. Reply to this email to reach the central CX team.")}</p>
