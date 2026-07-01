@@ -63,7 +63,9 @@ function useSlackHealth() {
       ]);
       if (e1) throw e1;
       if (e2) throw e2;
-      const map = new Map<string, HealthRow>((health || []).map((h: HealthRow) => [h.deal_id, h]));
+      const map = new Map<string, HealthRow>(
+        (health || []).map((h): [string, HealthRow] => [h.deal_id, { ...h, rgy: (h.rgy as Rgy) } as HealthRow]),
+      );
       return (deals as DealMeta[] || []).map((d) => {
         const h = map.get(d.id) || {
           deal_id: d.id, channel_id: null, channel_name: null, is_connected: false,
