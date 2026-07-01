@@ -26,6 +26,45 @@ async function slackChannelName(channelId: string): Promise<string | null> {
   }
 }
 
+interface SlackHistMsg {
+  type?: string;
+  subtype?: string;
+  user?: string;
+  bot_id?: string;
+  username?: string;
+  text?: string;
+  ts: string;
+  thread_ts?: string;
+}
+
+// Pull up to `days` of history from a Slack channel, paginating conversations.history.
+// Returns messages plus an optional warning code (e.g. not_in_channel).
+async function fetchChannelHistory(channelId: string, days = 90): Promise<{ messages: SlackHistMsg[]; warning?: string }> {
+  if (!SLACK_BOT_TOKEN) return { messages: [], warning: "no_token" };
+  const oldest = Math.floor((Date.now() - days * 86400 * 1000) / 1000).toString();
+  const out: SlackHistMsg[] = [];
+  let cursor = "";
+  for (let i = 0; i < 20; i++) { // hard cap ~4000 msgs / channel
+    const url = new URL("https://slack.com/api/conversations.history");
+    url.searchParams.set("channel", channelId);
+    url.searchParams.set("limit", "200");
+    url.searchParams.set("oldest", oldest);
+    if (cursor) url.searchParams.set("cursor", cursor);
+    const r = await fetch(url, { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } });
+    const j = await r.json();
+    if (!j.ok) return { messages: out, warning: j.error || "slack_error" };
+    for (const m of (j.messages || []) as SlackHistMsg[]) {
+      if (m.type && m.type !== "message") continue;
+      if (m.subtype && !["thread_broadcast", "bot_message", "me_message"].includes(m.subtype)) continue;
+      out.push(m);
+    }
+    if (!j.has_more) break;
+    cursor = j.response_metadata?.next_cursor || "";
+    if (!cursor) break;
+  }
+  return { messages: out };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -35,17 +74,59 @@ Deno.serve(async (req) => {
   );
 
   try {
-    // 1) Recompute all rollup rows in a single SQL pass.
+    // 1) Backfill Slack history for every deal-linked channel so the rollup
+    //    reflects real activity, not just messages captured via the webhook.
+    const { data: linked } = await admin
+      .from("staffing_deals")
+      .select("id, slack_channel_id, deal_status")
+      .not("slack_channel_id", "is", null)
+      .in("deal_status", ["Active Deal", "New Deal in SLA/PO", "Deal Disputed", "Deal in Renewal Process"]);
+
+    const channelToDeal = new Map<string, string>();
+    for (const d of linked || []) {
+      const ch = (d.slack_channel_id || "").trim();
+      if (ch && !channelToDeal.has(ch)) channelToDeal.set(ch, d.id);
+    }
+
+    let ingested = 0;
+    const warnings: Record<string, string> = {};
+    for (const [channelId, dealId] of channelToDeal) {
+      const { messages, warning } = await fetchChannelHistory(channelId, 90);
+      if (warning) warnings[channelId] = warning;
+      if (messages.length === 0) continue;
+      const rows = messages.map((m) => ({
+        deal_id: dealId,
+        channel_id: channelId,
+        slack_ts: m.ts,
+        thread_ts: m.thread_ts || null,
+        user_id: m.user || m.bot_id || "",
+        user_name: m.username || "",
+        text: m.text || "",
+        source: m.bot_id ? "bot" : "slack",
+        raw: m as unknown as Record<string, unknown>,
+        created_at: new Date(Math.floor(Number(m.ts) * 1000)).toISOString(),
+      }));
+      // Upsert in chunks; unique (channel_id, slack_ts) makes this idempotent.
+      for (let i = 0; i < rows.length; i += 500) {
+        const chunk = rows.slice(i, i + 500);
+        const { error } = await admin
+          .from("slack_messages")
+          .upsert(chunk, { onConflict: "channel_id,slack_ts", ignoreDuplicates: true });
+        if (!error) ingested += chunk.length;
+      }
+    }
+
+    // 2) Recompute all rollup rows in a single SQL pass.
     const { error: rpcErr } = await admin.rpc("refresh_slack_channel_health");
     if (rpcErr) throw rpcErr;
 
-    // 2) Hydrate channel names for connected rows that don't have one yet.
+    // 3) Hydrate channel names for connected rows that don't have one yet.
     const { data: rows } = await admin
       .from("slack_channel_health")
       .select("deal_id, channel_id, channel_name")
       .eq("is_connected", true)
       .is("channel_name", null)
-      .limit(200);
+      .limit(500);
 
     let hydrated = 0;
     for (const r of rows || []) {
@@ -61,7 +142,7 @@ Deno.serve(async (req) => {
       .select("*", { count: "exact", head: true });
 
     return new Response(
-      JSON.stringify({ ok: true, rows: count ?? 0, hydrated }),
+      JSON.stringify({ ok: true, rows: count ?? 0, hydrated, ingested, channels: channelToDeal.size, warnings }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {
