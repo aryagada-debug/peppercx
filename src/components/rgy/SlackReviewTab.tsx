@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, RefreshCw, Search, Hash, AlertCircle } from "lucide-react";
+import { Loader2, RefreshCw, Search, Hash, AlertCircle, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
@@ -462,20 +462,185 @@ function CustomerCard({ row }: { row: Combined }) {
           )}
         </span>
       </summary>
-      <div className="px-3.5 pb-3 pt-1 border-t border-border grid md:grid-cols-4 gap-3 text-xs">
+      <AuditPanel row={row} />
+    </details>
+  );
+}
+
+interface AuditRecord {
+  deal_id: string;
+  rating: "R" | "Y" | "G";
+  health_sentiment: string;
+  scope_of_work: string;
+  customer_cares: string;
+  engagement: string;
+  performance_results: string;
+  churn_signals: string[];
+  what_is_working: string[];
+  recommended_action: string;
+  channels: Array<{ role: string; channel: string; msgs_12wk: number; activity: string; audit_status: string }>;
+  computed_at: string;
+  model: string;
+}
+
+function AuditPanel({ row }: { row: Combined }) {
+  const qc = useQueryClient();
+  const { data: audit, isLoading } = useQuery({
+    queryKey: ["slack-audit", row.deal_id],
+    staleTime: 60 * 60 * 1000,
+    queryFn: async (): Promise<AuditRecord | null> => {
+      const { data, error } = await supabase
+        .from("slack_channel_audits")
+        .select("*")
+        .eq("deal_id", row.deal_id)
+        .maybeSingle();
+      if (error) throw error;
+      return (data as unknown as AuditRecord) || null;
+    },
+  });
+  const [busy, setBusy] = useState(false);
+
+  const generate = async (force: boolean) => {
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("slack-channel-audit", {
+        body: { deal_id: row.deal_id, force },
+      });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(data?.error || "Audit failed");
+      await qc.invalidateQueries({ queryKey: ["slack-audit", row.deal_id] });
+      toast.success(data?.cached ? "Loaded cached audit" : "Audit generated");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Audit failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const s = rgyStyles[audit?.rating || row.rgy];
+  const tone = audit?.rating === "R" ? "text-red-600" : audit?.rating === "Y" ? "text-amber-600" : "text-emerald-600";
+
+  if (isLoading) {
+    return (
+      <div className="px-3.5 py-4 border-t border-border text-xs text-muted-foreground flex items-center gap-2">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading audit...
+      </div>
+    );
+  }
+
+  if (!audit) {
+    return (
+      <div className="px-3.5 py-4 border-t border-border flex items-center justify-between gap-3">
+        <div className="text-xs text-muted-foreground">
+          No audit generated yet for this account. Auto-audit uses the last 12 weeks of Slack messages.
+        </div>
+        <Button size="sm" onClick={() => generate(false)} disabled={busy} className="h-7 gap-1.5">
+          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+          Generate audit
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-4 py-4 border-t border-border space-y-4">
+      <div className="flex items-center justify-end gap-2">
+        <span className="text-[10px] text-muted-foreground">
+          Audited {formatDistanceToNow(new Date(audit.computed_at), { addSuffix: true })} · {audit.model || "model"}
+        </span>
+        <Button size="sm" variant="outline" onClick={() => generate(true)} disabled={busy} className="h-7 gap-1.5">
+          {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+          Re-run
+        </Button>
+      </div>
+
+      <AuditSection tone={tone} title="Health & Sentiment">{audit.health_sentiment || "Not stated."}</AuditSection>
+      <AuditSection tone={tone} title="Scope of Work">{audit.scope_of_work || "Not stated."}</AuditSection>
+      <AuditSection tone={tone} title="What the Customer Cares About">{audit.customer_cares || "Not stated."}</AuditSection>
+      <AuditSection tone={tone} title="Engagement">{audit.engagement || "Not stated."}</AuditSection>
+      <AuditSection tone={tone} title="Performance & Results">{audit.performance_results || "None stated."}</AuditSection>
+
+      <div>
+        <div className={cn("text-[11px] font-bold uppercase tracking-wide mb-1", tone)}>Churn Signals</div>
+        {audit.churn_signals.length ? (
+          <ul className="list-disc pl-5 text-sm space-y-0.5">
+            {audit.churn_signals.map((c, i) => <li key={i}>{c}</li>)}
+          </ul>
+        ) : <p className="text-sm text-muted-foreground">None detected.</p>}
+      </div>
+
+      <div>
+        <div className="text-[11px] font-bold uppercase tracking-wide mb-1 text-emerald-600">What is Working</div>
+        {audit.what_is_working.length ? (
+          <ul className="list-disc pl-5 text-sm space-y-0.5">
+            {audit.what_is_working.map((c, i) => <li key={i}>{c}</li>)}
+          </ul>
+        ) : <p className="text-sm text-muted-foreground">None.</p>}
+      </div>
+
+      {audit.recommended_action && (
+        <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-sm">
+          <span className="font-semibold">Recommended action:</span>{" "}
+          <span className="text-amber-900">{audit.recommended_action}</span>
+        </div>
+      )}
+
+      <div>
+        <div className={cn("text-[11px] font-bold uppercase tracking-wide mb-1", tone)}>Slack Channels</div>
+        <div className="rounded-md border border-border overflow-hidden">
+          <table className="w-full text-xs">
+            <thead className="bg-muted/50 text-muted-foreground">
+              <tr>
+                <th className="text-left px-3 py-1.5 font-medium">Role</th>
+                <th className="text-left px-3 py-1.5 font-medium">Channel</th>
+                <th className="text-left px-3 py-1.5 font-medium">12wk msgs</th>
+                <th className="text-left px-3 py-1.5 font-medium">Activity</th>
+                <th className="text-left px-3 py-1.5 font-medium">Audit status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(audit.channels || []).length === 0 ? (
+                <tr><td colSpan={5} className="px-3 py-2 text-muted-foreground italic">No channel linked</td></tr>
+              ) : audit.channels.map((c, i) => (
+                <tr key={i} className="border-t border-border">
+                  <td className="px-3 py-1.5 font-medium">{c.role}</td>
+                  <td className="px-3 py-1.5">{c.channel}</td>
+                  <td className="px-3 py-1.5">{c.msgs_12wk}</td>
+                  <td className="px-3 py-1.5">
+                    <Badge variant="outline" className={cn(
+                      "text-[10px]",
+                      c.activity === "Dormant" && "bg-red-50 border-red-200 text-red-700",
+                      c.activity === "Stale" && "bg-red-50 border-red-200 text-red-700",
+                      c.activity === "Slow" && "bg-amber-50 border-amber-200 text-amber-700",
+                      c.activity === "Low" && "bg-amber-50 border-amber-200 text-amber-700",
+                      c.activity === "Moderate" && "bg-amber-50 border-amber-200 text-amber-700",
+                      c.activity === "Active" && "bg-emerald-50 border-emerald-200 text-emerald-700",
+                    )}>{c.activity}</Badge>
+                  </td>
+                  <td className="px-3 py-1.5 text-primary">{c.audit_status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="grid md:grid-cols-4 gap-3 text-xs pt-2 border-t border-border">
         <Stat label="Msgs 90d" value={row.msg_count_90d} />
         <Stat label="Msgs 30d" value={row.msg_count_30d} />
         <Stat label="Msgs 7d" value={row.msg_count_7d} />
         <Stat label="Last message" value={row.last_msg_at ? formatDistanceToNow(new Date(row.last_msg_at), { addSuffix: true }) : "-"} />
-        <Stat label="Avg gap" value={row.avg_gap_hours ? `${row.avg_gap_hours.toFixed(1)} h` : "-"} />
-        <Stat label="Inbound (Slack)" value={row.external_count_90d} />
-        <Stat label="Sent from app" value={row.internal_count_90d} />
-        <Stat label="MRR" value={fmtInr(row.mrr)} />
-        {row.reason && (
-          <div className="md:col-span-4 text-muted-foreground italic">{row.reason}</div>
-        )}
       </div>
-    </details>
+    </div>
+  );
+}
+
+function AuditSection({ title, tone, children }: { title: string; tone: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className={cn("text-[11px] font-bold uppercase tracking-wide mb-1", tone)}>{title}</div>
+      <p className="text-sm leading-relaxed">{children}</p>
+    </div>
   );
 }
 
