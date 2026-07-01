@@ -1095,13 +1095,25 @@ function Review({ form, onEdit }: { form: HandoverForm; onEdit: (i: number) => v
       <Group title="Salesperson" onEdit={() => onEdit(0)}>
         <Row k="Full name" v={form.sp_name} />
         <Row k="Work email" v={form.sp_email} />
-        <Row k="Sales team / region" v={form.sp_team} />
+        <Row k="Sales team region" v={form.sp_team} />
         <Row k="Handover date" v={form.handover_date} />
       </Group>
       <Group title="Client" onEdit={() => onEdit(1)}>
         <Row k="Company" v={form.company_name} />
-        <Row k="Industry" v={form.industry} />
+        <Row k="Industry" v={form.industry === "Others" && form.industry_other ? `Others: ${form.industry_other}` : form.industry} />
+        <Row k="Location" v={form.company_location === "Other" ? form.company_location_other : form.company_location} />
         <Row k="Website" v={form.website} />
+        {form.company_ai_summary && (
+          <div className="text-sm">
+            <div className="text-muted-foreground text-xs mb-1">AI summary</div>
+            <div className="text-xs space-y-0.5">
+              {form.company_ai_summary.what_they_do && <div>{form.company_ai_summary.what_they_do}</div>}
+              {form.company_ai_summary.products?.length ? (
+                <div>Products: {form.company_ai_summary.products.join(", ")}</div>
+              ) : null}
+            </div>
+          </div>
+        )}
         <div className="text-sm">
           <div className="text-muted-foreground text-xs mb-1">Contacts</div>
           <ul className="space-y-1">
