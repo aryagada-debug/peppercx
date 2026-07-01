@@ -437,13 +437,15 @@ function Step1({ form, set, errors, fieldRefs }: StepProps) {
             placeholder="name@peppercontent.io"
           />
         </FieldShell>
-        <FieldShell id="sp_team" label="Sales team / region">
-          <Input
-            id="sp_team"
-            value={form.sp_team}
-            onChange={(e) => set("sp_team", e.target.value)}
-            placeholder="e.g. India Enterprise"
-          />
+        <FieldShell id="sp_team" label="Sales team region" required error={errors.sp_team}>
+          <div ref={(n) => (fieldRefs.current.sp_team = n)}>
+            <Select value={form.sp_team} onValueChange={(v) => set("sp_team", v)}>
+              <SelectTrigger id="sp_team"><SelectValue placeholder="Select region" /></SelectTrigger>
+              <SelectContent>
+                {SALES_REGION_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
         </FieldShell>
         <FieldShell id="handover_date" label="Handover date" required error={errors.handover_date}>
           <Input
