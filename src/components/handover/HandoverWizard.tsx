@@ -153,6 +153,27 @@ export function HandoverWizard({ onSubmitted }: Props) {
     setSubmitting(true);
     const reference = generateReference();
     const submitted_at = new Date().toISOString();
+    const effectiveIndustry =
+      form.industry === "Others" && form.industry_other.trim()
+        ? `Others: ${form.industry_other.trim()}`
+        : form.industry;
+    const effectiveLocation =
+      form.company_location === "Other" && form.company_location_other.trim()
+        ? form.company_location_other.trim()
+        : form.company_location;
+    const extraNotesParts: string[] = [];
+    if (effectiveLocation) extraNotesParts.push(`Company location: ${effectiveLocation}`);
+    if (form.company_ai_summary) {
+      const s = form.company_ai_summary;
+      const bits: string[] = [];
+      if (s.industry) bits.push(`Industry: ${s.industry}`);
+      if (s.what_they_do) bits.push(`What they do: ${s.what_they_do}`);
+      if (s.products?.length) bits.push(`Products: ${s.products.join(", ")}`);
+      if (bits.length) extraNotesParts.push(`AI summary:\n  ${bits.join("\n  ")}`);
+    }
+    const combinedNotes = [form.deal_notes.trim(), extraNotesParts.join("\n")]
+      .filter(Boolean)
+      .join("\n\n");
     const payload: any = {
       reference,
       submitter_user_id: user?.id || null,
@@ -161,7 +182,7 @@ export function HandoverWizard({ onSubmitted }: Props) {
       sp_team: form.sp_team.trim(),
       handover_date: form.handover_date || null,
       company_name: form.company_name.trim(),
-      industry: form.industry.trim(),
+      industry: effectiveIndustry.trim(),
       website: form.website.trim(),
       sow_url: form.sow_url.trim(),
       strategy_deck_url: form.strategy_deck_url.trim(),
@@ -178,7 +199,7 @@ export function HandoverWizard({ onSubmitted }: Props) {
       duration_months: form.duration_months ? Number(form.duration_months) : null,
       start_date: form.start_date || null,
       vsd_suggested: "",
-      deal_notes: form.deal_notes.trim(),
+      deal_notes: combinedNotes,
       contacts: form.contacts.filter((c) => c.name || c.email),
       status: "submitted",
     };
@@ -195,6 +216,41 @@ export function HandoverWizard({ onSubmitted }: Props) {
         company: payload.company_name,
         submitter: `${payload.sp_name} <${payload.sp_email}>`,
         reference,
+        details: {
+          salesperson: {
+            name: payload.sp_name,
+            email: payload.sp_email,
+            region: payload.sp_team,
+            handover_date: payload.handover_date,
+          },
+          client: {
+            company: payload.company_name,
+            industry: payload.industry,
+            location: effectiveLocation,
+            website: payload.website,
+            ai_summary: form.company_ai_summary || null,
+          },
+          contacts: payload.contacts,
+          documents: {
+            sow_url: payload.sow_url,
+            strategy_deck_url: payload.strategy_deck_url,
+            keywords_url: payload.keywords_url,
+            geo_audit_url: payload.geo_audit_url,
+            fireflies_url: payload.fireflies_url,
+            docs_notes: payload.docs_notes,
+          },
+          deal: {
+            stage: payload.stage,
+            bu: payload.bu,
+            capability: payload.capability,
+            deal_type: payload.deal_type,
+            mrr: payload.mrr,
+            total_amount: payload.total_amount,
+            duration_months: payload.duration_months,
+            start_date: payload.start_date,
+            notes: form.deal_notes.trim(),
+          },
+        },
       },
     });
     setConfirmation({ reference, submitted_at });
