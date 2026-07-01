@@ -5,7 +5,7 @@ import {
   CheckSquare, Settings, Building2, BookOpen, Contact,
   ChevronDown, Home, ChevronsLeft, ChevronsRight,
   Trash2, AlertTriangle, Mail, Sparkles,
-  ClipboardCheck,
+  ClipboardCheck, MessagesSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
@@ -32,6 +32,7 @@ const routePrefetch: Record<string, () => Promise<unknown>> = {
   "/inbox": () => import("@/pages/Inbox"),
   "/pulse-nps": () => import("@/pages/PulseNPS"),
   "/deal-handover": () => import("@/pages/DealHandover"),
+  "/slack-review": () => import("@/pages/SlackReview"),
 };
 const prefetched = new Set<string>();
 const prefetchRoute = (to: string) => {
@@ -63,6 +64,7 @@ const navSections = [
     label: "Health & Reviews",
     items: [
       { to: "/rgy-health", icon: Activity, label: "RGY Health", routeKey: "rgy-health" },
+      { to: "/slack-review", icon: MessagesSquare, label: "Slack Review", routeKey: "rgy-health" },
       { to: "/pulse-nps", icon: Sparkles, label: "Pulse / NPS", routeKey: "rgy-health", adminOnly: true },
       { to: "/mbr-tracker", icon: FileText, label: "MBR Tracker", routeKey: "mbr-tracker" },
     ],
