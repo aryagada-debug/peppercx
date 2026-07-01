@@ -1774,6 +1774,75 @@ export type Database = {
         }
         Relationships: []
       }
+      slack_channel_health: {
+        Row: {
+          avg_gap_hours: number | null
+          channel_id: string | null
+          channel_name: string | null
+          computed_at: string
+          deal_id: string
+          external_count_90d: number
+          first_msg_at: string | null
+          internal_count_90d: number
+          is_connected: boolean
+          last_msg_at: string | null
+          msg_count_30d: number
+          msg_count_7d: number
+          msg_count_90d: number
+          reason: string | null
+          rgy: string
+        }
+        Insert: {
+          avg_gap_hours?: number | null
+          channel_id?: string | null
+          channel_name?: string | null
+          computed_at?: string
+          deal_id: string
+          external_count_90d?: number
+          first_msg_at?: string | null
+          internal_count_90d?: number
+          is_connected?: boolean
+          last_msg_at?: string | null
+          msg_count_30d?: number
+          msg_count_7d?: number
+          msg_count_90d?: number
+          reason?: string | null
+          rgy?: string
+        }
+        Update: {
+          avg_gap_hours?: number | null
+          channel_id?: string | null
+          channel_name?: string | null
+          computed_at?: string
+          deal_id?: string
+          external_count_90d?: number
+          first_msg_at?: string | null
+          internal_count_90d?: number
+          is_connected?: boolean
+          last_msg_at?: string | null
+          msg_count_30d?: number
+          msg_count_7d?: number
+          msg_count_90d?: number
+          reason?: string | null
+          rgy?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "slack_channel_health_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: true
+            referencedRelation: "deals_unified"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "slack_channel_health_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: true
+            referencedRelation: "staffing_deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       slack_dm_threads: {
         Row: {
           app_user_id: string
@@ -3381,6 +3450,7 @@ export type Database = {
           person_id: string
         }[]
       }
+      refresh_slack_channel_health: { Args: never; Returns: number }
       resolve_assignee_user_id: {
         Args: { _staffing_person_id: string }
         Returns: {
