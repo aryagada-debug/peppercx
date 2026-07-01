@@ -149,9 +149,6 @@ function layout({ title, intro, rows, ctaLabel, ctaHref, footerNote, extraHtml }
   </table></body></html>`;
 }
 
-type DealRow = {
-};
-
 function fmtMoney(v: unknown): string {
   const n = typeof v === "number" ? v : Number(v);
   if (!isFinite(n) || !n) return "";
@@ -253,7 +250,7 @@ function renderHandoverDetails(d: any): string {
     + section("Deal", dealHtml);
 }
 
-type _DealRowUnused = {
+type DealRow = {
   id: string; account: string | null; deal_name: string | null;
   vsd: string | null; principal_bopm: string | null; senior_bopm: string | null; bopm: string | null;
   capability_line?: string | null; business_unit?: string | null; geo?: string | null;
