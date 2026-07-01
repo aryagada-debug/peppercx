@@ -468,6 +468,41 @@ function Step2({ form, set, errors, fieldRefs }: StepProps) {
   const add = () => set("contacts", [...form.contacts, emptyContact()]);
   const remove = (i: number) => set("contacts", form.contacts.filter((_, idx) => idx !== i));
   const [mode, setMode] = useState<"existing" | "new">(form.existing_client_id ? "existing" : "new");
+  const [aiLoading, setAiLoading] = useState(false);
+  const runCompanyLookup = async () => {
+    if (!form.company_name.trim()) {
+      toast({ title: "Enter a company name first", variant: "destructive" });
+      return;
+    }
+    setAiLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("handover-company-lookup", {
+        body: { company_name: form.company_name.trim(), website: form.website.trim() || undefined },
+      });
+      if (error) throw error;
+      const summary: CompanyAISummary = {
+        industry: data?.industry_guess || "",
+        what_they_do: data?.what_they_do || "",
+        products: Array.isArray(data?.products) ? data.products : [],
+        website: data?.website || "",
+      };
+      set("company_ai_summary", summary);
+      if (!form.website.trim() && summary.website) set("website", summary.website);
+      if (!form.industry && summary.industry) {
+        if ((INDUSTRY_OPTIONS as readonly string[]).includes(summary.industry)) {
+          set("industry", summary.industry);
+        } else {
+          set("industry", "Others");
+          set("industry_other", summary.industry);
+        }
+      }
+      toast({ title: "Company details fetched" });
+    } catch (err: any) {
+      toast({ title: "Lookup failed", description: err.message || String(err), variant: "destructive" });
+    } finally {
+      setAiLoading(false);
+    }
+  };
   const [clients, setClients] = useState<Array<{ id: string; name: string; pc_code: string; industry: string; website: string }>>([]);
   const [clientSearch, setClientSearch] = useState("");
   const [orgContacts, setOrgContacts] = useState<Array<{ key: string; name: string; role: string; email: string; phone: string; deal_id: string }>>([]);
