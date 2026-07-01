@@ -946,16 +946,15 @@ function Step3({ form, set, errors, fieldRefs }: StepProps) {
 
 /* ─── Step 4: Deal ────────────────────────────────────── */
 function Step4({ form, set, errors, fieldRefs }: StepProps) {
-  // Auto-calc total amount for retainer = MRR x duration
+  // Suggest total = MRR × Duration for retainers, but only when total is empty
   useEffect(() => {
     if (form.deal_type !== "Retainer") return;
+    if (form.total_amount != null) return;
     const months = Number(form.duration_months || 0);
     if (form.mrr != null && months > 0) {
-      const computed = Math.round(form.mrr * months);
-      if (form.total_amount !== computed) set("total_amount", computed);
+      set("total_amount", Math.round(form.mrr * months));
     }
   }, [form.deal_type, form.mrr, form.duration_months]); // eslint-disable-line
-  const totalLocked = form.deal_type === "Retainer";
   return (
     <div className="space-y-4">
       <SectionTitle>4. Deal details</SectionTitle>
@@ -1040,7 +1039,7 @@ function Step4({ form, set, errors, fieldRefs }: StepProps) {
           label="Total amount"
           required
           error={errors.total_amount}
-          hint={totalLocked ? "Auto-calculated = MRR × Duration" : undefined}
+          hint={form.deal_type === "Retainer" ? "Suggested = MRR × Duration (editable)" : undefined}
         >
           <CurrencyInput
             id="total_amount"
@@ -1048,7 +1047,6 @@ function Step4({ form, set, errors, fieldRefs }: StepProps) {
             value={form.total_amount}
             onChange={(v) => set("total_amount", v)}
             placeholder="e.g. 60,00,000"
-            disabled={totalLocked}
           />
         </FieldShell>
         <FieldShell id="start_date" label="Actual / Tentative start date" required error={errors.start_date}>
