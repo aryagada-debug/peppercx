@@ -43,6 +43,7 @@ const Inbox = lazy(() => import("./pages/Inbox"));
 const PulseNPS = lazy(() => import("./pages/PulseNPS"));
 const PulseNPSAnalytics = lazy(() => import("./pages/PulseNPSAnalytics"));
 const DealHandover = lazy(() => import("./pages/DealHandover"));
+const SlackReview = lazy(() => import("./pages/SlackReview"));
 const PublicSurvey = lazy(() => import("./pages/PublicSurvey"));
 const SurveyForm = lazy(() => import("./pages/SurveyForm"));
 
@@ -104,6 +105,7 @@ function AppRoutes() {
               <Route path="/people-ops" element={<ProtectedRoute routeKey="people-ops"><PeopleOps /></ProtectedRoute>} />
               <Route path="/targets" element={<ProtectedRoute routeKey="targets"><Targets /></ProtectedRoute>} />
               <Route path="/rgy-health" element={<ProtectedRoute routeKey="rgy-health"><RGYHealth /></ProtectedRoute>} />
+              <Route path="/slack-review" element={<ProtectedRoute routeKey="rgy-health"><SlackReview /></ProtectedRoute>} />
               <Route path="/pulse-nps" element={<ProtectedRoute routeKey="rgy-health" adminOnly><PulseNPS /></ProtectedRoute>} />
               <Route path="/pulse-nps/analytics" element={<ProtectedRoute routeKey="rgy-health" adminOnly><PulseNPSAnalytics /></ProtectedRoute>} />
               <Route path="/deal-handover" element={<ProtectedRoute routeKey="home" adminOnly><DealHandover /></ProtectedRoute>} />
