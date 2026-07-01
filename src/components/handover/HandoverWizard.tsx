@@ -75,10 +75,16 @@ export function HandoverWizard({ onSubmitted }: Props) {
       if (!form.sp_name.trim()) e.sp_name = "Required";
       if (!form.sp_email.trim()) e.sp_email = "Required";
       else if (!EMAIL_RE.test(form.sp_email.trim())) e.sp_email = "Invalid email";
+      if (!form.sp_team.trim()) e.sp_team = "Required";
       if (!form.handover_date) e.handover_date = "Required";
     } else if (s === 1) {
       if (!form.company_name.trim()) e.company_name = "Required";
       if (!form.industry.trim()) e.industry = "Required";
+      if (form.industry === "Others" && !form.industry_other.trim())
+        e.industry_other = "Please specify";
+      if (!form.company_location.trim()) e.company_location = "Required";
+      if (form.company_location === "Other" && !form.company_location_other.trim())
+        e.company_location_other = "Please specify";
       if (!form.website.trim()) e.website = "Required";
       if (!form.contacts.length) e["contact_0_name"] = "Add at least one contact";
       form.contacts.forEach((c, i) => {
