@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronLeft, ChevronRight, Copy, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Copy, Plus, Trash2, Sparkles, Loader2, RefreshCw } from "lucide-react";
 import { CalendarIcon } from "lucide-react";
 import { format, parseISO, isValid } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,6 +24,9 @@ import {
   HandoverForm,
   INDUSTRY_OPTIONS,
   STAGE_OPTIONS,
+  SALES_REGION_OPTIONS,
+  COMPANY_LOCATION_OPTIONS,
+  CompanyAISummary,
   currencyHelper,
   emptyContact,
   emptyHandover,
