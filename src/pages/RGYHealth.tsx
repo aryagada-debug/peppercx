@@ -1980,6 +1980,8 @@ export default function RGYHealth() {
           </TabsContent>
         </Tabs>
 
+        {/* Slack Review tab content is rendered inside Tabs above */}
+
         {/* R/Y → G Resolve Issues Dialog (mandatory) */}
         {pendingGreen && (
           <ResolveIssuesDialog
