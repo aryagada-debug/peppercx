@@ -111,7 +111,7 @@ function escapeHtml(s: string) {
 function layout({ title, intro, rows, ctaLabel, ctaHref, footerNote }: {
   title: string; intro: string;
   rows: Array<[string, string]>;
-  ctaLabel?: string; ctaHref?: string; footerNote?: string;
+  ctaLabel?: string; ctaHref?: string; footerNote?: string; extraHtml?: string;
 }) {
   const rowsHtml = rows
     .filter(([, v]) => v && v.trim().length > 0)
@@ -139,6 +139,7 @@ function layout({ title, intro, rows, ctaLabel, ctaHref, footerNote }: {
           <div style="margin-top:18px;">
             <a href="${escapeHtml(ctaHref)}" style="display:inline-block;background:${BRAND_PRIMARY};color:#fff;text-decoration:none;font-size:13px;font-weight:500;padding:9px 14px;border-radius:8px;">${escapeHtml(ctaLabel)}</a>
           </div>` : ""}
+          ${arguments[0]?.extraHtml || ""}
         </td></tr>
         <tr><td style="padding:14px 22px;border-top:1px solid ${BRAND_BORDER};background:${BRAND_BG};">
           <p style="margin:0;font-size:11px;color:${BRAND_MUTED};line-height:1.5;">${escapeHtml(footerNote || "Automated notification from Pepper CX. Reply to this email to reach the central CX team.")}</p>
