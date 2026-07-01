@@ -1485,7 +1485,6 @@ export default function RGYHealth() {
               {isBopmPersona && <TabsTrigger value="insights">Insights</TabsTrigger>}
               <TabsTrigger value="table">Table</TabsTrigger>
               {!isBopmPersona && <TabsTrigger value="insights">Insights</TabsTrigger>}
-              {!isBopmPersona && <TabsTrigger value="slack">Slack Review</TabsTrigger>}
             </TabsList>
             {activeTab === "table" && (
               <Popover>
@@ -1978,11 +1977,6 @@ export default function RGYHealth() {
             />
           </TabsContent>
 
-          {!isBopmPersona && (
-            <TabsContent value="slack" className="mt-0">
-              <SlackReviewTab />
-            </TabsContent>
-          )}
         </Tabs>
 
         {/* R/Y → G Resolve Issues Dialog (mandatory) */}
