@@ -365,6 +365,8 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
     if (recips.length === 0) return null;
     const company = String(input.payload?.company || "");
     const submitter = String(input.payload?.submitter || "");
+    const reference = String((input.payload as any)?.reference || "");
+    const details = (input.payload as any)?.details || {};
     const tctx = { "{company}": company, "{submitter}": submitter };
     const subject = rule?.subject_template?.trim()
       ? applyTokens(rule.subject_template, tctx)
@@ -378,9 +380,10 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
       html: layout({
         title: `New sales handover - ${escapeHtml(company)}`,
         intro,
-        rows: [["Submitted by", submitter]],
+        rows: [["Submitted by", submitter], ["Reference", reference]],
         ctaLabel: "Open Deal Handover",
         ctaHref: `${APP_ORIGIN}/deal-handover`,
+        extraHtml: renderHandoverDetails(details),
       }),
     };
   }
