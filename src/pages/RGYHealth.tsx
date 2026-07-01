@@ -1978,9 +1978,13 @@ export default function RGYHealth() {
               summaryDeals={aiSummaryDeals}
             />
           </TabsContent>
-        </Tabs>
 
-        {/* Slack Review tab content is rendered inside Tabs above */}
+          {!isBopmPersona && (
+            <TabsContent value="slack" className="mt-0">
+              <SlackReviewTab />
+            </TabsContent>
+          )}
+        </Tabs>
 
         {/* R/Y → G Resolve Issues Dialog (mandatory) */}
         {pendingGreen && (
