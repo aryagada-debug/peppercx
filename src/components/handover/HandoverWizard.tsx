@@ -705,16 +705,88 @@ function Step2({ form, set, errors, fieldRefs }: StepProps) {
             </Select>
           </div>
         </FieldShell>
-        <FieldShell id="website" label="Website" required error={errors.website}>
-          <Input
-            id="website"
-            ref={(n) => (fieldRefs.current.website = n)}
-            value={form.website}
-            onChange={(e) => set("website", e.target.value)}
-            placeholder="https://…"
-          />
+        {form.industry === "Others" && (
+          <FieldShell id="industry_other" label="Specify industry" required error={errors.industry_other}>
+            <Input
+              id="industry_other"
+              ref={(n) => (fieldRefs.current.industry_other = n)}
+              value={form.industry_other}
+              onChange={(e) => set("industry_other", e.target.value)}
+              placeholder="e.g. EdTech, Healthtech…"
+            />
+          </FieldShell>
+        )}
+        <FieldShell id="company_location" label="Company location" required error={errors.company_location}>
+          <div ref={(n) => (fieldRefs.current.company_location = n)}>
+            <Select value={form.company_location} onValueChange={(v) => set("company_location", v)}>
+              <SelectTrigger id="company_location"><SelectValue placeholder="Select city / region" /></SelectTrigger>
+              <SelectContent>
+                {COMPANY_LOCATION_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        </FieldShell>
+        {form.company_location === "Other" && (
+          <FieldShell id="company_location_other" label="Specify location" required error={errors.company_location_other}>
+            <Input
+              id="company_location_other"
+              ref={(n) => (fieldRefs.current.company_location_other = n)}
+              value={form.company_location_other}
+              onChange={(e) => set("company_location_other", e.target.value)}
+              placeholder="e.g. Tokyo"
+            />
+          </FieldShell>
+        )}
+        <FieldShell id="website" label="Website" required error={errors.website} hint="Use 'Fetch from web' to auto-fill from the company name.">
+          <div className="flex gap-2">
+            <Input
+              id="website"
+              ref={(n) => (fieldRefs.current.website = n)}
+              value={form.website}
+              onChange={(e) => set("website", e.target.value)}
+              placeholder="https://…"
+            />
+            <Button type="button" variant="outline" size="sm" disabled={aiLoading} onClick={runCompanyLookup}>
+              {aiLoading ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Sparkles className="h-3 w-3 mr-1" />}
+              Fetch
+            </Button>
+          </div>
         </FieldShell>
       </Grid>
+
+      {(form.company_ai_summary || aiLoading) && (
+        <Card className="p-3 space-y-2 bg-muted/30">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1">
+              <Sparkles className="h-3 w-3" /> AI company summary
+            </span>
+            <Button type="button" size="sm" variant="ghost" disabled={aiLoading} onClick={runCompanyLookup}>
+              <RefreshCw className={cn("h-3 w-3 mr-1", aiLoading && "animate-spin")} /> Regenerate
+            </Button>
+          </div>
+          {aiLoading && !form.company_ai_summary && (
+            <p className="text-xs text-muted-foreground">Fetching from the web…</p>
+          )}
+          {form.company_ai_summary && (
+            <div className="text-sm space-y-2">
+              {form.company_ai_summary.industry && (
+                <div><span className="text-xs text-muted-foreground">Industry: </span>{form.company_ai_summary.industry}</div>
+              )}
+              {form.company_ai_summary.what_they_do && (
+                <div><span className="text-xs text-muted-foreground">What they do: </span>{form.company_ai_summary.what_they_do}</div>
+              )}
+              {form.company_ai_summary.products && form.company_ai_summary.products.length > 0 && (
+                <div>
+                  <div className="text-xs text-muted-foreground">Products / offerings:</div>
+                  <ul className="list-disc list-inside text-sm">
+                    {form.company_ai_summary.products.map((p, i) => <li key={i}>{p}</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
+      )}
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
