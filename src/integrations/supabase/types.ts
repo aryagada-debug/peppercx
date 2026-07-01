@@ -1774,6 +1774,72 @@ export type Database = {
         }
         Relationships: []
       }
+      slack_channel_audits: {
+        Row: {
+          channels: Json
+          churn_signals: Json
+          computed_at: string
+          customer_cares: string
+          deal_id: string
+          engagement: string
+          health_sentiment: string
+          model: string
+          performance_results: string
+          rating: string
+          recommended_action: string
+          scope_of_work: string
+          what_is_working: Json
+          window_weeks: number
+        }
+        Insert: {
+          channels?: Json
+          churn_signals?: Json
+          computed_at?: string
+          customer_cares?: string
+          deal_id: string
+          engagement?: string
+          health_sentiment?: string
+          model?: string
+          performance_results?: string
+          rating?: string
+          recommended_action?: string
+          scope_of_work?: string
+          what_is_working?: Json
+          window_weeks?: number
+        }
+        Update: {
+          channels?: Json
+          churn_signals?: Json
+          computed_at?: string
+          customer_cares?: string
+          deal_id?: string
+          engagement?: string
+          health_sentiment?: string
+          model?: string
+          performance_results?: string
+          rating?: string
+          recommended_action?: string
+          scope_of_work?: string
+          what_is_working?: Json
+          window_weeks?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "slack_channel_audits_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: true
+            referencedRelation: "deals_unified"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "slack_channel_audits_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: true
+            referencedRelation: "staffing_deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       slack_channel_health: {
         Row: {
           avg_gap_hours: number | null
