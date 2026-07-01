@@ -487,8 +487,15 @@ function Step2({ form, set, errors, fieldRefs }: StepProps) {
     if (!c) return;
     set("existing_client_id", id);
     set("company_name", c.name);
-    const ind = (INDUSTRY_OPTIONS as readonly string[]).includes(c.industry) ? c.industry : "Miscellaneous";
-    set("industry", ind);
+    if ((INDUSTRY_OPTIONS as readonly string[]).includes(c.industry)) {
+      set("industry", c.industry);
+      set("industry_other", "");
+    } else if (c.industry && c.industry.trim()) {
+      set("industry", "Others");
+      set("industry_other", c.industry.trim());
+    } else {
+      set("industry", "");
+    }
     if (c.website) set("website", c.website);
     // Pull POCs from org mapping (deal_stakeholders across this client's deals)
     setLoadingOrg(true);
