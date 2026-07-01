@@ -3,6 +3,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { KpiTile } from "@/components/dashboard/KpiTile";
 import { DealDetailDialog } from "@/components/rgy/DealDetailDialog";
 import { RGYInsightsTab } from "@/components/rgy/RGYInsightsTab";
+import { SlackReviewTab } from "@/components/rgy/SlackReviewTab";
 import { RGYHistoryPopover } from "@/components/rgy/RGYHistoryPopover";
 import { ResolveIssuesDialog } from "@/components/rgy/ResolveIssuesDialog";
 import { logRGYChange } from "@/lib/rgyHistory";
@@ -1485,6 +1486,7 @@ export default function RGYHealth() {
               {isBopmPersona && <TabsTrigger value="insights">Insights</TabsTrigger>}
               <TabsTrigger value="table">Table</TabsTrigger>
               {!isBopmPersona && <TabsTrigger value="insights">Insights</TabsTrigger>}
+              {!isBopmPersona && <TabsTrigger value="slack">Slack Review</TabsTrigger>}
             </TabsList>
             {activeTab === "table" && (
               <Popover>
@@ -1976,6 +1978,12 @@ export default function RGYHealth() {
               summaryDeals={aiSummaryDeals}
             />
           </TabsContent>
+
+          {!isBopmPersona && (
+            <TabsContent value="slack" className="mt-0">
+              <SlackReviewTab />
+            </TabsContent>
+          )}
         </Tabs>
 
         {/* R/Y → G Resolve Issues Dialog (mandatory) */}
