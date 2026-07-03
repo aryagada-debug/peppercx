@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 import SurveyWizard from "@/components/pulse/SurveyWizard";
-import { defaultConfig, PulseConfig } from "@/lib/pulseSurvey";
+import { defaultConfig, normalizePulseConfig, PulseConfig } from "@/lib/pulseSurvey";
 
 // Standalone public survey form. Mounted OUTSIDE AuthProvider so anonymous
 // recipients can submit without ever hitting Lovable's editor auth wall.
@@ -49,7 +49,7 @@ export default function SurveyForm() {
         supabase.from("pulse_survey_config" as any).select("config").eq("is_active", true).order("updated_at", { ascending: false }).limit(1).maybeSingle().then(({ data }) => {
           if (cancelled) return;
           const cfg = (data as any)?.config;
-          if (cfg && typeof cfg === "object" && cfg.steps) setConfig(cfg as PulseConfig);
+          if (cfg && typeof cfg === "object") setConfig(normalizePulseConfig(cfg));
         });
         if (isPreview) {
           setInvite({
