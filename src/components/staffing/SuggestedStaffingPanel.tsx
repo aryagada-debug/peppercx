@@ -92,10 +92,6 @@ export function SuggestedStaffingPanel({
 
   if (visible.length === 0) return null;
 
-  const initialPerson = applying
-    ? people.find(p => p.name.trim().toLowerCase() === applying.person_name.trim().toLowerCase())?.name
-    : undefined;
-
   return (
     <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
       <div className="flex items-center justify-between">
@@ -105,7 +101,7 @@ export function SuggestedStaffingPanel({
         <Badge variant="outline" className="text-[10px]">{visible.length} pending</Badge>
       </div>
       <p className="text-[11px] text-muted-foreground">
-        These were proposed during the Deal Handover. Confirm to add as a real staffing row, or dismiss.
+        Roles proposed during the Deal Handover. Assign a person and confirm to add as a real staffing row, or dismiss.
       </p>
       <div className="divide-y divide-border/60 rounded-md bg-card">
         {visible.map(s => (
@@ -113,15 +109,14 @@ export function SuggestedStaffingPanel({
             <div className="min-w-0 flex-1">
               <div className="text-sm font-medium text-foreground truncate">
                 {humanRole(s.role_key)}
-                {s.person_name && <span className="text-muted-foreground font-normal"> — {s.person_name}</span>}
               </div>
               <div className="text-[11px] text-muted-foreground">
-                Suggested {s.allocation_pct || 0}%{s.person_name ? "" : " · pick a person"}
+                Suggested {s.allocation_pct || 0}% · pick a person
               </div>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               <Button size="sm" variant="outline" onClick={() => setApplying(s)}>
-                <Check className="h-3.5 w-3.5 mr-1" /> Confirm / Edit
+                <Check className="h-3.5 w-3.5 mr-1" /> Assign person
               </Button>
               <Button size="sm" variant="ghost" onClick={() => updateStatus(s.id, "dismissed")}>
                 <X className="h-3.5 w-3.5" />
@@ -140,7 +135,7 @@ export function SuggestedStaffingPanel({
           deals={deals}
           dealId={deal.id}
           initialCategory={roleToCategory(applying.role_key)}
-          initialPersonName={initialPerson}
+          initialPersonName={undefined}
           initialAllocationPct={applying.allocation_pct || 10}
           initialRoleKey={applying.role_key}
           onAdd={(a) => {
