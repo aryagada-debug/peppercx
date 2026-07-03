@@ -166,6 +166,25 @@ export const defaultConfig = {
 
 export type PulseConfig = typeof defaultConfig;
 
+function isObject(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function deepMerge<T>(base: T, override: unknown): T {
+  if (!isObject(base) || !isObject(override)) return (override ?? base) as T;
+  const out: Record<string, unknown> = { ...base };
+  for (const [key, value] of Object.entries(override)) {
+    const baseValue = (base as Record<string, unknown>)[key];
+    out[key] = isObject(baseValue) && isObject(value) ? deepMerge(baseValue, value) : value;
+  }
+  return out as T;
+}
+
+export function normalizePulseConfig(config: unknown): PulseConfig {
+  if (!isObject(config)) return defaultConfig;
+  return deepMerge(defaultConfig, config);
+}
+
 export function npsCategory(score: number | null): "Detractor" | "Passive" | "Promoter" | "" {
   if (score === null) return "";
   if (score <= 6) return "Detractor";
