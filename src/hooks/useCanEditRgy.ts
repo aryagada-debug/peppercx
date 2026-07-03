@@ -44,7 +44,11 @@ export function useCanEditRgy(): { canEdit: boolean; loading: boolean } {
       if (cancelled) return;
       const blob = [person?.role_title, (person as any)?.designation, (person as any)?.role_category]
         .filter(Boolean).join(" ");
-      setTitleAllowed(ALLOWED_TITLES.has(normalize(blob)));
+      const normalized = normalize(blob);
+      // Any title containing "bopm" (Junior/Jr BOPM, BOPM, Sr/Senior BOPM,
+      // Principal/Group BOPM, etc.) plus VSD gets edit access.
+      const hasBopm = /bopm/.test(blob.toLowerCase());
+      setTitleAllowed(ALLOWED_TITLES.has(normalized) || hasBopm);
     })();
     return () => { cancelled = true; };
   }, [user]);
