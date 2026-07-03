@@ -6,8 +6,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 /**
  * RGY editing is allowed for:
  *  - App roles: admin, member (VSD), capability_lead
- *  - Staffing titles: VSD, Principal BOPM, Group BOPM, Senior/Sr BOPM
- * Plain "BOPM" → read-only.
+ *  - Staffing titles: VSD, Principal BOPM, Group BOPM, Senior/Sr BOPM, BOPM
  */
 function normalize(title: string): string {
   const t = title.toLowerCase().trim().replace(/\./g, "");
@@ -19,7 +18,7 @@ function normalize(title: string): string {
   return t;
 }
 
-const ALLOWED_TITLES = new Set(["vsd", "principal_bopm", "senior_bopm"]);
+const ALLOWED_TITLES = new Set(["vsd", "principal_bopm", "senior_bopm", "bopm"]);
 
 export function useCanEditRgy(): { canEdit: boolean; loading: boolean } {
   const { user } = useAuth();
