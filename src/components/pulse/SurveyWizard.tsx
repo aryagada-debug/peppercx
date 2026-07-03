@@ -1,24 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   PulseAnswers, PulseConfig, defaultConfig, initialAnswers,
-  buildPayload, npsCategory, experienceAvg,
+  buildPayload, MOOD_LABELS,
 } from "@/lib/pulseSurvey";
 
-type StepKey =
-  | "role" | "capabilities" | "nps" | "value" | "deep_dive"
-  | "experience" | "effort" | "retention" | "expansion" | "wrap";
+type StepKey = "about" | "outcomes" | "experience" | "retention_growth" | "recommend";
 
 const STEP_ORDER: { key: StepKey; name: string }[] = [
-  { key: "role", name: "Your role" },
-  { key: "capabilities", name: "What you use" },
-  { key: "nps", name: "The big one" },
-  { key: "value", name: "Value & ROI" },
-  { key: "deep_dive", name: "Outcomes" },
+  { key: "about", name: "About you" },
+  { key: "outcomes", name: "Outcomes" },
   { key: "experience", name: "Experience" },
-  { key: "effort", name: "Effort" },
-  { key: "retention", name: "Renewal" },
-  { key: "expansion", name: "Growth" },
-  { key: "wrap", name: "Wrap-up" },
+  { key: "retention_growth", name: "Loyalty & growth" },
+  { key: "recommend", name: "Recommend us" },
 ];
 
 interface Props {
@@ -30,24 +23,15 @@ interface Props {
 }
 
 const CARD_STYLE: React.CSSProperties = {
-  background: "var(--card,#fff)",
-  borderRadius: 14,
+  background: "var(--card,#fff)", borderRadius: 14,
   boxShadow: "var(--shadow-pulse, 0 10px 40px rgba(38,28,80,.10))",
-  padding: 32,
-  border: "1px solid var(--line,#e7e4ef)",
+  padding: 32, border: "1px solid var(--line,#e7e4ef)",
 };
-
 const INPUT_STYLE: React.CSSProperties = {
-  width: "100%",
-  padding: "12px 14px",
-  borderRadius: 10,
-  border: "1px solid var(--line,#e7e4ef)",
-  background: "var(--field,var(--card))",
-  color: "var(--ink,#15131f)",
-  caretColor: "var(--brand,#5b3df5)",
-  fontSize: 14,
-  fontFamily: "inherit",
-  outline: "none",
+  width: "100%", padding: "12px 14px", borderRadius: 10,
+  border: "1px solid var(--line,#e7e4ef)", background: "var(--field,var(--card))",
+  color: "var(--ink,#15131f)", caretColor: "var(--brand,#5b3df5)",
+  fontSize: 14, fontFamily: "inherit", outline: "none",
 };
 
 function Pill({ children }: { children: React.ReactNode }) {
@@ -59,75 +43,44 @@ function Pill({ children }: { children: React.ReactNode }) {
     }}>{children}</span>
   );
 }
-
 function Eyebrow({ children }: { children: React.ReactNode }) {
   if (!children) return null;
   return <div style={{ textTransform: "uppercase", letterSpacing: 1.2, fontSize: 11, fontWeight: 500, color: "var(--brand,#5b3df5)", marginBottom: 8 }}>{children}</div>;
 }
-
 function H1({ children }: { children: React.ReactNode }) {
   return <h1 style={{ fontSize: 25, lineHeight: 1.25, color: "var(--ink,#15131f)", margin: "0 0 8px", fontWeight: 600 }}>{children}</h1>;
 }
-
 function Lede({ children }: { children: React.ReactNode }) {
   return <p style={{ color: "var(--muted,#6b6878)", margin: "0 0 20px", fontSize: 15 }}>{children}</p>;
 }
-
 function ErrorMsg({ children }: { children?: React.ReactNode }) {
   if (!children) return null;
   return <div style={{ color: "var(--bad,#d8413c)", fontSize: 13, marginTop: 10 }}>{children}</div>;
 }
-
+function FieldLabel({ children, required }: { children: React.ReactNode; required?: boolean }) {
+  return <div style={{ fontSize: 14, fontWeight: 500, color: "var(--ink,#15131f)", marginBottom: 10 }}>{children}{required && <span style={{ color: "var(--bad,#d8413c)", marginLeft: 3 }}>*</span>}</div>;
+}
+function FieldHint({ children }: { children: React.ReactNode }) {
+  if (!children) return null;
+  return <div style={{ color: "var(--muted,#6b6878)", fontSize: 12.5, margin: "-6px 0 10px" }}>{children}</div>;
+}
+function SectionHeader({ title }: { title: string }) {
+  return <div style={{ borderTop: "1px solid var(--line,#e7e4ef)", paddingTop: 18, marginTop: 20, marginBottom: 14, fontWeight: 500, color: "var(--brand,#5b3df5)" }}>{title}</div>;
+}
 function NavRow({ onBack, onNext, canBack, nextLabel = "Continue" }: { onBack: () => void; onNext: () => void; canBack: boolean; nextLabel?: string }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 28 }}>
-      <button
-        onClick={onBack}
-        disabled={!canBack}
-        style={{ background: "transparent", border: "none", color: canBack ? "var(--muted,#6b6878)" : "transparent", cursor: canBack ? "pointer" : "default", fontSize: 14, padding: "10px 8px" }}
-      >← Back</button>
-      <button
-        onClick={onNext}
-        style={{
-          background: "linear-gradient(135deg,var(--brand,#5b3df5),var(--brand-2,#8b6cff))",
-          color: "white", border: "none", padding: "12px 28px", borderRadius: 12,
-          fontSize: 15, fontWeight: 500, cursor: "pointer",
-          boxShadow: "0 4px 16px rgba(91,61,245,.3)",
-        }}
-      >{nextLabel} →</button>
+      <button onClick={onBack} disabled={!canBack} style={{ background: "transparent", border: "none", color: canBack ? "var(--muted,#6b6878)" : "transparent", cursor: canBack ? "pointer" : "default", fontSize: 14, padding: "10px 8px" }}>← Back</button>
+      <button onClick={onNext} style={{
+        background: "linear-gradient(135deg,var(--brand,#5b3df5),var(--brand-2,#8b6cff))",
+        color: "white", border: "none", padding: "12px 28px", borderRadius: 12,
+        fontSize: 15, fontWeight: 500, cursor: "pointer", boxShadow: "0 4px 16px rgba(91,61,245,.3)",
+      }}>{nextLabel} →</button>
     </div>
   );
 }
 
-function Scale({ value, onChange, min = 1, max = 5, end, compact }: { value: number | null; onChange: (n: number) => void; min?: number; max?: number; end?: [string, string]; compact?: boolean }) {
-  const nums = Array.from({ length: max - min + 1 }, (_, i) => min + i);
-  return (
-    <div>
-      <div style={{ display: "flex", gap: 8, flexWrap: compact ? "nowrap" : "wrap" }}>
-        {nums.map((n) => {
-          const selected = value === n;
-          return (
-            <button key={n} onClick={() => onChange(n)} style={{
-              flex: compact ? 1 : "0 0 auto",
-              minWidth: 44, height: 44, borderRadius: 10,
-              border: selected ? "1px solid var(--brand,#5b3df5)" : "1px solid var(--line,#e7e4ef)",
-              background: selected ? "var(--brand,#5b3df5)" : "var(--card)",
-              color: selected ? "white" : "var(--ink,#15131f)",
-              fontSize: 14, fontWeight: 500, cursor: "pointer",
-            }}>{n}</button>
-          );
-        })}
-      </div>
-      {end && (
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--muted,#6b6878)", marginTop: 6 }}>
-          <span>{end[0]}</span><span>{end[1]}</span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function LabelScale({ value, onChange, labels }: { value: number | null; onChange: (n: number) => void; labels: string[] }) {
+function LabelScale({ value, onChange, labels, compact }: { value: number | null; onChange: (n: number) => void; labels: string[]; compact?: boolean }) {
   return (
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
       {labels.map((label, i) => {
@@ -135,40 +88,14 @@ function LabelScale({ value, onChange, labels }: { value: number | null; onChang
         const selected = value === n;
         return (
           <button key={n} onClick={() => onChange(n)} style={{
-            flex: "1 1 120px", minHeight: 48, padding: "8px 12px", borderRadius: 10,
+            flex: compact ? 1 : "1 1 120px", minWidth: compact ? 0 : 100, minHeight: 46, padding: "8px 12px", borderRadius: 10,
             border: selected ? "1px solid var(--brand,#5b3df5)" : "1px solid var(--line,#e7e4ef)",
-            background: selected ? "var(--brand-soft,#efeaff)" : "var(--card)",
-            color: "var(--ink,#15131f)", fontSize: 13, fontWeight: selected ? 500 : 400, cursor: "pointer",
-            textAlign: "center",
+            background: selected ? "var(--brand,#5b3df5)" : "var(--card)",
+            color: selected ? "white" : "var(--ink,#15131f)",
+            fontSize: 13, fontWeight: 500, cursor: "pointer", textAlign: "center",
           }}>{label}</button>
         );
       })}
-    </div>
-  );
-}
-
-function NPSScale({ value, onChange }: { value: number | null; onChange: (n: number) => void }) {
-  const colorFor = (n: number) => n <= 6 ? "var(--bad,#d8413c)" : n <= 8 ? "var(--warn,#e0922f)" : "var(--good,#1d9d6c)";
-  return (
-    <div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(11, 1fr)", gap: 6 }}>
-        {Array.from({ length: 11 }, (_, i) => i).map((n) => {
-          const selected = value === n;
-          const color = colorFor(n);
-          return (
-            <button key={n} onClick={() => onChange(n)} style={{
-              height: 48, borderRadius: 10,
-              border: selected ? `1px solid ${color}` : "1px solid var(--line,#e7e4ef)",
-              background: selected ? color : "var(--card)",
-              color: selected ? "white" : "var(--ink,#15131f)",
-              fontSize: 14, fontWeight: 500, cursor: "pointer",
-            }}>{n}</button>
-          );
-        })}
-      </div>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--muted,#6b6878)", marginTop: 6 }}>
-        <span>Not likely</span><span>Extremely likely</span>
-      </div>
     </div>
   );
 }
@@ -196,27 +123,22 @@ function ChoiceCard({ selected, onClick, icon, title, desc }: { selected: boolea
   );
 }
 
-function MultiChip({ selected, onClick, icon, title, desc }: { selected: boolean; onClick: () => void; icon?: string; title: string; desc?: string }) {
+function MultiChip({ selected, onClick, title }: { selected: boolean; onClick: () => void; title: string }) {
   return (
     <button onClick={onClick} style={{
-      display: "flex", gap: 14, alignItems: "flex-start", width: "100%", textAlign: "left",
-      padding: 14, borderRadius: 12,
-      border: selected ? "2px solid var(--brand,#5b3df5)" : "1px solid var(--line,#e7e4ef)",
+      display: "flex", gap: 10, alignItems: "center", width: "100%", textAlign: "left",
+      padding: 12, borderRadius: 11,
+      border: selected ? "1.5px solid var(--brand,#5b3df5)" : "1.5px solid var(--line,#e7e4ef)",
       background: selected ? "var(--brand-soft,#efeaff)" : "var(--card)",
-      cursor: "pointer", marginBottom: 8,
+      cursor: "pointer", marginBottom: 8, fontSize: 14, color: "var(--ink,#15131f)",
     }}>
-      {icon && <span style={{ fontSize: 20 }}>{icon}</span>}
-      <span style={{ flex: 1 }}>
-        <div style={{ fontWeight: 500, fontSize: 14, color: "var(--ink,#15131f)" }}>{title}</div>
-        {desc && <div style={{ fontSize: 12, color: "var(--muted,#6b6878)", marginTop: 2 }}>{desc}</div>}
-      </span>
       <span style={{
-        width: 18, height: 18, borderRadius: 4, marginTop: 2,
-        border: selected ? "2px solid var(--brand,#5b3df5)" : "1.5px solid var(--line,#e7e4ef)",
+        width: 17, height: 17, borderRadius: 4, flexShrink: 0,
+        border: selected ? "2px solid var(--brand,#5b3df5)" : "2px solid var(--line,#e7e4ef)",
         background: selected ? "var(--brand,#5b3df5)" : "var(--card)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        color: "white", fontSize: 12,
+        display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: 11,
       }}>{selected ? "✓" : ""}</span>
+      <span>{title}</span>
     </button>
   );
 }
@@ -240,13 +162,9 @@ function Stars({ value, onChange, na, onNa }: { value: number | null; onChange: 
 function Textarea600({ value, onChange, placeholder, rows = 4 }: { value: string; onChange: (v: string) => void; placeholder?: string; rows?: number }) {
   return (
     <div>
-      <textarea
-        value={value} rows={rows} placeholder={placeholder}
+      <textarea value={value} rows={rows} placeholder={placeholder}
         onChange={(e) => onChange(e.target.value.slice(0, 600))}
-        style={{ ...INPUT_STYLE, padding: 12, resize: "vertical" }}
-        onFocus={(e) => (e.target.style.borderColor = "var(--brand,#5b3df5)")}
-        onBlur={(e) => (e.target.style.borderColor = "var(--line,#e7e4ef)")}
-      />
+        style={{ ...INPUT_STYLE, padding: 12, resize: "vertical" }} />
       <div style={{ textAlign: "right", fontSize: 11, color: "var(--muted,#6b6878)", marginTop: 4 }}>{value.length} / 600</div>
     </div>
   );
@@ -262,15 +180,6 @@ function Reveal({ when, children }: { when: boolean; children: React.ReactNode }
   );
 }
 
-function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div style={{ marginBottom: 20 }}>
-      <div style={{ fontSize: 14, fontWeight: 500, color: "var(--ink,#15131f)", marginBottom: 10 }}>{label}</div>
-      {children}
-    </div>
-  );
-}
-
 export default function SurveyWizard({ config = defaultConfig, initial, preview, onSubmit, headerSubtitle }: Props) {
   const [step, setStep] = useState(0);
   const [a, setA] = useState<PulseAnswers>(() => ({ ...initialAnswers(), ...(initial as any) }));
@@ -281,53 +190,50 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
   const isBuyer = a.respondent.role === "buyer" || a.respondent.role === "both";
   const isUser = a.respondent.role === "user" || a.respondent.role === "both";
 
-  // Build visible steps (skip deep-dive when no capability uses it — still show but with placeholder if none)
-  const visibleSteps = STEP_ORDER;
-  const total = visibleSteps.length;
-  const current = visibleSteps[step];
+  const total = STEP_ORDER.length;
+  const current = STEP_ORDER[step];
   const progress = ((step + 1) / total) * 100;
 
-  const updateA = (patch: Partial<PulseAnswers> | ((prev: PulseAnswers) => PulseAnswers)) => {
-    setA((prev) => typeof patch === "function" ? (patch as any)(prev) : { ...prev, ...patch });
+  const updateA = (patch: (prev: PulseAnswers) => PulseAnswers) => {
+    setA(patch);
     setError(null);
   };
 
   function validate(k: StepKey): string | null {
     switch (k) {
-      case "role": return a.respondent.role ? null : "Pick the option that fits best — we'll tailor the next questions.";
-      case "capabilities": return a.respondent.capabilities.length ? null : "Pick at least one — even if it's just the main thing you use.";
-      case "nps": return a.nps.score !== null ? null : "Slide a number — even a tough one is useful.";
-      case "value":
-        if (a.value.value_for_money === null || a.value.goal_attainment === null) return "Both scales, please — they go together.";
+      case "about":
+        if (!a.respondent.company.trim()) return "Add your company / account name.";
+        if (!a.respondent.role) return "Pick the role that fits you best.";
         return null;
-      case "deep_dive": {
-        const d = a.capability_deep_dive;
-        if (a.respondent.capabilities.includes("content") && d.content?.drives_outcome == null) return "Tell us how content is performing for you.";
-        if (a.respondent.capabilities.includes("seo")) {
-          if (!d.seo?.success_metrics?.length) return "Pick at least one SEO success metric.";
-          if (d.seo?.traffic_growth == null) return "Rate the organic growth you're seeing.";
-          if (d.seo?.ai_citation_visibility == null) return "Rate AI Search / GEO visibility.";
-        }
-        if (a.respondent.capabilities.includes("creative") && d.creative?.performance == null) return "Rate how creative is performing.";
-        if (a.respondent.capabilities.includes("studios") && d.studios?.talent_fit == null) return "Rate the talent fit.";
+      case "outcomes": {
+        if (a.value.value_for_money == null) return "Pick a point on the value scale.";
+        const seo = a.capability_deep_dive.seo;
+        if (!seo?.success_metrics?.length) return "Tell us which SEO/GEO outcomes matter most.";
+        if (seo.traffic_growth == null) return "Let us know if you're seeing organic growth.";
+        if (seo.ai_citation_visibility == null) return "Tell us how visible you are in AI Search answers.";
+        if (seo.organic_to_pipeline == null) return "Rate whether organic translates into pipeline.";
+        if (a.capability_deep_dive.content?.quality == null) return "Rate the quality of the content we deliver.";
         return null;
       }
       case "experience": {
         const any = Object.values(a.experience.ratings).some((v) => typeof v === "number" && v > 0);
-        return any ? null : "Rate at least one — even just the one that stands out.";
+        return any ? null : "Rate at least one area (or mark them N/A).";
       }
-      case "effort": return a.effort.ces !== null ? null : "One quick scale, then we're nearly done.";
-      case "retention": return a.retention.renewal_intent ? null : "Where's your head, honestly?";
-      case "expansion": return a.expansion.interests.length ? null : "Pick anything — or \"happy as-is\" works too.";
-      case "wrap": return a.sentiment.mood ? null : "One last vibe-check, then we're out.";
+      case "retention_growth":
+        if (!a.retention.renewal_intent) return "Pick how likely you are to renew.";
+        if (!a.expansion.interests.length) return "Tick at least one growth option ('Happy as-is' counts).";
+        return null;
+      case "recommend":
+        if (a.nps.score == null) return "Pick how likely you are to recommend us.";
+        if (!a.sentiment.mood) return "One tap on how you feel and you're done.";
+        return null;
     }
   }
 
   async function handleNext() {
     const err = validate(current.key);
     if (err) { setError(err); return; }
-    if (step < total - 1) { setStep(step + 1); setError(null); return; }
-    // Submit
+    if (step < total - 1) { setStep(step + 1); setError(null); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
     const payload = buildPayload(a);
     if (preview) { setDone({ ok: true, payload }); return; }
     setSubmitting(true);
@@ -342,410 +248,238 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
     }
   }
 
-  // -------- Render each step --------
   const c = config.steps;
 
-  function RoleStep() {
+  function AboutStep() {
+    const s = c.about;
     return (
       <>
-        <Pill>{c.role.pill}</Pill>
-        <H1>{c.role.h1}</H1>
-        <Lede>{c.role.lede}</Lede>
-        {c.role.options.map((opt) => (
-          <ChoiceCard key={opt.value} selected={a.respondent.role === opt.value} icon={opt.icon} title={opt.title} desc={opt.desc}
-            onClick={() => updateA((p) => ({ ...p, respondent: { ...p.respondent, role: opt.value as any } }))} />
-        ))}
+        <Pill>{s.pill}</Pill>
+        <H1>{s.h1}</H1>
+        <Lede>{s.lede}</Lede>
+        <FieldLabel required>{s.company_q}</FieldLabel>
+        <input type="text" value={a.respondent.company}
+          onChange={(e) => updateA((p) => ({ ...p, respondent: { ...p.respondent, company: e.target.value } }))}
+          style={{ ...INPUT_STYLE, marginBottom: 22 }} />
+        <FieldLabel required>{s.role_q}</FieldLabel>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10 }}>
+          {s.options.map((opt) => (
+            <ChoiceCard key={opt.value} selected={a.respondent.role === opt.value} icon={opt.icon} title={opt.title} desc={opt.desc}
+              onClick={() => updateA((p) => ({ ...p, respondent: { ...p.respondent, role: opt.value as any } }))} />
+          ))}
+        </div>
       </>
     );
   }
 
-  function CapStep() {
+  function OutcomesStep() {
+    const s = c.outcomes;
+    const seo = a.capability_deep_dive.seo || { success_metrics: [], traffic_growth: null, ai_citation_visibility: null, organic_to_pipeline: null, win_outcome: "" };
+    const content = a.capability_deep_dive.content || { quality: null };
+    const setSEO = (patch: Partial<typeof seo>) =>
+      updateA((p) => ({ ...p, capability_deep_dive: { ...p.capability_deep_dive, seo: { ...seo, ...patch } } }));
+    const setContent = (patch: Partial<typeof content>) =>
+      updateA((p) => ({ ...p, capability_deep_dive: { ...p.capability_deep_dive, content: { ...content, ...patch } } }));
+
     return (
       <>
-        <Eyebrow>{c.capabilities.eyebrow}</Eyebrow>
-        <H1>{c.capabilities.h1}</H1>
-        <Lede>{c.capabilities.lede}</Lede>
-        {c.capabilities.options.map((opt) => {
-          const selected = a.respondent.capabilities.includes(opt.value as any);
+        <Eyebrow>{s.eyebrow}</Eyebrow>
+        <H1>{s.h1}</H1>
+        <Lede>{s.lede}</Lede>
+
+        <SectionHeader title={s.value.header} />
+        <FieldLabel required>{s.value.q}</FieldLabel>
+        <LabelScale value={a.value.value_for_money} labels={s.value.labels}
+          onChange={(n) => updateA((p) => ({ ...p, value: { value_for_money: n } }))} />
+
+        <SectionHeader title={s.seo.header} />
+        <FieldLabel required>{s.seo.success_metrics.q}</FieldLabel>
+        {s.seo.success_metrics.options.map((opt) => {
+          const on = seo.success_metrics.includes(opt.value);
           return (
-            <MultiChip key={opt.value} selected={selected} icon={opt.icon} title={opt.title} desc={opt.desc}
-              onClick={() => updateA((p) => {
-                const set = new Set(p.respondent.capabilities);
-                if (set.has(opt.value as any)) set.delete(opt.value as any); else set.add(opt.value as any);
-                return { ...p, respondent: { ...p.respondent, capabilities: Array.from(set) as any } };
-              })} />
+            <MultiChip key={opt.value} selected={on} title={opt.label}
+              onClick={() => setSEO({ success_metrics: on ? seo.success_metrics.filter((x) => x !== opt.value) : [...seo.success_metrics, opt.value] })} />
           );
         })}
-      </>
-    );
-  }
 
-  function NpsStep() {
-    const score = a.nps.score;
-    const followupKey: "low" | "mid" | "high" | null = score === null ? null : score <= 6 ? "low" : score <= 8 ? "mid" : "high";
-    return (
-      <>
-        <Eyebrow>{c.nps.eyebrow}</Eyebrow>
-        <H1>{c.nps.h1}</H1>
-        <Lede>{c.nps.lede}</Lede>
-        <NPSScale value={score} onChange={(n) => updateA((p) => ({ ...p, nps: { ...p.nps, score: n } }))} />
-        <Reveal when={followupKey !== null}>
-          <FieldRow label={followupKey ? c.nps.followups[followupKey] : ""}>
-            <Textarea600 value={a.nps.verbatim} onChange={(v) => updateA((p) => ({ ...p, nps: { ...p.nps, verbatim: v } }))} placeholder="Take your time…" />
-          </FieldRow>
-        </Reveal>
-      </>
-    );
-  }
+        <div style={{ marginTop: 16 }} />
+        <FieldLabel required>{s.seo.traffic_growth.q}</FieldLabel>
+        <LabelScale value={seo.traffic_growth} labels={s.seo.traffic_growth.labels} onChange={(n) => setSEO({ traffic_growth: n })} />
 
-  function ValueStep() {
-    return (
-      <>
-        <Eyebrow>{c.value.eyebrow}</Eyebrow>
-        <H1>{c.value.h1}</H1>
-        <Lede>{c.value.lede}</Lede>
-        <FieldRow label={c.value.value_for_money.q}>
-          <LabelScale value={a.value.value_for_money} labels={c.value.value_for_money.labels}
-            onChange={(n) => updateA((p) => ({ ...p, value: { ...p.value, value_for_money: n } }))} />
-        </FieldRow>
-        <FieldRow label={c.value.goal_attainment.q}>
-          <LabelScale value={a.value.goal_attainment} labels={c.value.goal_attainment.labels}
-            onChange={(n) => updateA((p) => ({ ...p, value: { ...p.value, goal_attainment: n } }))} />
-        </FieldRow>
-        <Reveal when={isBuyer}>
-          <FieldRow label={c.value.buyer_outcome.q}>
-            <input type="text" placeholder={c.value.buyer_outcome.hint} value={a.value.target_outcome}
-              onChange={(e) => updateA((p) => ({ ...p, value: { ...p.value, target_outcome: e.target.value } }))}
-              style={INPUT_STYLE} />
-          </FieldRow>
-        </Reveal>
-      </>
-    );
-  }
+        <div style={{ background: "var(--brand-soft,#efeaff)", padding: 16, borderRadius: 12, margin: "16px 0" }}>
+          <Eyebrow>{s.seo.ai_visibility.eyebrow}</Eyebrow>
+          <FieldLabel required>{s.seo.ai_visibility.q}</FieldLabel>
+          <LabelScale compact value={seo.ai_citation_visibility} labels={s.seo.ai_visibility.labels} onChange={(n) => setSEO({ ai_citation_visibility: n })} />
+        </div>
 
-  function DeepDiveStep() {
-    const caps = a.respondent.capabilities;
-    if (caps.length === 0) {
-      return <><Eyebrow>{c.deep_dive.eyebrow}</Eyebrow><H1>Nothing to dive into.</H1><Lede>Pick a capability on the earlier step to unlock this.</Lede></>;
-    }
-    const dd = a.capability_deep_dive;
-    const setDD = (patch: any) => updateA((p) => ({ ...p, capability_deep_dive: { ...p.capability_deep_dive, ...patch } }));
-    return (
-      <>
-        <Eyebrow>{c.deep_dive.eyebrow}</Eyebrow>
-        <H1>{c.deep_dive.h1}</H1>
-        <Lede>{c.deep_dive.lede}</Lede>
+        <FieldLabel required>{s.seo.organic_to_pipeline.q}</FieldLabel>
+        <LabelScale value={seo.organic_to_pipeline} labels={s.seo.organic_to_pipeline.labels} onChange={(n) => setSEO({ organic_to_pipeline: n })} />
 
-        {caps.includes("content") && (
-          <div style={{ borderTop: "1px solid var(--line,#e7e4ef)", paddingTop: 18, marginTop: 12 }}>
-            <div style={{ fontWeight: 500, marginBottom: 14, color: "var(--brand,#5b3df5)" }}>📝 Pepper Content</div>
-            <FieldRow label={c.deep_dive.content.drives_outcome.q}>
-              <Scale value={dd.content?.drives_outcome ?? null} max={5} end={c.deep_dive.content.drives_outcome.end as any}
-                onChange={(n) => setDD({ content: { ...(dd.content || { needed_outcomes: [], on_brief: null }), drives_outcome: n } })} />
-            </FieldRow>
-            <FieldRow label={c.deep_dive.content.needed_outcomes.q}>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {c.deep_dive.content.needed_outcomes.options.map((opt) => {
-                  const sel = dd.content?.needed_outcomes?.includes(opt);
-                  return (
-                    <button key={opt} onClick={() => {
-                      const cur = new Set(dd.content?.needed_outcomes || []);
-                      if (cur.has(opt)) cur.delete(opt); else cur.add(opt);
-                      setDD({ content: { ...(dd.content || { drives_outcome: null, on_brief: null }), needed_outcomes: Array.from(cur) } });
-                    }} style={{
-                      padding: "8px 14px", borderRadius: 999, fontSize: 13,
-                      border: sel ? "1px solid var(--brand,#5b3df5)" : "1px solid var(--line,#e7e4ef)",
-                      background: sel ? "var(--brand-soft,#efeaff)" : "var(--card)", cursor: "pointer", color: "var(--ink,#15131f)",
-                    }}>{opt}</button>
-                  );
-                })}
-              </div>
-            </FieldRow>
-            <FieldRow label={c.deep_dive.content.on_brief.q}>
-              <LabelScale value={dd.content?.on_brief ?? null} labels={c.deep_dive.content.on_brief.labels}
-                onChange={(n) => setDD({ content: { ...(dd.content || { drives_outcome: null, needed_outcomes: [] }), on_brief: n } })} />
-            </FieldRow>
-          </div>
-        )}
+        <SectionHeader title={s.content.header} />
+        <FieldLabel required>{s.content.q}</FieldLabel>
+        <LabelScale value={content.quality} labels={s.content.labels} onChange={(n) => setContent({ quality: n })} />
 
-        {caps.includes("seo") && (
-          <div style={{ borderTop: "1px solid var(--line,#e7e4ef)", paddingTop: 18, marginTop: 12 }}>
-            <div style={{ fontWeight: 500, marginBottom: 14, color: "var(--brand,#5b3df5)" }}>🔍 SEO / GEO</div>
-            <FieldRow label={c.deep_dive.seo.success_metrics.q}>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {c.deep_dive.seo.success_metrics.options.map((opt) => {
-                  const sel = dd.seo?.success_metrics?.includes(opt);
-                  return (
-                    <button key={opt} onClick={() => {
-                      const cur = new Set(dd.seo?.success_metrics || []);
-                      if (cur.has(opt)) cur.delete(opt); else cur.add(opt);
-                      setDD({ seo: { ...(dd.seo || { traffic_growth: null, ai_citation_visibility: null, organic_to_pipeline: null, win_outcome: "" }), success_metrics: Array.from(cur) } });
-                    }} style={{
-                      padding: "8px 14px", borderRadius: 999, fontSize: 13,
-                      border: sel ? "1px solid var(--brand,#5b3df5)" : "1px solid var(--line,#e7e4ef)",
-                      background: sel ? "var(--brand-soft,#efeaff)" : "var(--card)", cursor: "pointer", color: "var(--ink,#15131f)",
-                    }}>{opt}</button>
-                  );
-                })}
-              </div>
-            </FieldRow>
-            <FieldRow label={c.deep_dive.seo.traffic_growth.q}>
-              <Scale value={dd.seo?.traffic_growth ?? null} max={5} end={c.deep_dive.seo.traffic_growth.end as any}
-                onChange={(n) => setDD({ seo: { ...(dd.seo || { success_metrics: [], ai_citation_visibility: null, organic_to_pipeline: null, win_outcome: "" }), traffic_growth: n } })} />
-            </FieldRow>
-            <div style={{ background: "var(--brand-soft,#efeaff)", padding: 16, borderRadius: 12, marginBottom: 20 }}>
-              <FieldRow label={c.deep_dive.seo.ai_citation_visibility.q}>
-                <Scale compact value={dd.seo?.ai_citation_visibility ?? null} max={5} end={c.deep_dive.seo.ai_citation_visibility.end as any}
-                  onChange={(n) => setDD({ seo: { ...(dd.seo || { success_metrics: [], traffic_growth: null, organic_to_pipeline: null, win_outcome: "" }), ai_citation_visibility: n } })} />
-              </FieldRow>
-            </div>
-            <FieldRow label={c.deep_dive.seo.organic_to_pipeline.q}>
-              <Scale value={dd.seo?.organic_to_pipeline ?? null} max={5} end={c.deep_dive.seo.organic_to_pipeline.end as any}
-                onChange={(n) => setDD({ seo: { ...(dd.seo || { success_metrics: [], traffic_growth: null, ai_citation_visibility: null, win_outcome: "" }), organic_to_pipeline: n } })} />
-            </FieldRow>
-            <FieldRow label={c.deep_dive.seo.win_outcome.q}>
-              <Textarea600 value={dd.seo?.win_outcome || ""} onChange={(v) => setDD({ seo: { ...(dd.seo || { success_metrics: [], traffic_growth: null, ai_citation_visibility: null, organic_to_pipeline: null }), win_outcome: v } })} />
-            </FieldRow>
-          </div>
-        )}
-
-        {caps.includes("creative") && (
-          <div style={{ borderTop: "1px solid var(--line,#e7e4ef)", paddingTop: 18, marginTop: 12 }}>
-            <div style={{ fontWeight: 500, marginBottom: 14, color: "var(--brand,#5b3df5)" }}>🎨 Creative</div>
-            {(["quality", "performance", "speed"] as const).map((k) => (
-              <FieldRow key={k} label={(c.deep_dive.creative as any)[k].q}>
-                <Scale value={(dd.creative as any)?.[k] ?? null} max={5} end={(c.deep_dive.creative as any)[k].end}
-                  onChange={(n) => setDD({ creative: { ...(dd.creative || { quality: null, performance: null, speed: null }), [k]: n } })} />
-              </FieldRow>
-            ))}
-          </div>
-        )}
-
-        {caps.includes("studios") && (
-          <div style={{ borderTop: "1px solid var(--line,#e7e4ef)", paddingTop: 18, marginTop: 12 }}>
-            <div style={{ fontWeight: 500, marginBottom: 14, color: "var(--brand,#5b3df5)" }}>🧩 Studios</div>
-            {(["talent_fit", "integration", "autonomy"] as const).map((k) => (
-              <FieldRow key={k} label={(c.deep_dive.studios as any)[k].q}>
-                <Scale value={(dd.studios as any)?.[k] ?? null} max={5} end={(c.deep_dive.studios as any)[k].end}
-                  onChange={(n) => setDD({ studios: { ...(dd.studios || { talent_fit: null, integration: null, autonomy: null }), [k]: n } })} />
-              </FieldRow>
-            ))}
-          </div>
-        )}
+        <div style={{ marginTop: 24 }}>
+          <FieldLabel>{s.seo.win_outcome.q}</FieldLabel>
+          <FieldHint>{s.seo.win_outcome.hint}</FieldHint>
+          <Textarea600 value={seo.win_outcome} onChange={(v) => setSEO({ win_outcome: v })} />
+        </div>
       </>
     );
   }
 
   function ExperienceStep() {
-    const rows: { key: string; label: string }[] = [
-      { key: "quality", label: c.experience.rows.quality },
-      { key: "support", label: c.experience.rows.support },
-      { key: "communication", label: c.experience.rows.communication },
-      { key: "speed", label: c.experience.rows.speed },
-      ...(isUser ? [{ key: "ease", label: c.experience.rows.ease_user }] : []),
-      ...(isBuyer ? [{ key: "partner", label: c.experience.rows.partner_buyer }] : []),
+    const s = c.experience;
+    const rows: { key: string; label: string; hint: string }[] = [
+      { key: "quality", ...s.rows.quality },
+      { key: "support", ...s.rows.support },
+      { key: "comms", ...s.rows.comms },
+      { key: "speed", ...s.rows.speed },
+      ...(isUser ? [{ key: "ease", ...s.rows.ease }] : []),
+      ...(isBuyer ? [{ key: "partner", ...s.rows.partner }] : []),
     ];
-    const any = rows.some((r) => typeof a.experience.ratings[r.key] === "number" && a.experience.ratings[r.key]! > 0);
-    const low = rows.some((r) => typeof a.experience.ratings[r.key] === "number" && a.experience.ratings[r.key]! > 0 && a.experience.ratings[r.key]! <= 3);
+    const ratings = a.experience.ratings;
+    const rated = Object.entries(ratings).filter(([, v]) => typeof v === "number" && v > 0);
+    const low = rated.some(([, v]) => (v as number) <= 3);
+    const any = rated.length > 0;
     return (
       <>
-        <Eyebrow>{c.experience.eyebrow}</Eyebrow>
-        <H1>{c.experience.h1}</H1>
-        <Lede>{c.experience.lede}</Lede>
-        {rows.map((r) => {
-          const v = a.experience.ratings[r.key] ?? null;
-          const na = a.experience.ratings[r.key] === 0;
-          return (
-            <div key={r.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid var(--line,#e7e4ef)" }}>
-              <div style={{ fontSize: 14, color: "var(--ink,#15131f)" }}>{r.label}</div>
-              <Stars value={v} na={na}
-                onChange={(n) => updateA((p) => ({ ...p, experience: { ...p.experience, ratings: { ...p.experience.ratings, [r.key]: n } } }))}
-                onNa={(b) => updateA((p) => ({ ...p, experience: { ...p.experience, ratings: { ...p.experience.ratings, [r.key]: b ? 0 : null } } }))} />
-            </div>
-          );
-        })}
-        <Reveal when={any}>
-          <FieldRow label={low ? c.experience.followup_low : c.experience.followup_ok}>
-            <Textarea600 value={a.experience.comment} onChange={(v) => updateA((p) => ({ ...p, experience: { ...p.experience, comment: v } }))} />
-          </FieldRow>
-        </Reveal>
-      </>
-    );
-  }
-
-  function EffortStep() {
-    return (
-      <>
-        <Eyebrow>{c.effort.eyebrow}</Eyebrow>
-        <H1>{c.effort.h1}</H1>
-        <Lede>{c.effort.lede}</Lede>
-        <Scale value={a.effort.ces} max={5} end={c.effort.end as any}
-          onChange={(n) => updateA((p) => ({ ...p, effort: { ...p.effort, ces: n } }))} />
-        <FieldRow label={c.effort.friction_q}>
-          <Textarea600 value={a.effort.friction} onChange={(v) => updateA((p) => ({ ...p, effort: { ...p.effort, friction: v } }))} />
-        </FieldRow>
-      </>
-    );
-  }
-
-  function RetentionStep() {
-    const intent = a.retention.renewal_intent;
-    const showSave = ["unsure", "risk", "gone"].includes(intent);
-    return (
-      <>
-        <Eyebrow>{c.retention.eyebrow}</Eyebrow>
-        <H1>{c.retention.h1}</H1>
-        {c.retention.options.map((opt) => (
-          <ChoiceCard key={opt.value} selected={intent === opt.value} title={opt.label}
-            onClick={() => updateA((p) => ({ ...p, retention: { ...p.retention, renewal_intent: opt.value as any } }))} />
-        ))}
-        <Reveal when={showSave}>
-          <FieldRow label={c.retention.save_q}>
-            <Textarea600 value={a.retention.save_lever} onChange={(v) => updateA((p) => ({ ...p, retention: { ...p.retention, save_lever: v } }))} />
-          </FieldRow>
-        </Reveal>
-      </>
-    );
-  }
-
-  function ExpansionStep() {
-    const interests = a.expansion.interests;
-    const showWho = (a.expansion.referral_openness ?? 0) >= 4;
-    return (
-      <>
-        <Eyebrow>{c.expansion.eyebrow}</Eyebrow>
-        <H1>{c.expansion.h1}</H1>
-        <Lede>{c.expansion.lede}</Lede>
-        {c.expansion.options.map((opt) => {
-          const selected = interests.includes(opt.value);
-          return (
-            <MultiChip key={opt.value} selected={selected} title={opt.label}
-              onClick={() => updateA((p) => {
-                let next: string[];
-                if (opt.value === "none") {
-                  next = selected ? [] : ["none"];
-                } else {
-                  const set = new Set(p.expansion.interests.filter((i) => i !== "none"));
-                  if (set.has(opt.value)) set.delete(opt.value); else set.add(opt.value);
-                  next = Array.from(set);
-                }
-                return { ...p, expansion: { ...p.expansion, interests: next } };
-              })} />
-          );
-        })}
-        <FieldRow label={c.expansion.referral.q}>
-          <Scale value={a.expansion.referral_openness} max={5} end={c.expansion.referral.end as any}
-            onChange={(n) => updateA((p) => ({ ...p, expansion: { ...p.expansion, referral_openness: n } }))} />
-        </FieldRow>
-        <Reveal when={showWho}>
-          <input type="text" placeholder={c.expansion.referral_who} value={a.expansion.referral_lead}
-            onChange={(e) => updateA((p) => ({ ...p, expansion: { ...p.expansion, referral_lead: e.target.value } }))}
-            style={INPUT_STYLE} />
-        </Reveal>
-      </>
-    );
-  }
-
-  function WrapStep() {
-    return (
-      <>
-        <Eyebrow>{c.wrap.eyebrow}</Eyebrow>
-        <H1>{c.wrap.h1}</H1>
-        <Lede>{c.wrap.lede}</Lede>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 10, marginBottom: 20 }}>
-          {c.wrap.moods.map((m) => {
-            const sel = a.sentiment.mood === m.value;
+        <Eyebrow>{s.eyebrow}</Eyebrow>
+        <H1>{s.h1}</H1>
+        <Lede>{s.lede}</Lede>
+        <div style={{ border: "1px solid var(--line,#e7e4ef)", borderRadius: 12, overflow: "hidden" }}>
+          {rows.map((r, i) => {
+            const v = ratings[r.key] ?? null;
+            const na = ratings[r.key] === 0;
             return (
-              <button key={m.value} onClick={() => updateA((p) => ({ ...p, sentiment: { ...p.sentiment, mood: m.value as any } }))} style={{
-                padding: 14, borderRadius: 12, fontSize: 13,
-                border: sel ? "2px solid var(--brand,#5b3df5)" : "1px solid var(--line,#e7e4ef)",
-                background: sel ? "var(--brand-soft,#efeaff)" : "var(--card)", cursor: "pointer",
-                display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
-                color: "var(--ink,#15131f)",
+              <div key={r.key} style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12,
+                padding: "13px 15px",
+                borderTop: i === 0 ? "none" : "1px solid var(--line,#e7e4ef)",
               }}>
-                <span style={{ fontSize: 24 }}>{m.icon}</span>
-                <span>{m.label}</span>
-              </button>
+                <div style={{ fontSize: 14, fontWeight: 500, color: "var(--ink,#15131f)" }}>
+                  {r.label}
+                  <div style={{ fontSize: 12, fontWeight: 400, color: "var(--muted,#6b6878)" }}>{r.hint}</div>
+                </div>
+                <Stars value={v} na={na}
+                  onChange={(n) => updateA((p) => ({ ...p, experience: { ...p.experience, ratings: { ...p.experience.ratings, [r.key]: n } } }))}
+                  onNa={(b) => updateA((p) => ({ ...p, experience: { ...p.experience, ratings: { ...p.experience.ratings, [r.key]: b ? 0 : null } } }))} />
+              </div>
             );
           })}
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12 }}>
-          <input placeholder="Name (optional)" value={a.respondent.name}
-            onChange={(e) => updateA((p) => ({ ...p, respondent: { ...p.respondent, name: e.target.value } }))}
-            style={INPUT_STYLE} />
-          <input placeholder="Work email (optional)" value={a.respondent.email}
-            onChange={(e) => updateA((p) => ({ ...p, respondent: { ...p.respondent, email: e.target.value } }))}
-            style={INPUT_STYLE} />
-          <input placeholder="Company / account (optional)" value={a.respondent.company}
-            onChange={(e) => updateA((p) => ({ ...p, respondent: { ...p.respondent, company: e.target.value } }))}
-            style={{ ...INPUT_STYLE, gridColumn: "1 / -1" }} />
+        <Reveal when={any}>
+          <FieldLabel>{low ? s.followup_low : s.followup_ok}</FieldLabel>
+          <Textarea600 value={a.experience.comment} onChange={(v) => updateA((p) => ({ ...p, experience: { ...p.experience, comment: v } }))} />
+        </Reveal>
+      </>
+    );
+  }
+
+  function RetentionGrowthStep() {
+    const s = c.retention_growth;
+    const atRisk = ["unsure", "risk", "gone"].includes(a.retention.renewal_intent);
+    return (
+      <>
+        <Eyebrow>{s.eyebrow}</Eyebrow>
+        <H1>{s.h1}</H1>
+        <FieldLabel required>{s.renewal_q}</FieldLabel>
+        {s.renewal_options.map((opt) => (
+          <ChoiceCard key={opt.value} selected={a.retention.renewal_intent === opt.value} title={opt.label}
+            onClick={() => updateA((p) => ({ ...p, retention: { ...p.retention, renewal_intent: opt.value as any } }))} />
+        ))}
+        <Reveal when={atRisk}>
+          <FieldLabel>{s.save_q}</FieldLabel>
+          <Textarea600 value={a.retention.save_lever} onChange={(v) => updateA((p) => ({ ...p, retention: { ...p.retention, save_lever: v } }))} />
+        </Reveal>
+        <div style={{ marginTop: 26 }}>
+          <FieldLabel>{s.expansion_q}</FieldLabel>
+          {s.expansion_options.map((opt) => {
+            const on = a.expansion.interests.includes(opt.value);
+            return (
+              <MultiChip key={opt.value} selected={on} title={opt.label}
+                onClick={() => updateA((p) => {
+                  const cur = p.expansion.interests;
+                  let next: string[];
+                  if (opt.value === "none") next = on ? [] : ["none"];
+                  else {
+                    const set = new Set(cur.filter((x) => x !== "none"));
+                    if (set.has(opt.value)) set.delete(opt.value); else set.add(opt.value);
+                    next = Array.from(set);
+                  }
+                  return { ...p, expansion: { interests: next } };
+                })} />
+            );
+          })}
         </div>
-        <FieldRow label={c.wrap.followup_q}>
-          <div style={{ display: "flex", gap: 8 }}>
-            {["yes", "maybe", "no"].map((v) => {
-              const sel = a.respondent.wants_followup === v;
-              return (
-                <button key={v} onClick={() => updateA((p) => ({ ...p, respondent: { ...p.respondent, wants_followup: v as any } }))} style={{
-                  flex: 1, padding: 12, borderRadius: 10, textTransform: "capitalize",
-                  border: sel ? "1px solid var(--brand,#5b3df5)" : "1px solid var(--line,#e7e4ef)",
-                  background: sel ? "var(--brand,#5b3df5)" : "var(--card)", color: sel ? "white" : "var(--ink,#15131f)",
-                  cursor: "pointer", fontSize: 14,
-                }}>{v}</button>
-              );
-            })}
-          </div>
-        </FieldRow>
+      </>
+    );
+  }
+
+  function RecommendStep() {
+    const s = c.recommend;
+    const score = a.nps.score;
+    const bucket: "low" | "mid" | "high" | null = score == null ? null : score <= 6 ? "low" : score <= 8 ? "mid" : "high";
+    return (
+      <>
+        <Eyebrow>{s.eyebrow}</Eyebrow>
+        <H1>{s.h1}</H1>
+        <Lede>{s.lede}</Lede>
+        {s.options.map((opt) => (
+          <ChoiceCard key={opt.score} selected={score === opt.score} title={opt.title} desc={opt.desc}
+            onClick={() => updateA((p) => ({ ...p, nps: { ...p.nps, score: opt.score } }))} />
+        ))}
+        <Reveal when={bucket !== null}>
+          <FieldLabel>{bucket ? s.followups[bucket] : ""}</FieldLabel>
+          <Textarea600 value={a.nps.verbatim} onChange={(v) => updateA((p) => ({ ...p, nps: { ...p.nps, verbatim: v } }))} />
+        </Reveal>
+        <div style={{ marginTop: 26 }}>
+          <FieldLabel required>{s.mood_q}</FieldLabel>
+          {s.moods.map((m) => (
+            <ChoiceCard key={m.value} selected={a.sentiment.mood === m.value} icon={m.icon} title={m.label}
+              onClick={() => updateA((p) => ({ ...p, sentiment: { mood: m.value as any } }))} />
+          ))}
+        </div>
       </>
     );
   }
 
   const renderStep = () => {
     switch (current.key) {
-      case "role": return <RoleStep />;
-      case "capabilities": return <CapStep />;
-      case "nps": return <NpsStep />;
-      case "value": return <ValueStep />;
-      case "deep_dive": return <DeepDiveStep />;
+      case "about": return <AboutStep />;
+      case "outcomes": return <OutcomesStep />;
       case "experience": return <ExperienceStep />;
-      case "effort": return <EffortStep />;
-      case "retention": return <RetentionStep />;
-      case "expansion": return <ExpansionStep />;
-      case "wrap": return <WrapStep />;
+      case "retention_growth": return <RetentionGrowthStep />;
+      case "recommend": return <RecommendStep />;
     }
   };
 
-  // Thank-you screen
   if (done) {
     const p = done.payload;
-    const moodIcon = c.wrap.moods.find((m) => m.value === p.sentiment.mood)?.icon || "🙂";
-    const jsonStr = JSON.stringify(p, null, 2);
+    const moodIcon = MOOD_LABELS[p.sentiment?.mood]?.icon || "🙂";
     return (
       <PulseFrame headerSubtitle={headerSubtitle} progress={100}>
         <div style={CARD_STYLE}>
           <div style={{ textAlign: "center" }}>
             <div style={{ fontSize: 48 }}>🎉</div>
-            <H1>Thank you — truly.</H1>
-            <Lede>Your response went straight to the CS team.</Lede>
+            <H1>Thank you, truly.</H1>
+            <Lede>This is exactly the kind of honesty that makes us better. Your Pepper team will see it today.</Lede>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, margin: "20px 0" }}>
-            <ScoreCard label="NPS" value={`${p.nps.score ?? "–"}`} sub={p.nps.category} />
-            <ScoreCard label="Experience" value={`${p.experience.avg ? p.experience.avg.toFixed(1) : "–"} / 5`} sub="avg" />
-            <ScoreCard label="Mood" value={moodIcon} sub="" />
+            <ScoreCard label="NPS" value={`${p.nps?.score ?? "–"}`} sub={p.nps?.category || ""} />
+            <ScoreCard label="Experience" value={`${p.experience?.avg ? p.experience.avg.toFixed(1) : "–"} / 5`} sub="avg" />
+            <ScoreCard label="Mood" value={moodIcon} sub={MOOD_LABELS[p.sentiment?.mood]?.label || ""} />
           </div>
           {done.serverError && (
             <div style={{ background: "var(--brand-soft)", border: "1px solid var(--line)", padding: 12, borderRadius: 10, fontSize: 13, color: "var(--bad,#d8413c)", marginBottom: 12 }}>
-              Couldn't save online ({done.serverError}). Copy or download your response so we don't lose it.
+              Couldn't save online ({done.serverError}).
             </div>
           )}
-          <details>
-            <summary style={{ cursor: "pointer", color: "var(--muted,#6b6878)", fontSize: 13, marginBottom: 8 }}>Show raw response</summary>
-            <pre style={{ background: "var(--brand-soft)", padding: 12, borderRadius: 10, overflow: "auto", fontSize: 11, maxHeight: 300 }}>{jsonStr}</pre>
-          </details>
-          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <button onClick={() => navigator.clipboard?.writeText(jsonStr)} style={ghostBtn}>Copy JSON</button>
-            <button onClick={() => downloadJson(jsonStr)} style={ghostBtn}>Download .json</button>
-            {preview && <button onClick={() => { setDone(null); setStep(0); setA(initialAnswers()); }} style={ghostBtn}>New response</button>}
-          </div>
+          {preview && (
+            <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
+              <button onClick={() => { setDone(null); setStep(0); setA(initialAnswers()); }} style={{ padding: "10px 16px", borderRadius: 10, border: "1px solid var(--line,#e7e4ef)", background: "var(--card)", color: "var(--ink,#15131f)", fontSize: 13, cursor: "pointer" }}>New response</button>
+            </div>
+          )}
         </div>
       </PulseFrame>
     );
@@ -760,7 +494,7 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
       <div style={{ ...CARD_STYLE, animation: "pulseRise .3s ease both" }}>
         {renderStep()}
         <ErrorMsg>{error}</ErrorMsg>
-        <NavRow canBack={step > 0} onBack={() => { setStep(Math.max(0, step - 1)); setError(null); }}
+        <NavRow canBack={step > 0} onBack={() => { setStep(Math.max(0, step - 1)); setError(null); window.scrollTo({ top: 0, behavior: "smooth" }); }}
           onNext={handleNext}
           nextLabel={submitting ? "Submitting…" : step === total - 1 ? "Submit feedback" : "Continue"} />
       </div>
@@ -778,18 +512,6 @@ function ScoreCard({ label, value, sub }: { label: string; value: string; sub: s
   );
 }
 
-const ghostBtn: React.CSSProperties = {
-  flex: 1, padding: "10px 14px", borderRadius: 10, border: "1px solid var(--line,#e7e4ef)",
-  background: "var(--card)", color: "var(--ink,#15131f)", fontSize: 13, cursor: "pointer",
-};
-
-function downloadJson(s: string) {
-  const blob = new Blob([s], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a"); a.href = url; a.download = "pepper-pulse-response.json"; a.click();
-  URL.revokeObjectURL(url);
-}
-
 function PulseFrame({ children, progress, headerSubtitle }: { children: React.ReactNode; progress: number; headerSubtitle?: string }) {
   const [isDark, setIsDark] = useState(false);
   useEffect(() => {
@@ -802,67 +524,33 @@ function PulseFrame({ children, progress, headerSubtitle }: { children: React.Re
   }, []);
   const vars: Record<string, string> = isDark
     ? {
-        "--ink": "#f1eef9",
-        "--muted": "#a09cb3",
-        "--line": "#2c2740",
-        "--bg": "#15131f",
-        "--card": "#1c1930",
-        "--field": "#171426",
-        "--brand": "#8b6cff",
-        "--brand-2": "#a78bff",
-        "--brand-soft": "#2a2247",
-        "--placeholder": "#77718e",
-        "--shadow-pulse": "none",
-        "--good": "#34c98a",
-        "--warn": "#f0a755",
-        "--bad": "#ef5a55",
+        "--ink": "#f1eef9", "--muted": "#a09cb3", "--line": "#2c2740",
+        "--bg": "#15131f", "--card": "#1c1930", "--field": "#171426",
+        "--brand": "#8b6cff", "--brand-2": "#a78bff", "--brand-soft": "#2a2247",
+        "--placeholder": "#77718e", "--shadow-pulse": "none",
+        "--good": "#34c98a", "--warn": "#f0a755", "--bad": "#ef5a55",
       }
     : {
-        "--ink": "#15131f",
-        "--muted": "#6b6878",
-        "--line": "#e7e4ef",
-        "--bg": "#faf9fc",
-        "--card": "#fff",
-        "--field": "#fff",
-        "--brand": "#5b3df5",
-        "--brand-2": "#8b6cff",
-        "--brand-soft": "#efeaff",
-        "--placeholder": "#a19caf",
-        "--shadow-pulse": "0 10px 40px rgba(38,28,80,.10)",
-        "--good": "#1d9d6c",
-        "--warn": "#e0922f",
-        "--bad": "#d8413c",
+        "--ink": "#15131f", "--muted": "#6b6878", "--line": "#e7e4ef",
+        "--bg": "#faf9fc", "--card": "#fff", "--field": "#fff",
+        "--brand": "#5b3df5", "--brand-2": "#8b6cff", "--brand-soft": "#efeaff",
+        "--placeholder": "#a19caf", "--shadow-pulse": "0 10px 40px rgba(38,28,80,.10)",
+        "--good": "#1d9d6c", "--warn": "#e0922f", "--bad": "#d8413c",
       };
   return (
     <div style={{
-      ...vars,
-      minHeight: "100vh",
-      background: isDark
-        ? "linear-gradient(180deg,#1a1730 0%,#15131f 280px)"
-        : "linear-gradient(180deg,#f4f1fc 0%,#faf9fc 280px)",
-      color: "var(--ink)",
-      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      ...vars, minHeight: "100vh",
+      background: isDark ? "linear-gradient(180deg,#1a1730 0%,#15131f 280px)" : "linear-gradient(180deg,#f4f1fc 0%,#faf9fc 280px)",
+      color: "var(--ink)", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
       padding: "32px 16px 64px",
     } as React.CSSProperties}>
       <style>{`
         @keyframes pulseRise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-        .pepper-pulse-shell input,
-        .pepper-pulse-shell textarea {
-          background: var(--field) !important;
-          color: var(--ink) !important;
-          border-color: var(--line) !important;
+        .pepper-pulse-shell input, .pepper-pulse-shell textarea {
+          background: var(--field) !important; color: var(--ink) !important; border-color: var(--line) !important;
         }
-        .pepper-pulse-shell input::placeholder,
-        .pepper-pulse-shell textarea::placeholder { color: var(--placeholder); opacity: 1; }
-        .pepper-pulse-shell input:focus,
-        .pepper-pulse-shell textarea:focus { border-color: var(--brand) !important; }
-        .pepper-pulse-shell input:-webkit-autofill,
-        .pepper-pulse-shell input:-webkit-autofill:hover,
-        .pepper-pulse-shell input:-webkit-autofill:focus {
-          -webkit-text-fill-color: var(--ink) !important;
-          box-shadow: 0 0 0 1000px var(--field) inset !important;
-          transition: background-color 9999s ease-in-out 0s;
-        }
+        .pepper-pulse-shell input::placeholder, .pepper-pulse-shell textarea::placeholder { color: var(--placeholder); opacity: 1; }
+        .pepper-pulse-shell input:focus, .pepper-pulse-shell textarea:focus { border-color: var(--brand) !important; }
       `}</style>
       <div className="pepper-pulse-shell" style={{ maxWidth: 680, margin: "0 auto" }}>
         <header style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>

@@ -110,7 +110,7 @@ export default function SurveyFormEditor() {
               config={parsed || defaultConfig}
               preview
               headerSubtitle="Preview · sample data"
-              initial={{ respondent: { role: "" as any, name: "Ananya", email: "ananya@example.com", company: "HDFC Bank", capabilities: [], wants_followup: "" } }}
+              initial={{ respondent: { role: "" as any, name: "Ananya", email: "ananya@example.com", company: "HDFC Bank", capabilities: ["seo", "content"] } }}
               onSubmit={async () => ({ ok: true })}
             />
           </div>

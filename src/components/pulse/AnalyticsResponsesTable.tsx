@@ -19,7 +19,8 @@ type Row = {
   respondent: string;
   nps: number | null;
   csat: number | null;
-  ces: number | null;
+  content_quality: number | null;
+  seo_traffic: number | null;
   mood: string;
   renew: string;
   risk: string;
@@ -86,7 +87,8 @@ export function AnalyticsResponsesTable({
         respondent: r.respondent_name || r.respondent_email || "",
         nps: r.nps ?? null,
         csat: r.csat_avg ?? null,
-        ces: r.ces ?? null,
+        content_quality: r.payload?.capability_deep_dive?.content?.quality ?? null,
+        seo_traffic: r.payload?.capability_deep_dive?.seo?.traffic_growth ?? null,
         mood: r.mood || "",
         renew: r.renew || "",
         risk: r.churn_risk || "",
@@ -132,14 +134,14 @@ export function AnalyticsResponsesTable({
   const exportCsv = () => {
     const headers = [
       "Submitted","Deal ID","Deal name","Account","VSD","S/P BOPM","BOPM",
-      "Total deal value","Respondent","NPS","CSAT","CES","Mood","Renew","Risk",
+      "Total deal value","Respondent","NPS","CSAT","Content quality","SEO traffic","Mood","Renew","Risk",
     ];
     const out = filtered.map((r) => [
       new Date(r.submitted_at).toISOString(),
       r.deal_id, r.deal_name, r.account, r.vsd, r.sp_bopm, r.bopm,
       r.total_value ?? "",
       r.respondent,
-      r.nps ?? "", r.csat ?? "", r.ces ?? "",
+      r.nps ?? "", r.csat ?? "", r.content_quality ?? "", r.seo_traffic ?? "",
       r.mood, r.renew, r.risk,
     ]);
     const csv = [headers, ...out]
@@ -186,7 +188,8 @@ export function AnalyticsResponsesTable({
                 <Th onClick={() => toggleSort("respondent")}>Respondent</Th>
                 <Th onClick={() => toggleSort("nps")} className="text-right">NPS</Th>
                 <Th onClick={() => toggleSort("csat")} className="text-right">CSAT</Th>
-                <Th onClick={() => toggleSort("ces")} className="text-right">CES</Th>
+                <Th onClick={() => toggleSort("content_quality")} className="text-right">Content</Th>
+                <Th onClick={() => toggleSort("seo_traffic")} className="text-right">SEO traffic</Th>
                 <Th onClick={() => toggleSort("mood")}>Mood</Th>
                 <Th onClick={() => toggleSort("renew")}>Renew</Th>
                 <Th onClick={() => toggleSort("risk")}>Risk</Th>
@@ -212,7 +215,8 @@ export function AnalyticsResponsesTable({
                   <td className="px-3 py-2 max-w-[180px] truncate" title={r.respondent}>{r.respondent || "—"}</td>
                   <td className="px-3 py-2 text-right">{r.nps ?? "—"}</td>
                   <td className="px-3 py-2 text-right">{r.csat ?? "—"}</td>
-                  <td className="px-3 py-2 text-right">{r.ces ?? "—"}</td>
+                  <td className="px-3 py-2 text-right">{r.content_quality ?? "—"}</td>
+                  <td className="px-3 py-2 text-right">{r.seo_traffic ?? "—"}</td>
                   <td className="px-3 py-2">{r.mood || "—"}</td>
                   <td className="px-3 py-2">{r.renew || "—"}</td>
                   <td className="px-3 py-2">
@@ -231,7 +235,7 @@ export function AnalyticsResponsesTable({
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={15} className="px-3 py-8 text-center text-muted-foreground">No responses for current filters.</td></tr>
+                <tr><td colSpan={16} className="px-3 py-8 text-center text-muted-foreground">No responses for current filters.</td></tr>
               )}
             </tbody>
           </table>

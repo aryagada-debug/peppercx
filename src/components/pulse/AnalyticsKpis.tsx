@@ -19,8 +19,6 @@ export function AnalyticsKpis({ invites, responses }: { invites: InviteRow[]; re
   const respRate = sent > 0 ? Math.round((completed / sent) * 100) : 0;
   const nps = computeNps(responses.map(r => r.nps).filter((n): n is number => typeof n === "number"));
   const csat = avg(responses.map(r => r.csat_avg ?? null));
-  const ces = avg(responses.map(r => r.ces ?? null));
-
   const renewMix = mix(responses.map(r => r.renew));
   const churnMix = mix(responses.map(r => r.churn_risk));
 
@@ -32,7 +30,6 @@ export function AnalyticsKpis({ invites, responses }: { invites: InviteRow[]; re
       <Kpi label="Response %" value={`${respRate}%`} />
       <Kpi label="NPS" value={nps == null ? "—" : nps} tone={nps == null ? "neutral" : nps >= 30 ? "good" : nps >= 0 ? "warn" : "bad"} />
       <Kpi label="Avg CSAT" value={csat == null ? "—" : csat.toFixed(2)} />
-      <Kpi label="Avg CES" value={ces == null ? "—" : ces.toFixed(2)} />
       <Kpi label="Renewal" value={renewMix} small />
       <Kpi label="Churn risk" value={churnMix} small />
     </div>
