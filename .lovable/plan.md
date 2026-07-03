@@ -1,22 +1,30 @@
-# Auto-suggest designations in Staffing when no handover suggestions exist
+## VSD Leaderboard — MBR Marked vs Not Marked
 
-For deal 11111 (and any deal not created via the "Send all to Staffing" handover step), the `SuggestedStaffingPanel` reads `staffing_suggestions` and finds none, so nothing renders. The suggestion logic currently only runs inside the Handover wizard.
+Add a new leaderboard section at the top of the **Insights** tab in `src/pages/MBRTracker.tsx`, ranking VSDs by MBR completion for the currently scoped month/deals.
 
-Move the "compute suggestions from comparable deals" logic into the Staffing panel itself so every deal gets designation suggestions automatically, using its own `business_unit`, `capability_line`, `vsd`, `deal_type`, and `mrr`.
+### Layout
+A single card titled **"VSD Leaderboard — MBRs Marked vs Not Marked"**, shown only when `activeVsd === "All"` (otherwise a single VSD is already selected, so a leaderboard is moot).
 
-## Changes
+Columns:
+| Rank | VSD | Total Deals | Marked | Not Marked | Marked % |
 
-**1. `src/components/staffing/SuggestedStaffingPanel.tsx`**
-- Add a second query `computed-staffing-suggestions` keyed by deal id + its attributes. Port the scoring/aggregation from `SuggestedStaffingCard.tsx`:
-  - Fetch up to 800 `staffing_deals`, score by capability(+3) / BU(+2) / VSD(+2) / deal_type(+1) / MRR within ±30%(+1), take top 5.
-  - Fetch their `staffing_assignments` and group by normalized `role_key`, computing `frequency` and `medianPct`.
-  - Ensure a `vsd` row exists if the deal has a VSD.
-- Merge: if there are pending rows in `staffing_suggestions`, show those (existing behaviour). Otherwise, render the computed rows as ephemeral suggestions with the same UI. Ephemeral rows have no db id; "Assign person" opens `AddStaffingMemberDialog` with role/pct prefilled and, on add, we just call `onAddAssignment` (no `updateStatus`). "Dismiss" hides the row locally via component state (Set of dismissed role keys).
-- Skip roles already staffed on this deal (based on `assignments` prop) so we don't suggest duplicates.
-- Empty state: only truly hide the panel if both persisted and computed lists are empty.
+- **Marked** = deals where the active-month entry has `status === "Done"` OR `status === "Not Done"` (i.e., any explicit MBR status recorded). Bar/number in positive color.
+- **Not Marked** = `total - marked` (pending / no entry). Number in warning color.
+- **Marked %** = progress bar + percentage, colored ≥80% green, ≥50% amber, else red — matching the existing Scheduling table style.
+- Rows sorted by Marked % descending, ties broken by higher Total Deals. Rank 1/2/3 get a subtle medal badge (🥇🥈🥉) prefix.
+- Numeric cells are clickable and open the existing `DrillDialog` (reuse `setDrill` with new metric values `marked` / `notMarked`), so users can see the underlying deals.
 
-**2. No changes** to the handover card, DB schema, or edge functions.
+### Data
+Reuse the existing `vsdInsights` memo — it already aggregates `done`, `notDone`, `pending`, and `total` per VSD from `filteredDeals` + `activeEntryMap`. Derive:
+- `marked = done + notDone`
+- `notMarked = total - marked`
 
-## Out of scope
-- Persisting the computed suggestions to `staffing_suggestions` (kept ephemeral so we don't pollute the table for every deal view).
-- Changing scoring weights or adding new role taxonomy.
+No new queries. No schema changes.
+
+### Drill-down
+Extend the `DrillMetric` union with `"marked"` and `"notMarked"`, and in the drill dialog's deal-filter switch add cases that include entries where status is Done/NotDone (marked) or missing/pending (notMarked). This keeps click-through parity with the existing tables.
+
+### Files to change
+- `src/pages/MBRTracker.tsx` — add leaderboard block above the Scheduling table inside the Insights `TabsContent`; extend drill-down metric handling.
+
+No backend, hooks, or shared components need to change.
