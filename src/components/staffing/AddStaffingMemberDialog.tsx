@@ -43,12 +43,15 @@ interface AddStaffingMemberDialogProps {
   editingAssignmentId?: string;
   initialAllocationPct?: number;
   initialRoleKey?: string;
+  /** If provided, jump to Step 2 with this Role Type pre-selected so the
+   *  person list is already filtered to that role. */
+  initialRoleTypeId?: string;
   onUpdate?: (assignmentId: string, patch: Partial<StaffingAssignment>) => void;
 }
 
 export function AddStaffingMemberDialog({
   open, onOpenChange, people, assignments, deals, dealId, onAdd, initialCategory, initialPersonName,
-  editingAssignmentId, initialAllocationPct, initialRoleKey, onUpdate,
+  editingAssignmentId, initialAllocationPct, initialRoleKey, initialRoleTypeId, onUpdate,
 }: AddStaffingMemberDialogProps) {
   const { canEditAll } = useUserRole();
   const requiresApproval = !canEditAll;
@@ -57,14 +60,21 @@ export function AddStaffingMemberDialog({
   // Steps: 1=Department, 2=Role Type, 3=Person + Allocation
   const getInitialStep = (): 1 | 2 | 3 => {
     if (initialPersonName) return 3;
-    if (initialCategory) return 2;
+    if (initialRoleTypeId || initialCategory) return 2;
     return 1;
   };
 
   const [step, setStep] = useState<1 | 2 | 3>(getInitialStep());
-  const [selectedCategory, setSelectedCategory] = useState<RoleCategory | null>(initialCategory || null);
+  const [selectedCategory, setSelectedCategory] = useState<RoleCategory | null>(() => {
+    if (initialCategory) return initialCategory;
+    if (initialRoleTypeId) {
+      const slot = ROLE_SLOTS.find(s => s.roleKey === initialRoleTypeId);
+      if (slot) return slot.category;
+    }
+    return null;
+  });
   const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null);
-  const [selectedRoleTypeId, setSelectedRoleTypeId] = useState<string | null>(null);
+  const [selectedRoleTypeId, setSelectedRoleTypeId] = useState<string | null>(initialRoleTypeId || null);
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(() => {
     if (initialPersonName) return people.find(p => p.name === initialPersonName) || null;
     return null;
@@ -235,6 +245,13 @@ export function AddStaffingMemberDialog({
           return;
         }
       }
+      if (initialRoleTypeId) {
+        const slot = ROLE_SLOTS.find(s => s.roleKey === initialRoleTypeId);
+        setSelectedRoleTypeId(initialRoleTypeId);
+        setSelectedCategory((slot?.category as RoleCategory) || initialCategory || null);
+        setStep(2);
+        return;
+      }
       if (initialCategory) {
         setSelectedCategory(initialCategory);
         setStep(2);
@@ -242,7 +259,7 @@ export function AddStaffingMemberDialog({
         setStep(1);
       }
     }
-  }, [open, initialCategory, initialPersonName, people, editingAssignmentId, assignments, initialRoleKey, initialAllocationPct, dealForDates?.startDate, dealForDates?.endDate]);
+  }, [open, initialCategory, initialPersonName, people, editingAssignmentId, assignments, initialRoleKey, initialRoleTypeId, initialAllocationPct, dealForDates?.startDate, dealForDates?.endDate]);
 
   const handleConfirm = () => {
     if (!selectedPerson) return;

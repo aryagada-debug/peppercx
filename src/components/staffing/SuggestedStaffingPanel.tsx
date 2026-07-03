@@ -69,6 +69,28 @@ const ROLE_TO_CATEGORY: Record<string, RoleCategory> = (() => {
   m["seo_analyst"] = "SEO";
   return m;
 })();
+
+// Reverse map: normalized role_key → canonical ROLE_SLOTS.roleKey ("rt_*").
+const ROLE_TO_RT: Record<string, string> = (() => {
+  const m: Record<string, string> = {};
+  for (const s of ROLE_SLOTS) m[normRoleKey(s.roleKey)] = s.roleKey;
+  // Legacy aliases from handover / older suggestion rows.
+  m["principal_bopm"] = "rt_group_bopm";
+  m["senior_bopm"] = "rt_senior_bopm";
+  m["bopm"] = "rt_bopm";
+  m["vsd"] = "rt_vsd";
+  m["managing_editor"] = "rt_content_capability_leader";
+  m["senior_editor"] = "rt_content_editor";
+  m["seo_leader"] = "rt_seo_capability_leader";
+  m["seo_group_head"] = "rt_seo_growth_lead";
+  m["sr_seo_manager"] = "rt_seo_growth_lead";
+  m["seo_manager"] = "rt_seo_growth_lead";
+  m["sr_seo_analyst"] = "rt_seo_operations";
+  m["seo_analyst"] = "rt_seo_operations";
+  return m;
+})();
+const roleToRoleTypeId = (role: string): string | undefined =>
+  ROLE_TO_RT[normRoleKey(role)];
 const OTHER_CATEGORY = "Other" as unknown as RoleCategory;
 const roleToCategory = (role: string): RoleCategory | undefined =>
   ROLE_TO_CATEGORY[normRoleKey(role)];
@@ -335,6 +357,7 @@ export function SuggestedStaffingPanel({
           initialPersonName={undefined}
           initialAllocationPct={applying.allocation_pct || 10}
           initialRoleKey={applying.role_key}
+          initialRoleTypeId={roleToRoleTypeId(applying.role_key)}
           onAdd={(a) => {
             onAddAssignment(a);
             if (applying.ephemeral) {
