@@ -132,10 +132,6 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
       toast({ title: "Transcript required", description: "Paste the MBR call transcript.", variant: "destructive" });
       return;
     }
-    if (!aiSummary.trim()) {
-      toast({ title: "AI Summary required", description: "Generate or enter an AI summary.", variant: "destructive" });
-      return;
-    }
     if (!scheduledDate) {
       toast({ title: "Next MBR date required", description: "Please set the next MBR date.", variant: "destructive" });
       return;
