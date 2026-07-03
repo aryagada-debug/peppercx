@@ -16,8 +16,8 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
     const supa = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!);
-    const { data: claims, error: claimErr } = await supa.auth.getClaims(authHeader.replace("Bearer ", ""));
-    if (claimErr || !claims?.claims?.sub) {
+    const { data: userRes, error: userErr } = await supa.auth.getUser(authHeader.replace("Bearer ", ""));
+    if (userErr || !userRes?.user?.id) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
