@@ -860,7 +860,12 @@ export default function MBRTracker() {
                           {rows.map((r, i) => {
                             const isOpen = expandedVsd === r.vsd;
                             const dealsForVsd = filteredDeals
-                              .filter(d => ((vsdForDeal(d as any) || "Unassigned") === r.vsd))
+                              .filter(d => {
+                                if ((vsdForDeal(d as any) || "Unassigned") !== r.vsd) return false;
+                                if (!isRetainerDeal(d)) return false;
+                                const meta = dealMeta.get(d.id);
+                                return meta ? ACTIVE_STATUSES.has(meta.dealStatus) : false;
+                              })
                               .map(d => {
                                 const e = activeEntryMap.get(d.id);
                                 const logged = e?.status === "Done" || e?.status === "Not Done";
