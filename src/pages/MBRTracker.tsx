@@ -857,28 +857,99 @@ export default function MBRTracker() {
                           </tr>
                         </thead>
                         <tbody>
-                          {rows.map((r, i) => (
-                            <tr key={`lb-${r.vsd}`} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
-                              <td className="py-2.5 px-3 font-mono tabular-nums text-xs text-muted-foreground">
-                                <span className="mr-1">{medal(i)}</span>{i + 1}
-                              </td>
-                              <td className="py-2.5 px-3 font-semibold text-foreground text-xs">{r.vsd}</td>
-                              <td className="py-2.5 px-3"><NumBtn value={r.total} metric="total" rowLabel={r.vsd} className="text-foreground" /></td>
-                              <td className="py-2.5 px-3"><NumBtn value={r.marked} metric="marked" rowLabel={r.vsd} className="text-positive font-semibold" /></td>
-                              <td className="py-2.5 px-3"><NumBtn value={r.notMarked} metric="notMarked" rowLabel={r.vsd} className="text-warning font-semibold" /></td>
-                              <td className="py-2.5 px-3">
-                                <div className="flex items-center gap-2">
-                                  <span className={cn(
-                                    "font-mono tabular-nums text-xs font-semibold",
-                                    r.pct >= 80 ? "text-positive" : r.pct >= 50 ? "text-warning" : "text-destructive"
-                                  )}>{r.pct}%</span>
-                                  <div className="flex-1 h-1.5 max-w-[120px] bg-secondary rounded-full overflow-hidden">
-                                    <div className={cn("h-full rounded-full", r.pct >= 80 ? "bg-positive" : r.pct >= 50 ? "bg-warning" : "bg-destructive")} style={{ width: `${r.pct}%` }} />
-                                  </div>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
+                          {rows.map((r, i) => {
+                            const isOpen = expandedVsd === r.vsd;
+                            const dealsForVsd = filteredDeals
+                              .filter(d => ((vsdForDeal(d as any) || "Unassigned") === r.vsd))
+                              .map(d => {
+                                const e = activeEntryMap.get(d.id);
+                                const logged = e?.status === "Done" || e?.status === "Not Done";
+                                return { d, logged };
+                              })
+                              .sort((a, b) => {
+                                if (a.logged !== b.logged) return a.logged ? 1 : -1;
+                                return (a.d.account || "").localeCompare(b.d.account || "");
+                              });
+                            return (
+                              <React.Fragment key={`lb-${r.vsd}`}>
+                                <tr className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
+                                  <td className="py-2.5 px-3 font-mono tabular-nums text-xs text-muted-foreground">
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => setExpandedVsd(isOpen ? null : r.vsd)}
+                                        className="p-0.5 rounded hover:bg-secondary/60 text-muted-foreground"
+                                        aria-label={isOpen ? "Collapse" : "Expand"}
+                                      >
+                                        {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                                      </button>
+                                      <span className="mr-1">{medal(i)}</span>{i + 1}
+                                    </div>
+                                  </td>
+                                  <td className="py-2.5 px-3 font-semibold text-foreground text-xs">{r.vsd}</td>
+                                  <td className="py-2.5 px-3"><NumBtn value={r.total} metric="total" rowLabel={r.vsd} className="text-foreground" /></td>
+                                  <td className="py-2.5 px-3"><NumBtn value={r.marked} metric="marked" rowLabel={r.vsd} className="text-positive font-semibold" /></td>
+                                  <td className="py-2.5 px-3"><NumBtn value={r.notMarked} metric="notMarked" rowLabel={r.vsd} className="text-warning font-semibold" /></td>
+                                  <td className="py-2.5 px-3">
+                                    <div className="flex items-center gap-2">
+                                      <span className={cn(
+                                        "font-mono tabular-nums text-xs font-semibold",
+                                        r.pct >= 80 ? "text-positive" : r.pct >= 50 ? "text-warning" : "text-destructive"
+                                      )}>{r.pct}%</span>
+                                      <div className="flex-1 h-1.5 max-w-[120px] bg-secondary rounded-full overflow-hidden">
+                                        <div className={cn("h-full rounded-full", r.pct >= 80 ? "bg-positive" : r.pct >= 50 ? "bg-warning" : "bg-destructive")} style={{ width: `${r.pct}%` }} />
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                                {isOpen && (
+                                  <tr className="bg-secondary/20 border-b border-border/50">
+                                    <td colSpan={6} className="p-0">
+                                      <div className="px-3 py-2">
+                                        <table className="w-full text-xs">
+                                          <thead>
+                                            <tr className="border-b border-border/50">
+                                              {["Client", "Deal Name", "Deal ID", "P / Sr BOPM", "MBR Logged"].map(h => (
+                                                <th key={h} className="text-left py-1.5 px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{h}</th>
+                                              ))}
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            {dealsForVsd.map(({ d, logged }) => {
+                                              const p = (d.principalBopm || "").trim();
+                                              const s = (d.seniorBopm || "").trim();
+                                              const bopm = [p, s && s !== p ? s : null].filter(Boolean).join(" / ") || "—";
+                                              return (
+                                                <tr key={`lb-d-${d.id}`} className="border-b border-border/30 hover:bg-secondary/40">
+                                                  <td className="py-1.5 px-2 text-foreground">{d.account || "—"}</td>
+                                                  <td className="py-1.5 px-2">
+                                                    <Link to={`/deals/${d.id}`} className="text-primary hover:underline">
+                                                      {d.dealName || "—"}
+                                                    </Link>
+                                                  </td>
+                                                  <td className="py-1.5 px-2 font-mono tabular-nums text-muted-foreground">{d.dealId || "—"}</td>
+                                                  <td className="py-1.5 px-2 text-muted-foreground">{bopm}</td>
+                                                  <td className="py-1.5 px-2">
+                                                    <span className={cn(
+                                                      "font-semibold",
+                                                      logged ? "text-positive" : "text-warning"
+                                                    )}>{logged ? "Yes" : "No"}</span>
+                                                  </td>
+                                                </tr>
+                                              );
+                                            })}
+                                            {dealsForVsd.length === 0 && (
+                                              <tr><td colSpan={5} className="text-center py-3 text-muted-foreground">No deals.</td></tr>
+                                            )}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
+                            );
+                          })}
                           {rows.length === 0 && <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">No data</td></tr>}
                         </tbody>
                       </table>
