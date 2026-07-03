@@ -1,23 +1,22 @@
-# Suggest designations only, no people
+# Auto-suggest designations in Staffing when no handover suggestions exist
 
-Right now the Deal Handover "Suggested staffing" card computes a "Common people" column from historical assignments and, on "Send all to Staffing", writes one suggestion row per suggested person. The Staffing "Suggested from handover" panel then shows those names and pre-fills the Add Staffing Member dialog with the person.
+For deal 11111 (and any deal not created via the "Send all to Staffing" handover step), the `SuggestedStaffingPanel` reads `staffing_suggestions` and finds none, so nothing renders. The suggestion logic currently only runs inside the Handover wizard.
 
-Change: suggestions become role-only. The admin picks the actual person in Staffing.
+Move the "compute suggestions from comparable deals" logic into the Staffing panel itself so every deal gets designation suggestions automatically, using its own `business_unit`, `capability_line`, `vsd`, `deal_type`, and `mrr`.
 
 ## Changes
 
-**1. `src/components/handover/SuggestedStaffingCard.tsx`**
-- Remove the "Common people" column from the table (keep Role, Typical %, Frequency, action).
-- Stop computing `common` people; also drop the VSD-subtree/BOPM person filtering and the `nameById`/person fetch — no longer needed.
-- Keep the "VSD locked to X" helper text (informational only).
-- In `sendAllToStaffing`, write exactly one row per suggested role with `person_name: ""` (no fan-out per person). Upsert conflict key stays `staffing_deal_id,role_key,person_name`.
-- Keep the auto-inserted VSD row as a role entry with no person.
+**1. `src/components/staffing/SuggestedStaffingPanel.tsx`**
+- Add a second query `computed-staffing-suggestions` keyed by deal id + its attributes. Port the scoring/aggregation from `SuggestedStaffingCard.tsx`:
+  - Fetch up to 800 `staffing_deals`, score by capability(+3) / BU(+2) / VSD(+2) / deal_type(+1) / MRR within ±30%(+1), take top 5.
+  - Fetch their `staffing_assignments` and group by normalized `role_key`, computing `frequency` and `medianPct`.
+  - Ensure a `vsd` row exists if the deal has a VSD.
+- Merge: if there are pending rows in `staffing_suggestions`, show those (existing behaviour). Otherwise, render the computed rows as ephemeral suggestions with the same UI. Ephemeral rows have no db id; "Assign person" opens `AddStaffingMemberDialog` with role/pct prefilled and, on add, we just call `onAddAssignment` (no `updateStatus`). "Dismiss" hides the row locally via component state (Set of dismissed role keys).
+- Skip roles already staffed on this deal (based on `assignments` prop) so we don't suggest duplicates.
+- Empty state: only truly hide the panel if both persisted and computed lists are empty.
 
-**2. `src/components/staffing/SuggestedStaffingPanel.tsx`**
-- Render suggestions as role-only rows: primary line shows the humanized role; secondary line shows "Suggested {pct}% · pick a person".
-- Remove the "— {person_name}" suffix and the `initialPerson` prefill passed to `AddStaffingMemberDialog` (leave `initialPersonName` undefined so the admin selects).
-- Keep Confirm/Edit and Dismiss actions and the applied/dismissed status updates unchanged.
+**2. No changes** to the handover card, DB schema, or edge functions.
 
 ## Out of scope
-- No DB schema changes. Existing `staffing_suggestions` rows with `person_name` continue to render (the person suffix is simply hidden going forward).
-- No changes to the notification email or handover form fields.
+- Persisting the computed suggestions to `staffing_suggestions` (kept ephemeral so we don't pollute the table for every deal view).
+- Changing scoring weights or adding new role taxonomy.
