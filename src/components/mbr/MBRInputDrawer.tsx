@@ -295,7 +295,7 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
 
           {/* AI Summary */}
           <div>
-            <Label className="text-sm font-medium mb-1.5 block">AI Summary <span className="text-destructive">*</span></Label>
+            <Label className="text-sm font-medium mb-1.5 block">AI Summary <span className="text-xs text-muted-foreground font-normal">(optional)</span></Label>
               <Textarea
                 value={aiSummary}
                 onChange={(e) => setAiSummary(e.target.value)}
