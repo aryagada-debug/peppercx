@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { AddStaffingMemberDialog } from "./AddStaffingMemberDialog";
-import type { Deal, Person, StaffingAssignment, RoleCategory } from "@/data/staffingData";
+import { ROLE_SLOTS, type Deal, type Person, type StaffingAssignment, type RoleCategory } from "@/data/staffingData";
 
 type Suggestion = {
   id: string; // "computed:<role>" when ephemeral
@@ -43,18 +43,46 @@ const ROLE_LABELS: Record<string, string> = {
 const humanRole = (k: string) =>
   ROLE_LABELS[k] || k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
-const roleToCategory = (role: string): RoleCategory | undefined => {
-  if (["vsd", "principal_bopm", "senior_bopm", "bopm"].includes(role)) return "Operations";
-  if (["managing_editor", "content_lead", "senior_editor"].includes(role)) return "Content";
-  if (["seo_leader", "seo_group_head", "sr_seo_manager", "seo_manager", "sr_seo_analyst", "seo_analyst"].includes(role)) return "SEO";
-  return undefined;
-};
-
 const normRoleKey = (k: string) =>
   (k || "").toLowerCase().trim()
     .replace(/^rt_/, "")
     .replace(/\s+/g, "_")
     .replace("group_bopm", "principal_bopm");
+
+// Build role_key (normalized) → category from the canonical ROLE_SLOTS, plus
+// legacy aliases still emitted by ROLE_LABELS above.
+const ROLE_TO_CATEGORY: Record<string, RoleCategory> = (() => {
+  const m: Record<string, RoleCategory> = {};
+  for (const s of ROLE_SLOTS) m[normRoleKey(s.roleKey)] = s.category;
+  // Legacy aliases used by older suggestion rows / handover.
+  m["principal_bopm"] = "Delivery Ops";
+  m["senior_bopm"] = "Delivery Ops";
+  m["bopm"] = "Delivery Ops";
+  m["vsd"] = "Delivery Ops";
+  m["managing_editor"] = "Content";
+  m["senior_editor"] = "Content";
+  m["seo_leader"] = "SEO";
+  m["seo_group_head"] = "SEO";
+  m["sr_seo_manager"] = "SEO";
+  m["seo_manager"] = "SEO";
+  m["sr_seo_analyst"] = "SEO";
+  m["seo_analyst"] = "SEO";
+  return m;
+})();
+const OTHER_CATEGORY = "Other" as unknown as RoleCategory;
+const roleToCategory = (role: string): RoleCategory | undefined =>
+  ROLE_TO_CATEGORY[normRoleKey(role)];
+
+const CATEGORY_ORDER: string[] = [
+  "Delivery Ops",
+  "Content",
+  "SEO",
+  "Creative Strategy",
+  "Creative Copy",
+  "Creative Video",
+  "Creative Design",
+  "Other",
+];
 
 const median = (xs: number[]) => {
   if (!xs.length) return 0;
@@ -223,6 +251,20 @@ export function SuggestedStaffingPanel({
 
   const usingComputed = suggestions.length === 0;
 
+  // Group visible suggestions by team/category, matching the normal
+  // Staffing view layout.
+  const grouped = new Map<string, Suggestion[]>();
+  for (const s of visible) {
+    const cat = (roleToCategory(s.role_key) as string) || "Other";
+    if (!grouped.has(cat)) grouped.set(cat, []);
+    grouped.get(cat)!.push(s);
+  }
+  const groupedEntries = Array.from(grouped.entries()).sort((a, b) => {
+    const ai = CATEGORY_ORDER.indexOf(a[0]);
+    const bi = CATEGORY_ORDER.indexOf(b[0]);
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+  });
+
   return (
     <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
       <div className="flex items-center justify-between">
@@ -236,34 +278,46 @@ export function SuggestedStaffingPanel({
           ? "Based on comparable deals (BU, capability, VSD, deal type, MRR). Assign a person to add as a real staffing row, or dismiss."
           : "Roles proposed during the Deal Handover. Assign a person and confirm to add as a real staffing row, or dismiss."}
       </p>
-      <div className="divide-y divide-border/60 rounded-md bg-card">
-        {visible.map(s => (
-          <div key={s.id} className="flex items-center justify-between gap-2 px-3 py-2">
-            <div className="min-w-0 flex-1">
-              <div className="text-sm font-medium text-foreground truncate">
-                {humanRole(s.role_key)}
-              </div>
-              <div className="text-[11px] text-muted-foreground">
-                Suggested {s.allocation_pct || 0}%
-                {s.ephemeral && typeof s.totalCompared === "number" && s.totalCompared > 0
-                  ? ` · seen in ${s.frequency || 0}/${s.totalCompared} similar deals`
-                  : ""}
-                {" · pick a person"}
-              </div>
+      <div className="space-y-3">
+        {groupedEntries.map(([cat, rows]) => (
+          <div key={cat} className="rounded-md bg-card">
+            <div className="flex items-center justify-between px-3 py-1.5 border-b border-border/60">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                {cat}
+              </span>
+              <Badge variant="outline" className="text-[10px]">{rows.length}</Badge>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <Button size="sm" variant="outline" onClick={() => setApplying(s)}>
-                <Check className="h-3.5 w-3.5 mr-1" /> Assign person
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => {
-                if (s.ephemeral) {
-                  setDismissedComputed(prev => new Set(prev).add(s.role_key));
-                } else {
-                  updateStatus(s.id, "dismissed");
-                }
-              }}>
-                <X className="h-3.5 w-3.5" />
-              </Button>
+            <div className="divide-y divide-border/60">
+              {rows.map(s => (
+                <div key={s.id} className="flex items-center justify-between gap-2 px-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium text-foreground truncate">
+                      {humanRole(s.role_key)}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      Suggested {s.allocation_pct || 0}%
+                      {s.ephemeral && typeof s.totalCompared === "number" && s.totalCompared > 0
+                        ? ` · seen in ${s.frequency || 0}/${s.totalCompared} similar deals`
+                        : ""}
+                      {" · pick a person"}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Button size="sm" variant="outline" onClick={() => setApplying(s)}>
+                      <Check className="h-3.5 w-3.5 mr-1" /> Assign person
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => {
+                      if (s.ephemeral) {
+                        setDismissedComputed(prev => new Set(prev).add(s.role_key));
+                      } else {
+                        updateStatus(s.id, "dismissed");
+                      }
+                    }}>
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         ))}
