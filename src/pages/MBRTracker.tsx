@@ -148,7 +148,7 @@ export default function MBRTracker() {
   const [viewMode, setViewMode] = useState<"current" | "mom" | "trend">("current");
   const [selectedMonth, setSelectedMonth] = useState<string>("");
   // Drill-down for VSD/BOPM Insights numeric cells
-  type DrillMetric = "total" | "done" | "notDone" | "pending" | "green" | "yellow" | "red" | "scheduled";
+  type DrillMetric = "total" | "done" | "notDone" | "pending" | "green" | "yellow" | "red" | "scheduled" | "marked" | "notMarked";
   const [drill, setDrill] = useState<{ rowKey: string; rowLabel: string; metric: DrillMetric } | null>(null);
   // Column filter/sort state
   const [colFilters, setColFilters] = useState<Record<string, string>>({});
@@ -829,6 +829,63 @@ export default function MBRTracker() {
 
           return (
             <>
+              {/* VSD Leaderboard — MBRs Marked vs Not Marked (only when All VSDs) */}
+              {activeVsd === "All" && (() => {
+                const rows = vsdInsights
+                  .map(v => {
+                    const marked = v.done + v.notDone;
+                    const notMarked = Math.max(0, v.total - marked);
+                    const pct = v.total > 0 ? Math.round((marked / v.total) * 100) : 0;
+                    return { vsd: v.vsd, total: v.total, marked, notMarked, pct };
+                  })
+                  .sort((a, b) => (b.pct - a.pct) || (b.total - a.total));
+                const medal = (i: number) => i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "";
+                return (
+                  <div className="mb-4">
+                    <h2 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-primary" />
+                      VSD Leaderboard — MBRs Marked vs Not Marked
+                    </h2>
+                    <div className="bg-card border border-border rounded-xl overflow-hidden">
+                      <table className="w-full text-ui">
+                        <thead>
+                          <tr className="bg-secondary/40 border-b border-border">
+                            {["Rank", "VSD", "Total Deals", "Marked", "Not Marked", "Marked %"].map(h => (
+                              <th key={h} className="text-left py-2.5 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map((r, i) => (
+                            <tr key={`lb-${r.vsd}`} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
+                              <td className="py-2.5 px-3 font-mono tabular-nums text-xs text-muted-foreground">
+                                <span className="mr-1">{medal(i)}</span>{i + 1}
+                              </td>
+                              <td className="py-2.5 px-3 font-semibold text-foreground text-xs">{r.vsd}</td>
+                              <td className="py-2.5 px-3"><NumBtn value={r.total} metric="total" rowLabel={r.vsd} className="text-foreground" /></td>
+                              <td className="py-2.5 px-3"><NumBtn value={r.marked} metric="marked" rowLabel={r.vsd} className="text-positive font-semibold" /></td>
+                              <td className="py-2.5 px-3"><NumBtn value={r.notMarked} metric="notMarked" rowLabel={r.vsd} className="text-warning font-semibold" /></td>
+                              <td className="py-2.5 px-3">
+                                <div className="flex items-center gap-2">
+                                  <span className={cn(
+                                    "font-mono tabular-nums text-xs font-semibold",
+                                    r.pct >= 80 ? "text-positive" : r.pct >= 50 ? "text-warning" : "text-destructive"
+                                  )}>{r.pct}%</span>
+                                  <div className="flex-1 h-1.5 max-w-[120px] bg-secondary rounded-full overflow-hidden">
+                                    <div className={cn("h-full rounded-full", r.pct >= 80 ? "bg-positive" : r.pct >= 50 ? "bg-warning" : "bg-destructive")} style={{ width: `${r.pct}%` }} />
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                          {rows.length === 0 && <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">No data</td></tr>}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Part 1: Scheduling */}
               <div className="mb-4">
                 <h2 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
@@ -1489,7 +1546,14 @@ export default function MBRTracker() {
       {drill && (() => {
         // Build the candidate deal set for this row
         let scoped = filteredDeals;
-        if (showBopmInsights) {
+        const isVsdLeaderboardRow = !showBopmInsights && (drill.metric === "marked" || drill.metric === "notMarked");
+        if (isVsdLeaderboardRow) {
+          const bucket = drill.rowLabel;
+          scoped = filteredDeals.filter(d => {
+            const v = vsdForDeal(d as any);
+            return (v || "Unassigned") === bucket;
+          });
+        } else if (showBopmInsights) {
           if (drill.rowLabel !== "Pod Overall") {
             scoped = filteredDeals.filter(d => ((d.principalBopm || d.seniorBopm || "").trim()) === drill.rowLabel);
           } else {
@@ -1509,12 +1573,15 @@ export default function MBRTracker() {
             case "yellow": return e?.sentiment === "Yellow";
             case "red": return e?.sentiment === "Red";
             case "scheduled": return !!e?.scheduledDate;
+            case "marked": return e?.status === "Done" || e?.status === "Not Done";
+            case "notMarked": return !e || (e.status !== "Done" && e.status !== "Not Done");
           }
         };
         const rows = scoped.filter(matchMetric);
         const metricLabel: Record<DrillMetric, string> = {
           total: "Accounts", done: "Done", notDone: "Not Done", pending: "Pending",
           green: "Green sentiment", yellow: "Yellow sentiment", red: "Red sentiment", scheduled: "Scheduled",
+          marked: "MBR Marked", notMarked: "MBR Not Marked",
         };
         return (
           <Dialog open={!!drill} onOpenChange={(o) => !o && setDrill(null)}>
