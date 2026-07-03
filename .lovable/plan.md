@@ -1,30 +1,24 @@
-## VSD Leaderboard — MBR Marked vs Not Marked
+## MBR Tracker Insights — Two Changes
 
-Add a new leaderboard section at the top of the **Insights** tab in `src/pages/MBRTracker.tsx`, ranking VSDs by MBR completion for the currently scoped month/deals.
+### 1. Remove "Scheduling — BOPM-wise" table
+Delete the entire "Part 1: Scheduling" block in `src/pages/MBRTracker.tsx` (the card with the CalendarDays icon and the Accounts / Scheduled / Not Scheduled / Schedule rate columns). Keep the "Status — Scheduled vs Done" table and the new VSD Leaderboard as-is.
 
-### Layout
-A single card titled **"VSD Leaderboard — MBRs Marked vs Not Marked"**, shown only when `activeVsd === "All"` (otherwise a single VSD is already selected, so a leaderboard is moot).
+### 2. VSD Leaderboard — collapsible per-row deal list
+Make each VSD row in the leaderboard expandable via a chevron button in the Rank cell:
 
-Columns:
-| Rank | VSD | Total Deals | Marked | Not Marked | Marked % |
+- Track expanded VSD in local state (`expandedVsd: string | null`); clicking the chevron toggles.
+- When expanded, insert a full-width `<tr>` below the VSD row containing an inner table of that VSD's deals, using the same scoping logic as the leaderboard bucket (`vsdForDeal(d) || "Unassigned"` matches the row label).
 
-- **Marked** = deals where the active-month entry has `status === "Done"` OR `status === "Not Done"` (i.e., any explicit MBR status recorded). Bar/number in positive color.
-- **Not Marked** = `total - marked` (pending / no entry). Number in warning color.
-- **Marked %** = progress bar + percentage, colored ≥80% green, ≥50% amber, else red — matching the existing Scheduling table style.
-- Rows sorted by Marked % descending, ties broken by higher Total Deals. Rank 1/2/3 get a subtle medal badge (🥇🥈🥉) prefix.
-- Numeric cells are clickable and open the existing `DrillDialog` (reuse `setDrill` with new metric values `marked` / `notMarked`), so users can see the underlying deals.
+Inner table columns:
+| Client (Account) | Deal Name | Deal ID | P / Sr BOPM | MBR Logged |
 
-### Data
-Reuse the existing `vsdInsights` memo — it already aggregates `done`, `notDone`, `pending`, and `total` per VSD from `filteredDeals` + `activeEntryMap`. Derive:
-- `marked = done + notDone`
-- `notMarked = total - marked`
+- **Deal Name** is a `<Link to={`/deals/${d.id}`}>` styled like other clickable deal names in the page.
+- **P / Sr BOPM** shows `principalBopm` and, if different, `seniorBopm` joined with " / ".
+- **MBR Logged** = "Yes" (positive color) if the active-month entry has `status === "Done"` or `"Not Done"`, otherwise "No" (warning color).
+- Sort rows: not-logged first, then by account name, so gaps stand out.
+- Compact styling matching the existing drill dialog table (`text-xs`, subtle borders, `bg-secondary/20` background to visually nest under the parent row).
 
-No new queries. No schema changes.
+No changes to data hooks, backend, or drill-down dialog.
 
-### Drill-down
-Extend the `DrillMetric` union with `"marked"` and `"notMarked"`, and in the drill dialog's deal-filter switch add cases that include entries where status is Done/NotDone (marked) or missing/pending (notMarked). This keeps click-through parity with the existing tables.
-
-### Files to change
-- `src/pages/MBRTracker.tsx` — add leaderboard block above the Scheduling table inside the Insights `TabsContent`; extend drill-down metric handling.
-
-No backend, hooks, or shared components need to change.
+### File to change
+- `src/pages/MBRTracker.tsx`
