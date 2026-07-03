@@ -958,55 +958,6 @@ export default function MBRTracker() {
                 );
               })()}
 
-              {/* Part 1: Scheduling */}
-              <div className="mb-4">
-                <h2 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
-                  <CalendarDays className="h-4 w-4 text-primary" />
-                  Scheduling — {titleSuffix}
-                </h2>
-                <div className="bg-card border border-border rounded-xl overflow-hidden">
-                  <table className="w-full text-ui">
-                    <thead>
-                      <tr className="bg-secondary/40 border-b border-border">
-                        {[labelHeader, "Accounts", "Scheduled", "Not Scheduled", "Schedule rate"].map(h => (
-                          <th key={h} className="text-left py-2.5 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {dataset.map((v: any) => {
-                        const isOverall = v.vsd === "Pod Overall";
-                        const notScheduled = Math.max(0, v.total - v.scheduled);
-                        const rate = v.total > 0 ? Math.round((v.scheduled / v.total) * 100) : 0;
-                        return (
-                          <tr key={`sch-${v.vsd}`} className={cn(
-                            "border-b border-border/50 hover:bg-secondary/30 transition-colors",
-                            isOverall && "bg-primary/5 font-semibold"
-                          )}>
-                            <td className="py-2.5 px-3 font-semibold text-foreground text-xs">{renderLabel(v)}</td>
-                            <td className="py-2.5 px-3"><NumBtn value={v.total} metric="total" rowLabel={v.vsd} className="text-foreground" /></td>
-                            <td className="py-2.5 px-3"><NumBtn value={v.scheduled} metric="scheduled" rowLabel={v.vsd} className="text-primary font-semibold" /></td>
-                            <td className="py-2.5 px-3"><span className={cn("font-mono tabular-nums text-xs", notScheduled > 0 ? "text-warning font-semibold" : "text-muted-foreground")}>{notScheduled}</span></td>
-                            <td className="py-2.5 px-3">
-                              <div className="flex items-center gap-2">
-                                <span className={cn(
-                                  "font-mono tabular-nums text-xs font-semibold",
-                                  rate >= 80 ? "text-positive" : rate >= 50 ? "text-warning" : "text-destructive"
-                                )}>{rate}%</span>
-                                <div className="flex-1 h-1.5 max-w-[120px] bg-secondary rounded-full overflow-hidden">
-                                  <div className={cn("h-full rounded-full", rate >= 80 ? "bg-positive" : rate >= 50 ? "bg-warning" : "bg-destructive")} style={{ width: `${rate}%` }} />
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                      {dataset.length === 0 && <tr><td colSpan={5} className="text-center py-8 text-muted-foreground">No data</td></tr>}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
               {/* Part 2: Status — Scheduled vs Done */}
               <div className="mb-4">
                 <h2 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
