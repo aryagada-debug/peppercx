@@ -148,7 +148,7 @@ export default function MBRTracker() {
   const [viewMode, setViewMode] = useState<"current" | "mom" | "trend">("current");
   const [selectedMonth, setSelectedMonth] = useState<string>("");
   // Drill-down for VSD/BOPM Insights numeric cells
-  type DrillMetric = "total" | "done" | "notDone" | "pending" | "green" | "yellow" | "red" | "scheduled";
+  type DrillMetric = "total" | "done" | "notDone" | "pending" | "green" | "yellow" | "red" | "scheduled" | "marked" | "notMarked";
   const [drill, setDrill] = useState<{ rowKey: string; rowLabel: string; metric: DrillMetric } | null>(null);
   // Column filter/sort state
   const [colFilters, setColFilters] = useState<Record<string, string>>({});
@@ -1489,7 +1489,14 @@ export default function MBRTracker() {
       {drill && (() => {
         // Build the candidate deal set for this row
         let scoped = filteredDeals;
-        if (showBopmInsights) {
+        const isVsdLeaderboardRow = !showBopmInsights && (drill.metric === "marked" || drill.metric === "notMarked");
+        if (isVsdLeaderboardRow) {
+          const bucket = drill.rowLabel;
+          scoped = filteredDeals.filter(d => {
+            const v = vsdForDeal(d as any);
+            return (v || "Unassigned") === bucket;
+          });
+        } else if (showBopmInsights) {
           if (drill.rowLabel !== "Pod Overall") {
             scoped = filteredDeals.filter(d => ((d.principalBopm || d.seniorBopm || "").trim()) === drill.rowLabel);
           } else {
@@ -1509,12 +1516,15 @@ export default function MBRTracker() {
             case "yellow": return e?.sentiment === "Yellow";
             case "red": return e?.sentiment === "Red";
             case "scheduled": return !!e?.scheduledDate;
+            case "marked": return e?.status === "Done" || e?.status === "Not Done";
+            case "notMarked": return !e || (e.status !== "Done" && e.status !== "Not Done");
           }
         };
         const rows = scoped.filter(matchMetric);
         const metricLabel: Record<DrillMetric, string> = {
           total: "Accounts", done: "Done", notDone: "Not Done", pending: "Pending",
           green: "Green sentiment", yellow: "Yellow sentiment", red: "Red sentiment", scheduled: "Scheduled",
+          marked: "MBR Marked", notMarked: "MBR Not Marked",
         };
         return (
           <Dialog open={!!drill} onOpenChange={(o) => !o && setDrill(null)}>
