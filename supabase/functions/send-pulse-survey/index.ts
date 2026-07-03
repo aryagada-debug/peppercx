@@ -140,7 +140,7 @@ function paragraphsHtml(body: string): string {
     .split(/\n\s*\n/)
     .map(p => p.trim())
     .filter(Boolean)
-    .map((p, i) => `<p style="margin:${'${'}i === 0 ? "0 0 16px 0" : "0 0 16px 0"${'}'};font-family:'Segoe UI',Helvetica,Arial,sans-serif;font-size:16px;line-height:1.6;color:${'${'}BRAND_BODY${'}'};">${'${'}escapeHtml(p).replace(/\n/g, "<br>")${'}'}</p>`)
+    .map((p) => `<p style="margin:0 0 16px 0;font-family:'Segoe UI',Helvetica,Arial,sans-serif;font-size:16px;line-height:1.6;color:${BRAND_BODY};">${escapeHtml(p).replace(/\n/g, "<br>")}</p>`)
     .join("");
 }
 
