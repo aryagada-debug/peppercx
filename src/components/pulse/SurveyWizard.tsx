@@ -1,24 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   PulseAnswers, PulseConfig, defaultConfig, initialAnswers,
-  buildPayload, npsCategory, experienceAvg,
+  buildPayload, MOOD_LABELS,
 } from "@/lib/pulseSurvey";
 
-type StepKey =
-  | "role" | "capabilities" | "nps" | "value" | "deep_dive"
-  | "experience" | "effort" | "retention" | "expansion" | "wrap";
+type StepKey = "about" | "outcomes" | "experience" | "retention_growth" | "recommend";
 
 const STEP_ORDER: { key: StepKey; name: string }[] = [
-  { key: "role", name: "Your role" },
-  { key: "capabilities", name: "What you use" },
-  { key: "nps", name: "The big one" },
-  { key: "value", name: "Value & ROI" },
-  { key: "deep_dive", name: "Outcomes" },
+  { key: "about", name: "About you" },
+  { key: "outcomes", name: "Outcomes" },
   { key: "experience", name: "Experience" },
-  { key: "effort", name: "Effort" },
-  { key: "retention", name: "Renewal" },
-  { key: "expansion", name: "Growth" },
-  { key: "wrap", name: "Wrap-up" },
+  { key: "retention_growth", name: "Loyalty & growth" },
+  { key: "recommend", name: "Recommend us" },
 ];
 
 interface Props {
