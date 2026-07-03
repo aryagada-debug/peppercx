@@ -114,17 +114,19 @@ function buildRaw({ to, cc, subject, html, from }: {
 }
 
 const BRAND_PRIMARY = "#5b3df5";
-const BRAND_BG = "#faf9fc";
+const BRAND_HEADER_BG = "#1a0b4d";
+const BRAND_HEADER_ACCENT = "#a89cff";
+const BRAND_BG = "#f4f2f7";
 const BRAND_BORDER = "#e7e4ef";
 const BRAND_TEXT = "#15131f";
 const BRAND_MUTED = "#6b6878";
 
 export const DEFAULT_TEMPLATE = {
-  subject: "How are we doing on {{account}} - {{deal_name}}?",
-  greeting: "Hi {{first_name}},",
-  body: "Your honest feedback shapes what we fix, build, and prioritise next on this engagement.\n\nIt takes about 4 minutes - and the whole team reads every response.",
+  subject: "Thank you for trusting Pepper",
+  greeting: "Thank you for trusting Pepper.",
+  body: "We believe every customer deserves an exceptional experience. Your feedback is one of the most valuable ways we learn how we're doing and where we can do even better.\n\nOur leadership team reads every response, ensuring your voice helps shape the future of our products, services, and customer experience.",
   cta_label: "Share your feedback →",
-  footer_note: "Sent by the Pepper Customer Success team. Reply to this email to reach us directly.",
+  footer_note: "Thank you for helping us improve.",
 };
 
 export function renderTemplate(str: string, vars: Record<string, string>): string {
@@ -145,34 +147,45 @@ function emailHtml({ vars, tpl, label }: {
   tpl: typeof DEFAULT_TEMPLATE;
   label: string;
 }) {
-  const greeting = renderTemplate(tpl.greeting, vars);
-  // Strip any {{link}} from body - link is always the CTA button.
+  const headline = renderTemplate(tpl.greeting, vars);
   const bodyText = renderTemplate(tpl.body, { ...vars, link: "" });
   const ctaLabel = renderTemplate(tpl.cta_label, vars);
   const footer = renderTemplate(tpl.footer_note, vars);
   const link = vars.link || "";
+  void label;
   return `<!doctype html><html><body style="margin:0;padding:0;background:${BRAND_BG};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
   <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:${BRAND_BG};padding:24px 12px;">
     <tr><td align="center">
-      <table role="presentation" cellpadding="0" cellspacing="0" width="560" style="max-width:560px;background:#fff;border:1px solid ${BRAND_BORDER};border-radius:14px;overflow:hidden;">
-        <tr><td style="padding:22px 26px;border-bottom:1px solid ${BRAND_BORDER};">
-          <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_PRIMARY};font-weight:700;">Pepper Customer Pulse</div>
-          <div style="font-size:20px;font-weight:600;color:${BRAND_TEXT};margin-top:4px;">How are we doing on ${escapeHtml(label)}?</div>
+      <table role="presentation" cellpadding="0" cellspacing="0" width="620" style="max-width:620px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 1px 2px rgba(20,15,50,0.04);">
+        <tr><td style="background:${BRAND_HEADER_BG};padding:22px 32px;">
+          <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+              <td align="left" style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.01em;">
+                <span style="display:inline-block;width:22px;height:22px;border-radius:50%;background:#ffffff;color:${BRAND_HEADER_BG};text-align:center;line-height:22px;font-size:14px;font-weight:800;margin-right:8px;vertical-align:middle;">P</span>
+                <span style="vertical-align:middle;">pepper</span>
+              </td>
+              <td align="right" style="color:${BRAND_HEADER_ACCENT};font-size:12px;font-weight:700;letter-spacing:0.14em;">PEPPER PULSE</td>
+            </tr>
+          </table>
         </td></tr>
-        <tr><td style="padding:22px 26px;">
-          <p style="margin:0 0 14px;font-size:14px;line-height:1.6;color:${BRAND_TEXT};">${escapeHtml(greeting)}</p>
+        <tr><td style="padding:32px 36px 8px;">
+          <h1 style="margin:0 0 18px;font-size:24px;font-weight:700;color:${BRAND_TEXT};line-height:1.3;">${escapeHtml(headline)}</h1>
           ${paragraphsHtml(bodyText)}
-          <div style="margin:22px 0;">
-            <a href="${escapeHtml(link)}" style="display:inline-block;background:${BRAND_PRIMARY};color:#fff;text-decoration:none;font-size:14px;font-weight:600;padding:12px 22px;border-radius:10px;">${escapeHtml(ctaLabel)}</a>
+          <div style="margin:26px 0 22px;">
+            <a href="${escapeHtml(link)}" style="display:inline-block;background:${BRAND_PRIMARY};color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;padding:14px 26px;border-radius:10px;">${escapeHtml(ctaLabel)}</a>
           </div>
-          <p style="margin:0;font-size:12.5px;color:${BRAND_MUTED};line-height:1.5;">
-            If the button doesn't work, paste this link into your browser:<br>
-            <span style="color:${BRAND_PRIMARY};word-break:break-all;">${escapeHtml(link)}</span>
+          <p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:${BRAND_TEXT};">
+            Thank you for taking a few moments to share your feedback. We truly appreciate your time and trust.
           </p>
         </td></tr>
-        <tr><td style="padding:14px 26px;border-top:1px solid ${BRAND_BORDER};background:${BRAND_BG};">
-          <p style="margin:0;font-size:11.5px;color:${BRAND_MUTED};line-height:1.5;">
-            ${escapeHtml(footer)}
+        <tr><td style="padding:0 36px;">
+          <hr style="border:none;border-top:1px solid ${BRAND_BORDER};margin:0;"/>
+        </td></tr>
+        <tr><td style="padding:18px 36px 28px;">
+          <p style="margin:0 0 14px;font-size:13px;color:${BRAND_MUTED};line-height:1.5;">${escapeHtml(footer)}</p>
+          <p style="margin:0;font-size:12.5px;color:${BRAND_MUTED};line-height:1.5;">
+            If the button doesn't work, copy this link into your browser:<br>
+            <span style="color:${BRAND_PRIMARY};word-break:break-all;">${escapeHtml(link)}</span>
           </p>
         </td></tr>
       </table>
