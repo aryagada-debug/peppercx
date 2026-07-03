@@ -127,8 +127,7 @@ export default function SurveyForm() {
           name: invite?.recipient_name || "",
           email: invite?.recipient_email || "",
           company: invite?.account_snapshot || "",
-          capabilities: [],
-          wants_followup: "",
+          capabilities: ["seo", "content"],
         },
       }}
       onSubmit={async (payload) => {

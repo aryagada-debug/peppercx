@@ -15,7 +15,6 @@ type AggRow = {
   responseRate: number;
   nps: number | null;
   csat: number | null;
-  ces: number | null;
   promoters: number;
   passives: number;
   detractors: number;
@@ -155,7 +154,6 @@ export function AnalyticsTable({
         responseRate: inv.length > 0 ? Math.round((completedCount / inv.length) * 100) : 0,
         nps: computeNps(scores),
         csat: avg(resp.map(r => r.csat_avg)),
-        ces: avg(resp.map(r => r.ces)),
         promoters: scores.filter(n => n >= 9).length,
         passives: scores.filter(n => n >= 7 && n <= 8).length,
         detractors: scores.filter(n => n <= 6).length,
@@ -200,10 +198,10 @@ export function AnalyticsTable({
   const drillRow = drillKey ? filtered.find(r => r.key === drillKey) : null;
 
   const exportCsv = () => {
-    const headers = ["Group","Sent","Completed","Response %","NPS","Avg CSAT","Avg CES","Promoters","Passives","Detractors","High churn risk","Last response"];
+    const headers = ["Group","Sent","Completed","Response %","NPS","Avg CSAT","Promoters","Passives","Detractors","High churn risk","Last response"];
     const rowsCsv = filtered.map(r => [
       r.label, r.sent, r.completed, `${r.responseRate}%`,
-      r.nps ?? "", r.csat?.toFixed(2) ?? "", r.ces?.toFixed(2) ?? "",
+      r.nps ?? "", r.csat?.toFixed(2) ?? "",
       r.promoters, r.passives, r.detractors, r.highRisk,
       r.lastResponseAt ? new Date(r.lastResponseAt).toISOString().slice(0, 10) : "",
     ]);
@@ -289,7 +287,6 @@ export function AnalyticsTable({
               <Th onClick={() => toggleSort("responseRate")} className="text-right">Resp %</Th>
               <Th onClick={() => toggleSort("nps")} className="text-right">NPS</Th>
               <Th onClick={() => toggleSort("csat")} className="text-right">CSAT</Th>
-              <Th onClick={() => toggleSort("ces")} className="text-right">CES</Th>
               <Th onClick={() => toggleSort("promoters")} className="text-right">P / Pa / D</Th>
               <Th onClick={() => toggleSort("highRisk")} className="text-right">High risk</Th>
               <Th onClick={() => toggleSort("lastResponseAt")} className="text-right">Last</Th>
@@ -308,7 +305,6 @@ export function AnalyticsTable({
                 <td className="px-3 py-2 text-right">{r.responseRate}%</td>
                 <td className="px-3 py-2 text-right">{r.nps ?? "—"}</td>
                 <td className="px-3 py-2 text-right">{r.csat?.toFixed(2) ?? "—"}</td>
-                <td className="px-3 py-2 text-right">{r.ces?.toFixed(2) ?? "—"}</td>
                 <td className="px-3 py-2 text-right text-muted-foreground">{r.promoters}/{r.passives}/{r.detractors}</td>
                 <td className="px-3 py-2 text-right">{r.highRisk}</td>
                 <td className="px-3 py-2 text-right text-muted-foreground">
@@ -317,7 +313,7 @@ export function AnalyticsTable({
               </tr>
             ))}
             {filtered.length === 0 && (
-              <tr><td colSpan={10} className="px-3 py-8 text-center text-muted-foreground">No data for current filters.</td></tr>
+              <tr><td colSpan={9} className="px-3 py-8 text-center text-muted-foreground">No data for current filters.</td></tr>
             )}
           </tbody>
         </table>
@@ -337,7 +333,6 @@ export function AnalyticsTable({
                   <th className="px-3 py-2">Deal</th>
                   <th className="px-3 py-2 text-right">NPS</th>
                   <th className="px-3 py-2 text-right">CSAT</th>
-                  <th className="px-3 py-2 text-right">CES</th>
                   <th className="px-3 py-2">Mood</th>
                   <th className="px-3 py-2">Renew</th>
                   <th className="px-3 py-2">Risk</th>
@@ -354,7 +349,6 @@ export function AnalyticsTable({
                     <td className="px-3 py-2">{r.deal_id}</td>
                     <td className="px-3 py-2 text-right">{r.nps ?? "—"}</td>
                     <td className="px-3 py-2 text-right">{r.csat_avg ?? "—"}</td>
-                    <td className="px-3 py-2 text-right">{r.ces ?? "—"}</td>
                     <td className="px-3 py-2">{r.mood || "—"}</td>
                     <td className="px-3 py-2">{r.renew || "—"}</td>
                     <td className="px-3 py-2">{r.churn_risk || "—"}</td>
@@ -364,7 +358,7 @@ export function AnalyticsTable({
                   </tr>
                 ))}
                 {(!drillRow?.responses || drillRow.responses.length === 0) && (
-                  <tr><td colSpan={10} className="px-3 py-6 text-center text-muted-foreground">No responses yet.</td></tr>
+                  <tr><td colSpan={9} className="px-3 py-6 text-center text-muted-foreground">No responses yet.</td></tr>
                 )}
               </tbody>
             </table>

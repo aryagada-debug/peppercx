@@ -29,7 +29,6 @@ Deno.serve(async (req) => {
       `NPS *${p?.nps?.score ?? "–"}* (${p?.nps?.category || "–"}) · Renewal: *${p?.retention?.renewal_intent || "–"}* · Mood: *${p?.sentiment?.mood || "–"}*`,
       `Reasons: ${(p?.flags?.reasons || []).join(" · ") || "—"}`,
       r.email ? `Contact: ${r.email}` : null,
-      r.wants_followup ? `Follow-up: ${r.wants_followup}` : null,
       p?.retention?.save_lever ? `> ${p.retention.save_lever}` : null,
     ].filter(Boolean).join("\n");
 
