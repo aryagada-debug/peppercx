@@ -62,18 +62,26 @@ export function RGYCombinedIssuesDialog({
   const [saving, setSaving] = useState(false);
   const savedRef = useRef(false);
 
-  // Reset / pre-fill on open
+  // Reset / pre-fill only when the dialog transitions to open.
+  // NOTE: `initial` is intentionally excluded from deps — parent components
+  // often pass a freshly-constructed object on every render, and including
+  // it here would wipe the user's in-progress input on every keystroke that
+  // triggers a parent re-render.
+  const initialRef = useRef(initial);
+  initialRef.current = initial;
   useEffect(() => {
     if (!open) return;
+    const init = initialRef.current;
     savedRef.current = false;
-    setIssueDate(initial?.issueDate ? new Date(initial.issueDate) : new Date());
-    setIssueDetails(initial?.issueDetails || "");
-    setActionPlan(initial?.actionPlan || "");
-    setDueDate(initial?.dueDate ? new Date(initial.dueDate) : undefined);
-    setIssueStatus(initial?.issueStatus || "Open");
-    setTaskAssignees(initial?.assignees || []);
-    setSubtasks(initial?.subtasks || []);
-  }, [open, initial]);
+    setIssueDate(init?.issueDate ? new Date(init.issueDate) : new Date());
+    setIssueDetails(init?.issueDetails || "");
+    setActionPlan(init?.actionPlan || "");
+    setDueDate(init?.dueDate ? new Date(init.dueDate) : undefined);
+    setIssueStatus(init?.issueStatus || "Open");
+    setTaskAssignees(init?.assignees || []);
+    setSubtasks(init?.subtasks || []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const reds = nonGreenDims.filter(d => d.value === "R");
   const yellows = nonGreenDims.filter(d => d.value === "Y");
