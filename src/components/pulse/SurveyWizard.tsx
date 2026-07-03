@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   PulseAnswers, PulseConfig, defaultConfig, initialAnswers,
-  buildPayload, MOOD_LABELS,
+  buildPayload, MOOD_LABELS, normalizePulseConfig,
 } from "@/lib/pulseSurvey";
 
 type StepKey = "about" | "outcomes" | "experience" | "retention_growth" | "recommend";
@@ -181,6 +181,7 @@ function Reveal({ when, children }: { when: boolean; children: React.ReactNode }
 }
 
 export default function SurveyWizard({ config = defaultConfig, initial, preview, onSubmit, headerSubtitle }: Props) {
+  const safeConfig = normalizePulseConfig(config);
   const [step, setStep] = useState(0);
   const [a, setA] = useState<PulseAnswers>(() => ({ ...initialAnswers(), ...(initial as any) }));
   const [error, setError] = useState<string | null>(null);
@@ -248,7 +249,7 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
     }
   }
 
-  const c = config.steps;
+  const c = safeConfig.steps;
 
   function AboutStep() {
     const s = c.about;
