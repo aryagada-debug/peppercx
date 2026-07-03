@@ -1,9 +1,10 @@
 // Pepper Customer Pulse — shared types, defaults, scoring.
+// Rewritten to match the new 5-step "Customer Pulse" form.
 
 export type Role = "buyer" | "user" | "both";
-export type Capability = "content" | "seo" | "creative" | "studios";
+export type Capability = "content" | "seo";
 export type Renewal = "def" | "prob" | "unsure" | "risk" | "gone";
-export type Mood = "love" | "glad" | "fine" | "frustrated" | "done";
+export type Mood = "love" | "glad" | "neutral" | "frustrated" | "done";
 
 export interface PulseAnswers {
   respondent: {
@@ -12,133 +13,113 @@ export interface PulseAnswers {
     email: string;
     company: string;
     capabilities: Capability[];
-    wants_followup: "yes" | "maybe" | "no" | "";
   };
   nps: { score: number | null; verbatim: string };
-  value: { value_for_money: number | null; goal_attainment: number | null; target_outcome: string };
+  value: { value_for_money: number | null };
   capability_deep_dive: {
-    content?: { drives_outcome: number | null; needed_outcomes: string[]; on_brief: number | null };
-    seo?: { success_metrics: string[]; traffic_growth: number | null; ai_citation_visibility: number | null; organic_to_pipeline: number | null; win_outcome: string };
-    creative?: { quality: number | null; performance: number | null; speed: number | null };
-    studios?: { talent_fit: number | null; integration: number | null; autonomy: number | null };
+    content?: { quality: number | null };
+    seo?: {
+      success_metrics: string[];
+      traffic_growth: number | null;
+      ai_citation_visibility: number | null;
+      organic_to_pipeline: number | null;
+      win_outcome: string;
+    };
   };
   experience: { ratings: Record<string, number | null>; comment: string };
-  effort: { ces: number | null; friction: string };
   retention: { renewal_intent: Renewal | ""; save_lever: string };
-  expansion: { interests: string[]; referral_openness: number | null; referral_lead: string };
-  sentiment: { mood: Mood | ""; one_change: string; fan_for_life: string };
+  expansion: { interests: string[] };
+  sentiment: { mood: Mood | "" };
 }
 
 export const initialAnswers = (): PulseAnswers => ({
-  respondent: { role: "", name: "", email: "", company: "", capabilities: [], wants_followup: "" },
+  respondent: { role: "", name: "", email: "", company: "", capabilities: ["seo", "content"] },
   nps: { score: null, verbatim: "" },
-  value: { value_for_money: null, goal_attainment: null, target_outcome: "" },
-  capability_deep_dive: {},
+  value: { value_for_money: null },
+  capability_deep_dive: { content: { quality: null }, seo: { success_metrics: [], traffic_growth: null, ai_citation_visibility: null, organic_to_pipeline: null, win_outcome: "" } },
   experience: { ratings: {}, comment: "" },
-  effort: { ces: null, friction: "" },
   retention: { renewal_intent: "", save_lever: "" },
-  expansion: { interests: [], referral_openness: null, referral_lead: "" },
-  sentiment: { mood: "", one_change: "", fan_for_life: "" },
+  expansion: { interests: [] },
+  sentiment: { mood: "" },
 });
 
 export const defaultConfig = {
   steps: {
-    role: {
+    about: {
       eyebrow: "",
       pill: "We actually read every response",
       h1: "Tell us how it's really going.",
-      lede: "First, a quick one so we can ask the right questions.",
+      lede: "A few honest minutes shapes what we build, fix, and prioritise next. No fluff, just the real picture.",
+      company_q: "Which company / account are you with?",
+      role_q: "Which best describes your role with Pepper?",
       options: [
         { value: "buyer", icon: "🧭", title: "Decision-maker / sponsor", desc: "I own the budget, contract or the call to renew" },
         { value: "user", icon: "⚙️", title: "Day-to-day user", desc: "I work hands-on with Pepper or the deliverables" },
         { value: "both", icon: "🎯", title: "A bit of both", desc: "I use it and I influence the renewal" },
       ],
     },
-    capabilities: {
-      eyebrow: "What you use",
-      h1: "Which Pepper capabilities do you work with?",
-      lede: "Pick all that apply — we'll tailor the next questions to what you actually use.",
-      options: [
-        { value: "content", icon: "📝", title: "Pepper Content", desc: "Articles, blogs, website & B2B full-funnel content, localisation, CRM / lifecycle" },
-        { value: "seo", icon: "🔍", title: "Pepper SEO / GEO", desc: "SEO + content retainers, AI Search (GEO) visibility, content + SEO hubs" },
-        { value: "creative", icon: "🎨", title: "Pepper Creative", desc: "Social, video, influencer campaigns, design & campaign assets" },
-        { value: "studios", icon: "🧩", title: "Content Studios", desc: "Embedded talent, onsite or virtual, working inside your team" },
-      ],
-    },
-    nps: {
-      eyebrow: "The big one",
-      h1: "How likely are you to recommend Pepper to a peer or colleague?",
-      lede: "0 = not a chance · 10 = already have",
-      followups: {
-        low: "What's the main reason for that score — what would need to change?",
-        mid: "What's holding you back from a 9 or 10?",
-        high: "Brilliant. What do you love most — and would you say it in a quote we could use?",
-      },
-    },
-    value: {
-      eyebrow: "Value & ROI",
-      h1: "Are you getting what you came for?",
-      lede: "Two quick scales, one honest line.",
-      value_for_money: { q: "How much value are you getting from Pepper today, relative to what you pay?", labels: ["Far less than I pay", "Less", "Fair", "More", "Far more value than I pay"] },
-      goal_attainment: { q: "Is Pepper helping you hit the goals you signed up for?", labels: ["Not at all", "Slightly", "Somewhat", "Mostly", "Completely"] },
-      buyer_outcome: { q: "In one line — what business outcome are you hoping Pepper drives this year?", hint: "e.g. \"pipeline from organic\", \"content cost down 30%\", \"rank for AI search\"" },
-    },
-    deep_dive: {
-      eyebrow: "Outcomes",
+    outcomes: {
+      eyebrow: "Where it really matters",
       h1: "Let's get specific about outcomes.",
-      lede: "Only the capabilities you actually use.",
-      content: {
-        drives_outcome: { q: "Is the content actually driving the outcomes you publish it for?", end: ["Not at all", "Absolutely"] },
-        needed_outcomes: {
-          q: "What do you most need this content to do? (pick up to 2-3)",
-          options: ["Build authority", "Grow organic traffic", "Generate leads / pipeline", "Enable sales / nurture", "Rank & support SEO", "Scale output reliably"],
-        },
-        on_brief: { q: "How consistently does the work land on-brief and publish-ready the first time?", labels: ["Rarely", "Sometimes", "Almost always"] },
+      lede: "The real signal lives here.",
+      value: {
+        header: "💰 Value for money",
+        q: "How much value are you getting, relative to what you pay?",
+        labels: ["Far less", "Less", "Fair", "More", "Far more"],
       },
       seo: {
-        success_metrics: { q: "What does SEO/GEO success look like for you?", options: ["Organic traffic growth", "Leads / pipeline from organic", "AI Search visibility", "Keyword rankings", "Share of voice"] },
-        traffic_growth: { q: "Are you seeing measurable organic growth with us?", end: ["Declining", "Strong, compounding"] },
-        ai_citation_visibility: { q: "When buyers ask AI tools (ChatGPT, Perplexity, AI Overviews) about your space, how often does your brand show up?", end: ["Never", "Consistently cited"] },
-        organic_to_pipeline: { q: "Is organic translating into pipeline / revenue, not just traffic?", end: ["Not at all", "It's a primary channel"] },
-        win_outcome: { q: "The single SEO/GEO outcome that would make this an undeniable win?" },
+        header: "🔍 Pepper SEO / GEO outcomes",
+        success_metrics: {
+          q: "What does SEO/GEO success look like for you? (pick what matters)",
+          options: [
+            { value: "traffic", label: "Organic traffic growth" },
+            { value: "pipeline", label: "Leads / pipeline from organic" },
+            { value: "geo", label: "AI Search visibility (ChatGPT, Perplexity, AI Overviews)" },
+            { value: "rankings", label: "Keyword rankings" },
+            { value: "sov", label: "Share of voice vs competitors" },
+          ],
+        },
+        traffic_growth: {
+          q: "Are you seeing measurable organic growth with us?",
+          labels: ["Declining", "Flat", "Slight lift", "Solid growth", "Strong, compounding"],
+        },
+        ai_visibility: {
+          q: "When buyers ask AI tools (ChatGPT, Perplexity, AI Overviews) about your space, how often does your brand show up?",
+          labels: ["Never", "Rarely", "Sometimes", "Often", "Consistently cited"],
+          eyebrow: "GEO · AI Search",
+        },
+        organic_to_pipeline: {
+          q: "Is organic translating into pipeline / revenue, not just traffic?",
+          labels: ["Not at all", "A little", "Somewhat", "Clearly", "It's a primary channel"],
+        },
+        win_outcome: { q: "The single SEO/GEO outcome that would make this an undeniable win?", hint: "e.g. \"cited by ChatGPT for our buying queries\", \"30% of pipeline from organic\"" },
       },
-      creative: {
-        quality: { q: "Is the creative on-brand and high quality?", end: ["Rarely", "Always"] },
-        performance: { q: "Is the work actually performing (engagement, conversions, results)?", end: ["Not at all", "Outperforming"] },
-        speed: { q: "How is turnaround speed?", end: ["Too slow", "Right on time"] },
-      },
-      studios: {
-        talent_fit: { q: "Is the embedded talent the right fit for your team?", end: ["Wrong fit", "Perfect fit"] },
-        integration: { q: "How well does the talent integrate with your team?", end: ["Siloed", "Fully integrated"] },
-        autonomy: { q: "How self-driven is the talent?", end: ["Constant oversight", "Fully self-driven"] },
+      content: {
+        header: "📝 Content quality",
+        q: "How would you rate the quality of the content we deliver?",
+        labels: ["Poor", "Below par", "Solid", "Strong", "Excellent"],
       },
     },
     experience: {
-      eyebrow: "Experience",
+      eyebrow: "Your experience",
       h1: "Rate how we're doing where it counts.",
-      lede: "Stars for each — tap N/A if it doesn't apply.",
+      lede: "Tap the stars. Skip anything that doesn't apply.",
       rows: {
-        quality: "Quality of work",
-        support: "Support & responsiveness",
-        communication: "Communication & updates",
-        speed: "Speed & turnaround",
-        ease_user: "Ease of working", // user only
-        partner_buyer: "Feeling like a strategic partner", // buyer only
+        quality: { label: "Quality of the work / deliverables", hint: "Does the output meet your bar?" },
+        support: { label: "Support & responsiveness", hint: "How we show up when you need us" },
+        comms: { label: "Communication & updates", hint: "Do you always know where things stand?" },
+        speed: { label: "Speed & turnaround", hint: "Do things move at the pace you need?" },
+        ease: { label: "Ease of working with the platform/team", hint: "How smooth is the day-to-day?" },
+        partner: { label: "Feeling like a strategic partner", hint: "Are we proactive, not just reactive?" },
       },
-      followup_low: "You rated something a little lower — what happened there?",
+      followup_low: "You rated something a little lower. What happened there?",
       followup_ok: "Anything specific we got really right, or could do better?",
     },
-    effort: {
-      eyebrow: "Effort",
-      h1: "\"Pepper makes it easy to get what I need.\"",
-      lede: "One scale, one optional line.",
-      end: ["Strongly disagree", "Strongly agree"],
-      friction_q: "Where do you lose the most time or friction with us, if anywhere?",
-    },
-    retention: {
-      eyebrow: "Renewal",
-      h1: "If renewal were today, where's your head?",
-      options: [
+    retention_growth: {
+      eyebrow: "Looking ahead",
+      h1: "Staying, growing, spreading the word.",
+      renewal_q: "If renewal were today, how likely are you to continue with Pepper?",
+      renewal_options: [
         { value: "def", label: "Definitely staying" },
         { value: "prob", label: "Probably staying" },
         { value: "unsure", label: "On the fence" },
@@ -146,34 +127,39 @@ export const defaultConfig = {
         { value: "gone", label: "Likely leaving" },
       ],
       save_q: "What's the one thing that would change your mind?",
+      expansion_q: "Where could Pepper do more for you?",
+      expansion_options: [
+        { value: "volume", label: "More number / volume of deliverables & assets" },
+        { value: "platforms", label: "Diversified platform focus (Reddit, YouTube, Digital PR, LinkedIn)" },
+        { value: "geo", label: "Deeper strategic guidance on GEO" },
+        { value: "outcomes", label: "Stronger focus on outcomes" },
+        { value: "none", label: "Happy as-is for now" },
+      ],
     },
-    expansion: {
-      eyebrow: "Growth",
-      h1: "Where could Pepper do more for you?",
-      lede: "Pick anything that sparks something.",
+    recommend: {
+      eyebrow: "Recommendation",
+      h1: "How likely are you to recommend Pepper?",
+      lede: "Your honest answer here matters most to us.",
       options: [
-        { value: "volume", label: "More volume" },
-        { value: "services", label: "New services" },
-        { value: "seats", label: "More seats" },
-        { value: "strategy", label: "Deeper strategy" },
-        { value: "geo", label: "AI Search / GEO" },
-        { value: "none", label: "Happy as-is" },
+        { score: 10, title: "Absolutely, I already do", desc: "I actively put Pepper forward to others" },
+        { score: 9, title: "Very likely", desc: "I would happily recommend Pepper" },
+        { score: 7, title: "Possibly", desc: "I would need to think about it" },
+        { score: 4, title: "Unlikely", desc: "Not as things stand today" },
+        { score: 1, title: "Not at this stage", desc: "I would not recommend Pepper in its current form" },
       ],
-      referral: { q: "How open are you to introducing us to another team or company?", end: ["Not open", "Happy to"] },
-      referral_who: "Who comes to mind? (optional, name or company)",
-    },
-    wrap: {
-      eyebrow: "Last bit",
-      h1: "Last bit.",
-      lede: "Pick a vibe and we're done.",
+      followups: {
+        low: "What is the main reason, and what would need to change?",
+        mid: "What is holding you back from a wholehearted yes?",
+        high: "Thank you. What do you value most, and may we quote you on it?",
+      },
+      mood_q: "Overall, how do you feel about working with Pepper?",
       moods: [
-        { value: "love", label: "Genuinely love it", icon: "😍" },
-        { value: "glad", label: "Glad we work together", icon: "🙂" },
-        { value: "fine", label: "It's fine", icon: "😐" },
-        { value: "frustrated", label: "A bit frustrated", icon: "😕" },
-        { value: "done", label: "Pretty fed up", icon: "😤" },
+        { value: "love", label: "Very positive, it is a strong partnership", icon: "😍" },
+        { value: "glad", label: "Positive, glad we work together", icon: "🙂" },
+        { value: "neutral", label: "Neutral, it is fine", icon: "😐" },
+        { value: "frustrated", label: "Somewhat frustrated", icon: "😕" },
+        { value: "done", label: "Frustrated, it needs to improve", icon: "😤" },
       ],
-      followup_q: "Would you be open to a 15-min call?",
     },
   },
 };
@@ -201,9 +187,7 @@ export function computeChurnRisk(a: PulseAnswers): { level: "LOW" | "MEDIUM" | "
   if (a.nps.score !== null && a.nps.score <= 6) add(2, "Detractor NPS");
   if (["unsure", "risk", "gone"].includes(a.retention.renewal_intent)) add(3, "Renewal at risk");
   if (a.value.value_for_money !== null && a.value.value_for_money <= 2) add(2, "Low value-for-money");
-  if (a.value.goal_attainment !== null && a.value.goal_attainment <= 2) add(2, "Goals not met");
   if (["frustrated", "done"].includes(a.sentiment.mood)) add(2, "Negative sentiment");
-  if (a.effort.ces !== null && a.effort.ces <= 2) add(1, "High effort");
 
   const seo = a.capability_deep_dive.seo;
   if (seo) {
@@ -212,7 +196,7 @@ export function computeChurnRisk(a: PulseAnswers): { level: "LOW" | "MEDIUM" | "
     if (seo.ai_citation_visibility !== null && seo.ai_citation_visibility <= 2) add(1, "GEO: low AI Search visibility");
   }
   const content = a.capability_deep_dive.content;
-  if (content && content.drives_outcome !== null && content.drives_outcome <= 2) add(1, "Content not driving outcomes");
+  if (content && content.quality !== null && content.quality <= 2) add(1, "Content quality below bar");
 
   const level: "LOW" | "MEDIUM" | "HIGH" = score >= 5 ? "HIGH" : score >= 2 ? "MEDIUM" : "LOW";
   return { level, reasons, score };
@@ -235,10 +219,51 @@ export function buildPayload(a: PulseAnswers) {
     value: { ...a.value },
     capability_deep_dive: a.capability_deep_dive,
     experience: { ratings: a.experience.ratings, avg, comment: a.experience.comment },
-    effort: { ...a.effort },
     retention: { ...a.retention },
     expansion: { ...a.expansion },
     sentiment: { ...a.sentiment },
     flags: { churn_risk: risk.level, reasons: risk.reasons, expansion_ready: expReady },
   };
 }
+
+// Human labels for storing / rendering elsewhere.
+export const MOOD_LABELS: Record<string, { label: string; icon: string }> = {
+  love: { label: "Very positive", icon: "😍" },
+  glad: { label: "Positive", icon: "🙂" },
+  neutral: { label: "Neutral", icon: "😐" },
+  frustrated: { label: "Frustrated", icon: "😕" },
+  done: { label: "Needs to improve", icon: "😤" },
+  // legacy alias
+  fine: { label: "Neutral", icon: "😐" },
+};
+
+export const RENEWAL_LABELS: Record<string, string> = {
+  def: "Definitely staying",
+  prob: "Probably staying",
+  unsure: "On the fence",
+  risk: "Leaning towards leaving",
+  gone: "Likely leaving",
+};
+
+export const EXPANSION_LABELS: Record<string, string> = {
+  volume: "More volume of deliverables",
+  platforms: "Diversified platforms",
+  geo: "Deeper GEO guidance",
+  outcomes: "Stronger focus on outcomes",
+  none: "Happy as-is",
+  // legacy
+  services: "New services",
+  seats: "More seats",
+  strategy: "Deeper strategy",
+};
+
+export const ROLE_LABELS: Record<string, string> = {
+  buyer: "Decision-maker / sponsor",
+  user: "Day-to-day user",
+  both: "A bit of both",
+};
+
+export const CAPABILITY_META: Record<string, { title: string; icon: string }> = {
+  content: { title: "Pepper Content", icon: "📝" },
+  seo: { title: "Pepper SEO / GEO", icon: "🔍" },
+};
