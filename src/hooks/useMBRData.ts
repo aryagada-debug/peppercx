@@ -269,10 +269,43 @@ export function useMBRData() {
       if (params.mbrPptLink !== undefined) row.mbr_ppt_link = params.mbrPptLink;
       if (params.status === "Done") row.input_recorded_at = new Date().toISOString();
 
-      await (supabase.from("mbr_entries") as any).upsert(
-        row,
-        { onConflict: "deal_id,week_start" }
-      ).select();
+      // Optimistic cache patch so the UI reflects the change instantly.
+      const prev = qc.getQueryData<MBREntry[]>([...MBR_ENTRIES_KEY]) || [];
+      const existing = prev.find((e) => e.dealId === params.dealId && e.weekStart === weekStart);
+      const optimistic: MBREntry = {
+        id: existing?.id ?? `optimistic-${params.dealId}-${weekStart}`,
+        dealId: params.dealId,
+        weekStart,
+        status: params.status,
+        mode: params.mode,
+        notes: params.notes,
+        updatedBy: params.updatedBy,
+        sentiment: params.sentiment !== undefined ? params.sentiment : existing?.sentiment ?? null,
+        fathomLink: params.fathomLink !== undefined ? params.fathomLink : existing?.fathomLink ?? null,
+        transcript: params.transcript !== undefined ? params.transcript : existing?.transcript ?? null,
+        aiSummary: params.aiSummary !== undefined ? params.aiSummary : existing?.aiSummary ?? null,
+        actionItems: params.actionItems !== undefined ? params.actionItems : existing?.actionItems ?? [],
+        scheduledDate: params.scheduledDate !== undefined ? params.scheduledDate : existing?.scheduledDate ?? null,
+        anirudhAdded: params.anirudhAdded !== undefined ? !!params.anirudhAdded : existing?.anirudhAdded ?? false,
+        anirudhJoining: existing?.anirudhJoining ?? false,
+        inputRecordedAt: params.status === "Done" ? new Date().toISOString() : existing?.inputRecordedAt ?? null,
+        mbrPptLink: params.mbrPptLink !== undefined ? params.mbrPptLink : existing?.mbrPptLink ?? null,
+      };
+      const next = existing
+        ? prev.map((e) => (e === existing ? optimistic : e))
+        : [optimistic, ...prev];
+      qc.setQueryData([...MBR_ENTRIES_KEY], next);
+
+      try {
+        await (supabase.from("mbr_entries") as any).upsert(
+          row,
+          { onConflict: "deal_id,week_start" }
+        ).select();
+      } catch (err) {
+        // Roll back on failure.
+        qc.setQueryData([...MBR_ENTRIES_KEY], prev);
+        throw err;
+      }
 
       // If an MBR was scheduled (or marked done) for the current month,
       // auto-close any open "Schedule MBR" auto-task for this deal.
@@ -292,20 +325,42 @@ export function useMBRData() {
         }
       } catch (_) { /* non-fatal */ }
 
-      // Realtime will handle refresh
+      // Reconcile with canonical server row (real id, timestamps).
+      qc.invalidateQueries({ queryKey: [...MBR_ENTRIES_KEY] });
     },
-    [],
+    [qc],
   );
 
   const toggleAnirudhJoining = useCallback(
     async (dealId: string, joining: boolean) => {
       const weekStart = getMonday(new Date());
-      await (supabase.from("mbr_entries") as any).upsert(
-        { deal_id: dealId, week_start: weekStart, anirudh_joining: joining, status: "Pending", updated_by: "" },
-        { onConflict: "deal_id,week_start" }
-      ).select();
+      const prev = qc.getQueryData<MBREntry[]>([...MBR_ENTRIES_KEY]) || [];
+      const existing = prev.find((e) => e.dealId === dealId && e.weekStart === weekStart);
+      const optimistic: MBREntry = existing
+        ? { ...existing, anirudhJoining: joining }
+        : {
+            id: `optimistic-${dealId}-${weekStart}`,
+            dealId, weekStart, status: "Pending", mode: null, notes: null, updatedBy: "",
+            sentiment: null, fathomLink: null, transcript: null, aiSummary: null,
+            actionItems: [], scheduledDate: null, anirudhAdded: false, anirudhJoining: joining,
+            inputRecordedAt: null, mbrPptLink: null,
+          };
+      const next = existing
+        ? prev.map((e) => (e === existing ? optimistic : e))
+        : [optimistic, ...prev];
+      qc.setQueryData([...MBR_ENTRIES_KEY], next);
+      try {
+        await (supabase.from("mbr_entries") as any).upsert(
+          { deal_id: dealId, week_start: weekStart, anirudh_joining: joining, status: "Pending", updated_by: "" },
+          { onConflict: "deal_id,week_start" }
+        ).select();
+      } catch (err) {
+        qc.setQueryData([...MBR_ENTRIES_KEY], prev);
+        throw err;
+      }
+      qc.invalidateQueries({ queryKey: [...MBR_ENTRIES_KEY] });
     },
-    []
+    [qc]
   );
 
   // Computed: VSD summary using latest entries
