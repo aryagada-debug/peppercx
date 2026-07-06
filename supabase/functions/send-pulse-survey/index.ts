@@ -74,37 +74,47 @@ async function getCentralToken(admin: SupabaseClient) {
     .maybeSingle();
   if (error) throw error;
   if (!conn) throw new Error("central_mailbox_not_connected");
+  let accessToken = conn.access_token as string;
+  const expiresAt = new Date(conn.expires_at).getTime();
+  if (expiresAt - Date.now() <= 30_000) {
+    const { clientId, clientSecret } = getCreds();
+    const params = new URLSearchParams({
+      client_id: clientId, client_secret: clientSecret,
+      grant_type: "refresh_token", refresh_token: conn.refresh_token as string,
+    });
+    const res = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: params.toString(),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error_description || data?.error || "token_refresh_failed");
+    accessToken = data.access_token as string;
+    const newExpires = new Date(Date.now() + Math.max(60, data.expires_in - 60) * 1000).toISOString();
+    await admin.from("gmail_connections")
+      .update({ access_token: accessToken, expires_at: newExpires })
+      .eq("user_id", conn.user_id);
+  }
+  // Fetch the sender display name from Gmail's sendAs settings so any change
+  // the user makes in Gmail (Settings → Accounts → Send mail as) is reflected.
   let displayName: string | null = null;
   try {
-    const { data: prof } = await admin
-      .from("profiles")
-      .select("display_name")
-      .eq("user_id", conn.user_id)
-      .maybeSingle();
-    const n = (prof?.display_name || "").trim();
-    if (n) displayName = n;
+    const sr = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/settings/sendAs", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (sr.ok) {
+      const sd = await sr.json();
+      const list: Array<{ sendAsEmail?: string; displayName?: string; isPrimary?: boolean; isDefault?: boolean }> = sd?.sendAs || [];
+      const email = (conn.google_email || "").toLowerCase();
+      const match =
+        list.find(s => (s.sendAsEmail || "").toLowerCase() === email) ||
+        list.find(s => s.isPrimary) ||
+        list.find(s => s.isDefault);
+      const n = (match?.displayName || "").trim();
+      if (n) displayName = n;
+    }
   } catch (_) { /* non-fatal */ }
-  const expiresAt = new Date(conn.expires_at).getTime();
-  if (expiresAt - Date.now() > 30_000) {
-    return { token: conn.access_token as string, email: conn.google_email as string | null, displayName };
-  }
-  const { clientId, clientSecret } = getCreds();
-  const params = new URLSearchParams({
-    client_id: clientId, client_secret: clientSecret,
-    grant_type: "refresh_token", refresh_token: conn.refresh_token as string,
-  });
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: params.toString(),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data?.error_description || data?.error || "token_refresh_failed");
-  const newExpires = new Date(Date.now() + Math.max(60, data.expires_in - 60) * 1000).toISOString();
-  await admin.from("gmail_connections")
-    .update({ access_token: data.access_token, expires_at: newExpires })
-    .eq("user_id", conn.user_id);
-  return { token: data.access_token as string, email: conn.google_email as string | null, displayName };
+  return { token: accessToken, email: conn.google_email as string | null, displayName };
 }
 
 function buildRaw({ to, cc, subject, html, from, fromName }: {
