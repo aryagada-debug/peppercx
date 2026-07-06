@@ -369,12 +369,12 @@ export default function PulseSurveyTab({
             recipients.push({ email: e, name: "", stakeholderId: null });
           }
         });
-        const dropped = new Set((removedCc[d.deal_id] || []).map(e => e.toLowerCase()));
         const body = {
           dealId: d.deal_id,
           recipients,
           autoCcLeadership: true,
           ccEmails: [] as string[],
+          excludeCcNames: removedCc[d.deal_id] || [],
         };
         calls.push(
           supabase.functions.invoke("send-pulse-survey", { body }).then(({ data, error }) => {
@@ -384,13 +384,6 @@ export default function PulseSurveyTab({
                 throw new Error("Central mailbox not connected. Ask an admin to connect centralcx@peppercontent.io in Settings → Email.");
               }
               throw error;
-            }
-            // filter ccEmails post-hoc for UI; the function already auto-CCs.
-            return data;
-          }).then(data => {
-            // honour dropped CCs by sending overrides instead.
-            if (dropped.size > 0) {
-              // best-effort: nothing to do client-side; we already sent.
             }
             return data;
           })
