@@ -1,22 +1,21 @@
-## Problem
+## Change
 
-In MBR Tracker, marking a deal as "Not Required" or "Not Done" writes to the database, but the table doesn't update until a manual refresh. `useMBRData.upsertEntry` writes to `mbr_entries` and then relies purely on Realtime (`postgres_changes`) to invalidate the `["mbr","entries"]` React Query cache. If Realtime isn't enabled for `public.mbr_entries` (or the event is dropped), the UI stays stale.
+Override the sender display name for NPS/pulse survey emails to **"Anirudh from Pepper"**, while the actual From address stays the central CX mailbox (`centralcx@peppercontent.io`). All other outgoing emails keep the current **"Pepper CX"** display name.
 
-## Fix
+## Files
 
-Make the change reflect instantly by:
+**`supabase/functions/send-pulse-survey/index.ts`**
+- In the send path, stop using the Gmail `sendAs` display name lookup as the effective `fromName`.
+- Hardcode `fromName = "Anirudh from Pepper"` when building the raw MIME for pulse survey sends (both invite and reminder flows in this function).
+- Result header: `From: "Anirudh from Pepper" <centralcx@peppercontent.io>`.
 
-1. **Optimistic cache update** in `useMBRData.upsertEntry` — before/after the network call, patch the `["mbr","entries"]` cache directly so the affected row shows the new status immediately with zero refetch.
-2. **Guaranteed invalidation** — call `qc.invalidateQueries({ queryKey: ["mbr","entries"] })` right after the upsert `select()` resolves, so the cache reconciles with the server without waiting for a Realtime broadcast.
-3. Keep the existing Realtime subscription as a background sync for other users' changes (no behavior change there).
+**No changes** to `send-app-email/index.ts` — it continues sending as `Pepper CX <centralcx@…>`.
 
-No schema changes, no new dependencies, no changes to the MBR Tracker page — the fix is isolated to `src/hooks/useMBRData.ts`.
+## Deploy
 
-## Technical notes
+- `supabase--deploy_edge_functions` for `send-pulse-survey`.
 
-- Update path in `upsertEntry`:
-  - Compute the new `MBREntry` shape from `params` (mirroring `mapEntry`).
-  - `qc.setQueryData(["mbr","entries"], (prev) => ...)` — replace the existing row for that `dealId` + current-week `weekStart`, or prepend a new one.
-  - Await the Supabase upsert. On error, roll back to the previous snapshot and rethrow.
-  - After success, `qc.invalidateQueries({ queryKey: ["mbr","entries"] })` to fetch canonical row (with real `id`, timestamps).
-- Same optimistic pattern applied to `toggleAnirudhJoining` for consistency (also currently relies solely on Realtime).
+## Verification
+
+- Trigger a test NPS send from Pulse / NPS → "Send surveys" and confirm the recipient sees "Anirudh from Pepper" as the sender name while the address remains centralcx@peppercontent.io.
+- Trigger any non-NPS notification (e.g. staffing assignment email) and confirm it still shows "Pepper CX".
