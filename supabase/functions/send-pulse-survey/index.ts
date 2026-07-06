@@ -74,9 +74,19 @@ async function getCentralToken(admin: SupabaseClient) {
     .maybeSingle();
   if (error) throw error;
   if (!conn) throw new Error("central_mailbox_not_connected");
+  let displayName: string | null = null;
+  try {
+    const { data: prof } = await admin
+      .from("profiles")
+      .select("display_name")
+      .eq("user_id", conn.user_id)
+      .maybeSingle();
+    const n = (prof?.display_name || "").trim();
+    if (n) displayName = n;
+  } catch (_) { /* non-fatal */ }
   const expiresAt = new Date(conn.expires_at).getTime();
   if (expiresAt - Date.now() > 30_000) {
-    return { token: conn.access_token as string, email: conn.google_email as string | null };
+    return { token: conn.access_token as string, email: conn.google_email as string | null, displayName };
   }
   const { clientId, clientSecret } = getCreds();
   const params = new URLSearchParams({
@@ -94,14 +104,18 @@ async function getCentralToken(admin: SupabaseClient) {
   await admin.from("gmail_connections")
     .update({ access_token: data.access_token, expires_at: newExpires })
     .eq("user_id", conn.user_id);
-  return { token: data.access_token as string, email: conn.google_email as string | null };
+  return { token: data.access_token as string, email: conn.google_email as string | null, displayName };
 }
 
 function buildRaw({ to, cc, subject, html, from }: {
-  to: string[]; cc?: string[]; subject: string; html: string; from: string;
+  to: string[]; cc?: string[]; subject: string; html: string; from: string; fromName?: string;
 }) {
+  const rawName = (arguments[0] as any).fromName as string | undefined;
+  const nm = (rawName || "Pepper CX").replace(/[\\"]/g, "").trim() || "Pepper CX";
+  const needsQuote = /[^A-Za-z0-9 .\-_]/.test(nm);
+  const fromHeader = needsQuote ? `"${nm}" <${from}>` : `${nm} <${from}>`;
   const lines = [
-    `From: Pepper CX <${from}>`,
+    `From: ${fromHeader}`,
     `To: ${to.join(", ")}`,
     ...(cc && cc.length ? [`Cc: ${cc.join(", ")}`] : []),
     `Subject: ${subject}`,
