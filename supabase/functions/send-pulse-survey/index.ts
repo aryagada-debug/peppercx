@@ -269,6 +269,7 @@ type SendBody = {
   recipients: Recipient[];
   ccEmails?: string[];
   autoCcLeadership?: boolean;
+  excludeCcNames?: string[];
 };
 
 Deno.serve(async (req) => {
@@ -296,7 +297,13 @@ Deno.serve(async (req) => {
 
     let ccEmails: string[] = (body.ccEmails || []).filter(e => /@/.test(e));
     if (body.autoCcLeadership !== false) {
-      const leadershipNames = [deal.vsd, deal.principal_bopm, deal.senior_bopm].filter(Boolean) as string[];
+      const excluded = new Set(
+        (body.excludeCcNames || []).map(n => (n || "").trim().toLowerCase()).filter(Boolean)
+      );
+      const leadershipNames = [deal.vsd, deal.principal_bopm, deal.senior_bopm]
+        .filter(Boolean)
+        .flatMap((n) => (n as string).split(/[,/]/).map(x => x.trim()).filter(Boolean))
+        .filter(n => !excluded.has(n.toLowerCase()));
       const auto = await lookupEmailsByNames(admin, leadershipNames);
       ccEmails = Array.from(new Set([...ccEmails, ...auto]));
     }
