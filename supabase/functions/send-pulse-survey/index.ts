@@ -359,12 +359,13 @@ Deno.serve(async (req) => {
     // Fetch central mailbox up-front so we can use its display name in template vars.
     let token: string;
     let fromEmail: string | null;
-    let fromName = "Pepper CX";
+    let fromName = "Anirudh from Pepper";
     try {
       const c = await getCentralToken(admin);
       token = c.token;
       fromEmail = c.email;
-      if (c.displayName) fromName = c.displayName;
+      // Intentionally ignore Gmail sendAs displayName: NPS/pulse emails must always
+      // appear as "Anirudh from Pepper" regardless of the central mailbox's Gmail settings.
       if (!fromEmail) throw new Error("central_mailbox_missing_email");
     } catch (e) {
       const msg = publicErrorMessage(e);
