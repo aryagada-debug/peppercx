@@ -346,6 +346,21 @@ Deno.serve(async (req) => {
       subject: string;
     }> = [];
 
+    // Fetch central mailbox up-front so we can use its display name in template vars.
+    let token: string;
+    let fromEmail: string | null;
+    let fromName = "Pepper CX";
+    try {
+      const c = await getCentralToken(admin);
+      token = c.token;
+      fromEmail = c.email;
+      if (c.displayName) fromName = c.displayName;
+      if (!fromEmail) throw new Error("central_mailbox_missing_email");
+    } catch (e) {
+      const msg = publicErrorMessage(e);
+      return json({ ok: false, error: msg, ccEmails, results });
+    }
+
     for (const rcp of recipients) {
       const inviteToken = randomToken();
       const link = surveyLinkFor(req, inviteToken);
@@ -376,7 +391,7 @@ Deno.serve(async (req) => {
         account: deal.account || "",
         deal_name: deal.deal_name || "",
         vsd: deal.vsd || "",
-        sender_name: "Pepper CX",
+        sender_name: fromName,
         link,
       };
       const label = [deal.account, deal.deal_name].filter(Boolean).join(" - ") || deal.id;
@@ -389,26 +404,8 @@ Deno.serve(async (req) => {
       return json({ ok: false, error: "invite_creation_failed", results }, 500);
     }
 
-    let token: string;
-    let fromEmail: string | null;
-    try {
-      const c = await getCentralToken(admin);
-      token = c.token;
-      fromEmail = c.email;
-      if (!fromEmail) throw new Error("central_mailbox_missing_email");
-    } catch (e) {
-      const msg = publicErrorMessage(e);
-      await admin.from("survey_invites").update({
-        email_status: "failed",
-        error: msg,
-        updated_at: new Date().toISOString(),
-      }).in("id", prepared.map(p => p.inviteId));
-      prepared.forEach(p => results.push({ email: p.email, ok: false, inviteId: p.inviteId, link: p.link, error: msg }));
-      return json({ ok: false, error: msg, ccEmails, results });
-    }
-
     for (const item of prepared) {
-      const raw = buildRaw({ to: [item.email], cc: ccEmails, subject: item.subject, html: item.html, from: fromEmail });
+      const raw = buildRaw({ to: [item.email], cc: ccEmails, subject: item.subject, html: item.html, from: fromEmail, fromName });
 
       const sendRes = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
         method: "POST",
