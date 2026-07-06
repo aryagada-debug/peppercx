@@ -1,0 +1,2 @@
+DROP TRIGGER IF EXISTS trg_reset_staffing_on_inactive_deal ON public.staffing_deals;
+DROP TRIGGER IF EXISTS trg_sync_bopm_fields_from_assignment ON public.staffing_assignments;
