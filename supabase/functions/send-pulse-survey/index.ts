@@ -107,11 +107,10 @@ async function getCentralToken(admin: SupabaseClient) {
   return { token: data.access_token as string, email: conn.google_email as string | null, displayName };
 }
 
-function buildRaw({ to, cc, subject, html, from }: {
+function buildRaw({ to, cc, subject, html, from, fromName }: {
   to: string[]; cc?: string[]; subject: string; html: string; from: string; fromName?: string;
 }) {
-  const rawName = (arguments[0] as any).fromName as string | undefined;
-  const nm = (rawName || "Pepper CX").replace(/[\\"]/g, "").trim() || "Pepper CX";
+  const nm = (fromName || "Pepper CX").replace(/[\\"]/g, "").trim() || "Pepper CX";
   const needsQuote = /[^A-Za-z0-9 .\-_]/.test(nm);
   const fromHeader = needsQuote ? `"${nm}" <${from}>` : `${nm} <${from}>`;
   const lines = [
