@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/hooks/use-toast";
-import { Copy, ExternalLink, Loader2, Search, Send, Mail, X } from "lucide-react";
+import { Copy, ExternalLink, Loader2, Search, Send, Mail, X, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useVsdUsers, nameKey } from "@/hooks/queries/legacy";
 import { BopmFilter } from "@/components/access/BopmFilter";
@@ -752,11 +752,12 @@ export default function PulseSurveyTab({
                 <th className="text-left px-3 py-2">NPS</th>
                 <th className="text-left px-3 py-2">CSAT</th>
                 <th className="text-left px-3 py-2">Link</th>
+                <th className="text-left px-3 py-2"></th>
               </tr>
             </thead>
             <tbody>
               {invites.length === 0 && (
-                <tr><td colSpan={10} className="px-3 py-6 text-center text-muted-foreground">No invites sent yet.</td></tr>
+                <tr><td colSpan={11} className="px-3 py-6 text-center text-muted-foreground">No invites sent yet.</td></tr>
               )}
               {invites.map(inv => {
                 const r = responsesByInvite[inv.id];
@@ -812,6 +813,26 @@ export default function PulseSurveyTab({
                         <ExternalLink className="h-3.5 w-3.5" />
                       </a>
                     </div>
+                  </td>
+                  <td className="px-3 py-2">
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!confirm(`Delete invite for ${inv.recipient_email}? This also removes any submitted response.`)) return;
+                          const { error } = await supabase.from("survey_invites").delete().eq("id", inv.id);
+                          if (error) { toast({ title: "Delete failed", description: error.message, variant: "destructive" }); return; }
+                          toast({ title: "Invite deleted" });
+                          qc.invalidateQueries({ queryKey: ["pulse-invites"] });
+                          qc.invalidateQueries({ queryKey: ["pulse-summary-30d"] });
+                        }}
+                        className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                        aria-label="Delete invite"
+                        title="Delete invite"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </td>
                 </tr>
                 );
