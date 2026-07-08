@@ -5,7 +5,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Download, ExternalLink, Mail, Phone, Linkedin, Users, AlertTriangle } from "lucide-react";
+import { Search, Download, ExternalLink, Mail, Phone, Linkedin, Users, AlertTriangle, ChevronRight, ChevronDown, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -139,6 +139,16 @@ export default function Contacts() {
   const [insightsSort, setInsightsSort] = useState<SortState>({ sortKey: "contactCount", sortDir: "asc" });
   const [insightsColFilters, setInsightsColFilters] = useState<Record<string, string>>({});
   const [insightsOpenFilter, setInsightsOpenFilter] = useState<string | null>(null);
+  const [expandedVsds, setExpandedVsds] = useState<Set<string>>(new Set());
+  const toggleExpanded = (vsd: string) =>
+    setExpandedVsds(prev => {
+      const next = new Set(prev);
+      if (next.has(vsd)) next.delete(vsd); else next.add(vsd);
+      return next;
+    });
+  const [vsdSort, setVsdSort] = useState<{ key: "vsd" | "deals" | "contacts" | "missing"; dir: "asc" | "desc" }>({ key: "missing", dir: "desc" });
+  const toggleVsdSort = (key: "vsd" | "deals" | "contacts" | "missing") =>
+    setVsdSort(s => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: key === "vsd" ? "asc" : "desc" }));
   const setInsightsFilter = (k: string, v: string) =>
     setInsightsColFilters(prev => (v ? { ...prev, [k]: v } : Object.fromEntries(Object.entries(prev).filter(([kk]) => kk !== k))));
   const clearInsightsFilter = (k: string) =>
@@ -219,6 +229,18 @@ export default function Contacts() {
       }))
       .sort((a, b) => b.missing - a.missing || a.vsd.localeCompare(b.vsd));
   }, [allDeals, contactsByClient, contactsByDealFallback, insightsVsdF, insightsStatusF, insightsOnlyMissing, insightsColFilters, insightsSort]);
+
+  const sortedInsightsGroups = useMemo(() => {
+    const dir = vsdSort.dir === "asc" ? 1 : -1;
+    return [...insightsGroups].sort((a, b) => {
+      switch (vsdSort.key) {
+        case "vsd": return a.vsd.localeCompare(b.vsd) * dir;
+        case "deals": return (a.deals.length - b.deals.length) * dir;
+        case "contacts": return (a.total - b.total) * dir;
+        case "missing": return (a.missing - b.missing) * dir;
+      }
+    });
+  }, [insightsGroups, vsdSort]);
 
   const insightsRegionOpts = useMemo(
     () => Array.from(new Set(allDeals.map(d => d.region).filter(Boolean))).sort(),
@@ -434,23 +456,49 @@ export default function Contacts() {
               <p className="text-sm text-foreground font-medium">No deals match</p>
             </div>
           )}
-          {!loading && insightsGroups.map(g => (
-            <div key={g.vsd} className="rounded-lg border border-border bg-card overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-2.5 bg-muted/40 border-b border-border">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-foreground">{g.vsd}</span>
-                  <Badge variant="secondary" className="text-[10px]">{g.deals.length} deals</Badge>
-                  <Badge variant="outline" className="text-[10px]">{g.total} contacts</Badge>
-                </div>
-                {g.missing > 0 && (
-                  <Badge variant="outline" className="text-[10px] bg-destructive/10 text-destructive border-destructive/30">
-                    <AlertTriangle className="h-3 w-3 mr-1" />
-                    {g.missing} missing
-                  </Badge>
-                )}
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+          {!loading && insightsGroups.length > 0 && (
+            <div className="rounded-lg border border-border bg-card overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/40 border-b border-border text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <tr>
+                    <th className="w-8 px-2 py-2.5"></th>
+                    <VsdSortHeader label="VSD" k="vsd" sort={vsdSort} onSort={toggleVsdSort} align="left" />
+                    <VsdSortHeader label="# Deals" k="deals" sort={vsdSort} onSort={toggleVsdSort} align="right" />
+                    <VsdSortHeader label="# Contacts" k="contacts" sort={vsdSort} onSort={toggleVsdSort} align="right" />
+                    <VsdSortHeader label="Deals without contacts" k="missing" sort={vsdSort} onSort={toggleVsdSort} align="right" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedInsightsGroups.map(g => {
+                    const isOpen = expandedVsds.has(g.vsd);
+                    return (
+                      <>
+                        <tr
+                          key={g.vsd}
+                          onClick={() => toggleExpanded(g.vsd)}
+                          className="border-b border-border last:border-b-0 hover:bg-muted/30 transition-colors cursor-pointer"
+                        >
+                          <td className="px-2 py-2.5 text-muted-foreground">
+                            {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                          </td>
+                          <td className="px-3 py-2.5 font-medium text-foreground">{g.vsd}</td>
+                          <td className="px-3 py-2.5 text-right font-mono tabular-nums text-foreground">{g.deals.length}</td>
+                          <td className="px-3 py-2.5 text-right font-mono tabular-nums text-foreground">{g.total}</td>
+                          <td className="px-3 py-2.5 text-right font-mono tabular-nums">
+                            {g.missing > 0 ? (
+                              <span className="inline-flex items-center gap-1 text-destructive font-semibold">
+                                <AlertTriangle className="h-3 w-3" />{g.missing}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">0</span>
+                            )}
+                          </td>
+                        </tr>
+                        {isOpen && (
+                          <tr key={`${g.vsd}__exp`} className="bg-muted/10">
+                            <td colSpan={5} className="p-0">
+                              <div className="overflow-x-auto border-t border-border">
+                                <table className="w-full text-sm">
                   <thead className="border-b border-border">
                     <tr className="group/headrow">
                       <ColHeader label="Account" colKey="account" sortKey="account" sortState={insightsSort} onSort={toggleInsightsSort} colFilters={insightsColFilters} openFilter={insightsOpenFilter} setOpenFilter={setInsightsOpenFilter} setFilter={setInsightsFilter} clearFilter={clearInsightsFilter} />
@@ -489,12 +537,33 @@ export default function Contacts() {
                     })}
                   </tbody>
                 </table>
-              </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-          ))}
+          )}
         </TabsContent>
       </Tabs>
     </div>
     </AppLayout>
+  );
+}
+
+function VsdSortHeader({ label, k, sort, onSort, align }: { label: string; k: "vsd" | "deals" | "contacts" | "missing"; sort: { key: string; dir: "asc" | "desc" }; onSort: (k: any) => void; align: "left" | "right" }) {
+  const active = sort.key === k;
+  const Icon = !active ? ArrowUpDown : sort.dir === "asc" ? ArrowUp : ArrowDown;
+  return (
+    <th className={`px-3 py-2.5 ${align === "right" ? "text-right" : "text-left"}`}>
+      <button onClick={() => onSort(k)} className={`inline-flex items-center gap-1 hover:text-foreground transition-colors ${active ? "text-foreground" : ""}`}>
+        <span>{label}</span>
+        <Icon className={`h-3 w-3 ${active ? "" : "opacity-50"}`} />
+      </button>
+    </th>
   );
 }
