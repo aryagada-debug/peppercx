@@ -64,7 +64,7 @@ const navSections = [
     label: "Health & Reviews",
     items: [
       { to: "/rgy-health", icon: Activity, label: "RGY Health", routeKey: "rgy-health" },
-      { to: "/slack-review", icon: MessagesSquare, label: "Slack Review", routeKey: "rgy-health" },
+      { to: "/slack-review", icon: MessagesSquare, label: "Slack Review", routeKey: "rgy-health", adminOnly: true },
       { to: "/pulse-nps", icon: Sparkles, label: "Pulse / NPS", routeKey: "rgy-health", adminOnly: true },
       { to: "/mbr-tracker", icon: FileText, label: "MBR Tracker", routeKey: "mbr-tracker" },
     ],
