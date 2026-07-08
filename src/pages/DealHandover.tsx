@@ -97,7 +97,10 @@ export default function DealHandover() {
   const [loadingRows, setLoadingRows] = useState(false);
   const [open, setOpen] = useState<HandoverRow | null>(null);
   const [staffingMap, setStaffingMap] = useState<Record<string, { locked: boolean }>>({});
-  const publicFormUrl = typeof window !== "undefined" ? `${window.location.origin}/h/handover` : "/h/handover";
+  // Always advertise the published domain so the link works for anyone,
+  // not just people already viewing the preview or a custom origin.
+  const PUBLIC_BASE = "https://peppercx.lovable.app";
+  const publicFormUrl = `${PUBLIC_BASE}/h/handover`;
   const copyPublicFormUrl = async () => {
     try {
       if (navigator.clipboard && window.isSecureContext) {
