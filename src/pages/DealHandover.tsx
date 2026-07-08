@@ -97,6 +97,31 @@ export default function DealHandover() {
   const [loadingRows, setLoadingRows] = useState(false);
   const [open, setOpen] = useState<HandoverRow | null>(null);
   const [staffingMap, setStaffingMap] = useState<Record<string, { locked: boolean }>>({});
+  const publicFormUrl = typeof window !== "undefined" ? `${window.location.origin}/h/handover` : "/h/handover";
+  const copyPublicFormUrl = async () => {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(publicFormUrl);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = publicFormUrl;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        if (!ok) throw new Error("execCommand failed");
+      }
+      toast({ title: "Public form link copied", description: publicFormUrl });
+    } catch {
+      toast({
+        title: "Copy blocked by browser",
+        description: "Select the link in the box and copy it manually.",
+        variant: "destructive",
+      });
+    }
+  };
   const loadRows = async () => {
     setLoadingRows(true);
     const { data, error } = await supabase
