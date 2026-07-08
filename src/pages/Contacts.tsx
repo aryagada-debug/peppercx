@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { Fragment, useMemo, useState, useEffect } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -472,7 +472,7 @@ export default function Contacts() {
                   {sortedInsightsGroups.map(g => {
                     const isOpen = expandedVsds.has(g.vsd);
                     return (
-                      <React.Fragment key={g.vsd}>
+                      <Fragment key={g.vsd}>
                         <tr
                           onClick={() => toggleExpanded(g.vsd)}
                           className="border-b border-border last:border-b-0 hover:bg-muted/30 transition-colors cursor-pointer"
@@ -540,7 +540,7 @@ export default function Contacts() {
                             </td>
                           </tr>
                         )}
-                      </React.Fragment>
+                      </Fragment>
                     );
                   })}
                 </tbody>
