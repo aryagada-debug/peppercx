@@ -97,6 +97,31 @@ export default function DealHandover() {
   const [loadingRows, setLoadingRows] = useState(false);
   const [open, setOpen] = useState<HandoverRow | null>(null);
   const [staffingMap, setStaffingMap] = useState<Record<string, { locked: boolean }>>({});
+  const publicFormUrl = typeof window !== "undefined" ? `${window.location.origin}/h/handover` : "/h/handover";
+  const copyPublicFormUrl = async () => {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(publicFormUrl);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = publicFormUrl;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        if (!ok) throw new Error("execCommand failed");
+      }
+      toast({ title: "Public form link copied", description: publicFormUrl });
+    } catch {
+      toast({
+        title: "Copy blocked by browser",
+        description: "Select the link in the box and copy it manually.",
+        variant: "destructive",
+      });
+    }
+  };
   const loadRows = async () => {
     setLoadingRows(true);
     const { data, error } = await supabase
@@ -173,22 +198,21 @@ export default function DealHandover() {
   return (
     <AppLayout>
       <div className="p-6 max-w-7xl mx-auto space-y-4">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <ClipboardCheck className="h-5 w-5 text-primary" />
           <h1 className="text-xl font-semibold">Deal Handover</h1>
-          <div className="ml-auto">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                const url = `${window.location.origin}/h/handover`;
-                navigator.clipboard.writeText(url).then(
-                  () => toast({ title: "Public form link copied", description: url }),
-                  () => toast({ title: "Copy failed", variant: "destructive" }),
-                );
-              }}
-            >
-              <Link2 className="h-4 w-4 mr-1" /> Copy public form link
+          <div className="ml-auto flex items-center gap-2">
+            <Input
+              readOnly
+              value={publicFormUrl}
+              onFocus={(e) => e.currentTarget.select()}
+              className="h-8 w-[280px] font-mono text-xs"
+            />
+            <Button size="sm" variant="outline" onClick={copyPublicFormUrl}>
+              <Link2 className="h-4 w-4 mr-1" /> Copy link
+            </Button>
+            <Button size="sm" variant="outline" asChild>
+              <a href={publicFormUrl} target="_blank" rel="noreferrer">Open</a>
             </Button>
           </div>
         </div>
