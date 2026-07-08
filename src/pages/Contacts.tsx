@@ -472,9 +472,8 @@ export default function Contacts() {
                   {sortedInsightsGroups.map(g => {
                     const isOpen = expandedVsds.has(g.vsd);
                     return (
-                      <>
+                      <React.Fragment key={g.vsd}>
                         <tr
-                          key={g.vsd}
                           onClick={() => toggleExpanded(g.vsd)}
                           className="border-b border-border last:border-b-0 hover:bg-muted/30 transition-colors cursor-pointer"
                         >
@@ -495,7 +494,7 @@ export default function Contacts() {
                           </td>
                         </tr>
                         {isOpen && (
-                          <tr key={`${g.vsd}__exp`} className="bg-muted/10">
+                          <tr className="bg-muted/10">
                             <td colSpan={5} className="p-0">
                               <div className="overflow-x-auto border-t border-border">
                                 <table className="w-full text-sm">
@@ -541,7 +540,7 @@ export default function Contacts() {
                             </td>
                           </tr>
                         )}
-                      </>
+                      </React.Fragment>
                     );
                   })}
                 </tbody>
