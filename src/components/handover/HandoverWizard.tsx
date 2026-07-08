@@ -954,14 +954,17 @@ function Step3({ form, set, errors, fieldRefs }: StepProps) {
 
 /* ─── Step 4: Deal ────────────────────────────────────── */
 function Step4({ form, set, errors, fieldRefs }: StepProps) {
-  // Suggest total = MRR × Duration for retainers, but only when total is empty
+  // Auto-calc total = MRR × Duration for retainers. Stays editable — once the
+  // user manually changes total, we stop overwriting it (until MRR/Duration
+  // change would produce that same value again).
+  const userEditedTotalRef = useRef(false);
   useEffect(() => {
     if (form.deal_type !== "Retainer") return;
-    if (form.total_amount != null) return;
     const months = Number(form.duration_months || 0);
-    if (form.mrr != null && months > 0) {
-      set("total_amount", Math.round(form.mrr * months));
-    }
+    if (form.mrr == null || months <= 0) return;
+    const computed = Math.round(form.mrr * months);
+    if (userEditedTotalRef.current && form.total_amount !== computed) return;
+    if (form.total_amount !== computed) set("total_amount", computed);
   }, [form.deal_type, form.mrr, form.duration_months]); // eslint-disable-line
   return (
     <div className="space-y-4">
