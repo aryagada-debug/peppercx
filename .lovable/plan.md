@@ -1,21 +1,21 @@
-## Change
+## Goal
+Replace the current per-VSD stacked-card layout in **Contacts → Insights** with a single expandable summary table.
 
-Override the sender display name for NPS/pulse survey emails to **"Anirudh from Pepper"**, while the actual From address stays the central CX mailbox (`centralcx@peppercontent.io`). All other outgoing emails keep the current **"Pepper CX"** display name.
+## Table columns
+| VSD | # Deals | # Contacts | Deals without contacts |
 
-## Files
+- Rows are sortable by any column.
+- Clicking a row (or a chevron) expands it to reveal the existing per-deal table (Account, Deal, BOPM, Region, Status, # Contacts) already built for that VSD group.
+- Multiple rows can be expanded at once.
+- A "Deals without contacts" count is rendered in red when > 0.
+- Existing filters (Status, VSD, "Show missing only") and the summary footer stay unchanged.
+- Existing per-deal ColHeader filtering/sorting inside the expanded panel is preserved.
 
-**`supabase/functions/send-pulse-survey/index.ts`**
-- In the send path, stop using the Gmail `sendAs` display name lookup as the effective `fromName`.
-- Hardcode `fromName = "Anirudh from Pepper"` when building the raw MIME for pulse survey sends (both invite and reminder flows in this function).
-- Result header: `From: "Anirudh from Pepper" <centralcx@peppercontent.io>`.
-
-**No changes** to `send-app-email/index.ts` — it continues sending as `Pepper CX <centralcx@…>`.
-
-## Deploy
-
-- `supabase--deploy_edge_functions` for `send-pulse-survey`.
-
-## Verification
-
-- Trigger a test NPS send from Pulse / NPS → "Send surveys" and confirm the recipient sees "Anirudh from Pepper" as the sender name while the address remains centralcx@peppercontent.io.
-- Trigger any non-NPS notification (e.g. staffing assignment email) and confirm it still shows "Pepper CX".
+## Implementation notes (single file: `src/pages/Contacts.tsx`)
+1. Add `expandedVsds: Set<string>` state and a `toggleExpanded(vsd)` helper.
+2. Add `vsdSort` state (`{key: 'vsd'|'deals'|'contacts'|'missing', dir}`) and sort `insightsGroups` accordingly for the outer table.
+3. Replace the `insightsGroups.map(...)` block with:
+   - One `<table>` whose header has the 4 columns + a chevron column.
+   - For each VSD group: a summary `<tr>` (clickable) + a conditional expanded `<tr>` with `colSpan=5` containing the existing per-deal `<table>` markup.
+4. Keep the existing empty/loading states and the top toolbar exactly as they are.
+5. No changes to data fetching, hooks, or other files.
