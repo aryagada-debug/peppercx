@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ExternalLink, Plus, Trash2, ClipboardCheck, AlertCircle } from "lucide-react";
+import { ExternalLink, Plus, Trash2, ClipboardCheck, AlertCircle, Link2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -56,6 +56,7 @@ interface HandoverRow {
   status: string;
   created_deal_id: string | null;
   created_at: string;
+  submitted_via?: string | null;
 }
 
 const HANDOVER_LEADS = [
@@ -175,6 +176,21 @@ export default function DealHandover() {
         <div className="flex items-center gap-2">
           <ClipboardCheck className="h-5 w-5 text-primary" />
           <h1 className="text-xl font-semibold">Deal Handover</h1>
+          <div className="ml-auto">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const url = `${window.location.origin}/h/handover`;
+                navigator.clipboard.writeText(url).then(
+                  () => toast({ title: "Public form link copied", description: url }),
+                  () => toast({ title: "Copy failed", variant: "destructive" }),
+                );
+              }}
+            >
+              <Link2 className="h-4 w-4 mr-1" /> Copy public form link
+            </Button>
+          </div>
         </div>
         <p className="text-sm text-muted-foreground -mt-2">
           Sales fills the handover form. Priyanka adds Deal ID + Deal Name; Anirudh adds the VSD. Once both are filled the deal
@@ -213,7 +229,14 @@ export default function DealHandover() {
                   ) : (
                     rows.map((r) => (
                       <TableRow key={r.id} className="cursor-pointer hover:bg-muted/40" onClick={() => setOpen(r)}>
-                        <TableCell className="font-medium">{r.company_name}</TableCell>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            <span>{r.company_name}</span>
+                            {r.submitted_via === "public_link" && (
+                              <Badge variant="outline" className="text-[10px] border-primary/40 text-primary">Public link</Badge>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-sm">{r.sp_name || r.sp_email}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{new Date(r.created_at).toLocaleDateString()}</TableCell>
                         <TableCell className="text-sm">

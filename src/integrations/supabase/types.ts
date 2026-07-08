@@ -634,6 +634,7 @@ export type Database = {
           start_date: string | null
           status: string
           strategy_deck_url: string
+          submitted_via: string
           submitter_user_id: string | null
           total_amount: number | null
           updated_at: string
@@ -674,6 +675,7 @@ export type Database = {
           start_date?: string | null
           status?: string
           strategy_deck_url?: string
+          submitted_via?: string
           submitter_user_id?: string | null
           total_amount?: number | null
           updated_at?: string
@@ -714,6 +716,7 @@ export type Database = {
           start_date?: string | null
           status?: string
           strategy_deck_url?: string
+          submitted_via?: string
           submitter_user_id?: string | null
           total_amount?: number | null
           updated_at?: string

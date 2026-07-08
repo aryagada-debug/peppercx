@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.notification-cron]
 verify_jwt = false
+
+[functions.handover-submit]
+verify_jwt = false

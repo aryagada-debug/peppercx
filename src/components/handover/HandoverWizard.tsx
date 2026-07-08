@@ -44,9 +44,9 @@ const HANDOVER_LEADS = [
 const STEPS = ["Salesperson", "Client", "Documents", "Deal", "Review"] as const;
 type StepIdx = 0 | 1 | 2 | 3 | 4;
 
-type Props = { onSubmitted: () => void };
+type Props = { onSubmitted: () => void; mode?: "authed" | "public" };
 
-export function HandoverWizard({ onSubmitted }: Props) {
+export function HandoverWizard({ onSubmitted, mode = "authed" }: Props) {
   const { user } = useAuth();
   const [form, setForm] = useState<HandoverForm>(emptyHandover);
   const [step, setStep] = useState<StepIdx>(0);
@@ -203,13 +203,21 @@ export function HandoverWizard({ onSubmitted }: Props) {
       contacts: form.contacts.filter((c) => c.name || c.email),
       status: "submitted",
     };
-    const { error } = await supabase.from("deal_handovers" as any).insert(payload);
+    let submitError: string | null = null;
+    if (mode === "public") {
+      const { data, error } = await supabase.functions.invoke("handover-submit", { body: { payload } });
+      if (error) submitError = error.message;
+      else if (data && (data as any).ok === false) submitError = (data as any).error || "Submission failed";
+    } else {
+      const { error } = await supabase.from("deal_handovers" as any).insert(payload);
+      if (error) submitError = error.message;
+    }
     setSubmitting(false);
-    if (error) {
-      toast({ title: "Failed to submit", description: error.message, variant: "destructive" });
+    if (submitError) {
+      toast({ title: "Failed to submit", description: submitError, variant: "destructive" });
       return;
     }
-    sendAppEmail({
+    if (mode === "authed") sendAppEmail({
       event: "handover_received",
       payload: {
         kind: "handover_submitted",

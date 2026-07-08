@@ -1,0 +1,1 @@
+ALTER TABLE public.deal_handovers ADD COLUMN IF NOT EXISTS submitted_via text NOT NULL DEFAULT 'app';
