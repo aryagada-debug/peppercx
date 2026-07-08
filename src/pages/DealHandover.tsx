@@ -173,22 +173,21 @@ export default function DealHandover() {
   return (
     <AppLayout>
       <div className="p-6 max-w-7xl mx-auto space-y-4">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <ClipboardCheck className="h-5 w-5 text-primary" />
           <h1 className="text-xl font-semibold">Deal Handover</h1>
-          <div className="ml-auto">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                const url = `${window.location.origin}/h/handover`;
-                navigator.clipboard.writeText(url).then(
-                  () => toast({ title: "Public form link copied", description: url }),
-                  () => toast({ title: "Copy failed", variant: "destructive" }),
-                );
-              }}
-            >
-              <Link2 className="h-4 w-4 mr-1" /> Copy public form link
+          <div className="ml-auto flex items-center gap-2">
+            <Input
+              readOnly
+              value={publicFormUrl}
+              onFocus={(e) => e.currentTarget.select()}
+              className="h-8 w-[280px] font-mono text-xs"
+            />
+            <Button size="sm" variant="outline" onClick={copyPublicFormUrl}>
+              <Link2 className="h-4 w-4 mr-1" /> Copy link
+            </Button>
+            <Button size="sm" variant="outline" asChild>
+              <a href={publicFormUrl} target="_blank" rel="noreferrer">Open</a>
             </Button>
           </div>
         </div>
