@@ -1056,7 +1056,7 @@ function Step4({ form, set, errors, fieldRefs }: StepProps) {
             id="total_amount"
             ref={(n) => (fieldRefs.current.total_amount = n as HTMLElement | null)}
             value={form.total_amount}
-            onChange={(v) => set("total_amount", v)}
+            onChange={(v) => { userEditedTotalRef.current = true; set("total_amount", v); }}
             placeholder="e.g. 60,00,000"
           />
         </FieldShell>
