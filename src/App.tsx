@@ -46,6 +46,7 @@ const DealHandover = lazy(() => import("./pages/DealHandover"));
 const SlackReview = lazy(() => import("./pages/SlackReview"));
 const PublicSurvey = lazy(() => import("./pages/PublicSurvey"));
 const SurveyForm = lazy(() => import("./pages/SurveyForm"));
+const PublicHandover = lazy(() => import("./pages/PublicHandover"));
 
 // Mounts the one-shot seeder under the auth provider so it can read the
 // session and only fire when staffing_people is empty.
@@ -72,6 +73,13 @@ function isPublicSurveyRequest(location?: ReturnType<typeof useLocation>) {
   return /^\/(?:s|survey)(?:\/|$)/.test(location?.pathname || "");
 }
 
+function isPublicHandoverRequest(location?: ReturnType<typeof useLocation>) {
+  const path = location?.pathname
+    || (typeof window !== "undefined" ? window.location.pathname : "")
+    || "";
+  return /^\/h\/handover(?:\/|$)/.test(path);
+}
+
 function RootRoute() {
   if (isPublicSurveyRequest()) return <SurveyForm />;
   return <Navigate to="/home" replace />;
@@ -93,6 +101,7 @@ function AppRoutes() {
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/calendar/callback" element={<CalendarCallback />} />
               <Route path="/gmail/callback" element={<GmailCallback />} />
+              <Route path="/h/handover" element={<PublicHandover />} />
 
               {/* Protected routes */}
               <Route path="/home" element={<ProtectedRoute routeKey="home"><Home /></ProtectedRoute>} />
@@ -129,6 +138,7 @@ function AppRoutes() {
 function RouterSwitch() {
   const location = useLocation();
   if (isPublicSurveyRequest(location)) return <SurveyForm />;
+  if (isPublicHandoverRequest(location)) return <PublicHandover />;
   return <AppRoutes />;
 }
 
