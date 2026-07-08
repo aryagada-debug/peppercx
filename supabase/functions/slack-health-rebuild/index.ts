@@ -44,6 +44,7 @@ async function fetchChannelHistory(channelId: string, days = 90): Promise<{ mess
   const oldest = Math.floor((Date.now() - days * 86400 * 1000) / 1000).toString();
   const out: SlackHistMsg[] = [];
   let cursor = "";
+  let joined = false;
   for (let i = 0; i < 20; i++) { // hard cap ~4000 msgs / channel
     const url = new URL("https://slack.com/api/conversations.history");
     url.searchParams.set("channel", channelId);
@@ -52,7 +53,30 @@ async function fetchChannelHistory(channelId: string, days = 90): Promise<{ mess
     if (cursor) url.searchParams.set("cursor", cursor);
     const r = await fetch(url, { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } });
     const j = await r.json();
-    if (!j.ok) return { messages: out, warning: j.error || "slack_error" };
+    if (!j.ok) {
+      // The bot must be a member to read history. Public channels can be joined
+      // programmatically; retry once after joining. Private channels still require
+      // a human invite and will surface as `not_in_channel`.
+      if (j.error === "not_in_channel" && !joined) {
+        joined = true;
+        const jr = await fetch("https://slack.com/api/conversations.join", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: `channel=${encodeURIComponent(channelId)}`,
+        });
+        const jj = await jr.json();
+        if (jj.ok) {
+          cursor = "";
+          i--; // retry this iteration
+          continue;
+        }
+        return { messages: out, warning: jj.error === "method_not_supported_for_channel_type" ? "private_channel_needs_invite" : (jj.error || "not_in_channel") };
+      }
+      return { messages: out, warning: j.error || "slack_error" };
+    }
     for (const m of (j.messages || []) as SlackHistMsg[]) {
       if (m.type && m.type !== "message") continue;
       if (m.subtype && !["thread_broadcast", "bot_message", "me_message"].includes(m.subtype)) continue;
