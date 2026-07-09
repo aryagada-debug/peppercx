@@ -151,7 +151,7 @@ export default function MBRTracker() {
   type DrillMetric = "total" | "done" | "notDone" | "pending" | "green" | "yellow" | "red" | "scheduled" | "marked" | "notMarked";
   const [drill, setDrill] = useState<{ rowKey: string; rowLabel: string; metric: DrillMetric } | null>(null);
   const [expandedVsd, setExpandedVsd] = useState<string | null>(null);
-  const [expandedStatusVsd, setExpandedStatusVsd] = useState<string | null>(null);
+  const [expandedStatusVsds, setExpandedStatusVsds] = useState<Set<string>>(new Set());
   // Column filter/sort state
   const [colFilters, setColFilters] = useState<Record<string, string>>({});
   const [openFilter, setOpenFilter] = useState<string | null>(null);
@@ -1036,7 +1036,7 @@ export default function MBRTracker() {
                         </thead>
                         <tbody>
                           {vsdRows.map(r => {
-                            const isOpen = expandedStatusVsd === r.vsd;
+                            const isOpen = expandedStatusVsds.has(r.vsd);
                             return (
                               <React.Fragment key={`sv-${r.vsd}`}>
                                 <tr className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
@@ -1044,7 +1044,11 @@ export default function MBRTracker() {
                                     <div className="flex items-center gap-1">
                                       <button
                                         type="button"
-                                        onClick={() => setExpandedStatusVsd(isOpen ? null : r.vsd)}
+                                        onClick={() => setExpandedStatusVsds(prev => {
+                                          const next = new Set(prev);
+                                          if (next.has(r.vsd)) next.delete(r.vsd); else next.add(r.vsd);
+                                          return next;
+                                        })}
                                         className="p-0.5 rounded hover:bg-secondary/60 text-muted-foreground"
                                         aria-label={isOpen ? "Collapse" : "Expand"}
                                       >
