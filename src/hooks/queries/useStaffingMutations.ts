@@ -26,7 +26,6 @@ import {
 import type { TablesUpdate } from "@/integrations/supabase/types";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { submitApprovalRequest } from "@/lib/approvals";
 import { qk } from "@/lib/queryKeys";
 import { toast } from "sonner";
 import {
