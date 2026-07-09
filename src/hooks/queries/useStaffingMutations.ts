@@ -238,13 +238,7 @@ export function useStaffingMutations() {
   const addAssignment = useCallback(
     async (assignment: StaffingAssignment) => {
       if (!canEditAll) {
-        await submitApprovalRequest({
-          type: "staffing.add",
-          dealId: assignment.dealId,
-          targetKind: "staffing_assignment",
-          targetId: assignment.id,
-          payload: assignment,
-        });
+        toast.error("Only Admins and VSDs can edit staffing.");
         return;
       }
       // Idempotent add: if the same (deal, role, person) is already
@@ -311,15 +305,7 @@ export function useStaffingMutations() {
   const updateAssignment = useCallback(
     async (id: string, updates: Partial<StaffingAssignment>) => {
       if (!canEditAll) {
-        const current = getAssignments().find((a) => a.id === id);
-        await submitApprovalRequest({
-          type: "staffing.update",
-          dealId: current?.dealId,
-          targetKind: "staffing_assignment",
-          targetId: id,
-          previous: current || {},
-          payload: { id, ...updates },
-        });
+        toast.error("Only Admins and VSDs can edit staffing.");
         return;
       }
       const prevSnapshot = getAssignments().find((a) => a.id === id);
@@ -361,15 +347,7 @@ export function useStaffingMutations() {
   const deleteAssignment = useCallback(
     async (id: string) => {
       if (!canEditAll) {
-        const current = getAssignments().find((a) => a.id === id);
-        await submitApprovalRequest({
-          type: "staffing.remove",
-          dealId: current?.dealId,
-          targetKind: "staffing_assignment",
-          targetId: id,
-          previous: current || {},
-          payload: { id },
-        });
+        toast.error("Only Admins and VSDs can remove staffing.");
         return;
       }
       const prevSnapshot = getAssignments().find((a) => a.id === id);
