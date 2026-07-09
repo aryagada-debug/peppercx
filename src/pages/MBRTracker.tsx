@@ -151,6 +151,7 @@ export default function MBRTracker() {
   type DrillMetric = "total" | "done" | "notDone" | "pending" | "green" | "yellow" | "red" | "scheduled" | "marked" | "notMarked";
   const [drill, setDrill] = useState<{ rowKey: string; rowLabel: string; metric: DrillMetric } | null>(null);
   const [expandedVsd, setExpandedVsd] = useState<string | null>(null);
+  const [expandedStatusVsd, setExpandedStatusVsd] = useState<string | null>(null);
   // Column filter/sort state
   const [colFilters, setColFilters] = useState<Record<string, string>>({});
   const [openFilter, setOpenFilter] = useState<string | null>(null);
@@ -977,55 +978,129 @@ export default function MBRTracker() {
                 );
               })()}
 
-              {/* Part 2: Status — Scheduled vs Done */}
-              <div className="mb-4">
-                <h2 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-positive" />
-                  Status — Scheduled vs Done — {titleSuffix}
-                </h2>
-                <div className="bg-card border border-border rounded-xl overflow-hidden">
-                  <table className="w-full text-ui">
-                    <thead>
-                      <tr className="bg-secondary/40 border-b border-border">
-                        {[labelHeader, "Scheduled", "Done", "Not Done", "Pending", "Done vs Scheduled", "🟢", "🟡", "🔴"].map(h => (
-                          <th key={h} className="text-left py-2.5 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {dataset.map((v: any) => {
-                        const isOverall = v.vsd === "Pod Overall";
-                        const denom = v.scheduled || 0;
-                        const doneVsSched = denom > 0 ? Math.round((v.done / denom) * 100) : 0;
-                        return (
-                          <tr key={`st-${v.vsd}`} className={cn(
-                            "border-b border-border/50 hover:bg-secondary/30 transition-colors",
-                            isOverall && "bg-primary/5 font-semibold"
-                          )}>
-                            <td className="py-2.5 px-3 font-semibold text-foreground text-xs">{renderLabel(v)}</td>
-                            <td className="py-2.5 px-3"><NumBtn value={v.scheduled} metric="scheduled" rowLabel={v.vsd} className="text-primary" /></td>
-                            <td className="py-2.5 px-3"><NumBtn value={v.done} metric="done" rowLabel={v.vsd} className="text-positive font-semibold" /></td>
-                            <td className="py-2.5 px-3"><NumBtn value={v.notDone} metric="notDone" rowLabel={v.vsd} className="text-destructive font-semibold" /></td>
-                            <td className="py-2.5 px-3"><NumBtn value={v.pending} metric="pending" rowLabel={v.vsd} className="text-warning font-semibold" /></td>
-                            <td className="py-2.5 px-3">
-                              {denom > 0 ? (
-                                <span className={cn(
-                                  "font-mono tabular-nums text-xs font-semibold",
-                                  doneVsSched >= 80 ? "text-positive" : doneVsSched >= 50 ? "text-warning" : "text-destructive"
-                                )}>{v.done}/{denom} ({doneVsSched}%)</span>
-                              ) : <span className="text-muted-foreground text-xs">—</span>}
-                            </td>
-                            <td className="py-2.5 px-3"><NumBtn value={v.green} metric="green" rowLabel={v.vsd} className="text-positive" /></td>
-                            <td className="py-2.5 px-3"><NumBtn value={v.yellow} metric="yellow" rowLabel={v.vsd} className="text-warning" /></td>
-                            <td className="py-2.5 px-3"><NumBtn value={v.red} metric="red" rowLabel={v.vsd} className="text-destructive" /></td>
+              {/* Part 2: Status by VSD — expandable to Sr / Principal BOPM */}
+              {(() => {
+                type StatusRow = { total: number; done: number; notDone: number; notRequired: number; pending: number };
+                const emptyRow = (): StatusRow => ({ total: 0, done: 0, notDone: 0, notRequired: 0, pending: 0 });
+                const tallyDeal = (r: StatusRow, dealId: string) => {
+                  r.total++;
+                  const e = activeEntryMap.get(dealId);
+                  const st = e?.status || "";
+                  if (st === "Done") r.done++;
+                  else if (st === "Not Done") r.notDone++;
+                  else if (st === "Not Required") r.notRequired++;
+                };
+                const finalize = (r: StatusRow) => {
+                  r.pending = Math.max(0, r.total - r.done - r.notDone - r.notRequired);
+                };
+                const vsdMap = new Map<string, { row: StatusRow; bopms: Map<string, StatusRow> }>();
+                for (const deal of filteredDeals) {
+                  const v = vsdForDeal(deal as any) || "Unassigned";
+                  if (!vsdMap.has(v)) vsdMap.set(v, { row: emptyRow(), bopms: new Map() });
+                  const bucket = vsdMap.get(v)!;
+                  tallyDeal(bucket.row, deal.id);
+                  const p = (deal.principalBopm || "").trim();
+                  const s = (deal.seniorBopm || "").trim();
+                  const bopmName = [p, s && s !== p ? s : null].filter(Boolean).join(" / ") || "Unassigned";
+                  if (!bucket.bopms.has(bopmName)) bucket.bopms.set(bopmName, emptyRow());
+                  tallyDeal(bucket.bopms.get(bopmName)!, deal.id);
+                }
+                const vsdRows = Array.from(vsdMap.entries())
+                  .map(([vsd, { row, bopms }]) => {
+                    finalize(row);
+                    const bopmRows = Array.from(bopms.entries())
+                      .map(([name, r]) => { finalize(r); return { name, ...r }; })
+                      .sort((a, b) => b.total - a.total);
+                    return { vsd, ...row, bopms: bopmRows };
+                  })
+                  .sort((a, b) => b.total - a.total);
+
+                const Cell = ({ v, cls }: { v: number; cls?: string }) => (
+                  <span className={cn("font-mono tabular-nums text-xs", v === 0 && "opacity-60", cls)}>{v}</span>
+                );
+
+                return (
+                  <div className="mb-4">
+                    <h2 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-positive" />
+                      MBR Status by VSD
+                    </h2>
+                    <div className="bg-card border border-border rounded-xl overflow-hidden">
+                      <table className="w-full text-ui">
+                        <thead>
+                          <tr className="bg-secondary/40 border-b border-border">
+                            {["VSD", "Total Deals", "Done", "Not Done", "Not Required", "Pending"].map(h => (
+                              <th key={h} className="text-left py-2.5 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{h}</th>
+                            ))}
                           </tr>
-                        );
-                      })}
-                      {dataset.length === 0 && <tr><td colSpan={9} className="text-center py-8 text-muted-foreground">No data</td></tr>}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+                        </thead>
+                        <tbody>
+                          {vsdRows.map(r => {
+                            const isOpen = expandedStatusVsd === r.vsd;
+                            return (
+                              <React.Fragment key={`sv-${r.vsd}`}>
+                                <tr className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
+                                  <td className="py-2.5 px-3 text-xs">
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => setExpandedStatusVsd(isOpen ? null : r.vsd)}
+                                        className="p-0.5 rounded hover:bg-secondary/60 text-muted-foreground"
+                                        aria-label={isOpen ? "Collapse" : "Expand"}
+                                      >
+                                        {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                                      </button>
+                                      <span className="font-semibold text-foreground">{r.vsd}</span>
+                                    </div>
+                                  </td>
+                                  <td className="py-2.5 px-3"><Cell v={r.total} cls="text-foreground" /></td>
+                                  <td className="py-2.5 px-3"><Cell v={r.done} cls="text-positive font-semibold" /></td>
+                                  <td className="py-2.5 px-3"><Cell v={r.notDone} cls="text-destructive font-semibold" /></td>
+                                  <td className="py-2.5 px-3"><Cell v={r.notRequired} cls="text-muted-foreground" /></td>
+                                  <td className="py-2.5 px-3"><Cell v={r.pending} cls="text-warning font-semibold" /></td>
+                                </tr>
+                                {isOpen && (
+                                  <tr className="bg-secondary/20 border-b border-border/50">
+                                    <td colSpan={6} className="p-0">
+                                      <div className="px-3 py-2">
+                                        <table className="w-full text-xs">
+                                          <thead>
+                                            <tr className="border-b border-border/50">
+                                              {["Sr / Principal BOPM", "Total Deals", "Done", "Not Done", "Not Required", "Pending"].map(h => (
+                                                <th key={h} className="text-left py-1.5 px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{h}</th>
+                                              ))}
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            {r.bopms.map(b => (
+                                              <tr key={`sv-${r.vsd}-${b.name}`} className="border-b border-border/30 hover:bg-secondary/40">
+                                                <td className="py-1.5 px-2 text-foreground">{b.name}</td>
+                                                <td className="py-1.5 px-2"><Cell v={b.total} cls="text-foreground" /></td>
+                                                <td className="py-1.5 px-2"><Cell v={b.done} cls="text-positive font-semibold" /></td>
+                                                <td className="py-1.5 px-2"><Cell v={b.notDone} cls="text-destructive font-semibold" /></td>
+                                                <td className="py-1.5 px-2"><Cell v={b.notRequired} cls="text-muted-foreground" /></td>
+                                                <td className="py-1.5 px-2"><Cell v={b.pending} cls="text-warning font-semibold" /></td>
+                                              </tr>
+                                            ))}
+                                            {r.bopms.length === 0 && (
+                                              <tr><td colSpan={6} className="text-center py-3 text-muted-foreground">No BOPMs.</td></tr>
+                                            )}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
+                            );
+                          })}
+                          {vsdRows.length === 0 && <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">No data</td></tr>}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
             </>
           );
         })()}
