@@ -115,7 +115,9 @@ export function MBRDetailDialog({ open, onClose, deal, entry, onSave }: MBRDetai
               </Select>
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Sentiment</label>
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Sentiment {status === "Done" && <span className="text-destructive">*</span>}
+              </label>
               <Select value={sentiment} onValueChange={setSentiment}>
                 <SelectTrigger className="mt-1"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>
