@@ -27,6 +27,7 @@ type Row = {
   vsd: string;
   bopm: string;
   region: string;
+  city: string;
 };
 
 type DealLite = {
@@ -64,7 +65,7 @@ export default function Contacts() {
     (async () => {
       setLoading(true);
       const [{ data: people, error: e1 }, { data: deals, error: e2 }, { data: clients, error: e3 }] = await Promise.all([
-        supabase.from("deal_stakeholders").select("id,name,linkedin_url,email,phone,role,function,decision_power,deal_id,client_name"),
+        supabase.from("deal_stakeholders").select("id,name,linkedin_url,email,phone,role,function,decision_power,deal_id,client_name,city"),
         supabase.from("staffing_deals").select("id,account,deal_name,vsd,principal_bopm,senior_bopm,bopm,geo,client_id,deal_status"),
         supabase.from("clients").select("id,name,geography"),
       ]);
@@ -95,6 +96,7 @@ export default function Contacts() {
           vsd: d?.vsd || "",
           bopm: d ? joinBopm(d) : "",
           region: d?.geo || c?.geography || "",
+          city: p.city || "",
         };
       });
       if (!cancelled) {
@@ -265,9 +267,10 @@ export default function Contacts() {
       "VSD": r.vsd,
       "BOPM": r.bopm,
       "Region": r.region,
+      "Location": r.city,
     }));
     const ws = XLSX.utils.json_to_sheet(data);
-    const widths = [22, 32, 28, 16, 22, 24, 8, 14, 28, 22, 32, 14];
+    const widths = [22, 32, 28, 16, 22, 24, 8, 14, 28, 22, 32, 14, 20];
     ws["!cols"] = widths.map(w => ({ wch: w }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Contacts");
@@ -358,14 +361,15 @@ export default function Contacts() {
                 <th className="text-left px-3 py-2.5">VSD</th>
                 <th className="text-left px-3 py-2.5">BOPM</th>
                 <th className="text-left px-3 py-2.5">Region</th>
+                <th className="text-left px-3 py-2.5">Location</th>
               </tr>
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={11} className="text-center text-muted-foreground py-10">Loading contacts…</td></tr>
+                <tr><td colSpan={12} className="text-center text-muted-foreground py-10">Loading contacts…</td></tr>
               )}
               {!loading && filtered.length === 0 && (
-                <tr><td colSpan={11} className="text-center py-12">
+                <tr><td colSpan={12} className="text-center py-12">
                   <Users className="h-8 w-8 mx-auto text-muted-foreground/50 mb-3" />
                   <p className="text-sm text-foreground font-medium">No contacts found</p>
                   <p className="text-xs text-muted-foreground mt-1">Try adjusting filters or map stakeholders inside a deal's Org Map.</p>
@@ -406,6 +410,7 @@ export default function Contacts() {
                   <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">{r.vsd || "—"}</td>
                   <td className="px-3 py-2.5 text-muted-foreground">{r.bopm || "—"}</td>
                   <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">{r.region || "—"}</td>
+                  <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">{r.city || "—"}</td>
                 </tr>
               ))}
             </tbody>
