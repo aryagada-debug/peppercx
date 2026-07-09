@@ -216,7 +216,14 @@ export default function MBRTracker() {
   // Set default selected month to the latest available
   useEffect(() => {
     if (availableMonths.length > 0 && !selectedMonth) {
-      setSelectedMonth(availableMonths[availableMonths.length - 1]);
+      const currentMonth = new Date().toISOString().slice(0, 7);
+      // Prefer the current month (that's where new saves land). Fall back to
+      // the newest month with data if the current one has no entries yet.
+      setSelectedMonth(
+        availableMonths.includes(currentMonth)
+          ? currentMonth
+          : availableMonths[availableMonths.length - 1],
+      );
     }
   }, [availableMonths, selectedMonth]);
 
