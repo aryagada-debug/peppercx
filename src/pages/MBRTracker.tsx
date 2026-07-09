@@ -1006,8 +1006,8 @@ export default function MBRTracker() {
 
               {/* Part 2: Status by VSD — expandable to Sr / Principal BOPM */}
               {(() => {
-                type StatusRow = { total: number; done: number; notDone: number; notRequired: number; pending: number };
-                const emptyRow = (): StatusRow => ({ total: 0, done: 0, notDone: 0, notRequired: 0, pending: 0 });
+                type StatusRow = { total: number; done: number; notDone: number; notRequired: number; pending: number; anirudhAdded: number; anirudhJoining: number };
+                const emptyRow = (): StatusRow => ({ total: 0, done: 0, notDone: 0, notRequired: 0, pending: 0, anirudhAdded: 0, anirudhJoining: 0 });
                 const tallyDeal = (r: StatusRow, dealId: string) => {
                   r.total++;
                   const e = activeEntryMap.get(dealId);
@@ -1015,12 +1015,14 @@ export default function MBRTracker() {
                   if (st === "Done") r.done++;
                   else if (st === "Not Done") r.notDone++;
                   else if (st === "Not Required") r.notRequired++;
+                  if (e?.anirudhAdded) r.anirudhAdded++;
+                  if (e?.anirudhJoining) r.anirudhJoining++;
                 };
                 const finalize = (r: StatusRow) => {
                   r.pending = Math.max(0, r.total - r.done - r.notDone - r.notRequired);
                 };
                 const vsdMap = new Map<string, { row: StatusRow; bopms: Map<string, StatusRow> }>();
-                for (const deal of filteredDeals) {
+                for (const deal of insightsDeals) {
                   const v = vsdForDeal(deal as any) || "Unassigned";
                   if (!vsdMap.has(v)) vsdMap.set(v, { row: emptyRow(), bopms: new Map() });
                   const bucket = vsdMap.get(v)!;
@@ -1044,6 +1046,13 @@ export default function MBRTracker() {
                 const Cell = ({ v, cls }: { v: number; cls?: string }) => (
                   <span className={cn("font-mono tabular-nums text-xs", v === 0 && "opacity-60", cls)}>{v}</span>
                 );
+                const AnirudhCell = ({ a, j }: { a: number; j: number }) => (
+                  <span className="inline-flex items-center gap-1 font-mono tabular-nums text-xs">
+                    <span className={cn("text-positive font-semibold", a === 0 && "opacity-50 text-muted-foreground font-normal")} title="Anirudh Added">A:{a}</span>
+                    <span className="text-muted-foreground">/</span>
+                    <span className={cn("text-primary font-semibold", j === 0 && "opacity-50 text-muted-foreground font-normal")} title="Anirudh Joining">J:{j}</span>
+                  </span>
+                );
 
                 return (
                   <div className="mb-4">
@@ -1055,7 +1064,7 @@ export default function MBRTracker() {
                       <table className="w-full text-ui">
                         <thead>
                           <tr className="bg-secondary/40 border-b border-border">
-                            {["VSD", "Total Deals", "Done", "Not Done", "Not Required", "Pending"].map(h => (
+                            {["VSD", "Total Deals", "Done", "Not Done", "Not Required", "Pending", "Anirudh (A / J)"].map(h => (
                               <th key={h} className="text-left py-2.5 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{h}</th>
                             ))}
                           </tr>
@@ -1088,15 +1097,16 @@ export default function MBRTracker() {
                                   <td className="py-2.5 px-3"><Cell v={r.notDone} cls="text-destructive font-semibold" /></td>
                                   <td className="py-2.5 px-3"><Cell v={r.notRequired} cls="text-muted-foreground" /></td>
                                   <td className="py-2.5 px-3"><Cell v={r.pending} cls="text-warning font-semibold" /></td>
+                                  <td className="py-2.5 px-3"><AnirudhCell a={r.anirudhAdded} j={r.anirudhJoining} /></td>
                                 </tr>
                                 {isOpen && (
                                   <tr className="bg-secondary/20 border-b border-border/50">
-                                    <td colSpan={6} className="p-0">
+                                    <td colSpan={7} className="p-0">
                                       <div className="px-3 py-2">
                                         <table className="w-full text-xs">
                                           <thead>
                                             <tr className="border-b border-border/50">
-                                              {["Sr / Principal BOPM", "Total Deals", "Done", "Not Done", "Not Required", "Pending"].map(h => (
+                                              {["Sr / Principal BOPM", "Total Deals", "Done", "Not Done", "Not Required", "Pending", "Anirudh (A / J)"].map(h => (
                                                 <th key={h} className="text-left py-1.5 px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{h}</th>
                                               ))}
                                             </tr>
@@ -1110,10 +1120,11 @@ export default function MBRTracker() {
                                                 <td className="py-1.5 px-2"><Cell v={b.notDone} cls="text-destructive font-semibold" /></td>
                                                 <td className="py-1.5 px-2"><Cell v={b.notRequired} cls="text-muted-foreground" /></td>
                                                 <td className="py-1.5 px-2"><Cell v={b.pending} cls="text-warning font-semibold" /></td>
+                                                <td className="py-1.5 px-2"><AnirudhCell a={b.anirudhAdded} j={b.anirudhJoining} /></td>
                                               </tr>
                                             ))}
                                             {r.bopms.length === 0 && (
-                                              <tr><td colSpan={6} className="text-center py-3 text-muted-foreground">No BOPMs.</td></tr>
+                                              <tr><td colSpan={7} className="text-center py-3 text-muted-foreground">No BOPMs.</td></tr>
                                             )}
                                           </tbody>
                                         </table>
@@ -1124,7 +1135,7 @@ export default function MBRTracker() {
                               </React.Fragment>
                             );
                           })}
-                          {vsdRows.length === 0 && <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">No data</td></tr>}
+                          {vsdRows.length === 0 && <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">No data</td></tr>}
                         </tbody>
                       </table>
                     </div>
