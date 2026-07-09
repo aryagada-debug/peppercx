@@ -379,53 +379,7 @@ export function useStaffingMutations() {
       const assignments = getAssignments();
       const existing = assignments.find((a) => a.dealId === dealId && normalizeRoleKey(a.roleKey) === normalizedRoleKey);
       if (!canEditAll) {
-        if (!personId) {
-          if (existing) {
-            await submitApprovalRequest({
-              type: "staffing.remove",
-              dealId,
-              targetKind: "staffing_assignment",
-              targetId: existing.id,
-              previous: existing,
-              payload: { id: existing.id },
-            });
-          }
-          return;
-        }
-        if (existing) {
-          await submitApprovalRequest({
-            type: "staffing.update",
-            dealId,
-            targetKind: "staffing_assignment",
-            targetId: existing.id,
-            previous: existing,
-            payload: {
-              id: existing.id,
-              personId,
-              allocationPct,
-              roleKey: normalizedRoleKey,
-              startDate: extras?.startDate ?? existing.startDate,
-              endDate: extras?.endDate ?? existing.endDate,
-            },
-          });
-        } else {
-          const newId = uid();
-          await submitApprovalRequest({
-            type: "staffing.add",
-            dealId,
-            targetKind: "staffing_assignment",
-            targetId: newId,
-            payload: {
-              id: newId,
-              dealId,
-              roleKey: normalizedRoleKey,
-              personId,
-              allocationPct,
-              startDate: extras?.startDate || undefined,
-              endDate: extras?.endDate || undefined,
-            },
-          });
-        }
+        toast.error("Only Admins and VSDs can edit staffing.");
         return;
       }
       if (!personId) {
