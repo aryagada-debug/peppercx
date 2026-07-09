@@ -526,9 +526,23 @@ export default function MBRTracker() {
   }, [filteredDeals, entriesByMonth, availableMonths]);
 
   // VSD insights from filtered deals
+  const insightsDeals = useMemo(() => {
+    if (anirudhFilter === "All") return filteredDeals;
+    return filteredDeals.filter(d => {
+      const e = activeEntryMap.get(d.id);
+      const a = !!e?.anirudhAdded;
+      const j = !!e?.anirudhJoining;
+      if (anirudhFilter === "Added") return a;
+      if (anirudhFilter === "Joining") return j;
+      if (anirudhFilter === "Either") return a || j;
+      if (anirudhFilter === "None") return !a && !j;
+      return true;
+    });
+  }, [filteredDeals, activeEntryMap, anirudhFilter]);
+
   const vsdInsights = useMemo(() => {
     const vsdMap = new Map<string, { vsd: string; bopms: Set<string>; total: number; done: number; notDone: number; pending: number; green: number; yellow: number; red: number; scheduled: number }>();
-    for (const deal of filteredDeals) {
+    for (const deal of insightsDeals) {
       const v = vsdForDeal(deal as any);
       const bucket = v || "Unassigned";
       if (!vsdMap.has(bucket)) vsdMap.set(bucket, { vsd: bucket, bopms: new Set<string>(), total: 0, done: 0, notDone: 0, pending: 0, green: 0, yellow: 0, red: 0, scheduled: 0 });
@@ -552,7 +566,7 @@ export default function MBRTracker() {
       s.pending = s.total - s.done - s.notDone;
     }
     return Array.from(vsdMap.values()).filter(s => s.total > 0).sort((a, b) => b.total - a.total);
-  }, [filteredDeals, activeEntryMap, vsdForDeal]);
+  }, [insightsDeals, activeEntryMap, vsdForDeal]);
 
   // BOPM insights (Sr / Principal) — used when a specific VSD is selected.
   // Only includes BOPMs mapped to ≥1 active deal in the current scope.
@@ -560,7 +574,7 @@ export default function MBRTracker() {
     type Row = { name: string; total: number; done: number; notDone: number; pending: number; green: number; yellow: number; red: number; scheduled: number };
     const map = new Map<string, Row>();
     const overall: Row = { name: "Pod Overall", total: 0, done: 0, notDone: 0, pending: 0, green: 0, yellow: 0, red: 0, scheduled: 0 };
-    for (const deal of filteredDeals) {
+    for (const deal of insightsDeals) {
       const raw = (deal.principalBopm || deal.seniorBopm || "").trim();
       // Bucket by raw BOPM name so people not in the directory (typos,
       // unregistered staff) still appear as their own row instead of being
@@ -595,7 +609,7 @@ export default function MBRTracker() {
     overall.pending = overall.total - overall.done - overall.notDone;
     const rows = Array.from(map.values()).filter(r => r.total > 0).sort((a, b) => b.total - a.total);
     return overall.total > 0 ? [overall, ...rows] : rows;
-  }, [filteredDeals, activeEntryMap, isRegisteredName]);
+  }, [insightsDeals, activeEntryMap, isRegisteredName]);
 
   const showBopmInsights = activeVsd !== "All" && activeVsd !== "Unassigned";
 
