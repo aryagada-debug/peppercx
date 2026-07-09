@@ -216,7 +216,14 @@ export default function MBRTracker() {
   // Set default selected month to the latest available
   useEffect(() => {
     if (availableMonths.length > 0 && !selectedMonth) {
-      setSelectedMonth(availableMonths[availableMonths.length - 1]);
+      const currentMonth = new Date().toISOString().slice(0, 7);
+      // Prefer the current month (that's where new saves land). Fall back to
+      // the newest month with data if the current one has no entries yet.
+      setSelectedMonth(
+        availableMonths.includes(currentMonth)
+          ? currentMonth
+          : availableMonths[availableMonths.length - 1],
+      );
     }
   }, [availableMonths, selectedMonth]);
 
@@ -364,6 +371,14 @@ export default function MBRTracker() {
   const handleSave = async (params: any) => {
     await upsertEntry(params);
     await refresh();
+    // The write always lands in the current week's month. If the table is
+    // currently showing a different month, the row would appear unchanged
+    // until the user manually switched months. Auto-jump so the edit is
+    // always visible immediately.
+    const writtenMonth = new Date().toISOString().slice(0, 7);
+    if (selectedMonth && selectedMonth !== writtenMonth) {
+      setSelectedMonth(writtenMonth);
+    }
   };
 
   const handleRowClick = (deal: MBRDeal, entry?: MBREntry | null) => {
