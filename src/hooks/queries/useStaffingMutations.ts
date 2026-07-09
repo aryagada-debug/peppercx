@@ -26,7 +26,6 @@ import {
 import type { TablesUpdate } from "@/integrations/supabase/types";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { submitApprovalRequest } from "@/lib/approvals";
 import { qk } from "@/lib/queryKeys";
 import { toast } from "sonner";
 import {
@@ -238,13 +237,7 @@ export function useStaffingMutations() {
   const addAssignment = useCallback(
     async (assignment: StaffingAssignment) => {
       if (!canEditAll) {
-        await submitApprovalRequest({
-          type: "staffing.add",
-          dealId: assignment.dealId,
-          targetKind: "staffing_assignment",
-          targetId: assignment.id,
-          payload: assignment,
-        });
+        toast.error("Only Admins and VSDs can edit staffing.");
         return;
       }
       // Idempotent add: if the same (deal, role, person) is already
@@ -311,15 +304,7 @@ export function useStaffingMutations() {
   const updateAssignment = useCallback(
     async (id: string, updates: Partial<StaffingAssignment>) => {
       if (!canEditAll) {
-        const current = getAssignments().find((a) => a.id === id);
-        await submitApprovalRequest({
-          type: "staffing.update",
-          dealId: current?.dealId,
-          targetKind: "staffing_assignment",
-          targetId: id,
-          previous: current || {},
-          payload: { id, ...updates },
-        });
+        toast.error("Only Admins and VSDs can edit staffing.");
         return;
       }
       const prevSnapshot = getAssignments().find((a) => a.id === id);
@@ -361,15 +346,7 @@ export function useStaffingMutations() {
   const deleteAssignment = useCallback(
     async (id: string) => {
       if (!canEditAll) {
-        const current = getAssignments().find((a) => a.id === id);
-        await submitApprovalRequest({
-          type: "staffing.remove",
-          dealId: current?.dealId,
-          targetKind: "staffing_assignment",
-          targetId: id,
-          previous: current || {},
-          payload: { id },
-        });
+        toast.error("Only Admins and VSDs can remove staffing.");
         return;
       }
       const prevSnapshot = getAssignments().find((a) => a.id === id);
@@ -401,53 +378,7 @@ export function useStaffingMutations() {
       const assignments = getAssignments();
       const existing = assignments.find((a) => a.dealId === dealId && normalizeRoleKey(a.roleKey) === normalizedRoleKey);
       if (!canEditAll) {
-        if (!personId) {
-          if (existing) {
-            await submitApprovalRequest({
-              type: "staffing.remove",
-              dealId,
-              targetKind: "staffing_assignment",
-              targetId: existing.id,
-              previous: existing,
-              payload: { id: existing.id },
-            });
-          }
-          return;
-        }
-        if (existing) {
-          await submitApprovalRequest({
-            type: "staffing.update",
-            dealId,
-            targetKind: "staffing_assignment",
-            targetId: existing.id,
-            previous: existing,
-            payload: {
-              id: existing.id,
-              personId,
-              allocationPct,
-              roleKey: normalizedRoleKey,
-              startDate: extras?.startDate ?? existing.startDate,
-              endDate: extras?.endDate ?? existing.endDate,
-            },
-          });
-        } else {
-          const newId = uid();
-          await submitApprovalRequest({
-            type: "staffing.add",
-            dealId,
-            targetKind: "staffing_assignment",
-            targetId: newId,
-            payload: {
-              id: newId,
-              dealId,
-              roleKey: normalizedRoleKey,
-              personId,
-              allocationPct,
-              startDate: extras?.startDate || undefined,
-              endDate: extras?.endDate || undefined,
-            },
-          });
-        }
+        toast.error("Only Admins and VSDs can edit staffing.");
         return;
       }
       if (!personId) {
