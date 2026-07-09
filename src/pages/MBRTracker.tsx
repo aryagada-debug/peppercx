@@ -832,6 +832,15 @@ export default function MBRTracker() {
               )}>{v.label}</button>
             ))}
           </div>
+          <span className="ml-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Anirudh:</span>
+          <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
+            {(["All","Added","Joining","Either","None"] as AnirudhFilter[]).map(k => (
+              <button key={k} onClick={() => setAnirudhFilter(k)} className={cn(
+                "px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
+                anirudhFilter === k ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}>{k}</button>
+            ))}
+          </div>
         </div>
 
         {/* Insights — split into Scheduling + Status, with VSD and BOPM-wise rows */}
