@@ -11,6 +11,7 @@ import { ExternalLink, CheckCircle2, Circle, Save } from "lucide-react";
 import type { MBRDeal, MBREntry, ActionItem } from "@/hooks/useMBRData";
 import { getLinkLabel, getFileIcon } from "@/lib/fileLink";
 import { formatINR } from "@/lib/csvTargets";
+import { toast } from "sonner";
 
 interface MBRDetailDialogProps {
   open: boolean;
@@ -61,6 +62,10 @@ export function MBRDetailDialog({ open, onClose, deal, entry, onSave }: MBRDetai
 
   const handleSave = async () => {
     if (!onSave) return;
+    if (status === "Done" && !sentiment) {
+      toast.error("Sentiment is required when marking an MBR as Done.");
+      return;
+    }
     setSaving(true);
     await onSave({
       dealId: deal.id,
@@ -110,7 +115,9 @@ export function MBRDetailDialog({ open, onClose, deal, entry, onSave }: MBRDetai
               </Select>
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Sentiment</label>
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Sentiment {status === "Done" && <span className="text-destructive">*</span>}
+              </label>
               <Select value={sentiment} onValueChange={setSentiment}>
                 <SelectTrigger className="mt-1"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>

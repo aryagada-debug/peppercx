@@ -152,6 +152,9 @@ export default function MBRTracker() {
   const [drill, setDrill] = useState<{ rowKey: string; rowLabel: string; metric: DrillMetric } | null>(null);
   const [expandedVsd, setExpandedVsd] = useState<string | null>(null);
   const [expandedStatusVsds, setExpandedStatusVsds] = useState<Set<string>>(new Set());
+  // Insights: Anirudh filter (All | Added | Joining | Either | None)
+  type AnirudhFilter = "All" | "Added" | "Joining" | "Either" | "None";
+  const [anirudhFilter, setAnirudhFilter] = useState<AnirudhFilter>("All");
   // Column filter/sort state
   const [colFilters, setColFilters] = useState<Record<string, string>>({});
   const [openFilter, setOpenFilter] = useState<string | null>(null);
@@ -523,9 +526,23 @@ export default function MBRTracker() {
   }, [filteredDeals, entriesByMonth, availableMonths]);
 
   // VSD insights from filtered deals
+  const insightsDeals = useMemo(() => {
+    if (anirudhFilter === "All") return filteredDeals;
+    return filteredDeals.filter(d => {
+      const e = activeEntryMap.get(d.id);
+      const a = !!e?.anirudhAdded;
+      const j = !!e?.anirudhJoining;
+      if (anirudhFilter === "Added") return a;
+      if (anirudhFilter === "Joining") return j;
+      if (anirudhFilter === "Either") return a || j;
+      if (anirudhFilter === "None") return !a && !j;
+      return true;
+    });
+  }, [filteredDeals, activeEntryMap, anirudhFilter]);
+
   const vsdInsights = useMemo(() => {
     const vsdMap = new Map<string, { vsd: string; bopms: Set<string>; total: number; done: number; notDone: number; pending: number; green: number; yellow: number; red: number; scheduled: number }>();
-    for (const deal of filteredDeals) {
+    for (const deal of insightsDeals) {
       const v = vsdForDeal(deal as any);
       const bucket = v || "Unassigned";
       if (!vsdMap.has(bucket)) vsdMap.set(bucket, { vsd: bucket, bopms: new Set<string>(), total: 0, done: 0, notDone: 0, pending: 0, green: 0, yellow: 0, red: 0, scheduled: 0 });
@@ -549,7 +566,7 @@ export default function MBRTracker() {
       s.pending = s.total - s.done - s.notDone;
     }
     return Array.from(vsdMap.values()).filter(s => s.total > 0).sort((a, b) => b.total - a.total);
-  }, [filteredDeals, activeEntryMap, vsdForDeal]);
+  }, [insightsDeals, activeEntryMap, vsdForDeal]);
 
   // BOPM insights (Sr / Principal) — used when a specific VSD is selected.
   // Only includes BOPMs mapped to ≥1 active deal in the current scope.
@@ -557,7 +574,7 @@ export default function MBRTracker() {
     type Row = { name: string; total: number; done: number; notDone: number; pending: number; green: number; yellow: number; red: number; scheduled: number };
     const map = new Map<string, Row>();
     const overall: Row = { name: "Pod Overall", total: 0, done: 0, notDone: 0, pending: 0, green: 0, yellow: 0, red: 0, scheduled: 0 };
-    for (const deal of filteredDeals) {
+    for (const deal of insightsDeals) {
       const raw = (deal.principalBopm || deal.seniorBopm || "").trim();
       // Bucket by raw BOPM name so people not in the directory (typos,
       // unregistered staff) still appear as their own row instead of being
@@ -592,7 +609,7 @@ export default function MBRTracker() {
     overall.pending = overall.total - overall.done - overall.notDone;
     const rows = Array.from(map.values()).filter(r => r.total > 0).sort((a, b) => b.total - a.total);
     return overall.total > 0 ? [overall, ...rows] : rows;
-  }, [filteredDeals, activeEntryMap, isRegisteredName]);
+  }, [insightsDeals, activeEntryMap, isRegisteredName]);
 
   const showBopmInsights = activeVsd !== "All" && activeVsd !== "Unassigned";
 
@@ -815,6 +832,15 @@ export default function MBRTracker() {
               )}>{v.label}</button>
             ))}
           </div>
+          <span className="ml-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Anirudh:</span>
+          <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
+            {(["All","Added","Joining","Either","None"] as AnirudhFilter[]).map(k => (
+              <button key={k} onClick={() => setAnirudhFilter(k)} className={cn(
+                "px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors",
+                anirudhFilter === k ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}>{k}</button>
+            ))}
+          </div>
         </div>
 
         {/* Insights — split into Scheduling + Status, with VSD and BOPM-wise rows */}
@@ -980,8 +1006,8 @@ export default function MBRTracker() {
 
               {/* Part 2: Status by VSD — expandable to Sr / Principal BOPM */}
               {(() => {
-                type StatusRow = { total: number; done: number; notDone: number; notRequired: number; pending: number };
-                const emptyRow = (): StatusRow => ({ total: 0, done: 0, notDone: 0, notRequired: 0, pending: 0 });
+                type StatusRow = { total: number; done: number; notDone: number; notRequired: number; pending: number; anirudhAdded: number; anirudhJoining: number };
+                const emptyRow = (): StatusRow => ({ total: 0, done: 0, notDone: 0, notRequired: 0, pending: 0, anirudhAdded: 0, anirudhJoining: 0 });
                 const tallyDeal = (r: StatusRow, dealId: string) => {
                   r.total++;
                   const e = activeEntryMap.get(dealId);
@@ -989,12 +1015,14 @@ export default function MBRTracker() {
                   if (st === "Done") r.done++;
                   else if (st === "Not Done") r.notDone++;
                   else if (st === "Not Required") r.notRequired++;
+                  if (e?.anirudhAdded) r.anirudhAdded++;
+                  if (e?.anirudhJoining) r.anirudhJoining++;
                 };
                 const finalize = (r: StatusRow) => {
                   r.pending = Math.max(0, r.total - r.done - r.notDone - r.notRequired);
                 };
                 const vsdMap = new Map<string, { row: StatusRow; bopms: Map<string, StatusRow> }>();
-                for (const deal of filteredDeals) {
+                for (const deal of insightsDeals) {
                   const v = vsdForDeal(deal as any) || "Unassigned";
                   if (!vsdMap.has(v)) vsdMap.set(v, { row: emptyRow(), bopms: new Map() });
                   const bucket = vsdMap.get(v)!;
@@ -1018,6 +1046,13 @@ export default function MBRTracker() {
                 const Cell = ({ v, cls }: { v: number; cls?: string }) => (
                   <span className={cn("font-mono tabular-nums text-xs", v === 0 && "opacity-60", cls)}>{v}</span>
                 );
+                const AnirudhCell = ({ a, j }: { a: number; j: number }) => (
+                  <span className="inline-flex items-center gap-1 font-mono tabular-nums text-xs">
+                    <span className={cn("text-positive font-semibold", a === 0 && "opacity-50 text-muted-foreground font-normal")} title="Anirudh Added">A:{a}</span>
+                    <span className="text-muted-foreground">/</span>
+                    <span className={cn("text-primary font-semibold", j === 0 && "opacity-50 text-muted-foreground font-normal")} title="Anirudh Joining">J:{j}</span>
+                  </span>
+                );
 
                 return (
                   <div className="mb-4">
@@ -1029,7 +1064,7 @@ export default function MBRTracker() {
                       <table className="w-full text-ui">
                         <thead>
                           <tr className="bg-secondary/40 border-b border-border">
-                            {["VSD", "Total Deals", "Done", "Not Done", "Not Required", "Pending"].map(h => (
+                            {["VSD", "Total Deals", "Done", "Not Done", "Not Required", "Pending", "Anirudh (A / J)"].map(h => (
                               <th key={h} className="text-left py-2.5 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{h}</th>
                             ))}
                           </tr>
@@ -1062,15 +1097,16 @@ export default function MBRTracker() {
                                   <td className="py-2.5 px-3"><Cell v={r.notDone} cls="text-destructive font-semibold" /></td>
                                   <td className="py-2.5 px-3"><Cell v={r.notRequired} cls="text-muted-foreground" /></td>
                                   <td className="py-2.5 px-3"><Cell v={r.pending} cls="text-warning font-semibold" /></td>
+                                  <td className="py-2.5 px-3"><AnirudhCell a={r.anirudhAdded} j={r.anirudhJoining} /></td>
                                 </tr>
                                 {isOpen && (
                                   <tr className="bg-secondary/20 border-b border-border/50">
-                                    <td colSpan={6} className="p-0">
+                                    <td colSpan={7} className="p-0">
                                       <div className="px-3 py-2">
                                         <table className="w-full text-xs">
                                           <thead>
                                             <tr className="border-b border-border/50">
-                                              {["Sr / Principal BOPM", "Total Deals", "Done", "Not Done", "Not Required", "Pending"].map(h => (
+                                              {["Sr / Principal BOPM", "Total Deals", "Done", "Not Done", "Not Required", "Pending", "Anirudh (A / J)"].map(h => (
                                                 <th key={h} className="text-left py-1.5 px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{h}</th>
                                               ))}
                                             </tr>
@@ -1084,10 +1120,11 @@ export default function MBRTracker() {
                                                 <td className="py-1.5 px-2"><Cell v={b.notDone} cls="text-destructive font-semibold" /></td>
                                                 <td className="py-1.5 px-2"><Cell v={b.notRequired} cls="text-muted-foreground" /></td>
                                                 <td className="py-1.5 px-2"><Cell v={b.pending} cls="text-warning font-semibold" /></td>
+                                                <td className="py-1.5 px-2"><AnirudhCell a={b.anirudhAdded} j={b.anirudhJoining} /></td>
                                               </tr>
                                             ))}
                                             {r.bopms.length === 0 && (
-                                              <tr><td colSpan={6} className="text-center py-3 text-muted-foreground">No BOPMs.</td></tr>
+                                              <tr><td colSpan={7} className="text-center py-3 text-muted-foreground">No BOPMs.</td></tr>
                                             )}
                                           </tbody>
                                         </table>
@@ -1098,7 +1135,7 @@ export default function MBRTracker() {
                               </React.Fragment>
                             );
                           })}
-                          {vsdRows.length === 0 && <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">No data</td></tr>}
+                          {vsdRows.length === 0 && <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">No data</td></tr>}
                         </tbody>
                       </table>
                     </div>
