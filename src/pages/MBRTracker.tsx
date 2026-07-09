@@ -151,6 +151,7 @@ export default function MBRTracker() {
   type DrillMetric = "total" | "done" | "notDone" | "pending" | "green" | "yellow" | "red" | "scheduled" | "marked" | "notMarked";
   const [drill, setDrill] = useState<{ rowKey: string; rowLabel: string; metric: DrillMetric } | null>(null);
   const [expandedVsd, setExpandedVsd] = useState<string | null>(null);
+  const [expandedStatusVsd, setExpandedStatusVsd] = useState<string | null>(null);
   // Column filter/sort state
   const [colFilters, setColFilters] = useState<Record<string, string>>({});
   const [openFilter, setOpenFilter] = useState<string | null>(null);
