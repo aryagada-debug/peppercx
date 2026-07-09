@@ -152,6 +152,9 @@ export default function MBRTracker() {
   const [drill, setDrill] = useState<{ rowKey: string; rowLabel: string; metric: DrillMetric } | null>(null);
   const [expandedVsd, setExpandedVsd] = useState<string | null>(null);
   const [expandedStatusVsds, setExpandedStatusVsds] = useState<Set<string>>(new Set());
+  // Insights: Anirudh filter (All | Added | Joining | Either | None)
+  type AnirudhFilter = "All" | "Added" | "Joining" | "Either" | "None";
+  const [anirudhFilter, setAnirudhFilter] = useState<AnirudhFilter>("All");
   // Column filter/sort state
   const [colFilters, setColFilters] = useState<Record<string, string>>({});
   const [openFilter, setOpenFilter] = useState<string | null>(null);
