@@ -249,8 +249,9 @@ export function useMBRData() {
       scheduledDate?: string | null;
       anirudhAdded?: boolean;
       mbrPptLink?: string | null;
+      mbrDate?: string | null; // yyyy-MM-dd — date the MBR was conducted; drives which week/month the entry belongs to
     }) => {
-      const weekStart = getMonday(new Date());
+      const weekStart = params.mbrDate ? getMonday(new Date(params.mbrDate)) : getMonday(new Date());
       const row: any = {
         deal_id: params.dealId,
         week_start: weekStart,

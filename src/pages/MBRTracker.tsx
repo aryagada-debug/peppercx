@@ -371,11 +371,10 @@ export default function MBRTracker() {
   const handleSave = async (params: any) => {
     await upsertEntry(params);
     await refresh();
-    // The write always lands in the current week's month. If the table is
-    // currently showing a different month, the row would appear unchanged
-    // until the user manually switched months. Auto-jump so the edit is
+    // The write lands in the month of the picked MBR date (falls back to
+    // today when unset). Auto-jump the table to that month so the edit is
     // always visible immediately.
-    const writtenMonth = new Date().toISOString().slice(0, 7);
+    const writtenMonth = (params.mbrDate || new Date().toISOString().slice(0, 10)).slice(0, 7);
     if (selectedMonth && selectedMonth !== writtenMonth) {
       setSelectedMonth(writtenMonth);
     }

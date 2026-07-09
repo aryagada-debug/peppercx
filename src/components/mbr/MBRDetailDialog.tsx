@@ -29,6 +29,7 @@ interface MBRDetailDialogProps {
     anirudhAdded?: boolean;
     anirudhJoining?: boolean;
     mbrPptLink?: string | null;
+    mbrDate?: string | null;
   }) => Promise<void>;
 }
 
@@ -40,6 +41,7 @@ export function MBRDetailDialog({ open, onClose, deal, entry, onSave }: MBRDetai
   const [fathomLink, setFathomLink] = useState(entry?.fathomLink || "");
   const [mbrPptLink, setMbrPptLink] = useState(entry?.mbrPptLink || "");
   const [scheduledDate, setScheduledDate] = useState(entry?.scheduledDate || "");
+  const [mbrDate, setMbrDate] = useState(entry?.weekStart || new Date().toISOString().slice(0, 10));
   const [anirudhAdded, setAnirudhAdded] = useState(entry?.anirudhAdded || false);
   const [anirudhJoining, setAnirudhJoining] = useState(entry?.anirudhJoining || false);
   const [saving, setSaving] = useState(false);
@@ -52,6 +54,7 @@ export function MBRDetailDialog({ open, onClose, deal, entry, onSave }: MBRDetai
     setFathomLink(entry?.fathomLink || "");
     setMbrPptLink(entry?.mbrPptLink || "");
     setScheduledDate(entry?.scheduledDate || "");
+    setMbrDate(entry?.weekStart || new Date().toISOString().slice(0, 10));
     setAnirudhAdded(entry?.anirudhAdded || false);
     setAnirudhJoining(entry?.anirudhJoining || false);
   }, [entry]);
@@ -71,6 +74,7 @@ export function MBRDetailDialog({ open, onClose, deal, entry, onSave }: MBRDetai
       anirudhAdded,
       anirudhJoining,
       mbrPptLink: mbrPptLink || null,
+      mbrDate: mbrDate || null,
     });
     setSaving(false);
     onClose();
@@ -127,8 +131,13 @@ export function MBRDetailDialog({ open, onClose, deal, entry, onSave }: MBRDetai
               </Select>
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Scheduled Date</label>
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Next MBR Scheduled Date</label>
               <Input type="date" value={scheduledDate} onChange={e => setScheduledDate(e.target.value)} className="mt-1" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">MBR Date (When Conducted)</label>
+              <Input type="date" value={mbrDate} onChange={e => setMbrDate(e.target.value)} className="mt-1" />
+              <p className="mt-1 text-[11px] text-muted-foreground">Determines which month this MBR shows up in. Backdate as needed.</p>
             </div>
           </div>
 
