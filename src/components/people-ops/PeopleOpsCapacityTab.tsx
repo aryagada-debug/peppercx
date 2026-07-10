@@ -6,6 +6,7 @@ import { getPersonRevenueCapacity } from "@/lib/revenueCapacity";
 import { formatINR } from "@/lib/csvTargets";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { ColHeader, type SortState } from "@/components/table/ColHeader";
 
 interface Props {
   people: Person[];
@@ -38,6 +39,18 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
   const [vsdFilter, setVsdFilter] = useState("all");
   const [regionFilter, setRegionFilter] = useState("all");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [colFilters, setColFilters] = useState<Record<string, string>>({});
+  const [openFilter, setOpenFilter] = useState<string | null>(null);
+  const [sortState, setSortState] = useState<SortState>({ sortKey: null, sortDir: "asc" });
+
+  const setFilter = (k: string, v: string) =>
+    setColFilters((prev) => ({ ...prev, [k]: v }));
+  const clearFilter = (k: string) =>
+    setColFilters((prev) => { const n = { ...prev }; delete n[k]; return n; });
+  const toggleSort = (k: string) =>
+    setSortState((s) => s.sortKey === k
+      ? { sortKey: k, sortDir: s.sortDir === "asc" ? "desc" : "asc" }
+      : { sortKey: k, sortDir: "asc" });
 
   const activeDealIds = useMemo(
     () => new Set(deals.filter((d) => ACTIVE_DEAL_STATUSES.has(d.dealStatus)).map((d) => d.id)),
@@ -121,7 +134,9 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
   }, [people]);
 
   const filtered = useMemo(() => {
-    return rows.filter((r) => {
+    const matches = (v: string | undefined | null, q: string) =>
+      (v || "").toLowerCase().includes(q.toLowerCase());
+    const arr = rows.filter((r) => {
       if (deptFilter !== "all" && (r.person.department || "") !== deptFilter) return false;
       if (roleFilter !== "all" && (r.person.designation || r.person.roleTitle || "") !== roleFilter) return false;
       if (leadFilter !== "all" && (r.person.reportingManager || "").toLowerCase() !== leadFilter) return false;
@@ -129,9 +144,42 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
       if (regionFilter !== "all" && (r.person.region || "") !== regionFilter) return false;
       // When no role/department filter is set, hide people with no allocation to mirror the reference layout.
       if (roleFilter === "all" && deptFilter === "all" && r.dealCount === 0) return false;
+      if (colFilters.name && !matches(r.person.name, colFilters.name)) return false;
+      if (colFilters.designation && !matches(r.person.designation || r.person.roleTitle, colFilters.designation)) return false;
+      if (colFilters.region && (r.person.region || "") !== colFilters.region) return false;
+      if (colFilters.manager && !matches(r.person.reportingManager, colFilters.manager)) return false;
+      if (colFilters.bwPct && r.bwPct < Number(colFilters.bwPct)) return false;
+      if (colFilters.dealCount && r.dealCount < Number(colFilters.dealCount)) return false;
+      if (colFilters.mrrActual && r.mrrActual < Number(colFilters.mrrActual)) return false;
+      if (colFilters.capacity && r.capacity < Number(colFilters.capacity)) return false;
+      if (colFilters.fillPct && (r.fillPct ?? -1) < Number(colFilters.fillPct)) return false;
       return true;
     });
-  }, [rows, deptFilter, roleFilter, leadFilter, vsdFilter, regionFilter]);
+    const { sortKey, sortDir } = sortState;
+    if (sortKey) {
+      const dir = sortDir === "asc" ? 1 : -1;
+      const getVal = (r: typeof arr[number]): string | number => {
+        switch (sortKey) {
+          case "name": return (r.person.name || "").toLowerCase();
+          case "designation": return (r.person.designation || r.person.roleTitle || "").toLowerCase();
+          case "region": return (r.person.region || "").toLowerCase();
+          case "manager": return (r.person.reportingManager || "").toLowerCase();
+          case "bwPct": return r.bwPct;
+          case "dealCount": return r.dealCount;
+          case "mrrActual": return r.mrrActual;
+          case "capacity": return r.capacity;
+          case "fillPct": return r.fillPct ?? -1;
+          default: return 0;
+        }
+      };
+      arr.sort((a, b) => {
+        const av = getVal(a), bv = getVal(b);
+        if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
+        return String(av).localeCompare(String(bv)) * dir;
+      });
+    }
+    return arr;
+  }, [rows, deptFilter, roleFilter, leadFilter, vsdFilter, regionFilter, colFilters, sortState]);
 
   const buckets = useMemo(() => {
     const out = { overloaded: 0, nearFull: 0, healthy: 0, under: 0 };
@@ -237,17 +285,17 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
       <div className="overflow-x-auto border border-border rounded-sm">
         <table className="w-full text-sm">
           <thead className="bg-muted/30">
-            <tr className="text-left text-xs text-muted-foreground">
+            <tr className="text-left text-xs text-muted-foreground group/headrow">
               <th className="w-8 px-2 py-2"></th>
-              <th className="px-3 py-2 font-medium">Name</th>
-              <th className="px-3 py-2 font-medium">Designation</th>
-              <th className="px-3 py-2 font-medium">Region</th>
-              <th className="px-3 py-2 font-medium">Manager</th>
-              <th className="px-3 py-2 font-medium">BW Used</th>
-              <th className="px-3 py-2 font-medium text-right"># Deals</th>
-              {isAdmin && <th className="px-3 py-2 font-medium text-right">MRR (Actual)</th>}
-              {isAdmin && <th className="px-3 py-2 font-medium text-right">MRR Capacity</th>}
-              {isAdmin && <th className="px-3 py-2 font-medium text-right">Revenue Utilisation</th>}
+              <ColHeader label="Name" colKey="name" sortKey="name" sortState={sortState} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
+              <ColHeader label="Designation" colKey="designation" sortKey="designation" sortState={sortState} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
+              <ColHeader label="Region" colKey="region" sortKey="region" sortState={sortState} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={regionOptions} />
+              <ColHeader label="Manager" colKey="manager" sortKey="manager" sortState={sortState} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} />
+              <ColHeader label="BW Used" colKey="bwPct" sortKey="bwPct" sortState={sortState} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} numeric placeholder="≥ %" />
+              <ColHeader label="# Deals" colKey="dealCount" sortKey="dealCount" align="right" sortState={sortState} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} numeric placeholder="≥ count" />
+              {isAdmin && <ColHeader label="MRR (Actual)" colKey="mrrActual" sortKey="mrrActual" align="right" sortState={sortState} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} numeric placeholder="≥ amount" />}
+              {isAdmin && <ColHeader label="MRR Capacity" colKey="capacity" sortKey="capacity" align="right" sortState={sortState} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} numeric placeholder="≥ amount" />}
+              {isAdmin && <ColHeader label="Revenue Utilisation" colKey="fillPct" sortKey="fillPct" align="right" sortState={sortState} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} numeric placeholder="≥ %" />}
             </tr>
           </thead>
           <tbody>
