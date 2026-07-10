@@ -70,6 +70,7 @@ function StatusDot({ status }: { status: string }) {
         status === "Not Done" && "bg-destructive",
         status === "Pending" && "bg-warning",
         status === "Not Required" && "bg-muted",
+        status === "Not Started" && "bg-muted-foreground/30",
       )}
       title={status}
     />
@@ -407,6 +408,9 @@ export default function MBRTracker() {
     }
     if (status === "Not Required") {
       return <span className="inline-flex rounded-full bg-muted text-muted-foreground px-2 py-0.5 text-[10px] font-medium border border-border">N/R</span>;
+    }
+    if (status === "Not Started") {
+      return <span className="inline-flex rounded-full bg-muted text-muted-foreground px-2 py-0.5 text-[10px] font-medium border border-border">Not Started</span>;
     }
     return <span className="inline-flex rounded-full bg-warning/10 text-warning px-2 py-0.5 text-[10px] font-medium border border-warning/30">Pending</span>;
   };
