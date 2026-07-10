@@ -1513,7 +1513,8 @@ export default function MBRTracker() {
                         const monthData = entriesByMonth.get(m);
                         const entry = monthData?.get(deal.id);
                         const retainer = isRetainerDeal(deal);
-                        const status = entry?.status || (retainer ? "Pending" : "Not Required");
+                        const notStarted = isNotStartedForMonth(deal.startDate, m);
+                        const status = entry?.status || (notStarted ? "Not Started" : retainer ? "Pending" : "Not Required");
                         return (
                           <td
                             key={m}
