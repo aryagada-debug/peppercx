@@ -19,7 +19,13 @@ import { PEPPER_BUSINESS_UNITS, CAPABILITY_LINES } from "@/data/staffingData";
 const PODS = ["Integrated", "India B2B", "US B2B", "FMCG", "BFSI"] as const;
 const DEAL_TYPES = ["Retainer", "Non-Retainer", "Pilot"] as const;
 const PEPPER_BUS = PEPPER_BUSINESS_UNITS;
-const DEAL_STATUSES = ["Won", "Negotiation", "Pipeline", "Lost"] as const;
+const DEAL_STATUSES = [
+  "Active Deal",
+  "New Deal in SLA/PO",
+  "Deal Disputed",
+  "Deal Completed Successfully",
+  "Deal Churned / Lost",
+] as const;
 const PAYMENT_TERMS = ["Net 15", "Net 30", "Net 45", "Net 60", "Advance", "Milestone-based"] as const;
 
 interface PersonOption { id: string; name: string; role_title: string; designation: string | null; }
@@ -29,6 +35,7 @@ interface SuccessMetric { name: string; value: string; unit: string; frequency: 
 
 interface DealFormData {
   dealName: string;
+  dealId: string;
   dealType: string;
   startDate: string;
   endDate: string;
@@ -85,7 +92,7 @@ export function DealFormWizard({ open, onOpenChange, clients, preSelectedClientI
   const peopleByRole = (role: string) => people.filter(p => (p.role_title || "").trim().toLowerCase() === role.toLowerCase());
 
   const [form, setForm] = useState<DealFormData>({
-    dealName: "", dealType: "Retainer", startDate: "", endDate: "",
+    dealName: "", dealId: "", dealType: "Retainer", startDate: "", endDate: "",
     mrr: "", totalDealValue: "", retainerDealValue: "", nonRetainerDealValue: "",
     inputCurrency: "INR",
     vsd: "", principalBopm: "", seniorBopm: "", bopm: "",
@@ -218,7 +225,15 @@ export function DealFormWizard({ open, onOpenChange, clients, preSelectedClientI
                 <Field label="Deal Name *">
                   <Input value={form.dealName} onChange={e => set("dealName", e.target.value)} placeholder="e.g. Air India_Jan-2025" />
                 </Field>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Deal ID">
+                    <Input value={form.dealId} onChange={e => set("dealId", e.target.value)} placeholder="D-XXXX" />
+                  </Field>
+                  <Field label="PC Code">
+                    <Input value={form.pcCode} onChange={e => set("pcCode", e.target.value)} placeholder="PC-XXXX" />
+                  </Field>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
                   <Field label="Deal Type">
                     <Select value={form.dealType} onValueChange={v => set("dealType", v)}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
@@ -230,9 +245,6 @@ export function DealFormWizard({ open, onOpenChange, clients, preSelectedClientI
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>{DEAL_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                     </Select>
-                  </Field>
-                  <Field label="PC Code">
-                    <Input value={form.pcCode} onChange={e => set("pcCode", e.target.value)} placeholder="PC-XXXX" />
                   </Field>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
