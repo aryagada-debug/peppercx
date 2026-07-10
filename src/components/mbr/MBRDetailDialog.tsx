@@ -18,6 +18,7 @@ interface MBRDetailDialogProps {
   onClose: () => void;
   deal: MBRDeal;
   entry: MBREntry | null;
+  selectedMonth?: string;
   onSave?: (params: {
     dealId: string;
     status: string;
@@ -34,7 +35,21 @@ interface MBRDetailDialogProps {
   }) => Promise<void>;
 }
 
-export function MBRDetailDialog({ open, onClose, deal, entry, onSave }: MBRDetailDialogProps) {
+function defaultMbrDateFor(selectedMonth?: string): string {
+  const today = new Date();
+  const currentYm = today.toISOString().slice(0, 7);
+  if (!selectedMonth || selectedMonth === currentYm) {
+    return today.toISOString().slice(0, 10);
+  }
+  const [y, m] = selectedMonth.split("-").map(Number);
+  // Last day of the selected month
+  const last = new Date(y, m, 0);
+  const mm = String(last.getMonth() + 1).padStart(2, "0");
+  const dd = String(last.getDate()).padStart(2, "0");
+  return `${last.getFullYear()}-${mm}-${dd}`;
+}
+
+export function MBRDetailDialog({ open, onClose, deal, entry, onSave, selectedMonth }: MBRDetailDialogProps) {
   const [status, setStatus] = useState(entry?.status || "Pending");
   const [sentiment, setSentiment] = useState(entry?.sentiment || "");
   const [mode, setMode] = useState(entry?.mode || "");
@@ -42,7 +57,7 @@ export function MBRDetailDialog({ open, onClose, deal, entry, onSave }: MBRDetai
   const [fathomLink, setFathomLink] = useState(entry?.fathomLink || "");
   const [mbrPptLink, setMbrPptLink] = useState(entry?.mbrPptLink || "");
   const [scheduledDate, setScheduledDate] = useState(entry?.scheduledDate || "");
-  const [mbrDate, setMbrDate] = useState(entry?.weekStart || new Date().toISOString().slice(0, 10));
+  const [mbrDate, setMbrDate] = useState(entry?.weekStart || defaultMbrDateFor(selectedMonth));
   const [anirudhAdded, setAnirudhAdded] = useState(entry?.anirudhAdded || false);
   const [anirudhJoining, setAnirudhJoining] = useState(entry?.anirudhJoining || false);
   const [saving, setSaving] = useState(false);
@@ -55,10 +70,10 @@ export function MBRDetailDialog({ open, onClose, deal, entry, onSave }: MBRDetai
     setFathomLink(entry?.fathomLink || "");
     setMbrPptLink(entry?.mbrPptLink || "");
     setScheduledDate(entry?.scheduledDate || "");
-    setMbrDate(entry?.weekStart || new Date().toISOString().slice(0, 10));
+    setMbrDate(entry?.weekStart || defaultMbrDateFor(selectedMonth));
     setAnirudhAdded(entry?.anirudhAdded || false);
     setAnirudhJoining(entry?.anirudhJoining || false);
-  }, [entry]);
+  }, [entry, selectedMonth]);
 
   const handleSave = async () => {
     if (!onSave) return;
