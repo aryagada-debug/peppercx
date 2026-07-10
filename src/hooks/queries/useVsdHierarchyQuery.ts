@@ -196,7 +196,22 @@ export function dealCellMatchesPerson(
   personName: string | null | undefined,
   allRegisteredNames: string[],
 ): boolean {
-  const a = (dealCell || "")
+  const rawCell = (dealCell || "").trim();
+  if (!rawCell || !personName) return false;
+  // Deal cells routinely list multiple people separated by commas, semicolons,
+  // slashes, pipes, ampersands, " and ", or newlines (e.g.
+  // "Karishma Sawlani, TBH — SEO BOPM (Vrusha)"). Split on those separators
+  // and match if ANY fragment resolves to this person.
+  const fragments = rawCell
+    .split(/\s*(?:,|;|\/|\||\n|\r|&|\band\b)\s*/i)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (fragments.length > 1) {
+    return fragments.some((frag) =>
+      dealCellMatchesPerson(frag, personName, allRegisteredNames),
+    );
+  }
+  const a = rawCell
     .toLowerCase()
     .normalize("NFKD")
     .replace(/[^a-z\s]/g, "")
