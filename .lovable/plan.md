@@ -1,25 +1,23 @@
 ## Problem
 
-When creating a new deal via the "New Deal" wizard on Clients & Deals:
+The "Live preview" in the Pulse email template editor (`src/components/rgy/PulseEmailTemplateEditor.tsx`) renders a different HTML layout than the actual email sent by `supabase/functions/send-pulse-survey/index.ts`. Different brand colors, header (no Pepper logo bar / "Pepper Pulse" tag), fonts, button styling, footer structure, and the "Thank you for taking a few moments…" block are all missing from the preview.
 
-1. The **Deal Status** dropdown shows the wrong options — `Won / Negotiation / Pipeline / Lost` — which don't match the statuses used everywhere else in Clients & Deals (`Active Deal`, `New Deal in SLA/PO`, `Deal Disputed`, `Deal Completed Successfully`, `Deal Churned / Lost`). The default is also `Active Deal` which isn't even in the list, so the field looks blank.
-2. There is no **Deal ID** field. The system auto-generates a placeholder like `D-0001`, but users can't enter the real Deal ID that should show in the Clients & Deals table's "Deal ID" column.
+## Fix
 
-## Changes
+Rewrite `buildPreviewHtml` in `PulseEmailTemplateEditor.tsx` so it mirrors the email produced by `emailHtml` in `send-pulse-survey/index.ts`:
 
-### 1. `src/components/deals/DealFormWizard.tsx`
-- Replace the local `DEAL_STATUSES` constant with the same 5-value list used on the Clients page:
-  `["Active Deal", "New Deal in SLA/PO", "Deal Disputed", "Deal Completed Successfully", "Deal Churned / Lost"]`
-- Keep the default `dealStatus: "Active Deal"` (now valid).
-- Add a `dealId: string` field to `DealFormData` (default `""`).
-- Add a "Deal ID" input in Step 1 (Deal Details), placed next to PC Code, e.g. placeholder `D-XXXX`. Optional field.
+- Replace brand tokens with the sent-email palette: `BRAND_PRIMARY #5B34DA`, `BRAND_HEADER_BG #0C0359`, `BRAND_HEADER_ACCENT #B7A9EE`, `BRAND_BG #F4F0EA`, `BRAND_BORDER #ECE7F5`, `BRAND_TEXT #1E1633`, `BRAND_BODY #4A4358`, `BRAND_MUTED #9089A0`.
+- Use the same 600px rounded white container, dark header row with a "Pepper Pulse" uppercase accent label on the right (skip the logo image in the preview since it's a data URL only in the edge function; render a "Pepper" wordmark text instead so preview stays self-contained).
+- Render the `greeting` as the large H1 headline (not as a paragraph), matching the sent email.
+- Use `paragraphsHtml` with the sent-email typography (Segoe UI, 16px/1.6, `BRAND_BODY` color, 16px paragraph spacing).
+- Left-align CTA button with sent-email styling (10px radius, 15px 38px padding, 16px/700, `BRAND_PRIMARY`).
+- Add the "Thank you for taking a few moments…" closing paragraph block that the sent email includes.
+- Footer section: divider line, `footer_note` in muted 13px, second divider, and the "If the button doesn't work, copy this link" fallback with the link — same order and styling as sent email.
+- Keep the current "From / To / Subject" header strip above the email body so users still see the subject preview.
 
-### 2. `src/pages/Clients.tsx` — `handleCreateDeal`
-- If the user provided `data.dealId`, write it to `new_deal_id_formulated` (the field the Clients table reads first via `dbToDeal`).
-- Keep the auto-generated `new_deal_id_temp` as a fallback so nothing regresses when the field is left blank.
-- Also pass the entered Deal ID into the approval-request payload path (non-admin flow) so approvals carry it through.
+## Technical details
 
-## Result
-
-- The Deal Status dropdown in the wizard mirrors the statuses shown in Clients & Deals, and the selected status actually appears in the table.
-- Users can enter a Deal ID during creation, and it renders in the "Deal ID" column of Clients & Deals.
+- File touched: `src/components/rgy/PulseEmailTemplateEditor.tsx` only.
+- No changes to the edge function or DB — sent output is already correct.
+- Keep sample vars and `render()`/`escapeHtml()` helpers; adjust `paragraphsHtml()` signature to match the new inline styles (drop the `color` param, hardcode `BRAND_BODY`).
+- Preview iframe height can stay at 620px; adjust if content overflows.
