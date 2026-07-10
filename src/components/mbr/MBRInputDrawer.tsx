@@ -246,9 +246,19 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
-                <Calendar mode="single" selected={mbrDate} onSelect={setMbrDate} initialFocus className={cn("p-3 pointer-events-auto")} />
+                <Calendar
+                  mode="single"
+                  selected={mbrDate}
+                  onSelect={setMbrDate}
+                  initialFocus
+                  disabled={deal.startDate ? { before: new Date(deal.startDate) } : undefined}
+                  className={cn("p-3 pointer-events-auto")}
+                />
               </PopoverContent>
             </Popover>
+            {deal.startDate && (
+              <p className="mt-1 text-[11px] text-muted-foreground">Account start date: {format(new Date(deal.startDate), "PPP")}. MBR can only be recorded on or after this date.</p>
+            )}
           </div>
 
           {/* Sentiment */}
@@ -399,7 +409,7 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
           {/* Anirudh Added */}
           <div className="flex items-center gap-3">
             <Checkbox checked={anirudhAdded} onCheckedChange={(v) => setAnirudhAdded(!!v)} id="anirudh-added" />
-            <Label htmlFor="anirudh-added" className="text-sm cursor-pointer">Anirudh added as optional attendee? <span className="text-destructive">*</span></Label>
+            <Label htmlFor="anirudh-added" className="text-sm cursor-pointer">Anirudh added as optional attendee? <span className="text-xs text-muted-foreground font-normal">(optional)</span></Label>
           </div>
 
           {/* Mode */}
