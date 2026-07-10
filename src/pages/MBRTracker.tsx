@@ -719,7 +719,11 @@ export default function MBRTracker() {
       const deal = dealsById.get(id);
       if (!deal) continue;
       if (!isRetainerDeal(deal)) continue; // mandatory MBR only for retainers
-      const statuses = last3.map(m => entriesByMonth.get(m)?.get(id)?.status || "Pending");
+      const statuses = last3.map(m => {
+        const s = entriesByMonth.get(m)?.get(id)?.status;
+        if (s) return s;
+        return isNotStartedForMonth(deal.startDate, m) ? "Not Started" : "Pending";
+      });
       const missed = statuses.filter(s => s === "Not Done" || s === "Pending").length;
       if (last3.length >= 2 && missed === last3.length) {
         flags.push({
