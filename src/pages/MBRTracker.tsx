@@ -475,7 +475,9 @@ export default function MBRTracker() {
     for (const id of filteredIds) {
       const series = last6.map(m => {
         const e = entriesByMonth.get(m)?.get(id);
-        return { status: e?.status || "Pending", sentiment: e?.sentiment || null } as Cell;
+        const deal = dealsById.get(id);
+        const fallback = isNotStartedForMonth(deal?.startDate, m) ? "Not Started" : "Pending";
+        return { status: e?.status || fallback, sentiment: e?.sentiment || null } as Cell;
       });
       perDeal.set(id, series);
     }
