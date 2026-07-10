@@ -1390,7 +1390,7 @@ export default function MBRTracker() {
                       <ColHeader label="VSD" colKey="vsd" sortKey="vsd" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.vsd} onResizeStart={startResize("vsd")} />
                       <ColHeader label="Sr. BOPM" colKey="seniorBopm" sortKey="seniorBopm" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.seniorBopm} onResizeStart={startResize("seniorBopm")} />
                       <ColHeader label="MRR" colKey="mrr" sortKey="mrr" align="right" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} numeric placeholder="≥ amount" width={colWidths.mrr} onResizeStart={startResize("mrr")} />
-                      <ColHeader label="Status" colKey="status" align="center" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["Done","Not Done","Pending","Not Required"]} width={colWidths.status} onResizeStart={startResize("status")} />
+                      <ColHeader label="Status" colKey="status" align="center" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["Done","Not Done","Pending","Not Required","Not Started"]} width={colWidths.status} onResizeStart={startResize("status")} />
                       <ColHeader label="Sentiment" colKey="sentiment" align="center" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["Green","Yellow","Red"]} width={colWidths.sentiment} onResizeStart={startResize("sentiment")} />
                       <ColHeader label="Scheduled" colKey="scheduledDate" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} placeholder="YYYY-MM-DD" width={colWidths.scheduledDate} onResizeStart={startResize("scheduledDate")} />
                       <th className="text-center py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Anirudh</th>
@@ -1400,7 +1400,8 @@ export default function MBRTracker() {
                   <tbody>
                     {tableRows.map(({ deal, entry }) => {
                       const retainer = isRetainerDeal(deal);
-                      const status = entry?.status || (retainer ? "Pending" : "Not Required");
+                      const notStarted = isNotStartedForMonth(deal.startDate, selectedMonth);
+                      const status = entry?.status || (notStarted ? "Not Started" : retainer ? "Pending" : "Not Required");
                       return (
                         <tr
                                 key={deal.id}
@@ -1423,6 +1424,7 @@ export default function MBRTracker() {
                                     status === "Not Done" && "bg-destructive/15 text-destructive",
                                     status === "Not Required" && "bg-muted text-muted-foreground",
                                     status === "Pending" && "bg-warning/15 text-warning",
+                                    status === "Not Started" && "bg-muted text-muted-foreground",
                                   )} title={!retainer ? "Non-retainer — MBR not mandatory" : undefined}>{!retainer && status === "Not Required" ? "N/R" : status}</span>
                                 </td>
                                 <td className="py-2 px-3 text-center">{sentimentDot(entry?.sentiment ?? null)}</td>
