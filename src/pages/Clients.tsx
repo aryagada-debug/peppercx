@@ -624,10 +624,12 @@ export default function Clients() {
     const newId = uid();
     const dealCount = deals.length + 1;
     const dealIdStr = `D-${String(dealCount).padStart(4, "0")}`;
+    const userDealId = (data.dealId || "").trim();
 
     const dealRow: any = {
       id: newId,
       new_deal_id_temp: dealIdStr,
+      new_deal_id_formulated: userDealId || null,
       deal_name: data.dealName,
       deal_type: data.dealType,
       deal_status: data.dealStatus,
