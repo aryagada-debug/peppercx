@@ -34,6 +34,7 @@ interface MBRInputDrawerProps {
     dealName: string;
     vsd: string;
     pcCode: string;
+    startDate?: string | null;
   };
   existingEntry?: {
     sentiment?: string | null;
@@ -124,6 +125,20 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
       toast({ title: "MBR Date required", description: "Please pick the MBR date.", variant: "destructive" });
       return;
     }
+    if (deal.startDate) {
+      const start = new Date(deal.startDate);
+      start.setHours(0, 0, 0, 0);
+      const picked = new Date(mbrDate);
+      picked.setHours(0, 0, 0, 0);
+      if (picked < start) {
+        toast({
+          title: "MBR before account start",
+          description: `This account starts on ${format(start, "PPP")}. MBR can only be filled on or after the start date.`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
     if (!sentiment) {
       toast({ title: "Sentiment required", description: "Please select a sentiment color.", variant: "destructive" });
       return;
@@ -134,10 +149,6 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
     }
     if (!scheduledDate) {
       toast({ title: "Next MBR date required", description: "Please set the next MBR date.", variant: "destructive" });
-      return;
-    }
-    if (!anirudhAdded) {
-      toast({ title: "Anirudh attendance required", description: "Confirm Anirudh was added as an optional attendee.", variant: "destructive" });
       return;
     }
     if (!mode) {
