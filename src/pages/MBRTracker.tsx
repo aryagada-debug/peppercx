@@ -237,19 +237,30 @@ export default function MBRTracker() {
     window.addEventListener("mouseup", onUp);
   }, [colWidths]);
 
-  // Set default selected month to the latest available
+  // Guaranteed list of months for the selector: last 12 calendar months
+  // merged with any months that already have entries. Sorted ascending
+  // (oldest first) to match availableMonths ordering used elsewhere.
+  const monthOptions = useMemo(() => {
+    const set = new Set<string>(availableMonths);
+    const now = new Date();
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      set.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    }
+    return Array.from(set).sort();
+  }, [availableMonths]);
+
+  // Set default selected month to the current month (fall back to latest)
   useEffect(() => {
-    if (availableMonths.length > 0 && !selectedMonth) {
+    if (monthOptions.length > 0 && !selectedMonth) {
       const currentMonth = new Date().toISOString().slice(0, 7);
-      // Prefer the current month (that's where new saves land). Fall back to
-      // the newest month with data if the current one has no entries yet.
       setSelectedMonth(
-        availableMonths.includes(currentMonth)
+        monthOptions.includes(currentMonth)
           ? currentMonth
-          : availableMonths[availableMonths.length - 1],
+          : monthOptions[monthOptions.length - 1],
       );
     }
-  }, [availableMonths, selectedMonth]);
+  }, [monthOptions, selectedMonth]);
 
   // Fetch pod/status info from staffing_deals
   const [dealMeta, setDealMeta] = useState<Map<string, { pod: string; dealStatus: string }>>(new Map());
@@ -1356,13 +1367,13 @@ export default function MBRTracker() {
               className="w-full h-9 pl-9 pr-3 rounded-lg bg-card border border-border text-ui text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all" />
           </div>
 
-          {viewMode === "current" && availableMonths.length > 0 && (
+          {viewMode === "current" && (
             <Select value={selectedMonth} onValueChange={setSelectedMonth}>
               <SelectTrigger className="w-[140px] h-9 text-xs">
                 <SelectValue placeholder="Select month" />
               </SelectTrigger>
               <SelectContent>
-                {availableMonths.map(m => (
+                {monthOptions.map(m => (
                   <SelectItem key={m} value={m} className="text-xs">{formatMonthLabel(m)}</SelectItem>
                 ))}
               </SelectContent>
@@ -1722,6 +1733,7 @@ export default function MBRTracker() {
           deal={viewDeal.deal}
           entry={viewDeal.entry}
           onSave={handleSave}
+          selectedMonth={selectedMonth}
         />
       )}
 
