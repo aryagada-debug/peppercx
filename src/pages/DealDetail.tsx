@@ -782,6 +782,7 @@ function DealMBRTab({ deal, dealId, mbrEntries, currentRGY, upsertMBREntry, dele
     dealName: deal.dealName || "",
     vsd: deal.vsd || "",
     pcCode: deal.pcCode || "",
+    startDate: deal.startDate || null,
   };
 
   const dealForDialog = {
@@ -802,6 +803,7 @@ function DealMBRTab({ deal, dealId, mbrEntries, currentRGY, upsertMBREntry, dele
     totalDealValue: deal.totalDealValue || null,
     netDealValue: deal.netDealValue || null,
     dealType: (deal as any).dealType || "",
+    startDate: deal.startDate || null,
   };
 
   const handleRowClick = (entry: MBREntry) => {
