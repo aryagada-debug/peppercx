@@ -1,60 +1,23 @@
-## Goal
-Give sales a **shareable public URL** (like the NPS survey link) that opens a Handover form. Each submission creates a new row in `deal_handovers` that shows up automatically in the existing **Queue** tab.
+## Fix month selector on MBR Tracker + default MBR date
 
-## Pattern (mirrors Pulse NPS)
-- Public survey: `/s/:token` → `PublicSurvey.tsx` → edge function `survey-submit` (verify_jwt=false) → inserts row.
-- Public handover: `/h/handover` → new `PublicHandover.tsx` → new edge function `handover-submit` (verify_jwt=false) → inserts row into `deal_handovers`.
+### 1. Restore the month dropdown
+In `src/pages/MBRTracker.tsx` the selector is gated by `availableMonths.length > 0`. `availableMonths` is derived from months that already have entries (`useMBRData.ts`), so it collapses to empty (and disappears) whenever the filtered dataset has no entries yet.
 
-Unlike NPS, no per-recipient token is needed — it's an open intake form. One stable link that anyone in sales can bookmark/share.
+Fix:
+- Build a guaranteed month list in `MBRTracker` — the last 12 calendar months up to the current month — and merge it with `availableMonths` from the hook (dedupe + sort desc so newest is first).
+- Use this merged list for the dropdown so the selector is always visible.
+- Drop the `availableMonths.length > 0` guard on the `<Select>` (keep only `viewMode === "current"`).
+- Keep the default-selection effect but point it at the merged list (default to current month).
 
-## Changes
+### 2. Default MBR date to the selected month when the popup opens
+`MBRInputDrawer` currently defaults `mbrDate` to `new Date(selectedWeek)` or today. When the user opens the MBR entry from a specific month, the picker should land inside that month.
 
-### 1. Route (public, no auth)
-`src/App.tsx`
-- Add `const PublicHandover = lazy(() => import("./pages/PublicHandover"))`.
-- Add `<Route path="/h/handover" element={<PublicHandover />} />` **outside** `AuthProvider` gating — put it alongside `/login` so it never requires a session.
-- Extend `isPublicSurveyRequest` (or add a sibling `isPublicHandoverRequest`) so `/h/handover` is served without redirecting to `/home`. Simplest: add a matching `RouterSwitch` branch that returns `<PublicHandover />` when the path starts with `/h/handover`.
+Fix:
+- Pass the currently `selectedMonth` (YYYY-MM) from `MBRTracker` to `MBRInputDrawer` as a new prop `selectedMonth`.
+- In `MBRInputDrawer`, initialize `mbrDate` as:
+  - if `selectedMonth` is the current calendar month → today,
+  - else → the **last day of `selectedMonth`** (so it's clearly inside that month and the write lands in the right week).
+- `MBRDetailDialog` (which wraps the drawer) gets the same prop forwarded.
 
-### 2. Page `src/pages/PublicHandover.tsx`
-- Standalone page (no `AppLayout`, no sidebar), same clean shell as `PublicSurvey.tsx`: centered card, Pepper heading, subtitle "Deal Handover".
-- Renders `HandoverWizard` with a new `mode="public"` prop.
-- On success: swap to a "Thanks — your handover has been submitted" confirmation card with a "Submit another" button.
-
-### 3. `src/components/handover/HandoverWizard.tsx`
-- Add optional prop `mode?: "authed" | "public"` (default `"authed"`) and `onSubmitted?: () => void`.
-- In `authed` mode: current behavior (insert via `supabase.from("deal_handovers")`).
-- In `public` mode: call `supabase.functions.invoke("handover-submit", { body: { payload } })`. No auth header needed — anon key is public.
-- No other UX changes.
-
-### 4. Edge function `supabase/functions/handover-submit/index.ts` (new)
-- `verify_jwt = false` (register in `supabase/config.toml`).
-- CORS: allow `*`, POST/OPTIONS.
-- Validate payload with zod:
-  - required: `company_name`, `sp_name`, `sp_email` (email), `stage`, `bu`, `capability`, `deal_type`
-  - length caps on all strings, contacts array ≤ 20, urls ≤ 500 chars
-- Anti-abuse: reject if same `sp_email` submitted > 5 times in the last hour (count query on `deal_handovers`).
-- Insert with service role: `submitter_user_id = null`, `status = 'submitted'`, `submitted_via = 'public_link'`, everything else from payload.
-- Return `{ ok: true, reference }`.
-
-### 5. DB migration
-- `ALTER TABLE public.deal_handovers ADD COLUMN IF NOT EXISTS submitted_via text NOT NULL DEFAULT 'app';`
-- No RLS changes: reads stay authed (existing policies); writes for public submissions go through the service-role edge function so RLS is bypassed safely.
-
-### 6. Queue surfacing — `src/pages/DealHandover.tsx`
-- Existing `loadRows()` already returns all rows newest-first, so public submissions show up automatically.
-- Add a **"Copy public form link"** button in the header row (copies `${window.location.origin}/h/handover`, toasts "Link copied").
-- Add a small "Public link" badge next to Company when `submitted_via === 'public_link'`.
-- Include `submitted_via` in the `HandoverRow` type.
-
-## Files
-- add `src/pages/PublicHandover.tsx`
-- edit `src/App.tsx`
-- edit `src/components/handover/HandoverWizard.tsx`
-- edit `src/pages/DealHandover.tsx`
-- add `supabase/functions/handover-submit/index.ts`
-- edit `supabase/config.toml` (verify_jwt=false for the new function)
-- migration adding `submitted_via` column
-
-## Out of scope
-- Captcha, email verification, per-user tokens — can add later if abuse appears.
-- Editing public submissions from the link.
+### 3. Out of scope
+No changes to hook logic, DB schema, or which month an MBR write is bucketed into — that already follows `mbrDate`.
