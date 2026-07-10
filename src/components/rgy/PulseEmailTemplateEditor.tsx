@@ -60,55 +60,65 @@ function escapeHtml(s: string) {
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
-function paragraphsHtml(body: string, color: string) {
+const BRAND_PRIMARY = "#5B34DA";
+const BRAND_HEADER_BG = "#0C0359";
+const BRAND_HEADER_ACCENT = "#B7A9EE";
+const BRAND_BG = "#F4F0EA";
+const BRAND_BORDER = "#ECE7F5";
+const BRAND_TEXT = "#1E1633";
+const BRAND_BODY = "#4A4358";
+const BRAND_MUTED = "#9089A0";
+
+function paragraphsHtml(body: string) {
   return body
     .split(/\n\s*\n/)
     .map(p => p.trim())
     .filter(Boolean)
-    .map(p => `<p style="margin:0 0 14px;font-size:14px;line-height:1.6;color:${color};">${escapeHtml(p).replace(/\n/g, "<br>")}</p>`)
+    .map(p => `<p style="margin:0 0 16px 0;font-family:'Segoe UI',Helvetica,Arial,sans-serif;font-size:16px;line-height:1.6;color:${BRAND_BODY};">${escapeHtml(p).replace(/\n/g, "<br>")}</p>`)
     .join("");
 }
 
 function buildPreviewHtml(tpl: Tpl): string {
   const SAMPLE = getSample();
-  const BRAND_PRIMARY = "#5b3df5";
-  const BRAND_BG = "#faf9fc";
-  const BRAND_BORDER = "#e7e4ef";
-  const BRAND_TEXT = "#15131f";
-  const BRAND_MUTED = "#6b6878";
-  const greeting = render(tpl.greeting, SAMPLE);
+  const headline = render(tpl.greeting, SAMPLE);
   const body = render(tpl.body, { ...SAMPLE, link: "" });
   const cta = render(tpl.cta_label, SAMPLE);
   const footer = render(tpl.footer_note, SAMPLE);
   const subject = render(tpl.subject, SAMPLE);
   const link = SAMPLE.link;
-  const label = [SAMPLE.account, SAMPLE.deal_name].filter(Boolean).join(" — ");
-  return `<!doctype html><html><body style="margin:0;padding:0;background:${BRAND_BG};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  return `<!doctype html><html><body style="margin:0;padding:0;background:${BRAND_BG};font-family:'Segoe UI',Helvetica,Arial,sans-serif;">
   <div style="background:#fff;border-bottom:1px solid ${BRAND_BORDER};padding:10px 16px;font-size:12px;color:${BRAND_MUTED};">
     <div><b style="color:${BRAND_TEXT};">From</b> Pepper CX &lt;centralcx@peppercontent.io&gt;</div>
     <div><b style="color:${BRAND_TEXT};">To</b> ${escapeHtml(SAMPLE.recipient_name)} &lt;ananya@example.com&gt;</div>
     <div><b style="color:${BRAND_TEXT};">Subject</b> ${escapeHtml(subject)}</div>
   </div>
-  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:${BRAND_BG};padding:24px 12px;">
-    <tr><td align="center">
-      <table role="presentation" cellpadding="0" cellspacing="0" width="560" style="max-width:560px;background:#fff;border:1px solid ${BRAND_BORDER};border-radius:14px;overflow:hidden;">
-        <tr><td style="padding:22px 26px;border-bottom:1px solid ${BRAND_BORDER};">
-          <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_PRIMARY};font-weight:700;">Pepper Customer Pulse</div>
-          <div style="font-size:20px;font-weight:600;color:${BRAND_TEXT};margin-top:4px;">How are we doing on ${escapeHtml(label)}?</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${BRAND_BG};">
+    <tr><td align="center" style="padding:32px 16px;">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background-color:#FFFFFF;border-radius:16px;overflow:hidden;box-shadow:0 2px 8px rgba(60,40,90,0.06);">
+        <tr><td style="background-color:${BRAND_HEADER_BG};padding:24px 40px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+            <td align="left" valign="middle" style="font-family:'Segoe UI',Helvetica,Arial,sans-serif;font-size:20px;font-weight:700;color:#FFFFFF;letter-spacing:-0.3px;">Pepper</td>
+            <td align="right" valign="middle" style="font-family:'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:${BRAND_HEADER_ACCENT};">Pepper&nbsp;Pulse</td>
+          </tr></table>
         </td></tr>
-        <tr><td style="padding:22px 26px;">
-          <p style="margin:0 0 14px;font-size:14px;line-height:1.6;color:${BRAND_TEXT};">${escapeHtml(greeting)}</p>
-          ${paragraphsHtml(body, BRAND_TEXT)}
-          <div style="margin:22px 0;">
-            <a href="${escapeHtml(link)}" target="_blank" rel="noreferrer" style="display:inline-block;background:${BRAND_PRIMARY};color:#fff;text-decoration:none;font-size:14px;font-weight:600;padding:12px 22px;border-radius:10px;">${escapeHtml(cta)}</a>
-          </div>
-          <p style="margin:0;font-size:12.5px;color:${BRAND_MUTED};line-height:1.5;">
-            If the button doesn't work, paste this link into your browser:<br>
-            <span style="color:${BRAND_PRIMARY};word-break:break-all;">${escapeHtml(link)}</span>
+        <tr><td style="padding:44px 40px 8px 40px;">
+          <h1 style="margin:0 0 18px 0;font-family:'Segoe UI',Helvetica,Arial,sans-serif;font-size:26px;line-height:1.25;font-weight:700;color:${BRAND_TEXT};letter-spacing:-0.4px;">${escapeHtml(headline)}</h1>
+          ${paragraphsHtml(body)}
+        </td></tr>
+        <tr><td align="left" style="padding:28px 40px 24px 40px;">
+          <a href="${escapeHtml(link)}" target="_blank" style="display:inline-block;padding:15px 38px;font-family:'Segoe UI',Helvetica,Arial,sans-serif;font-size:16px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:10px;background-color:${BRAND_PRIMARY};">${escapeHtml(cta)}</a>
+        </td></tr>
+        <tr><td style="padding:0 40px 40px 40px;">
+          <p style="margin:0;font-family:'Segoe UI',Helvetica,Arial,sans-serif;font-size:16px;line-height:1.6;color:${BRAND_BODY};">Thank you for taking a few moments to share your feedback. We truly appreciate your time and trust.</p>
+        </td></tr>
+        <tr><td style="padding:0 40px;"><div style="border-top:1px solid ${BRAND_BORDER};font-size:0;line-height:0;">&nbsp;</div></td></tr>
+        <tr><td style="padding:24px 40px 36px 40px;">
+          <p style="margin:0;font-family:'Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:${BRAND_MUTED};">${escapeHtml(footer)}</p>
+          <div style="border-top:1px solid #EFEAF3;font-size:0;line-height:0;margin:16px 0 0 0;">&nbsp;</div>
+          <p style="margin:16px 0 0 0;font-family:'Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:${BRAND_MUTED};">
+            If the button doesn't work, copy this link into your browser:<br>
+            <a href="${escapeHtml(link)}" style="color:${BRAND_PRIMARY};text-decoration:none;word-break:break-all;">${escapeHtml(link)}</a>
           </p>
-        </td></tr>
-        <tr><td style="padding:14px 26px;border-top:1px solid ${BRAND_BORDER};background:${BRAND_BG};">
-          <p style="margin:0;font-size:11.5px;color:${BRAND_MUTED};line-height:1.5;">${escapeHtml(footer)}</p>
         </td></tr>
       </table>
     </td></tr>
