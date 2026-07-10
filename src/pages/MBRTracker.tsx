@@ -349,7 +349,11 @@ export default function MBRTracker() {
       if (colFilters.vsd && !matches(deal.vsd, colFilters.vsd)) return false;
       if (colFilters.seniorBopm && !matches(deal.seniorBopm, colFilters.seniorBopm)) return false;
       if (colFilters.mrr && (Number(deal.mrr) || 0) < Number(colFilters.mrr)) return false;
-      if (colFilters.status && (entry?.status || "Pending") !== colFilters.status) return false;
+      if (colFilters.status) {
+        const derived = entry?.status
+          || (isNotStartedForMonth(deal.startDate, selectedMonth) ? "Not Started" : "Pending");
+        if (derived !== colFilters.status) return false;
+      }
       if (colFilters.sentiment && (entry?.sentiment || "") !== colFilters.sentiment) return false;
       if (colFilters.scheduledDate && !matches(entry?.scheduledDate, colFilters.scheduledDate)) return false;
       return true;
