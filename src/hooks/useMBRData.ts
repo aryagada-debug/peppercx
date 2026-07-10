@@ -20,6 +20,7 @@ export interface MBRDeal {
   totalDealValue: number | null;
   netDealValue: number | null;
   dealType: string;
+  startDate: string | null;
 }
 
 // A deal is considered a Retainer if its deal_type is "Retainer" (or contains
@@ -126,7 +127,7 @@ const MBR_ENTRIES_KEY = ["mbr", "entries"] as const;
 async function fetchMBRDeals(): Promise<MBRDeal[]> {
   const { data } = await supabase
     .from("staffing_deals")
-    .select("id, pc_code, new_deal_id_formulated, account, deal_name, vsd, principal_bopm, senior_bopm, bopm, customer_status, customer_type, service_line_tagging, business_unit, mrr, total_deal_value, net_deal_value, deal_type");
+    .select("id, pc_code, new_deal_id_formulated, account, deal_name, vsd, principal_bopm, senior_bopm, bopm, customer_status, customer_type, service_line_tagging, business_unit, mrr, total_deal_value, net_deal_value, deal_type, start_date");
   if (!data) return [];
   return data
     .filter((d: any) => {
@@ -154,6 +155,7 @@ async function fetchMBRDeals(): Promise<MBRDeal[]> {
       totalDealValue: d.total_deal_value ? Number(d.total_deal_value) : null,
       netDealValue: d.net_deal_value ? Number(d.net_deal_value) : null,
       dealType: d.deal_type || "",
+      startDate: d.start_date || null,
     }));
 }
 
