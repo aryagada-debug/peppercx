@@ -70,6 +70,7 @@ function StatusDot({ status }: { status: string }) {
         status === "Not Done" && "bg-destructive",
         status === "Pending" && "bg-warning",
         status === "Not Required" && "bg-muted",
+        status === "Not Started" && "bg-muted-foreground/30",
       )}
       title={status}
     />
@@ -79,6 +80,25 @@ function StatusDot({ status }: { status: string }) {
 interface MBRDealWithPod extends MBRDeal {
   pod: string;
   dealStatus: string;
+}
+
+// Returns true when the deal has not started yet for the given month (YYYY-MM).
+// If no month is provided, compares against today.
+function isNotStartedForMonth(startDate: string | null | undefined, monthYmd?: string): boolean {
+  if (!startDate) return false;
+  const start = new Date(startDate);
+  if (isNaN(start.getTime())) return false;
+  start.setHours(0, 0, 0, 0);
+  if (monthYmd) {
+    const [y, m] = monthYmd.split("-").map(Number);
+    // End-of-month reference
+    const monthEnd = new Date(y, m, 0);
+    monthEnd.setHours(23, 59, 59, 999);
+    return start > monthEnd;
+  }
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return start > today;
 }
 
 export default function MBRTracker() {
@@ -329,7 +349,11 @@ export default function MBRTracker() {
       if (colFilters.vsd && !matches(deal.vsd, colFilters.vsd)) return false;
       if (colFilters.seniorBopm && !matches(deal.seniorBopm, colFilters.seniorBopm)) return false;
       if (colFilters.mrr && (Number(deal.mrr) || 0) < Number(colFilters.mrr)) return false;
-      if (colFilters.status && (entry?.status || "Pending") !== colFilters.status) return false;
+      if (colFilters.status) {
+        const derived = entry?.status
+          || (isNotStartedForMonth(deal.startDate, selectedMonth) ? "Not Started" : "Pending");
+        if (derived !== colFilters.status) return false;
+      }
       if (colFilters.sentiment && (entry?.sentiment || "") !== colFilters.sentiment) return false;
       if (colFilters.scheduledDate && !matches(entry?.scheduledDate, colFilters.scheduledDate)) return false;
       return true;
@@ -408,6 +432,9 @@ export default function MBRTracker() {
     if (status === "Not Required") {
       return <span className="inline-flex rounded-full bg-muted text-muted-foreground px-2 py-0.5 text-[10px] font-medium border border-border">N/R</span>;
     }
+    if (status === "Not Started") {
+      return <span className="inline-flex rounded-full bg-muted text-muted-foreground px-2 py-0.5 text-[10px] font-medium border border-border">Not Started</span>;
+    }
     return <span className="inline-flex rounded-full bg-warning/10 text-warning px-2 py-0.5 text-[10px] font-medium border border-warning/30">Pending</span>;
   };
 
@@ -448,7 +475,9 @@ export default function MBRTracker() {
     for (const id of filteredIds) {
       const series = last6.map(m => {
         const e = entriesByMonth.get(m)?.get(id);
-        return { status: e?.status || "Pending", sentiment: e?.sentiment || null } as Cell;
+        const deal = dealsById.get(id);
+        const fallback = isNotStartedForMonth(deal?.startDate, m) ? "Not Started" : "Pending";
+        return { status: e?.status || fallback, sentiment: e?.sentiment || null } as Cell;
       });
       perDeal.set(id, series);
     }
@@ -690,7 +719,11 @@ export default function MBRTracker() {
       const deal = dealsById.get(id);
       if (!deal) continue;
       if (!isRetainerDeal(deal)) continue; // mandatory MBR only for retainers
-      const statuses = last3.map(m => entriesByMonth.get(m)?.get(id)?.status || "Pending");
+      const statuses = last3.map(m => {
+        const s = entriesByMonth.get(m)?.get(id)?.status;
+        if (s) return s;
+        return isNotStartedForMonth(deal.startDate, m) ? "Not Started" : "Pending";
+      });
       const missed = statuses.filter(s => s === "Not Done" || s === "Pending").length;
       if (last3.length >= 2 && missed === last3.length) {
         flags.push({
@@ -1363,7 +1396,7 @@ export default function MBRTracker() {
                       <ColHeader label="VSD" colKey="vsd" sortKey="vsd" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.vsd} onResizeStart={startResize("vsd")} />
                       <ColHeader label="Sr. BOPM" colKey="seniorBopm" sortKey="seniorBopm" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} width={colWidths.seniorBopm} onResizeStart={startResize("seniorBopm")} />
                       <ColHeader label="MRR" colKey="mrr" sortKey="mrr" align="right" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} numeric placeholder="≥ amount" width={colWidths.mrr} onResizeStart={startResize("mrr")} />
-                      <ColHeader label="Status" colKey="status" align="center" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["Done","Not Done","Pending","Not Required"]} width={colWidths.status} onResizeStart={startResize("status")} />
+                      <ColHeader label="Status" colKey="status" align="center" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["Done","Not Done","Pending","Not Required","Not Started"]} width={colWidths.status} onResizeStart={startResize("status")} />
                       <ColHeader label="Sentiment" colKey="sentiment" align="center" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} options={["Green","Yellow","Red"]} width={colWidths.sentiment} onResizeStart={startResize("sentiment")} />
                       <ColHeader label="Scheduled" colKey="scheduledDate" sortState={{sortKey, sortDir}} onSort={toggleSort} colFilters={colFilters} openFilter={openFilter} setOpenFilter={setOpenFilter} setFilter={setFilter} clearFilter={clearFilter} placeholder="YYYY-MM-DD" width={colWidths.scheduledDate} onResizeStart={startResize("scheduledDate")} />
                       <th className="text-center py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Anirudh</th>
@@ -1373,7 +1406,8 @@ export default function MBRTracker() {
                   <tbody>
                     {tableRows.map(({ deal, entry }) => {
                       const retainer = isRetainerDeal(deal);
-                      const status = entry?.status || (retainer ? "Pending" : "Not Required");
+                      const notStarted = isNotStartedForMonth(deal.startDate, selectedMonth);
+                      const status = entry?.status || (notStarted ? "Not Started" : retainer ? "Pending" : "Not Required");
                       return (
                         <tr
                                 key={deal.id}
@@ -1396,6 +1430,7 @@ export default function MBRTracker() {
                                     status === "Not Done" && "bg-destructive/15 text-destructive",
                                     status === "Not Required" && "bg-muted text-muted-foreground",
                                     status === "Pending" && "bg-warning/15 text-warning",
+                                    status === "Not Started" && "bg-muted text-muted-foreground",
                                   )} title={!retainer ? "Non-retainer — MBR not mandatory" : undefined}>{!retainer && status === "Not Required" ? "N/R" : status}</span>
                                 </td>
                                 <td className="py-2 px-3 text-center">{sentimentDot(entry?.sentiment ?? null)}</td>
@@ -1484,7 +1519,8 @@ export default function MBRTracker() {
                         const monthData = entriesByMonth.get(m);
                         const entry = monthData?.get(deal.id);
                         const retainer = isRetainerDeal(deal);
-                        const status = entry?.status || (retainer ? "Pending" : "Not Required");
+                        const notStarted = isNotStartedForMonth(deal.startDate, m);
+                        const status = entry?.status || (notStarted ? "Not Started" : retainer ? "Pending" : "Not Required");
                         return (
                           <td
                             key={m}

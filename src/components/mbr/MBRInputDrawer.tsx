@@ -125,20 +125,6 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
       toast({ title: "MBR Date required", description: "Please pick the MBR date.", variant: "destructive" });
       return;
     }
-    if (deal.startDate) {
-      const start = new Date(deal.startDate);
-      start.setHours(0, 0, 0, 0);
-      const picked = new Date(mbrDate);
-      picked.setHours(0, 0, 0, 0);
-      if (picked < start) {
-        toast({
-          title: "MBR before account start",
-          description: `This account starts on ${format(start, "PPP")}. MBR can only be filled on or after the start date.`,
-          variant: "destructive",
-        });
-        return;
-      }
-    }
     if (!sentiment) {
       toast({ title: "Sentiment required", description: "Please select a sentiment color.", variant: "destructive" });
       return;
@@ -251,13 +237,12 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
                   selected={mbrDate}
                   onSelect={setMbrDate}
                   initialFocus
-                  disabled={deal.startDate ? { before: new Date(deal.startDate) } : undefined}
                   className={cn("p-3 pointer-events-auto")}
                 />
               </PopoverContent>
             </Popover>
             {deal.startDate && (
-              <p className="mt-1 text-[11px] text-muted-foreground">Account start date: {format(new Date(deal.startDate), "PPP")}. MBR can only be recorded on or after this date.</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">Account start date: {format(new Date(deal.startDate), "PPP")}.</p>
             )}
           </div>
 

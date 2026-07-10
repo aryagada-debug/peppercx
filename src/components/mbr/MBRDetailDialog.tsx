@@ -66,17 +66,6 @@ export function MBRDetailDialog({ open, onClose, deal, entry, onSave }: MBRDetai
       toast.error("Sentiment is required when marking an MBR as Done.");
       return;
     }
-    const dealStart = (deal as any).startDate as string | null | undefined;
-    if (dealStart && mbrDate) {
-      const start = new Date(dealStart);
-      start.setHours(0, 0, 0, 0);
-      const picked = new Date(mbrDate);
-      picked.setHours(0, 0, 0, 0);
-      if (picked < start) {
-        toast.error(`This account starts on ${start.toLocaleDateString()}. MBR can only be filled on or after the start date.`);
-        return;
-      }
-    }
     setSaving(true);
     await onSave({
       dealId: deal.id,
