@@ -82,6 +82,25 @@ interface MBRDealWithPod extends MBRDeal {
   dealStatus: string;
 }
 
+// Returns true when the deal has not started yet for the given month (YYYY-MM).
+// If no month is provided, compares against today.
+function isNotStartedForMonth(startDate: string | null | undefined, monthYmd?: string): boolean {
+  if (!startDate) return false;
+  const start = new Date(startDate);
+  if (isNaN(start.getTime())) return false;
+  start.setHours(0, 0, 0, 0);
+  if (monthYmd) {
+    const [y, m] = monthYmd.split("-").map(Number);
+    // End-of-month reference
+    const monthEnd = new Date(y, m, 0);
+    monthEnd.setHours(23, 59, 59, 999);
+    return start > monthEnd;
+  }
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return start > today;
+}
+
 export default function MBRTracker() {
   useCurrencyVersion();
   const { deals, entries, loading, upsertEntry, vsdSummary, totals, entriesByMonth, availableMonths, refresh } = useMBRData();
