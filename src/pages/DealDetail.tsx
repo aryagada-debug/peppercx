@@ -782,6 +782,7 @@ function DealMBRTab({ deal, dealId, mbrEntries, currentRGY, upsertMBREntry, dele
     dealName: deal.dealName || "",
     vsd: deal.vsd || "",
     pcCode: deal.pcCode || "",
+    startDate: deal.startDate || null,
   };
 
   const dealForDialog = {
