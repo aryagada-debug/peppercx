@@ -82,13 +82,13 @@ function NavRow({ onBack, onNext, canBack, nextLabel = "Continue" }: { onBack: (
 
 function LabelScale({ value, onChange, labels, compact }: { value: number | null; onChange: (n: number) => void; labels: string[]; compact?: boolean }) {
   return (
-    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+    <div style={{ display: "flex", gap: 8 }}>
       {labels.map((label, i) => {
         const n = i + 1;
         const selected = value === n;
         return (
           <button key={n} onClick={() => onChange(n)} style={{
-            flex: compact ? 1 : "1 1 120px", minWidth: compact ? 0 : 100, minHeight: 46, padding: "8px 12px", borderRadius: 10,
+            flex: 1, minWidth: 0, minHeight: 46, padding: "8px 12px", borderRadius: 10,
             border: selected ? "1px solid var(--brand,#5b3df5)" : "1px solid var(--line,#e7e4ef)",
             background: selected ? "var(--brand,#5b3df5)" : "var(--card)",
             color: selected ? "white" : "var(--ink,#15131f)",
@@ -149,7 +149,7 @@ function Stars({ value, onChange, na, onNa }: { value: number | null; onChange: 
       {[1, 2, 3, 4, 5].map((n) => (
         <button key={n} onClick={() => { onNa(false); onChange(n); }} style={{
           background: "transparent", border: "none", cursor: "pointer", fontSize: 22, padding: 2,
-          color: !na && value !== null && n <= value ? "#f5b400" : "#d8d4e0",
+          color: !na && value !== null && n <= value ? "#f5b400" : "#e4e0ec",
         }}>★</button>
       ))}
       <label style={{ display: "flex", gap: 4, alignItems: "center", marginLeft: 8, fontSize: 12, color: "var(--muted,#6b6878)", cursor: "pointer" }}>
@@ -214,18 +214,30 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
         if (seo.ai_citation_visibility == null) return "Tell us how visible you are in AI Search answers.";
         if (seo.organic_to_pipeline == null) return "Rate whether organic translates into pipeline.";
         if (a.capability_deep_dive.content?.quality == null) return "Rate the quality of the content we deliver.";
+        if (!seo.win_outcome?.trim()) return "Share the outcome that would make this a win.";
         return null;
       }
       case "experience": {
-        const any = Object.values(a.experience.ratings).some((v) => typeof v === "number" && v > 0);
-        return any ? null : "Rate at least one area (or mark them N/A).";
+        const rows: string[] = ["quality", "support", "comms", "speed",
+          ...(isUser ? ["ease"] : []),
+          ...(isBuyer ? ["partner"] : [])];
+        for (const r of rows) {
+          const v = a.experience.ratings[r];
+          if (v == null) return "Rate every area (or mark N/A).";
+        }
+        const rated = rows.some(r => (a.experience.ratings[r] as number) > 0);
+        if (rated && !a.experience.comment.trim()) return "Add a short note on your experience.";
+        return null;
       }
       case "retention_growth":
         if (!a.retention.renewal_intent) return "Pick how likely you are to renew.";
+        if (["unsure", "risk", "gone"].includes(a.retention.renewal_intent) && !a.retention.save_lever.trim())
+          return "Tell us what would help earn your renewal.";
         if (!a.expansion.interests.length) return "Tick at least one growth option ('Happy as-is' counts).";
         return null;
       case "recommend":
         if (a.nps.score == null) return "Pick how likely you are to recommend us.";
+        if (!a.nps.verbatim.trim()) return "Add a short note to your recommendation.";
         if (!a.sentiment.mood) return "One tap on how you feel and you're done.";
         return null;
     }
@@ -321,7 +333,7 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
         <LabelScale value={content.quality} labels={s.content.labels} onChange={(n) => setContent({ quality: n })} />
 
         <div style={{ marginTop: 24 }}>
-          <FieldLabel>{s.seo.win_outcome.q}</FieldLabel>
+          <FieldLabel required>{s.seo.win_outcome.q}</FieldLabel>
           <FieldHint>{s.seo.win_outcome.hint}</FieldHint>
           <Textarea600 value={seo.win_outcome} onChange={(v) => setSEO({ win_outcome: v })} />
         </div>
@@ -370,7 +382,7 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
           })}
         </div>
         <Reveal when={any}>
-          <FieldLabel>{low ? s.followup_low : s.followup_ok}</FieldLabel>
+          <FieldLabel required>{low ? s.followup_low : s.followup_ok}</FieldLabel>
           <Textarea600 value={a.experience.comment} onChange={(v) => updateA((p) => ({ ...p, experience: { ...p.experience, comment: v } }))} />
         </Reveal>
       </>
@@ -390,11 +402,11 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
             onClick={() => updateA((p) => ({ ...p, retention: { ...p.retention, renewal_intent: opt.value as any } }))} />
         ))}
         <Reveal when={atRisk}>
-          <FieldLabel>{s.save_q}</FieldLabel>
+          <FieldLabel required>{s.save_q}</FieldLabel>
           <Textarea600 value={a.retention.save_lever} onChange={(v) => updateA((p) => ({ ...p, retention: { ...p.retention, save_lever: v } }))} />
         </Reveal>
         <div style={{ marginTop: 26 }}>
-          <FieldLabel>{s.expansion_q}</FieldLabel>
+          <FieldLabel required>{s.expansion_q}</FieldLabel>
           {s.expansion_options.map((opt) => {
             const on = a.expansion.interests.includes(opt.value);
             return (
@@ -431,7 +443,7 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
             onClick={() => updateA((p) => ({ ...p, nps: { ...p.nps, score: opt.score } }))} />
         ))}
         <Reveal when={bucket !== null}>
-          <FieldLabel>{bucket ? s.followups[bucket] : ""}</FieldLabel>
+          <FieldLabel required>{bucket ? s.followups[bucket] : ""}</FieldLabel>
           <Textarea600 value={a.nps.verbatim} onChange={(v) => updateA((p) => ({ ...p, nps: { ...p.nps, verbatim: v } }))} />
         </Reveal>
         <div style={{ marginTop: 26 }}>
@@ -456,29 +468,15 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
   };
 
   if (done) {
-    const p = done.payload;
-    const moodIcon = MOOD_LABELS[p.sentiment?.mood]?.icon || "🙂";
     return (
       <PulseFrame headerSubtitle={headerSubtitle} progress={100}>
         <div style={CARD_STYLE}>
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 48 }}>🎉</div>
-            <H1>Thank you, truly.</H1>
-            <Lede>This is exactly the kind of honesty that makes us better. Your Pepper team will see it today.</Lede>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, margin: "20px 0" }}>
-            <ScoreCard label="NPS" value={`${p.nps?.score ?? "–"}`} sub={p.nps?.category || ""} />
-            <ScoreCard label="Experience" value={`${p.experience?.avg ? p.experience.avg.toFixed(1) : "–"} / 5`} sub="avg" />
-            <ScoreCard label="Mood" value={moodIcon} sub={MOOD_LABELS[p.sentiment?.mood]?.label || ""} />
+          <div style={{ textAlign: "center", padding: "12px 0" }}>
+            <H1>Thank you, truly. Your response has been recorded</H1>
           </div>
           {done.serverError && (
             <div style={{ background: "var(--brand-soft)", border: "1px solid var(--line)", padding: 12, borderRadius: 10, fontSize: 13, color: "var(--bad,#d8413c)", marginBottom: 12 }}>
               Couldn't save online ({done.serverError}).
-            </div>
-          )}
-          {preview && (
-            <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
-              <button onClick={() => { setDone(null); setStep(0); setA(initialAnswers()); }} style={{ padding: "10px 16px", borderRadius: 10, border: "1px solid var(--line,#e7e4ef)", background: "var(--card)", color: "var(--ink,#15131f)", fontSize: 13, cursor: "pointer" }}>New response</button>
             </div>
           )}
         </div>
@@ -525,14 +523,14 @@ function PulseFrame({ children, progress, headerSubtitle }: { children: React.Re
   }, []);
   const vars: Record<string, string> = isDark
     ? {
-        "--ink": "#f1eef9", "--muted": "#a09cb3", "--line": "#2c2740",
+        "--ink": "#f1eef9", "--muted": "#a09cb3", "--line": "#3a3352",
         "--bg": "#15131f", "--card": "#1c1930", "--field": "#171426",
         "--brand": "#8b6cff", "--brand-2": "#a78bff", "--brand-soft": "#2a2247",
         "--placeholder": "#77718e", "--shadow-pulse": "none",
         "--good": "#34c98a", "--warn": "#f0a755", "--bad": "#ef5a55",
       }
     : {
-        "--ink": "#15131f", "--muted": "#6b6878", "--line": "#e7e4ef",
+        "--ink": "#15131f", "--muted": "#6b6878", "--line": "#efecf5",
         "--bg": "#faf9fc", "--card": "#fff", "--field": "#fff",
         "--brand": "#5b3df5", "--brand-2": "#8b6cff", "--brand-soft": "#efeaff",
         "--placeholder": "#a19caf", "--shadow-pulse": "0 10px 40px rgba(38,28,80,.10)",
@@ -553,7 +551,7 @@ function PulseFrame({ children, progress, headerSubtitle }: { children: React.Re
         .pepper-pulse-shell input::placeholder, .pepper-pulse-shell textarea::placeholder { color: var(--placeholder); opacity: 1; }
         .pepper-pulse-shell input:focus, .pepper-pulse-shell textarea:focus { border-color: var(--brand) !important; }
       `}</style>
-      <div className="pepper-pulse-shell" style={{ maxWidth: 680, margin: "0 auto" }}>
+      <div className="pepper-pulse-shell" style={{ maxWidth: 960, margin: "0 auto" }}>
         <header style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
           <div style={{
             width: 30, height: 30, borderRadius: 8,
