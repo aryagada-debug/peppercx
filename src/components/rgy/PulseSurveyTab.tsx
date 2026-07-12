@@ -14,6 +14,12 @@ import { useVsdUsers, nameKey } from "@/hooks/queries/legacy";
 import { BopmFilter } from "@/components/access/BopmFilter";
 import { useUserRole } from "@/hooks/useUserRole";
 import PulseEmailTemplateEditor from "./PulseEmailTemplateEditor";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+
+const ANIRUDH_CC = "anirudh@peppercontent.io";
 
 const UNASSIGNED_VSD_VALUES = new Set([
   "", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned",
@@ -29,6 +35,7 @@ type Deal = {
   senior_bopm: string | null;
   bopm: string | null;
   deal_status?: string | null;
+  business_unit?: string | null;
 };
 
 type Stakeholder = {
@@ -111,6 +118,54 @@ export default function PulseSurveyTab({
   const [statusFilter, setStatusFilter] = useState<"all" | "sent" | "failed" | "completed">("all");
   const [activeVsd, setActiveVsd] = useState<string>("All");
   const [activeBopm, setActiveBopm] = useState<string>("All");
+  const [activeBU, setActiveBU] = useState<string>("All");
+  const [campaignId, setCampaignId] = useState<string>("none");
+  const [campaignDialogOpen, setCampaignDialogOpen] = useState(false);
+  const [newCampaignName, setNewCampaignName] = useState("");
+  const [newCampaignDesc, setNewCampaignDesc] = useState("");
+  const [ccAnirudh, setCcAnirudh] = useState<boolean>(true);
+
+  const { data: campaigns = [] } = useQuery({
+    queryKey: ["pulse-campaigns"],
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pulse_campaigns")
+        .select("id, name")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data || []) as Array<{ id: string; name: string }>;
+    },
+  });
+
+  const BU_OPTIONS = useMemo(() => {
+    const set = new Set<string>();
+    deals.forEach(d => { const bu = (d.business_unit || "").trim(); if (bu) set.add(bu); });
+    return Array.from(set).sort();
+  }, [deals]);
+
+  const createCampaignMut = useMutation({
+    mutationFn: async () => {
+      const name = newCampaignName.trim();
+      if (!name) throw new Error("Name is required");
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data, error } = await supabase
+        .from("pulse_campaigns")
+        .insert({ name, description: newCampaignDesc.trim() || null, created_by: user?.id ?? null })
+        .select("id, name").single();
+      if (error) throw error;
+      return data as { id: string; name: string };
+    },
+    onSuccess: (c) => {
+      qc.invalidateQueries({ queryKey: ["pulse-campaigns"] });
+      setCampaignId(c.id);
+      setCampaignDialogOpen(false);
+      setNewCampaignName("");
+      setNewCampaignDesc("");
+      toast({ title: "Campaign created" });
+    },
+    onError: (e: any) => toast({ title: "Failed to create campaign", description: e?.message, variant: "destructive" }),
+  });
 
   // Build chip list: All · {VSDs} · Other · Unassigned (mirrors Clients).
   const VSD_FILTERS = useMemo(() => {
@@ -211,6 +266,9 @@ export default function PulseSurveyTab({
         splitNames(d.bopm).some(n => n === activeBopm)
       );
     }
+    if (activeBU !== "All") {
+      list = list.filter(d => (d.business_unit || "").trim() === activeBU);
+    }
     if (s) {
       list = list.filter(d =>
         (d.account || "").toLowerCase().includes(s) ||
@@ -221,7 +279,7 @@ export default function PulseSurveyTab({
       (a.account || "").localeCompare(b.account || "") ||
       (a.deal_name || "").localeCompare(b.deal_name || "")
     );
-  }, [deals, search, activeVsd, activeBopm, isVsdName, canonVsd]);
+  }, [deals, search, activeVsd, activeBopm, activeBU, isVsdName, canonVsd]);
 
   const selectedDeals = useMemo(
     () => deals.filter(d => selectedDealIds.includes(d.deal_id)),
@@ -375,6 +433,8 @@ export default function PulseSurveyTab({
           autoCcLeadership: true,
           ccEmails: [] as string[],
           excludeCcNames: removedCc[d.deal_id] || [],
+          campaignId: campaignId !== "none" ? campaignId : null,
+          ccAnirudh,
         };
         calls.push(
           supabase.functions.invoke("send-pulse-survey", { body }).then(({ data, error }) => {
@@ -508,6 +568,20 @@ export default function PulseSurveyTab({
           scopedVsd={showVsdChips && activeVsd !== "All" && activeVsd !== "Other" && activeVsd !== "Unassigned" ? activeVsd : undefined}
         />
 
+        {BU_OPTIONS.length > 0 && (
+          <Select value={activeBU} onValueChange={setActiveBU}>
+            <SelectTrigger className="h-8 w-[180px] text-xs">
+              <SelectValue placeholder="Pepper BU" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All BUs</SelectItem>
+              {BU_OPTIONS.map(bu => (
+                <SelectItem key={bu} value={bu}>{bu}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
         <div className="relative flex-1 min-w-[260px] max-w-[480px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
@@ -615,7 +689,28 @@ export default function PulseSurveyTab({
                 {totalRecipients} selected
               </span>
             </div>
-            <Button
+            <div className="flex items-center gap-2 flex-wrap">
+              <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none">
+                <Checkbox checked={ccAnirudh} onCheckedChange={(v) => setCcAnirudh(!!v)} />
+                Cc {ANIRUDH_CC}
+              </label>
+              <Select
+                value={campaignId}
+                onValueChange={(v) => {
+                  if (v === "__new__") { setCampaignDialogOpen(true); return; }
+                  setCampaignId(v);
+                }}
+              >
+                <SelectTrigger className="h-8 w-[200px] text-xs">
+                  <SelectValue placeholder="Add to campaign" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No campaign</SelectItem>
+                  {campaigns.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  <SelectItem value="__new__">➕ New campaign…</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
               size="sm"
               onClick={() => sendMut.mutate()}
               disabled={sendMut.isPending || totalRecipients === 0 || selectedDealIds.length === 0}
@@ -623,7 +718,8 @@ export default function PulseSurveyTab({
             >
               {sendMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
               Send surveys
-            </Button>
+              </Button>
+            </div>
           </div>
           <div className="max-h-[460px] overflow-y-auto p-3 space-y-4">
             {selectedDealIds.length === 0 && (
@@ -851,6 +947,45 @@ export default function PulseSurveyTab({
           )}
         </div>
       </div>
+
+      <Dialog open={campaignDialogOpen} onOpenChange={setCampaignDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New campaign</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="pulse-campaign-name" className="text-xs">Name</Label>
+              <Input
+                id="pulse-campaign-name"
+                value={newCampaignName}
+                onChange={(e) => setNewCampaignName(e.target.value)}
+                placeholder="e.g. Q4 renewals pulse"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="pulse-campaign-desc" className="text-xs">Description (optional)</Label>
+              <Textarea
+                id="pulse-campaign-desc"
+                value={newCampaignDesc}
+                onChange={(e) => setNewCampaignDesc(e.target.value)}
+                rows={3}
+                placeholder="What is this campaign for?"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCampaignDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => createCampaignMut.mutate()}
+              disabled={createCampaignMut.isPending || !newCampaignName.trim()}
+            >
+              {createCampaignMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+              Create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

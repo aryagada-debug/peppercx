@@ -1553,6 +1553,33 @@ export type Database = {
         }
         Relationships: []
       }
+      pulse_campaigns: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       pulse_email_templates: {
         Row: {
           body: string
@@ -2794,6 +2821,7 @@ export type Database = {
         Row: {
           account_snapshot: string
           bopm: string
+          campaign_id: string | null
           cc_emails: string[]
           completed_at: string | null
           created_at: string
@@ -2818,6 +2846,7 @@ export type Database = {
         Insert: {
           account_snapshot?: string
           bopm?: string
+          campaign_id?: string | null
           cc_emails?: string[]
           completed_at?: string | null
           created_at?: string
@@ -2842,6 +2871,7 @@ export type Database = {
         Update: {
           account_snapshot?: string
           bopm?: string
+          campaign_id?: string | null
           cc_emails?: string[]
           completed_at?: string | null
           created_at?: string
@@ -2864,6 +2894,13 @@ export type Database = {
           vsd_name?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "survey_invites_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "pulse_campaigns"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "survey_invites_deal_id_fkey"
             columns: ["deal_id"]

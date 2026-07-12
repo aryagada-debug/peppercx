@@ -26,7 +26,7 @@ export default function PulseNPS() {
     queryFn: async () => {
       let q = supabase
         .from("staffing_deals")
-        .select("id, new_deal_id_formulated, deal_name, account, vsd, principal_bopm, senior_bopm, bopm, deal_status")
+        .select("id, new_deal_id_formulated, deal_name, account, vsd, principal_bopm, senior_bopm, bopm, deal_status, business_unit")
         .order("account", { ascending: true })
         .limit(1000);
       if (!showClosed) q = q.in("deal_status", ACTIVE_STATUSES);
@@ -42,6 +42,7 @@ export default function PulseNPS() {
         senior_bopm: d.senior_bopm ?? null,
         bopm: d.bopm ?? null,
         deal_status: d.deal_status ?? null,
+        business_unit: d.business_unit ?? null,
       }));
     },
   });
