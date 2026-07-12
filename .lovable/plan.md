@@ -1,44 +1,43 @@
 ## Scope
 
-Pulse / NPS page (`/pulse-nps`) send flow + analytics.
+Public survey form (`/survey/:token`) shown to recipients — `src/pages/SurveyForm.tsx` + `src/components/pulse/SurveyWizard.tsx` + `src/lib/pulseSurvey.ts`.
 
-## 1. Pepper BU filter (Send Surveys tab)
+## Changes
 
-- Extend the deals query in `src/pages/PulseNPS.tsx` to select `business_unit` and pass it through on each deal.
-- In `src/components/rgy/PulseSurveyTab.tsx`, add a `activeBU` state and a BU filter control next to the existing VSD / BOPM chips (dropdown, since BU list is short — Pepper Content, Pepper Creative, Pepper Digital, etc., derived distinct from loaded deals + "All").
-- Apply the filter in `filteredDeals` alongside VSD/BOPM/search.
+**1. Header subtitle — company only**
+- In `SurveyForm.tsx`, drop the ` — {deal_name_snapshot}` suffix from `subtitle`. Show just `invite.account_snapshot`.
 
-## 2. Always CC [anirudh@peppercontent.io](mailto:anirudh@peppercontent.io)
+**2. Lighter outlines for better visibility**
+- In `SurveyWizard.tsx` `PulseFrame`, lighten the `--line` token:
+  - Light mode: `#e7e4ef` → `#efecf5`
+  - Dark mode: `#2c2740` → `#3a3352`
+- Also lighten the unselected star color `#d8d4e0` → `#e4e0ec` in `Stars`.
+- All borders across cards, inputs, chips, star row already read from `var(--line)`, so this single change flows through.
 
-- In `supabase/functions/send-pulse-survey/index.ts`, after the existing auto-CC leadership block, unconditionally append `anirudh@peppercontent.io` to `ccEmails` (dedupe via the existing `Array.from(new Set(...))`).
-- Respect the existing `excludeCcNames` only for name-based auto-CC; Anirudh is added by email so it always stays.
-- No UI change needed — it will show in the "CC" list on the sent invite record automatically. add an option to remove this email as well just keep it added by default
+**3. Make every question compulsory**
+- In `validate()`:
+  - `experience`: require every visible row to have a value (star rating 1–5 or explicit N/A) instead of "at least one".
+  - `retention_growth`: also require the `save_lever` textarea when the "at risk" branch is revealed.
+  - `recommend`: require the `nps.verbatim` follow-up textarea (shown after picking a score).
+  - `outcomes`: require the `seo.win_outcome` textarea.
+- Add red `*` markers to the corresponding `FieldLabel`s that become required (experience follow-up, retention save, nps verbatim, seo win outcome).
 
-## 3. Campaigns
+**4. Wider form so scale options stay on one line**
+- In `PulseFrame`, bump `maxWidth: 680` → `960`.
+- In `LabelScale`, tighten so 5–7 options fit: change `flex: "1 1 120px"` and `minWidth: 100` to `flex: 1` with `minWidth: 0`, and remove `flexWrap: "wrap"` on the container so options render on a single row (matches the "compact" behavior already used for AI visibility).
 
-**Data model** (migration):
+**5. Q1 wording**
+- In `src/lib/pulseSurvey.ts`, `defaultConfig.steps.about.company_q`:
+  `"Which company / account are you with?"` → `"Which company are you with"`.
+- Also update `normalizePulseConfig` fallback if it repeats the old string (it references the same default).
 
-- New table `public.pulse_campaigns` (`id uuid pk`, `name text not null unique`, `description text`, `created_by uuid`, `created_at timestamptz default now()`), with GRANTs + RLS (authenticated read/insert; admin full).
-- Add `campaign_id uuid null references public.pulse_campaigns(id) on delete set null` to `public.survey_invites`, with index.
+**6. Post-submit screen — minimal thank-you**
+- In `SurveyWizard.tsx`, replace the `if (done)` block content with a single card containing only the line: **"Thank you, truly. Your response has been recorded"**.
+- Remove: 🎉 emoji, `Lede` copy, the three `ScoreCard` tiles (NPS / Experience / Mood), and the "New response" preview button.
+- Keep the small `serverError` warning only if the save failed (silent otherwise), so the recipient still knows if something went wrong.
 
-**Send flow** (`PulseSurveyTab.tsx`):
+## Out of scope
 
-- Add a "Campaign" selector above the Send button: dropdown of existing campaigns + "➕ New campaign…" option that opens a small inline dialog (name + optional description). Selection is optional.
-- Pass `campaignId` in the `send-pulse-survey` invoke body.
-
-**Edge function** (`send-pulse-survey/index.ts`):
-
-- Accept optional `campaignId`, validate it exists, and write it into each `survey_invites` insert.
-
-**Analytics** (`src/pages/PulseNPSAnalytics.tsx` + `src/components/pulse/useAnalyticsData.ts`):
-
-- Include `campaign_id` in the invites select and hydrate campaign name via a `pulse_campaigns` lookup.
-- Add a "Campaign" filter (dropdown: All / each campaign / No campaign) to `AnalyticsFilters` and apply it in the client-side filter chain.
-- Add a "Campaign" column to `AnalyticsTable` / `AnalyticsResponsesTable`.
-- Optional: a small KPI card for "Campaigns active" and per-campaign response rate is out of scope unless requested.
-
-## Notes / non-goals
-
-- No changes to the survey form itself or to email template content (Anirudh is silent CC only).
-- Campaign is metadata only — it does not gate sending or change email copy.
-- All existing filters, permissions (`useCanEditRgy`), and RLS behavior unchanged.
+- No changes to `PublicSurvey.tsx` (legacy short survey — not the current form).
+- No changes to email content, invite RPCs, or analytics.
+- No changes to which questions appear per role — only their required status.
