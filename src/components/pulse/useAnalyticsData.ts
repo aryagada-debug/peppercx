@@ -10,6 +10,8 @@ export type AnalyticsFilters = {
   search: string;
   showClosed: boolean;
   bopmTier: "any" | "principal" | "senior" | "bopm";
+  businessUnit?: string;   // "All" | name
+  campaignId?: string;     // "All" | uuid | "none"
 };
 
 export type InviteRow = {
@@ -31,6 +33,9 @@ export type InviteRow = {
   deal_value: number | null;
   mrr: number | null;
   deal_type: string | null;
+  business_unit: string | null;
+  campaign_id: string | null;
+  campaign_name: string | null;
 };
 
 export type ResponseRow = {
@@ -63,7 +68,7 @@ export function usePulseAnalyticsData(filters: AnalyticsFilters, enabled: boolea
     queryFn: async () => {
       let q = supabase
         .from("survey_invites")
-        .select("id, deal_id, account_snapshot, deal_name_snapshot, vsd_name, principal_bopm, senior_bopm, bopm, recipient_name, recipient_email, email_status, sent_at, opened_at, completed_at")
+        .select("id, deal_id, account_snapshot, deal_name_snapshot, vsd_name, principal_bopm, senior_bopm, bopm, recipient_name, recipient_email, email_status, sent_at, opened_at, completed_at, campaign_id")
         .order("sent_at", { ascending: false })
         .limit(5000);
       if (filters.startDate) q = q.gte("sent_at", filters.startDate);
@@ -74,11 +79,11 @@ export function usePulseAnalyticsData(filters: AnalyticsFilters, enabled: boolea
       // Hydrate deal_status for closed-filter
       const ids = Array.from(new Set(invites.map(i => i.deal_id))).filter(Boolean);
       let statusMap = new Map<string, string>();
-      let dealMap = new Map<string, { deal_value: number | null; mrr: number | null; deal_type: string | null }>();
+      let dealMap = new Map<string, { deal_value: number | null; mrr: number | null; deal_type: string | null; business_unit: string | null }>();
       if (ids.length) {
         const { data: dealsData } = await supabase
           .from("staffing_deals")
-          .select("id, deal_status, total_deal_value, mrr, deal_type")
+          .select("id, deal_status, total_deal_value, mrr, deal_type, business_unit")
           .in("id", ids);
         (dealsData || []).forEach((d: any) => {
           statusMap.set(d.id, d.deal_status || "");
@@ -86,8 +91,19 @@ export function usePulseAnalyticsData(filters: AnalyticsFilters, enabled: boolea
             deal_value: d.total_deal_value ?? null,
             mrr: d.mrr ?? null,
             deal_type: d.deal_type ?? null,
+            business_unit: d.business_unit ?? null,
           });
         });
+      }
+      // Hydrate campaign names
+      const campaignIds = Array.from(new Set(invites.map(i => i.campaign_id).filter(Boolean)));
+      const campaignMap = new Map<string, string>();
+      if (campaignIds.length) {
+        const { data: camps } = await supabase
+          .from("pulse_campaigns")
+          .select("id, name")
+          .in("id", campaignIds);
+        (camps || []).forEach((c: any) => campaignMap.set(c.id, c.name));
       }
       return invites.map(i => ({
         id: i.id,
@@ -108,6 +124,9 @@ export function usePulseAnalyticsData(filters: AnalyticsFilters, enabled: boolea
         deal_value: dealMap.get(i.deal_id)?.deal_value ?? null,
         mrr: dealMap.get(i.deal_id)?.mrr ?? null,
         deal_type: dealMap.get(i.deal_id)?.deal_type ?? null,
+        business_unit: dealMap.get(i.deal_id)?.business_unit ?? null,
+        campaign_id: i.campaign_id ?? null,
+        campaign_name: i.campaign_id ? (campaignMap.get(i.campaign_id) ?? null) : null,
       })) as InviteRow[];
     },
   });
