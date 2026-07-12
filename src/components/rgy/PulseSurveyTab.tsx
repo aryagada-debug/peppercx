@@ -266,6 +266,9 @@ export default function PulseSurveyTab({
         splitNames(d.bopm).some(n => n === activeBopm)
       );
     }
+    if (activeBU !== "All") {
+      list = list.filter(d => (d.business_unit || "").trim() === activeBU);
+    }
     if (s) {
       list = list.filter(d =>
         (d.account || "").toLowerCase().includes(s) ||
@@ -276,7 +279,7 @@ export default function PulseSurveyTab({
       (a.account || "").localeCompare(b.account || "") ||
       (a.deal_name || "").localeCompare(b.deal_name || "")
     );
-  }, [deals, search, activeVsd, activeBopm, isVsdName, canonVsd]);
+  }, [deals, search, activeVsd, activeBopm, activeBU, isVsdName, canonVsd]);
 
   const selectedDeals = useMemo(
     () => deals.filter(d => selectedDealIds.includes(d.deal_id)),
