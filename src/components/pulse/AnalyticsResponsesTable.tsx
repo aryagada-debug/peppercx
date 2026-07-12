@@ -17,6 +17,8 @@ type Row = {
   bopm: string;
   total_value: number | null;
   respondent: string;
+  campaign: string;
+  business_unit: string;
   nps: number | null;
   csat: number | null;
   content_quality: number | null;
@@ -85,6 +87,8 @@ export function AnalyticsResponsesTable({
         bopm: inv?.bopm || "",
         total_value: totalValueFor(inv),
         respondent: r.respondent_name || r.respondent_email || "",
+        campaign: inv?.campaign_name || "",
+        business_unit: inv?.business_unit || "",
         nps: r.nps ?? null,
         csat: r.csat_avg ?? null,
         content_quality: r.payload?.capability_deep_dive?.content?.quality ?? null,
@@ -103,7 +107,7 @@ export function AnalyticsResponsesTable({
     let xs = rows;
     if (f) {
       xs = xs.filter((r) =>
-        [r.deal_id, r.deal_name, r.account, r.vsd, r.sp_bopm, r.bopm, r.respondent]
+        [r.deal_id, r.deal_name, r.account, r.vsd, r.sp_bopm, r.bopm, r.respondent, r.campaign, r.business_unit]
           .some((v) => (v || "").toLowerCase().includes(f)),
       );
     }
@@ -134,13 +138,14 @@ export function AnalyticsResponsesTable({
   const exportCsv = () => {
     const headers = [
       "Submitted","Deal ID","Deal name","Account","VSD","S/P BOPM","BOPM",
-      "Total deal value","Respondent","NPS","CSAT","Content quality","SEO traffic","Mood","Renew","Risk",
+      "Total deal value","Respondent","Campaign","BU","NPS","CSAT","Content quality","SEO traffic","Mood","Renew","Risk",
     ];
     const out = filtered.map((r) => [
       new Date(r.submitted_at).toISOString(),
       r.deal_id, r.deal_name, r.account, r.vsd, r.sp_bopm, r.bopm,
       r.total_value ?? "",
       r.respondent,
+      r.campaign, r.business_unit,
       r.nps ?? "", r.csat ?? "", r.content_quality ?? "", r.seo_traffic ?? "",
       r.mood, r.renew, r.risk,
     ]);
@@ -186,6 +191,8 @@ export function AnalyticsResponsesTable({
                 <Th onClick={() => toggleSort("bopm")}>BOPM</Th>
                 <Th onClick={() => toggleSort("total_value")} className="text-right">Total value</Th>
                 <Th onClick={() => toggleSort("respondent")}>Respondent</Th>
+                <Th onClick={() => toggleSort("campaign")}>Campaign</Th>
+                <Th onClick={() => toggleSort("business_unit")}>BU</Th>
                 <Th onClick={() => toggleSort("nps")} className="text-right">NPS</Th>
                 <Th onClick={() => toggleSort("csat")} className="text-right">CSAT</Th>
                 <Th onClick={() => toggleSort("content_quality")} className="text-right">Content</Th>
@@ -213,6 +220,8 @@ export function AnalyticsResponsesTable({
                     {r.total_value == null ? "—" : formatINR(r.total_value)}
                   </td>
                   <td className="px-3 py-2 max-w-[180px] truncate" title={r.respondent}>{r.respondent || "—"}</td>
+                  <td className="px-3 py-2 max-w-[160px] truncate" title={r.campaign}>{r.campaign || "—"}</td>
+                  <td className="px-3 py-2 max-w-[140px] truncate" title={r.business_unit}>{r.business_unit || "—"}</td>
                   <td className="px-3 py-2 text-right">{r.nps ?? "—"}</td>
                   <td className="px-3 py-2 text-right">{r.csat ?? "—"}</td>
                   <td className="px-3 py-2 text-right">{r.content_quality ?? "—"}</td>
@@ -235,7 +244,7 @@ export function AnalyticsResponsesTable({
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={16} className="px-3 py-8 text-center text-muted-foreground">No responses for current filters.</td></tr>
+                <tr><td colSpan={18} className="px-3 py-8 text-center text-muted-foreground">No responses for current filters.</td></tr>
               )}
             </tbody>
           </table>

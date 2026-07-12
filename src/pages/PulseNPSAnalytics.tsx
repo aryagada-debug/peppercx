@@ -18,6 +18,9 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { BopmFilter } from "@/components/access/BopmFilter";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 type GroupBy = "vsd" | "bopm" | "deal" | "capability";
 type Range = "30d" | "90d" | "qtd" | "ytd" | "all";
@@ -57,6 +60,18 @@ export default function PulseNPSAnalytics() {
   const [search, setSearch] = useState("");
   const [showClosed, setShowClosed] = useState(false);
   const [bopmTier, setBopmTier] = useState<BopmTier>("any");
+  const [activeBU, setActiveBU] = useState<string>("All");
+  const [activeCampaign, setActiveCampaign] = useState<string>("All");
+
+  const { data: campaigns = [] } = useQuery({
+    queryKey: ["pulse-campaigns"],
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("pulse_campaigns").select("id, name").order("name");
+      if (error) throw error;
+      return (data || []) as Array<{ id: string; name: string }>;
+    },
+  });
 
   const { start, end } = useMemo(() => rangeToDates(range), [range]);
 
@@ -65,6 +80,7 @@ export default function PulseNPSAnalytics() {
       startDate: start, endDate: end,
       vsd: activeVsd, bopm: activeBopm, capabilities: capabilityFilter,
       search, showClosed, bopmTier,
+      businessUnit: activeBU, campaignId: activeCampaign,
     },
     canEditRgy,
   );
@@ -115,12 +131,21 @@ export default function PulseNPSAnalytics() {
         (inv.deal_id || "").toLowerCase().includes(s)
       );
     };
+    const matchBU = (inv: any) => {
+      if (activeBU === "All") return true;
+      return (inv.business_unit || "").trim() === activeBU;
+    };
+    const matchCampaign = (inv: any) => {
+      if (activeCampaign === "All") return true;
+      if (activeCampaign === "none") return !inv.campaign_id;
+      return inv.campaign_id === activeCampaign;
+    };
 
-    const invF = invites.filter(i => matchVsd(i.vsd) && matchBopm(i) && matchCap(i.deal_id) && matchClosed(i.deal_status) && matchSearch(i));
+    const invF = invites.filter(i => matchVsd(i.vsd) && matchBopm(i) && matchCap(i.deal_id) && matchClosed(i.deal_status) && matchSearch(i) && matchBU(i) && matchCampaign(i));
     const invIds = new Set(invF.map(i => i.id));
     const respF = responses.filter(r => invIds.has(r.invite_id));
     return { invF, respF };
-  }, [invites, responses, capabilities, activeVsd, activeBopm, capabilityFilter, showClosed, search, vsdUsers]);
+  }, [invites, responses, capabilities, activeVsd, activeBopm, capabilityFilter, showClosed, search, vsdUsers, activeBU, activeCampaign]);
 
   if (roleLoading) {
     return (
@@ -147,6 +172,7 @@ export default function PulseNPSAnalytics() {
   ];
 
   const capabilityKeys = Object.keys(CAPABILITY_LABELS).filter(k => !["vsd","principal_bopm","senior_bopm","bopm"].includes(k));
+  const buOptions = Array.from(new Set(invites.map(i => (i.business_unit || "").trim()).filter(Boolean))).sort();
 
   return (
     <AppLayout>
@@ -253,6 +279,23 @@ export default function PulseNPSAnalytics() {
               onChange={setActiveBopm}
               scopedVsd={showVsdChips && activeVsd !== "All" && activeVsd !== "Other" && activeVsd !== "Unassigned" ? activeVsd : undefined}
             />
+            {buOptions.length > 0 && (
+              <Select value={activeBU} onValueChange={setActiveBU}>
+                <SelectTrigger className="h-8 w-[160px] text-xs"><SelectValue placeholder="Pepper BU" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All">All BUs</SelectItem>
+                  {buOptions.map(bu => <SelectItem key={bu} value={bu}>{bu}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+            <Select value={activeCampaign} onValueChange={setActiveCampaign}>
+              <SelectTrigger className="h-8 w-[180px] text-xs"><SelectValue placeholder="Campaign" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All campaigns</SelectItem>
+                <SelectItem value="none">No campaign</SelectItem>
+                {campaigns.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
