@@ -293,7 +293,11 @@ type SendBody = {
   ccEmails?: string[];
   autoCcLeadership?: boolean;
   excludeCcNames?: string[];
+  campaignId?: string | null;
+  ccAnirudh?: boolean;
 };
+
+const ANIRUDH_CC = "anirudh@peppercontent.io";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -330,7 +334,21 @@ Deno.serve(async (req) => {
       const auto = await lookupEmailsByNames(admin, leadershipNames);
       ccEmails = Array.from(new Set([...ccEmails, ...auto]));
     }
+    if (body.ccAnirudh !== false) {
+      ccEmails.push(ANIRUDH_CC);
+    }
     ccEmails = Array.from(new Set(ccEmails.map(e => e.toLowerCase())));
+
+    // Validate campaign, if provided.
+    let campaignId: string | null = null;
+    if (body.campaignId) {
+      const { data: camp } = await admin
+        .from("pulse_campaigns")
+        .select("id")
+        .eq("id", body.campaignId)
+        .maybeSingle();
+      if (camp) campaignId = camp.id as string;
+    }
 
     // Load editable template (singleton); fall back to defaults.
     const { data: tplRow } = await admin
@@ -390,6 +408,7 @@ Deno.serve(async (req) => {
         bopm: deal.bopm || "",
         sent_by: user.id,
         email_status: "pending" as const,
+        campaign_id: campaignId,
       };
       const { data: inserted, error: insErr } = await admin
         .from("survey_invites").insert(inviteRow).select("id").single();
