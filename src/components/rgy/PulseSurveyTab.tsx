@@ -759,9 +759,19 @@ export default function PulseSurveyTab({
                       );
                     })}
                   </div>
-                  {ccPreview.length > 0 && (
+                  {(ccPreview.length > 0 || ccAnirudh) && (
                     <div className="px-3 py-2 border-t bg-muted/10 text-[11px]">
                       <span className="text-muted-foreground">Will Cc:</span>{" "}
+                      {ccAnirudh && (
+                        <Badge
+                          variant="secondary"
+                          className="mr-1 mb-1 text-[10px] gap-1 cursor-pointer"
+                          onClick={() => setCcAnirudh(false)}
+                          title="Remove Anirudh from Cc"
+                        >
+                          {ANIRUDH_CC} <X className="h-2.5 w-2.5" />
+                        </Badge>
+                      )}
                       {ccPreview.map(n => {
                         const dropped = ccDropped.has(n.toLowerCase());
                         return (
@@ -778,7 +788,7 @@ export default function PulseSurveyTab({
                           </Badge>
                         );
                       })}
-                      <span className="ml-1 text-muted-foreground">(VSD + Principal/Senior BOPM)</span>
+                      <span className="ml-1 text-muted-foreground">(VSD + Principal/Senior BOPM{ccAnirudh ? " + Anirudh" : ""})</span>
                     </div>
                   )}
                 </div>
