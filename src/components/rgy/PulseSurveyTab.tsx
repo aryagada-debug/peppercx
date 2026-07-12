@@ -35,6 +35,7 @@ type Deal = {
   senior_bopm: string | null;
   bopm: string | null;
   deal_status?: string | null;
+  business_unit?: string | null;
 };
 
 type Stakeholder = {
