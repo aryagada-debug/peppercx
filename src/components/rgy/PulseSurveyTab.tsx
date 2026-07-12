@@ -14,6 +14,12 @@ import { useVsdUsers, nameKey } from "@/hooks/queries/legacy";
 import { BopmFilter } from "@/components/access/BopmFilter";
 import { useUserRole } from "@/hooks/useUserRole";
 import PulseEmailTemplateEditor from "./PulseEmailTemplateEditor";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+
+const ANIRUDH_CC = "anirudh@peppercontent.io";
 
 const UNASSIGNED_VSD_VALUES = new Set([
   "", "Not Assigned", "Unassigned", "Not Applicable", "To Be Assigned", "Yet to be assigned",
