@@ -689,7 +689,28 @@ export default function PulseSurveyTab({
                 {totalRecipients} selected
               </span>
             </div>
-            <Button
+            <div className="flex items-center gap-2 flex-wrap">
+              <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none">
+                <Checkbox checked={ccAnirudh} onCheckedChange={(v) => setCcAnirudh(!!v)} />
+                Cc {ANIRUDH_CC}
+              </label>
+              <Select
+                value={campaignId}
+                onValueChange={(v) => {
+                  if (v === "__new__") { setCampaignDialogOpen(true); return; }
+                  setCampaignId(v);
+                }}
+              >
+                <SelectTrigger className="h-8 w-[200px] text-xs">
+                  <SelectValue placeholder="Add to campaign" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No campaign</SelectItem>
+                  {campaigns.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  <SelectItem value="__new__">➕ New campaign…</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
               size="sm"
               onClick={() => sendMut.mutate()}
               disabled={sendMut.isPending || totalRecipients === 0 || selectedDealIds.length === 0}
@@ -697,7 +718,8 @@ export default function PulseSurveyTab({
             >
               {sendMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
               Send surveys
-            </Button>
+              </Button>
+            </div>
           </div>
           <div className="max-h-[460px] overflow-y-auto p-3 space-y-4">
             {selectedDealIds.length === 0 && (
