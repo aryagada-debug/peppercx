@@ -947,6 +947,45 @@ export default function PulseSurveyTab({
           )}
         </div>
       </div>
+
+      <Dialog open={campaignDialogOpen} onOpenChange={setCampaignDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New campaign</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="pulse-campaign-name" className="text-xs">Name</Label>
+              <Input
+                id="pulse-campaign-name"
+                value={newCampaignName}
+                onChange={(e) => setNewCampaignName(e.target.value)}
+                placeholder="e.g. Q4 renewals pulse"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="pulse-campaign-desc" className="text-xs">Description (optional)</Label>
+              <Textarea
+                id="pulse-campaign-desc"
+                value={newCampaignDesc}
+                onChange={(e) => setNewCampaignDesc(e.target.value)}
+                rows={3}
+                placeholder="What is this campaign for?"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCampaignDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => createCampaignMut.mutate()}
+              disabled={createCampaignMut.isPending || !newCampaignName.trim()}
+            >
+              {createCampaignMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+              Create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
