@@ -117,6 +117,54 @@ export default function PulseSurveyTab({
   const [statusFilter, setStatusFilter] = useState<"all" | "sent" | "failed" | "completed">("all");
   const [activeVsd, setActiveVsd] = useState<string>("All");
   const [activeBopm, setActiveBopm] = useState<string>("All");
+  const [activeBU, setActiveBU] = useState<string>("All");
+  const [campaignId, setCampaignId] = useState<string>("none");
+  const [campaignDialogOpen, setCampaignDialogOpen] = useState(false);
+  const [newCampaignName, setNewCampaignName] = useState("");
+  const [newCampaignDesc, setNewCampaignDesc] = useState("");
+  const [ccAnirudh, setCcAnirudh] = useState<boolean>(true);
+
+  const { data: campaigns = [] } = useQuery({
+    queryKey: ["pulse-campaigns"],
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pulse_campaigns")
+        .select("id, name")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data || []) as Array<{ id: string; name: string }>;
+    },
+  });
+
+  const BU_OPTIONS = useMemo(() => {
+    const set = new Set<string>();
+    deals.forEach(d => { const bu = (d.business_unit || "").trim(); if (bu) set.add(bu); });
+    return Array.from(set).sort();
+  }, [deals]);
+
+  const createCampaignMut = useMutation({
+    mutationFn: async () => {
+      const name = newCampaignName.trim();
+      if (!name) throw new Error("Name is required");
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data, error } = await supabase
+        .from("pulse_campaigns")
+        .insert({ name, description: newCampaignDesc.trim() || null, created_by: user?.id ?? null })
+        .select("id, name").single();
+      if (error) throw error;
+      return data as { id: string; name: string };
+    },
+    onSuccess: (c) => {
+      qc.invalidateQueries({ queryKey: ["pulse-campaigns"] });
+      setCampaignId(c.id);
+      setCampaignDialogOpen(false);
+      setNewCampaignName("");
+      setNewCampaignDesc("");
+      toast({ title: "Campaign created" });
+    },
+    onError: (e: any) => toast({ title: "Failed to create campaign", description: e?.message, variant: "destructive" }),
+  });
 
   // Build chip list: All · {VSDs} · Other · Unassigned (mirrors Clients).
   const VSD_FILTERS = useMemo(() => {
