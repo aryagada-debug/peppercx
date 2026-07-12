@@ -114,7 +114,7 @@ export default function SurveyForm() {
     );
   }
 
-  const subtitle = invite ? `${invite.account_snapshot || ""}${invite.deal_name_snapshot ? ` — ${invite.deal_name_snapshot}` : ""}` : undefined;
+  const subtitle = invite ? (invite.account_snapshot || "") : undefined;
 
   return (
     <SurveyWizard
