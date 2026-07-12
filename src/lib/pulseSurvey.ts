@@ -50,7 +50,7 @@ export const defaultConfig = {
       pill: "We actually read every response",
       h1: "Tell us how it's really going.",
       lede: "A few honest minutes shapes what we build, fix, and prioritise next. No fluff, just the real picture.",
-      company_q: "Which company / account are you with?",
+     company_q: "Which company are you with",
       role_q: "Which best describes your role with Pepper?",
       options: [
         { value: "buyer", icon: "🧭", title: "Decision-maker / sponsor", desc: "I own the budget, contract or the call to renew" },
