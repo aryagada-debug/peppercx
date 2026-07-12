@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   PulseAnswers, PulseConfig, defaultConfig, initialAnswers,
   buildPayload, MOOD_LABELS, normalizePulseConfig,
@@ -214,7 +214,6 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
         if (seo.ai_citation_visibility == null) return "Tell us how visible you are in AI Search answers.";
         if (seo.organic_to_pipeline == null) return "Rate whether organic translates into pipeline.";
         if (a.capability_deep_dive.content?.quality == null) return "Rate the quality of the content we deliver.";
-        if (!seo.win_outcome?.trim()) return "Share the outcome that would make this a win.";
         return null;
       }
       case "experience": {
@@ -225,19 +224,14 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
           const v = a.experience.ratings[r];
           if (v == null) return "Rate every area (or mark N/A).";
         }
-        const rated = rows.some(r => (a.experience.ratings[r] as number) > 0);
-        if (rated && !a.experience.comment.trim()) return "Add a short note on your experience.";
         return null;
       }
       case "retention_growth":
         if (!a.retention.renewal_intent) return "Pick how likely you are to renew.";
-        if (["unsure", "risk", "gone"].includes(a.retention.renewal_intent) && !a.retention.save_lever.trim())
-          return "Tell us what would help earn your renewal.";
         if (!a.expansion.interests.length) return "Tick at least one growth option ('Happy as-is' counts).";
         return null;
       case "recommend":
         if (a.nps.score == null) return "Pick how likely you are to recommend us.";
-        if (!a.nps.verbatim.trim()) return "Add a short note to your recommendation.";
         if (!a.sentiment.mood) return "One tap on how you feel and you're done.";
         return null;
     }
@@ -333,7 +327,7 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
         <LabelScale value={content.quality} labels={s.content.labels} onChange={(n) => setContent({ quality: n })} />
 
         <div style={{ marginTop: 24 }}>
-          <FieldLabel required>{s.seo.win_outcome.q}</FieldLabel>
+          <FieldLabel>{s.seo.win_outcome.q}</FieldLabel>
           <FieldHint>{s.seo.win_outcome.hint}</FieldHint>
           <Textarea600 value={seo.win_outcome} onChange={(v) => setSEO({ win_outcome: v })} />
         </div>
@@ -382,7 +376,7 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
           })}
         </div>
         <Reveal when={any}>
-          <FieldLabel required>{low ? s.followup_low : s.followup_ok}</FieldLabel>
+          <FieldLabel>{low ? s.followup_low : s.followup_ok}</FieldLabel>
           <Textarea600 value={a.experience.comment} onChange={(v) => updateA((p) => ({ ...p, experience: { ...p.experience, comment: v } }))} />
         </Reveal>
       </>
@@ -402,7 +396,7 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
             onClick={() => updateA((p) => ({ ...p, retention: { ...p.retention, renewal_intent: opt.value as any } }))} />
         ))}
         <Reveal when={atRisk}>
-          <FieldLabel required>{s.save_q}</FieldLabel>
+          <FieldLabel>{s.save_q}</FieldLabel>
           <Textarea600 value={a.retention.save_lever} onChange={(v) => updateA((p) => ({ ...p, retention: { ...p.retention, save_lever: v } }))} />
         </Reveal>
         <div style={{ marginTop: 26 }}>
@@ -443,7 +437,7 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
             onClick={() => updateA((p) => ({ ...p, nps: { ...p.nps, score: opt.score } }))} />
         ))}
         <Reveal when={bucket !== null}>
-          <FieldLabel required>{bucket ? s.followups[bucket] : ""}</FieldLabel>
+          <FieldLabel>{bucket ? s.followups[bucket] : ""}</FieldLabel>
           <Textarea600 value={a.nps.verbatim} onChange={(v) => updateA((p) => ({ ...p, nps: { ...p.nps, verbatim: v } }))} />
         </Reveal>
         <div style={{ marginTop: 26 }}>
@@ -512,34 +506,17 @@ function ScoreCard({ label, value, sub }: { label: string; value: string; sub: s
 }
 
 function PulseFrame({ children, progress, headerSubtitle }: { children: React.ReactNode; progress: number; headerSubtitle?: string }) {
-  const [isDark, setIsDark] = useState(false);
-  useEffect(() => {
-    const el = document.documentElement;
-    const update = () => setIsDark(el.classList.contains("dark"));
-    update();
-    const obs = new MutationObserver(update);
-    obs.observe(el, { attributes: true, attributeFilter: ["class"] });
-    return () => obs.disconnect();
-  }, []);
-  const vars: Record<string, string> = isDark
-    ? {
-        "--ink": "#f1eef9", "--muted": "#a09cb3", "--line": "#3a3352",
-        "--bg": "#15131f", "--card": "#1c1930", "--field": "#171426",
-        "--brand": "#8b6cff", "--brand-2": "#a78bff", "--brand-soft": "#2a2247",
-        "--placeholder": "#77718e", "--shadow-pulse": "none",
-        "--good": "#34c98a", "--warn": "#f0a755", "--bad": "#ef5a55",
-      }
-    : {
-        "--ink": "#15131f", "--muted": "#6b6878", "--line": "#efecf5",
-        "--bg": "#faf9fc", "--card": "#fff", "--field": "#fff",
-        "--brand": "#5b3df5", "--brand-2": "#8b6cff", "--brand-soft": "#efeaff",
-        "--placeholder": "#a19caf", "--shadow-pulse": "0 10px 40px rgba(38,28,80,.10)",
-        "--good": "#1d9d6c", "--warn": "#e0922f", "--bad": "#d8413c",
-      };
+  const vars: Record<string, string> = {
+    "--ink": "#15131f", "--muted": "#6b6878", "--line": "#efecf5",
+    "--bg": "#faf9fc", "--card": "#fff", "--field": "#fff",
+    "--brand": "#5b3df5", "--brand-2": "#8b6cff", "--brand-soft": "#efeaff",
+    "--placeholder": "#a19caf", "--shadow-pulse": "0 10px 40px rgba(38,28,80,.10)",
+    "--good": "#1d9d6c", "--warn": "#e0922f", "--bad": "#d8413c",
+  };
   return (
     <div style={{
       ...vars, minHeight: "100vh",
-      background: isDark ? "linear-gradient(180deg,#1a1730 0%,#15131f 280px)" : "linear-gradient(180deg,#f4f1fc 0%,#faf9fc 280px)",
+      background: "linear-gradient(180deg,#f4f1fc 0%,#faf9fc 280px)",
       color: "var(--ink)", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
       padding: "32px 16px 64px",
     } as React.CSSProperties}>
