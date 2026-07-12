@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   PulseAnswers, PulseConfig, defaultConfig, initialAnswers,
   buildPayload, MOOD_LABELS, normalizePulseConfig,
