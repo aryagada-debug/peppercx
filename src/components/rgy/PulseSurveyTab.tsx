@@ -568,6 +568,20 @@ export default function PulseSurveyTab({
           scopedVsd={showVsdChips && activeVsd !== "All" && activeVsd !== "Other" && activeVsd !== "Unassigned" ? activeVsd : undefined}
         />
 
+        {BU_OPTIONS.length > 0 && (
+          <Select value={activeBU} onValueChange={setActiveBU}>
+            <SelectTrigger className="h-8 w-[180px] text-xs">
+              <SelectValue placeholder="Pepper BU" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All BUs</SelectItem>
+              {BU_OPTIONS.map(bu => (
+                <SelectItem key={bu} value={bu}>{bu}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
         <div className="relative flex-1 min-w-[260px] max-w-[480px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
