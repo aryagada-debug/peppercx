@@ -433,6 +433,8 @@ export default function PulseSurveyTab({
           autoCcLeadership: true,
           ccEmails: [] as string[],
           excludeCcNames: removedCc[d.deal_id] || [],
+          campaignId: campaignId !== "none" ? campaignId : null,
+          ccAnirudh,
         };
         calls.push(
           supabase.functions.invoke("send-pulse-survey", { body }).then(({ data, error }) => {
