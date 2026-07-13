@@ -116,7 +116,7 @@ function AppRoutes() {
               <Route path="/rgy-health" element={<ProtectedRoute routeKey="rgy-health"><RGYHealth /></ProtectedRoute>} />
               <Route path="/slack-review" element={<ProtectedRoute routeKey="rgy-health" adminOnly><SlackReview /></ProtectedRoute>} />
               <Route path="/pulse-nps" element={<ProtectedRoute routeKey="rgy-health" adminOnly><PulseNPS /></ProtectedRoute>} />
-              <Route path="/pulse-nps/analytics" element={<ProtectedRoute routeKey="rgy-health" adminOnly><PulseNPSAnalytics /></ProtectedRoute>} />
+              <Route path="/pulse-nps/analytics" element={<ProtectedRoute routeKey="rgy-health"><PulseNPSAnalytics /></ProtectedRoute>} />
               <Route path="/deal-handover" element={<ProtectedRoute routeKey="home" adminOnly><DealHandover /></ProtectedRoute>} />
               <Route path="/mbr-tracker" element={<ProtectedRoute routeKey="mbr-tracker"><MBRTracker /></ProtectedRoute>} />
               <Route path="/onboarding" element={<ProtectedRoute routeKey="onboarding"><Onboarding /></ProtectedRoute>} />
