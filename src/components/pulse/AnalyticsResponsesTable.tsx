@@ -44,10 +44,21 @@ function fmtDate(v: string | null | undefined) {
 
 function deriveStatus(inv: InviteRow): { key: StatusKey; label: string } {
   if (inv.completed_at) return { key: "completed", label: "Completed" };
-  const es = (inv.email_status || "").toLowerCase();
-  if (es === "failed" || es === "bounced" || es === "error")
-    return { key: "failed", label: "Failed" };
   if (inv.opened_at) return { key: "opened", label: "Opened" };
+  const es = (inv.email_status || "").toLowerCase();
+  if (es === "failed" || es === "bounced" || es === "error") {
+    // Gmail throttle/quota errors are transient — the message is typically
+    // still delivered. If we have a sent_at timestamp, treat as sent.
+    const err = (inv.error || "").toLowerCase();
+    const isThrottle =
+      err.includes("too many concurrent") ||
+      err.includes("quota exceeded") ||
+      err.includes("ratelimit") ||
+      err.includes("rate limit") ||
+      err.includes("userratelimitexceeded");
+    if (isThrottle && inv.sent_at) return { key: "sent", label: "Sent" };
+    return { key: "failed", label: "Failed" };
+  }
   if (inv.sent_at) return { key: "sent", label: "Sent" };
   return { key: "pending", label: "Pending" };
 }
