@@ -572,20 +572,31 @@ function AuditPanel({ row }: { row: Combined }) {
 
   if (!audit) {
     return (
-      <div className="px-3.5 py-4 border-t border-border flex items-center justify-between gap-3">
-        <div className="text-xs text-muted-foreground">
-          No audit generated yet for this account. Auto-audit uses the last 12 weeks of Slack messages.
+      <div className="px-3.5 py-4 border-t border-border space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-xs text-muted-foreground">
+            No audit generated yet for this account. Auto-audit uses the last 12 weeks of Slack messages.
+          </div>
+          <div className="flex items-center gap-2">
+            {row.channel_id ? (
+              <Button size="sm" variant="outline" onClick={diagnose} disabled={diagBusy} className="h-7 gap-1.5">
+                {diagBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <AlertCircle className="h-3.5 w-3.5" />}
+                Check access
+              </Button>
+            ) : null}
+            <Button size="sm" onClick={() => generate(false)} disabled={busy} className="h-7 gap-1.5">
+              {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+              Generate audit
+            </Button>
+          </div>
         </div>
-        <Button size="sm" onClick={() => generate(false)} disabled={busy} className="h-7 gap-1.5">
-          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-          Generate audit
-        </Button>
+        {diag ? <SlackDiagnosticPanel diag={diag} /> : null}
       </div>
     );
   }
 
   return (
-      <div className="px-4 py-4 border-t border-border space-y-4">
+    <div className="px-4 py-4 border-t border-border space-y-4">
       <div className="flex items-center justify-end gap-2">
         <span className="text-[10px] text-muted-foreground">
           Audited {formatDistanceToNow(new Date(audit.computed_at), { addSuffix: true })} · {audit.model || "model"}
@@ -608,23 +619,7 @@ function AuditPanel({ row }: { row: Combined }) {
         </div>
       ) : null}
 
-      {diag ? (
-        <div className={cn(
-          "rounded-md border px-3 py-2 text-xs space-y-1",
-          diag.canReadHistory ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-red-200 bg-red-50 text-red-900",
-        )}>
-          <div className="font-medium">{diag.summary || diag.error || "Slack access diagnostic complete."}</div>
-          <div className="grid sm:grid-cols-4 gap-2 text-[11px]">
-            <DiagStat label="Metadata" ok={diag.canSeeMetadata} detail={diag.infoError || undefined} />
-            <DiagStat label="Bot member" ok={diag.botIsMember} />
-            <DiagStat label="History" ok={diag.canReadHistory} detail={diag.historyError || undefined} />
-            <div>
-              <div className="uppercase text-muted-foreground">Latest live msg</div>
-              <div className="font-medium">{diag.latestMessageAt ? formatDistanceToNow(new Date(diag.latestMessageAt), { addSuffix: true }) : "-"}</div>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      {diag ? <SlackDiagnosticPanel diag={diag} /> : null}
 
       <AuditSection tone={tone} title="Health & Sentiment">{audit.health_sentiment || "Not stated."}</AuditSection>
       <AuditSection tone={tone} title="Scope of Work">{audit.scope_of_work || "Not stated."}</AuditSection>
@@ -721,6 +716,26 @@ function Stat({ label, value }: { label: string; value: number | string }) {
     <div>
       <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="text-sm font-medium">{value}</div>
+    </div>
+  );
+}
+
+function SlackDiagnosticPanel({ diag }: { diag: SlackDiagnostic }) {
+  return (
+    <div className={cn(
+      "rounded-md border px-3 py-2 text-xs space-y-1",
+      diag.canReadHistory ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-red-200 bg-red-50 text-red-900",
+    )}>
+      <div className="font-medium">{diag.summary || diag.error || "Slack access diagnostic complete."}</div>
+      <div className="grid sm:grid-cols-4 gap-2 text-[11px]">
+        <DiagStat label="Metadata" ok={diag.canSeeMetadata} detail={diag.infoError || undefined} />
+        <DiagStat label="Bot member" ok={diag.botIsMember} />
+        <DiagStat label="History" ok={diag.canReadHistory} detail={diag.historyError || undefined} />
+        <div>
+          <div className="uppercase text-muted-foreground">Latest live msg</div>
+          <div className="font-medium">{diag.latestMessageAt ? formatDistanceToNow(new Date(diag.latestMessageAt), { addSuffix: true }) : "-"}</div>
+        </div>
+      </div>
     </div>
   );
 }

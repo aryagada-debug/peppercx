@@ -251,7 +251,6 @@ Rating rubric: R = dormant / clear churn signals / heavy escalation, Y = active 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
     headers: { ...responseHeaders, "Content-Type": "application/json" },
   });
 }
