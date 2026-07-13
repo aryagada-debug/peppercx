@@ -507,7 +507,7 @@ function ScoreCard({ label, value, sub }: { label: string; value: string; sub: s
 
 function PulseFrame({ children, progress, headerSubtitle }: { children: React.ReactNode; progress: number; headerSubtitle?: string }) {
   const vars: Record<string, string> = {
-    "--ink": "#15131f", "--muted": "#6b6878", "--line": "#efecf5",
+    "--ink": "#15131f", "--muted": "#6b6878", "--line": "#c9c5d6",
     "--bg": "#faf9fc", "--card": "#fff", "--field": "#fff",
     "--brand": "#5b3df5", "--brand-2": "#8b6cff", "--brand-soft": "#efeaff",
     "--placeholder": "#a19caf", "--shadow-pulse": "0 10px 40px rgba(38,28,80,.10)",
