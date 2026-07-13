@@ -1,55 +1,44 @@
-# Pulse/NPS Analytics — Deal-wise Responses table + VSD/BOPM access
+## Goal
+In Pulse/NPS → Analytics → Responses:
+1. Explain why the invite failed for specific contacts.
+2. Let the user re-send failed (or any) invites via the connected **Resend** account.
+3. Let the user collapse the table to **unique contacts** (one row per recipient email).
 
-## 1. New "Responses" table (deal + recipient centric)
+## Why invites fail today
+Sends currently go through the central Gmail mailbox (`send-pulse-survey`). When Gmail rejects a message (bad address, mailbox full, auth expired, quota, etc.), the edge function writes `email_status = 'failed'` and the Gmail error message to `survey_invites.error`. That column is already stored per invite but is not surfaced in the UI — that is why users can't see the reason.
 
-Rebuild `src/components/pulse/AnalyticsResponsesTable.tsx` so the Responses view is **invite-driven** (one row per survey invite / recipient) instead of response-driven. This gives a full lifecycle view — sent, opened, completed, and, when available, the response scores.
+## Changes
 
-Columns (in order):
+### 1. `src/components/pulse/useAnalyticsData.ts`
+- Add `error: string | null` to the invite select list and to the `PulseInvite` type so the reason is available to the table.
 
-| Column | Source |
-| --- | --- |
-| Deal | `invite.deal_name` (fallback `account`), with `deal_id` shown as subtext |
-| Recipient | `invite.recipient_name` + `recipient_email` |
-| Status | Derived: `Completed` (if `completed_at`) → green, `Opened` (if `opened_at`) → amber, `Sent` (if `sent_at`) → blue, else `Pending`/`Failed` when `email_status` says so |
-| Sent | `invite.sent_at` (date) |
-| Opened | `invite.opened_at` (date, "—" if empty) |
-| Completed | `invite.completed_at` (date, "—" if empty) |
-| Respondent | `response.respondent_name` / email (from matched response, "—" if none) |
-| Campaign | `invite.campaign_name` |
-| NPS | `response.nps` |
-| CSAT | `response.csat_avg` |
-| Response | Eye button — disabled when no response; opens the existing `SurveyResponseView` dialog with the full form + answers (same `Dialog` as today) |
+### 2. `src/components/pulse/AnalyticsResponsesTable.tsx`
+- Show the failure reason: on rows with status `Failed`, render the Status chip with a tooltip containing `invite.error` (fallback "No error message recorded"). Add a small info icon next to the chip when an error exists.
+- Add a **"Unique contacts"** toggle above the table. When on, dedupe rows by lowercased `recipient_email`, keeping the most recent by `sent_at` (fallback `created_at`); show a small "n more" hint on collapsed rows.
+- Add a **Resend** action:
+  - Per-row icon button (enabled for `failed`, `pending`, and `sent` — disabled for `completed`).
+  - Toolbar button **"Resend failed"** that resends every currently-visible failed row.
+  - Both call a new edge function `pulse-resend-invite` with `{ inviteIds: string[] }`.
+  - Show a toast summarising success/failure counts and refresh the query on completion.
 
-Behavior:
-- Build rows by iterating `invites` and left-joining the latest `response` per `invite_id`.
-- Sortable columns (submitted date replaced by Sent date default, desc).
-- Keep the existing search box and CSV export; update export headers/columns to match the new table.
-- Empty NPS/CSAT/Respondent render as `—` for pending invites.
-- Status pill uses semantic colors already in the design system (green/amber/blue/red).
+### 3. New edge function `supabase/functions/pulse-resend-invite/index.ts`
+- Auth: require a Bearer token; look up caller and confirm each `inviteId`'s `deal_id` is in `visible_deal_ids_for_user(auth.uid())` (same authorization pattern as `send-pulse-survey`).
+- For each invite: reuse the existing `token` (so historical link keeps working), rebuild the same `https://peppercx.lovable.app/survey/<token>` URL, and send through the **Resend connector gateway**:
+  - `POST https://connector-gateway.lovable.dev/resend/emails`
+  - Headers: `Authorization: Bearer ${LOVABLE_API_KEY}`, `X-Connection-Api-Key: ${RESEND_API_KEY}`.
+  - Body: `from` = `Pepper Pulse <pulse@<verified-domain>>` (configurable via env `PULSE_RESEND_FROM`, default `onboarding@resend.dev` with a warning in the response), `to: [recipient_email]`, `subject`, `html` (reuse the existing HTML template from `send-pulse-survey`; extract the template into `_shared/pulse-email.ts` and import from both functions).
+  - On success: update `survey_invites` → `email_status='sent'`, `sent_at=now()`, `error=null`, `gmail_message_id=<resend id>`.
+  - On failure: update `email_status='failed'`, `error=<provider message + status>`.
+- Return `{ results: [{ inviteId, ok, error? }] }`.
 
-No changes needed to `useAnalyticsData` — `invites` already carries `sent_at`, `opened_at`, `completed_at`, `email_status`, `campaign_name`, `recipient_*`, and responses are keyed by `invite_id`.
-
-## 2. Access: open Analytics to VSDs and BOPMs
-
-Currently `/pulse-nps/analytics` is `adminOnly` in `src/App.tsx`. Broaden to anyone who can edit RGY (already scoped correctly for our need):
-
-- `src/App.tsx`: remove `adminOnly` from the `/pulse-nps/analytics` route. Keep `routeKey="rgy-health"` gate and `ProtectedRoute`.
-- `src/pages/PulseNPSAnalytics.tsx`: gate is already `useCanEditRgy()`, which returns true for `admin`, `member` (VSD), `capability_lead`, and any staffing person whose title contains `bopm`/`vsd`. No further change required.
-- Data scoping is already enforced server-side: `survey_invites` / `survey_responses` are filtered by `visible_deal_ids_for_user(auth.uid())`, so VSDs and BOPMs will only see invites/responses for deals they are tagged in. No RLS changes.
-- Keep the top page's `/pulse-nps` (send surveys) as admin-only — no changes there.
+### 4. Connector wiring
+- Link the workspace **Resend** connection to the project via `standard_connectors--connect` so `RESEND_API_KEY` is available in edge functions. Skip if it is already linked.
+- Deploy `pulse-resend-invite` after code is written.
 
 ## Technical notes
+- No DB migration needed — `survey_invites.error`, `email_status`, `sent_at`, `gmail_message_id` all already exist.
+- The unique-contacts filter is purely client-side over the already-loaded invite rows.
+- Existing Gmail send path is untouched; Resend is only used for the resend action so we don't disrupt initial sends.
 
-- File edits: `src/components/pulse/AnalyticsResponsesTable.tsx` (rewrite rows/columns/CSV), `src/App.tsx` (drop `adminOnly` on the analytics route only).
-- No DB migrations, no edge-function changes.
-- The existing `SurveyResponseView` component already renders the entire form + answers — reuse as-is for the "Response" drill-in.
-
-```text
-Responses view (new)
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ Deal | Recipient | Status | Sent | Opened | Completed | Respondent | ...    │
-│ Acme │ Jane D.   │ ✅ Done │ 10/1 │ 10/2   │ 10/3      │ Jane D.    │ ...   │
-│ Beta │ John S.   │ 🟡 Open │ 10/1 │ 10/2   │ —         │ —          │ ...   │
-│ Gamma│ Sara P.   │ 🔵 Sent │ 10/1 │ —      │ —         │ —          │ ...   │
-└──────────────────────────────────────────────────────────────────────────────┘
-```
+## Out of scope
+- Bulk import of contacts, per-user Resend accounts, and switching the initial send path from Gmail to Resend (can be a follow-up).
