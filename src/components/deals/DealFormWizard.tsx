@@ -39,6 +39,7 @@ interface DealFormData {
   dealType: string;
   startDate: string;
   endDate: string;
+  duration: string;
   mrr: string;
   totalDealValue: string;
   retainerDealValue: string;
