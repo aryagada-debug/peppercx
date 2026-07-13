@@ -144,6 +144,28 @@ Deno.serve(async (req) => {
     const { error: rpcErr } = await admin.rpc("refresh_slack_channel_health");
     if (rpcErr) throw rpcErr;
 
+    // 2b) Overlay fetch warnings on the rollup so rows with real Slack access
+    //     issues (bot not in channel, missing scope, private channel etc.)
+    //     don't get misreported as "empty channel / no messages in 30 days".
+    const warningReason: Record<string, { rgy: "R" | "Y"; reason: string }> = {
+      not_in_channel: { rgy: "R", reason: "Bot not in channel — invite @vsdos to load message history" },
+      channel_not_found: { rgy: "R", reason: "Channel not found — verify the linked Slack channel ID" },
+      missing_scope: { rgy: "R", reason: "Bot missing Slack scope to read history — contact admin" },
+      private_channel_needs_invite: { rgy: "R", reason: "Private channel — invite @vsdos so we can read history" },
+      no_token: { rgy: "R", reason: "Slack bot token not configured" },
+    };
+    let overlaid = 0;
+    for (const [channelId, warning] of Object.entries(warnings)) {
+      const dealId = channelToDeal.get(channelId);
+      if (!dealId) continue;
+      const map = warningReason[warning] ?? { rgy: "R" as const, reason: `Slack error: ${warning}` };
+      const { error: upErr } = await admin
+        .from("slack_channel_health")
+        .update({ rgy: map.rgy, reason: map.reason, computed_at: new Date().toISOString() })
+        .eq("deal_id", dealId);
+      if (!upErr) overlaid++;
+    }
+
     // 3) Hydrate channel names for connected rows that don't have one yet.
     const { data: rows } = await admin
       .from("slack_channel_health")
@@ -166,7 +188,7 @@ Deno.serve(async (req) => {
       .select("*", { count: "exact", head: true });
 
     return new Response(
-      JSON.stringify({ ok: true, rows: count ?? 0, hydrated, ingested, channels: channelToDeal.size, warnings }),
+      JSON.stringify({ ok: true, rows: count ?? 0, hydrated, ingested, overlaid, channels: channelToDeal.size, warnings }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {
