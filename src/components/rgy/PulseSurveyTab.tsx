@@ -592,6 +592,20 @@ export default function PulseSurveyTab({
           </Select>
         )}
 
+        {STATUS_OPTIONS.length > 0 && (
+          <Select value={activeStatus} onValueChange={setActiveStatus}>
+            <SelectTrigger className="h-8 w-[200px] text-xs">
+              <SelectValue placeholder="Deal status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All statuses</SelectItem>
+              {STATUS_OPTIONS.map(s => (
+                <SelectItem key={s} value={s}>{s}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
         <div className="relative flex-1 min-w-[260px] max-w-[480px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
