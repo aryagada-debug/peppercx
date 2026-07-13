@@ -350,10 +350,18 @@ function ConnectionTable({ rows }: { rows: Combined[] }) {
                   </td>
                   <td className="px-3 py-2 text-right font-medium">{r.msg_count_90d}</td>
                   <td className="px-3 py-2">
-                    <span className={cn("inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-semibold uppercase", s.chip)}>
+                    <span
+                      title={r.reason || undefined}
+                      className={cn("inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-semibold uppercase", s.chip)}
+                    >
                       <span className={cn("h-1.5 w-1.5 rounded-full", s.dot)} />
                       {s.label}
                     </span>
+                    {r.reason ? (
+                      <div className="text-[10px] text-muted-foreground mt-0.5 max-w-[220px] leading-tight">
+                        {r.reason}
+                      </div>
+                    ) : null}
                   </td>
                 </tr>
               );
