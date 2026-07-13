@@ -119,6 +119,7 @@ export default function PulseSurveyTab({
   const [activeVsd, setActiveVsd] = useState<string>("All");
   const [activeBopm, setActiveBopm] = useState<string>("All");
   const [activeBU, setActiveBU] = useState<string>("All");
+  const [activeStatus, setActiveStatus] = useState<string>("All");
   const [campaignId, setCampaignId] = useState<string>("none");
   const [campaignDialogOpen, setCampaignDialogOpen] = useState(false);
   const [newCampaignName, setNewCampaignName] = useState("");
@@ -141,6 +142,12 @@ export default function PulseSurveyTab({
   const BU_OPTIONS = useMemo(() => {
     const set = new Set<string>();
     deals.forEach(d => { const bu = (d.business_unit || "").trim(); if (bu) set.add(bu); });
+    return Array.from(set).sort();
+  }, [deals]);
+
+  const STATUS_OPTIONS = useMemo(() => {
+    const set = new Set<string>();
+    deals.forEach(d => { const s = (d.deal_status || "").trim(); if (s) set.add(s); });
     return Array.from(set).sort();
   }, [deals]);
 
@@ -269,6 +276,9 @@ export default function PulseSurveyTab({
     if (activeBU !== "All") {
       list = list.filter(d => (d.business_unit || "").trim() === activeBU);
     }
+    if (activeStatus !== "All") {
+      list = list.filter(d => (d.deal_status || "").trim() === activeStatus);
+    }
     if (s) {
       list = list.filter(d =>
         (d.account || "").toLowerCase().includes(s) ||
@@ -279,7 +289,7 @@ export default function PulseSurveyTab({
       (a.account || "").localeCompare(b.account || "") ||
       (a.deal_name || "").localeCompare(b.deal_name || "")
     );
-  }, [deals, search, activeVsd, activeBopm, activeBU, isVsdName, canonVsd]);
+  }, [deals, search, activeVsd, activeBopm, activeBU, activeStatus, isVsdName, canonVsd]);
 
   const selectedDeals = useMemo(
     () => deals.filter(d => selectedDealIds.includes(d.deal_id)),
