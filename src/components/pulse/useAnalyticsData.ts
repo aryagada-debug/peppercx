@@ -29,6 +29,7 @@ export type InviteRow = {
   sent_at: string | null;
   opened_at: string | null;
   completed_at: string | null;
+  error: string | null;
   deal_status: string | null;
   deal_value: number | null;
   mrr: number | null;
@@ -68,7 +69,7 @@ export function usePulseAnalyticsData(filters: AnalyticsFilters, enabled: boolea
     queryFn: async () => {
       let q = supabase
         .from("survey_invites")
-        .select("id, deal_id, account_snapshot, deal_name_snapshot, vsd_name, principal_bopm, senior_bopm, bopm, recipient_name, recipient_email, email_status, sent_at, opened_at, completed_at, campaign_id")
+        .select("id, deal_id, account_snapshot, deal_name_snapshot, vsd_name, principal_bopm, senior_bopm, bopm, recipient_name, recipient_email, email_status, sent_at, opened_at, completed_at, error, campaign_id")
         .order("sent_at", { ascending: false })
         .limit(5000);
       if (filters.startDate) q = q.gte("sent_at", filters.startDate);
@@ -120,6 +121,7 @@ export function usePulseAnalyticsData(filters: AnalyticsFilters, enabled: boolea
         sent_at: i.sent_at,
         opened_at: i.opened_at,
         completed_at: i.completed_at,
+        error: i.error ?? null,
         deal_status: statusMap.get(i.deal_id) ?? null,
         deal_value: dealMap.get(i.deal_id)?.deal_value ?? null,
         mrr: dealMap.get(i.deal_id)?.mrr ?? null,
