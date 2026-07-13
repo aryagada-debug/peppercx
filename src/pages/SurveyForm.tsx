@@ -107,8 +107,8 @@ export default function SurveyForm() {
       <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4">
         <Card className="p-8 max-w-md w-full text-center space-y-2">
           <div style={{ fontSize: 36 }}>🎉</div>
-          <h1 className="text-lg font-semibold">Thanks — already received.</h1>
-          <p className="text-sm text-muted-foreground">We've got your earlier response. Reach out anytime at centralcx@peppercontent.io.</p>
+          <h1 className="text-lg font-semibold">Thanks, response has already been Received</h1>
+          <p className="text-sm text-muted-foreground">Reach out anytime to us for your feedback on Central CX (<a href="mailto:centralcx@peppercontent.io" className="underline">centralcx@peppercontent.io</a>)</p>
         </Card>
       </div>
     );
