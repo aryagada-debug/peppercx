@@ -52,7 +52,8 @@ export default function PulseNPSAnalytics() {
   const showVsdChips = !!(isAdmin || canEditAll);
 
   const [groupBy, setGroupBy] = useState<GroupBy>("vsd");
-  const [view, setView] = useState<ViewMode>("summary");
+  const [view, setView] = useState<ViewMode>(isAdmin || canEditAll ? "summary" : "responses");
+  const isAdminView = !!(isAdmin || canEditAll);
   const [range, setRange] = useState<Range>("90d");
   const [activeVsd, setActiveVsd] = useState("All");
   const [activeBopm, setActiveBopm] = useState("All");
@@ -182,13 +183,14 @@ export default function PulseNPSAnalytics() {
             <h1 className="text-xl font-semibold text-foreground">Pulse / NPS</h1>
             <p className="text-sm text-muted-foreground">Analytics across stakeholder survey responses.</p>
           </div>
-          <PulseTabs />
+          {isAdminView && <PulseTabs />}
         </div>
 
         {/* Filters */}
         <div className="rounded-lg border border-border bg-card p-3 space-y-3">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-muted-foreground mr-1">View</span>
+            {isAdminView && <span className="text-xs text-muted-foreground mr-1">View</span>}
+            {isAdminView && (
             <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
               {([
                 { k: "summary", l: "Summary" },
@@ -204,6 +206,7 @@ export default function PulseNPSAnalytics() {
                 </button>
               ))}
             </div>
+            )}
 
             {view === "summary" && (
               <>
