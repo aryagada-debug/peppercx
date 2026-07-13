@@ -66,6 +66,7 @@ const navSections = [
       { to: "/rgy-health", icon: Activity, label: "RGY Health", routeKey: "rgy-health" },
       { to: "/slack-review", icon: MessagesSquare, label: "Slack Review", routeKey: "rgy-health", adminOnly: true },
       { to: "/pulse-nps", icon: Sparkles, label: "Pulse / NPS", routeKey: "rgy-health", adminOnly: true },
+      { to: "/pulse-nps/analytics", icon: Sparkles, label: "Pulse / NPS", routeKey: "rgy-health", nonAdminOnly: true },
       { to: "/mbr-tracker", icon: FileText, label: "MBR Tracker", routeKey: "mbr-tracker" },
     ],
   },
@@ -126,6 +127,7 @@ export function AppSidebar() {
       ...section,
       items: section.items.filter(item => {
         if ((item as any).adminOnly && !(isAdmin || isActuallyAdmin)) return false;
+        if ((item as any).nonAdminOnly && (isAdmin || isActuallyAdmin)) return false;
         return loading || visibleRoutes.has(item.routeKey);
       }),
     }))
