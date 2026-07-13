@@ -39,6 +39,7 @@ interface DealFormData {
   dealType: string;
   startDate: string;
   endDate: string;
+  duration: string;
   mrr: string;
   totalDealValue: string;
   retainerDealValue: string;
@@ -93,6 +94,7 @@ export function DealFormWizard({ open, onOpenChange, clients, preSelectedClientI
 
   const [form, setForm] = useState<DealFormData>({
     dealName: "", dealId: "", dealType: "Retainer", startDate: "", endDate: "",
+    duration: "",
     mrr: "", totalDealValue: "", retainerDealValue: "", nonRetainerDealValue: "",
     inputCurrency: "INR",
     vsd: "", principalBopm: "", seniorBopm: "", bopm: "",
@@ -250,6 +252,12 @@ export function DealFormWizard({ open, onOpenChange, clients, preSelectedClientI
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Start Date"><Input type="date" value={form.startDate} onChange={e => set("startDate", e.target.value)} /></Field>
                   <Field label="End Date"><Input type="date" value={form.endDate} onChange={e => set("endDate", e.target.value)} /></Field>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Duration (months)">
+                    <Input type="number" min="0" value={form.duration} onChange={e => set("duration", e.target.value)} placeholder="e.g. 12" />
+                  </Field>
+                  <div />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Pepper Business Unit">

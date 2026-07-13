@@ -254,12 +254,14 @@ type DealRow = {
   id: string; account: string | null; deal_name: string | null;
   vsd: string | null; principal_bopm: string | null; senior_bopm: string | null; bopm: string | null;
   capability_line?: string | null; business_unit?: string | null; geo?: string | null;
+  deal_type?: string | null; mrr?: number | null; total_deal_value?: number | null;
+  pepper_business_unit?: string | null; duration?: string | null;
 };
 
 async function loadDeal(admin: SupabaseClient, dealId: string): Promise<DealRow | null> {
   const { data } = await admin
     .from("staffing_deals")
-    .select("id, account, deal_name, vsd, principal_bopm, senior_bopm, bopm, capability_line, business_unit, geo")
+    .select("id, account, deal_name, vsd, principal_bopm, senior_bopm, bopm, capability_line, business_unit, geo, deal_type, mrr, total_deal_value, pepper_business_unit, duration")
     .eq("id", dealId)
     .maybeSingle();
   return (data as DealRow) || null;
@@ -665,6 +667,11 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
       "{capability}": deal.capability_line || "",
       "{vsd}": deal.vsd || "",
       "{bopm}": deal.bopm || "",
+      "{deal_type}": deal.deal_type || "",
+      "{mrr}": fmtMoney(deal.mrr),
+      "{total_deal_value}": fmtMoney(deal.total_deal_value),
+      "{business_unit}": deal.pepper_business_unit || deal.business_unit || "",
+      "{duration}": deal.duration ? `${deal.duration} months` : "",
     };
     const intro = rule?.body_template?.trim()
       ? applyTokens(rule.body_template, tokenCtx)
@@ -677,13 +684,24 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
       html: layout({
         title: titleMap[ev],
         intro,
-        rows: [
-          ["Account", deal.account || ""],
-          ["Deal", deal.deal_name || ""],
-          ["Capability", deal.capability_line || ""],
-          ["VSD", deal.vsd || ""],
-          ["BOPM", deal.bopm || ""],
-        ],
+        rows: ev === "deal_created"
+          ? [
+              ["Client", deal.account || ""],
+              ["Deal name", deal.deal_name || ""],
+              ["Deal type", deal.deal_type || ""],
+              ["MRR", fmtMoney(deal.mrr)],
+              ["Total deal value", fmtMoney(deal.total_deal_value)],
+              ["Business unit", deal.pepper_business_unit || deal.business_unit || ""],
+              ["VSD", deal.vsd || ""],
+              ["Duration", deal.duration ? `${deal.duration} months` : ""],
+            ]
+          : [
+              ["Account", deal.account || ""],
+              ["Deal", deal.deal_name || ""],
+              ["Capability", deal.capability_line || ""],
+              ["VSD", deal.vsd || ""],
+              ["BOPM", deal.bopm || ""],
+            ],
         ctaLabel: ctaMap[ev][0],
         ctaHref: ctaMap[ev][1],
       }),
