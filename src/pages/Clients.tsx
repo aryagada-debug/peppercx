@@ -653,6 +653,7 @@ export default function Clients() {
       pepper_business_unit: data.pepperBusinessUnit,
       start_date: data.startDate || null,
       end_date: data.endDate || null,
+      duration: data.duration || null,
       projected_outcomes: data.projectedOutcomes ? [{ text: data.projectedOutcomes }] : [],
       success_metrics: data.successMetrics.filter((m: any) => m.name),
       baseline_metrics: data.baselineMetrics,
