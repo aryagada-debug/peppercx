@@ -89,7 +89,7 @@ function LabelScale({ value, onChange, labels, compact }: { value: number | null
         return (
           <button key={n} onClick={() => onChange(n)} style={{
             flex: 1, minWidth: 0, minHeight: 46, padding: "8px 12px", borderRadius: 10,
-            border: selected ? "1px solid var(--brand,#5b3df5)" : "1px solid var(--line,#e7e4ef)",
+            border: selected ? "2px solid var(--brand,#5b3df5)" : "2px solid var(--line,#e7e4ef)",
             background: selected ? "var(--brand,#5b3df5)" : "var(--card)",
             color: selected ? "white" : "var(--ink,#15131f)",
             fontSize: 13, fontWeight: 500, cursor: "pointer", textAlign: "center",
@@ -105,7 +105,7 @@ function ChoiceCard({ selected, onClick, icon, title, desc }: { selected: boolea
     <button onClick={onClick} style={{
       display: "flex", gap: 14, alignItems: "flex-start", width: "100%", textAlign: "left",
       padding: 16, borderRadius: 12,
-      border: selected ? "2px solid var(--brand,#5b3df5)" : "1px solid var(--line,#e7e4ef)",
+      border: selected ? "2px solid var(--brand,#5b3df5)" : "2px solid var(--line,#e7e4ef)",
       background: selected ? "var(--brand-soft,#efeaff)" : "var(--card)",
       cursor: "pointer", marginBottom: 10,
     }}>
@@ -128,7 +128,7 @@ function MultiChip({ selected, onClick, title }: { selected: boolean; onClick: (
     <button onClick={onClick} style={{
       display: "flex", gap: 10, alignItems: "center", width: "100%", textAlign: "left",
       padding: 12, borderRadius: 11,
-      border: selected ? "1.5px solid var(--brand,#5b3df5)" : "1.5px solid var(--line,#e7e4ef)",
+      border: selected ? "2px solid var(--brand,#5b3df5)" : "2px solid var(--line,#e7e4ef)",
       background: selected ? "var(--brand-soft,#efeaff)" : "var(--card)",
       cursor: "pointer", marginBottom: 8, fontSize: 14, color: "var(--ink,#15131f)",
     }}>
