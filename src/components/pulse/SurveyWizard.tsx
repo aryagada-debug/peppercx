@@ -25,11 +25,11 @@ interface Props {
 const CARD_STYLE: React.CSSProperties = {
   background: "var(--card,#fff)", borderRadius: 14,
   boxShadow: "var(--shadow-pulse, 0 10px 40px rgba(38,28,80,.10))",
-  padding: 32, border: "1px solid var(--line,#e7e4ef)",
+  padding: 32, border: "1px solid var(--line,#c9c5d6)",
 };
 const INPUT_STYLE: React.CSSProperties = {
   width: "100%", padding: "12px 14px", borderRadius: 10,
-  border: "1px solid var(--line,#e7e4ef)", background: "var(--field,var(--card))",
+  border: "1px solid var(--line,#c9c5d6)", background: "var(--field,var(--card))",
   color: "var(--ink,#15131f)", caretColor: "var(--brand,#5b3df5)",
   fontSize: 14, fontFamily: "inherit", outline: "none",
 };
@@ -65,7 +65,7 @@ function FieldHint({ children }: { children: React.ReactNode }) {
   return <div style={{ color: "var(--muted,#6b6878)", fontSize: 12.5, margin: "-6px 0 10px" }}>{children}</div>;
 }
 function SectionHeader({ title }: { title: string }) {
-  return <div style={{ borderTop: "1px solid var(--line,#e7e4ef)", paddingTop: 18, marginTop: 20, marginBottom: 14, fontWeight: 500, color: "var(--brand,#5b3df5)" }}>{title}</div>;
+  return <div style={{ borderTop: "1px solid var(--line,#c9c5d6)", paddingTop: 18, marginTop: 20, marginBottom: 14, fontWeight: 500, color: "var(--brand,#5b3df5)" }}>{title}</div>;
 }
 function NavRow({ onBack, onNext, canBack, nextLabel = "Continue" }: { onBack: () => void; onNext: () => void; canBack: boolean; nextLabel?: string }) {
   return (
@@ -89,7 +89,7 @@ function LabelScale({ value, onChange, labels, compact }: { value: number | null
         return (
           <button key={n} onClick={() => onChange(n)} style={{
             flex: 1, minWidth: 0, minHeight: 46, padding: "8px 12px", borderRadius: 10,
-            border: selected ? "2px solid var(--brand,#5b3df5)" : "2px solid var(--line,#e7e4ef)",
+            border: selected ? "2px solid var(--brand,#5b3df5)" : "2px solid var(--line,#c9c5d6)",
             background: selected ? "var(--brand,#5b3df5)" : "var(--card)",
             color: selected ? "white" : "var(--ink,#15131f)",
             fontSize: 13, fontWeight: 500, cursor: "pointer", textAlign: "center",
@@ -105,7 +105,7 @@ function ChoiceCard({ selected, onClick, icon, title, desc }: { selected: boolea
     <button onClick={onClick} style={{
       display: "flex", gap: 14, alignItems: "flex-start", width: "100%", textAlign: "left",
       padding: 16, borderRadius: 12,
-      border: selected ? "2px solid var(--brand,#5b3df5)" : "2px solid var(--line,#e7e4ef)",
+      border: selected ? "2px solid var(--brand,#5b3df5)" : "2px solid var(--line,#c9c5d6)",
       background: selected ? "var(--brand-soft,#efeaff)" : "var(--card)",
       cursor: "pointer", marginBottom: 10,
     }}>
@@ -116,7 +116,7 @@ function ChoiceCard({ selected, onClick, icon, title, desc }: { selected: boolea
       </span>
       <span style={{
         width: 18, height: 18, borderRadius: 999, marginTop: 4,
-        border: selected ? "5px solid var(--brand,#5b3df5)" : "1.5px solid var(--line,#e7e4ef)",
+        border: selected ? "5px solid var(--brand,#5b3df5)" : "1.5px solid var(--line,#c9c5d6)",
         background: "var(--card)",
       }} />
     </button>
@@ -128,13 +128,13 @@ function MultiChip({ selected, onClick, title }: { selected: boolean; onClick: (
     <button onClick={onClick} style={{
       display: "flex", gap: 10, alignItems: "center", width: "100%", textAlign: "left",
       padding: 12, borderRadius: 11,
-      border: selected ? "2px solid var(--brand,#5b3df5)" : "2px solid var(--line,#e7e4ef)",
+      border: selected ? "2px solid var(--brand,#5b3df5)" : "2px solid var(--line,#c9c5d6)",
       background: selected ? "var(--brand-soft,#efeaff)" : "var(--card)",
       cursor: "pointer", marginBottom: 8, fontSize: 14, color: "var(--ink,#15131f)",
     }}>
       <span style={{
         width: 17, height: 17, borderRadius: 4, flexShrink: 0,
-        border: selected ? "2px solid var(--brand,#5b3df5)" : "2px solid var(--line,#e7e4ef)",
+        border: selected ? "2px solid var(--brand,#5b3df5)" : "2px solid var(--line,#c9c5d6)",
         background: selected ? "var(--brand,#5b3df5)" : "var(--card)",
         display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: 11,
       }}>{selected ? "✓" : ""}</span>
@@ -354,7 +354,7 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
         <Eyebrow>{s.eyebrow}</Eyebrow>
         <H1>{s.h1}</H1>
         <Lede>{s.lede}</Lede>
-        <div style={{ border: "1px solid var(--line,#e7e4ef)", borderRadius: 12, overflow: "hidden" }}>
+        <div style={{ border: "1px solid var(--line,#c9c5d6)", borderRadius: 12, overflow: "hidden" }}>
           {rows.map((r, i) => {
             const v = ratings[r.key] ?? null;
             const na = ratings[r.key] === 0;
@@ -362,7 +362,7 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
               <div key={r.key} style={{
                 display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12,
                 padding: "13px 15px",
-                borderTop: i === 0 ? "none" : "1px solid var(--line,#e7e4ef)",
+                borderTop: i === 0 ? "none" : "1px solid var(--line,#c9c5d6)",
               }}>
                 <div style={{ fontSize: 14, fontWeight: 500, color: "var(--ink,#15131f)" }}>
                   {r.label}
@@ -507,7 +507,7 @@ function ScoreCard({ label, value, sub }: { label: string; value: string; sub: s
 
 function PulseFrame({ children, progress, headerSubtitle }: { children: React.ReactNode; progress: number; headerSubtitle?: string }) {
   const vars: Record<string, string> = {
-    "--ink": "#15131f", "--muted": "#6b6878", "--line": "#efecf5",
+    "--ink": "#15131f", "--muted": "#6b6878", "--line": "#c9c5d6",
     "--bg": "#faf9fc", "--card": "#fff", "--field": "#fff",
     "--brand": "#5b3df5", "--brand-2": "#8b6cff", "--brand-soft": "#efeaff",
     "--placeholder": "#a19caf", "--shadow-pulse": "0 10px 40px rgba(38,28,80,.10)",
@@ -540,7 +540,7 @@ function PulseFrame({ children, progress, headerSubtitle }: { children: React.Re
             {headerSubtitle && <div style={{ fontSize: 12, color: "var(--muted,#6b6878)" }}>{headerSubtitle}</div>}
           </div>
         </header>
-        <div style={{ height: 4, background: "var(--line,#e7e4ef)", borderRadius: 999, overflow: "hidden" }}>
+        <div style={{ height: 4, background: "var(--line,#c9c5d6)", borderRadius: 999, overflow: "hidden" }}>
           <div style={{ height: "100%", width: `${progress}%`, background: "linear-gradient(90deg,#5b3df5,#8b6cff)", transition: "width .3s ease" }} />
         </div>
         {children}
