@@ -2,12 +2,9 @@
 // hydrates channel names for the connected ones via Slack (bot token).
 // Safe to invoke on demand (admin button) or from a daily cron.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-};
+const responseHeaders = { ...corsHeaders, "Access-Control-Allow-Methods": "POST, GET, OPTIONS" };
 
 const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN") || "";
 
@@ -37,10 +34,15 @@ interface SlackHistMsg {
   thread_ts?: string;
 }
 
+type SlackWarning = {
+  code: string;
+  detail?: string;
+};
+
 // Pull up to `days` of history from a Slack channel, paginating conversations.history.
 // Returns messages plus an optional warning code (e.g. not_in_channel).
-async function fetchChannelHistory(channelId: string, days = 90): Promise<{ messages: SlackHistMsg[]; warning?: string }> {
-  if (!SLACK_BOT_TOKEN) return { messages: [], warning: "no_token" };
+async function fetchChannelHistory(channelId: string, days = 90): Promise<{ messages: SlackHistMsg[]; warning?: SlackWarning }> {
+  if (!SLACK_BOT_TOKEN) return { messages: [], warning: { code: "no_token" } };
   const oldest = Math.floor((Date.now() - days * 86400 * 1000) / 1000).toString();
   const out: SlackHistMsg[] = [];
   let cursor = "";
@@ -73,9 +75,18 @@ async function fetchChannelHistory(channelId: string, days = 90): Promise<{ mess
           i--; // retry this iteration
           continue;
         }
-        return { messages: out, warning: jj.error === "method_not_supported_for_channel_type" ? "private_channel_needs_invite" : (jj.error || "not_in_channel") };
+        if (jj.error === "method_not_supported_for_channel_type") {
+          return { messages: out, warning: { code: "private_channel_needs_invite", detail: jj.error } };
+        }
+        if (jj.error === "missing_scope") {
+          return { messages: out, warning: { code: "not_in_channel_missing_join_scope", detail: "Slack reported not_in_channel, and conversations.join failed with missing_scope." } };
+        }
+        return { messages: out, warning: { code: "not_in_channel_join_failed", detail: jj.error || "not_in_channel" } };
       }
-      return { messages: out, warning: j.error || "slack_error" };
+      if (j.error === "missing_scope") {
+        return { messages: out, warning: { code: "missing_history_scope", detail: "conversations.history returned missing_scope." } };
+      }
+      return { messages: out, warning: { code: j.error || "slack_error" } };
     }
     for (const m of (j.messages || []) as SlackHistMsg[]) {
       if (m.type && m.type !== "message") continue;
@@ -90,7 +101,7 @@ async function fetchChannelHistory(channelId: string, days = 90): Promise<{ mess
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method === "OPTIONS") return new Response("ok", { headers: responseHeaders });
 
   const admin = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -113,10 +124,16 @@ Deno.serve(async (req) => {
     }
 
     let ingested = 0;
+    let staleAuditsDeleted = 0;
+    const touchedDealIds = new Set<string>();
     const warnings: Record<string, string> = {};
+    const warningDetails: Record<string, string> = {};
     for (const [channelId, dealId] of channelToDeal) {
       const { messages, warning } = await fetchChannelHistory(channelId, 90);
-      if (warning) warnings[channelId] = warning;
+      if (warning) {
+        warnings[channelId] = warning.code;
+        if (warning.detail) warningDetails[channelId] = warning.detail;
+      }
       if (messages.length === 0) continue;
       const rows = messages.map((m) => ({
         deal_id: dealId,
@@ -136,8 +153,22 @@ Deno.serve(async (req) => {
         const { error } = await admin
           .from("slack_messages")
           .upsert(chunk, { onConflict: "channel_id,slack_ts", ignoreDuplicates: true });
-        if (!error) ingested += chunk.length;
+        if (!error) {
+          ingested += chunk.length;
+          touchedDealIds.add(dealId);
+        }
       }
+    }
+
+    // If history was successfully ingested after a previous empty/fallback AI
+    // audit, clear that stale audit so the next open/regenerate uses real data.
+    for (const dealId of touchedDealIds) {
+      const { error: delErr, count: delCount } = await admin
+        .from("slack_channel_audits")
+        .delete({ count: "exact" })
+        .eq("deal_id", dealId)
+        .or("model.eq.fallback,health_sentiment.ilike.%empty channel%,engagement.ilike.%Zero messages%");
+      if (!delErr) staleAuditsDeleted += delCount || 0;
     }
 
     // 2) Recompute all rollup rows in a single SQL pass.
@@ -148,9 +179,12 @@ Deno.serve(async (req) => {
     //     issues (bot not in channel, missing scope, private channel etc.)
     //     don't get misreported as "empty channel / no messages in 30 days".
     const warningReason: Record<string, { rgy: "R" | "Y"; reason: string }> = {
-      not_in_channel: { rgy: "R", reason: "Bot not in channel — invite @vsdos to load message history" },
+      not_in_channel: { rgy: "R", reason: "Backend Slack bot is not in this channel, or Slack shows a different app than the backend token." },
+      not_in_channel_missing_join_scope: { rgy: "R", reason: "Backend Slack bot cannot read this channel: Slack says it is not in the channel, and auto-join is blocked by missing channels:join. Re-authorize with channels:join and channels:history, or invite the backend bot used by this app." },
+      not_in_channel_join_failed: { rgy: "R", reason: "Backend Slack bot cannot read this channel: Slack says it is not in the channel and auto-join failed. Verify the backend Slack app/token is the same app added in Slack." },
       channel_not_found: { rgy: "R", reason: "Channel not found — verify the linked Slack channel ID" },
-      missing_scope: { rgy: "R", reason: "Bot missing Slack scope to read history — contact admin" },
+      missing_scope: { rgy: "R", reason: "Backend Slack bot missing permission to read channel history — re-authorize with the required Slack history scopes." },
+      missing_history_scope: { rgy: "R", reason: "Backend Slack bot missing conversations.history permission for this channel — re-authorize with channels:history/groups:history as needed." },
       private_channel_needs_invite: { rgy: "R", reason: "Private channel — invite @vsdos so we can read history" },
       no_token: { rgy: "R", reason: "Slack bot token not configured" },
     };
@@ -188,14 +222,14 @@ Deno.serve(async (req) => {
       .select("*", { count: "exact", head: true });
 
     return new Response(
-      JSON.stringify({ ok: true, rows: count ?? 0, hydrated, ingested, overlaid, channels: channelToDeal.size, warnings }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      JSON.stringify({ ok: true, rows: count ?? 0, hydrated, ingested, staleAuditsDeleted, overlaid, channels: channelToDeal.size, warnings, warningDetails }),
+      { headers: { ...responseHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return new Response(JSON.stringify({ ok: false, error: msg }), {
       status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...responseHeaders, "Content-Type": "application/json" },
     });
   }
 });

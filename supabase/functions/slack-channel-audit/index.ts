@@ -1,12 +1,9 @@
 // Generates or returns a cached AI audit of a deal's Slack channel activity
 // in the trailing 12 weeks, in the schema the Slack Review card renders.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+const responseHeaders = { ...corsHeaders, "Access-Control-Allow-Methods": "POST, OPTIONS" };
 
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY") || "";
 const MODEL = "google/gemini-2.5-flash";
@@ -38,7 +35,7 @@ function heuristicActivity(count: number, lastAt: string | null): string {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method === "OPTIONS") return new Response("ok", { headers: responseHeaders });
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
   try {
@@ -54,7 +51,18 @@ Deno.serve(async (req) => {
         .eq("deal_id", dealId)
         .maybeSingle();
       if (cached && Date.now() - new Date(cached.computed_at).getTime() < 24 * 3600 * 1000) {
-        return json({ ok: true, cached: true, audit: cached });
+        const { data: latestMsg } = await admin
+          .from("slack_messages")
+          .select("created_at")
+          .eq("deal_id", dealId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const cachedAt = new Date(cached.computed_at).getTime();
+        const latestAt = latestMsg?.created_at ? new Date(latestMsg.created_at).getTime() : 0;
+        if (!latestAt || cachedAt >= latestAt) {
+          return json({ ok: true, cached: true, audit: cached });
+        }
       }
     }
 
@@ -116,22 +124,34 @@ Deno.serve(async (req) => {
       activity: heuristicActivity(p.count, p.last),
     }));
 
+    const { data: health } = await admin
+      .from("slack_channel_health")
+      .select("reason, msg_count_90d, msg_count_30d, last_msg_at")
+      .eq("deal_id", dealId)
+      .maybeSingle();
+    const healthReason = String(health?.reason || "");
+    const accessBlocked = totalMsgs === 0 && channels.length > 0 && /bot|permission|scope|not in|cannot read|backend slack/i.test(healthReason);
+
     let audit: AuditJson;
 
     if (!LOVABLE_API_KEY || totalMsgs === 0) {
       // Deterministic empty/no-key fallback that matches the screenshot's layout
       audit = {
         rating: totalMsgs === 0 ? "R" : channels.length === 0 ? "R" : "Y",
-        health_sentiment: totalMsgs === 0
+        health_sentiment: accessBlocked
+          ? `Unable to audit Slack activity because the backend Slack bot cannot read the linked channel: ${healthReason}. This is an ingestion/access issue, not proof that the channel is empty.`
+          : totalMsgs === 0
           ? "The channel is completely empty, zero messages in the 12-week window. No delivery activity, no client voice, no coordination of any kind is visible."
           : "Some activity present but not enough context to synthesise sentiment.",
-        scope_of_work: totalMsgs === 0 ? "Not stated, channel empty." : "Not stated.",
+        scope_of_work: accessBlocked ? "Not available because message history could not be read." : totalMsgs === 0 ? "Not stated, channel empty." : "Not stated.",
         customer_cares: "Not stated.",
-        engagement: totalMsgs === 0 ? "Zero messages in the window." : `${totalMsgs} messages across ${channels.length} channel(s).`,
+        engagement: accessBlocked ? "Message count is unavailable because Slack history ingestion is blocked for this channel." : totalMsgs === 0 ? "Zero messages in the window." : `${totalMsgs} messages across ${channels.length} channel(s).`,
         performance_results: "None stated.",
-        churn_signals: totalMsgs === 0 ? ["Dormant channel with no activity whatsoever over 12 weeks"] : [],
+        churn_signals: accessBlocked ? ["Slack access/permission issue is blocking message ingestion"] : totalMsgs === 0 ? ["Dormant channel with no activity whatsoever over 12 weeks"] : [],
         what_is_working: totalMsgs === 0 ? ["None"] : [],
-        recommended_action: totalMsgs === 0
+        recommended_action: accessBlocked
+          ? "Fix the backend Slack bot membership/scopes, run the Slack Review rebuild, then re-run this audit. Do not treat the current zero-message result as customer inactivity."
+          : totalMsgs === 0
           ? "Confirm whether this account is live and being run elsewhere; if active, route all delivery into a tracked channel, if not, treat as churned / inactive."
           : "Add richer context in the Slack channel so audit signals can be extracted.",
         channels: channelSummary.map((c) => ({
@@ -139,7 +159,7 @@ Deno.serve(async (req) => {
           channel: `#${c.channel_name}`,
           msgs_12wk: c.msgs_12wk,
           activity: c.activity,
-          audit_status: "New find (not in original audit)",
+          audit_status: accessBlocked ? "Access blocked" : "New find (not in original audit)",
         })),
       };
     } else {
@@ -232,5 +252,6 @@ function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...responseHeaders, "Content-Type": "application/json" },
   });
 }
