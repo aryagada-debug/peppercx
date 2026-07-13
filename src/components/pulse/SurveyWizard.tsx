@@ -453,11 +453,11 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
 
   const renderStep = () => {
     switch (current.key) {
-      case "about": return <AboutStep />;
-      case "outcomes": return <OutcomesStep />;
-      case "experience": return <ExperienceStep />;
-      case "retention_growth": return <RetentionGrowthStep />;
-      case "recommend": return <RecommendStep />;
+      case "about": return AboutStep();
+      case "outcomes": return OutcomesStep();
+      case "experience": return ExperienceStep();
+      case "retention_growth": return RetentionGrowthStep();
+      case "recommend": return RecommendStep();
     }
   };
 
