@@ -491,6 +491,21 @@ interface AuditRecord {
   model: string;
 }
 
+interface SlackDiagnostic {
+  ok: boolean;
+  channelId: string;
+  channelName: string | null;
+  canSeeMetadata: boolean;
+  botIsMember: boolean;
+  canReadHistory: boolean;
+  infoError: string | null;
+  historyError: string | null;
+  latestMessageAt: string | null;
+  latestMessagePreview: string | null;
+  summary: string;
+  error?: string;
+}
+
 function AuditPanel({ row }: { row: Combined }) {
   const qc = useQueryClient();
   const { data: audit, isLoading } = useQuery({
@@ -507,6 +522,8 @@ function AuditPanel({ row }: { row: Combined }) {
     },
   });
   const [busy, setBusy] = useState(false);
+  const [diagBusy, setDiagBusy] = useState(false);
+  const [diag, setDiag] = useState<SlackDiagnostic | null>(null);
 
   const generate = async (force: boolean) => {
     setBusy(true);
@@ -525,8 +542,25 @@ function AuditPanel({ row }: { row: Combined }) {
     }
   };
 
+  const diagnose = async () => {
+    if (!row.channel_id) return;
+    setDiagBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("slack-channel-diagnostics", {
+        body: { channelId: row.channel_id },
+      });
+      if (error) throw error;
+      setDiag(data as SlackDiagnostic);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Slack diagnostic failed");
+    } finally {
+      setDiagBusy(false);
+    }
+  };
+
   const s = rgyStyles[audit?.rating || row.rgy];
   const tone = audit?.rating === "R" ? "text-red-600" : audit?.rating === "Y" ? "text-amber-600" : "text-emerald-600";
+  const auditIsStale = Boolean(audit?.computed_at && row.last_msg_at && new Date(audit.computed_at).getTime() < new Date(row.last_msg_at).getTime());
 
   if (isLoading) {
     return (
@@ -538,14 +572,25 @@ function AuditPanel({ row }: { row: Combined }) {
 
   if (!audit) {
     return (
-      <div className="px-3.5 py-4 border-t border-border flex items-center justify-between gap-3">
-        <div className="text-xs text-muted-foreground">
-          No audit generated yet for this account. Auto-audit uses the last 12 weeks of Slack messages.
+      <div className="px-3.5 py-4 border-t border-border space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-xs text-muted-foreground">
+            No audit generated yet for this account. Auto-audit uses the last 12 weeks of Slack messages.
+          </div>
+          <div className="flex items-center gap-2">
+            {row.channel_id ? (
+              <Button size="sm" variant="outline" onClick={diagnose} disabled={diagBusy} className="h-7 gap-1.5">
+                {diagBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <AlertCircle className="h-3.5 w-3.5" />}
+                Check access
+              </Button>
+            ) : null}
+            <Button size="sm" onClick={() => generate(false)} disabled={busy} className="h-7 gap-1.5">
+              {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+              Generate audit
+            </Button>
+          </div>
         </div>
-        <Button size="sm" onClick={() => generate(false)} disabled={busy} className="h-7 gap-1.5">
-          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-          Generate audit
-        </Button>
+        {diag ? <SlackDiagnosticPanel diag={diag} /> : null}
       </div>
     );
   }
@@ -556,11 +601,25 @@ function AuditPanel({ row }: { row: Combined }) {
         <span className="text-[10px] text-muted-foreground">
           Audited {formatDistanceToNow(new Date(audit.computed_at), { addSuffix: true })} · {audit.model || "model"}
         </span>
+        {row.channel_id ? (
+          <Button size="sm" variant="outline" onClick={diagnose} disabled={diagBusy} className="h-7 gap-1.5">
+            {diagBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <AlertCircle className="h-3 w-3" />}
+            Check access
+          </Button>
+        ) : null}
         <Button size="sm" variant="outline" onClick={() => generate(true)} disabled={busy} className="h-7 gap-1.5">
           {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
           Re-run
         </Button>
       </div>
+
+      {auditIsStale ? (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          This audit is older than the latest ingested Slack message. Re-run it to refresh the insight.
+        </div>
+      ) : null}
+
+      {diag ? <SlackDiagnosticPanel diag={diag} /> : null}
 
       <AuditSection tone={tone} title="Health & Sentiment">{audit.health_sentiment || "Not stated."}</AuditSection>
       <AuditSection tone={tone} title="Scope of Work">{audit.scope_of_work || "Not stated."}</AuditSection>
@@ -657,6 +716,35 @@ function Stat({ label, value }: { label: string; value: number | string }) {
     <div>
       <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="text-sm font-medium">{value}</div>
+    </div>
+  );
+}
+
+function SlackDiagnosticPanel({ diag }: { diag: SlackDiagnostic }) {
+  return (
+    <div className={cn(
+      "rounded-md border px-3 py-2 text-xs space-y-1",
+      diag.canReadHistory ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-red-200 bg-red-50 text-red-900",
+    )}>
+      <div className="font-medium">{diag.summary || diag.error || "Slack access diagnostic complete."}</div>
+      <div className="grid sm:grid-cols-4 gap-2 text-[11px]">
+        <DiagStat label="Metadata" ok={diag.canSeeMetadata} detail={diag.infoError || undefined} />
+        <DiagStat label="Bot member" ok={diag.botIsMember} />
+        <DiagStat label="History" ok={diag.canReadHistory} detail={diag.historyError || undefined} />
+        <div>
+          <div className="uppercase text-muted-foreground">Latest live msg</div>
+          <div className="font-medium">{diag.latestMessageAt ? formatDistanceToNow(new Date(diag.latestMessageAt), { addSuffix: true }) : "-"}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DiagStat({ label, ok, detail }: { label: string; ok: boolean; detail?: string }) {
+  return (
+    <div>
+      <div className="uppercase text-muted-foreground">{label}</div>
+      <div className={cn("font-medium", ok ? "text-emerald-700" : "text-red-700")}>{ok ? "OK" : detail || "No"}</div>
     </div>
   );
 }
