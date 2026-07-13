@@ -130,6 +130,7 @@ Deno.serve(async (req) => {
       .eq("deal_id", dealId)
       .maybeSingle();
     const healthReason = String(health?.reason || "");
+    const healthSentence = healthReason.replace(/[.!?]+$/, "");
     const accessBlocked = totalMsgs === 0 && channels.length > 0 && /bot|permission|scope|not in|cannot read|backend slack/i.test(healthReason);
 
     let audit: AuditJson;
@@ -139,7 +140,7 @@ Deno.serve(async (req) => {
       audit = {
         rating: totalMsgs === 0 ? "R" : channels.length === 0 ? "R" : "Y",
         health_sentiment: accessBlocked
-          ? `Unable to audit Slack activity because the backend Slack bot cannot read the linked channel: ${healthReason}. This is an ingestion/access issue, not proof that the channel is empty.`
+          ? `Unable to audit Slack activity because the backend Slack bot cannot read the linked channel: ${healthSentence}. This is an ingestion/access issue, not proof that the channel is empty.`
           : totalMsgs === 0
           ? "The channel is completely empty, zero messages in the 12-week window. No delivery activity, no client voice, no coordination of any kind is visible."
           : "Some activity present but not enough context to synthesise sentiment.",
