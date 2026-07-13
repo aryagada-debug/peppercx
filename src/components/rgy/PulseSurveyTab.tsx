@@ -438,7 +438,7 @@ export default function PulseSurveyTab({
           }
         });
         const body = {
-          dealId: d.deal_id,
+          dealId: d.raw_id || d.deal_id,
           recipients,
           autoCcLeadership: true,
           ccEmails: [] as string[],
