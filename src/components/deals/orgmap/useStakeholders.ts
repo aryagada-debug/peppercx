@@ -29,16 +29,14 @@ export function useStakeholders(dealId: string, clientName: string) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    // Stakeholders are shared per client. We key on client_name; fall back to
-    // this deal's rows if the client isn't yet known (e.g. brand-new client).
-    const query = supabase
+    // Stakeholders are scoped per deal. Changes on one deal must not leak
+    // into other deals for the same client.
+    const { data, error } = await supabase
       .from("deal_stakeholders")
       .select("*")
+      .eq("deal_id", dealId)
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: true });
-    const { data, error } = clientName
-      ? await query.eq("client_name", clientName)
-      : await query.eq("deal_id", dealId);
     if (error) {
       toast.error("Failed to load stakeholders");
     } else {
