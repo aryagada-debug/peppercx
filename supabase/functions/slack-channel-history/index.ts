@@ -26,11 +26,47 @@ Deno.serve(async (req) => {
     const { channelId, limit = 100 } = await req.json();
     if (!channelId) throw new Error("channelId required");
 
-    const url = new URL("https://slack.com/api/conversations.history");
-    url.searchParams.set("channel", channelId);
-    url.searchParams.set("limit", String(Math.min(Number(limit) || 100, 200)));
-    const r = await fetch(url, { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } });
-    const j = await r.json();
+    const fetchHistory = async () => {
+      const url = new URL("https://slack.com/api/conversations.history");
+      url.searchParams.set("channel", channelId);
+      url.searchParams.set("limit", String(Math.min(Number(limit) || 100, 200)));
+      const r = await fetch(url, { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } });
+      return await r.json();
+    };
+
+    let j = await fetchHistory();
+    let autoJoined = false;
+
+    // If the bot isn't in the channel, try to auto-join (works for public channels
+    // when the token has `channels:join`). This is the most common reason some
+    // channels show history and others don't — the bot was never invited.
+    if (!j.ok && j.error === "not_in_channel") {
+      const joinRes = await fetch("https://slack.com/api/conversations.join", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+          "Content-Type": "application/json; charset=utf-8",
+        },
+        body: JSON.stringify({ channel: channelId }),
+      });
+      const joinJson = await joinRes.json();
+      if (joinJson.ok) {
+        autoJoined = true;
+        j = await fetchHistory();
+      } else if (joinJson.error === "is_private" || joinJson.error === "method_not_supported_for_channel_type") {
+        // Private channel or DM/MPIM — bot must be invited by a human.
+        return new Response(
+          JSON.stringify({
+            messages: [],
+            users: {},
+            warning: "not_in_channel",
+            hint: "This is a private channel. Invite the Lovable bot from Slack (/invite @Lovable) to load history.",
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+    }
+
     if (!j.ok) {
       // Common, non-fatal: bot isn't in the channel yet. Return empty history
       // with a friendly hint instead of a 500 so the UI doesn't blank-screen.
@@ -41,8 +77,10 @@ Deno.serve(async (req) => {
             users: {},
             warning: j.error,
             hint: j.error === "not_in_channel"
-              ? "Invite the Lovable bot to this Slack channel to load history."
-              : j.error,
+              ? "Invite the Lovable bot to this Slack channel (/invite @Lovable) to load history."
+              : j.error === "channel_not_found"
+              ? "Slack cannot find this channel. Check the linked channel ID and workspace."
+              : "The Slack bot is missing the history scope. Reconnect Slack to grant it.",
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
@@ -88,6 +126,7 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({ messages, users: nameMap }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
+      ...(autoJoined ? {} : {}),
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown";
