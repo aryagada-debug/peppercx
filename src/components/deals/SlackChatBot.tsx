@@ -30,6 +30,7 @@ interface SlackMessage {
 interface Channel { id: string; name: string; is_private: boolean }
 interface ChannelListResponse { channels?: Channel[]; error?: string }
 interface SlackHistoryResponse { messages?: SlackMessage[]; users?: Record<string, string>; error?: string }
+interface SlackHistoryResponseFull extends SlackHistoryResponse { warning?: string; hint?: string }
 interface SlackSendResponse { ok?: boolean; ts?: string; error?: string }
 interface SlackWorkspaceUser { id: string; name: string; real_name: string; display_name: string; email: string }
 interface SlackUserListResponse { users?: SlackWorkspaceUser[]; error?: string }
@@ -53,6 +54,7 @@ export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
   const [loading, setLoading] = useState(false);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [historyHint, setHistoryHint] = useState<string>("");
 
   const [channels, setChannels] = useState<Channel[]>([]);
   const [chSearch, setChSearch] = useState("");
@@ -106,17 +108,19 @@ export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
     let cancelled = false;
     setLoading(true);
     supabase.functions
-      .invoke<SlackHistoryResponse>("slack-channel-history", { body: { channelId, limit: 100 } })
+      .invoke<SlackHistoryResponseFull>("slack-channel-history", { body: { channelId, limit: 100 } })
       .then(({ data, error }) => {
         if (cancelled) return;
         setLoading(false);
         if (error || data?.error) {
           toast.error(`Failed to load history: ${data?.error || error?.message || "unknown"}`);
           setMessages([]);
+          setHistoryHint("");
           return;
         }
         setMessages(data?.messages || []);
         setUserNames(data?.users || {});
+        setHistoryHint(data?.hint || "");
       });
     return () => { cancelled = true; };
   }, [open, channelId, dealId]);
