@@ -367,7 +367,12 @@ export function SlackChatBot({ dealId, dealName }: SlackChatBotProps) {
             {loading ? (
               <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
             ) : messages.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-6">No messages yet. Send the first one!</p>
+              <div className="text-center py-6 space-y-2">
+                <p className="text-xs text-muted-foreground">No messages yet.</p>
+                {historyHint && (
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400 px-3">{historyHint}</p>
+                )}
+              </div>
             ) : messages.map(m => (
               <div key={m.id} className="text-xs">
                 <div className="flex items-baseline gap-2 mb-0.5">
