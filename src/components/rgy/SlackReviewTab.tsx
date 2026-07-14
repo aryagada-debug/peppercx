@@ -9,6 +9,9 @@ import { Loader2, RefreshCw, Search, Hash, AlertCircle, Sparkles } from "lucide-
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
+import { BopmFilter, dealMatchesBopm, useStaffedDealIdsByName } from "@/components/access/BopmFilter";
+import { DealTypeFilter, dealMatchesType, type DealTypeFilterValue } from "@/components/filters/DealTypeFilter";
+import { useAllPersonNames } from "@/hooks/queries/legacy";
 
 type Rgy = "R" | "Y" | "G";
 
@@ -38,6 +41,7 @@ interface DealMeta {
   principal_bopm: string | null;
   bopm: string | null;
   mrr: number | null;
+  deal_type: string | null;
 }
 
 interface Combined extends HealthRow {
@@ -47,6 +51,7 @@ interface Combined extends HealthRow {
   senior_bopm: string;
   principal_bopm: string;
   mrr: number;
+  deal_type: string;
 }
 
 function useSlackHealth() {
@@ -58,7 +63,7 @@ function useSlackHealth() {
         supabase.from("slack_channel_health").select("*"),
         supabase
           .from("staffing_deals")
-          .select("id, account, deal_name, vsd, senior_bopm, principal_bopm, bopm, mrr, deal_status")
+          .select("id, account, deal_name, vsd, senior_bopm, principal_bopm, bopm, mrr, deal_type, deal_status")
           .in("deal_status", ["Active Deal", "New Deal in SLA/PO", "Deal Disputed", "Deal in Renewal Process"]),
       ]);
       if (e1) throw e1;
@@ -82,6 +87,9 @@ function useSlackHealth() {
           senior_bopm: d.senior_bopm || "",
           principal_bopm: d.principal_bopm || "",
           mrr: Number(d.mrr) || 0,
+          deal_type: d.deal_type || "",
+          principalBopm: d.principal_bopm || "",
+          seniorBopm: d.senior_bopm || "",
         };
       });
     },
@@ -111,10 +119,14 @@ export function SlackReviewTab() {
   const [rgyFilter, setRgyFilter] = useState<string>("");
   const [vsdFilter, setVsdFilter] = useState<string>("");
   const [connFilter, setConnFilter] = useState<string>("");
+  const [bopmFilter, setBopmFilter] = useState<string>("All");
+  const [dealTypeFilter, setDealTypeFilter] = useState<DealTypeFilterValue>("All");
   const [q, setQ] = useState("");
   const [rebuilding, setRebuilding] = useState(false);
 
   const rows = data || [];
+  const registeredNames = useAllPersonNames();
+  const bopmStaffedDealIds = useStaffedDealIdsByName(bopmFilter);
 
   const vsdList = useMemo(
     () => Array.from(new Set(rows.map((r) => r.vsd).filter(Boolean))).sort(),
@@ -128,13 +140,15 @@ export function SlackReviewTab() {
       if (vsdFilter && r.vsd !== vsdFilter) return false;
       if (connFilter === "connected" && !r.is_connected) return false;
       if (connFilter === "not_connected" && r.is_connected) return false;
+      if (!dealMatchesType(r.deal_type, dealTypeFilter)) return false;
+      if (bopmFilter !== "All" && !dealMatchesBopm(r as any, bopmFilter, registeredNames, bopmStaffedDealIds)) return false;
       if (ql) {
         const hay = `${r.account} ${r.deal_name} ${r.channel_name || ""}`.toLowerCase();
         if (!hay.includes(ql)) return false;
       }
       return true;
     });
-  }, [rows, rgyFilter, vsdFilter, connFilter, q]);
+  }, [rows, rgyFilter, vsdFilter, connFilter, q, dealTypeFilter, bopmFilter, registeredNames, bopmStaffedDealIds]);
 
   const kpi = useMemo(() => {
     const total = rows.length;
@@ -264,6 +278,8 @@ export function SlackReviewTab() {
             <SelectItem value="not_connected">Not connected</SelectItem>
           </SelectContent>
         </Select>
+        <DealTypeFilter value={dealTypeFilter} onChange={setDealTypeFilter} />
+        <BopmFilter value={bopmFilter} onChange={setBopmFilter} scopedVsd={vsdFilter || null} />
         <div className="relative flex-1 min-w-[180px]">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search account, deal, channel..." className="h-8 pl-7 text-xs" />
