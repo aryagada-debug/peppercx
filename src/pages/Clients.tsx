@@ -1222,7 +1222,9 @@ export default function Clients() {
               </thead>
               <tbody>
                 {tableRows.map(deal => {
-                  const clientObj = clients.find(c => c.name === deal.account);
+                  const clientObj =
+                    (deal.clientId && allClients.find(c => c.id === deal.clientId)) ||
+                    allClients.find(c => c.name === deal.account);
                   const leads = leadByDeal[deal.id] || {};
                   const dealCcy = dealDisplayCurrency(deal as any, currency);
                   const sym = CURRENCY_SYMBOL[dealCcy];
@@ -1233,22 +1235,22 @@ export default function Clients() {
                   const cellByKey: Record<string, React.ReactNode> = {
                     account: (
                       <td key="account" className="py-2 px-3 truncate" title={deal.account}>
-                        {clientObj && isClientEditable(clientObj.id) ? (
-                          <InlineEditCell
-                            value={deal.account || ""}
-                            displayClassName="text-xs font-medium"
-                            onSave={async (v) => {
-                              const next = v.trim();
-                              if (!next || next === deal.account) return;
+                        <InlineEditCell
+                          value={deal.account || ""}
+                          displayClassName="text-xs font-medium"
+                          onSave={async (v) => {
+                            const next = v.trim();
+                            if (!next || next === deal.account) return;
+                            if (clientObj) {
                               await updateClient(clientObj.id, { name: next });
                               await refreshClients();
-                              toast.success("Client name updated");
-                            }}
-                            placeholder="—"
-                          />
-                        ) : (
-                          <span className="text-xs font-medium text-foreground truncate block">{deal.account}</span>
-                        )}
+                            } else {
+                              await updateDeal(deal.id, { account: next } as any);
+                            }
+                            toast.success("Client name updated");
+                          }}
+                          placeholder="—"
+                        />
                       </td>
                     ),
                     dealName: (
