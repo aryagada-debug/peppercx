@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { ArrowUpDown, Download, Eye, Send, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -10,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { toPng } from "html-to-image";
 
 type StatusKey = "completed" | "opened" | "sent" | "failed" | "pending";
 
@@ -91,6 +92,29 @@ export function AnalyticsResponsesTable({
   const [bulkResending, setBulkResending] = useState(false);
   const { toast } = useToast();
   const qc = useQueryClient();
+  const responseRef = useRef<HTMLDivElement | null>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  const downloadPng = async () => {
+    if (!responseRef.current || !drillRow) return;
+    setDownloading(true);
+    try {
+      const dataUrl = await toPng(responseRef.current, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: "#ffffff",
+      });
+      const safe = (s: string) => (s || "response").replace(/[^\w-]+/g, "_").slice(0, 60);
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      a.download = `pulse-${safe(drillRow.deal_name || drillRow.deal_id)}-${safe(drillRow.respondent)}.png`;
+      a.click();
+    } catch (e: any) {
+      toast({ title: "Download failed", description: e?.message || "Unknown error", variant: "destructive" });
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const rows = useMemo<Row[]>(() => {
     // Keep the latest response per invite (responses arrive sorted desc).
@@ -390,13 +414,21 @@ export function AnalyticsResponsesTable({
       <Dialog open={!!drillRow} onOpenChange={(o) => !o && setDrillRow(null)}>
         <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-hidden p-0 flex flex-col">
           <DialogHeader className="px-6 pt-5 pb-3 border-b border-border">
-            <DialogTitle className="text-sm">
-              {drillRow?.deal_name || drillRow?.deal_id || "Response"}
-              {drillRow?.respondent && <span className="text-muted-foreground font-normal"> — {drillRow.respondent}</span>}
-            </DialogTitle>
+            <div className="flex items-center justify-between gap-3">
+              <DialogTitle className="text-sm">
+                {drillRow?.deal_name || drillRow?.deal_id || "Response"}
+                {drillRow?.respondent && <span className="text-muted-foreground font-normal"> — {drillRow.respondent}</span>}
+              </DialogTitle>
+              <Button variant="outline" size="sm" onClick={downloadPng} disabled={downloading} className="mr-6">
+                {downloading ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Download className="h-3.5 w-3.5 mr-1" />}
+                Download PNG
+              </Button>
+            </div>
           </DialogHeader>
           <div className="px-6 py-5 overflow-y-auto bg-secondary/30">
-            {drillRow && <SurveyResponseView payload={drillRow.payload} />}
+            <div ref={responseRef} className="bg-white p-4 rounded-md">
+              {drillRow && <SurveyResponseView payload={drillRow.payload} />}
+            </div>
           </div>
         </DialogContent>
       </Dialog>
