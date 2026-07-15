@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, RefreshCw, Search, Hash, AlertCircle, Sparkles } from "lucide-react";
+import { Loader2, RefreshCw, Search, Hash, AlertCircle, Sparkles, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
@@ -81,15 +81,16 @@ function useSlackHealth() {
         };
         return {
           ...h,
-          account: d.account || "",
-          deal_name: d.deal_name || "",
-          vsd: d.vsd || "",
-          senior_bopm: d.senior_bopm || "",
-          principal_bopm: d.principal_bopm || "",
+          account: (d.account || "").trim(),
+          deal_name: (d.deal_name || "").trim(),
+          vsd: (d.vsd || "").trim(),
+          senior_bopm: (d.senior_bopm || "").trim(),
+          principal_bopm: (d.principal_bopm || "").trim(),
+          bopm: (d.bopm || "").trim(),
           mrr: Number(d.mrr) || 0,
-          deal_type: d.deal_type || "",
-          principalBopm: d.principal_bopm || "",
-          seniorBopm: d.senior_bopm || "",
+          deal_type: (d.deal_type || "").trim(),
+          principalBopm: (d.principal_bopm || "").trim(),
+          seniorBopm: (d.senior_bopm || "").trim(),
         };
       });
     },
@@ -123,6 +124,14 @@ export function SlackReviewTab() {
   const [dealTypeFilter, setDealTypeFilter] = useState<DealTypeFilterValue>("All");
   const [q, setQ] = useState("");
   const [rebuilding, setRebuilding] = useState(false);
+  type SortKey = "account" | "deal_name" | "vsd" | "senior_bopm" | "is_connected" | "channel_name" | "last_msg_at" | "msg_count_90d" | "rgy";
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const toggleSort = (k: SortKey) => {
+    if (sortKey !== k) { setSortKey(k); setSortDir("asc"); return; }
+    if (sortDir === "asc") { setSortDir("desc"); return; }
+    setSortKey(null);
+  };
 
   const rows = data || [];
   const registeredNames = useAllPersonNames();
@@ -149,6 +158,30 @@ export function SlackReviewTab() {
       return true;
     });
   }, [rows, rgyFilter, vsdFilter, connFilter, q, dealTypeFilter, bopmFilter, registeredNames, bopmStaffedDealIds]);
+
+  const sorted = useMemo(() => {
+    if (!sortKey) return filtered;
+    const rgyOrder: Record<Rgy, number> = { R: 0, Y: 1, G: 2 };
+    const dir = sortDir === "asc" ? 1 : -1;
+    const arr = [...filtered];
+    arr.sort((a, b) => {
+      let av: any; let bv: any;
+      switch (sortKey) {
+        case "is_connected": av = a.is_connected ? 1 : 0; bv = b.is_connected ? 1 : 0; break;
+        case "last_msg_at":
+          av = a.last_msg_at ? new Date(a.last_msg_at).getTime() : 0;
+          bv = b.last_msg_at ? new Date(b.last_msg_at).getTime() : 0; break;
+        case "msg_count_90d": av = a.msg_count_90d; bv = b.msg_count_90d; break;
+        case "rgy": av = rgyOrder[a.rgy]; bv = rgyOrder[b.rgy]; break;
+        case "channel_name": av = (a.channel_name || "").toLowerCase(); bv = (b.channel_name || "").toLowerCase(); break;
+        default: av = ((a as any)[sortKey] || "").toString().toLowerCase(); bv = ((b as any)[sortKey] || "").toString().toLowerCase();
+      }
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return 0;
+    });
+    return arr;
+  }, [filtered, sortKey, sortDir]);
 
   const kpi = useMemo(() => {
     const total = rows.length;
@@ -288,7 +321,7 @@ export function SlackReviewTab() {
       </div>
 
       {view === "list" ? (
-        <ConnectionTable rows={filtered} />
+        <ConnectionTable rows={sorted} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
       ) : (
         <Dashboard rows={filtered} byVsd={byVsd} bySrBopm={bySrBopm} kpi={kpi} />
       )}
@@ -310,25 +343,47 @@ function KpiCard({ label, value, tone }: { label: string; value: number; tone?: 
   );
 }
 
-function ConnectionTable({ rows }: { rows: Combined[] }) {
+type SortKeyT = "account" | "deal_name" | "vsd" | "senior_bopm" | "is_connected" | "channel_name" | "last_msg_at" | "msg_count_90d" | "rgy";
+function ConnectionTable({ rows, sortKey, sortDir, onSort }: {
+  rows: Combined[];
+  sortKey: SortKeyT | null;
+  sortDir: "asc" | "desc";
+  onSort: (k: SortKeyT) => void;
+}) {
   if (rows.length === 0) {
     return <div className="text-center text-sm text-muted-foreground py-12">No deals match these filters.</div>;
   }
+  const SortableTh = ({ k, label, align = "left" }: { k: SortKeyT; label: string; align?: "left" | "right" }) => {
+    const active = sortKey === k;
+    const Icon = !active ? ArrowUpDown : sortDir === "asc" ? ArrowUp : ArrowDown;
+    return (
+      <th className={cn("px-3 py-2 font-medium", align === "right" ? "text-right" : "text-left")}>
+        <button
+          type="button"
+          onClick={() => onSort(k)}
+          className={cn("inline-flex items-center gap-1 hover:text-foreground transition-colors", active && "text-foreground")}
+        >
+          {label}
+          <Icon className="h-3 w-3 opacity-60" />
+        </button>
+      </th>
+    );
+  };
   return (
     <div className="rounded-lg border border-border bg-card overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead className="bg-muted/40 text-muted-foreground">
             <tr>
-              <th className="text-left px-3 py-2 font-medium">Account</th>
-              <th className="text-left px-3 py-2 font-medium">Deal</th>
-              <th className="text-left px-3 py-2 font-medium">VSD</th>
-              <th className="text-left px-3 py-2 font-medium">Sr / Principal BOPM</th>
-              <th className="text-left px-3 py-2 font-medium">Slack</th>
-              <th className="text-left px-3 py-2 font-medium">Channel</th>
-              <th className="text-right px-3 py-2 font-medium">Last message</th>
-              <th className="text-right px-3 py-2 font-medium">90d msgs</th>
-              <th className="text-left px-3 py-2 font-medium">Health</th>
+              <SortableTh k="account" label="Account" />
+              <SortableTh k="deal_name" label="Deal" />
+              <SortableTh k="vsd" label="VSD" />
+              <SortableTh k="senior_bopm" label="Sr / Principal BOPM" />
+              <SortableTh k="is_connected" label="Slack" />
+              <SortableTh k="channel_name" label="Channel" />
+              <SortableTh k="last_msg_at" label="Last message" align="right" />
+              <SortableTh k="msg_count_90d" label="90d msgs" align="right" />
+              <SortableTh k="rgy" label="Health" />
             </tr>
           </thead>
           <tbody>

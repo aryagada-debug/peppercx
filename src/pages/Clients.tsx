@@ -1235,6 +1235,9 @@ export default function Clients() {
                   const cellByKey: Record<string, React.ReactNode> = {
                     account: (
                       <td key="account" className="py-2 px-3 truncate" title={deal.account}>
+                        {isBopmViewOnly ? (
+                          <span className="text-xs font-medium truncate block">{deal.account || "—"}</span>
+                        ) : (
                         <InlineEditCell
                           value={deal.account || ""}
                           displayClassName="text-xs font-medium"
@@ -1251,6 +1254,7 @@ export default function Clients() {
                           }}
                           placeholder="—"
                         />
+                        )}
                       </td>
                     ),
                     dealName: (
