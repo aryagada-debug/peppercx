@@ -43,6 +43,7 @@ export function StaffingDealsList({
   const [dealType, setDealType] = useState<DealTypeFilterValue>("All");
   const [vsd, setVsd] = useState<string>("All");
   const [activeOnly, setActiveOnly] = useState(true);
+  const [lockFilter, setLockFilter] = useState<"All" | "Locked" | "Not locked">("All");
   const [page, setPage] = useState(1);
   const registeredNames = useAllPersonNames();
 
@@ -67,6 +68,8 @@ export function StaffingDealsList({
       if (activeOnly && !ACTIVE_DEAL_STATUSES.has(d.dealStatus)) return false;
       if (!dealMatchesType(d.dealType, dealType)) return false;
       if (vsd !== "All" && (d.vsd || "").trim() !== vsd) return false;
+      if (lockFilter === "Locked" && !d.staffingLockedAt) return false;
+      if (lockFilter === "Not locked" && d.staffingLockedAt) return false;
       if (enableBopmFilter && bopm !== "All" && !dealMatchesBopm(d as any, bopm, registeredNames, staffedDealIds || undefined)) return false;
       if (q) {
         const hay = `${d.account || ""} ${d.dealName || ""} ${d.geo || ""} ${d.pod || ""} ${d.dealId || ""} ${d.id || ""} ${d.pcCode || ""}`.toLowerCase();
@@ -74,7 +77,7 @@ export function StaffingDealsList({
       }
       return true;
     });
-  }, [deals, search, dealType, vsd, activeOnly, enableBopmFilter, bopm, registeredNames, staffedDealIds, focusDealId]);
+  }, [deals, search, dealType, vsd, activeOnly, lockFilter, enableBopmFilter, bopm, registeredNames, staffedDealIds, focusDealId]);
 
   const visible = filtered.slice(0, page * PAGE_SIZE);
 
@@ -109,6 +112,23 @@ export function StaffingDealsList({
           />
         </div>
         <DealTypeFilter value={dealType} onChange={v => { setDealType(v); setPage(1); }} />
+        <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5" role="group" aria-label="Filter by staffing lock">
+          {(["All", "Locked", "Not locked"] as const).map(opt => (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => { setLockFilter(opt); setPage(1); }}
+              className={cn(
+                "rounded-md font-medium whitespace-nowrap transition-colors px-2.5 py-1 text-[11px]",
+                lockFilter === opt
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
         {enableBopmFilter && (
           <BopmFilter value={bopm} onChange={v => { setBopm(v); setPage(1); }} scopedVsd={bopmFilterScopedVsd} />
         )}
