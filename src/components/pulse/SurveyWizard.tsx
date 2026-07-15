@@ -100,6 +100,19 @@ function LabelScale({ value, onChange, labels, compact }: { value: number | null
   );
 }
 
+function LabelScaleWithNa({ value, onChange, labels }: { value: number | null; onChange: (n: number) => void; labels: string[] }) {
+  const isNa = value === 0;
+  return (
+    <div>
+      <LabelScale value={isNa ? null : value} labels={labels} onChange={onChange} />
+      <label style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 12, color: "var(--muted,#6b6878)", cursor: "pointer" }}>
+        <input type="checkbox" checked={isNa} onChange={(e) => onChange(e.target.checked ? 0 : (null as unknown as number))} />
+        Not applicable (N/A)
+      </label>
+    </div>
+  );
+}
+
 function ChoiceCard({ selected, onClick, icon, title, desc }: { selected: boolean; onClick: () => void; icon?: string; title: string; desc?: string }) {
   return (
     <button onClick={onClick} style={{
@@ -311,20 +324,20 @@ export default function SurveyWizard({ config = defaultConfig, initial, preview,
 
         <div style={{ marginTop: 16 }} />
         <FieldLabel required>{s.seo.traffic_growth.q}</FieldLabel>
-        <LabelScale value={seo.traffic_growth} labels={s.seo.traffic_growth.labels} onChange={(n) => setSEO({ traffic_growth: n })} />
+        <LabelScaleWithNa value={seo.traffic_growth} labels={s.seo.traffic_growth.labels} onChange={(n) => setSEO({ traffic_growth: n })} />
 
         <div style={{ background: "var(--brand-soft,#efeaff)", padding: 16, borderRadius: 12, margin: "16px 0" }}>
           <Eyebrow>{s.seo.ai_visibility.eyebrow}</Eyebrow>
           <FieldLabel required>{s.seo.ai_visibility.q}</FieldLabel>
-          <LabelScale compact value={seo.ai_citation_visibility} labels={s.seo.ai_visibility.labels} onChange={(n) => setSEO({ ai_citation_visibility: n })} />
+          <LabelScaleWithNa value={seo.ai_citation_visibility} labels={s.seo.ai_visibility.labels} onChange={(n) => setSEO({ ai_citation_visibility: n })} />
         </div>
 
         <FieldLabel required>{s.seo.organic_to_pipeline.q}</FieldLabel>
-        <LabelScale value={seo.organic_to_pipeline} labels={s.seo.organic_to_pipeline.labels} onChange={(n) => setSEO({ organic_to_pipeline: n })} />
+        <LabelScaleWithNa value={seo.organic_to_pipeline} labels={s.seo.organic_to_pipeline.labels} onChange={(n) => setSEO({ organic_to_pipeline: n })} />
 
         <SectionHeader title={s.content.header} />
         <FieldLabel required>{s.content.q}</FieldLabel>
-        <LabelScale value={content.quality} labels={s.content.labels} onChange={(n) => setContent({ quality: n })} />
+        <LabelScaleWithNa value={content.quality} labels={s.content.labels} onChange={(n) => setContent({ quality: n })} />
 
         <div style={{ marginTop: 24 }}>
           <FieldLabel>{s.seo.win_outcome.q}</FieldLabel>
