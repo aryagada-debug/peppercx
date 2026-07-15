@@ -350,11 +350,12 @@ function KpiCard({ label, value, tone }: { label: string; value: number; tone?: 
 }
 
 type SortKeyT = "account" | "deal_name" | "vsd" | "senior_bopm" | "is_connected" | "channel_name" | "last_msg_at" | "msg_count_90d" | "rgy";
-function ConnectionTable({ rows, sortKey, sortDir, onSort }: {
+function ConnectionTable({ rows, sortKey, sortDir, onSort, canLink }: {
   rows: Combined[];
   sortKey: SortKeyT | null;
   sortDir: "asc" | "desc";
   onSort: (k: SortKeyT) => void;
+  canLink: boolean;
 }) {
   if (rows.length === 0) {
     return <div className="text-center text-sm text-muted-foreground py-12">No deals match these filters.</div>;
@@ -410,17 +411,7 @@ function ConnectionTable({ rows, sortKey, sortDir, onSort }: {
                     )}
                   </td>
                   <td className="px-3 py-2">
-                    {r.channel_id ? (
-                      link ? (
-                        <a href={link} className="text-primary hover:underline inline-flex items-center gap-1">
-                          <Hash className="h-3 w-3" /> {r.channel_name || r.channel_id}
-                        </a>
-                      ) : (
-                        <span className="inline-flex items-center gap-1"><Hash className="h-3 w-3" /> {r.channel_name || r.channel_id}</span>
-                      )
-                    ) : (
-                      <span className="text-muted-foreground">-</span>
-                    )}
+                    <ChannelLinkCell row={r} canLink={canLink} />
                   </td>
                   <td className="px-3 py-2 text-right text-muted-foreground">
                     {r.last_msg_at ? formatDistanceToNow(new Date(r.last_msg_at), { addSuffix: true }) : "-"}
