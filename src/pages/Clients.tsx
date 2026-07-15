@@ -1235,22 +1235,22 @@ export default function Clients() {
                   const cellByKey: Record<string, React.ReactNode> = {
                     account: (
                       <td key="account" className="py-2 px-3 truncate" title={deal.account}>
-                        {clientObj && isClientEditable(clientObj.id) ? (
-                          <InlineEditCell
-                            value={deal.account || ""}
-                            displayClassName="text-xs font-medium"
-                            onSave={async (v) => {
-                              const next = v.trim();
-                              if (!next || next === deal.account) return;
+                        <InlineEditCell
+                          value={deal.account || ""}
+                          displayClassName="text-xs font-medium"
+                          onSave={async (v) => {
+                            const next = v.trim();
+                            if (!next || next === deal.account) return;
+                            if (clientObj) {
                               await updateClient(clientObj.id, { name: next });
                               await refreshClients();
-                              toast.success("Client name updated");
-                            }}
-                            placeholder="—"
-                          />
-                        ) : (
-                          <span className="text-xs font-medium text-foreground truncate block">{deal.account}</span>
-                        )}
+                            } else {
+                              await guardedUpdateDeal(deal.id, { account: next } as any);
+                            }
+                            toast.success("Client name updated");
+                          }}
+                          placeholder="—"
+                        />
                       </td>
                     ),
                     dealName: (
