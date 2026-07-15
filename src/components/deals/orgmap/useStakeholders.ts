@@ -22,6 +22,19 @@ export type Stakeholder = {
   updated_at: string;
 };
 
+/** Required fields shared with the Contacts "By deal" view. Keep in sync with the
+ * OrgMappingTab detail form. */
+export function isStakeholderComplete(s: {
+  name?: string; role?: string; email?: string; linkedin_url?: string;
+  function?: string; seniority?: string; city?: string;
+}) {
+  return !!(
+    s.name?.trim() && s.role?.trim() && s.email?.trim() && s.linkedin_url?.trim()
+    && s.function?.trim() && s.seniority?.trim() && s.city?.trim()
+    && s.name.trim().toLowerCase() !== "new stakeholder"
+  );
+}
+
 export function useStakeholders(dealId: string, clientName: string) {
   const [data, setData] = useState<Stakeholder[]>([]);
   const [loading, setLoading] = useState(true);

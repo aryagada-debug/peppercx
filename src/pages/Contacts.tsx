@@ -2,6 +2,7 @@ import { Fragment, useMemo, useState, useEffect } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useDealAccess } from "@/hooks/useDealAccess";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -12,6 +13,8 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { ColHeader, type SortState } from "@/components/table/ColHeader";
+import { ByDealTab, type ByDealDeal } from "@/components/contacts/ByDealTab";
+import type { Stakeholder } from "@/components/deals/orgmap/useStakeholders";
 
 type Row = {
   id: string;
@@ -49,24 +52,50 @@ function joinBopm(d: { principal_bopm?: string | null; senior_bopm?: string | nu
 
 export default function Contacts() {
   const { isAdmin, isActuallyAdmin, loading: roleLoading } = useUserRole();
-  const canView = isAdmin || isActuallyAdmin;
+  const { loading: accessLoading, isAdmin: accessAdmin, visibleDealIds } = useDealAccess();
+  const isAdminEffective = isAdmin || isActuallyAdmin || accessAdmin;
+  // Anyone with at least one visible deal can view Contacts (scoped to their deals).
+  const canView = isAdminEffective || (visibleDealIds && visibleDealIds.size > 0);
   const [rows, setRows] = useState<Row[]>([]);
   const [allDeals, setAllDeals] = useState<DealLite[]>([]);
+  const [stakeholdersRaw, setStakeholdersRaw] = useState<Stakeholder[]>([]);
+  const [byDealDeals, setByDealDeals] = useState<ByDealDeal[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [teamF, setTeamF] = useState("all");
   const [regionF, setRegionF] = useState("all");
   const [vsdF, setVsdF] = useState("all");
   const [influenceF, setInfluenceF] = useState("all");
+  const [reloadTick, setReloadTick] = useState(0);
 
   useEffect(() => {
-    if (roleLoading || !canView) return;
+    if (roleLoading || accessLoading || !canView) return;
     let cancelled = false;
     (async () => {
       setLoading(true);
+      // Non-admins are scoped to their visible deals. Admins see everything.
+      const dealIdsScope = isAdminEffective ? null : Array.from(visibleDealIds || []);
+      if (!isAdminEffective && (!dealIdsScope || dealIdsScope.length === 0)) {
+        if (!cancelled) {
+          setRows([]); setAllDeals([]); setStakeholdersRaw([]); setByDealDeals([]);
+          setLoading(false);
+        }
+        return;
+      }
+
+      const stakeholderQ = supabase
+        .from("deal_stakeholders")
+        .select("*");
+      if (dealIdsScope) stakeholderQ.in("deal_id", dealIdsScope);
+
+      const dealsQ = supabase
+        .from("staffing_deals")
+        .select("id,account,deal_name,vsd,principal_bopm,senior_bopm,bopm,geo,client_id,deal_status");
+      if (dealIdsScope) dealsQ.in("id", dealIdsScope);
+
       const [{ data: people, error: e1 }, { data: deals, error: e2 }, { data: clients, error: e3 }] = await Promise.all([
-        supabase.from("deal_stakeholders").select("id,name,linkedin_url,email,phone,role,function,decision_power,deal_id,client_name,city"),
-        supabase.from("staffing_deals").select("id,account,deal_name,vsd,principal_bopm,senior_bopm,bopm,geo,client_id,deal_status"),
+        stakeholderQ,
+        dealsQ,
         supabase.from("clients").select("id,name,geography"),
       ]);
       if (e1 || e2 || e3) {
@@ -101,6 +130,7 @@ export default function Contacts() {
       });
       if (!cancelled) {
         setRows(merged);
+        setStakeholdersRaw((people || []) as Stakeholder[]);
         setAllDeals((deals || []).map((d: any) => ({
           id: d.id,
           account: d.account || "",
@@ -110,11 +140,21 @@ export default function Contacts() {
           region: d.geo || "",
           deal_status: d.deal_status || "",
         })));
+        setByDealDeals((deals || []).map((d: any) => ({
+          id: d.id,
+          account: d.account || "",
+          deal_name: d.deal_name || "",
+          vsd: d.vsd || "",
+          bopm: joinBopm(d),
+          region: d.geo || "",
+          deal_status: d.deal_status || "",
+          client_id: d.client_id || null,
+        })));
         setLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  }, [canView, roleLoading]);
+  }, [canView, roleLoading, accessLoading, isAdminEffective, visibleDealIds, reloadTick]);
 
   const teams = useMemo(() => Array.from(new Set(rows.map(r => r.function).filter(Boolean))).sort(), [rows]);
   const regions = useMemo(() => Array.from(new Set(rows.map(r => r.region).filter(Boolean))).sort(), [rows]);
@@ -279,7 +319,7 @@ export default function Contacts() {
     toast.success("Exported contacts");
   };
 
-  if (!roleLoading && !canView) return <Navigate to="/home" replace />;
+  if (!roleLoading && !accessLoading && !canView) return <Navigate to="/home" replace />;
 
   return (
     <AppLayout>
@@ -288,7 +328,9 @@ export default function Contacts() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-foreground">Contacts</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            All people mapped across deals · admin only
+            {isAdminEffective
+              ? "All people mapped across deals"
+              : "People mapped across your deals"}
             {!loading && (
               <span className="ml-2 inline-flex items-center gap-1 text-foreground">
                 · <span className="font-medium">{filtered.length}</span> contacts across <span className="font-medium">{dealCount}</span> deals
@@ -298,11 +340,22 @@ export default function Contacts() {
         </div>
       </div>
 
-      <Tabs defaultValue="contacts" className="space-y-4">
+      <Tabs defaultValue={isAdminEffective ? "contacts" : "by-deal"} className="space-y-4">
         <TabsList>
+          <TabsTrigger value="by-deal">By deal</TabsTrigger>
           <TabsTrigger value="contacts">Contacts</TabsTrigger>
           <TabsTrigger value="insights">Insights</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="by-deal" className="space-y-4 mt-0">
+          <ByDealTab
+            deals={byDealDeals}
+            stakeholders={stakeholdersRaw}
+            loading={loading}
+            canEdit={true}
+            onChanged={() => setReloadTick(t => t + 1)}
+          />
+        </TabsContent>
 
         <TabsContent value="contacts" className="space-y-4 mt-0">
           <div className="flex justify-end">

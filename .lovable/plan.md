@@ -1,28 +1,36 @@
-## Link a Slack channel from the Slack Review table
+# Contacts: per-deal rollup + role-scoped access
 
-Today the Channel column just renders a dash when no channel is linked. Add an inline "Link channel" affordance in the same cell so admins can pair a Slack channel with a deal without leaving the page.
+## Goals
+1. Add a new "Deals" view inside `/contacts` that lists every deal the viewer can see, with an expandable row showing that deal's contacts pulled from Org Mapping (`deal_stakeholders`) in a tabular format.
+2. Flag deals with **no contacts** and contacts with **missing values** (name, role, email, LinkedIn, function, seniority, city).
+3. Allow inline **Add contact** on any deal row — writes to the same `deal_stakeholders` table used by Org Mapping, so both views stay in sync.
+4. Open the Contacts page to **VSDs and BOPMs** (not just admins). They see only deals in their own scope.
 
-### Behaviour
-- When `channel_id` is empty → render a small "Link channel" button in place of the dash.
-- Click opens a compact popover with:
-  - Search input (client-side substring filter over channel names).
-  - Virtual-friendly scroll list of channels from `loadSlackChannels()` (public + private the bot can see).
-  - Loading / error state matching the existing `SlackChatBot` picker copy.
-- Selecting a channel:
-  - `UPDATE staffing_deals SET slack_channel_id = ch.id WHERE id = deal_id`.
-  - Optimistically patch the row (`channel_id`, `channel_name`, `is_connected: true`) in the React Query cache for `["slack-health"]`.
-  - Toast success, close popover.
-  - Trigger the same `slack-health-rebuild` invocation used by the "Rebuild now" button in the background so message counts populate.
-- When `channel_id` is already set → keep the current `#channel` link, and add a subtle "Change" affordance next to it that reopens the same picker (also allows unlink via a "Remove link" row at the top of the list, mirroring `SlackChatBot`).
+## Scope of changes
 
-### Access
-- Only show the link/change controls for users where `useUserRole().isAdmin` is true, matching the existing rebuild-only-admin pattern. Non-admins keep the read-only view.
+### `src/pages/Contacts.tsx`
+- Remove the admin gate. Replace `canView = isAdmin || isActuallyAdmin` with visibility for anyone who has at least one visible deal via `useDealAccess()`.
+- Scope the queries: filter `staffing_deals` and `deal_stakeholders` to `visibleDealIds` when not admin. Admins keep the full view.
+- Add a third tab **"By deal"** (default for non-admins) alongside existing Contacts / Insights tabs.
+- The By-deal tab renders a table of deals (Deal, Client, VSD, BOPM, Region, Contact count, Missing-info count, Status). Each row expands to show that deal's stakeholders inline (Name, Designation, Team, Email, Phone, LinkedIn, Influence, Location) with an amber "Incomplete" chip when required fields are missing (reuse the completeness rule from `OrgMappingTab`).
+- Each expanded row has an **Add contact** button that inserts a new `deal_stakeholders` row for that deal (mirrors `useStakeholders.add()` — sets `deal_id`, `client_name`, next `sort_order`) and opens a compact inline editor row (Name, Role, Email, LinkedIn, Function, Seniority, City, Phone, Influence) that saves on blur.
+- Inline edit for existing contacts (same fields), saving via `supabase.from("deal_stakeholders").update(...)`.
+- Empty-state row per deal: "No contacts mapped — Add contact".
+- Refetch after mutations so the count/missing chips update; keep it consistent with `OrgMappingTab` by using the same table so opening a deal's Org Map afterwards shows the same rows.
 
-### Implementation notes
-- New component `SlackChannelLinkCell` (co-located inside `SlackReviewTab.tsx` to keep it scoped) using `shadcn` `Popover` + `Command` for search — same primitives already used in `SlackChatBot`.
-- Reuse `loadSlackChannels()` from `src/lib/slackChannels.ts` (already cached / dedupes in-flight).
-- After a successful update, invalidate `["slack-health"]` (or use `setQueryData` for immediate feedback) plus fire-and-forget `supabase.functions.invoke("slack-health-rebuild")`.
-- No schema changes, no new edge functions.
+### `src/components/layout/AppSidebar.tsx`
+- Show the Contacts link whenever the viewer has any visible deal (drop the `isActuallyAdmin` gate). Admins still see everything.
 
-Files touched:
-- `src/components/rgy/SlackReviewTab.tsx` (add cell + popover, wire mutation).
+### Access control
+- Non-admins: filter deals by `useDealAccess().visibleDealIds`; filter stakeholders by `deal_id IN (visibleDealIds)`.
+- Editing (add / update contact) is allowed for VSDs and BOPMs on their own deals — matches Org Mapping behavior (which already lets them edit stakeholders on deals they can view).
+
+## Non-goals
+- No schema change. `deal_stakeholders` already has all fields needed.
+- No changes to the existing Org Mapping tab or `useStakeholders` hook — both views read/write the same rows so sync is automatic.
+- No change to Insights tab logic beyond re-scoping to visible deals for non-admins.
+
+## Technical notes
+- Completeness check: reuse the `isStakeholderComplete` predicate from `OrgMappingTab.tsx` (extract to `src/components/deals/orgmap/useStakeholders.ts` so both files import it).
+- Stakeholder writes go straight to Supabase (same pattern as `useStakeholders`), then a lightweight local refetch of `deal_stakeholders` scoped to `visibleDealIds`.
+- Expand state kept in a `Set<string>` of deal IDs, same pattern already used for `expandedVsds` in Insights.
