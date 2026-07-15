@@ -510,36 +510,11 @@ export default function Contacts() {
         </TabsContent>
 
         <TabsContent value="insights" className="space-y-4 mt-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <Select value={insightsStatusF} onValueChange={setInsightsStatusF}>
-              <SelectTrigger className="h-9 w-[200px]"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All statuses</SelectItem>
-                {dealStatuses.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={insightsVsdF} onValueChange={setInsightsVsdF}>
-              <SelectTrigger className="h-9 w-[200px]"><SelectValue placeholder="All VSDs" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All VSDs</SelectItem>
-                {insightsVsdOptions.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Button
-              size="sm"
-              variant={insightsOnlyMissing ? "default" : "outline"}
-              onClick={() => setInsightsOnlyMissing(v => !v)}
-              className="h-9"
-            >
-              <AlertTriangle className="h-4 w-4" />
-              {insightsOnlyMissing ? "Showing missing only" : "Show missing only"}
-            </Button>
-            <div className="ml-auto text-xs text-muted-foreground">
-              {insightsGroups.reduce((s, g) => s + g.deals.length, 0)} deals ·{" "}
-              <span className="text-destructive font-medium">
-                {insightsGroups.reduce((s, g) => s + g.missing, 0)} missing contacts
-              </span>
-            </div>
+          <div className="text-xs text-muted-foreground">
+            {insightsGroups.reduce((s, g) => s + g.deals.length, 0)} deals ·{" "}
+            <span className="text-destructive font-medium">
+              {insightsGroups.reduce((s, g) => s + g.missing, 0)} missing contacts
+            </span>
           </div>
 
           {loading && (
