@@ -265,8 +265,8 @@ export default function Clients() {
     [access]
   );
   const isClientEditable = useCallback(
-    (_clientId: string) => !access.isReadOnly,
-    [access]
+    (_clientId: string) => true,
+    []
   );
 
   // Guarded wrappers — silently reject + toast for non-editable deals.
