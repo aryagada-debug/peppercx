@@ -1616,15 +1616,6 @@ export default function Clients() {
         initial={editingClient || undefined}
         onSubmit={async (client) => {
           if (editingClient) {
-            if (!canEditAll) {
-              await submitApprovalRequest({
-                type: "client.update",
-                targetKind: "client",
-                targetId: editingClient.id,
-                payload: client,
-              });
-              return;
-            }
             await updateClient(editingClient.id, client);
             toast.success(`Client "${client.name}" updated`);
             void refreshClients();
