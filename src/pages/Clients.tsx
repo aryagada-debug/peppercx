@@ -181,7 +181,7 @@ export default function Clients() {
   const ValueIcon = currency === "USD" ? DollarSign : IndianRupee;
   const { deals: allDeals, people, assignments, loading: staffLoading, refresh: refreshStaffing } = useStaffingQueries();
   const { updateDeal, addAssignment, updateAssignment, deleteAssignment } = useStaffingMutations();
-  const { clients: allClients, loading: clientsLoading, addClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
+  const { clients: allClients, loading: clientsLoading, addClient, updateClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
   const access = useDealAccess();
   const { matchesDeal: geoMatchesDeal, geo: geoFilter } = useGeoFilter();
   const isCentralCx = access.isAdmin;
@@ -261,8 +261,8 @@ export default function Clients() {
     [access]
   );
   const isClientEditable = useCallback(
-    (_clientId: string) => access.isAdmin,
-    [access]
+    (clientId: string) => access.isAdmin || visibleClientIdSet.has(clientId),
+    [access, visibleClientIdSet]
   );
 
   // Guarded wrappers — silently reject + toast for non-editable deals.
