@@ -12,6 +12,11 @@ import { formatDistanceToNow } from "date-fns";
 import { BopmFilter, dealMatchesBopm, useStaffedDealIdsByName } from "@/components/access/BopmFilter";
 import { DealTypeFilter, dealMatchesType, type DealTypeFilterValue } from "@/components/filters/DealTypeFilter";
 import { useAllPersonNames } from "@/hooks/queries/legacy";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { loadSlackChannels, type SlackChannel } from "@/lib/slackChannels";
+import { useUserRole } from "@/hooks/useUserRole";
+import { Link2, X } from "lucide-react";
+import { useEffect } from "react";
 
 type Rgy = "R" | "Y" | "G";
 
