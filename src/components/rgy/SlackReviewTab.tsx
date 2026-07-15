@@ -121,6 +121,7 @@ function slackLink(channelId: string | null) {
 export function SlackReviewTab() {
   const { data, isLoading, refetch, isFetching } = useSlackHealth();
   const qc = useQueryClient();
+  const { isAdmin } = useUserRole();
   const [view, setView] = useState<"list" | "dashboard">("list");
   const [rgyFilter, setRgyFilter] = useState<string>("");
   const [vsdFilter, setVsdFilter] = useState<string>("");
@@ -326,7 +327,7 @@ export function SlackReviewTab() {
       </div>
 
       {view === "list" ? (
-        <ConnectionTable rows={sorted} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+        <ConnectionTable rows={sorted} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} canLink={isAdmin} />
       ) : (
         <Dashboard rows={filtered} byVsd={byVsd} bySrBopm={bySrBopm} kpi={kpi} />
       )}
