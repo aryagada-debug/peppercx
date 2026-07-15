@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
       if (r.status === 429) {
         const retryAfter = Number(r.headers.get("retry-after") || "30");
         return new Response(JSON.stringify({ error: "rate_limited", retryAfter }), {
-          status: 429,
+          status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(retryAfter) },
         });
       }
@@ -45,13 +45,13 @@ Deno.serve(async (req) => {
         const code = j.error || "slack_error";
         if (code === "ratelimited") {
           return new Response(JSON.stringify({ error: "rate_limited", retryAfter: 30 }), {
-            status: 429,
+            status: 200,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
         if (code === "token_revoked" || code === "invalid_auth" || code === "account_inactive") {
           return new Response(JSON.stringify({ error: "auth_failed", slackError: code }), {
-            status: 401,
+            status: 200,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
