@@ -1236,6 +1236,7 @@ export default function Clients() {
                         {clientObj && isClientEditable(clientObj.id) ? (
                           <InlineEditCell
                             value={deal.account || ""}
+                            displayClassName="text-xs font-medium"
                             onSave={async (v) => {
                               const next = v.trim();
                               if (!next || next === deal.account) return;
