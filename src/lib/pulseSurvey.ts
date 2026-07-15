@@ -210,12 +210,12 @@ export function computeChurnRisk(a: PulseAnswers): { level: "LOW" | "MEDIUM" | "
 
   const seo = a.capability_deep_dive.seo;
   if (seo) {
-    if (seo.traffic_growth !== null && seo.traffic_growth <= 2) add(2, "SEO: no organic growth");
-    if (seo.organic_to_pipeline !== null && seo.organic_to_pipeline <= 2) add(2, "SEO: not converting to pipeline");
-    if (seo.ai_citation_visibility !== null && seo.ai_citation_visibility <= 2) add(1, "GEO: low AI Search visibility");
+    if (seo.traffic_growth !== null && seo.traffic_growth > 0 && seo.traffic_growth <= 2) add(2, "SEO: no organic growth");
+    if (seo.organic_to_pipeline !== null && seo.organic_to_pipeline > 0 && seo.organic_to_pipeline <= 2) add(2, "SEO: not converting to pipeline");
+    if (seo.ai_citation_visibility !== null && seo.ai_citation_visibility > 0 && seo.ai_citation_visibility <= 2) add(1, "GEO: low AI Search visibility");
   }
   const content = a.capability_deep_dive.content;
-  if (content && content.quality !== null && content.quality <= 2) add(1, "Content quality below bar");
+  if (content && content.quality !== null && content.quality > 0 && content.quality <= 2) add(1, "Content quality below bar");
 
   const level: "LOW" | "MEDIUM" | "HIGH" = score >= 5 ? "HIGH" : score >= 2 ? "MEDIUM" : "LOW";
   return { level, reasons, score };
