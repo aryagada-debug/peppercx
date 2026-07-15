@@ -340,6 +340,7 @@ const EVENT_TO_RULE: Record<string, string> = {
   deal_unstaffed: "deal.unstaffed_7d",
   mbr_reminder: "mbr.missing_prev_month",
   rgy_stale: "rgy.stale_7d",
+  rgy_alert: "rgy.alert",
 };
 
 async function loadRule(admin: SupabaseClient, eventKey: string): Promise<RuleRow | null> {
