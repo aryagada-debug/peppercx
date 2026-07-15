@@ -1941,7 +1941,7 @@ export default function DealDetail() {
     return <AppLayout><div className="p-8"><Link to="/clients" className="text-primary hover:underline text-sm">← Back to Clients</Link><p className="mt-4 text-muted-foreground">Deal not found.</p></div></AppLayout>;
   }
 
-  const subtitle = [deal.capabilityLine || deal.serviceLineTagging, deal.account].filter(Boolean).join(" · ");
+  const subtitlePrefix = deal.capabilityLine || deal.serviceLineTagging || "";
 
   return (
     <AppLayout>
@@ -1964,7 +1964,20 @@ export default function DealDetail() {
               <h1 className="text-2xl font-semibold tracking-tight text-foreground leading-tight">{deal.dealName}</h1>
             )}
             <div className="text-sm text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
-              <span>{subtitle}</span>
+              {subtitlePrefix && <span>{subtitlePrefix}</span>}
+              {subtitlePrefix && <span className="text-muted-foreground/50">·</span>}
+              {isAdmin ? (
+                <span className="inline-flex items-center gap-1">
+                  <span className="text-xs uppercase tracking-wider">Client:</span>
+                  <EditableCell
+                    value={deal.account || ""}
+                    onSave={(v) => handleDealFieldSave("account", v)}
+                    placeholder="—"
+                  />
+                </span>
+              ) : (
+                <span>{deal.account}</span>
+              )}
               <span className="text-muted-foreground/50">·</span>
               <span className="inline-flex items-center gap-1">
                 <span className="text-xs uppercase tracking-wider">Deal ID:</span>

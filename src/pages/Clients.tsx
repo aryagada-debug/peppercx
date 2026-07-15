@@ -181,7 +181,7 @@ export default function Clients() {
   const ValueIcon = currency === "USD" ? DollarSign : IndianRupee;
   const { deals: allDeals, people, assignments, loading: staffLoading, refresh: refreshStaffing } = useStaffingQueries();
   const { updateDeal, addAssignment, updateAssignment, deleteAssignment } = useStaffingMutations();
-  const { clients: allClients, loading: clientsLoading, addClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
+  const { clients: allClients, loading: clientsLoading, addClient, updateClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
   const access = useDealAccess();
   const { matchesDeal: geoMatchesDeal, geo: geoFilter } = useGeoFilter();
   const isCentralCx = access.isAdmin;
@@ -293,6 +293,7 @@ export default function Clients() {
   const [showClosed, setShowClosed] = useState(false);
 
   const [clientDialogOpen, setClientDialogOpen] = useState(false);
+  const [editingClient, setEditingClient] = useState<import("@/hooks/useClients").Client | null>(null);
   const [dealWizardOpen, setDealWizardOpen] = useState(false);
   const [dealWizardClientId, setDealWizardClientId] = useState<string | undefined>();
 
@@ -1229,7 +1230,18 @@ export default function Clients() {
                   const cellByKey: Record<string, React.ReactNode> = {
                     account: (
                       <td key="account" className="py-2 px-3 truncate" title={deal.account}>
-                        <span className="text-xs font-medium text-foreground truncate block">{deal.account}</span>
+                        <div className="flex items-center gap-1 group/edit min-w-0">
+                          <span className="text-xs font-medium text-foreground truncate block flex-1 min-w-0">{deal.account}</span>
+                          {clientObj && canEditAll && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setEditingClient(clientObj); setClientDialogOpen(true); }}
+                              className="text-muted-foreground/50 hover:text-primary opacity-0 group-hover/edit:opacity-100 transition-opacity flex-none"
+                              title="Edit client"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     ),
                     dealName: (
@@ -1599,8 +1611,17 @@ export default function Clients() {
       {/* Dialogs */}
       <ClientFormDialog
         open={clientDialogOpen}
-        onOpenChange={setClientDialogOpen}
+        onOpenChange={(open) => { setClientDialogOpen(open); if (!open) setEditingClient(null); }}
+        title={editingClient ? "Edit Client" : "Add Client"}
+        initial={editingClient || undefined}
         onSubmit={async (client) => {
+          if (editingClient) {
+            await updateClient(editingClient.id, client);
+            toast.success(`Client "${client.name}" updated`);
+            void refreshClients();
+            void refreshStaffing();
+            return;
+          }
           if (!canEditAll) {
             await submitApprovalRequest({
               type: "client.create",
