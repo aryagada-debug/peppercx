@@ -441,6 +441,143 @@ function ConnectionTable({ rows, sortKey, sortDir, onSort, canLink }: {
   );
 }
 
+function ChannelLinkCell({ row, canLink }: { row: Combined; canLink: boolean }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [channels, setChannels] = useState<SlackChannel[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [q, setQ] = useState("");
+  const [saving, setSaving] = useState(false);
+  const link = slackLink(row.channel_id);
+
+  useEffect(() => {
+    if (!open || channels.length) return;
+    setLoading(true);
+    loadSlackChannels()
+      .then(setChannels)
+      .catch((e) => toast.error(e instanceof Error ? e.message : "Failed to load channels"))
+      .finally(() => setLoading(false));
+  }, [open, channels.length]);
+
+  const filtered = useMemo(() => {
+    const ql = q.trim().toLowerCase();
+    if (!ql) return channels;
+    return channels.filter((c) => c.name.toLowerCase().includes(ql));
+  }, [channels, q]);
+
+  const patchCache = (channelId: string, channelName: string, isConnected: boolean) => {
+    qc.setQueryData<Combined[]>(["slack-health"], (prev) =>
+      prev?.map((x) =>
+        x.deal_id === row.deal_id
+          ? { ...x, channel_id: channelId || null, channel_name: channelName || null, is_connected: isConnected }
+          : x,
+      ),
+    );
+  };
+
+  const linkTo = async (ch: SlackChannel) => {
+    setSaving(true);
+    const { error } = await supabase.from("staffing_deals").update({ slack_channel_id: ch.id }).eq("id", row.deal_id);
+    setSaving(false);
+    if (error) { toast.error("Failed to link channel"); return; }
+    toast.success(`Linked #${ch.name}`);
+    patchCache(ch.id, ch.name, true);
+    setOpen(false);
+    supabase.functions.invoke("slack-health-rebuild", { body: { dealId: row.deal_id } }).then(() => {
+      qc.invalidateQueries({ queryKey: ["slack-health"] });
+    }).catch(() => {});
+  };
+
+  const unlink = async () => {
+    setSaving(true);
+    const { error } = await supabase.from("staffing_deals").update({ slack_channel_id: "" }).eq("id", row.deal_id);
+    setSaving(false);
+    if (error) { toast.error("Failed to unlink"); return; }
+    toast.success("Channel unlinked");
+    patchCache("", "", false);
+    setOpen(false);
+  };
+
+  const trigger = row.channel_id ? (
+    <button type="button" className="text-[10px] text-muted-foreground hover:text-primary underline underline-offset-2">
+      Change
+    </button>
+  ) : (
+    <button
+      type="button"
+      className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+    >
+      <Link2 className="h-3 w-3" /> Link channel
+    </button>
+  );
+
+  return (
+    <div className="inline-flex items-center gap-2">
+      {row.channel_id ? (
+        link ? (
+          <a href={link} className="text-primary hover:underline inline-flex items-center gap-1">
+            <Hash className="h-3 w-3" /> {row.channel_name || row.channel_id}
+          </a>
+        ) : (
+          <span className="inline-flex items-center gap-1"><Hash className="h-3 w-3" /> {row.channel_name || row.channel_id}</span>
+        )
+      ) : (
+        !canLink && <span className="text-muted-foreground">-</span>
+      )}
+      {canLink && (
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+          <PopoverContent align="start" className="w-72 p-2">
+            <Input
+              autoFocus
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search channels..."
+              className="h-8 text-xs mb-2"
+            />
+            {row.channel_id && (
+              <button
+                type="button"
+                onClick={unlink}
+                disabled={saving}
+                className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-accent inline-flex items-center gap-1.5 text-destructive"
+              >
+                <X className="h-3 w-3" /> Remove current link
+              </button>
+            )}
+            <div className="max-h-64 overflow-y-auto mt-1">
+              {loading ? (
+                <div className="flex items-center justify-center py-6 text-muted-foreground text-xs">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> Loading channels...
+                </div>
+              ) : filtered.length === 0 ? (
+                <div className="text-center text-xs text-muted-foreground py-6">No channels found</div>
+              ) : (
+                filtered.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    disabled={saving || c.id === row.channel_id}
+                    onClick={() => linkTo(c)}
+                    className={cn(
+                      "w-full text-left px-2 py-1.5 text-xs rounded hover:bg-accent inline-flex items-center gap-1.5",
+                      c.id === row.channel_id && "opacity-50 cursor-default",
+                    )}
+                  >
+                    <Hash className="h-3 w-3 text-muted-foreground" />
+                    <span className="truncate">{c.name}</span>
+                    {c.is_private && <span className="ml-auto text-[10px] text-muted-foreground">private</span>}
+                  </button>
+                ))
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
+      )}
+    </div>
+  );
+}
+
 function Dashboard({
   rows, byVsd, bySrBopm, kpi,
 }: {
