@@ -343,25 +343,47 @@ function KpiCard({ label, value, tone }: { label: string; value: number; tone?: 
   );
 }
 
-function ConnectionTable({ rows }: { rows: Combined[] }) {
+type SortKeyT = "account" | "deal_name" | "vsd" | "senior_bopm" | "is_connected" | "channel_name" | "last_msg_at" | "msg_count_90d" | "rgy";
+function ConnectionTable({ rows, sortKey, sortDir, onSort }: {
+  rows: Combined[];
+  sortKey: SortKeyT | null;
+  sortDir: "asc" | "desc";
+  onSort: (k: SortKeyT) => void;
+}) {
   if (rows.length === 0) {
     return <div className="text-center text-sm text-muted-foreground py-12">No deals match these filters.</div>;
   }
+  const SortableTh = ({ k, label, align = "left" }: { k: SortKeyT; label: string; align?: "left" | "right" }) => {
+    const active = sortKey === k;
+    const Icon = !active ? ArrowUpDown : sortDir === "asc" ? ArrowUp : ArrowDown;
+    return (
+      <th className={cn("px-3 py-2 font-medium", align === "right" ? "text-right" : "text-left")}>
+        <button
+          type="button"
+          onClick={() => onSort(k)}
+          className={cn("inline-flex items-center gap-1 hover:text-foreground transition-colors", active && "text-foreground")}
+        >
+          {label}
+          <Icon className="h-3 w-3 opacity-60" />
+        </button>
+      </th>
+    );
+  };
   return (
     <div className="rounded-lg border border-border bg-card overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead className="bg-muted/40 text-muted-foreground">
             <tr>
-              <th className="text-left px-3 py-2 font-medium">Account</th>
-              <th className="text-left px-3 py-2 font-medium">Deal</th>
-              <th className="text-left px-3 py-2 font-medium">VSD</th>
-              <th className="text-left px-3 py-2 font-medium">Sr / Principal BOPM</th>
-              <th className="text-left px-3 py-2 font-medium">Slack</th>
-              <th className="text-left px-3 py-2 font-medium">Channel</th>
-              <th className="text-right px-3 py-2 font-medium">Last message</th>
-              <th className="text-right px-3 py-2 font-medium">90d msgs</th>
-              <th className="text-left px-3 py-2 font-medium">Health</th>
+              <SortableTh k="account" label="Account" />
+              <SortableTh k="deal_name" label="Deal" />
+              <SortableTh k="vsd" label="VSD" />
+              <SortableTh k="senior_bopm" label="Sr / Principal BOPM" />
+              <SortableTh k="is_connected" label="Slack" />
+              <SortableTh k="channel_name" label="Channel" />
+              <SortableTh k="last_msg_at" label="Last message" align="right" />
+              <SortableTh k="msg_count_90d" label="90d msgs" align="right" />
+              <SortableTh k="rgy" label="Health" />
             </tr>
           </thead>
           <tbody>
