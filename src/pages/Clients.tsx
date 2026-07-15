@@ -1245,7 +1245,7 @@ export default function Clients() {
                               await updateClient(clientObj.id, { name: next });
                               await refreshClients();
                             } else {
-                              await guardedUpdateDeal(deal.id, { account: next } as any);
+                              await updateDeal(deal.id, { account: next } as any);
                             }
                             toast.success("Client name updated");
                           }}
