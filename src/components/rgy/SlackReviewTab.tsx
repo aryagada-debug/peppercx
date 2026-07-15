@@ -124,6 +124,14 @@ export function SlackReviewTab() {
   const [dealTypeFilter, setDealTypeFilter] = useState<DealTypeFilterValue>("All");
   const [q, setQ] = useState("");
   const [rebuilding, setRebuilding] = useState(false);
+  type SortKey = "account" | "deal_name" | "vsd" | "senior_bopm" | "is_connected" | "channel_name" | "last_msg_at" | "msg_count_90d" | "rgy";
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const toggleSort = (k: SortKey) => {
+    if (sortKey !== k) { setSortKey(k); setSortDir("asc"); return; }
+    if (sortDir === "asc") { setSortDir("desc"); return; }
+    setSortKey(null);
+  };
 
   const rows = data || [];
   const registeredNames = useAllPersonNames();
@@ -150,6 +158,30 @@ export function SlackReviewTab() {
       return true;
     });
   }, [rows, rgyFilter, vsdFilter, connFilter, q, dealTypeFilter, bopmFilter, registeredNames, bopmStaffedDealIds]);
+
+  const sorted = useMemo(() => {
+    if (!sortKey) return filtered;
+    const rgyOrder: Record<Rgy, number> = { R: 0, Y: 1, G: 2 };
+    const dir = sortDir === "asc" ? 1 : -1;
+    const arr = [...filtered];
+    arr.sort((a, b) => {
+      let av: any; let bv: any;
+      switch (sortKey) {
+        case "is_connected": av = a.is_connected ? 1 : 0; bv = b.is_connected ? 1 : 0; break;
+        case "last_msg_at":
+          av = a.last_msg_at ? new Date(a.last_msg_at).getTime() : 0;
+          bv = b.last_msg_at ? new Date(b.last_msg_at).getTime() : 0; break;
+        case "msg_count_90d": av = a.msg_count_90d; bv = b.msg_count_90d; break;
+        case "rgy": av = rgyOrder[a.rgy]; bv = rgyOrder[b.rgy]; break;
+        case "channel_name": av = (a.channel_name || "").toLowerCase(); bv = (b.channel_name || "").toLowerCase(); break;
+        default: av = ((a as any)[sortKey] || "").toString().toLowerCase(); bv = ((b as any)[sortKey] || "").toString().toLowerCase();
+      }
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return 0;
+    });
+    return arr;
+  }, [filtered, sortKey, sortDir]);
 
   const kpi = useMemo(() => {
     const total = rows.length;
@@ -289,7 +321,7 @@ export function SlackReviewTab() {
       </div>
 
       {view === "list" ? (
-        <ConnectionTable rows={filtered} />
+        <ConnectionTable rows={sorted} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
       ) : (
         <Dashboard rows={filtered} byVsd={byVsd} bySrBopm={bySrBopm} kpi={kpi} />
       )}
