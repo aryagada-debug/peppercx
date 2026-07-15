@@ -107,8 +107,8 @@ const RgyBlock = ({ letter }: { letter: RgyLetter | undefined }) => {
 };
 
 // ── Inline Editable Cell ──
-function InlineEditCell({ value, onSave, type = "text", prefix = "", placeholder = "—" }: {
-  value: string; onSave: (v: string) => void; type?: string; prefix?: string; placeholder?: string;
+function InlineEditCell({ value, onSave, type = "text", prefix = "", placeholder = "—", displayClassName }: {
+  value: string; onSave: (v: string) => void; type?: string; prefix?: string; placeholder?: string; displayClassName?: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [local, setLocal] = useState(value);
@@ -167,8 +167,12 @@ function InlineEditCell({ value, onSave, type = "text", prefix = "", placeholder
 
   return (
     <div className="group/edit flex items-center gap-1 cursor-pointer" onClick={() => { setLocal(value); setEditing(true); }}>
-      <span className={cn("text-xs font-medium font-mono tabular-nums", value ? "text-foreground" : "text-muted-foreground")}>{prefix}{value || placeholder}</span>
-      <Pencil className="h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover/edit:opacity-100 transition-opacity" />
+      <span className={cn(
+        displayClassName ?? "text-xs font-medium font-mono tabular-nums",
+        value ? "text-foreground" : "text-muted-foreground",
+        "truncate",
+      )}>{prefix}{value || placeholder}</span>
+      <Pencil className="h-2.5 w-2.5 text-muted-foreground/70 opacity-60 group-hover/edit:opacity-100 group-hover/edit:text-primary transition-all shrink-0" />
     </div>
   );
 }
