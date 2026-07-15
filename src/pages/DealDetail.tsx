@@ -1941,7 +1941,7 @@ export default function DealDetail() {
     return <AppLayout><div className="p-8"><Link to="/clients" className="text-primary hover:underline text-sm">← Back to Clients</Link><p className="mt-4 text-muted-foreground">Deal not found.</p></div></AppLayout>;
   }
 
-  const subtitlePrefix = deal.capabilityLine || deal.serviceLineTagging || "";
+  const subtitle = [deal.capabilityLine || deal.serviceLineTagging, deal.account].filter(Boolean).join(" · ");
 
   return (
     <AppLayout>
@@ -1964,35 +1964,7 @@ export default function DealDetail() {
               <h1 className="text-2xl font-semibold tracking-tight text-foreground leading-tight">{deal.dealName}</h1>
             )}
             <div className="text-sm text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
-              {subtitlePrefix && <span>{subtitlePrefix}</span>}
-              {subtitlePrefix && <span className="text-muted-foreground/50">·</span>}
-              {(isAdmin || isVsd) ? (
-                <span className="inline-flex items-center gap-1">
-                  <span className="text-xs uppercase tracking-wider">Client:</span>
-                  <EditableCell
-                    value={deal.account || ""}
-                    onSave={async (v) => {
-                      const trimmed = v.trim();
-                      if (!trimmed || trimmed === (deal.account || "")) return;
-                      // Rename the actual client (cascades to all its deals) when we have a linked client_id
-                      if ((deal as any).clientId) {
-                        const { error: cErr } = await supabase
-                          .from("clients").update({ name: trimmed }).eq("id", (deal as any).clientId);
-                        if (cErr) { toast.error("Failed to rename client"); return; }
-                        const { error: dErr } = await supabase
-                          .from("staffing_deals").update({ account: trimmed }).eq("client_id", (deal as any).clientId);
-                        if (dErr) toast.error("Client renamed, but failed to sync deals");
-                        else toast.success(`Client renamed to "${trimmed}"`);
-                      } else {
-                        handleDealFieldSave("account", trimmed);
-                      }
-                    }}
-                    placeholder="—"
-                  />
-                </span>
-              ) : (
-                <span>{deal.account}</span>
-              )}
+              <span>{subtitle}</span>
               <span className="text-muted-foreground/50">·</span>
               <span className="inline-flex items-center gap-1">
                 <span className="text-xs uppercase tracking-wider">Deal ID:</span>

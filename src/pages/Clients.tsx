@@ -107,61 +107,6 @@ const RgyBlock = ({ letter }: { letter: RgyLetter | undefined }) => {
 };
 
 // ── Inline Editable Cell ──
-function ClientNameCell({ name, canEdit, onRename }: {
-  name: string; canEdit: boolean; onRename: (v: string) => void | Promise<void>;
-}) {
-  const [open, setOpen] = useState(false);
-  const [value, setValue] = useState(name);
-  const [saving, setSaving] = useState(false);
-  useEffect(() => { if (open) setValue(name); }, [open, name]);
-
-  if (!canEdit) {
-    return <span className="text-xs font-medium text-foreground truncate block">{name}</span>;
-  }
-
-  const submit = async () => {
-    const trimmed = value.trim();
-    if (!trimmed || trimmed === name) { setOpen(false); return; }
-    setSaving(true);
-    try { await onRename(trimmed); } finally { setSaving(false); setOpen(false); }
-  };
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          onClick={(e) => e.stopPropagation()}
-          className="group/edit flex items-center gap-1 min-w-0 text-left"
-          title="Rename client"
-        >
-          <span className="text-xs font-medium text-foreground truncate block flex-1 min-w-0">{name}</span>
-          <Pencil className="h-3 w-3 text-muted-foreground/50 group-hover/edit:text-primary opacity-0 group-hover/edit:opacity-100 transition-opacity flex-none" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-72 p-3" onClick={(e) => e.stopPropagation()}>
-        <div className="space-y-2">
-          <label className="text-caption text-muted-foreground">Rename client</label>
-          <Input
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            autoFocus
-            disabled={saving}
-            onKeyDown={(e) => { if (e.key === "Enter") submit(); if (e.key === "Escape") setOpen(false); }}
-          />
-          <div className="flex justify-end gap-2 pt-1">
-            <Button size="sm" variant="outline" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button>
-            <Button size="sm" onClick={submit} disabled={saving || !value.trim() || value.trim() === name}>
-              {saving ? "Saving…" : "Save"}
-            </Button>
-          </div>
-          <p className="text-[10px] text-muted-foreground">Renames this client everywhere and updates all its deals.</p>
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
 function InlineEditCell({ value, onSave, type = "text", prefix = "", placeholder = "—" }: {
   value: string; onSave: (v: string) => void; type?: string; prefix?: string; placeholder?: string;
 }) {
@@ -236,7 +181,7 @@ export default function Clients() {
   const ValueIcon = currency === "USD" ? DollarSign : IndianRupee;
   const { deals: allDeals, people, assignments, loading: staffLoading, refresh: refreshStaffing } = useStaffingQueries();
   const { updateDeal, addAssignment, updateAssignment, deleteAssignment } = useStaffingMutations();
-  const { clients: allClients, loading: clientsLoading, addClient, updateClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
+  const { clients: allClients, loading: clientsLoading, addClient, deleteClient, deleteDeal, refresh: refreshClients } = useClients();
   const access = useDealAccess();
   const { matchesDeal: geoMatchesDeal, geo: geoFilter } = useGeoFilter();
   const isCentralCx = access.isAdmin;
@@ -348,7 +293,6 @@ export default function Clients() {
   const [showClosed, setShowClosed] = useState(false);
 
   const [clientDialogOpen, setClientDialogOpen] = useState(false);
-  const [editingClient, setEditingClient] = useState<import("@/hooks/useClients").Client | null>(null);
   const [dealWizardOpen, setDealWizardOpen] = useState(false);
   const [dealWizardClientId, setDealWizardClientId] = useState<string | undefined>();
 
@@ -1285,28 +1229,7 @@ export default function Clients() {
                   const cellByKey: Record<string, React.ReactNode> = {
                     account: (
                       <td key="account" className="py-2 px-3 truncate" title={deal.account}>
-                        <ClientNameCell
-                          name={deal.account || ""}
-                          canEdit={!!clientObj && (canEditAll || isVsdViewer)}
-                          onRename={async (newName) => {
-                            if (!clientObj) return;
-                            const trimmed = newName.trim();
-                            if (!trimmed || trimmed === clientObj.name) return;
-                            await updateClient(clientObj.id, { name: trimmed });
-                            // Cascade the new name onto every deal denormalized `account` field
-                            const { error } = await supabase
-                              .from("staffing_deals")
-                              .update({ account: trimmed })
-                              .eq("client_id", clientObj.id);
-                            if (error) {
-                              toast.error("Client renamed, but failed to sync deals");
-                            } else {
-                              toast.success(`Client renamed to "${trimmed}"`);
-                            }
-                            void refreshClients();
-                            void refreshStaffing();
-                          }}
-                        />
+                        <span className="text-xs font-medium text-foreground truncate block">{deal.account}</span>
                       </td>
                     ),
                     dealName: (
@@ -1676,17 +1599,8 @@ export default function Clients() {
       {/* Dialogs */}
       <ClientFormDialog
         open={clientDialogOpen}
-        onOpenChange={(open) => { setClientDialogOpen(open); if (!open) setEditingClient(null); }}
-        title={editingClient ? "Edit Client" : "Add Client"}
-        initial={editingClient || undefined}
+        onOpenChange={setClientDialogOpen}
         onSubmit={async (client) => {
-          if (editingClient) {
-            await updateClient(editingClient.id, client);
-            toast.success(`Client "${client.name}" updated`);
-            void refreshClients();
-            void refreshStaffing();
-            return;
-          }
           if (!canEditAll) {
             await submitApprovalRequest({
               type: "client.create",
