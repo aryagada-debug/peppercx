@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, RefreshCw, Search, Hash, AlertCircle, Sparkles } from "lucide-react";
+import { Loader2, RefreshCw, Search, Hash, AlertCircle, Sparkles, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
@@ -81,15 +81,16 @@ function useSlackHealth() {
         };
         return {
           ...h,
-          account: d.account || "",
-          deal_name: d.deal_name || "",
-          vsd: d.vsd || "",
-          senior_bopm: d.senior_bopm || "",
-          principal_bopm: d.principal_bopm || "",
+          account: (d.account || "").trim(),
+          deal_name: (d.deal_name || "").trim(),
+          vsd: (d.vsd || "").trim(),
+          senior_bopm: (d.senior_bopm || "").trim(),
+          principal_bopm: (d.principal_bopm || "").trim(),
+          bopm: (d.bopm || "").trim(),
           mrr: Number(d.mrr) || 0,
-          deal_type: d.deal_type || "",
-          principalBopm: d.principal_bopm || "",
-          seniorBopm: d.senior_bopm || "",
+          deal_type: (d.deal_type || "").trim(),
+          principalBopm: (d.principal_bopm || "").trim(),
+          seniorBopm: (d.senior_bopm || "").trim(),
         };
       });
     },
