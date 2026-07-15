@@ -12,6 +12,11 @@ import { formatDistanceToNow } from "date-fns";
 import { BopmFilter, dealMatchesBopm, useStaffedDealIdsByName } from "@/components/access/BopmFilter";
 import { DealTypeFilter, dealMatchesType, type DealTypeFilterValue } from "@/components/filters/DealTypeFilter";
 import { useAllPersonNames } from "@/hooks/queries/legacy";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { loadSlackChannels, type SlackChannel } from "@/lib/slackChannels";
+import { useUserRole } from "@/hooks/useUserRole";
+import { Link2, X } from "lucide-react";
+import { useEffect } from "react";
 
 type Rgy = "R" | "Y" | "G";
 
@@ -116,6 +121,7 @@ function slackLink(channelId: string | null) {
 export function SlackReviewTab() {
   const { data, isLoading, refetch, isFetching } = useSlackHealth();
   const qc = useQueryClient();
+  const { isAdmin } = useUserRole();
   const [view, setView] = useState<"list" | "dashboard">("list");
   const [rgyFilter, setRgyFilter] = useState<string>("");
   const [vsdFilter, setVsdFilter] = useState<string>("");
@@ -321,7 +327,7 @@ export function SlackReviewTab() {
       </div>
 
       {view === "list" ? (
-        <ConnectionTable rows={sorted} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+        <ConnectionTable rows={sorted} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} canLink={isAdmin} />
       ) : (
         <Dashboard rows={filtered} byVsd={byVsd} bySrBopm={bySrBopm} kpi={kpi} />
       )}
@@ -344,11 +350,12 @@ function KpiCard({ label, value, tone }: { label: string; value: number; tone?: 
 }
 
 type SortKeyT = "account" | "deal_name" | "vsd" | "senior_bopm" | "is_connected" | "channel_name" | "last_msg_at" | "msg_count_90d" | "rgy";
-function ConnectionTable({ rows, sortKey, sortDir, onSort }: {
+function ConnectionTable({ rows, sortKey, sortDir, onSort, canLink }: {
   rows: Combined[];
   sortKey: SortKeyT | null;
   sortDir: "asc" | "desc";
   onSort: (k: SortKeyT) => void;
+  canLink: boolean;
 }) {
   if (rows.length === 0) {
     return <div className="text-center text-sm text-muted-foreground py-12">No deals match these filters.</div>;
@@ -404,17 +411,7 @@ function ConnectionTable({ rows, sortKey, sortDir, onSort }: {
                     )}
                   </td>
                   <td className="px-3 py-2">
-                    {r.channel_id ? (
-                      link ? (
-                        <a href={link} className="text-primary hover:underline inline-flex items-center gap-1">
-                          <Hash className="h-3 w-3" /> {r.channel_name || r.channel_id}
-                        </a>
-                      ) : (
-                        <span className="inline-flex items-center gap-1"><Hash className="h-3 w-3" /> {r.channel_name || r.channel_id}</span>
-                      )
-                    ) : (
-                      <span className="text-muted-foreground">-</span>
-                    )}
+                    <ChannelLinkCell row={r} canLink={canLink} />
                   </td>
                   <td className="px-3 py-2 text-right text-muted-foreground">
                     {r.last_msg_at ? formatDistanceToNow(new Date(r.last_msg_at), { addSuffix: true }) : "-"}
@@ -440,6 +437,143 @@ function ConnectionTable({ rows, sortKey, sortDir, onSort }: {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+function ChannelLinkCell({ row, canLink }: { row: Combined; canLink: boolean }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [channels, setChannels] = useState<SlackChannel[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [q, setQ] = useState("");
+  const [saving, setSaving] = useState(false);
+  const link = slackLink(row.channel_id);
+
+  useEffect(() => {
+    if (!open || channels.length) return;
+    setLoading(true);
+    loadSlackChannels()
+      .then(setChannels)
+      .catch((e) => toast.error(e instanceof Error ? e.message : "Failed to load channels"))
+      .finally(() => setLoading(false));
+  }, [open, channels.length]);
+
+  const filtered = useMemo(() => {
+    const ql = q.trim().toLowerCase();
+    if (!ql) return channels;
+    return channels.filter((c) => c.name.toLowerCase().includes(ql));
+  }, [channels, q]);
+
+  const patchCache = (channelId: string, channelName: string, isConnected: boolean) => {
+    qc.setQueryData<Combined[]>(["slack-health"], (prev) =>
+      prev?.map((x) =>
+        x.deal_id === row.deal_id
+          ? { ...x, channel_id: channelId || null, channel_name: channelName || null, is_connected: isConnected }
+          : x,
+      ),
+    );
+  };
+
+  const linkTo = async (ch: SlackChannel) => {
+    setSaving(true);
+    const { error } = await supabase.from("staffing_deals").update({ slack_channel_id: ch.id }).eq("id", row.deal_id);
+    setSaving(false);
+    if (error) { toast.error("Failed to link channel"); return; }
+    toast.success(`Linked #${ch.name}`);
+    patchCache(ch.id, ch.name, true);
+    setOpen(false);
+    supabase.functions.invoke("slack-health-rebuild", { body: { dealId: row.deal_id } }).then(() => {
+      qc.invalidateQueries({ queryKey: ["slack-health"] });
+    }).catch(() => {});
+  };
+
+  const unlink = async () => {
+    setSaving(true);
+    const { error } = await supabase.from("staffing_deals").update({ slack_channel_id: "" }).eq("id", row.deal_id);
+    setSaving(false);
+    if (error) { toast.error("Failed to unlink"); return; }
+    toast.success("Channel unlinked");
+    patchCache("", "", false);
+    setOpen(false);
+  };
+
+  const trigger = row.channel_id ? (
+    <button type="button" className="text-[10px] text-muted-foreground hover:text-primary underline underline-offset-2">
+      Change
+    </button>
+  ) : (
+    <button
+      type="button"
+      className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+    >
+      <Link2 className="h-3 w-3" /> Link channel
+    </button>
+  );
+
+  return (
+    <div className="inline-flex items-center gap-2">
+      {row.channel_id ? (
+        link ? (
+          <a href={link} className="text-primary hover:underline inline-flex items-center gap-1">
+            <Hash className="h-3 w-3" /> {row.channel_name || row.channel_id}
+          </a>
+        ) : (
+          <span className="inline-flex items-center gap-1"><Hash className="h-3 w-3" /> {row.channel_name || row.channel_id}</span>
+        )
+      ) : (
+        !canLink && <span className="text-muted-foreground">-</span>
+      )}
+      {canLink && (
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+          <PopoverContent align="start" className="w-72 p-2">
+            <Input
+              autoFocus
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search channels..."
+              className="h-8 text-xs mb-2"
+            />
+            {row.channel_id && (
+              <button
+                type="button"
+                onClick={unlink}
+                disabled={saving}
+                className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-accent inline-flex items-center gap-1.5 text-destructive"
+              >
+                <X className="h-3 w-3" /> Remove current link
+              </button>
+            )}
+            <div className="max-h-64 overflow-y-auto mt-1">
+              {loading ? (
+                <div className="flex items-center justify-center py-6 text-muted-foreground text-xs">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> Loading channels...
+                </div>
+              ) : filtered.length === 0 ? (
+                <div className="text-center text-xs text-muted-foreground py-6">No channels found</div>
+              ) : (
+                filtered.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    disabled={saving || c.id === row.channel_id}
+                    onClick={() => linkTo(c)}
+                    className={cn(
+                      "w-full text-left px-2 py-1.5 text-xs rounded hover:bg-accent inline-flex items-center gap-1.5",
+                      c.id === row.channel_id && "opacity-50 cursor-default",
+                    )}
+                  >
+                    <Hash className="h-3 w-3 text-muted-foreground" />
+                    <span className="truncate">{c.name}</span>
+                    {c.is_private && <span className="ml-auto text-[10px] text-muted-foreground">private</span>}
+                  </button>
+                ))
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
+      )}
     </div>
   );
 }
