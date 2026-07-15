@@ -1230,18 +1230,28 @@ export default function Clients() {
                   const cellByKey: Record<string, React.ReactNode> = {
                     account: (
                       <td key="account" className="py-2 px-3 truncate" title={deal.account}>
-                        <div className="flex items-center gap-1 group/edit min-w-0">
-                          <span className="text-xs font-medium text-foreground truncate block flex-1 min-w-0">{deal.account}</span>
-                          {clientObj && canEditAll && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setEditingClient(clientObj); setClientDialogOpen(true); }}
-                              className="text-muted-foreground/50 hover:text-primary opacity-0 group-hover/edit:opacity-100 transition-opacity flex-none"
-                              title="Edit client"
-                            >
-                              <Pencil className="h-3 w-3" />
-                            </button>
-                          )}
-                        </div>
+                        <ClientNameCell
+                          name={deal.account || ""}
+                          canEdit={!!clientObj && (canEditAll || isVsdViewer)}
+                          onRename={async (newName) => {
+                            if (!clientObj) return;
+                            const trimmed = newName.trim();
+                            if (!trimmed || trimmed === clientObj.name) return;
+                            await updateClient(clientObj.id, { name: trimmed });
+                            // Cascade the new name onto every deal denormalized `account` field
+                            const { error } = await supabase
+                              .from("staffing_deals")
+                              .update({ account: trimmed })
+                              .eq("client_id", clientObj.id);
+                            if (error) {
+                              toast.error("Client renamed, but failed to sync deals");
+                            } else {
+                              toast.success(`Client renamed to "${trimmed}"`);
+                            }
+                            void refreshClients();
+                            void refreshStaffing();
+                          }}
+                        />
                       </td>
                     ),
                     dealName: (
