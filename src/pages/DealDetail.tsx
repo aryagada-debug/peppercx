@@ -1966,12 +1966,27 @@ export default function DealDetail() {
             <div className="text-sm text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
               {subtitlePrefix && <span>{subtitlePrefix}</span>}
               {subtitlePrefix && <span className="text-muted-foreground/50">·</span>}
-              {isAdmin ? (
+              {(isAdmin || isVsd) ? (
                 <span className="inline-flex items-center gap-1">
                   <span className="text-xs uppercase tracking-wider">Client:</span>
                   <EditableCell
                     value={deal.account || ""}
-                    onSave={(v) => handleDealFieldSave("account", v)}
+                    onSave={async (v) => {
+                      const trimmed = v.trim();
+                      if (!trimmed || trimmed === (deal.account || "")) return;
+                      // Rename the actual client (cascades to all its deals) when we have a linked client_id
+                      if ((deal as any).clientId) {
+                        const { error: cErr } = await supabase
+                          .from("clients").update({ name: trimmed }).eq("id", (deal as any).clientId);
+                        if (cErr) { toast.error("Failed to rename client"); return; }
+                        const { error: dErr } = await supabase
+                          .from("staffing_deals").update({ account: trimmed }).eq("client_id", (deal as any).clientId);
+                        if (dErr) toast.error("Client renamed, but failed to sync deals");
+                        else toast.success(`Client renamed to "${trimmed}"`);
+                      } else {
+                        handleDealFieldSave("account", trimmed);
+                      }
+                    }}
                     placeholder="—"
                   />
                 </span>
