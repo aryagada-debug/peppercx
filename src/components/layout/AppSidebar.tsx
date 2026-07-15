@@ -105,9 +105,7 @@ export function AppSidebar() {
     if (section.label === "Core") {
       return {
         ...section,
-        items: (isAdmin || isActuallyAdmin)
-          ? [...section.items, { to: "/contacts", icon: Contact, label: "Contacts", routeKey: "home" }]
-          : section.items,
+        items: [...section.items, { to: "/contacts", icon: Contact, label: "Contacts", routeKey: "home" }],
       };
     }
     if (section.label === "Health & Reviews" && isLeader) {
