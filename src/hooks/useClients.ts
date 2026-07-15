@@ -140,6 +140,18 @@ export function useClients() {
 
     setClients(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
     await supabase.from("clients").update(dbUpdates).eq("id", id);
+
+    // Keep the snapshot on staffing_deals.account in sync when the client
+    // name changes, so the Clients & Deals grid and every downstream view
+    // pick up the new name immediately.
+    if (updates.name !== undefined) {
+      await supabase
+        .from("staffing_deals")
+        .update({ account: updates.name })
+        .eq("client_id", id);
+      qc.invalidateQueries({ queryKey: qk.deals() });
+      qc.invalidateQueries({ queryKey: qk.dealsLite() });
+    }
   }, [setClients]);
 
   const deleteClient = useCallback(async (clientId: string) => {
