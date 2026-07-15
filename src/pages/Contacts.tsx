@@ -61,11 +61,12 @@ export default function Contacts() {
   const [stakeholdersRaw, setStakeholdersRaw] = useState<Stakeholder[]>([]);
   const [byDealDeals, setByDealDeals] = useState<ByDealDeal[]>([]);
   const [loading, setLoading] = useState(true);
+  // ── Global filters shared across all sub-tabs ──
   const [q, setQ] = useState("");
-  const [teamF, setTeamF] = useState("all");
-  const [regionF, setRegionF] = useState("all");
   const [vsdF, setVsdF] = useState("all");
-  const [influenceF, setInfluenceF] = useState("all");
+  const [bopmF, setBopmF] = useState("all");
+  const [statusF, setStatusF] = useState("Active Deal");
+  const [onlyMissing, setOnlyMissing] = useState(false);
   const [reloadTick, setReloadTick] = useState(0);
 
   useEffect(() => {
@@ -156,28 +157,59 @@ export default function Contacts() {
     return () => { cancelled = true; };
   }, [canView, roleLoading, accessLoading, isAdminEffective, visibleDealIds, reloadTick]);
 
-  const teams = useMemo(() => Array.from(new Set(rows.map(r => r.function).filter(Boolean))).sort(), [rows]);
-  const regions = useMemo(() => Array.from(new Set(rows.map(r => r.region).filter(Boolean))).sort(), [rows]);
-  const vsds = useMemo(() => Array.from(new Set(rows.map(r => r.vsd).filter(Boolean))).sort(), [rows]);
+  // Global filter option lists (from all in-scope deals).
+  const vsdOpts = useMemo(
+    () => Array.from(new Set(allDeals.map(d => d.vsd).filter(Boolean))).sort(),
+    [allDeals],
+  );
+  const bopmOpts = useMemo(() => {
+    const set = new Set<string>();
+    for (const d of allDeals) {
+      for (const part of (d.bopm || "").split(",").map(x => x.trim()).filter(Boolean)) {
+        set.add(part);
+      }
+    }
+    return Array.from(set).sort();
+  }, [allDeals]);
+  const statusOpts = useMemo(
+    () => Array.from(new Set(allDeals.map(d => d.deal_status).filter(Boolean))).sort(),
+    [allDeals],
+  );
 
+  // Deal IDs surviving the global filters — used to scope the flat Contacts tab.
+  const filteredDealIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const d of allDeals) {
+      if (statusF !== "all" && d.deal_status !== statusF) continue;
+      if (vsdF !== "all" && d.vsd !== vsdF) continue;
+      if (bopmF !== "all") {
+        const parts = (d.bopm || "").toLowerCase().split(",").map(x => x.trim());
+        if (!parts.includes(bopmF.toLowerCase())) continue;
+      }
+      set.add(d.id);
+    }
+    return set;
+  }, [allDeals, statusF, vsdF, bopmF]);
+
+  // Contacts tab: scope by global filters + free-text search + "show missing".
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
     return rows.filter(r => {
-      if (teamF !== "all" && r.function !== teamF) return false;
-      if (regionF !== "all" && r.region !== regionF) return false;
-      if (vsdF !== "all" && r.vsd !== vsdF) return false;
-      if (influenceF !== "all" && String(r.decision_power) !== influenceF) return false;
+      if (!filteredDealIds.has(r.deal_id)) return false;
+      if (onlyMissing) {
+        const complete = !!(
+          r.name?.trim() && r.role?.trim() && r.email?.trim() && r.linkedin_url?.trim() && r.function?.trim() && r.city?.trim()
+        );
+        if (complete) return false;
+      }
       if (!s) return true;
-      return [r.name, r.email, r.role, r.client_name, r.deal_id, r.vsd].some(v => v?.toLowerCase().includes(s));
+      return [r.name, r.email, r.role, r.client_name, r.deal_id, r.vsd, r.bopm].some(v => v?.toLowerCase().includes(s));
     });
-  }, [rows, q, teamF, regionF, vsdF, influenceF]);
+  }, [rows, q, filteredDealIds, onlyMissing]);
 
   const dealCount = useMemo(() => new Set(filtered.map(r => r.deal_id)).size, [filtered]);
 
   // ── Insights: per-deal contact counts grouped by VSD ──
-  const [insightsVsdF, setInsightsVsdF] = useState("all");
-  const [insightsStatusF, setInsightsStatusF] = useState("Active Deal");
-  const [insightsOnlyMissing, setInsightsOnlyMissing] = useState(false);
   const [insightsSort, setInsightsSort] = useState<SortState>({ sortKey: "contactCount", sortDir: "asc" });
   const [insightsColFilters, setInsightsColFilters] = useState<Record<string, string>>({});
   const [insightsOpenFilter, setInsightsOpenFilter] = useState<string | null>(null);
@@ -197,14 +229,6 @@ export default function Contacts() {
     setInsightsColFilters(prev => Object.fromEntries(Object.entries(prev).filter(([kk]) => kk !== k)));
   const toggleInsightsSort = (k: string) =>
     setInsightsSort(s => (s.sortKey === k ? { sortKey: k, sortDir: s.sortDir === "asc" ? "desc" : "asc" } : { sortKey: k, sortDir: "asc" }));
-  const dealStatuses = useMemo(
-    () => Array.from(new Set(allDeals.map(d => d.deal_status).filter(Boolean))).sort(),
-    [allDeals],
-  );
-  const insightsVsdOptions = useMemo(
-    () => Array.from(new Set(allDeals.map(d => d.vsd || "Unassigned"))).sort(),
-    [allDeals],
-  );
   // Org Mapping shares stakeholders across all deals of the same client (keyed
   // on client_name). Mirror that here so Insights doesn't flag a deal as
   // "missing" when opening its Org Map would actually show contacts.
@@ -227,21 +251,23 @@ export default function Contacts() {
   const insightsGroups = useMemo(() => {
     const accountF = (insightsColFilters.account || "").toLowerCase();
     const dealF = (insightsColFilters.deal || "").toLowerCase();
-    const bopmF = (insightsColFilters.bopm || "").toLowerCase();
+    const bopmColF = (insightsColFilters.bopm || "").toLowerCase();
     const regionF = (insightsColFilters.region || "").toLowerCase();
-    const statusF = (insightsColFilters.status || "").toLowerCase();
+    const statusColF = (insightsColFilters.status || "").toLowerCase();
     const countF = insightsColFilters.contactCount;
+    const gSearch = q.trim().toLowerCase();
     const scoped = allDeals.filter(d => {
-      if (insightsStatusF !== "all" && d.deal_status !== insightsStatusF) return false;
-      const vsd = d.vsd || "Unassigned";
-      if (insightsVsdF !== "all" && vsd !== insightsVsdF) return false;
+      // Global filters
+      if (!filteredDealIds.has(d.id)) return false;
       const count = getDealContactCount(d);
-      if (insightsOnlyMissing && count > 0) return false;
+      if (onlyMissing && count > 0) return false;
+      if (gSearch && ![d.account, d.deal_name, d.vsd, d.bopm].some(v => v?.toLowerCase().includes(gSearch))) return false;
+      // Per-column filters
       if (accountF && !(d.account || "").toLowerCase().includes(accountF)) return false;
       if (dealF && !(d.deal_name || "").toLowerCase().includes(dealF)) return false;
-      if (bopmF && !(d.bopm || "").toLowerCase().includes(bopmF)) return false;
+      if (bopmColF && !(d.bopm || "").toLowerCase().includes(bopmColF)) return false;
       if (regionF && (d.region || "").toLowerCase() !== regionF) return false;
-      if (statusF && (d.deal_status || "").toLowerCase() !== statusF) return false;
+      if (statusColF && (d.deal_status || "").toLowerCase() !== statusColF) return false;
       if (countF !== undefined && countF !== "" && count !== Number(countF)) return false;
       return true;
     });
@@ -270,7 +296,7 @@ export default function Contacts() {
         deals: g.deals.sort(cmp),
       }))
       .sort((a, b) => b.missing - a.missing || a.vsd.localeCompare(b.vsd));
-  }, [allDeals, contactsByClient, contactsByDealFallback, insightsVsdF, insightsStatusF, insightsOnlyMissing, insightsColFilters, insightsSort]);
+  }, [allDeals, contactsByClient, contactsByDealFallback, filteredDealIds, onlyMissing, q, insightsColFilters, insightsSort]);
 
   const sortedInsightsGroups = useMemo(() => {
     const dir = vsdSort.dir === "asc" ? 1 : -1;
@@ -338,6 +364,52 @@ export default function Contacts() {
             )}
           </p>
         </div>
+        <Button size="sm" onClick={exportXlsx} disabled={!filtered.length}>
+          <Download className="h-4 w-4" /> Export to Excel
+        </Button>
+      </div>
+
+      {/* Global filter bar — applies to all sub-tabs */}
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-3 py-2.5">
+        <div className="relative flex-1 min-w-[240px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Search client, deal, VSD, BOPM, contact…" className="pl-9 h-9 border-0 bg-transparent focus-visible:ring-1" />
+        </div>
+        <Select value={vsdF} onValueChange={setVsdF}>
+          <SelectTrigger className="h-9 w-[180px]"><SelectValue placeholder="All VSDs" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All VSDs</SelectItem>
+            {vsdOpts.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={bopmF} onValueChange={setBopmF}>
+          <SelectTrigger className="h-9 w-[200px]"><SelectValue placeholder="All BOPMs" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All BOPMs</SelectItem>
+            {bopmOpts.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={statusF} onValueChange={setStatusF}>
+          <SelectTrigger className="h-9 w-[180px]"><SelectValue placeholder="All statuses" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            {statusOpts.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Button
+          size="sm"
+          variant={onlyMissing ? "default" : "outline"}
+          onClick={() => setOnlyMissing(v => !v)}
+          className="h-9"
+        >
+          <AlertTriangle className="h-4 w-4" />
+          {onlyMissing ? "Showing missing only" : "Show missing only"}
+        </Button>
+        {(q || vsdF !== "all" || bopmF !== "all" || statusF !== "Active Deal" || onlyMissing) && (
+          <Button size="sm" variant="ghost" onClick={() => { setQ(""); setVsdF("all"); setBopmF("all"); setStatusF("Active Deal"); setOnlyMissing(false); }} className="h-9">
+            Reset
+          </Button>
+        )}
       </div>
 
       <Tabs defaultValue={isAdminEffective ? "contacts" : "by-deal"} className="space-y-4">
@@ -354,50 +426,15 @@ export default function Contacts() {
             loading={loading}
             canEdit={true}
             onChanged={() => setReloadTick(t => t + 1)}
+            search={q}
+            vsdF={vsdF}
+            bopmF={bopmF}
+            statusF={statusF}
+            onlyMissing={onlyMissing}
           />
         </TabsContent>
 
         <TabsContent value="contacts" className="space-y-4 mt-0">
-          <div className="flex justify-end">
-            <Button size="sm" onClick={exportXlsx} disabled={!filtered.length}>
-              <Download className="h-4 w-4" /> Export to Excel
-            </Button>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[240px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-          <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Search name, email, role, deal, VSD…" className="pl-9 h-9" />
-        </div>
-        <Select value={teamF} onValueChange={setTeamF}>
-          <SelectTrigger className="h-9 w-[200px]"><SelectValue placeholder="All teams" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All teams</SelectItem>
-            {teams.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={regionF} onValueChange={setRegionF}>
-          <SelectTrigger className="h-9 w-[150px]"><SelectValue placeholder="All regions" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All regions</SelectItem>
-            {regions.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={vsdF} onValueChange={setVsdF}>
-          <SelectTrigger className="h-9 w-[180px]"><SelectValue placeholder="All VSDs" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All VSDs</SelectItem>
-            {vsds.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={influenceF} onValueChange={setInfluenceF}>
-          <SelectTrigger className="h-9 w-[150px]"><SelectValue placeholder="All influence" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All influence</SelectItem>
-            {[1, 2, 3, 4, 5].map(n => <SelectItem key={n} value={String(n)}>{n} of 5</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
-
       <div className="rounded-lg border border-border bg-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
