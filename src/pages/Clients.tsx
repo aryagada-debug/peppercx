@@ -1230,7 +1230,18 @@ export default function Clients() {
                   const cellByKey: Record<string, React.ReactNode> = {
                     account: (
                       <td key="account" className="py-2 px-3 truncate" title={deal.account}>
-                        <span className="text-xs font-medium text-foreground truncate block">{deal.account}</span>
+                        <div className="flex items-center gap-1 group/edit min-w-0">
+                          <span className="text-xs font-medium text-foreground truncate block flex-1 min-w-0">{deal.account}</span>
+                          {clientObj && canEditAll && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setEditingClient(clientObj); setClientDialogOpen(true); }}
+                              className="text-muted-foreground/50 hover:text-primary opacity-0 group-hover/edit:opacity-100 transition-opacity flex-none"
+                              title="Edit client"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     ),
                     dealName: (
