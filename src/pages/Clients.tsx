@@ -1222,7 +1222,9 @@ export default function Clients() {
               </thead>
               <tbody>
                 {tableRows.map(deal => {
-                  const clientObj = clients.find(c => c.name === deal.account);
+                  const clientObj =
+                    (deal.clientId && allClients.find(c => c.id === deal.clientId)) ||
+                    allClients.find(c => c.name === deal.account);
                   const leads = leadByDeal[deal.id] || {};
                   const dealCcy = dealDisplayCurrency(deal as any, currency);
                   const sym = CURRENCY_SYMBOL[dealCcy];
