@@ -1,25 +1,16 @@
-## Root cause
+## Add "Download CSV" to Clients & Deals
 
-The current suppression in `supabase/functions/send-app-email/index.ts` (around line 505-507) only skips when the **assignee** being staffed is Anirudh:
+Add an export button in the Clients & Deals page header (next to the existing action buttons) that downloads a CSV of the currently-visible rows.
 
-```ts
-if (STAFFING_EMAIL_SUPPRESSED.has(person.email.trim().toLowerCase())) return null;
-```
+### Behavior
+- Respects every active filter/scope already applied on the page: search, VSD filter, BOPM filter, per-column filters, renewal filter, show/hide closed, geo scope, and role-based deal visibility.
+- Exports the current `filteredDeals` list (same data feeding the table), not the raw dataset.
+- Column set = all `ALL_COLS` fields (Client, Deal Name, Deal ID, PC Code, Month Closed Won, Type, Status, Pepper BU, Capability Line, VSD, P/Sr BOPM, BOPM, Content Lead, SEO Lead, MRR, Retainer Value, Non-Retainer Value, Total Revenue, Duration, RGY) — a full export regardless of which columns are hidden in the UI, so users can toggle columns purely for viewing without losing them in exports.
+- Currency values exported in the active currency (INR/USD) matching what's shown on screen; RGY exported as letter (R/Y/G/NA/PENDING).
+- Filename: `clients-deals-YYYY-MM-DD.csv`.
 
-But staffing/allocation emails (`staffed`, `staffing_changed`, `staffing_removed`) also reach other people via the notification rule system (lines 849-871). The `assignment.created` rule expands `extra_to`, `cc_tokens`, and `extra_cc` — and `{assignee_manager}` resolves to the assignee's manager in `staffing_people`. Since Anirudh is a manager/VSD for many people, he gets copied on their staffing emails through this path, bypassing the current per-assignee suppression.
-
-## Fix
-
-In `supabase/functions/send-app-email/index.ts`, apply the suppression to the **final recipient lists** (both `to` and `cc`) for staffing/allocation events, right before `buildRaw` is called (around line 870).
-
-1. Keep the existing early return (still useful when Anirudh is the direct assignee).
-2. Add a global filter for staffing events: if `inp.event` is one of `staffed | staffing_changed | staffing_removed`, remove any address matching the suppression set (case-insensitive) from both `finalTo` and `cc`.
-3. If `finalTo` becomes empty after filtering, skip the send and log `skipped: true, reason: "all_recipients_suppressed"`.
-4. Lift the `STAFFING_EMAIL_SUPPRESSED` set to module scope so both the early-return and the new final-list filter share one source of truth.
-
-No other files change. Deploy `send-app-email` after the edit.
-
-## Verification
-
-- Trigger a staffing change for a report of Anirudh's and confirm the email log shows no row with `recipient_email = anirudh@peppercontent.io` for staffed/staffing_changed/staffing_removed events.
-- Non-staffing events (MBR, RGY, handover, etc.) remain unaffected.
+### Implementation notes (technical)
+- Pure frontend change in `src/pages/Clients.tsx`. No backend, no schema.
+- Add a small `exportToCsv()` helper (CSV-escape quotes/commas/newlines) and a `Download` icon button in the header row that currently holds "Add Client / Add Deal / column picker".
+- Reuse the already-computed filtered/sorted deal array + `clients` map + `rgyRollup` + `format` currency helper so exports stay consistent with the visible table.
+- No new dependency; use a Blob + anchor download.
