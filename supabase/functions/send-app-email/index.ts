@@ -502,6 +502,9 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
     if (!input.personId) return null;
     const person = await loadPerson(admin, input.personId);
     if (!person?.email || !/@/.test(person.email)) return null;
+    // Suppression list: never send staffing/allocation emails to these addresses.
+    const STAFFING_EMAIL_SUPPRESSED = new Set(["anirudh@peppercontent.io"]);
+    if (STAFFING_EMAIL_SUPPRESSED.has(person.email.trim().toLowerCase())) return null;
     const pct = formatPct(input.payload?.allocationPct);
     const role = String(input.payload?.roleKey || "").replace(/_/g, " ");
     const rule = await loadRule(admin, "assignment.created");
