@@ -373,7 +373,6 @@ export default function Clients() {
     });
   }, []);
   const resetColOrder = () => setVisibleCols(DEFAULT_VISIBLE);
-  const resetColOrder = () => setVisibleCols(DEFAULT_VISIBLE);
 
   // Column widths (resizable)
   const DEFAULT_WIDTHS: Record<string, number> = {
