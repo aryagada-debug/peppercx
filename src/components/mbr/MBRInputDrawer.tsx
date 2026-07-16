@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { CalendarIcon, Loader2, Plus, Trash2, Sparkles } from "lucide-react";
 import { format } from "date-fns";
@@ -37,6 +38,8 @@ interface MBRInputDrawerProps {
     startDate?: string | null;
   };
   existingEntry?: {
+    status?: string | null;
+    weekStart?: string | null;
     sentiment?: string | null;
     fathomLink?: string | null;
     transcript?: string | null;
@@ -44,30 +47,41 @@ interface MBRInputDrawerProps {
     actionItems?: ActionItem[];
     scheduledDate?: string | null;
     anirudhAdded?: boolean;
+    anirudhJoining?: boolean;
     mode?: string | null;
     notes?: string | null;
     mbrPptLink?: string | null;
   } | null;
-  selectedWeek: string;
+  selectedWeek?: string;
   onSave: (data: {
     dealId: string;
     status: string;
     mode: string | null;
     notes: string | null;
     updatedBy: string;
-    sentiment: string;
+    sentiment: string | null;
     fathomLink: string | null;
     transcript: string | null;
     aiSummary: string | null;
     actionItems: ActionItem[];
     scheduledDate: string | null;
     anirudhAdded: boolean;
+    anirudhJoining: boolean;
     mbrPptLink: string | null;
     mbrDate?: string;
   }) => void;
 }
 
+type FieldKey =
+  | "mbrDate"
+  | "sentiment"
+  | "scheduledDate"
+  | "mode"
+  | "notes"
+  | "mbrPptLink";
+
 export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWeek, onSave }: MBRInputDrawerProps) {
+  const [status, setStatus] = useState<string>(existingEntry?.status || "Done");
   const [sentiment, setSentiment] = useState<string>(existingEntry?.sentiment || "");
   const [fathomLink, setFathomLink] = useState(existingEntry?.fathomLink || "");
   const [transcript, setTranscript] = useState(existingEntry?.transcript || "");
@@ -77,11 +91,16 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
     existingEntry?.scheduledDate ? new Date(existingEntry.scheduledDate) : undefined
   );
   const [anirudhAdded, setAnirudhAdded] = useState(existingEntry?.anirudhAdded || false);
+  const [anirudhJoining, setAnirudhJoining] = useState(existingEntry?.anirudhJoining || false);
   const [mode, setMode] = useState(existingEntry?.mode || "");
   const [notes, setNotes] = useState(existingEntry?.notes || "");
   const [mbrPptLink, setMbrPptLink] = useState(existingEntry?.mbrPptLink || "");
   const [mbrDate, setMbrDate] = useState<Date | undefined>(
-    selectedWeek ? new Date(selectedWeek) : new Date()
+    existingEntry?.weekStart
+      ? new Date(existingEntry.weekStart)
+      : selectedWeek
+      ? new Date(selectedWeek)
+      : new Date()
   );
   const [scheduledTime, setScheduledTime] = useState("11:00");
   const [durationMin, setDurationMin] = useState(30);
@@ -90,6 +109,20 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
   const { user } = useAuth();
   const [summarizing, setSummarizing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
+  const fieldRefs: Record<FieldKey, React.MutableRefObject<HTMLDivElement | null>> = {
+    mbrDate: useRef(null),
+    sentiment: useRef(null),
+    scheduledDate: useRef(null),
+    mode: useRef(null),
+    notes: useRef(null),
+    mbrPptLink: useRef(null),
+  };
+
+  const clearError = (k: FieldKey) => setErrors(prev => {
+    if (!prev[k]) return prev;
+    const next = { ...prev }; delete next[k]; return next;
+  });
 
   const handleGenerateSummary = async () => {
     if (!transcript.trim() || transcript.trim().length < 10) {
@@ -121,54 +154,44 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
   };
 
   const handleSubmit = async () => {
-    if (!mbrDate) {
-      toast({ title: "MBR Date required", description: "Please pick the MBR date.", variant: "destructive" });
+    const nextErrors: Partial<Record<FieldKey, string>> = {};
+    if (status === "Done") {
+      if (!mbrDate) nextErrors.mbrDate = "Pick the date the MBR was conducted.";
+      if (!sentiment) nextErrors.sentiment = "Select a sentiment.";
+      if (!scheduledDate) nextErrors.scheduledDate = "Set the next MBR date.";
+      if (!mode) nextErrors.mode = "Pick In-Person or Virtual.";
+      if (!notes.trim()) nextErrors.notes = "Notes are required.";
+      if (!mbrPptLink.trim()) nextErrors.mbrPptLink = "MBR PPT link is required.";
+    }
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors);
+      const firstKey = Object.keys(nextErrors)[0] as FieldKey;
+      fieldRefs[firstKey]?.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      toast({ title: "Please complete the required fields", description: "Highlighted fields need to be filled before saving.", variant: "destructive" });
       return;
     }
-    if (!sentiment) {
-      toast({ title: "Sentiment required", description: "Please select a sentiment color.", variant: "destructive" });
-      return;
-    }
-    if (!transcript.trim()) {
-      toast({ title: "Transcript required", description: "Paste the MBR call transcript.", variant: "destructive" });
-      return;
-    }
-    if (!scheduledDate) {
-      toast({ title: "Next MBR date required", description: "Please set the next MBR date.", variant: "destructive" });
-      return;
-    }
-    if (!mode) {
-      toast({ title: "Meeting Mode required", description: "Pick In-Person or Virtual.", variant: "destructive" });
-      return;
-    }
-    if (!notes.trim()) {
-      toast({ title: "Notes required", description: "Add additional MBR notes.", variant: "destructive" });
-      return;
-    }
-    if (!mbrPptLink.trim()) {
-      toast({ title: "MBR PPT Link required", description: "Paste the MBR deck link.", variant: "destructive" });
-      return;
-    }
+    setErrors({});
     setSubmitting(true);
-    const scheduledDateStr = format(scheduledDate, "yyyy-MM-dd");
+    const scheduledDateStr = scheduledDate ? format(scheduledDate, "yyyy-MM-dd") : null;
     onSave({
       dealId: deal.id,
-      status: "Done",
+      status,
       mode: mode || null,
       notes: notes || null,
       updatedBy: "",
-      sentiment,
+      sentiment: sentiment || null,
       fathomLink: fathomLink || null,
       transcript: transcript || null,
       aiSummary: aiSummary || null,
       actionItems,
       scheduledDate: scheduledDateStr,
       anirudhAdded,
+      anirudhJoining,
       mbrPptLink: mbrPptLink || null,
       mbrDate: mbrDate ? format(mbrDate, "yyyy-MM-dd") : undefined,
     });
     // Best-effort: push to Google Calendar
-    if (calConnected && user) {
+    if (calConnected && user && scheduledDateStr) {
       try {
         const { data: refetched } = await supabase
           .from("mbr_entries")
@@ -205,28 +228,52 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
     { value: "Red", color: "bg-destructive", ring: "ring-destructive" },
   ];
 
+  const isDone = status === "Done";
+  const req = (label: string) => (
+    <>
+      {label} {isDone && <span className="text-destructive">*</span>}
+    </>
+  );
+
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
       <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto p-0">
         <SheetHeader className="p-6 pb-4 border-b border-border">
           <div className="flex items-center justify-between gap-2">
-            <SheetTitle className="text-lg font-semibold text-foreground">Record MBR — {deal.account}</SheetTitle>
+            <SheetTitle className="text-lg font-semibold text-foreground">MBR — {deal.account}</SheetTitle>
             <CalendarConnectButton />
           </div>
           <div className="text-sm text-muted-foreground space-y-0.5">
             <p><span className="font-medium text-foreground">{deal.dealName}</span></p>
-            <p>VSD: {deal.vsd} · PC: {deal.pcCode} · Week: {selectedWeek}</p>
+            <p>VSD: {deal.vsd} · PC: {deal.pcCode}{selectedWeek ? ` · Week: ${selectedWeek}` : ""}</p>
           </div>
         </SheetHeader>
 
         <div className="p-6 space-y-6">
-          {/* MBR Date */}
+          {/* Status */}
           <div>
-            <Label className="text-sm font-medium mb-1.5 block">MBR Date <span className="text-destructive">*</span></Label>
+            <Label className="text-sm font-medium mb-1.5 block">Status <span className="text-destructive">*</span></Label>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Done">Done</SelectItem>
+                <SelectItem value="Not Done">Not Done</SelectItem>
+                <SelectItem value="Pending">Pending</SelectItem>
+                <SelectItem value="Not Required">Not Required</SelectItem>
+              </SelectContent>
+            </Select>
+            {isDone && (
+              <p className="text-[11px] text-muted-foreground mt-1">Fields marked * are required when status is Done.</p>
+            )}
+          </div>
+
+          {/* MBR Date */}
+          <div ref={fieldRefs.mbrDate}>
+            <Label className="text-sm font-medium mb-1.5 block">{req("MBR Date")}</Label>
             <p className="text-xs text-muted-foreground mb-1.5">Select the date this MBR was conducted (defaults to current week, can be backdated)</p>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !mbrDate && "text-muted-foreground")}>
+                <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !mbrDate && "text-muted-foreground", errors.mbrDate && "border-destructive")}>
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {mbrDate ? format(mbrDate, "PPP") : "Pick MBR date"}
                 </Button>
@@ -235,26 +282,27 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
                 <Calendar
                   mode="single"
                   selected={mbrDate}
-                  onSelect={setMbrDate}
+                  onSelect={(d) => { setMbrDate(d); clearError("mbrDate"); }}
                   initialFocus
                   className={cn("p-3 pointer-events-auto")}
                 />
               </PopoverContent>
             </Popover>
+            {errors.mbrDate && <p className="text-xs text-destructive mt-1">{errors.mbrDate}</p>}
             {deal.startDate && (
               <p className="mt-1 text-[11px] text-muted-foreground">Account start date: {format(new Date(deal.startDate), "PPP")}.</p>
             )}
           </div>
 
           {/* Sentiment */}
-          <div>
-            <Label className="text-sm font-medium mb-2 block">Sentiment Post MBR <span className="text-destructive">*</span></Label>
+          <div ref={fieldRefs.sentiment}>
+            <Label className="text-sm font-medium mb-2 block">{req("Sentiment Post MBR")}</Label>
             <div className="flex gap-3">
               {sentimentOptions.map(s => (
                 <button
                   key={s.value}
                   type="button"
-                  onClick={() => setSentiment(s.value)}
+                  onClick={() => { setSentiment(s.value); clearError("sentiment"); }}
                   className={cn(
                     "w-12 h-12 rounded-full transition-all",
                     s.color,
@@ -265,11 +313,12 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
               ))}
             </div>
             {sentiment && <p className="text-sm text-muted-foreground mt-1">Selected: {sentiment}</p>}
+            {errors.sentiment && <p className="text-xs text-destructive mt-1">{errors.sentiment}</p>}
           </div>
 
           {/* Fathom Link */}
           <div>
-            <Label className="text-sm font-medium mb-1.5 block">Fathom Note-Taker Link</Label>
+            <Label className="text-sm font-medium mb-1.5 block">Fathom Note-Taker Link <span className="text-xs text-muted-foreground font-normal">(optional)</span></Label>
             <p className="text-xs text-muted-foreground mb-1.5">Share the link with view access for anyone</p>
             <Input
               value={fathomLink}
@@ -280,7 +329,7 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
 
           {/* Transcript */}
           <div>
-            <Label className="text-sm font-medium mb-1.5 block">Call Transcript <span className="text-destructive">*</span></Label>
+            <Label className="text-sm font-medium mb-1.5 block">Call Transcript <span className="text-xs text-muted-foreground font-normal">(optional — paste to auto-summarize)</span></Label>
             <Textarea
               value={transcript}
               onChange={(e) => setTranscript(e.target.value)}
@@ -359,19 +408,20 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
           )}
 
           {/* Scheduled Date */}
-          <div>
-            <Label className="text-sm font-medium mb-1.5 block">Next MBR Scheduled Date <span className="text-destructive">*</span></Label>
+          <div ref={fieldRefs.scheduledDate}>
+            <Label className="text-sm font-medium mb-1.5 block">{req("Next MBR Scheduled Date")}</Label>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !scheduledDate && "text-muted-foreground")}>
+                <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !scheduledDate && "text-muted-foreground", errors.scheduledDate && "border-destructive")}>
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {scheduledDate ? format(scheduledDate, "PPP") : "Pick a date"}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
-                <Calendar mode="single" selected={scheduledDate} onSelect={setScheduledDate} initialFocus />
+                <Calendar mode="single" selected={scheduledDate} onSelect={(d) => { setScheduledDate(d); clearError("scheduledDate"); }} initialFocus />
               </PopoverContent>
             </Popover>
+            {errors.scheduledDate && <p className="text-xs text-destructive mt-1">{errors.scheduledDate}</p>}
             {calConnected && (
               <div className="grid grid-cols-2 gap-2 mt-2">
                 <div>
@@ -391,16 +441,22 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
             )}
           </div>
 
-          {/* Anirudh Added */}
-          <div className="flex items-center gap-3">
-            <Checkbox checked={anirudhAdded} onCheckedChange={(v) => setAnirudhAdded(!!v)} id="anirudh-added" />
-            <Label htmlFor="anirudh-added" className="text-sm cursor-pointer">Anirudh added as optional attendee? <span className="text-xs text-muted-foreground font-normal">(optional)</span></Label>
+          {/* Anirudh Flags */}
+          <div className="flex items-center gap-6">
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <Checkbox checked={anirudhAdded} onCheckedChange={(v) => setAnirudhAdded(!!v)} />
+              Anirudh Added
+            </label>
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <Checkbox checked={anirudhJoining} onCheckedChange={(v) => setAnirudhJoining(!!v)} />
+              Anirudh Joining
+            </label>
           </div>
 
           {/* Mode */}
-          <div>
-            <Label className="text-sm font-medium mb-2 block">Meeting Mode <span className="text-destructive">*</span></Label>
-            <RadioGroup value={mode} onValueChange={setMode} className="flex gap-4">
+          <div ref={fieldRefs.mode}>
+            <Label className="text-sm font-medium mb-2 block">{req("Meeting Mode")}</Label>
+            <RadioGroup value={mode} onValueChange={(v) => { setMode(v); clearError("mode"); }} className={cn("flex gap-4 p-2 rounded-md", errors.mode && "border border-destructive")}>
               <div className="flex items-center gap-2">
                 <RadioGroupItem value="In-Person" id="in-person" />
                 <Label htmlFor="in-person" className="text-sm cursor-pointer">In-Person</Label>
@@ -410,28 +466,37 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
                 <Label htmlFor="virtual" className="text-sm cursor-pointer">Virtual</Label>
               </div>
             </RadioGroup>
+            {errors.mode && <p className="text-xs text-destructive mt-1">{errors.mode}</p>}
           </div>
 
           {/* Notes */}
-          <div>
-            <Label className="text-sm font-medium mb-1.5 block">Additional Notes <span className="text-destructive">*</span></Label>
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any additional notes..." className="min-h-[80px]" />
+          <div ref={fieldRefs.notes}>
+            <Label className="text-sm font-medium mb-1.5 block">{req("Notes")}</Label>
+            <Textarea
+              value={notes}
+              onChange={(e) => { setNotes(e.target.value); if (e.target.value.trim()) clearError("notes"); }}
+              placeholder="Add MBR notes..."
+              className={cn("min-h-[80px]", errors.notes && "border-destructive")}
+            />
+            {errors.notes && <p className="text-xs text-destructive mt-1">{errors.notes}</p>}
           </div>
 
           {/* MBR PPT Link */}
-          <div>
-            <Label className="text-sm font-medium mb-1.5 block">MBR PPT Link <span className="text-destructive">*</span></Label>
+          <div ref={fieldRefs.mbrPptLink}>
+            <Label className="text-sm font-medium mb-1.5 block">{req("MBR PPT Link")}</Label>
             <Input
               value={mbrPptLink}
-              onChange={(e) => setMbrPptLink(e.target.value)}
+              onChange={(e) => { setMbrPptLink(e.target.value); if (e.target.value.trim()) clearError("mbrPptLink"); }}
               placeholder="https://docs.google.com/presentation/..."
+              className={cn(errors.mbrPptLink && "border-destructive")}
             />
+            {errors.mbrPptLink && <p className="text-xs text-destructive mt-1">{errors.mbrPptLink}</p>}
           </div>
 
           {/* Submit */}
           <Button onClick={handleSubmit} disabled={submitting} className="w-full" size="lg">
             {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            Submit MBR Record
+            Save Changes
           </Button>
         </div>
       </SheetContent>
