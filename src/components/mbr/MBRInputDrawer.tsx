@@ -164,6 +164,10 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
       if (!mbrPptLink.trim()) nextErrors.mbrPptLink = "MBR PPT link is required.";
       else if (!isValidUrl(mbrPptLink)) nextErrors.mbrPptLink = "Enter a valid http(s) URL.";
     }
+    if (status === "Not Done" || status === "Pending" || status === "Not Required") {
+      if (!scheduledDate) nextErrors.scheduledDate = "Set the next MBR date.";
+      if (!notes.trim()) nextErrors.notes = "Notes are required.";
+    }
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
       const firstKey = Object.keys(nextErrors)[0] as FieldKey;
