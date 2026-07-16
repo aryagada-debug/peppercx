@@ -1425,14 +1425,28 @@ export default function MBRTracker() {
                       const retainer = isRetainerDeal(deal);
                       const notStarted = isNotStartedForMonth(deal.startDate, selectedMonth);
                       const status = entry?.status || (notStarted ? "Not Started" : retainer ? "Pending" : "Not Required");
+                      const hasNotes = !!(entry?.notes && entry.notes.trim());
+                      const isOpen = expandedNotes.has(deal.id);
                       return (
+                        <React.Fragment key={deal.id}>
                         <tr
-                                key={deal.id}
                                 className="border-b border-border/50 hover:bg-accent/10 transition-colors cursor-pointer group"
                                 onClick={() => handleRowClick(deal, entry)}
                               >
                                 <td className="py-2 px-3">
-                                  <span className="text-xs font-medium text-foreground truncate max-w-[140px] block" title={deal.account}>{deal.account}</span>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); if (hasNotes) toggleNotes(deal.id); }}
+                                      className={cn("h-4 w-4 flex items-center justify-center rounded shrink-0", hasNotes ? "text-muted-foreground hover:text-foreground hover:bg-accent/40" : "text-transparent cursor-default")}
+                                      title={hasNotes ? (isOpen ? "Hide notes" : "Show notes") : ""}
+                                      aria-label="Toggle notes"
+                                      disabled={!hasNotes}
+                                    >
+                                      {isOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                                    </button>
+                                    <span className="text-xs font-medium text-foreground truncate max-w-[140px] block" title={deal.account}>{deal.account}</span>
+                                  </div>
                                 </td>
                                 <td className="py-2 px-3">
                                   <Link to={`/deals/${deal.id}?tab=MBR`} className="text-primary hover:underline text-xs font-medium">{deal.dealName}</Link>
@@ -1484,6 +1498,15 @@ export default function MBRTracker() {
                                   </div>
                                 </td>
                               </tr>
+                        {isOpen && hasNotes && (
+                          <tr className="bg-secondary/20 border-b border-border/50">
+                            <td colSpan={10} className="px-6 py-3">
+                              <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1 font-medium">MBR Notes</div>
+                              <div className="text-xs text-foreground whitespace-pre-wrap leading-relaxed">{entry!.notes}</div>
+                            </td>
+                          </tr>
+                        )}
+                        </React.Fragment>
                       );
                     })}
                   </tbody>
