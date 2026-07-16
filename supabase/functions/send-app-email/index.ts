@@ -11,6 +11,13 @@ const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CALENDAR_CLIENT_ID") || "";
 const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CALENDAR_CLIENT_SECRET") || "";
 const APP_ORIGIN = Deno.env.get("APP_ORIGIN") || "https://peppercx.lovable.app";
 
+// Never send staffing/allocation emails to these addresses (any To/Cc slot).
+const STAFFING_EMAIL_SUPPRESSED = new Set<string>(["anirudh@peppercontent.io"]);
+const STAFFING_EVENTS = new Set<string>(["staffed", "staffing_changed", "staffing_removed"]);
+function stripSuppressed(list: string[]): string[] {
+  return list.filter((e) => !STAFFING_EMAIL_SUPPRESSED.has(String(e).trim().toLowerCase()));
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -502,8 +509,6 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
     if (!input.personId) return null;
     const person = await loadPerson(admin, input.personId);
     if (!person?.email || !/@/.test(person.email)) return null;
-    // Suppression list: never send staffing/allocation emails to these addresses.
-    const STAFFING_EMAIL_SUPPRESSED = new Set(["anirudh@peppercontent.io"]);
     if (STAFFING_EMAIL_SUPPRESSED.has(person.email.trim().toLowerCase())) return null;
     const pct = formatPct(input.payload?.allocationPct);
     const role = String(input.payload?.roleKey || "").replace(/_/g, " ");
@@ -868,7 +873,17 @@ Deno.serve(async (req) => {
           }
         }
         const finalTo = Array.from(toSet);
-        const raw = buildRaw({ to: finalTo, cc: cc.length ? cc : undefined, subject: built.subject, html: built.html, from: fromEmail });
+        let outTo = finalTo;
+        let outCc = cc;
+        if (STAFFING_EVENTS.has(inp.event)) {
+          outTo = stripSuppressed(outTo);
+          outCc = stripSuppressed(outCc);
+          if (outTo.length === 0) {
+            results.push({ event: inp.event, skipped: true, reason: "all_recipients_suppressed" });
+            continue;
+          }
+        }
+        const raw = buildRaw({ to: outTo, cc: outCc.length ? outCc : undefined, subject: built.subject, html: built.html, from: fromEmail });
         const send = await fetch(
           "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
           {
@@ -880,7 +895,7 @@ Deno.serve(async (req) => {
         const data = await send.json();
         const ok = send.ok;
         // Log every recipient row.
-        const logRows = [...finalTo, ...cc].map((r) => ({
+        const logRows = [...outTo, ...outCc].map((r) => ({
           event: inp.event,
           deal_id: inp.dealId || null,
           recipient_email: r,
@@ -892,7 +907,7 @@ Deno.serve(async (req) => {
           payload: inp.payload || null,
         }));
         await admin.from("email_send_log").insert(logRows);
-        results.push({ event: inp.event, ok, id: data?.id, to: finalTo, cc, error: ok ? null : data?.error?.message });
+        results.push({ event: inp.event, ok, id: data?.id, to: outTo, cc: outCc, error: ok ? null : data?.error?.message });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         results.push({ event: inp.event, ok: false, error: msg });
