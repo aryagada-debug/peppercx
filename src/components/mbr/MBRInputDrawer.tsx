@@ -162,6 +162,7 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
       if (!mode) nextErrors.mode = "Pick In-Person or Virtual.";
       if (!notes.trim()) nextErrors.notes = "Notes are required.";
       if (!mbrPptLink.trim()) nextErrors.mbrPptLink = "MBR PPT link is required.";
+      else if (!isValidUrl(mbrPptLink)) nextErrors.mbrPptLink = "Enter a valid http(s) URL.";
     }
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
@@ -229,11 +230,18 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
   ];
 
   const isDone = status === "Done";
+  // Always mark the fields that are compulsory when status = Done so users
+  // can see the requirement even before flipping to Done. Enforcement stays
+  // conditional on isDone inside handleSubmit.
   const req = (label: string) => (
     <>
-      {label} {isDone && <span className="text-destructive">*</span>}
+      {label} <span className="text-destructive" title="Required when status is Done">*</span>
     </>
   );
+
+  const isValidUrl = (v: string) => {
+    try { const u = new URL(v.trim()); return u.protocol === "http:" || u.protocol === "https:"; } catch { return false; }
+  };
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
