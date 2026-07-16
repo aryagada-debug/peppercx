@@ -584,6 +584,53 @@ export default function Clients() {
     return rows;
     }, [filteredDeals, colFilters, sortKey, sortDir, rgyRollup, renewalFilter, renewingIds, leadByDeal, currency, fxRate]);
 
+  // ── CSV export of currently-filtered rows ──
+  const exportCsv = useCallback(() => {
+    const esc = (v: any) => {
+      const s = v == null ? "" : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const money = (n: any) => {
+      const x = convertFromInr(Number(n) || 0, currency, fxRate);
+      return Number.isFinite(x) ? x.toFixed(2) : "";
+    };
+    const headers = [
+      "Client", "Deal Name", "Deal ID", "PC Code", "Month Closed Won",
+      "Type", "Status", "Pepper BU", "Capability Line",
+      "VSD", "P.BOPM / Sr BOPM", "BOPM", "Content Lead", "SEO Lead",
+      `MRR (${currency})`, `Retainer Deal Value (${currency})`, `Non-Retainer Deal Value (${currency})`, `Total Revenue (${currency})`,
+      "Start Date", "End Date", "Duration (days)", "RGY",
+    ];
+    const rows = (tableRows as any[]).map(d => {
+      const leads = leadByDeal[d.id] || {};
+      const psb = [d.principalBopm, d.seniorBopm].filter(Boolean).join(" / ");
+      let duration = "";
+      if (d.startDate && d.endDate) {
+        const s = new Date(d.startDate).getTime();
+        const e = new Date(d.endDate).getTime();
+        if (!isNaN(s) && !isNaN(e)) duration = String(Math.max(0, Math.round((e - s) / 86400000)));
+      }
+      return [
+        d.account || "", d.dealName || "", d.dealId || "", d.pcCode || "", d.monthClosedWon || "",
+        d.dealType || "", d.dealStatus || "", d.pepperBusinessUnit || "", d.capabilityLine || "",
+        d.vsd || "", psb, (d as any).bopm || "", leads.content || "", leads.seo || "",
+        money(d.mrr), money(d.retainerDealValue), money(d.nonRetainerDealValue), money(d.totalDealValue),
+        d.startDate || "", d.endDate || "", duration, rgyRollup.get(d.id) || "PENDING",
+      ];
+    });
+    const csv = [headers, ...rows].map(r => r.map(esc).join(",")).join("\n");
+    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `clients-deals-${formatDate(new Date(), "yyyy-MM-dd")}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${rows.length} row${rows.length === 1 ? "" : "s"}`);
+  }, [tableRows, leadByDeal, rgyRollup, currency, fxRate]);
+
   const kpis = useMemo(() => {
     const clientSet = new Set(filteredDeals.map(d => d.account));
     // Renewals < 90 days — active deals whose endDate is within next 90d
@@ -948,16 +995,21 @@ export default function Clients() {
             );
           })}
           </div>
-          {isCentralCx && (
-            <div className="flex items-center gap-2 ml-auto">
-              <Button variant="outline" size="sm" onClick={() => setClientDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-1" /> Add Client
-              </Button>
-              <Button size="sm" onClick={() => { setDealWizardClientId(undefined); setDealWizardOpen(true); }}>
-                <Plus className="h-4 w-4 mr-1" /> Add Deal
-              </Button>
-            </div>
-          )}
+          <div className="flex items-center gap-2 ml-auto">
+            <Button variant="outline" size="sm" onClick={exportCsv} title="Download filtered rows as CSV">
+              <Download className="h-4 w-4 mr-1" /> Download CSV
+            </Button>
+            {isCentralCx && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => setClientDialogOpen(true)}>
+                  <Plus className="h-4 w-4 mr-1" /> Add Client
+                </Button>
+                <Button size="sm" onClick={() => { setDealWizardClientId(undefined); setDealWizardOpen(true); }}>
+                  <Plus className="h-4 w-4 mr-1" /> Add Deal
+                </Button>
+              </>
+            )}
+          </div>
         </div>
 
         {isCentralCx && (
