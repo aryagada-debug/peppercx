@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import { useMBRData, isRetainerDeal, type MBREntry, type MBRDeal, type VSDSummary } from "@/hooks/useMBRData";
-import { MBRDetailDialog } from "@/components/mbr/MBRDetailDialog";
+import { MBRInputDrawer } from "@/components/mbr/MBRInputDrawer";
 import { ScheduleOnlyDialog } from "@/components/mbr/ScheduleOnlyDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -1754,15 +1754,14 @@ export default function MBRTracker() {
         </Tabs>
       </div>
 
-      {/* MBR Detail Dialog */}
+      {/* MBR Universal Form */}
       {viewDeal && (
-        <MBRDetailDialog
+        <MBRInputDrawer
           open={!!viewDeal}
           onClose={() => setViewDeal(null)}
           deal={viewDeal.deal}
-          entry={viewDeal.entry}
+          existingEntry={viewDeal.entry as any}
           onSave={handleSave}
-          selectedMonth={selectedMonth}
         />
       )}
 

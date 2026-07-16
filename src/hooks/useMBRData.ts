@@ -252,6 +252,7 @@ export function useMBRData() {
       anirudhAdded?: boolean;
       mbrPptLink?: string | null;
       mbrDate?: string | null; // yyyy-MM-dd — date the MBR was conducted; drives which week/month the entry belongs to
+      anirudhJoining?: boolean;
     }) => {
       const weekStart = params.mbrDate ? getMonday(new Date(params.mbrDate)) : getMonday(new Date());
       const row: any = {
@@ -270,6 +271,7 @@ export function useMBRData() {
       if (params.scheduledDate !== undefined) row.scheduled_date = params.scheduledDate;
       if (params.anirudhAdded !== undefined) row.anirudh_added = params.anirudhAdded;
       if (params.mbrPptLink !== undefined) row.mbr_ppt_link = params.mbrPptLink;
+      if (params.anirudhJoining !== undefined) row.anirudh_joining = params.anirudhJoining;
       if (params.status === "Done") row.input_recorded_at = new Date().toISOString();
 
       // Optimistic cache patch so the UI reflects the change instantly.

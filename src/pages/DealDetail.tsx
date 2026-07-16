@@ -31,7 +31,6 @@ import { PhaseTasksView } from "@/components/deals/PhaseTasksView";
 import { DealRequestsTab } from "@/components/deals/DealRequestsTab";
 import { OrgMappingTab } from "@/components/deals/orgmap/OrgMappingTab";
 import { MBRInputDrawer } from "@/components/mbr/MBRInputDrawer";
-import { MBRDetailDialog } from "@/components/mbr/MBRDetailDialog";
 import { ScheduleOnlyDialog } from "@/components/mbr/ScheduleOnlyDialog";
 import { useDealRgyRollup } from "@/hooks/useDealRgyRollup";
 import { computeOverallCustomerScore, getOverallCustomerRGY } from "@/lib/overallCustomerRGY";
@@ -1265,11 +1264,12 @@ function DealMBRTab({ deal, dealId, mbrEntries, currentRGY, upsertMBREntry, dele
       )}
 
       {viewEntry && (
-        <MBRDetailDialog
+        <MBRInputDrawer
           open={!!viewEntry}
           onClose={() => setViewEntry(null)}
           deal={dealForDialog}
-          entry={viewEntry}
+          existingEntry={viewEntry as any}
+          selectedWeek={selectedWeek}
           onSave={async (params) => {
             const weekToUse = viewEntry?.weekStart || selectedWeek;
             await upsertMBREntry(params, weekToUse);
