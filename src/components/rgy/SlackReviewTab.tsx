@@ -127,6 +127,7 @@ export function SlackReviewTab() {
   const [vsdFilter, setVsdFilter] = useState<string>("");
   const [connFilter, setConnFilter] = useState<string>("");
   const [bopmFilter, setBopmFilter] = useState<string>("All");
+  const [psrBopmFilter, setPsrBopmFilter] = useState<string>("");
   const [dealTypeFilter, setDealTypeFilter] = useState<DealTypeFilterValue>("All");
   const [q, setQ] = useState("");
   const [rebuilding, setRebuilding] = useState(false);
@@ -148,6 +149,15 @@ export function SlackReviewTab() {
     [rows],
   );
 
+  const psrBopmList = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of rows) {
+      if (r.principal_bopm) s.add(r.principal_bopm);
+      if (r.senior_bopm) s.add(r.senior_bopm);
+    }
+    return Array.from(s).sort();
+  }, [rows]);
+
   const filtered = useMemo(() => {
     const ql = q.trim().toLowerCase();
     return rows.filter((r) => {
@@ -157,13 +167,14 @@ export function SlackReviewTab() {
       if (connFilter === "not_connected" && r.is_connected) return false;
       if (!dealMatchesType(r.deal_type, dealTypeFilter)) return false;
       if (bopmFilter !== "All" && !dealMatchesBopm(r as any, bopmFilter, registeredNames, bopmStaffedDealIds)) return false;
+      if (psrBopmFilter && r.principal_bopm !== psrBopmFilter && r.senior_bopm !== psrBopmFilter) return false;
       if (ql) {
         const hay = `${r.account} ${r.deal_name} ${r.channel_name || ""}`.toLowerCase();
         if (!hay.includes(ql)) return false;
       }
       return true;
     });
-  }, [rows, rgyFilter, vsdFilter, connFilter, q, dealTypeFilter, bopmFilter, registeredNames, bopmStaffedDealIds]);
+  }, [rows, rgyFilter, vsdFilter, connFilter, q, dealTypeFilter, bopmFilter, psrBopmFilter, registeredNames, bopmStaffedDealIds]);
 
   const sorted = useMemo(() => {
     if (!sortKey) return filtered;
@@ -319,6 +330,13 @@ export function SlackReviewTab() {
         </Select>
         <DealTypeFilter value={dealTypeFilter} onChange={setDealTypeFilter} />
         <BopmFilter value={bopmFilter} onChange={setBopmFilter} scopedVsd={vsdFilter || null} />
+        <Select value={psrBopmFilter || "all"} onValueChange={(v) => setPsrBopmFilter(v === "all" ? "" : v)}>
+          <SelectTrigger className="h-8 w-[200px] text-xs"><SelectValue placeholder="All P/Sr BOPMs" /></SelectTrigger>
+          <SelectContent className="max-h-[320px]">
+            <SelectItem value="all">All P/Sr BOPMs</SelectItem>
+            {psrBopmList.map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+          </SelectContent>
+        </Select>
         <div className="relative flex-1 min-w-[180px]">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search account, deal, channel..." className="h-8 pl-7 text-xs" />
