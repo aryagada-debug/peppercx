@@ -27,14 +27,15 @@ export default function Login() {
     if (error) {
       toast.error(error.message);
     } else {
-      navigate("/home");
+      navigate(safeNext(searchParams.get("next")) ?? "/home");
     }
   };
 
   const handleGoogleLogin = async () => {
     setLoading(true);
+    const next = safeNext(searchParams.get("next"));
     const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
+      redirect_uri: window.location.origin + (next ?? ""),
     });
     if (result.error) {
       const msg = (result.error as any)?.message?.toLowerCase() || "";
@@ -47,8 +48,15 @@ export default function Login() {
       return;
     }
     if (result.redirected) return;
-    navigate("/home");
+    navigate(next ?? "/home");
   };
+
+  // Only allow same-origin relative paths as post-login redirects.
+  function safeNext(value: string | null): string | null {
+    if (!value) return null;
+    if (!value.startsWith("/") || value.startsWith("//")) return null;
+    return value;
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">

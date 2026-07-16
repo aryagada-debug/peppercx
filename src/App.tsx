@@ -21,6 +21,7 @@ import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 import CalendarCallback from "./pages/CalendarCallback";
 import GmailCallback from "./pages/GmailCallback";
+import OAuthConsent from "./pages/OAuthConsent";
 
 // Authenticated pages are code-split — each becomes its own chunk so the
 // initial bundle drops from ~2.7 MB to roughly the shell + the landing route.
@@ -102,6 +103,7 @@ function AppRoutes() {
               <Route path="/calendar/callback" element={<CalendarCallback />} />
               <Route path="/gmail/callback" element={<GmailCallback />} />
               <Route path="/h/handover" element={<PublicHandover />} />
+              <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
 
               {/* Protected routes */}
               <Route path="/home" element={<ProtectedRoute routeKey="home"><Home /></ProtectedRoute>} />
