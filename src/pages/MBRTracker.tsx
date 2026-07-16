@@ -172,6 +172,12 @@ export default function MBRTracker() {
   const [drill, setDrill] = useState<{ rowKey: string; rowLabel: string; metric: DrillMetric } | null>(null);
   const [expandedVsd, setExpandedVsd] = useState<string | null>(null);
   const [expandedStatusVsds, setExpandedStatusVsds] = useState<Set<string>>(new Set());
+  const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
+  const toggleNotes = (id: string) => setExpandedNotes(prev => {
+    const n = new Set(prev);
+    if (n.has(id)) n.delete(id); else n.add(id);
+    return n;
+  });
   // Insights: Anirudh filter (All | Added | Joining | Either | None)
   type AnirudhFilter = "All" | "Added" | "Joining" | "Either" | "None";
   const [anirudhFilter, setAnirudhFilter] = useState<AnirudhFilter>("All");
