@@ -190,18 +190,18 @@ export function SlackReviewTab() {
   }, [filtered, sortKey, sortDir]);
 
   const kpi = useMemo(() => {
-    const total = rows.length;
-    const red = rows.filter((r) => r.rgy === "R").length;
-    const yellow = rows.filter((r) => r.rgy === "Y").length;
-    const green = rows.filter((r) => r.rgy === "G").length;
-    const tracked = rows.filter((r) => r.is_connected).length;
+    const total = filtered.length;
+    const red = filtered.filter((r) => r.rgy === "R").length;
+    const yellow = filtered.filter((r) => r.rgy === "Y").length;
+    const green = filtered.filter((r) => r.rgy === "G").length;
+    const tracked = filtered.filter((r) => r.is_connected).length;
     const noChannel = total - tracked;
     return { total, red, yellow, green, tracked, noChannel };
-  }, [rows]);
+  }, [filtered]);
 
   const byVsd = useMemo(() => {
     const m = new Map<string, { customers: number; r: number; y: number; g: number; connected: number; noChan: number; mrr: number }>();
-    for (const r of rows) {
+    for (const r of filtered) {
       const key = r.vsd || "(Unassigned)";
       const cur = m.get(key) || { customers: 0, r: 0, y: 0, g: 0, connected: 0, noChan: 0, mrr: 0 };
       cur.customers += 1;
@@ -213,11 +213,11 @@ export function SlackReviewTab() {
       m.set(key, cur);
     }
     return Array.from(m.entries()).sort((a, b) => b[1].customers - a[1].customers);
-  }, [rows]);
+  }, [filtered]);
 
   const bySrBopm = useMemo(() => {
     const m = new Map<string, { customers: number; r: number; y: number; g: number; connected: number; noChan: number; mrr: number }>();
-    for (const r of rows) {
+    for (const r of filtered) {
       const key = r.senior_bopm || r.principal_bopm || "(Unassigned)";
       const cur = m.get(key) || { customers: 0, r: 0, y: 0, g: 0, connected: 0, noChan: 0, mrr: 0 };
       cur.customers += 1;
@@ -229,7 +229,7 @@ export function SlackReviewTab() {
       m.set(key, cur);
     }
     return Array.from(m.entries()).sort((a, b) => b[1].customers - a[1].customers);
-  }, [rows]);
+  }, [filtered]);
 
   const rebuild = async () => {
     setRebuilding(true);
