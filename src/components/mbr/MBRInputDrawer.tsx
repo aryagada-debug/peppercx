@@ -162,6 +162,7 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
       if (!mode) nextErrors.mode = "Pick In-Person or Virtual.";
       if (!notes.trim()) nextErrors.notes = "Notes are required.";
       if (!mbrPptLink.trim()) nextErrors.mbrPptLink = "MBR PPT link is required.";
+      else if (!isValidUrl(mbrPptLink)) nextErrors.mbrPptLink = "Enter a valid http(s) URL.";
     }
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
