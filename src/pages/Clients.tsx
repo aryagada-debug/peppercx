@@ -373,57 +373,7 @@ export default function Clients() {
     });
   }, []);
   const resetColOrder = () => setVisibleCols(DEFAULT_VISIBLE);
-
-  // ── CSV export of currently-filtered rows ──
-  const exportCsv = useCallback(() => {
-    const esc = (v: any) => {
-      const s = v == null ? "" : String(v);
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
-    const money = (n: any) => {
-      const x = convertFromInr(Number(n) || 0, currency, fxRate);
-      return Number.isFinite(x) ? x.toFixed(2) : "";
-    };
-    const ragLetter = (id: string) => {
-      const l = rgyRollup.get(id);
-      return l || "PENDING";
-    };
-    const headers = [
-      "Client", "Deal Name", "Deal ID", "PC Code", "Month Closed Won",
-      "Type", "Status", "Pepper BU", "Capability Line",
-      "VSD", "P.BOPM / Sr BOPM", "BOPM", "Content Lead", "SEO Lead",
-      `MRR (${currency})`, `Retainer Deal Value (${currency})`, `Non-Retainer Deal Value (${currency})`, `Total Revenue (${currency})`,
-      "Start Date", "End Date", "Duration (days)", "RGY",
-    ];
-    const rows = (tableRows as any[]).map(d => {
-      const leads = leadByDeal[d.id] || {};
-      const psb = [d.principalBopm, d.seniorBopm].filter(Boolean).join(" / ");
-      let duration = "";
-      if (d.startDate && d.endDate) {
-        const s = new Date(d.startDate).getTime();
-        const e = new Date(d.endDate).getTime();
-        if (!isNaN(s) && !isNaN(e)) duration = String(Math.max(0, Math.round((e - s) / 86400000)));
-      }
-      return [
-        d.account || "", d.dealName || "", d.dealId || "", d.pcCode || "", d.monthClosedWon || "",
-        d.dealType || "", d.dealStatus || "", d.pepperBusinessUnit || "", d.capabilityLine || "",
-        d.vsd || "", psb, (d as any).bopm || "", leads.content || "", leads.seo || "",
-        money(d.mrr), money(d.retainerDealValue), money(d.nonRetainerDealValue), money(d.totalDealValue),
-        d.startDate || "", d.endDate || "", duration, ragLetter(d.id),
-      ];
-    });
-    const csv = [headers, ...rows].map(r => r.map(esc).join(",")).join("\n");
-    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `clients-deals-${formatDate(new Date(), "yyyy-MM-dd")}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    toast.success(`Exported ${rows.length} row${rows.length === 1 ? "" : "s"}`);
-  }, [tableRows, leadByDeal, rgyRollup, currency, fxRate]);
+  const resetColOrder = () => setVisibleCols(DEFAULT_VISIBLE);
 
   // Column widths (resizable)
   const DEFAULT_WIDTHS: Record<string, number> = {
