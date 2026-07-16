@@ -1,49 +1,25 @@
-# Contacts: unified filters + polished By-deal view
+## Root cause
 
-## Global filter bar (persists across all sub-tabs)
-Move filters out of individual tabs into a single toolbar that lives above the `Tabs` control. All three tabs (By deal, Contacts, Insights) read from the same state:
+The current suppression in `supabase/functions/send-app-email/index.ts` (around line 505-507) only skips when the **assignee** being staffed is Anirudh:
 
-- **Search** — free-text (matches client, deal, VSD, BOPM, and — in Contacts tab — contact name/email/role)
-- **VSD** — single-select from deals in scope
-- **BOPM** — single-select from deals in scope (splits comma-joined names)
-- **Status** — single-select (defaults to "Active Deal")
-- **Show missing only** — toggle. In By-deal: deals with 0 contacts OR any incomplete contact. In Contacts: incomplete contacts. In Insights: deals with 0 contacts.
+```ts
+if (STAFFING_EMAIL_SUPPRESSED.has(person.email.trim().toLowerCase())) return null;
+```
 
-Remove per-tab duplicates:
-- Contacts tab: drop Team / Region / VSD / Influence selects and its own search (keep Export button).
-- Insights tab: drop status/VSD/"missing only" row (keep the summary counter).
-- By-deal tab: drop its status/search/missing toggle added last iteration.
+But staffing/allocation emails (`staffed`, `staffing_changed`, `staffing_removed`) also reach other people via the notification rule system (lines 849-871). The `assignment.created` rule expands `extra_to`, `cc_tokens`, and `extra_cc` — and `{assignee_manager}` resolves to the assignee's manager in `staffing_people`. Since Anirudh is a manager/VSD for many people, he gets copied on their staffing emails through this path, bypassing the current per-assignee suppression.
 
-## By-deal tab UI overhaul
-Restructure to feel like a scrollable ledger:
+## Fix
 
-- Column order: **Client → Deal → VSD → BOPM → Region → Status → Contacts → Incomplete** (chevron on the far left).
-- Wrap the table in a fixed-height scroll container (`max-h-[calc(100vh-320px)] overflow-auto`) with a sticky header row (`sticky top-0 bg-muted/40 z-10`) so the header stays visible while scrolling.
-- Sortable column headers using the existing `ColHeader` component (already used in Insights) — sort by client, deal, VSD, BOPM, status, contact count, incomplete count.
-- Remove the inline "Add" button from the deal row.
+In `supabase/functions/send-app-email/index.ts`, apply the suppression to the **final recipient lists** (both `to` and `cc`) for staffing/allocation events, right before `buildRaw` is called (around line 870).
 
-### Expanded deal panel (Org-Mapping style)
-When a deal row expands, render an Org-Mapping-style card list of contacts (not a subtable):
+1. Keep the existing early return (still useful when Anirudh is the direct assignee).
+2. Add a global filter for staffing events: if `inp.event` is one of `staffed | staffing_changed | staffing_removed`, remove any address matching the suppression set (case-insensitive) from both `finalTo` and `cc`.
+3. If `finalTo` becomes empty after filtering, skip the send and log `skipped: true, reason: "all_recipients_suppressed"`.
+4. Lift the `STAFFING_EMAIL_SUPPRESSED` set to module scope so both the early-return and the new final-list filter share one source of truth.
 
-- Each contact is a row card matching `OrgMappingTab`'s `Row` component: avatar with initials + tinted background, name + inline "Incomplete" chip + tags, role beneath, function dot + name, seniority, 5-dot influence meter, contact icons (mail/phone), and a `…` dropdown (Duplicate / Copy email / Delete).
-- Clicking a contact expands an inline `DetailPanel` identical to the one in Org Mapping (Identity & contact + Tags & notes columns, Field components, tag popover, save/delete buttons).
-- **"Add contact" button appears at the bottom** of the contact list (like Org Mapping's "Add another person" strip), not on the deal row.
-- Empty state: dashed panel with "No contacts mapped yet" + a prominent "Add contact" button.
+No other files change. Deploy `send-app-email` after the edit.
 
-### Reuse strategy
-Extract the shared pieces from `OrgMappingTab.tsx` into `src/components/deals/orgmap/StakeholderList.tsx`:
-- `Row`, `DetailPanel`, `Field`, `Stat`, and the constants (`FUNCTIONS`, `SENIORITIES`, `FUNCTION_DOT`, `TAG_STYLES`, `AVATAR_COLORS`, `initials`, `avatarColor`).
-- Component API: `<StakeholderList stakeholders={list} onAdd={fn} onUpdate={(id, patch) => …} onDelete={fn} onDuplicate={fn} showHeader />`.
-- `OrgMappingTab` becomes a thin wrapper (Header + Toolbar + Stats + `<StakeholderList>`).
-- `ByDealTab` mounts `<StakeholderList>` inside each expanded deal row, wired to inline Supabase writes on `deal_stakeholders`.
+## Verification
 
-## Files touched
-- `src/pages/Contacts.tsx` — lift filter state to page level; pass shared filters to all three tab components; remove per-tab filter UI.
-- `src/components/contacts/ByDealTab.tsx` — new column order, sticky sortable header, scroll container, Org-Mapping-style expanded contacts, filter props.
-- `src/components/deals/orgmap/StakeholderList.tsx` — new shared component (extracted from `OrgMappingTab.tsx`).
-- `src/components/deals/orgmap/OrgMappingTab.tsx` — refactor to use `StakeholderList`.
-
-## Non-goals
-- No schema changes.
-- No changes to Insights sub-table layout beyond filter/scoping consolidation.
-- No change to the Contacts tab table columns beyond removing its local filters.
+- Trigger a staffing change for a report of Anirudh's and confirm the email log shows no row with `recipient_email = anirudh@peppercontent.io` for staffed/staffing_changed/staffing_removed events.
+- Non-staffing events (MBR, RGY, handover, etc.) remain unaffected.
