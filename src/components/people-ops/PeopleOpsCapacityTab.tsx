@@ -64,7 +64,7 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
       .map((p) => {
         let bwPct = 0;
         let mrrActual = 0;
-        const splits: { dealId: string; dealName: string; account: string; pct: number; mrrContribution: number; region?: string; vsd?: string }[] = [];
+        const splitByDeal = new Map<string, { dealId: string; dealName: string; account: string; pct: number; mrrContribution: number; region?: string; vsd?: string }>();
         const countedDeals = new Set<string>();
         for (const a of assignments) {
           if (a.personId !== p.id) continue;
@@ -79,9 +79,25 @@ export function PeopleOpsCapacityTab({ people, assignments, deals, capacityRoste
             mrrActual += dealMrr;
             countedDeals.add(d.id);
           }
-          if (d) splits.push({ dealId: d.id, dealName: d.dealName || d.account, account: d.account, pct, mrrContribution: dealMrr, vsd: d.vsd });
+          if (d) {
+            // Collapse multiple assignment rows for the same deal (e.g. different roles)
+            // into a single split — sum the allocation %, keep MRR once.
+            const existing = splitByDeal.get(d.id);
+            if (existing) {
+              existing.pct += pct;
+            } else {
+              splitByDeal.set(d.id, {
+                dealId: d.id,
+                dealName: d.dealName || d.account,
+                account: d.account,
+                pct,
+                mrrContribution: dealMrr,
+                vsd: d.vsd,
+              });
+            }
+          }
         }
-        splits.sort((a, b) => b.pct - a.pct);
+        const splits = Array.from(splitByDeal.values()).sort((a, b) => b.pct - a.pct);
         const capacity = getPersonRevenueCapacity(p, capacityRoster);
         const fillPct = capacity > 0 ? (mrrActual / capacity) * 100 : null;
         return { person: p, bwPct, dealCount: splits.length, mrrActual, capacity, fillPct, splits };
