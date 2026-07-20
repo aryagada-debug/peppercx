@@ -425,12 +425,18 @@ export default function PulseSurveyTab({
     mutationFn: async () => {
       const calls: Promise<{ ok?: boolean; error?: string; results?: SendResult[] }>[] = [];
       const seenAdhoc = new Set<string>();
+      const skippedNoContacts: string[] = [];
       for (const d of selectedDeals) {
+        const list = dealStakeholders[d.deal_id] || [];
+        const hasContacts = list.some(s => (s.email || "").trim() !== "");
+        if (!hasContacts) {
+          skippedNoContacts.push(d.account || d.deal_name || d.deal_id);
+          continue;
+        }
         const chosen = uniqueOnly
           ? (dedupedSelectedEmails[d.deal_id] || [])
           : (selectedEmails[d.deal_id] || []);
         if (chosen.length === 0) continue;
-        const list = dealStakeholders[d.deal_id] || [];
         const recipients = chosen.map(em => {
           const s = list.find(x => (x.email || "").toLowerCase() === em.toLowerCase());
           return { email: em, name: s?.name || "", stakeholderId: s?.id || null };
@@ -482,7 +488,7 @@ export default function PulseSurveyTab({
       const sentCount = recipientResults.filter(r => r.ok).length;
       const failedCount = recipientResults.filter(r => !r.ok).length + results.filter(r => r.status === "rejected").length;
       const topError = payloads.find(p => !p.ok && p.error)?.error || recipientResults.find(r => r.error)?.error || null;
-      return { batches: calls.length, inviteCount, sentCount, failedCount, topError };
+      return { batches: calls.length, inviteCount, sentCount, failedCount, topError, skippedNoContacts };
     },
     onSuccess: (r) => {
       const centralMissing = String(r.topError || "").includes("central_mailbox");
@@ -490,9 +496,15 @@ export default function PulseSurveyTab({
         title: r.sentCount > 0 ? "Surveys sent" : r.inviteCount > 0 ? "Survey links created" : "Send failed",
         description: centralMissing
           ? `${r.inviteCount} survey link(s) were created, but email was not sent because centralcx@peppercontent.io is not connected.`
-          : `${r.inviteCount} link(s) created · ${r.sentCount} email(s) sent${r.failedCount ? ` · ${r.failedCount} failed` : ""}.`,
+          : `${r.inviteCount} link(s) created · ${r.sentCount} email(s) sent${r.failedCount ? ` · ${r.failedCount} failed` : ""}${r.skippedNoContacts?.length ? ` · Skipped ${r.skippedNoContacts.length} deal(s) with no Org Mapping contacts` : ""}.`,
         variant: r.sentCount === 0 && r.failedCount > 0 ? "destructive" : undefined,
       });
+      if (r.skippedNoContacts?.length) {
+        toast({
+          title: "Deals skipped — no contacts",
+          description: r.skippedNoContacts.slice(0, 5).join(", ") + (r.skippedNoContacts.length > 5 ? ` +${r.skippedNoContacts.length - 5} more` : ""),
+        });
+      }
       setSelectedEmails({});
       setAdhoc("");
       qc.invalidateQueries({ queryKey: ["pulse-invites"] });
