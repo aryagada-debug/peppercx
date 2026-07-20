@@ -1224,58 +1224,39 @@ export function BopmStaffingFlatTable({
       const s = v === undefined || v === null ? "" : String(v);
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
+    // Wide sheet-shaped export: one row per deal, one column per visible
+    // role, so the file mirrors the on-screen Sheet view (including the
+    // user's active filters and column show/hide/reorder).
+    const roleHeaders = visibleRoleKeys.map(rk => ROLE_LABEL_OF(rk));
     const headers = [
       "Client",
       "Deal Name",
       "Deal ID",
       "Deal Status",
-      "Role Category",
-      "Role",
-      "Person",
-      "Allocation %",
-      "Allocation (hrs/month)",
-      "Staffed",
+      "MRR",
+      ...roleHeaders,
     ];
     const rows: string[][] = [];
     for (const d of filteredDeals) {
       const byRole = dealRoleMap.get(d.id) || new Map<string, CellEntry[]>();
-      for (const rk of orderedRoleKeys) {
-        const cat = ROLE_CATEGORY_OF(rk);
-        const role = ROLE_LABEL_OF(rk);
+      const roleCells = visibleRoleKeys.map(rk => {
         const entries = (byRole.get(rk) || []).filter(e => !e.isMarkedRemove);
-        if (entries.length === 0) {
-          rows.push([
-            d.account || "",
-            d.dealName || "",
-            (d as any).dealId || d.id,
-            (d as any).dealStatus || "",
-            cat,
-            role,
-            "",
-            "",
-            "",
-            "Not Staffed",
-          ]);
-          continue;
-        }
-        for (const e of entries) {
+        if (entries.length === 0) return "";
+        return entries.map(e => {
           const p = allPersonById.get(e.personId);
+          const name = p?.name || e.rawText || "—";
           const pct = Number(e.allocationPct) || 0;
-          const hrs = Math.round((pct / 100) * MONTH_HOURS * 10) / 10;
-          rows.push([
-            d.account || "",
-            d.dealName || "",
-            (d as any).dealId || d.id,
-            (d as any).dealStatus || "",
-            cat,
-            role,
-            p?.name || e.rawText || "—",
-            String(pct),
-            String(hrs),
-            "Staffed",
-          ]);
-        }
-      }
+          return `${name} (${pct}%)`;
+        }).join("; ");
+      });
+      rows.push([
+        d.account || "",
+        d.dealName || "",
+        (d as any).dealId || d.id,
+        (d as any).dealStatus || "",
+        d.mrr != null ? String(d.mrr) : "",
+        ...roleCells,
+      ]);
     }
     const csv = [headers, ...rows].map(r => r.map(esc).join(",")).join("\n");
     const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
@@ -1288,7 +1269,7 @@ export function BopmStaffingFlatTable({
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-  }, [filteredDeals, dealRoleMap, orderedRoleKeys, allPersonById]);
+  }, [filteredDeals, dealRoleMap, visibleRoleKeys, allPersonById]);
 
   const dealsForAdd = useMemo(() => deals.slice().sort((a, b) =>
     (a.account || "").localeCompare(b.account || "") || (a.dealName || "").localeCompare(b.dealName || "")
