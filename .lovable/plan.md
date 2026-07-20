@@ -1,26 +1,36 @@
 ## Goal
-Make the Staffing → Sheet view **Download** produce a file that mirrors the on-screen sheet: one row per deal, one column per visible role, with person names + allocation % inside each cell — and honour all currently applied filters and column show/hide.
+In **Pulse / NPS → Send surveys**, add a checkbox that restricts the recipient selection to **unique contacts** across all selected deals + selected emails, so the same email isn't invited twice in one send.
 
-## Current behavior
-`handleExportCsv` in `src/components/staffing/BopmStaffingFlatTable.tsx` writes a **long-format** CSV — one row per (deal × role × person) — using `orderedRoleKeys` (ignores hidden columns). It doesn't look like the sheet.
+## Change (single file: `src/components/rgy/PulseSurveyTab.tsx`)
 
-## Change
-Rewrite `handleExportCsv` to output a wide sheet-shaped CSV:
+1. **New state**: `const [uniqueOnly, setUniqueOnly] = useState(false);`
 
-- **Row scope**: `filteredDeals` (already respects Active/All, search, Deal Type, VSD pill, BOPM filter).
-- **Columns (left → right, matching the on-screen order)**:
-  1. `Client` (`d.account`)
-  2. `Deal Name` (`d.dealName`)
-  3. `Deal ID` (`d.dealId`)
-  4. `Deal Status`
-  5. `MRR`
-  6. One column per `visibleRoleKeys` (respects hidden/drag-reordered columns), header = `ROLE_LABEL_OF(rk)`.
-- **Role cell contents**: join every non-removed entry for that deal/role as `"Person Name (25%)"`, separated by `"; "`. Empty when unstaffed.
-- Keep the UTF-8 BOM + CSV escaping already in place. Filename stays `staffing-sheet-<YYYY-MM-DD>.csv`.
-- Update the button `title` to "Download sheet view (respects filters & visible columns)".
+2. **New checkbox** in the "Recipients" panel header (next to the `{totalRecipients} selected` label, around line 713):
+   ```
+   [x] Unique contacts only
+   ```
+   Small helper text: "Deduplicates emails across the selected deals (each address gets one invite)."
 
-Only `handleExportCsv` (and its `useCallback` deps) changes. No UI, filter, or data changes elsewhere.
+3. **Dedup helper** derived from `selectedEmails` + `selectedDeals` order:
+   - Walk `selectedDeals` in current order.
+   - For each deal, keep an email only if its lowercased form hasn't been seen yet in an earlier deal.
+   - Produces `dedupedSelectedEmails: Record<dealId, string[]>` and `dedupedTotal: number`.
 
-## Notes / trade-offs
-- CSV (not XLSX) — matches the existing download and the other Clients & Deals export. Say the word if you'd rather have `.xlsx` with frozen header + first column and I'll swap to `xlsx` writer.
-- The `Not Staffed` marker from the old long-format export goes away; a blank role cell now naturally indicates "not staffed", which is how the on-screen sheet reads too.
+4. **Wire it in**:
+   - `totalRecipients` display switches to `dedupedTotal` when `uniqueOnly` is on.
+   - In the recipients list (line ~757 `selectedDeals.map`), when `uniqueOnly` is on, render duplicate rows with a muted style + `disabled` checkbox + a small "Already included via <first deal account>" hint, so the user can see what's being dropped.
+   - In the send handler (line ~425 loop over `selectedDeals`), replace `selectedEmails[d.deal_id]` with `dedupedSelectedEmails[d.deal_id]` when `uniqueOnly` is on. Ad-hoc extra emails (line ~436) also get deduped against the already-collected set.
+   - If a deal ends up with 0 recipients after dedup, skip its API call (don't create an empty invite).
+
+5. **Persistence**: `uniqueOnly` is session-only — no localStorage, no DB.
+
+No changes to backend, edge functions, DB, or any other file.
+
+## Technical notes
+- Dedup key: `email.trim().toLowerCase()`. Empty / invalid emails ignored as today.
+- Deal ordering already stable via `selectedDeals` (derived from `deals.filter(...)`). "First deal wins" for duplicates — surfaced in the hint so the behaviour is transparent.
+- Ad-hoc email textarea (existing) is deduped against the running set too, so pasting the same address doesn't slip past.
+
+## Out of scope
+- No change to Analytics tab's existing "Unique contacts" toggle (that's a view filter, not a send filter).
+- No change to what counts as a "contact" — still pulled from `deal_stakeholders` / Org Mapping.
