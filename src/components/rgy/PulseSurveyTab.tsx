@@ -125,6 +125,7 @@ export default function PulseSurveyTab({
   const [newCampaignName, setNewCampaignName] = useState("");
   const [newCampaignDesc, setNewCampaignDesc] = useState("");
   const [ccAnirudh, setCcAnirudh] = useState<boolean>(true);
+  const [uniqueOnly, setUniqueOnly] = useState<boolean>(false);
 
   const { data: campaigns = [] } = useQuery({
     queryKey: ["pulse-campaigns"],
@@ -423,8 +424,11 @@ export default function PulseSurveyTab({
   const sendMut = useMutation({
     mutationFn: async () => {
       const calls: Promise<{ ok?: boolean; error?: string; results?: SendResult[] }>[] = [];
+      const seenAdhoc = new Set<string>();
       for (const d of selectedDeals) {
-        const chosen = selectedEmails[d.deal_id] || [];
+        const chosen = uniqueOnly
+          ? (dedupedSelectedEmails[d.deal_id] || [])
+          : (selectedEmails[d.deal_id] || []);
         if (chosen.length === 0) continue;
         const list = dealStakeholders[d.deal_id] || [];
         const recipients = chosen.map(em => {
@@ -433,10 +437,17 @@ export default function PulseSurveyTab({
         });
         // adhoc
         adhoc.split(/[,;\s]+/).map(s => s.trim()).filter(e => /@/.test(e)).forEach(e => {
-          if (!recipients.some(r => r.email.toLowerCase() === e.toLowerCase())) {
-            recipients.push({ email: e, name: "", stakeholderId: null });
+          const key = e.toLowerCase();
+          if (recipients.some(r => r.email.toLowerCase() === key)) return;
+          if (uniqueOnly) {
+            // Skip if already sent via another deal or an earlier ad-hoc pass.
+            if (duplicateOwner.has(key) && duplicateOwner.get(key) !== "ad-hoc") return;
+            if (seenAdhoc.has(key)) return;
+            seenAdhoc.add(key);
           }
+          recipients.push({ email: e, name: "", stakeholderId: null });
         });
+        if (recipients.length === 0) continue;
         const body = {
           dealId: d.raw_id || d.deal_id,
           recipients,
@@ -514,8 +525,38 @@ export default function PulseSurveyTab({
     });
   };
 
-  const totalRecipients = Object.values(selectedEmails).reduce((a, v) => a + v.length, 0)
+  // Dedup selected emails across selected deals (first-deal-wins), based on the
+  // rendered order of `selectedDeals`. Used both for UI display and for send.
+  const { dedupedSelectedEmails, dedupedTotal, duplicateOwner } = useMemo(() => {
+    const seen = new Map<string, string>(); // emailLower -> owning deal account/name
+    const out: Record<string, string[]> = {};
+    for (const d of selectedDeals) {
+      const emails = selectedEmails[d.deal_id] || [];
+      const kept: string[] = [];
+      for (const em of emails) {
+        const key = em.trim().toLowerCase();
+        if (!key) continue;
+        if (seen.has(key)) continue;
+        seen.set(key, d.account || d.deal_name || d.deal_id);
+        kept.push(em);
+      }
+      out[d.deal_id] = kept;
+    }
+    const adhocEmails = adhoc.split(/[,;\s]+/).map(s => s.trim()).filter(e => /@/.test(e));
+    let adhocUnique = 0;
+    for (const e of adhocEmails) {
+      const key = e.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.set(key, "ad-hoc");
+      adhocUnique += 1;
+    }
+    const dedupedTotal = Object.values(out).reduce((a, v) => a + v.length, 0) + adhocUnique;
+    return { dedupedSelectedEmails: out, dedupedTotal, duplicateOwner: seen };
+  }, [selectedDeals, selectedEmails, adhoc]);
+
+  const rawTotal = Object.values(selectedEmails).reduce((a, v) => a + v.length, 0)
     + adhoc.split(/[,;\s]+/).filter(e => /@/.test(e)).length;
+  const totalRecipients = uniqueOnly ? dedupedTotal : rawTotal;
 
   const copyText = async (text: string, label = "Copied") => {
     try {
@@ -714,6 +755,13 @@ export default function PulseSurveyTab({
               </span>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
+              <label
+                className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none"
+                title="Deduplicates emails across the selected deals (each address gets one invite)"
+              >
+                <Checkbox checked={uniqueOnly} onCheckedChange={(v) => setUniqueOnly(!!v)} />
+                Unique contacts only
+              </label>
               <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none">
                 <Checkbox checked={ccAnirudh} onCheckedChange={(v) => setCcAnirudh(!!v)} />
                 Cc {ANIRUDH_CC}
@@ -772,12 +820,31 @@ export default function PulseSurveyTab({
                     )}
                     {list.map(s => {
                       const checked = (selectedEmails[d.deal_id] || []).includes(s.email!);
+                      const emailKey = (s.email || "").toLowerCase();
+                      const keptForThisDeal = (dedupedSelectedEmails[d.deal_id] || [])
+                        .some(e => e.toLowerCase() === emailKey);
+                      const isDuplicate = uniqueOnly && checked && !keptForThisDeal;
+                      const owner = duplicateOwner.get(emailKey);
                       return (
-                        <label key={s.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/40 cursor-pointer text-xs">
+                        <label
+                          key={s.id}
+                          className={cn(
+                            "flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/40 cursor-pointer text-xs",
+                            isDuplicate && "opacity-50"
+                          )}
+                          title={isDuplicate && owner ? `Already included via ${owner}` : undefined}
+                        >
                           <Checkbox checked={checked} onCheckedChange={() => toggleEmail(d.deal_id, s.email!)} />
                           <div className="min-w-0 flex-1">
-                            <div className="font-medium truncate">{s.name || "—"} <span className="text-muted-foreground font-normal">· {s.role || "—"}</span></div>
-                            <div className="text-muted-foreground truncate">{s.email}</div>
+                            <div className="font-medium truncate">
+                              {s.name || "—"} <span className="text-muted-foreground font-normal">· {s.role || "—"}</span>
+                            </div>
+                            <div className="text-muted-foreground truncate">
+                              {s.email}
+                              {isDuplicate && owner && (
+                                <span className="ml-1 italic">· duplicate, kept in {owner}</span>
+                              )}
+                            </div>
                           </div>
                         </label>
                       );
