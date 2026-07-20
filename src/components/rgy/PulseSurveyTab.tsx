@@ -125,6 +125,7 @@ export default function PulseSurveyTab({
   const [newCampaignName, setNewCampaignName] = useState("");
   const [newCampaignDesc, setNewCampaignDesc] = useState("");
   const [ccAnirudh, setCcAnirudh] = useState<boolean>(true);
+  const [uniqueOnly, setUniqueOnly] = useState<boolean>(false);
 
   const { data: campaigns = [] } = useQuery({
     queryKey: ["pulse-campaigns"],
@@ -514,8 +515,38 @@ export default function PulseSurveyTab({
     });
   };
 
-  const totalRecipients = Object.values(selectedEmails).reduce((a, v) => a + v.length, 0)
+  // Dedup selected emails across selected deals (first-deal-wins), based on the
+  // rendered order of `selectedDeals`. Used both for UI display and for send.
+  const { dedupedSelectedEmails, dedupedTotal, duplicateOwner } = useMemo(() => {
+    const seen = new Map<string, string>(); // emailLower -> owning deal account/name
+    const out: Record<string, string[]> = {};
+    for (const d of selectedDeals) {
+      const emails = selectedEmails[d.deal_id] || [];
+      const kept: string[] = [];
+      for (const em of emails) {
+        const key = em.trim().toLowerCase();
+        if (!key) continue;
+        if (seen.has(key)) continue;
+        seen.set(key, d.account || d.deal_name || d.deal_id);
+        kept.push(em);
+      }
+      out[d.deal_id] = kept;
+    }
+    const adhocEmails = adhoc.split(/[,;\s]+/).map(s => s.trim()).filter(e => /@/.test(e));
+    let adhocUnique = 0;
+    for (const e of adhocEmails) {
+      const key = e.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.set(key, "ad-hoc");
+      adhocUnique += 1;
+    }
+    const dedupedTotal = Object.values(out).reduce((a, v) => a + v.length, 0) + adhocUnique;
+    return { dedupedSelectedEmails: out, dedupedTotal, duplicateOwner: seen };
+  }, [selectedDeals, selectedEmails, adhoc]);
+
+  const rawTotal = Object.values(selectedEmails).reduce((a, v) => a + v.length, 0)
     + adhoc.split(/[,;\s]+/).filter(e => /@/.test(e)).length;
+  const totalRecipients = uniqueOnly ? dedupedTotal : rawTotal;
 
   const copyText = async (text: string, label = "Copied") => {
     try {
