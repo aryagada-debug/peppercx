@@ -424,8 +424,11 @@ export default function PulseSurveyTab({
   const sendMut = useMutation({
     mutationFn: async () => {
       const calls: Promise<{ ok?: boolean; error?: string; results?: SendResult[] }>[] = [];
+      const seenAdhoc = new Set<string>();
       for (const d of selectedDeals) {
-        const chosen = selectedEmails[d.deal_id] || [];
+        const chosen = uniqueOnly
+          ? (dedupedSelectedEmails[d.deal_id] || [])
+          : (selectedEmails[d.deal_id] || []);
         if (chosen.length === 0) continue;
         const list = dealStakeholders[d.deal_id] || [];
         const recipients = chosen.map(em => {
@@ -434,10 +437,17 @@ export default function PulseSurveyTab({
         });
         // adhoc
         adhoc.split(/[,;\s]+/).map(s => s.trim()).filter(e => /@/.test(e)).forEach(e => {
-          if (!recipients.some(r => r.email.toLowerCase() === e.toLowerCase())) {
-            recipients.push({ email: e, name: "", stakeholderId: null });
+          const key = e.toLowerCase();
+          if (recipients.some(r => r.email.toLowerCase() === key)) return;
+          if (uniqueOnly) {
+            // Skip if already sent via another deal or an earlier ad-hoc pass.
+            if (duplicateOwner.has(key) && duplicateOwner.get(key) !== "ad-hoc") return;
+            if (seenAdhoc.has(key)) return;
+            seenAdhoc.add(key);
           }
+          recipients.push({ email: e, name: "", stakeholderId: null });
         });
+        if (recipients.length === 0) continue;
         const body = {
           dealId: d.raw_id || d.deal_id,
           recipients,
