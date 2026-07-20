@@ -755,6 +755,13 @@ export default function PulseSurveyTab({
               </span>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
+              <label
+                className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none"
+                title="Deduplicates emails across the selected deals (each address gets one invite)"
+              >
+                <Checkbox checked={uniqueOnly} onCheckedChange={(v) => setUniqueOnly(!!v)} />
+                Unique contacts only
+              </label>
               <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none">
                 <Checkbox checked={ccAnirudh} onCheckedChange={(v) => setCcAnirudh(!!v)} />
                 Cc {ANIRUDH_CC}
@@ -813,12 +820,31 @@ export default function PulseSurveyTab({
                     )}
                     {list.map(s => {
                       const checked = (selectedEmails[d.deal_id] || []).includes(s.email!);
+                      const emailKey = (s.email || "").toLowerCase();
+                      const keptForThisDeal = (dedupedSelectedEmails[d.deal_id] || [])
+                        .some(e => e.toLowerCase() === emailKey);
+                      const isDuplicate = uniqueOnly && checked && !keptForThisDeal;
+                      const owner = duplicateOwner.get(emailKey);
                       return (
-                        <label key={s.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/40 cursor-pointer text-xs">
+                        <label
+                          key={s.id}
+                          className={cn(
+                            "flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/40 cursor-pointer text-xs",
+                            isDuplicate && "opacity-50"
+                          )}
+                          title={isDuplicate && owner ? `Already included via ${owner}` : undefined}
+                        >
                           <Checkbox checked={checked} onCheckedChange={() => toggleEmail(d.deal_id, s.email!)} />
                           <div className="min-w-0 flex-1">
-                            <div className="font-medium truncate">{s.name || "—"} <span className="text-muted-foreground font-normal">· {s.role || "—"}</span></div>
-                            <div className="text-muted-foreground truncate">{s.email}</div>
+                            <div className="font-medium truncate">
+                              {s.name || "—"} <span className="text-muted-foreground font-normal">· {s.role || "—"}</span>
+                            </div>
+                            <div className="text-muted-foreground truncate">
+                              {s.email}
+                              {isDuplicate && owner && (
+                                <span className="ml-1 italic">· duplicate, kept in {owner}</span>
+                              )}
+                            </div>
                           </div>
                         </label>
                       );
