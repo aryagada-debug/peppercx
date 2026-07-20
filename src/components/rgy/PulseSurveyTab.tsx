@@ -476,7 +476,12 @@ export default function PulseSurveyTab({
           })
         );
       }
-      if (calls.length === 0) throw new Error("Select at least one recipient email.");
+      if (calls.length === 0) {
+        if (skippedNoContacts.length > 0) {
+          throw new Error(`No emails sent. ${skippedNoContacts.length} selected deal(s) have no Org Mapping contacts.`);
+        }
+        throw new Error("Select at least one recipient email.");
+      }
       const results = await Promise.allSettled(calls);
       const payloads = results.flatMap(r =>
         r.status === "fulfilled"
