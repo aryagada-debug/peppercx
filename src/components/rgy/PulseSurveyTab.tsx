@@ -584,22 +584,27 @@ export default function PulseSurveyTab({
     }
   };
 
-  // Select-all helpers for the left deal pane.
-  const allFilteredSelected = filteredDeals.length > 0
-    && filteredDeals.every(d => selectedDealIds.includes(d.deal_id));
+  // Select-all helpers for the left deal pane. Deals with 0 Org Mapping
+  // contacts are excluded from selection entirely.
+  const selectableDeals = useMemo(
+    () => filteredDeals.filter(d => (contactCounts[d.deal_id] ?? 0) > 0),
+    [filteredDeals, contactCounts]
+  );
+  const allFilteredSelected = selectableDeals.length > 0
+    && selectableDeals.every(d => selectedDealIds.includes(d.deal_id));
   const handleSelectAll = () => {
     if (allFilteredSelected) {
-      setSelectedDealIds(prev => prev.filter(id => !filteredDeals.some(d => d.deal_id === id)));
+      setSelectedDealIds(prev => prev.filter(id => !selectableDeals.some(d => d.deal_id === id)));
       return;
     }
     const apply = () => setSelectedDealIds(prev => {
       const next = new Set(prev);
-      filteredDeals.forEach(d => next.add(d.deal_id));
+      selectableDeals.forEach(d => next.add(d.deal_id));
       return Array.from(next);
     });
-    if (filteredDeals.length > 50) {
+    if (selectableDeals.length > 50) {
       const ok = typeof window !== "undefined"
-        ? window.confirm(`Select all ${filteredDeals.length} deals? Stakeholders will load in the background.`)
+        ? window.confirm(`Select all ${selectableDeals.length} deals? Stakeholders will load in the background.`)
         : true;
       if (!ok) return;
     }
@@ -710,14 +715,14 @@ export default function PulseSurveyTab({
               />
             </div>
             <div className="flex items-center justify-between mt-2 px-1 text-[11px] text-muted-foreground">
-              <span>{selectedDealIds.length} selected · {filteredDeals.length} deals</span>
+              <span>{selectedDealIds.length} selected · {selectableDeals.length} deals</span>
               <div className="flex items-center gap-2">
                 <button
                   className="hover:underline disabled:opacity-50"
                   onClick={handleSelectAll}
-                  disabled={filteredDeals.length === 0}
+                  disabled={selectableDeals.length === 0}
                 >
-                  {allFilteredSelected ? "Clear selection" : `Select all (${filteredDeals.length})`}
+                  {allFilteredSelected ? "Clear selection" : `Select all (${selectableDeals.length})`}
                 </button>
                 {selectedDealIds.length > 0 && !allFilteredSelected && (
                   <button className="hover:underline" onClick={() => setSelectedDealIds([])}>Clear</button>
@@ -731,14 +736,21 @@ export default function PulseSurveyTab({
                 const on = selectedDealIds.includes(d.deal_id);
                 const cc = contactCounts[d.deal_id] ?? 0;
                 const agg = inviteAggByDeal[d.deal_id];
+                const disabled = cc === 0;
                 return (
                   <li key={d.deal_id}>
                     <button
-                      onClick={() => toggleDeal(d.deal_id)}
+                      onClick={() => { if (!disabled) toggleDeal(d.deal_id); }}
                       onMouseEnter={() => prefetchDeal(d)}
-                      className={cn("w-full text-left px-3 py-2 text-xs flex items-start gap-2 hover:bg-muted/40", on && "bg-primary/5")}
+                      disabled={disabled}
+                      title={disabled ? "No contacts in Org Mapping — add contacts to enable" : undefined}
+                      className={cn(
+                        "w-full text-left px-3 py-2 text-xs flex items-start gap-2 hover:bg-muted/40",
+                        on && "bg-primary/5",
+                        disabled && "opacity-50 cursor-not-allowed hover:bg-transparent"
+                      )}
                     >
-                      <Checkbox checked={on} className="mt-0.5" tabIndex={-1} />
+                      <Checkbox checked={on} disabled={disabled} className="mt-0.5" tabIndex={-1} />
                       <div className="min-w-0 flex-1">
                         <div className="font-medium truncate">{d.account || "—"}</div>
                         <div className="text-muted-foreground truncate">{d.deal_name || d.deal_id}</div>
