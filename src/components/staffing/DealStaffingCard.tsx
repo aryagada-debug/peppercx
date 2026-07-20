@@ -242,14 +242,16 @@ export function DealStaffingCard({
 
       {open && (
         <div className="p-4 space-y-4">
-          <SuggestedStaffingPanel
-            deal={deal}
-            deals={deals}
-            people={people}
-            assignments={assignments}
-            onAddAssignment={onAddAssignment}
-            onUpdateAssignment={onUpdateAssignment}
-          />
+          {!locked && (
+            <SuggestedStaffingPanel
+              deal={deal}
+              deals={deals}
+              people={people}
+              assignments={assignments}
+              onAddAssignment={onAddAssignment}
+              onUpdateAssignment={onUpdateAssignment}
+            />
+          )}
           {/* KPI strip */}
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <div className="rounded-lg bg-secondary/50 p-3">
