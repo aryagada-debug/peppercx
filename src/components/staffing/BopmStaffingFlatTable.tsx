@@ -1604,7 +1604,7 @@ export function BopmStaffingFlatTable({
               type="button"
               onClick={handleExportCsv}
               className="h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md border border-border bg-background text-xs text-foreground hover:bg-secondary/50"
-              title="Download CSV of the current Sheet view"
+              title="Download sheet view (respects filters & visible columns)"
             >
               <Download className="h-3.5 w-3.5" />
               Download
