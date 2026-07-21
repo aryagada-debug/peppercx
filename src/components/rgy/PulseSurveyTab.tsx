@@ -819,7 +819,7 @@ export default function PulseSurveyTab({
               {filteredDeals.map(d => {
                 const on = selectedDealIds.includes(d.deal_id);
                 const cc = contactCounts[d.deal_id] ?? 0;
-                const agg = inviteAggByDeal[d.deal_id];
+                const agg = inviteAggByDeal[d.raw_id || d.deal_id];
                 const disabled = cc === 0;
                 return (
                   <li key={d.deal_id}>
