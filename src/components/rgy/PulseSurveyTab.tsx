@@ -606,11 +606,14 @@ export default function PulseSurveyTab({
     setSelectedDealIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
   const prefetchDeal = (d: Deal) => {
-    const ids = [d.deal_id];
+    // Prefetch using the exact same query key shape and payload as the
+    // main "pulse-stakeholders" query so a hover doesn't shadow the real
+    // result with a filtered-by-formulated-ID (empty) cache entry.
     const accts = d.account ? [d.account] : [];
+    const rawIds = [d.raw_id || d.deal_id];
     qc.prefetchQuery({
-      queryKey: ["pulse-stakeholders", accts, ids],
-      queryFn: () => fetchStakeholdersFor(ids, accts),
+      queryKey: ["pulse-stakeholders", accts, [d.deal_id]],
+      queryFn: () => fetchStakeholdersFor(rawIds, accts),
       staleTime: 60_000,
     });
   };
