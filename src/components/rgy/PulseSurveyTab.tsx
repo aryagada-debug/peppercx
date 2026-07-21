@@ -411,8 +411,26 @@ export default function PulseSurveyTab({
     staleTime: 30_000,
   });
 
+  // Optionally dedupe invites by recipient_email (latest action wins).
+  const displayedInvites = useMemo(() => {
+    if (!uniqueOnly) return invites;
+    const ts = (inv: any) => {
+      const vals = [inv.completed_at, inv.opened_at, inv.sent_at]
+        .map(v => (v ? new Date(v).getTime() : 0));
+      return Math.max(0, ...vals);
+    };
+    const byEmail = new Map<string, Invite>();
+    for (const inv of invites) {
+      const key = (inv.recipient_email || "").toLowerCase().trim();
+      if (!key) continue;
+      const prev = byEmail.get(key);
+      if (!prev || ts(inv) > ts(prev)) byEmail.set(key, inv);
+    }
+    return Array.from(byEmail.values());
+  }, [invites, uniqueOnly]);
+
   // Response rows for the current invite page.
-  const inviteIds = useMemo(() => invites.map(i => i.id), [invites]);
+  const inviteIds = useMemo(() => displayedInvites.map(i => i.id), [displayedInvites]);
   const { data: responsesByInvite = {} } = useQuery({
     queryKey: ["pulse-responses", inviteIds],
     enabled: inviteIds.length > 0,
@@ -1029,10 +1047,10 @@ export default function PulseSurveyTab({
               </tr>
             </thead>
             <tbody>
-              {invites.length === 0 && (
+              {displayedInvites.length === 0 && (
                 <tr><td colSpan={12} className="px-3 py-6 text-center text-muted-foreground">No invites sent yet.</td></tr>
               )}
-              {invites.map(inv => {
+              {displayedInvites.map(inv => {
                 const r = responsesByInvite[inv.id];
                 const link = surveyLinkForToken(inv.token);
                 const owners = dealOwnersById[inv.deal_id];

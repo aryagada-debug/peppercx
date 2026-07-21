@@ -1,27 +1,23 @@
 ## Goal
-In Pulse / NPS → Send tab, make the existing VSD filter also filter the "Recent invites" table, and add a new "P/Sr BOPM" column with its own filter chip row (same behavior as VSD).
+Make the existing "Unique contacts only" checkbox in Pulse / NPS → Send tab also apply to the "Recent invites" table below. When a recipient email appears in multiple invites, keep only the most recent one (latest action wins).
 
-## Changes (all in `src/components/rgy/PulseSurveyTab.tsx`)
+## Change (single file: `src/components/rgy/PulseSurveyTab.tsx`)
 
-1. **New BOPM filter state + chip list**
-   - Build `BOPM_FILTERS` from the loaded `deals` prop by collecting unique non-empty `principal_bopm` and `senior_bopm` values (sorted, deduped). Add "All" as default.
-   - Add `activeBopm` state (default `"__all"`), rendered as a chip row directly under the existing VSD chip row using the same styling.
+1. **Derive `displayedInvites` via `useMemo`** from the existing `invites` array:
+   - When `uniqueOnly` is false → return `invites` unchanged.
+   - When `uniqueOnly` is true → dedupe by lowercased `recipient_email`, keeping the row with the latest "action" timestamp defined as `max(completed_at, opened_at, sent_at, created_at)`. On tie, the first occurrence wins (invites are already ordered by `created_at desc` from the query, so this preserves latest-first).
 
-2. **Deal → owners lookup**
-   - Build `dealOwnersById` map: `raw_id → { vsd, principal_bopm, senior_bopm }` from the `deals` prop (invite `deal_id` is `staffing_deals.id`, matching `raw_id`).
+2. **Use `displayedInvites`** instead of `invites` for:
+   - The recent-invites `<tbody>` render loop.
+   - `inviteIds` used by the `responsesByInvite` query (so we don't fetch responses for rows we're hiding).
+   - The empty-state row check.
 
-3. **Recent invites query — apply VSD + BOPM filters server-side**
-   - When `activeVsd !== "__all"` or `activeBopm !== "__all"`, compute the matching deal id set from `deals` (using the same `canonVsd`/`isVsdName`/`UNASSIGNED_VSD_VALUES` logic already used for the deal list, plus BOPM name match) and add `.in("deal_id", matchingIds)` to the invites query.
-   - Include `activeVsd` and `activeBopm` in the `queryKey` so React Query refetches on change.
-   - If the filter set is empty, short-circuit to `[]` to avoid an unbounded query.
+3. **No changes** to the invites Supabase query, pagination, VSD/BOPM filters, deal picker behavior, or the existing meaning of `uniqueOnly` in the deal-selection area above.
 
-4. **Table structure**
-   - Add a "P/Sr BOPM" `<th>` between "Recipient" and "Cc".
-   - Add a matching `<td>` that renders `principal_bopm` (bold) and `senior_bopm` (muted) from `dealOwnersById[inv.deal_id]`, dash when missing.
-   - Update the empty-row `colSpan` from `11` → `12`.
-
-5. **No changes to sending logic, schema, or other tabs.** VSD chip continues to filter the deals list above as it does today; it now additionally filters the invites table below.
+## Notes
+- Dedupe runs on the currently loaded page window (`page * PAGE_SIZE`), matching how filtering already works client-side for the table. "Load more" continues to fetch further rows, which are then also deduped.
+- "Latest action" is chosen over pure `created_at` so a later-opened or later-completed invite for the same email is preferred over an older one that only has `sent_at`.
 
 ## Out of scope
-- Server-side pagination interaction with client-side filtering is avoided by pushing filters into the Supabase query.
-- The Analytics → Responses table (separate component) is not touched — this request is about the Send tab's "Recent invites" table.
+- Analytics → Responses table (separate component).
+- Any change to send/mutation logic.
