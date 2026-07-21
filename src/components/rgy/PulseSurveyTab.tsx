@@ -81,19 +81,37 @@ function surveyLinkForToken(token: string) {
 }
 
 async function fetchStakeholdersFor(dealIds: string[], accounts: string[]) {
-  if (dealIds.length === 0) return [] as Stakeholder[];
-  const filters: string[] = [];
-  filters.push(`deal_id.in.(${dealIds.map(s => `"${s}"`).join(",")})`);
-  if (accounts.length) {
-    filters.push(`client_name.in.(${accounts.map(s => `"${s.replace(/"/g, '\\"')}"`).join(",")})`);
+  if (dealIds.length === 0 && accounts.length === 0) return [] as Stakeholder[];
+  // Two simple queries in parallel — avoids PostgREST .or()/.in.() quoting
+  // pitfalls when account names contain commas, parens, or quotes (e.g.
+  // "Lifescan (OneTouch)"), which previously caused the combined filter to
+  // silently drop rows.
+  const [byId, byAcct] = await Promise.all([
+    dealIds.length
+      ? supabase
+          .from("deal_stakeholders")
+          .select("id, name, role, email, phone, deal_id, client_name")
+          .in("deal_id", dealIds)
+          .limit(5000)
+      : Promise.resolve({ data: [] as any[], error: null }),
+    accounts.length
+      ? supabase
+          .from("deal_stakeholders")
+          .select("id, name, role, email, phone, deal_id, client_name")
+          .in("client_name", accounts)
+          .limit(5000)
+      : Promise.resolve({ data: [] as any[], error: null }),
+  ]);
+  if (byId.error) throw byId.error;
+  if (byAcct.error) throw byAcct.error;
+  const seen = new Set<string>();
+  const out: Stakeholder[] = [];
+  for (const r of [...(byId.data || []), ...(byAcct.data || [])]) {
+    if (seen.has((r as any).id)) continue;
+    seen.add((r as any).id);
+    out.push(r as Stakeholder);
   }
-  const { data, error } = await supabase
-    .from("deal_stakeholders")
-    .select("id, name, role, email, phone, deal_id, client_name")
-    .or(filters.join(","))
-    .limit(2000);
-  if (error) throw error;
-  return (data as Stakeholder[]) || [];
+  return out;
 }
 
 export default function PulseSurveyTab({
@@ -206,17 +224,26 @@ export default function PulseSurveyTab({
     enabled: rawDealIds.length > 0,
     staleTime: 60_000,
     queryFn: async () => {
-      const filters: string[] = [];
-      filters.push(`deal_id.in.(${rawDealIds.map(s => `"${s}"`).join(",")})`);
-      if (accountsAll.length) {
-        filters.push(`client_name.in.(${accountsAll.map(s => `"${s.replace(/"/g, '\\"')}"`).join(",")})`);
-      }
-      const { data, error } = await supabase
-        .from("deal_stakeholders")
-        .select("deal_id, client_name, email")
-        .or(filters.join(","))
-        .limit(5000);
-      if (error) throw error;
+      // Split into two queries to avoid PostgREST .or() parsing issues on
+      // account names with commas/parens/quotes. Merge and dedupe by
+      // (deal_id, email) — rows are cheap.
+      const [byId, byAcct] = await Promise.all([
+        supabase
+          .from("deal_stakeholders")
+          .select("deal_id, client_name, email")
+          .in("deal_id", rawDealIds)
+          .limit(10000),
+        accountsAll.length
+          ? supabase
+              .from("deal_stakeholders")
+              .select("deal_id, client_name, email")
+              .in("client_name", accountsAll)
+              .limit(10000)
+          : Promise.resolve({ data: [] as any[], error: null }),
+      ]);
+      if (byId.error) throw byId.error;
+      if (byAcct.error) throw byAcct.error;
+      const data = [...(byId.data || []), ...(byAcct.data || [])];
       // Aggregate by raw deal_id and by normalized client_name (account).
       const byDeal: Record<string, Set<string>> = {};
       const byAccount: Record<string, Set<string>> = {};
