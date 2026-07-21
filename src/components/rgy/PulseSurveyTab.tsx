@@ -188,19 +188,26 @@ export default function PulseSurveyTab({
     (s || "").split(/[,/]/).map(x => x.trim()).filter(Boolean);
 
   // Aggregates: contacts per deal/account, invites sent/completed per deal.
+  // Org Mapping stores `deal_stakeholders.deal_id` = raw `staffing_deals.id`,
+  // while `deals[].deal_id` here is the formulated ID. Always join on raw IDs.
   const dealIds = useMemo(() => deals.map(d => d.deal_id), [deals]);
+  const rawDealIds = useMemo(
+    () => Array.from(new Set(deals.map(d => d.raw_id || d.deal_id).filter(Boolean) as string[])),
+    [deals]
+  );
+  const normAcct = (s: string | null | undefined) => (s || "").trim().toLowerCase();
   const accountsAll = useMemo(
     () => Array.from(new Set(deals.map(d => d.account).filter(Boolean) as string[])),
     [deals]
   );
 
   const { data: contactCounts = {} } = useQuery({
-    queryKey: ["pulse-contact-counts", dealIds.length, accountsAll.length],
-    enabled: dealIds.length > 0,
+    queryKey: ["pulse-contact-counts", rawDealIds.length, accountsAll.length],
+    enabled: rawDealIds.length > 0,
     staleTime: 60_000,
     queryFn: async () => {
       const filters: string[] = [];
-      filters.push(`deal_id.in.(${dealIds.map(s => `"${s}"`).join(",")})`);
+      filters.push(`deal_id.in.(${rawDealIds.map(s => `"${s}"`).join(",")})`);
       if (accountsAll.length) {
         filters.push(`client_name.in.(${accountsAll.map(s => `"${s.replace(/"/g, '\\"')}"`).join(",")})`);
       }
@@ -210,7 +217,7 @@ export default function PulseSurveyTab({
         .or(filters.join(","))
         .limit(5000);
       if (error) throw error;
-      // Aggregate by deal_id and by client_name (account).
+      // Aggregate by raw deal_id and by normalized client_name (account).
       const byDeal: Record<string, Set<string>> = {};
       const byAccount: Record<string, Set<string>> = {};
       for (const r of (data || []) as any[]) {
@@ -219,14 +226,16 @@ export default function PulseSurveyTab({
         if (r.deal_id) {
           (byDeal[r.deal_id] ||= new Set()).add(em);
         }
-        if (r.client_name) {
-          (byAccount[r.client_name] ||= new Set()).add(em);
+        const ak = normAcct(r.client_name);
+        if (ak) {
+          (byAccount[ak] ||= new Set()).add(em);
         }
       }
       const out: Record<string, number> = {};
       for (const d of deals) {
-        const direct = byDeal[d.deal_id]?.size ?? 0;
-        const viaAccount = d.account ? byAccount[d.account]?.size ?? 0 : 0;
+        const rawKey = d.raw_id || d.deal_id;
+        const direct = byDeal[rawKey]?.size ?? 0;
+        const viaAccount = d.account ? byAccount[normAcct(d.account)]?.size ?? 0 : 0;
         out[d.deal_id] = Math.max(direct, viaAccount);
       }
       return out;
@@ -304,7 +313,12 @@ export default function PulseSurveyTab({
   );
   const { data: stakeholders = [], isLoading: shLoading } = useQuery({
     queryKey: ["pulse-stakeholders", accounts, selectedDealIds],
-    queryFn: () => fetchStakeholdersFor(selectedDealIds, accounts),
+    queryFn: () => {
+      const rawIds = Array.from(new Set(
+        selectedDeals.map(d => d.raw_id || d.deal_id).filter(Boolean) as string[]
+      ));
+      return fetchStakeholdersFor(rawIds, accounts);
+    },
     enabled: selectedDealIds.length > 0,
     staleTime: 60_000,
   });
@@ -317,7 +331,10 @@ export default function PulseSurveyTab({
       const arr: Stakeholder[] = [];
       for (const s of stakeholders) {
         if (!s.email || !/@/.test(s.email)) continue;
-        const matches = s.deal_id === d.deal_id || (d.account && s.client_name === d.account);
+        const rawKey = d.raw_id || d.deal_id;
+        const matches =
+          s.deal_id === rawKey ||
+          (d.account && normAcct(s.client_name) === normAcct(d.account));
         if (!matches) continue;
         const key = s.email.toLowerCase();
         if (seen.has(key)) continue;
