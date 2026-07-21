@@ -243,14 +243,14 @@ export default function PulseSurveyTab({
   });
 
   const { data: inviteAggByDeal = {} } = useQuery({
-    queryKey: ["pulse-invite-agg", dealIds.length],
-    enabled: dealIds.length > 0,
+    queryKey: ["pulse-invite-agg", rawDealIds.length],
+    enabled: rawDealIds.length > 0,
     staleTime: 60_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("survey_invites")
         .select("deal_id, sent_at, completed_at")
-        .in("deal_id", dealIds)
+        .in("deal_id", rawDealIds)
         .limit(5000);
       if (error) throw error;
       const map: Record<string, { sent: number; completed: number }> = {};
