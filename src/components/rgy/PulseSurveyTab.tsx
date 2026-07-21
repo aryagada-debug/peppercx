@@ -346,10 +346,55 @@ export default function PulseSurveyTab({
     });
   }, [selectedDealIds, dealStakeholders]);
 
+  // Map invite.deal_id (== staffing_deals.id == raw_id) → owners for display + filtering.
+  const dealOwnersById = useMemo(() => {
+    const m: Record<string, { vsd: string | null; principal_bopm: string | null; senior_bopm: string | null }> = {};
+    for (const d of deals) {
+      const key = d.raw_id || d.deal_id;
+      if (!key) continue;
+      m[key] = { vsd: d.vsd ?? null, principal_bopm: d.principal_bopm ?? null, senior_bopm: d.senior_bopm ?? null };
+    }
+    return m;
+  }, [deals]);
+
+  // Chip list of P/Sr BOPMs sourced from the loaded deals.
+  const BOPM_FILTERS = useMemo(() => {
+    const set = new Set<string>();
+    for (const d of deals) {
+      splitNames(d.principal_bopm).forEach(n => set.add(n));
+      splitNames(d.senior_bopm).forEach(n => set.add(n));
+    }
+    return [{ key: "All", label: "All" }, ...Array.from(set).sort().map(n => ({ key: n, label: n }))];
+  }, [deals]);
+
+  // When VSD/BOPM chips are active, restrict invites to matching deals only.
+  const inviteFilterDealIds = useMemo<string[] | null>(() => {
+    if (activeVsd === "All" && activeBopm === "All") return null;
+    const ids: string[] = [];
+    for (const d of deals) {
+      const v = (d.vsd || "").trim();
+      let vsdOk = true;
+      if (activeVsd === "Unassigned") vsdOk = UNASSIGNED_VSD_VALUES.has(v);
+      else if (activeVsd === "Other") vsdOk = !!v && !UNASSIGNED_VSD_VALUES.has(v) && !isVsdName(v);
+      else if (activeVsd !== "All") vsdOk = canonVsd(d.vsd) === activeVsd;
+
+      let bopmOk = true;
+      if (activeBopm !== "All") {
+        bopmOk =
+          splitNames(d.principal_bopm).some(n => n === activeBopm) ||
+          splitNames(d.senior_bopm).some(n => n === activeBopm) ||
+          splitNames(d.bopm).some(n => n === activeBopm);
+      }
+      if (vsdOk && bopmOk) ids.push(d.raw_id || d.deal_id);
+    }
+    return ids;
+  }, [deals, activeVsd, activeBopm, isVsdName, canonVsd]);
+
   // Recent invites (paginated).
   const { data: invites = [] } = useQuery({
-    queryKey: ["pulse-invites", page, statusFilter],
+    queryKey: ["pulse-invites", page, statusFilter, activeVsd, activeBopm, inviteFilterDealIds?.length ?? -1],
     queryFn: async () => {
+      if (inviteFilterDealIds && inviteFilterDealIds.length === 0) return [] as Invite[];
       let q = supabase
         .from("survey_invites")
         .select("id, token, deal_id, account_snapshot, deal_name_snapshot, recipient_name, recipient_email, email_status, cc_emails, sent_at, opened_at, completed_at, error")
@@ -358,6 +403,7 @@ export default function PulseSurveyTab({
       if (statusFilter === "sent") q = q.eq("email_status", "sent");
       if (statusFilter === "failed") q = q.eq("email_status", "failed");
       if (statusFilter === "completed") q = q.not("completed_at", "is", null);
+      if (inviteFilterDealIds) q = q.in("deal_id", inviteFilterDealIds);
       const { data, error } = await q;
       if (error) throw error;
       return (data as Invite[]) || [];
@@ -970,6 +1016,7 @@ export default function PulseSurveyTab({
               <tr>
                 <th className="text-left px-3 py-2">Deal</th>
                 <th className="text-left px-3 py-2">Recipient</th>
+                <th className="text-left px-3 py-2">P / Sr BOPM</th>
                 <th className="text-left px-3 py-2">Cc</th>
                 <th className="text-left px-3 py-2">Status</th>
                 <th className="text-left px-3 py-2">Sent</th>
@@ -983,11 +1030,12 @@ export default function PulseSurveyTab({
             </thead>
             <tbody>
               {invites.length === 0 && (
-                <tr><td colSpan={11} className="px-3 py-6 text-center text-muted-foreground">No invites sent yet.</td></tr>
+                <tr><td colSpan={12} className="px-3 py-6 text-center text-muted-foreground">No invites sent yet.</td></tr>
               )}
               {invites.map(inv => {
                 const r = responsesByInvite[inv.id];
                 const link = surveyLinkForToken(inv.token);
+                const owners = dealOwnersById[inv.deal_id];
                 return (
                 <tr key={inv.id} className="border-t">
                   <td className="px-3 py-2">
@@ -997,6 +1045,16 @@ export default function PulseSurveyTab({
                   <td className="px-3 py-2">
                     <div className="font-medium">{inv.recipient_name || "—"}</div>
                     <div className="text-muted-foreground">{inv.recipient_email}</div>
+                  </td>
+                  <td className="px-3 py-2">
+                    {owners?.principal_bopm || owners?.senior_bopm ? (
+                      <>
+                        <div className="font-medium">{owners?.principal_bopm || "—"}</div>
+                        <div className="text-muted-foreground">{owners?.senior_bopm || "—"}</div>
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-muted-foreground">{(inv.cc_emails || []).length}</td>
                   <td className="px-3 py-2">
