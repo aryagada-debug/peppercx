@@ -1016,6 +1016,7 @@ export default function PulseSurveyTab({
               <tr>
                 <th className="text-left px-3 py-2">Deal</th>
                 <th className="text-left px-3 py-2">Recipient</th>
+                <th className="text-left px-3 py-2">P / Sr BOPM</th>
                 <th className="text-left px-3 py-2">Cc</th>
                 <th className="text-left px-3 py-2">Status</th>
                 <th className="text-left px-3 py-2">Sent</th>
@@ -1029,11 +1030,12 @@ export default function PulseSurveyTab({
             </thead>
             <tbody>
               {invites.length === 0 && (
-                <tr><td colSpan={11} className="px-3 py-6 text-center text-muted-foreground">No invites sent yet.</td></tr>
+                <tr><td colSpan={12} className="px-3 py-6 text-center text-muted-foreground">No invites sent yet.</td></tr>
               )}
               {invites.map(inv => {
                 const r = responsesByInvite[inv.id];
                 const link = surveyLinkForToken(inv.token);
+                const owners = dealOwnersById[inv.deal_id];
                 return (
                 <tr key={inv.id} className="border-t">
                   <td className="px-3 py-2">
@@ -1043,6 +1045,16 @@ export default function PulseSurveyTab({
                   <td className="px-3 py-2">
                     <div className="font-medium">{inv.recipient_name || "—"}</div>
                     <div className="text-muted-foreground">{inv.recipient_email}</div>
+                  </td>
+                  <td className="px-3 py-2">
+                    {owners?.principal_bopm || owners?.senior_bopm ? (
+                      <>
+                        <div className="font-medium">{owners?.principal_bopm || "—"}</div>
+                        <div className="text-muted-foreground">{owners?.senior_bopm || "—"}</div>
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-muted-foreground">{(inv.cc_emails || []).length}</td>
                   <td className="px-3 py-2">
