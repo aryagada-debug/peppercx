@@ -313,7 +313,12 @@ export default function PulseSurveyTab({
   );
   const { data: stakeholders = [], isLoading: shLoading } = useQuery({
     queryKey: ["pulse-stakeholders", accounts, selectedDealIds],
-    queryFn: () => fetchStakeholdersFor(selectedDealIds, accounts),
+    queryFn: () => {
+      const rawIds = Array.from(new Set(
+        selectedDeals.map(d => d.raw_id || d.deal_id).filter(Boolean) as string[]
+      ));
+      return fetchStakeholdersFor(rawIds, accounts);
+    },
     enabled: selectedDealIds.length > 0,
     staleTime: 60_000,
   });
@@ -326,7 +331,10 @@ export default function PulseSurveyTab({
       const arr: Stakeholder[] = [];
       for (const s of stakeholders) {
         if (!s.email || !/@/.test(s.email)) continue;
-        const matches = s.deal_id === d.deal_id || (d.account && s.client_name === d.account);
+        const rawKey = d.raw_id || d.deal_id;
+        const matches =
+          s.deal_id === rawKey ||
+          (d.account && normAcct(s.client_name) === normAcct(d.account));
         if (!matches) continue;
         const key = s.email.toLowerCase();
         if (seen.has(key)) continue;
