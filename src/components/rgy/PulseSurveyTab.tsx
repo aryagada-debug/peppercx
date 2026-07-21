@@ -243,14 +243,14 @@ export default function PulseSurveyTab({
   });
 
   const { data: inviteAggByDeal = {} } = useQuery({
-    queryKey: ["pulse-invite-agg", dealIds.length],
-    enabled: dealIds.length > 0,
+    queryKey: ["pulse-invite-agg", rawDealIds.length],
+    enabled: rawDealIds.length > 0,
     staleTime: 60_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("survey_invites")
         .select("deal_id, sent_at, completed_at")
-        .in("deal_id", dealIds)
+        .in("deal_id", rawDealIds)
         .limit(5000);
       if (error) throw error;
       const map: Record<string, { sent: number; completed: number }> = {};
@@ -606,11 +606,14 @@ export default function PulseSurveyTab({
     setSelectedDealIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
   const prefetchDeal = (d: Deal) => {
-    const ids = [d.deal_id];
+    // Prefetch using the exact same query key shape and payload as the
+    // main "pulse-stakeholders" query so a hover doesn't shadow the real
+    // result with a filtered-by-formulated-ID (empty) cache entry.
     const accts = d.account ? [d.account] : [];
+    const rawIds = [d.raw_id || d.deal_id];
     qc.prefetchQuery({
-      queryKey: ["pulse-stakeholders", accts, ids],
-      queryFn: () => fetchStakeholdersFor(ids, accts),
+      queryKey: ["pulse-stakeholders", accts, [d.deal_id]],
+      queryFn: () => fetchStakeholdersFor(rawIds, accts),
       staleTime: 60_000,
     });
   };
@@ -816,7 +819,7 @@ export default function PulseSurveyTab({
               {filteredDeals.map(d => {
                 const on = selectedDealIds.includes(d.deal_id);
                 const cc = contactCounts[d.deal_id] ?? 0;
-                const agg = inviteAggByDeal[d.deal_id];
+                const agg = inviteAggByDeal[d.raw_id || d.deal_id];
                 const disabled = cc === 0;
                 return (
                   <li key={d.deal_id}>
