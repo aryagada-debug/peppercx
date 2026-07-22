@@ -236,76 +236,125 @@ export function EnterReviewTab() {
             ))}
           </div>
 
-          {scorecard.areas.map((area, i) => (
-            <Card key={area.id} className="overflow-hidden" style={{ borderColor: areaColor(i, 0.3) }}>
-              <CardHeader
-                className="py-3"
-                style={{ background: `linear-gradient(90deg, hsl(var(${areaToken(i)}) / 0.12), transparent)` }}
-              >
-                <CardTitle className="text-sm flex items-center justify-between">
-                  <span className="inline-flex items-center gap-2">
-                    <span className="inline-block h-2 w-2 rounded-full" style={{ background: areaColor(i) }} />
-                    <span style={{ color: areaColor(i) }}>{area.name}</span>
-                  </span>
-                  <span className="text-xs text-muted-foreground">Weight {Math.round(area.weight * 100)}% · Avg {(areaAverages[area.id] || 0).toFixed(2)}</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-muted/40 text-xs text-muted-foreground">
-                      <tr>
-                        <th className="text-left p-2 w-1/3">KPI</th>
-                        <th className="text-left p-2 w-1/4">Target · Measure</th>
-                        <th className="text-left p-2 w-24">Score (1–10)</th>
-                        <th className="text-left p-2">Notes</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {area.kpis.map(k => {
-                        const key = `${area.id}:${k.id}`;
-                        const cell = scores[key] || { score: "", note: "" };
-                        return (
-                          <tr key={k.id} className="border-t border-border align-top">
-                            <td className="p-2">
-                              <div className="font-medium">{k.name}</div>
-                              <div className="text-xs text-muted-foreground mt-0.5">{k.def}</div>
-                              <div className="text-[10px] text-muted-foreground mt-1">
-                                10: {k.bands[0]} · 8–9: {k.bands[1]} · 5–7: {k.bands[2]} · &lt;5: {k.bands[3]}
-                              </div>
-                            </td>
-                            <td className="p-2 text-xs text-muted-foreground">
-                              <div>{k.target}</div>
-                              <div className="mt-1 italic">{k.measure}</div>
-                            </td>
-                            <td className="p-2">
-                              <Input
-                                type="number"
-                                min={1}
-                                max={10}
-                                step={0.5}
-                                value={cell.score}
-                                onChange={e => setScores(s => ({ ...s, [key]: { ...cell, score: e.target.value } }))}
-                                className="h-8 w-20"
-                              />
-                            </td>
-                            <td className="p-2">
-                              <Textarea
-                                rows={2}
-                                value={cell.note}
-                                onChange={e => setScores(s => ({ ...s, [key]: { ...cell, note: e.target.value } }))}
-                                placeholder="Evidence, context, examples…"
-                              />
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+          {scorecard.areas.map((area, i) => {
+            const areaAvg = areaAverages[area.id] || 0;
+            const scored = area.kpis.some(k => {
+              const c = scores[`${area.id}:${k.id}`];
+              return c?.score && c.score !== "";
+            });
+            return (
+              <Card key={area.id} className="overflow-hidden" style={{ borderColor: areaColor(i, 0.3) }}>
+                <CardHeader
+                  className="py-3"
+                  style={{ background: `linear-gradient(90deg, hsl(var(${areaToken(i)}) / 0.12), transparent)` }}
+                >
+                  <CardTitle className="text-sm flex items-center justify-between gap-3">
+                    <span className="inline-flex items-center gap-3">
+                      <span
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-white text-xs font-medium"
+                        style={{ background: areaColor(i) }}
+                      >
+                        {i + 1}
+                      </span>
+                      <span className="text-base font-medium" style={{ color: areaColor(i) }}>{area.name}</span>
+                    </span>
+                    <span className="inline-flex items-center gap-2">
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                        {scored ? `Avg ${areaAvg.toFixed(2)}` : "not scored"}
+                      </span>
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                        Weight {Math.round(area.weight * 100)}%
+                      </span>
+                    </span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 space-y-4">
+                  {area.kpis.map((k, idx) => {
+                    const key = `${area.id}:${k.id}`;
+                    const cell = scores[key] || { score: "", note: "" };
+                    const activeScore = cell.score === "" ? null : Number(cell.score);
+                    return (
+                      <div
+                        key={k.id}
+                        className={cn(
+                          "rounded-lg border border-border bg-background p-4",
+                          idx > 0 && "mt-1"
+                        )}
+                      >
+                        <div className="font-medium text-sm">{k.name}</div>
+                        <div className="text-xs text-muted-foreground mt-1 leading-relaxed">{k.def}</div>
+
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {k.bands.map((band, bi) => (
+                            <span
+                              key={bi}
+                              className={cn("text-[11px] px-2 py-1 rounded-md font-medium", BAND_STYLES[bi])}
+                            >
+                              <span className="font-semibold mr-1">{BAND_LABELS[bi]}</span>
+                              <span className="opacity-90 font-normal">{band}</span>
+                            </span>
+                          ))}
+                        </div>
+
+                        <div className="mt-3 flex items-start gap-2 text-sm">
+                          <TargetIcon className="h-4 w-4 mt-0.5 flex-shrink-0" style={{ color: areaColor(i) }} />
+                          <span className="font-medium">{k.target}</span>
+                        </div>
+                        <div className="mt-1 text-xs text-muted-foreground italic pl-6">{k.measure}</div>
+
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {Array.from({ length: 10 }, (_, n) => n + 1).map(n => {
+                            const active = activeScore === n;
+                            return (
+                              <button
+                                key={n}
+                                type="button"
+                                onClick={() =>
+                                  setScores(s => ({ ...s, [key]: { ...cell, score: String(n) } }))
+                                }
+                                className={cn(
+                                  "h-9 w-9 rounded-md border text-sm font-medium transition-colors",
+                                  scoreButtonTone(n, active)
+                                )}
+                              >
+                                {n}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div className="mt-1.5 flex items-center gap-3 text-xs">
+                          <span className="text-muted-foreground">
+                            {activeScore ? `rated ${activeScore}/10` : "tap to rate"}
+                          </span>
+                          {activeScore != null && (
+                            <button
+                              type="button"
+                              className="text-muted-foreground underline hover:text-foreground"
+                              onClick={() =>
+                                setScores(s => ({ ...s, [key]: { ...cell, score: "" } }))
+                              }
+                            >
+                              clear
+                            </button>
+                          )}
+                        </div>
+
+                        <Textarea
+                          rows={2}
+                          value={cell.note}
+                          onChange={e =>
+                            setScores(s => ({ ...s, [key]: { ...cell, note: e.target.value } }))
+                          }
+                          placeholder="Evidence, context, examples…"
+                          className="mt-3"
+                        />
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+            );
+          })}
 
           <Card>
             <CardHeader className="py-3"><CardTitle className="text-sm">Reviewer summary</CardTitle></CardHeader>
