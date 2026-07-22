@@ -917,20 +917,24 @@ Deno.serve(async (req) => {
       const rule = await loadRule(admin, eventKey);
       if (!rule) return json({ error: "rule_not_found" }, 404);
       const sampleCtx: Record<string, string> = {
-        "{deal_label}": "Acme Corp - Pepper Creative",
-        "{account}": "Acme Corp",
-        "{deal_name}": "Pepper Creative",
-        "{capability}": "Creative",
-        "{vsd}": "Sample VSD",
-        "{bopm}": "Sample BOPM",
-        "{assignee}": "Sample Person",
-        "{role}": "Account Manager",
+        "{deal_label}": "Zo Beauty - SEO/GEO + Content Mandate",
+        "{account}": "Zo Beauty",
+        "{deal_name}": "SEO/GEO + Content Mandate",
+        "{capability}": "Pepper SEO - SEO + Content Retainer",
+        "{vsd}": "Neema Jayadas",
+        "{principal_bopm}": "",
+        "{senior_bopm}": "Rishabh Agarwal",
+        "{bopm}": "Rishabh Agarwal",
+        "{capability_lead}": "Rishabh Agarwal",
+        "{assignee}": "Rishabh Agarwal",
+        "{assignee_manager}": "Neema Jayadas",
+        "{role}": "Senior BOPM",
         "{pct}": "50%",
         "{status}": "Red",
         "{dimensions}": "Delivery, Sentiment",
         "{month}": new Date().toISOString().slice(0, 7),
-        "{company}": "Acme Corp",
-        "{submitter}": "Sales Lead",
+        "{company}": "Zo Beauty",
+        "{submitter}": "Neema Jayadas",
       };
       const subject = `[TEST] ${rule.subject_template?.trim() ? applyTokens(rule.subject_template, sampleCtx) : `${rule.event_key} preview`}`;
       const intro = rule.body_template?.trim()
