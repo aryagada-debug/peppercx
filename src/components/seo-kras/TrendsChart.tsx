@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, ReferenceLine, Legend } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
 import { areaColor, type Scorecard } from "./scorecards";
 import { useSeoKraMemberHistory } from "@/hooks/queries/useSeoKraReviews";
 import type { SeoKraMember } from "@/hooks/queries/useSeoKraTeam";
