@@ -348,6 +348,9 @@ const EVENT_TO_RULE: Record<string, string> = {
   mbr_reminder: "mbr.missing_prev_month",
   rgy_stale: "rgy.stale_7d",
   rgy_alert: "rgy.alert",
+  mbr_bopm_digest: "mbr.reminder_bopm_digest",
+  rgy_bopm_digest: "rgy.reminder_bopm_digest",
+  nps_bopm_digest: "nps.reminder_bopm_digest",
 };
 
 async function loadRule(admin: SupabaseClient, eventKey: string): Promise<RuleRow | null> {
@@ -495,6 +498,125 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
         ctaLabel: "Open Deal Handover",
         ctaHref: `${APP_ORIGIN}/deal-handover`,
         extraHtml: renderHandoverDetails(details),
+      }),
+    };
+  }
+
+  // ── BOPM digests (per-recipient aggregation) ──────────────────────────────
+  if (ev === "mbr_bopm_digest" || ev === "rgy_bopm_digest" || ev === "nps_bopm_digest") {
+    const to = (input.recipients || []).filter((e) => /@/.test(e));
+    if (to.length === 0) return null;
+    const rule = await loadRule(admin, EVENT_TO_RULE[ev]);
+    if (rule && !rule.enabled) return null;
+    const p = (input.payload || {}) as Record<string, unknown>;
+    const rows = Array.isArray(p.rows) ? (p.rows as Array<Record<string, string>>) : [];
+    if (rows.length === 0) return null;
+    const bopmName = String(p.bopm_name || "").trim();
+    const bopmFirst = bopmName ? bopmName.split(/\s+/)[0] : "there";
+    const vsdName = String(p.vsd_name || "").trim();
+
+    const digestSpec: Record<string, {
+      title: string; defaultSubject: string; defaultIntro: string;
+      headers: string[]; cta: [string, string];
+      countToken: string; extraTokens?: Record<string, string>;
+    }> = {
+      mbr_bopm_digest: {
+        title: `MBR pending - ${escapeHtml(String(p.mbr_month || ""))}`,
+        defaultSubject: `Action needed: ${rows.length} MBR(s) pending for ${p.mbr_month || ""} - ${p.days_remaining || ""} working days left`,
+        defaultIntro: `Hi ${escapeHtml(bopmFirst)}, the following <b>${rows.length}</b> account(s) under you do not have their <b>${escapeHtml(String(p.mbr_month || ""))}</b> MBR logged yet. Please update them in Pepper CX.`,
+        headers: ["Account", "Deal", "Month", "Action"],
+        cta: ["Open MBR Tracker", `${APP_ORIGIN}/mbr`],
+        countToken: "{pending_count}",
+        extraTokens: {
+          "{mbr_month}": String(p.mbr_month || ""),
+          "{days_remaining}": String(p.days_remaining || ""),
+          "{reminder_ordinal}": String(p.reminder_ordinal || ""),
+          "{current_month}": String(p.current_month || ""),
+        },
+      },
+      rgy_bopm_digest: {
+        title: `RGY weekly refresh`,
+        defaultSubject: `RGY refresh: ${rows.length} account(s) not updated this week`,
+        defaultIntro: `Hi ${escapeHtml(bopmFirst)}, <b>${rows.length}</b> account(s) under you have no RGY entry in the last 7 days.`,
+        headers: ["Account", "Deal", "Current RGY", "Last updated"],
+        cta: ["Open RGY Health", `${APP_ORIGIN}/rgy`],
+        countToken: "{stale_count}",
+        extraTokens: { "{week_label}": String(p.week_label || "") },
+      },
+      nps_bopm_digest: {
+        title: `NPS responses pending`,
+        defaultSubject: `NPS pending: ${p.poc_count || rows.length} POC(s) across ${p.account_count || ""} account(s) have not responded`,
+        defaultIntro: `Hi ${escapeHtml(bopmFirst)}, <b>${p.poc_count || rows.length}</b> POC(s) across <b>${p.account_count || ""}</b> account(s) under you were sent an NPS survey but have not completed it. Please give them a quick nudge.`,
+        headers: ["Account", "POC", "Sent", "Outstanding"],
+        cta: ["Open Pulse / NPS", `${APP_ORIGIN}/pulse-nps`],
+        countToken: "{poc_count}",
+        extraTokens: { "{account_count}": String(p.account_count || "") },
+      },
+    };
+    const spec = digestSpec[ev];
+    const tctx: Record<string, string> = {
+      "{bopm}": bopmName,
+      "{bopm_first_name}": bopmFirst,
+      "{bopm_name}": bopmName,
+      "{vsd}": vsdName,
+      "{vsd_name}": vsdName,
+      [spec.countToken]: String(rows.length),
+      "{pending_count}": String(rows.length),
+      "{stale_count}": String(rows.length),
+      "{poc_count}": String(p.poc_count || rows.length),
+      ...(spec.extraTokens || {}),
+    };
+    const subject = rule?.subject_template?.trim()
+      ? applyTokens(rule.subject_template, tctx)
+      : spec.defaultSubject;
+    const intro = rule?.body_template?.trim()
+      ? applyTokens(rule.body_template, tctx)
+      : spec.defaultIntro;
+
+    const rowsHtml = `
+      <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-top:14px;border:1px solid ${BRAND_BORDER};border-radius:8px;border-collapse:separate;border-spacing:0;font-size:13px;">
+        <tr style="background:${BRAND_BG};">
+          ${spec.headers.map((h) => `<td style="padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:${BRAND_MUTED};border-bottom:1px solid ${BRAND_BORDER};">${escapeHtml(h)}</td>`).join("")}
+        </tr>
+        ${rows.map((r) => {
+          const cells: string[] = [];
+          if (ev === "mbr_bopm_digest") {
+            cells.push(
+              escapeHtml(r.account || ""),
+              escapeHtml(r.deal || ""),
+              escapeHtml(r.month || ""),
+              r.link ? `<a href="${escapeHtml(r.link)}" style="color:${BRAND_PRIMARY};text-decoration:none;">Log MBR</a>` : "",
+            );
+          } else if (ev === "rgy_bopm_digest") {
+            cells.push(
+              escapeHtml(r.account || ""),
+              escapeHtml(r.deal || ""),
+              escapeHtml(r.rgy || "Not set"),
+              escapeHtml(r.last_updated || ""),
+            );
+          } else {
+            cells.push(
+              escapeHtml(r.account || ""),
+              `${escapeHtml(r.poc_name || "")}${r.poc_email ? ` <span style="color:${BRAND_MUTED};">&middot; ${escapeHtml(r.poc_email)}</span>` : ""}`,
+              escapeHtml(r.sent_date || ""),
+              `${escapeHtml(r.days_outstanding || "")} days`,
+            );
+          }
+          return `<tr>${cells.map((c) => `<td style="padding:9px 10px;border-bottom:1px solid ${BRAND_BORDER};color:${BRAND_TEXT};vertical-align:top;">${c}</td>`).join("")}</tr>`;
+        }).join("")}
+      </table>`;
+
+    return {
+      to,
+      subject,
+      html: layout({
+        title: spec.title,
+        intro,
+        rows: [],
+        ctaLabel: spec.cta[0],
+        ctaHref: spec.cta[1],
+        extraHtml: rowsHtml,
+        footerNote: vsdName ? `${vsdName} is copied for visibility. This email is sent by the automated Pepper CX notification system.` : undefined,
       }),
     };
   }
@@ -875,6 +997,14 @@ Deno.serve(async (req) => {
         const finalTo = Array.from(toSet);
         let outTo = finalTo;
         let outCc = cc;
+        // Digest events also accept explicit cc emails via payload.cc_emails.
+        if (inp.event === "mbr_bopm_digest" || inp.event === "rgy_bopm_digest" || inp.event === "nps_bopm_digest") {
+          const extra = Array.isArray((inp.payload as any)?.cc_emails)
+            ? ((inp.payload as any).cc_emails as string[]).filter((e) => /@/.test(e))
+            : [];
+          const ccSet = new Set<string>([...outCc, ...extra]);
+          outCc = Array.from(ccSet).filter((e) => !toSet.has(e));
+        }
         if (STAFFING_EVENTS.has(inp.event)) {
           outTo = stripSuppressed(outTo);
           outCc = stripSuppressed(outCc);
