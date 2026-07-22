@@ -2,7 +2,9 @@
 // The central account is whichever gmail_connections row has is_central=true
 // (set via the Settings → Notifications page after that user connects Gmail).
 //
-// Supported events: staffed, staffing_changed, staffing_removed, rgy_alert, mbr_reminder, test
+// Supported events: staffed, staffing_changed, staffing_removed,
+//   mbr_bopm_digest, rgy_bopm_digest, nps_bopm_digest,
+//   deal_created, deal_unstaffed, handover_received, test
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -345,9 +347,6 @@ const EVENT_TO_RULE: Record<string, string> = {
   handover_received: "handover.received",
   deal_created: "deal.created",
   deal_unstaffed: "deal.unstaffed_7d",
-  mbr_reminder: "mbr.missing_prev_month",
-  rgy_stale: "rgy.stale_7d",
-  rgy_alert: "rgy.alert",
   mbr_bopm_digest: "mbr.reminder_bopm_digest",
   rgy_bopm_digest: "rgy.reminder_bopm_digest",
   nps_bopm_digest: "nps.reminder_bopm_digest",
