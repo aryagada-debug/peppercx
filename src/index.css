@@ -71,6 +71,15 @@
     /* Spacing rhythm */
     --space-section: 2rem;
     --space-card: 1.25rem;
+
+    /* SEO KRA area palette (light) */
+    --kra-growth: 231 74% 60%;
+    --kra-client: 158 64% 40%;
+    --kra-ai: 262 68% 58%;
+    --kra-delivery: 32 90% 52%;
+    --kra-score-good: 152 62% 40%;
+    --kra-score-warn: 38 92% 50%;
+    --kra-score-bad: 0 72% 55%;
   }
 
   .dark {
@@ -106,6 +115,14 @@
     --sidebar-accent-foreground: 238 60% 82%;
     --sidebar-border: 240 10% 22%;
     --sidebar-ring: 238 60% 70%;
+
+    --kra-growth: 231 75% 72%;
+    --kra-client: 158 55% 55%;
+    --kra-ai: 262 65% 72%;
+    --kra-delivery: 32 88% 62%;
+    --kra-score-good: 152 55% 55%;
+    --kra-score-warn: 38 88% 62%;
+    --kra-score-bad: 0 72% 65%;
   }
 }
 
