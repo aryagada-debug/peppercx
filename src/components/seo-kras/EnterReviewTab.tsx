@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Target as TargetIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { scorecards, scorecardByKey, areaColor, areaToken } from "./scorecards";
+import { MemberBandwidthCard } from "./MemberBandwidthCard";
 import { useSeoKraTeam } from "@/hooks/queries/useSeoKraTeam";
 import { useSeoKraReviews, useSaveSeoKraReview, type ScoreRow } from "@/hooks/queries/useSeoKraReviews";
 import { computeScores } from "./scoring";
@@ -234,6 +235,8 @@ export function EnterReviewTab() {
               </Card>
             ))}
           </div>
+
+          <MemberBandwidthCard personId={member.person_id} memberName={member.name} />
 
           {scorecard.areas.map((area, i) => {
             const areaAvg = areaAverages[area.id] || 0;
