@@ -1,9 +1,10 @@
 // Daily cron: triggers configurable notification rules
-//   - mbr.missing_prev_month  (5th of month or later)
+//   - mbr.reminder_bopm_digest  (T-10/7/4/1 working days)
+//   - rgy.reminder_bopm_digest  (Fridays)
+//   - nps.reminder_bopm_digest  (Wednesdays)
 //   - deal.unstaffed_7d
-//   - rgy.stale_7d
-// Dedupe via notification_dispatch_log so the same deal is not pinged twice
-// for the same (event, window).
+// Dedupe via notification_dispatch_log so the same recipient is not pinged
+// twice for the same (event, window).
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -336,70 +337,8 @@ Deno.serve(async (req) => {
     }
 
     // ── Rule 6: rgy.stale_7d ────────────────────────────────────
-    {
-      const { data: deals } = await admin
-        .from("staffing_deals")
-        .select("id, deal_status")
-        .in("deal_status", ACTIVE_STATUSES);
-      const ids = (deals || []).map((d: any) => d.id);
-      const cutoffIso = new Date(Date.now() - 7 * 86400 * 1000).toISOString().slice(0, 10);
-      const { data: recent } = await admin
-        .from("deal_rgy_weekly")
-        .select("deal_id, week_start")
-        .in("deal_id", ids)
-        .gte("week_start", cutoffIso);
-      const fresh = new Set<string>((recent || []).map((r: any) => r.deal_id));
-      const stale = ids.filter((id) => !fresh.has(id));
-      const events: any[] = [];
-      const week = Math.floor(Date.now() / (7 * 86400 * 1000));
-      for (const id of stale) {
-        const dedupe = `rgy_stale:${id}:${week}`;
-        const { error } = await admin
-          .from("notification_dispatch_log")
-          .insert({ event_key: "rgy.stale_7d", dedupe_key: dedupe, deal_id: id });
-        if (!error) events.push({ event: "rgy_stale", dealId: id });
-      }
-      summary.rgy_stale = events.length;
-      await invokeEmail(events);
-    }
-
-    // ── Rule 4: mbr.missing_prev_month (only after 5th of month) ─
-    {
-      const today = new Date();
-      if (today.getUTCDate() >= 5) {
-        const prev = new Date(today.getUTCFullYear(), today.getUTCMonth() - 1, 1);
-        const ym = `${prev.getUTCFullYear()}-${String(prev.getUTCMonth() + 1).padStart(2, "0")}`;
-        const monthStart = `${ym}-01`;
-        const thisMonthStart = `${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, "0")}-01`;
-        const { data: deals } = await admin
-          .from("staffing_deals")
-          .select("id, deal_status")
-          .in("deal_status", ACTIVE_STATUSES);
-        const ids = (deals || []).map((d: any) => d.id);
-        const { data: entries } = await admin
-          .from("mbr_entries")
-          .select("deal_id, status, week_start")
-          .in("deal_id", ids)
-          .gte("week_start", monthStart)
-          .lt("week_start", thisMonthStart);
-        const done = new Set<string>(
-          (entries || []).filter((e: any) => ["Done", "Not Required"].includes(e.status)).map((e: any) => e.deal_id),
-        );
-        const pending = ids.filter((id) => !done.has(id));
-        const events: any[] = [];
-        for (const id of pending) {
-          const dedupe = `mbr_missing:${id}:${ym}`;
-          const { error } = await admin
-            .from("notification_dispatch_log")
-            .insert({ event_key: "mbr.missing_prev_month", dedupe_key: dedupe, deal_id: id });
-          if (!error) events.push({ event: "mbr_reminder", dealId: id, payload: { month: ym } });
-        }
-        summary.mbr_missing = events.length;
-        await invokeEmail(events);
-      } else {
-        summary.mbr_missing = 0;
-      }
-    }
+    // (rgy.stale_7d and mbr.missing_prev_month per-deal emails removed —
+    //  replaced by the aggregated BOPM digests above.)
 
     return json({ ok: true, summary });
   } catch (err) {
