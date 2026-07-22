@@ -6,6 +6,7 @@ import {
   ChevronDown, Home, ChevronsLeft, ChevronsRight,
   Trash2, AlertTriangle, Mail, Sparkles,
   ClipboardCheck, MessagesSquare,
+  BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
@@ -33,6 +34,7 @@ const routePrefetch: Record<string, () => Promise<unknown>> = {
   "/pulse-nps": () => import("@/pages/PulseNPS"),
   "/deal-handover": () => import("@/pages/DealHandover"),
   "/slack-review": () => import("@/pages/SlackReview"),
+  "/seo-kras": () => import("@/pages/SEOKRAs"),
 };
 const prefetched = new Set<string>();
 const prefetchRoute = (to: string) => {
@@ -58,6 +60,7 @@ const navSections = [
     items: [
       { to: "/staffing", icon: UserCheck, label: "Staffing & Capacity", routeKey: "staffing" },
       { to: "/people-ops", icon: Users, label: "People Ops", routeKey: "people-ops" },
+      { to: "/seo-kras", icon: BarChart3, label: "SEO KRAs", routeKey: "settings", adminOnly: true },
     ],
   },
   {

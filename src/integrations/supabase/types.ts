@@ -1804,6 +1804,98 @@ export type Database = {
         }
         Relationships: []
       }
+      seo_kra_reviews: {
+        Row: {
+          area_scores: Json
+          complete: boolean
+          created_at: string
+          id: string
+          member_name: string
+          member_person_id: string | null
+          member_user_id: string | null
+          notes: string
+          quarter: string
+          reviewer_name: string
+          reviewer_user_id: string | null
+          scorecard_key: string
+          total: number | null
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          area_scores?: Json
+          complete?: boolean
+          created_at?: string
+          id?: string
+          member_name?: string
+          member_person_id?: string | null
+          member_user_id?: string | null
+          notes?: string
+          quarter: string
+          reviewer_name?: string
+          reviewer_user_id?: string | null
+          scorecard_key?: string
+          total?: number | null
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          area_scores?: Json
+          complete?: boolean
+          created_at?: string
+          id?: string
+          member_name?: string
+          member_person_id?: string | null
+          member_user_id?: string | null
+          notes?: string
+          quarter?: string
+          reviewer_name?: string
+          reviewer_user_id?: string | null
+          scorecard_key?: string
+          total?: number | null
+          updated_at?: string
+          year?: number
+        }
+        Relationships: []
+      }
+      seo_kra_scores: {
+        Row: {
+          created_at: string
+          id: string
+          kpi_id: string
+          note: string
+          review_id: string
+          score: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kpi_id: string
+          note?: string
+          review_id: string
+          score?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kpi_id?: string
+          note?: string
+          review_id?: string
+          score?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seo_kra_scores_review_id_fkey"
+            columns: ["review_id"]
+            isOneToOne: false
+            referencedRelation: "seo_kra_reviews"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       slack_channel_audits: {
         Row: {
           channels: Json

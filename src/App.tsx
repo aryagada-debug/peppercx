@@ -48,6 +48,7 @@ const SlackReview = lazy(() => import("./pages/SlackReview"));
 const PublicSurvey = lazy(() => import("./pages/PublicSurvey"));
 const SurveyForm = lazy(() => import("./pages/SurveyForm"));
 const PublicHandover = lazy(() => import("./pages/PublicHandover"));
+const SEOKRAs = lazy(() => import("./pages/SEOKRAs"));
 
 // Mounts the one-shot seeder under the auth provider so it can read the
 // session and only fire when staffing_people is empty.
@@ -128,6 +129,7 @@ function AppRoutes() {
               <Route path="/contacts" element={<ProtectedRoute routeKey="home"><Contacts /></ProtectedRoute>} />
               <Route path="/leadership-interventions" element={<ProtectedRoute routeKey="home"><LeadershipInterventions /></ProtectedRoute>} />
               <Route path="/inbox" element={<ProtectedRoute routeKey="home"><Inbox /></ProtectedRoute>} />
+              <Route path="/seo-kras" element={<ProtectedRoute routeKey="settings" adminOnly><SEOKRAs /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </GeoFilterProvider>
