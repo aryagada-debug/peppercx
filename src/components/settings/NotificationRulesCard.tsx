@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
-import { Bell, Loader2, Save } from "lucide-react";
+import { Bell, Loader2, Save, Trash2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -41,6 +41,7 @@ export function NotificationRulesCard() {
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [testTo, setTestTo] = useState<Record<string, string>>({});
   const [testingKey, setTestingKey] = useState<string | null>(null);
+  const [deletingKey, setDeletingKey] = useState<string | null>(null);
 
   const load = async () => {
     const [r, l] = await Promise.all([
@@ -70,6 +71,16 @@ export function NotificationRulesCard() {
     }).eq("event_key", rule.event_key);
     setSavingKey(null);
     if (error) toast.error(error.message); else toast.success("Saved");
+  };
+
+  const deleteRule = async (rule: RuleRow) => {
+    if (!confirm(`Delete the "${rule.display_name}" notification rule? This cannot be undone.`)) return;
+    setDeletingKey(rule.event_key);
+    const { error } = await supabase.from("notification_rules").delete().eq("event_key", rule.event_key);
+    setDeletingKey(null);
+    if (error) { toast.error(error.message); return; }
+    setRules((rs) => rs.filter((r) => r.event_key !== rule.event_key));
+    toast.success("Rule deleted");
   };
 
   const sendTest = async (rule: RuleRow) => {
@@ -175,6 +186,10 @@ export function NotificationRulesCard() {
               <Button size="sm" variant="outline" onClick={() => saveRule(r)} disabled={disabled || savingKey === r.event_key}>
                 {savingKey === r.event_key ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Save className="h-3 w-3 mr-1" />}
                 Save
+              </Button>
+              <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => deleteRule(r)} disabled={disabled || deletingKey === r.event_key}>
+                {deletingKey === r.event_key ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Trash2 className="h-3 w-3 mr-1" />}
+                Delete
               </Button>
             </div>
           </div>
