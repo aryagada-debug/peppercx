@@ -6,10 +6,11 @@ interface Props {
   children: React.ReactNode;
   routeKey?: string;
   adminOnly?: boolean;
+  allowEmails?: string[];
 }
 
-export function ProtectedRoute({ children, routeKey, adminOnly }: Props) {
-  const { session, loading } = useAuth();
+export function ProtectedRoute({ children, routeKey, adminOnly, allowEmails }: Props) {
+  const { session, loading, user } = useAuth();
   const { visibleRoutes, loading: roleLoading, isAdmin, isActuallyAdmin } = useUserRole();
 
   if (loading || roleLoading) {
@@ -24,7 +25,10 @@ export function ProtectedRoute({ children, routeKey, adminOnly }: Props) {
     return <Navigate to="/login" replace />;
   }
 
-  if (adminOnly && !(isAdmin || isActuallyAdmin)) {
+  const isAdminUser = isAdmin || isActuallyAdmin;
+  const emailAllowed = !!allowEmails && !!user?.email
+    && allowEmails.map(e => e.toLowerCase()).includes(user.email.toLowerCase());
+  if (adminOnly && !isAdminUser && !emailAllowed) {
     return <Navigate to="/home" replace />;
   }
 
