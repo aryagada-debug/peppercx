@@ -107,16 +107,26 @@ export function DashboardTab() {
         <CardHeader className="py-3"><CardTitle className="text-sm">Area averages</CardTitle></CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            {areaAvgs.map(({ area, avg }) => (
-              <div key={area.id} className={`rounded-md border p-3 ${toneClass(avg)}`}>
-                <div className="text-xs opacity-80">{area.short}</div>
-                <div className="text-xl font-medium mt-1">{avg.toFixed(2)}</div>
-                <div className="text-[10px] opacity-70 mt-0.5">Weight {Math.round(area.weight * 100)}%</div>
+            {areaAvgs.map(({ area, avg }, i) => (
+              <div
+                key={area.id}
+                className="rounded-md border p-3 relative overflow-hidden"
+                style={{
+                  borderColor: areaColor(i, 0.35),
+                  background: `linear-gradient(135deg, hsl(var(${areaToken(i)}) / 0.10), hsl(var(${areaToken(i)}) / 0.02))`,
+                }}
+              >
+                <div className="absolute left-0 top-0 h-full w-1" style={{ background: areaColor(i) }} />
+                <div className="text-xs font-medium" style={{ color: areaColor(i) }}>{area.short}</div>
+                <div className="text-xl font-medium mt-1">{avg.toFixed(2)}<span className="text-xs text-muted-foreground"> / 10</span></div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">Weight {Math.round(area.weight * 100)}%</div>
               </div>
             ))}
           </div>
         </CardContent>
       </Card>
+
+      <TrendsChart scorecard={scorecard} team={team} />
 
       <Card>
         <CardHeader className="py-3"><CardTitle className="text-sm">Member scorecards</CardTitle></CardHeader>
