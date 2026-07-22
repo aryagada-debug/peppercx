@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { Target as TargetIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { scorecards, scorecardByKey, areaColor, areaToken } from "./scorecards";
 import { useSeoKraTeam } from "@/hooks/queries/useSeoKraTeam";
 import { useSeoKraReviews, useSaveSeoKraReview, type ScoreRow } from "@/hooks/queries/useSeoKraReviews";
@@ -16,6 +18,21 @@ import { useUserRole } from "@/hooks/useUserRole";
 
 const YEARS = [new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1];
 const QUARTERS = [1, 2, 3, 4];
+
+const BAND_STYLES = [
+  "bg-[hsl(var(--kra-score-good)/0.18)] text-[hsl(var(--kra-score-good))]",
+  "bg-[hsl(var(--kra-score-good)/0.10)] text-[hsl(var(--kra-score-good))]",
+  "bg-[hsl(var(--kra-score-warn)/0.18)] text-[hsl(var(--kra-score-warn))]",
+  "bg-[hsl(var(--kra-score-bad)/0.18)] text-[hsl(var(--kra-score-bad))]",
+];
+const BAND_LABELS = ["10", "8–9", "5–7", "<5"];
+
+function scoreButtonTone(n: number, active: boolean) {
+  if (!active) return "border-border bg-background text-foreground hover:bg-muted";
+  if (n >= 9) return "border-[hsl(var(--kra-score-good))] bg-[hsl(var(--kra-score-good))] text-white";
+  if (n >= 7) return "border-[hsl(var(--kra-score-warn))] bg-[hsl(var(--kra-score-warn))] text-white";
+  return "border-[hsl(var(--kra-score-bad))] bg-[hsl(var(--kra-score-bad))] text-white";
+}
 
 function scoreTone(n: number) {
   if (n >= 8.5) return "bg-[hsl(var(--kra-score-good)/0.15)] text-[hsl(var(--kra-score-good))] border-[hsl(var(--kra-score-good)/0.4)]";
