@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { scorecards, scorecardByKey } from "./scorecards";
+import { scorecards, scorecardByKey, areaColor, areaToken } from "./scorecards";
 import { useSeoKraTeam } from "@/hooks/queries/useSeoKraTeam";
 import { useSeoKraReviews, useSaveSeoKraReview, type ScoreRow } from "@/hooks/queries/useSeoKraReviews";
 import { computeScores } from "./scoring";
@@ -15,9 +15,9 @@ const YEARS = [new Date().getFullYear() - 1, new Date().getFullYear(), new Date(
 const QUARTERS = [1, 2, 3, 4];
 
 function scoreTone(n: number) {
-  if (n >= 8.5) return "bg-emerald-100 text-emerald-800 border-emerald-200";
-  if (n >= 6.5) return "bg-amber-100 text-amber-800 border-amber-200";
-  if (n > 0) return "bg-red-100 text-red-800 border-red-200";
+  if (n >= 8.5) return "bg-[hsl(var(--kra-score-good)/0.15)] text-[hsl(var(--kra-score-good))] border-[hsl(var(--kra-score-good)/0.4)]";
+  if (n >= 6.5) return "bg-[hsl(var(--kra-score-warn)/0.15)] text-[hsl(var(--kra-score-warn))] border-[hsl(var(--kra-score-warn)/0.4)]";
+  if (n > 0)   return "bg-[hsl(var(--kra-score-bad)/0.15)] text-[hsl(var(--kra-score-bad))] border-[hsl(var(--kra-score-bad)/0.4)]";
   return "bg-muted text-muted-foreground border-border";
 }
 
