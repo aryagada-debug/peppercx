@@ -2,17 +2,18 @@ import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { scorecards, scorecardByKey } from "./scorecards";
+import { scorecards, scorecardByKey, areaColor, areaToken } from "./scorecards";
 import { useSeoKraTeam } from "@/hooks/queries/useSeoKraTeam";
 import { useSeoKraReviews } from "@/hooks/queries/useSeoKraReviews";
+import { TrendsChart } from "./TrendsChart";
 
 const YEARS = [new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1];
 const QUARTERS = [1, 2, 3, 4];
 
 function toneClass(n: number) {
-  if (n >= 8.5) return "bg-emerald-500/15 text-emerald-700 border-emerald-200";
-  if (n >= 6.5) return "bg-amber-500/15 text-amber-700 border-amber-200";
-  if (n > 0) return "bg-red-500/15 text-red-700 border-red-200";
+  if (n >= 8.5) return "bg-[hsl(var(--kra-score-good)/0.15)] text-[hsl(var(--kra-score-good))] border-[hsl(var(--kra-score-good)/0.35)]";
+  if (n >= 6.5) return "bg-[hsl(var(--kra-score-warn)/0.15)] text-[hsl(var(--kra-score-warn))] border-[hsl(var(--kra-score-warn)/0.4)]";
+  if (n > 0)   return "bg-[hsl(var(--kra-score-bad)/0.15)] text-[hsl(var(--kra-score-bad))] border-[hsl(var(--kra-score-bad)/0.4)]";
   return "bg-muted text-muted-foreground border-border";
 }
 
