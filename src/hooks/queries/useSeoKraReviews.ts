@@ -129,3 +129,55 @@ export function useSaveSeoKraReview() {
     },
   });
 }
+
+export interface HistoryPoint {
+  periodKey: string;
+  year: number;
+  quarter: number;
+  label: string;
+  weighted_total: number | null;
+  area_averages: Record<string, number>;
+  kpiScores: Record<string, number>;
+}
+
+export function useSeoKraMemberHistory(scorecardKey: string, memberPersonId: string | null, limit = 8) {
+  return useQuery({
+    queryKey: ["seo-kra-history", scorecardKey, memberPersonId, limit],
+    enabled: !!memberPersonId,
+    queryFn: async (): Promise<HistoryPoint[]> => {
+      if (!memberPersonId) return [];
+      const { data: reviews } = await supabase
+        .from("seo_kra_reviews")
+        .select("id, year, quarter, total, area_scores, updated_at")
+        .eq("scorecard_key", scorecardKey)
+        .eq("member_person_id", memberPersonId)
+        .order("year", { ascending: true })
+        .order("quarter", { ascending: true });
+      const list = (reviews || []) as any[];
+      if (!list.length) return [];
+      const ids = list.map(r => r.id);
+      const { data: scores } = await supabase
+        .from("seo_kra_scores")
+        .select("review_id, kpi_id, score")
+        .in("review_id", ids);
+      const byReview = new Map<string, Record<string, number>>();
+      (scores || []).forEach((s: any) => {
+        const m = byReview.get(s.review_id) || {};
+        if (typeof s.score === "number") m[s.kpi_id] = s.score;
+        byReview.set(s.review_id, m);
+      });
+      const points: HistoryPoint[] = list.map(r => ({
+        periodKey: `${r.year}-Q${r.quarter}`,
+        year: r.year,
+        quarter: Number(r.quarter),
+        label: `Q${r.quarter} ${String(r.year).slice(-2)}`,
+        weighted_total: r.total,
+        area_averages: (r.area_scores as any) || {},
+        kpiScores: byReview.get(r.id) || {},
+      }));
+      points.sort((a, b) => (a.year - b.year) || (a.quarter - b.quarter));
+      return points.slice(-limit);
+    },
+    staleTime: 60 * 1000,
+  });
+}
