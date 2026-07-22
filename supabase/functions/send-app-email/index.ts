@@ -503,121 +503,7 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
 
   // ── BOPM digests (per-recipient aggregation) ──────────────────────────────
   if (ev === "mbr_bopm_digest" || ev === "rgy_bopm_digest" || ev === "nps_bopm_digest") {
-    const to = (input.recipients || []).filter((e) => /@/.test(e));
-    if (to.length === 0) return null;
-    const rule = await loadRule(admin, EVENT_TO_RULE[ev]);
-    if (rule && !rule.enabled) return null;
-    const p = (input.payload || {}) as Record<string, unknown>;
-    const rows = Array.isArray(p.rows) ? (p.rows as Array<Record<string, string>>) : [];
-    if (rows.length === 0) return null;
-    const bopmName = String(p.bopm_name || "").trim();
-    const bopmFirst = bopmName ? bopmName.split(/\s+/)[0] : "there";
-    const vsdName = String(p.vsd_name || "").trim();
-
-    const digestSpec: Record<string, {
-      title: string; defaultSubject: string; defaultIntro: string;
-      headers: string[]; cta: [string, string];
-      countToken: string; extraTokens?: Record<string, string>;
-    }> = {
-      mbr_bopm_digest: {
-        title: `MBR pending - ${escapeHtml(String(p.mbr_month || ""))}`,
-        defaultSubject: `Action needed: ${rows.length} MBR(s) pending for ${p.mbr_month || ""} - ${p.days_remaining || ""} working days left`,
-        defaultIntro: `Hi ${escapeHtml(bopmFirst)}, the following <b>${rows.length}</b> account(s) under you do not have their <b>${escapeHtml(String(p.mbr_month || ""))}</b> MBR logged yet. Please update them in Pepper CX.`,
-        headers: ["Account", "Deal", "Month", "Action"],
-        cta: ["Open MBR Tracker", `${APP_ORIGIN}/mbr`],
-        countToken: "{pending_count}",
-        extraTokens: {
-          "{mbr_month}": String(p.mbr_month || ""),
-          "{days_remaining}": String(p.days_remaining || ""),
-          "{reminder_ordinal}": String(p.reminder_ordinal || ""),
-          "{current_month}": String(p.current_month || ""),
-        },
-      },
-      rgy_bopm_digest: {
-        title: `RGY weekly refresh`,
-        defaultSubject: `RGY refresh: ${rows.length} account(s) not updated this week`,
-        defaultIntro: `Hi ${escapeHtml(bopmFirst)}, <b>${rows.length}</b> account(s) under you have no RGY entry in the last 7 days.`,
-        headers: ["Account", "Deal", "Current RGY", "Last updated"],
-        cta: ["Open RGY Health", `${APP_ORIGIN}/rgy`],
-        countToken: "{stale_count}",
-        extraTokens: { "{week_label}": String(p.week_label || "") },
-      },
-      nps_bopm_digest: {
-        title: `NPS responses pending`,
-        defaultSubject: `NPS pending: ${p.poc_count || rows.length} POC(s) across ${p.account_count || ""} account(s) have not responded`,
-        defaultIntro: `Hi ${escapeHtml(bopmFirst)}, <b>${p.poc_count || rows.length}</b> POC(s) across <b>${p.account_count || ""}</b> account(s) under you were sent an NPS survey but have not completed it. Please give them a quick nudge.`,
-        headers: ["Account", "POC", "Sent", "Outstanding"],
-        cta: ["Open Pulse / NPS", `${APP_ORIGIN}/pulse-nps`],
-        countToken: "{poc_count}",
-        extraTokens: { "{account_count}": String(p.account_count || "") },
-      },
-    };
-    const spec = digestSpec[ev];
-    const tctx: Record<string, string> = {
-      "{bopm}": bopmName,
-      "{bopm_first_name}": bopmFirst,
-      "{bopm_name}": bopmName,
-      "{vsd}": vsdName,
-      "{vsd_name}": vsdName,
-      [spec.countToken]: String(rows.length),
-      "{pending_count}": String(rows.length),
-      "{stale_count}": String(rows.length),
-      "{poc_count}": String(p.poc_count || rows.length),
-      ...(spec.extraTokens || {}),
-    };
-    const subject = rule?.subject_template?.trim()
-      ? applyTokens(rule.subject_template, tctx)
-      : spec.defaultSubject;
-    const intro = rule?.body_template?.trim()
-      ? applyTokens(rule.body_template, tctx)
-      : spec.defaultIntro;
-
-    const rowsHtml = `
-      <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-top:14px;border:1px solid ${BRAND_BORDER};border-radius:8px;border-collapse:separate;border-spacing:0;font-size:13px;">
-        <tr style="background:${BRAND_BG};">
-          ${spec.headers.map((h) => `<td style="padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:${BRAND_MUTED};border-bottom:1px solid ${BRAND_BORDER};">${escapeHtml(h)}</td>`).join("")}
-        </tr>
-        ${rows.map((r) => {
-          const cells: string[] = [];
-          if (ev === "mbr_bopm_digest") {
-            cells.push(
-              escapeHtml(r.account || ""),
-              escapeHtml(r.deal || ""),
-              escapeHtml(r.month || ""),
-              r.link ? `<a href="${escapeHtml(r.link)}" style="color:${BRAND_PRIMARY};text-decoration:none;">Log MBR</a>` : "",
-            );
-          } else if (ev === "rgy_bopm_digest") {
-            cells.push(
-              escapeHtml(r.account || ""),
-              escapeHtml(r.deal || ""),
-              escapeHtml(r.rgy || "Not set"),
-              escapeHtml(r.last_updated || ""),
-            );
-          } else {
-            cells.push(
-              escapeHtml(r.account || ""),
-              `${escapeHtml(r.poc_name || "")}${r.poc_email ? ` <span style="color:${BRAND_MUTED};">&middot; ${escapeHtml(r.poc_email)}</span>` : ""}`,
-              escapeHtml(r.sent_date || ""),
-              `${escapeHtml(r.days_outstanding || "")} days`,
-            );
-          }
-          return `<tr>${cells.map((c) => `<td style="padding:9px 10px;border-bottom:1px solid ${BRAND_BORDER};color:${BRAND_TEXT};vertical-align:top;">${c}</td>`).join("")}</tr>`;
-        }).join("")}
-      </table>`;
-
-    return {
-      to,
-      subject,
-      html: layout({
-        title: spec.title,
-        intro,
-        rows: [],
-        ctaLabel: spec.cta[0],
-        ctaHref: spec.cta[1],
-        extraHtml: rowsHtml,
-        footerNote: vsdName ? `${vsdName} is copied for visibility. This email is sent by the automated Pepper CX notification system.` : undefined,
-      }),
-    };
+    return buildDigest(admin, ev, input);
   }
 
   if (!input.dealId) return null;
@@ -703,74 +589,7 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
     };
   }
 
-  if (ev === "rgy_alert") {
-    const recips = input.recipients?.length
-      ? input.recipients
-      : await lookupEmailsByNames(admin, dealLeadershipNames(deal));
-    if (recips.length === 0) return null;
-    const status = String(input.payload?.status || "Red").toUpperCase();
-    const dims = Array.isArray(input.payload?.dimensions)
-      ? (input.payload!.dimensions as string[]).join(", ")
-      : String(input.payload?.dimension || "");
-    const rule = await loadRule(admin, "rgy.alert");
-    const tctx: Record<string, string> = {
-      "{deal_label}": label, "{account}": deal.account || "", "{deal_name}": deal.deal_name || "",
-      "{status}": status, "{dimensions}": dims, "{vsd}": deal.vsd || "", "{bopm}": deal.bopm || "",
-    };
-    const sbj = rule?.subject_template?.trim() ? applyTokens(rule.subject_template, tctx) : null;
-    const intro = rule?.body_template?.trim() ? applyTokens(rule.body_template, tctx) : null;
-    return {
-      to: recips,
-      subject: sbj || `RGY ${status === "R" ? "Red" : status === "Y" ? "Yellow" : status} - ${label}`,
-      html: layout({
-        title: `RGY moved to ${status === "R" ? "Red" : status === "Y" ? "Yellow" : status}`,
-        intro: intro || `<b>${escapeHtml(label)}</b> has a new ${escapeHtml(status === "R" ? "Red" : status === "Y" ? "Yellow" : status)} RGY signal. Please review and log the action plan in Pepper CX.`,
-        rows: [
-          ["Account", deal.account || ""],
-          ["Deal", deal.deal_name || ""],
-          ["Dimensions", dims],
-          ["VSD", deal.vsd || ""],
-          ["BOPM", deal.bopm || ""],
-        ],
-        ctaLabel: "Open RGY Health",
-        ctaHref: `${APP_ORIGIN}/rgy`,
-      }),
-    };
-  }
-
-  if (ev === "mbr_reminder") {
-    const recips = input.recipients?.length
-      ? input.recipients
-      : await lookupEmailsByNames(admin, dealLeadershipNames(deal));
-    if (recips.length === 0) return null;
-    const month = String(input.payload?.month || "");
-    const rule = await loadRule(admin, "mbr.missing_prev_month");
-    const tctx: Record<string, string> = {
-      "{deal_label}": label, "{account}": deal.account || "", "{deal_name}": deal.deal_name || "",
-      "{month}": month, "{vsd}": deal.vsd || "", "{bopm}": deal.bopm || "",
-    };
-    const sbj = rule?.subject_template?.trim() ? applyTokens(rule.subject_template, tctx) : null;
-    const intro = rule?.body_template?.trim() ? applyTokens(rule.body_template, tctx) : null;
-    return {
-      to: recips,
-      subject: sbj || `MBR pending - ${label}${month ? ` (${month})` : ""}`,
-      html: layout({
-        title: `MBR pending for ${escapeHtml(label)}`,
-        intro: intro || `The Monthly Business Review for <b>${escapeHtml(label)}</b> is still pending${month ? ` for <b>${escapeHtml(month)}</b>` : ""}. Please schedule and log it in Pepper CX.`,
-        rows: [
-          ["Account", deal.account || ""],
-          ["Deal", deal.deal_name || ""],
-          ["Month", month],
-          ["VSD", deal.vsd || ""],
-          ["BOPM", deal.bopm || ""],
-        ],
-        ctaLabel: "Open MBR Tracker",
-        ctaHref: `${APP_ORIGIN}/mbr`,
-      }),
-    };
-  }
-
-  if (ev === "deal_created" || ev === "deal_unstaffed" || ev === "rgy_stale") {
+  if (ev === "deal_created" || ev === "deal_unstaffed") {
     const rule = await loadRule(admin, EVENT_TO_RULE[ev]);
     if (rule && !rule.enabled) return null;
     const recips = await expandTokens(admin, [...(rule?.to_tokens || []), ...(rule?.extra_to || [])], { deal });
@@ -778,17 +597,14 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
     const titleMap: Record<string, string> = {
       deal_created: `New deal created - ${label}`,
       deal_unstaffed: `Deal awaiting staffing - ${label}`,
-      rgy_stale: `RGY update pending - ${label}`,
     };
     const introMap: Record<string, string> = {
       deal_created: `A new deal <b>${escapeHtml(label)}</b> has been created in Pepper CX.`,
       deal_unstaffed: `<b>${escapeHtml(label)}</b> has been active for 7+ days without a staffing assignment. Please staff the deal.`,
-      rgy_stale: `RGY for <b>${escapeHtml(label)}</b> hasn't been updated in 7+ days. Please log the latest status.`,
     };
     const ctaMap: Record<string, [string, string]> = {
       deal_created: ["Open deal", link],
       deal_unstaffed: ["Open in Staffing", `${APP_ORIGIN}/staffing?tab=staffing&deal=${encodeURIComponent(deal.id)}`],
-      rgy_stale: ["Open RGY Health", `${APP_ORIGIN}/rgy`],
     };
     const tokenCtx: Record<string, string> = {
       "{deal_label}": label,
