@@ -348,6 +348,9 @@ const EVENT_TO_RULE: Record<string, string> = {
   mbr_reminder: "mbr.missing_prev_month",
   rgy_stale: "rgy.stale_7d",
   rgy_alert: "rgy.alert",
+  mbr_bopm_digest: "mbr.reminder_bopm_digest",
+  rgy_bopm_digest: "rgy.reminder_bopm_digest",
+  nps_bopm_digest: "nps.reminder_bopm_digest",
 };
 
 async function loadRule(admin: SupabaseClient, eventKey: string): Promise<RuleRow | null> {
