@@ -281,66 +281,7 @@ function CentralMailboxCard() {
 // Tiny indirection so we don't have to import useCallback twice in this file.
 function useCallbackish<T extends (...args: any[]) => any>(fn: T) { return fn; }
 
-// ── MBR Reminder Card ────────────────────────────────────────────────────
-function MbrReminderCard() {
-  const [sending, setSending] = useState(false);
-  const [lastResult, setLastResult] = useState<string>("");
-
-  const sendNow = async () => {
-    setSending(true);
-    setLastResult("");
-    try {
-      // Find all active retainer deals that don't have a logged MBR for current month.
-      const now = new Date();
-      const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-      const monthStart = `${ym}-01`;
-      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-      const nextStart = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, "0")}-01`;
-      const { data: deals } = await supabase
-        .from("staffing_deals")
-        .select("id, deal_status");
-      const activeIds = (deals || [])
-        .filter((d: any) => ["Active Deal", "New Deal in SLA/PO", "Deal Disputed"].includes((d.deal_status || "").trim()))
-        .map((d: any) => d.id as string);
-      if (activeIds.length === 0) { toast.info("No active deals to remind."); setSending(false); return; }
-      const { data: entries } = await supabase
-        .from("mbr_entries")
-        .select("deal_id, week_start, status")
-        .in("deal_id", activeIds)
-        .gte("week_start", monthStart)
-        .lt("week_start", nextStart);
-      const done = new Set((entries || []).filter((e: any) => e.status === "Done" || e.status === "Not Required").map((e: any) => e.deal_id));
-      const pending = activeIds.filter((id) => !done.has(id));
-      if (pending.length === 0) { toast.success("All caught up — no pending MBRs this month."); setSending(false); return; }
-      sendAppEmail(pending.map((dealId) => ({ event: "mbr_reminder" as const, dealId, payload: { month: ym } })));
-      setLastResult(`Queued reminders for ${pending.length} deal${pending.length === 1 ? "" : "s"}.`);
-      toast.success(`Queued ${pending.length} MBR reminder${pending.length === 1 ? "" : "s"}`);
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to queue MBR reminders");
-    } finally {
-      setSending(false);
-    }
-  };
-
-  return (
-    <div className="border-t border-border pt-4 space-y-2">
-      <div className="flex items-center gap-2">
-        <Mail className="h-4 w-4 text-muted-foreground" />
-        <h3 className="text-sm font-semibold text-foreground">MBR reminders</h3>
-      </div>
-      <p className="text-[11px] text-muted-foreground">
-        Email the deal's BOPM, Sr BOPM and VSD for every active deal that still has a pending MBR for the current month.
-      </p>
-      <div className="flex items-center gap-3">
-        <button onClick={sendNow} disabled={sending} className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50">
-          {sending && <Loader2 className="h-3 w-3 animate-spin" />}
-          {sending ? "Queuing…" : "Send MBR reminders now"}
-        </button>
-        {lastResult && <span className="text-[11px] text-muted-foreground">{lastResult}</span>}
-      </div>
-    </div>
-  );
-}
+// MBR reminders are now sent by the mbr.reminder_bopm_digest cron rule.
 
 // ── Staffing Exports panel ─────────────────────────────────────────────────
 function StaffingExportsPanel() {
