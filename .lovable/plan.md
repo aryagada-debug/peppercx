@@ -1,26 +1,69 @@
-## Problem
 
-Test emails from Settings → Notifications for the three BOPM digest rules (`mbr.reminder_bopm_digest`, `rgy.reminder_bopm_digest`, `nps.reminder_bopm_digest`) use the generic `layout()` renderer with only a single "Sample deal" row. That's why the preview never shows the branded header, colored banner, or the full table of accounts / clients / POCs from the mockup.
+## Goal
 
-Production sends already flow through `buildDigest()` correctly, but the test path (`send_test_rule` in `send-app-email/index.ts`, lines 913–973) bypasses it entirely.
+Add a new admin-only page **SEO KRAs** under the Operations sidebar section that lets admins run quarterly KRA reviews for SEO Growth Leads and see a dashboard of results. Skip Team Setup — the team is auto-derived from existing SEO capability members. Architected so a second scorecard (SEO Ops) can be plugged in later without refactoring.
 
-## Fix
+## What we build
 
-In `supabase/functions/send-app-email/index.ts`, inside the `send_test_rule` handler:
+### 1. Route + navigation
+- New route `/seo-kras` in `src/App.tsx`, lazy-loaded, gated `adminOnly` via `ProtectedRoute` (routeKey `settings` for access).
+- New sidebar item in the **Operations** group of `src/components/layout/AppSidebar.tsx`, visible only to admins (uses the existing `adminOnly` flag pattern already used for Deal Handover / Slack Review).
 
-1. Detect when `rule.event_key` is one of the three digest rules.
-2. Build a realistic sample payload (Rishabh Agarwal as BOPM, Neema Jayadas as VSD) with 4–5 rows per digest so the table populates:
-   - **MBR digest** — 4 sample accounts (e.g. Zo Beauty, Pidilite, Cream City Mortgage, Lifescan) with deal names and last month as `mbr_month`, `days_remaining`, `reminder_ordinal`.
-   - **RGY digest** — 4 sample accounts with mixed R/Y statuses and `week_label`, `last_updated` days-ago.
-   - **NPS digest** — 5 POC rows across 3 accounts with `poc_name`, `poc_email`, `sent_date`, `days_outstanding`, plus `poc_count` / `account_count`.
-3. Call `buildDigest(admin, mappedEvent, { recipients: [to], payload: sampleRows, event: mappedEvent })` to reuse the exact production renderer (branded header, banner, table, CTA, footer).
-4. Prefix the resulting subject with `[TEST]` and send via the same Gmail path already used in the test handler; log to `email_send_log` as today.
-5. Fall back to the current generic `layout()` preview for all non-digest rules — no change to other rule tests.
+### 2. Backend (Lovable Cloud)
+One migration adding two tables with full GRANTs + RLS.
 
-No changes to `notification-cron`, database, or UI. Only the test-preview path is touched, so real cron digests continue to work exactly as they do now (they already render the full HTML with all deals/POCs per bucket).
+- `seo_kra_reviews`
+  - `id uuid pk`, `scorecard_key text` (default `'growth_lead'`, allows later `'seo_ops'`), `member_user_id uuid` (references `auth.users`), `year int`, `quarter text` (`Q1..Q4`), `reviewer_user_id uuid`, `total numeric`, `area_scores jsonb`, `notes text`, `complete boolean`, `created_at`, `updated_at`.
+  - Unique index on (`scorecard_key`, `member_user_id`, `year`, `quarter`).
+- `seo_kra_scores`
+  - `id uuid pk`, `review_id uuid fk → seo_kra_reviews on delete cascade`, `kpi_id text`, `score int`, `note text`, unique (`review_id`, `kpi_id`).
+- RLS: admins full access via `has_role(auth.uid(), 'admin')`; select-own by `member_user_id = auth.uid()` (so a reviewee can see their own review later — no UI yet).
+- Standard GRANTs (authenticated + service_role) per public-schema rules.
+
+### 3. Frontend
+
+All UI in a new folder `src/components/seo-kras/` with a single page shell at `src/pages/SEOKRAs.tsx`.
+
+Structure (kept small and composable so SEO Ops can be added later by dropping in a second scorecard definition):
+
+- `scorecards/growthLead.ts` — the 4 KRA areas / 18 KPIs / weights / bands from the uploaded HTML, typed as a shared `Scorecard` interface. A `scorecards/index.ts` registry keyed by `scorecard_key` makes adding SEO Ops later a one-file change.
+- `SEOKRAsPage` — top-level tabs: **Enter review**, **Dashboard**. (No Team Setup.)
+- `useSeoTeam.ts` — reads users from the existing `capability_groups` + `capability_memberships` tables, filtering to the SEO capability group (matched by name containing "SEO" and role_category `growth_lead` / applicable to the scorecard). Returns the member list used everywhere.
+- `EnterReviewTab` — reviewer, member, year, quarter selects (member list from `useSeoTeam`). KPI rows show target, definition, band cells, 1–10 score picker, per-KPI note. Sticky weighted-score composer with stacked bar, saves via a single upsert to `seo_kra_reviews` + `seo_kra_scores`.
+- `DashboardTab` — filters (year, quarter, capability lead / all). Stat cards (avg score, reviews completed X/Y, strongest area, focus area), pod averages bar, area breakdown bar, quarterly trend line, member × area heatmap, CSV export. Pods are inferred from `capability_leads` (each capability lead ⇒ pod, members assigned via `capability_memberships`).
+- Reuse existing UI tokens (semantic colors, `Card`, `Tabs`, `Select`, `Button`) — no new colors or fonts. Two font weights (Regular/Medium) per project design system.
+
+### 4. Data flow
+
+- React Query keys added to `src/lib/queryKeys.ts`: `seoKraTeam()`, `seoKraReviews(scorecardKey, year, quarter)`, `seoKraReview(scorecardKey, memberId, year, quarter)`.
+- One query loads the whole quarter for the dashboard; edits invalidate the affected keys.
+
+### 5. Out of scope (per user)
+
+- No Team Setup UI — team comes from the SEO capability group.
+- SEO Ops scorecard: registry stub only, not exposed in UI yet.
 
 ## Technical notes
 
-- Event key → digest event map: `mbr.reminder_bopm_digest → mbr_bopm_digest`, `rgy.reminder_bopm_digest → rgy_bopm_digest`, `nps.reminder_bopm_digest → nps_bopm_digest` (already defined in `EVENT_TO_RULE`).
-- `buildDigest` returns `{ to, subject, html }`; use its `html`, override subject with `[TEST] …`, keep `to = [testRecipient]`, skip cc.
-- If `rows.length === 0` guard in `buildDigest` returns null, force at least the sample rows above so preview always renders.
+- Scoring math (weighted total = Σ(area_avg × weight)) implemented once in `lib/scoring.ts` so both scorecards share it.
+- Sample data / demo mode from the uploaded HTML omitted (real users only).
+- All amounts stored raw; formatting done at render.
+- No changes to existing routes, roles, or non-admin views.
+
+```text
+src/
+  pages/SEOKRAs.tsx
+  components/seo-kras/
+    EnterReviewTab.tsx
+    DashboardTab.tsx
+    KpiRow.tsx
+    ScoreComposer.tsx
+    useSeoTeam.ts
+    useSeoReviews.ts
+    scorecards/
+      types.ts
+      growthLead.ts
+      index.ts
+    lib/scoring.ts
+supabase/migrations/<ts>_seo_kras.sql
+```
