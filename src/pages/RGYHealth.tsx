@@ -1213,13 +1213,7 @@ export default function RGYHealth() {
       );
       setMarkRGYDeal(null);
       // Email leadership when any dimension newly degrades to Red or Yellow.
-      const newlyRed = next.filter(d => d.value === "R" && prevValues[d.key] !== d.value).map(d => d.label);
-      const newlyYellow = next.filter(d => d.value === "Y" && prevValues[d.key] !== d.value).map(d => d.label);
-      if (newlyRed.length > 0) {
-        sendAppEmail({ event: "rgy_alert", dealId: deal.id, payload: { status: "R", dimensions: newlyRed } });
-      } else if (newlyYellow.length > 0) {
-        sendAppEmail({ event: "rgy_alert", dealId: deal.id, payload: { status: "Y", dimensions: newlyYellow } });
-      }
+      // Per-change RGY alert emails removed — the weekly BOPM RGY digest handles this.
       if (newRedOrYellow) {
         toast.success("RGY saved — log the issue & action plan");
         setPrevRGYSnapshot({ dealId: deal.id, values: prevValues });
