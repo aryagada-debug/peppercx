@@ -11,6 +11,8 @@ import {
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { isSeoKraReviewerEmail } from "@/lib/seoKraAccess";
 import { useIsLeadershipViewer } from "@/hooks/useIsLeadershipViewer";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -94,6 +96,8 @@ export function AppSidebar() {
   });
   const { visibleRoutes, loading, isAdmin, isActuallyAdmin } = useUserRole();
   const isLeader = useIsLeadershipViewer();
+  const { user } = useAuth();
+  const canSeoKra = isAdmin || isActuallyAdmin || isSeoKraReviewerEmail(user?.email);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -127,7 +131,11 @@ export function AppSidebar() {
     .map(section => ({
       ...section,
       items: section.items.filter(item => {
-        if ((item as any).adminOnly && !(isAdmin || isActuallyAdmin)) return false;
+        if (item.to === "/seo-kras") {
+          if (!canSeoKra) return false;
+        } else if ((item as any).adminOnly && !(isAdmin || isActuallyAdmin)) {
+          return false;
+        }
         if ((item as any).nonAdminOnly && (isAdmin || isActuallyAdmin)) return false;
         return loading || visibleRoutes.has(item.routeKey);
       }),
