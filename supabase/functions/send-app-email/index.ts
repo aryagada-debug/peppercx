@@ -933,7 +933,7 @@ Deno.serve(async (req) => {
         const weekLabel = `Week of ${now.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}`;
         const samplePayload: Record<string, unknown> = {
           bopm_name: "Rishabh Agarwal",
-          vsd_name: "Neema Jayadas",
+          vsd_name: "",
         };
         if (digestEvent === "mbr_bopm_digest") {
           Object.assign(samplePayload, {
