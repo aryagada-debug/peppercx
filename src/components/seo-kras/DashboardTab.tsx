@@ -137,8 +137,13 @@ export function DashboardTab() {
                 <tr>
                   <th className="text-left p-2">Member</th>
                   <th className="text-left p-2">Role</th>
-                  {scorecard.areas.map(a => (
-                    <th key={a.id} className="text-center p-2">{a.short}</th>
+                  {scorecard.areas.map((a, i) => (
+                    <th key={a.id} className="text-center p-2">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: areaColor(i) }} />
+                        {a.short}
+                      </span>
+                    </th>
                   ))}
                   <th className="text-center p-2">Total</th>
                   <th className="text-left p-2">Updated</th>
