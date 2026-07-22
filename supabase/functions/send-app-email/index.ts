@@ -2,7 +2,9 @@
 // The central account is whichever gmail_connections row has is_central=true
 // (set via the Settings → Notifications page after that user connects Gmail).
 //
-// Supported events: staffed, staffing_changed, staffing_removed, rgy_alert, mbr_reminder, test
+// Supported events: staffed, staffing_changed, staffing_removed,
+//   mbr_bopm_digest, rgy_bopm_digest, nps_bopm_digest,
+//   deal_created, deal_unstaffed, handover_received, test
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -345,9 +347,6 @@ const EVENT_TO_RULE: Record<string, string> = {
   handover_received: "handover.received",
   deal_created: "deal.created",
   deal_unstaffed: "deal.unstaffed_7d",
-  mbr_reminder: "mbr.missing_prev_month",
-  rgy_stale: "rgy.stale_7d",
-  rgy_alert: "rgy.alert",
   mbr_bopm_digest: "mbr.reminder_bopm_digest",
   rgy_bopm_digest: "rgy.reminder_bopm_digest",
   nps_bopm_digest: "nps.reminder_bopm_digest",
@@ -416,6 +415,217 @@ async function expandTokens(
     }
   }
   return Array.from(out);
+}
+
+// ── Branded digest layout (matches Central CX design) ─────────────────────
+const DG_HEADER_BG = "#0C0359";
+const DG_HEADER_ACCENT = "#B7A9EE";
+const DG_PRIMARY = "#5B34DA";
+const DG_PAGE_BG = "#F4F0EA";
+const DG_BORDER = "#ECE7F5";
+const DG_TEXT = "#1E1633";
+const DG_BODY = "#4A4358";
+const DG_MUTED = "#9089A0";
+const DG_RED = "#C0392B";
+const DG_PILL_RED_BG = "#FCE4E1";
+const DG_PILL_YELLOW_BG = "#FDF2C7";
+const DG_PILL_YELLOW_FG = "#8A6D1E";
+
+type DigestBanner = { bg: string; accent: string; icon: string; html: string };
+
+function digestLayout(o: {
+  banner: DigestBanner;
+  greeting: string;
+  intro: string;
+  tableHtml: string;
+  ctaLabel: string;
+  ctaHref: string;
+  ctaHint?: string;
+  footerLine1: string;
+  footerLine2: string;
+}) {
+  return `<!doctype html><html><body style="margin:0;padding:0;background:${DG_PAGE_BG};font-family:'Segoe UI',Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${DG_PAGE_BG};">
+    <tr><td align="center" style="padding:28px 12px;">
+      <table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0" style="width:640px;max-width:640px;background:#FFFFFF;border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(60,40,90,0.06);">
+        <tr><td style="background:${DG_HEADER_BG};padding:22px 32px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+            <td align="left" valign="middle" style="font-size:20px;font-weight:700;color:#FFFFFF;letter-spacing:-0.3px;">pepper</td>
+            <td align="right" valign="middle" style="font-size:12px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:${DG_HEADER_ACCENT};">Central&nbsp;CX</td>
+          </tr></table>
+        </td></tr>
+        <tr><td style="background:${o.banner.bg};padding:16px 32px;">
+          <div style="font-size:14px;line-height:1.55;color:${o.banner.accent};">${o.banner.icon} ${o.banner.html}</div>
+        </td></tr>
+        <tr><td style="padding:28px 32px 8px 32px;">
+          <p style="margin:0 0 12px 0;font-size:15px;line-height:1.5;color:${DG_TEXT};">${o.greeting}</p>
+          <p style="margin:0 0 6px 0;font-size:15px;line-height:1.6;color:${DG_BODY};">${o.intro}</p>
+        </td></tr>
+        <tr><td style="padding:8px 32px 4px 32px;">${o.tableHtml}</td></tr>
+        <tr><td align="center" style="padding:28px 32px 8px 32px;">
+          <a href="${escapeHtml(o.ctaHref)}" target="_blank" style="display:inline-block;padding:14px 36px;font-size:15px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:10px;background:${DG_PRIMARY};">${escapeHtml(o.ctaLabel)}</a>
+        </td></tr>
+        ${o.ctaHint ? `<tr><td align="center" style="padding:0 32px 28px 32px;"><p style="margin:0;font-size:12px;line-height:1.5;color:${DG_MUTED};">${o.ctaHint}</p></td></tr>` : `<tr><td style="padding-bottom:20px;"></td></tr>`}
+        <tr><td style="padding:18px 32px 22px 32px;background:${DG_PAGE_BG};border-top:1px solid ${DG_BORDER};">
+          <p style="margin:0;font-size:12px;line-height:1.55;color:${DG_MUTED};">${o.footerLine1}</p>
+          <p style="margin:6px 0 0 0;font-size:12px;line-height:1.55;color:${DG_MUTED};">${o.footerLine2}</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table></body></html>`;
+}
+
+function digestTable(headers: string[], rows: string[][]): string {
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${DG_BORDER};border-radius:10px;border-collapse:separate;border-spacing:0;font-size:13px;overflow:hidden;">
+      <tr style="background:#F7F3FB;">
+        ${headers.map((h) => `<td style="padding:11px 14px;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:${DG_MUTED};font-weight:600;">${escapeHtml(h)}</td>`).join("")}
+      </tr>
+      ${rows.map((r, i) => `<tr>${r.map((c) => `<td style="padding:14px;color:${DG_TEXT};font-size:14px;vertical-align:top;${i < rows.length - 1 ? `border-top:1px solid ${DG_BORDER};` : `border-top:1px solid ${DG_BORDER};`}">${c}</td>`).join("")}</tr>`).join("")}
+    </table>`;
+}
+
+function pill(text: string, bg: string, fg: string): string {
+  return `<span style="display:inline-block;padding:4px 12px;border-radius:999px;background:${bg};color:${fg};font-size:12px;font-weight:600;">${escapeHtml(text)}</span>`;
+}
+
+async function buildDigest(admin: SupabaseClient, ev: string, input: SendInput): Promise<Built | null> {
+  const to = (input.recipients || []).filter((e) => /@/.test(e));
+  if (to.length === 0) return null;
+  const rule = await loadRule(admin, EVENT_TO_RULE[ev]);
+  if (rule && !rule.enabled) return null;
+  const p = (input.payload || {}) as Record<string, unknown>;
+  const rows = Array.isArray(p.rows) ? (p.rows as Array<Record<string, string>>) : [];
+  if (rows.length === 0) return null;
+  const bopmName = String(p.bopm_name || "").trim();
+  const bopmFirst = bopmName ? bopmName.split(/\s+/)[0] : "there";
+  const vsdName = String(p.vsd_name || "").trim();
+  const greeting = `Hi ${escapeHtml(bopmFirst)},`;
+
+  if (ev === "mbr_bopm_digest") {
+    const mbrMonth = String(p.mbr_month || "");
+    const currentMonth = String(p.current_month || "");
+    const daysRemaining = String(p.days_remaining || "");
+    const ordinal = String(p.reminder_ordinal || "");
+    const banner: DigestBanner = {
+      bg: "#FDF2C7", accent: "#7A5A0D", icon: "⏰",
+      html: `<b>${escapeHtml(daysRemaining)} working days</b> left in ${escapeHtml(currentMonth)} — ${escapeHtml(mbrMonth)} MBRs must be logged before month-end.`,
+    };
+    const intro = `The following <b>${rows.length}</b> account(s) under you don't have their <b>${escapeHtml(mbrMonth)}</b> MBR logged yet. Please update them in CX OS — it takes about two minutes per account.`;
+    const tableRows = rows.map((r) => [
+      `<b>${escapeHtml(r.account || "")}</b>`,
+      escapeHtml(r.deal || ""),
+      escapeHtml(r.month || mbrMonth),
+      pill("Pending", DG_PILL_RED_BG, DG_RED),
+    ]);
+    const tableHtml = digestTable(["Account", "Deal", "MBR Month", "Status"], tableRows);
+    const subject = rule?.subject_template?.trim()
+      ? applyTokens(rule.subject_template, digestCtx(bopmName, vsdName, rows.length, p))
+      : `${daysRemaining} working days left — ${rows.length} MBR(s) pending for ${mbrMonth}`;
+    return {
+      to,
+      subject,
+      html: digestLayout({
+        banner, greeting, intro, tableHtml,
+        ctaLabel: "Log MBRs in CX OS →",
+        ctaHref: `${APP_ORIGIN}/mbr`,
+        ctaHint: "Marked as done already? This email will stop automatically once the status updates.",
+        footerLine1: `This is your ${escapeHtml(ordinal)} reminder — it repeats every 3 working days until the MBR is logged.${vsdName ? ` ${escapeHtml(vsdName)} is copied for visibility.` : ""}`,
+        footerLine2: `Sent by Central CX · centralcx@peppercontent.io · rule: mbr.reminder_bopm_digest`,
+      }),
+    };
+  }
+
+  if (ev === "rgy_bopm_digest") {
+    const weekLabel = String(p.week_label || "");
+    const banner: DigestBanner = {
+      bg: "#EFE9FA", accent: DG_PRIMARY, icon: "🔄",
+      html: `<b>Friday RGY refresh</b> · ${escapeHtml(weekLabel)} — updates made now feed Monday's RGY insight.`,
+    };
+    const intro = `<b>${rows.length}</b> account(s) under you have no RGY entry in the last 7 days. Their status below is the last one logged — please confirm it still holds, or update it if things have moved.`;
+    const tableRows = rows.map((r) => {
+      const rgy = String(r.rgy || "Not set");
+      const rgyPill = rgy === "R" || /red/i.test(rgy)
+        ? pill("Red", DG_PILL_RED_BG, DG_RED)
+        : rgy === "Y" || /yellow/i.test(rgy)
+          ? pill("Yellow", DG_PILL_YELLOW_BG, DG_PILL_YELLOW_FG)
+          : rgy === "G" || /green/i.test(rgy)
+            ? pill("Green", "#DDF3E3", "#1E7B36")
+            : pill(rgy || "Not set", "#EFEAF3", DG_MUTED);
+      const lastRaw = String(r.last_updated || "");
+      const m = lastRaw.match(/^(\S+)\s*\((\d+)d ago\)/);
+      const lastCell = m
+        ? `${escapeHtml(m[1])} · <span style="color:${DG_RED};font-weight:600;">${escapeHtml(m[2])}d ago</span>`
+        : escapeHtml(lastRaw || "Never");
+      return [`<b>${escapeHtml(r.account || "")}</b>`, rgyPill, lastCell];
+    });
+    const tableHtml = digestTable(["Account", "Current RGY", "Last Updated"], tableRows);
+    const subject = rule?.subject_template?.trim()
+      ? applyTokens(rule.subject_template, digestCtx(bopmName, vsdName, rows.length, p))
+      : `RGY refresh: ${rows.length} account(s) not updated this week`;
+    return {
+      to,
+      subject,
+      html: digestLayout({
+        banner, greeting, intro, tableHtml,
+        ctaLabel: "Update RGY in CX OS →",
+        ctaHref: `${APP_ORIGIN}/rgy`,
+        ctaHint: "Even if nothing changed, re-confirming the status keeps your accounts out of this list.",
+        footerLine1: `Sent every Friday, only when one or more of your accounts has no RGY entry in the last 7 days.${vsdName ? ` ${escapeHtml(vsdName)} is copied for visibility.` : ""}`,
+        footerLine2: `Sent by Central CX · centralcx@peppercontent.io · rule: rgy.reminder_bopm_digest`,
+      }),
+    };
+  }
+
+  // nps_bopm_digest
+  const pocCount = String(p.poc_count || rows.length);
+  const accountCount = String(p.account_count || "");
+  const banner: DigestBanner = {
+    bg: "#E4EEFB", accent: "#1F3B8A", icon: "💬",
+    html: `<b>Wednesday NPS check</b> — a personal nudge from you gets far more responses than another automated email to the client.`,
+  };
+  const intro = `<b>${escapeHtml(pocCount)}</b> POC(s) across <b>${escapeHtml(accountCount)}</b> account(s) under you were sent an NPS survey but haven't completed it. Please give them a quick nudge on your next call or over Slack/email.`;
+  const tableRows = rows.map((r) => [
+    `<b>${escapeHtml(r.account || "")}</b>`,
+    `<b>${escapeHtml(r.poc_name || "")}</b>${r.poc_email ? ` <span style="color:${DG_MUTED};">· ${escapeHtml(r.poc_email)}</span>` : ""}`,
+    escapeHtml(r.sent_date || ""),
+    `<span style="color:${DG_RED};font-weight:600;">${escapeHtml(r.days_outstanding || "0")} days</span>`,
+  ]);
+  const tableHtml = digestTable(["Account", "POC", "Invite Sent", "Outstanding"], tableRows);
+  const subject = rule?.subject_template?.trim()
+    ? applyTokens(rule.subject_template, digestCtx(bopmName, vsdName, rows.length, p))
+    : `NPS pending: ${pocCount} POC(s) across ${accountCount} account(s) have not responded`;
+  return {
+    to,
+    subject,
+    html: digestLayout({
+      banner, greeting, intro, tableHtml,
+      ctaLabel: "View NPS tracker →",
+      ctaHref: `${APP_ORIGIN}/pulse-nps`,
+      ctaHint: "Survey links can be resent from the tracker. POCs drop off this list as soon as they respond.",
+      footerLine1: `Sent every Wednesday, only when one or more of your accounts has a pending NPS response.${vsdName ? ` ${escapeHtml(vsdName)} is copied for visibility.` : ""}`,
+      footerLine2: `Sent by Central CX · centralcx@peppercontent.io · rule: nps.reminder_bopm_digest`,
+    }),
+  };
+}
+
+function digestCtx(bopmName: string, vsdName: string, count: number, p: Record<string, unknown>): Record<string, string> {
+  return {
+    "{bopm}": bopmName,
+    "{bopm_name}": bopmName,
+    "{bopm_first_name}": bopmName ? bopmName.split(/\s+/)[0] : "there",
+    "{vsd}": vsdName,
+    "{vsd_name}": vsdName,
+    "{pending_count}": String(count),
+    "{stale_count}": String(count),
+    "{poc_count}": String(p.poc_count || count),
+    "{account_count}": String(p.account_count || ""),
+    "{mbr_month}": String(p.mbr_month || ""),
+    "{current_month}": String(p.current_month || ""),
+    "{days_remaining}": String(p.days_remaining || ""),
+    "{reminder_ordinal}": String(p.reminder_ordinal || ""),
+    "{week_label}": String(p.week_label || ""),
+  };
 }
 
 async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Built | null> {
@@ -504,121 +714,7 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
 
   // ── BOPM digests (per-recipient aggregation) ──────────────────────────────
   if (ev === "mbr_bopm_digest" || ev === "rgy_bopm_digest" || ev === "nps_bopm_digest") {
-    const to = (input.recipients || []).filter((e) => /@/.test(e));
-    if (to.length === 0) return null;
-    const rule = await loadRule(admin, EVENT_TO_RULE[ev]);
-    if (rule && !rule.enabled) return null;
-    const p = (input.payload || {}) as Record<string, unknown>;
-    const rows = Array.isArray(p.rows) ? (p.rows as Array<Record<string, string>>) : [];
-    if (rows.length === 0) return null;
-    const bopmName = String(p.bopm_name || "").trim();
-    const bopmFirst = bopmName ? bopmName.split(/\s+/)[0] : "there";
-    const vsdName = String(p.vsd_name || "").trim();
-
-    const digestSpec: Record<string, {
-      title: string; defaultSubject: string; defaultIntro: string;
-      headers: string[]; cta: [string, string];
-      countToken: string; extraTokens?: Record<string, string>;
-    }> = {
-      mbr_bopm_digest: {
-        title: `MBR pending - ${escapeHtml(String(p.mbr_month || ""))}`,
-        defaultSubject: `Action needed: ${rows.length} MBR(s) pending for ${p.mbr_month || ""} - ${p.days_remaining || ""} working days left`,
-        defaultIntro: `Hi ${escapeHtml(bopmFirst)}, the following <b>${rows.length}</b> account(s) under you do not have their <b>${escapeHtml(String(p.mbr_month || ""))}</b> MBR logged yet. Please update them in Pepper CX.`,
-        headers: ["Account", "Deal", "Month", "Action"],
-        cta: ["Open MBR Tracker", `${APP_ORIGIN}/mbr`],
-        countToken: "{pending_count}",
-        extraTokens: {
-          "{mbr_month}": String(p.mbr_month || ""),
-          "{days_remaining}": String(p.days_remaining || ""),
-          "{reminder_ordinal}": String(p.reminder_ordinal || ""),
-          "{current_month}": String(p.current_month || ""),
-        },
-      },
-      rgy_bopm_digest: {
-        title: `RGY weekly refresh`,
-        defaultSubject: `RGY refresh: ${rows.length} account(s) not updated this week`,
-        defaultIntro: `Hi ${escapeHtml(bopmFirst)}, <b>${rows.length}</b> account(s) under you have no RGY entry in the last 7 days.`,
-        headers: ["Account", "Deal", "Current RGY", "Last updated"],
-        cta: ["Open RGY Health", `${APP_ORIGIN}/rgy`],
-        countToken: "{stale_count}",
-        extraTokens: { "{week_label}": String(p.week_label || "") },
-      },
-      nps_bopm_digest: {
-        title: `NPS responses pending`,
-        defaultSubject: `NPS pending: ${p.poc_count || rows.length} POC(s) across ${p.account_count || ""} account(s) have not responded`,
-        defaultIntro: `Hi ${escapeHtml(bopmFirst)}, <b>${p.poc_count || rows.length}</b> POC(s) across <b>${p.account_count || ""}</b> account(s) under you were sent an NPS survey but have not completed it. Please give them a quick nudge.`,
-        headers: ["Account", "POC", "Sent", "Outstanding"],
-        cta: ["Open Pulse / NPS", `${APP_ORIGIN}/pulse-nps`],
-        countToken: "{poc_count}",
-        extraTokens: { "{account_count}": String(p.account_count || "") },
-      },
-    };
-    const spec = digestSpec[ev];
-    const tctx: Record<string, string> = {
-      "{bopm}": bopmName,
-      "{bopm_first_name}": bopmFirst,
-      "{bopm_name}": bopmName,
-      "{vsd}": vsdName,
-      "{vsd_name}": vsdName,
-      [spec.countToken]: String(rows.length),
-      "{pending_count}": String(rows.length),
-      "{stale_count}": String(rows.length),
-      "{poc_count}": String(p.poc_count || rows.length),
-      ...(spec.extraTokens || {}),
-    };
-    const subject = rule?.subject_template?.trim()
-      ? applyTokens(rule.subject_template, tctx)
-      : spec.defaultSubject;
-    const intro = rule?.body_template?.trim()
-      ? applyTokens(rule.body_template, tctx)
-      : spec.defaultIntro;
-
-    const rowsHtml = `
-      <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-top:14px;border:1px solid ${BRAND_BORDER};border-radius:8px;border-collapse:separate;border-spacing:0;font-size:13px;">
-        <tr style="background:${BRAND_BG};">
-          ${spec.headers.map((h) => `<td style="padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:${BRAND_MUTED};border-bottom:1px solid ${BRAND_BORDER};">${escapeHtml(h)}</td>`).join("")}
-        </tr>
-        ${rows.map((r) => {
-          const cells: string[] = [];
-          if (ev === "mbr_bopm_digest") {
-            cells.push(
-              escapeHtml(r.account || ""),
-              escapeHtml(r.deal || ""),
-              escapeHtml(r.month || ""),
-              r.link ? `<a href="${escapeHtml(r.link)}" style="color:${BRAND_PRIMARY};text-decoration:none;">Log MBR</a>` : "",
-            );
-          } else if (ev === "rgy_bopm_digest") {
-            cells.push(
-              escapeHtml(r.account || ""),
-              escapeHtml(r.deal || ""),
-              escapeHtml(r.rgy || "Not set"),
-              escapeHtml(r.last_updated || ""),
-            );
-          } else {
-            cells.push(
-              escapeHtml(r.account || ""),
-              `${escapeHtml(r.poc_name || "")}${r.poc_email ? ` <span style="color:${BRAND_MUTED};">&middot; ${escapeHtml(r.poc_email)}</span>` : ""}`,
-              escapeHtml(r.sent_date || ""),
-              `${escapeHtml(r.days_outstanding || "")} days`,
-            );
-          }
-          return `<tr>${cells.map((c) => `<td style="padding:9px 10px;border-bottom:1px solid ${BRAND_BORDER};color:${BRAND_TEXT};vertical-align:top;">${c}</td>`).join("")}</tr>`;
-        }).join("")}
-      </table>`;
-
-    return {
-      to,
-      subject,
-      html: layout({
-        title: spec.title,
-        intro,
-        rows: [],
-        ctaLabel: spec.cta[0],
-        ctaHref: spec.cta[1],
-        extraHtml: rowsHtml,
-        footerNote: vsdName ? `${vsdName} is copied for visibility. This email is sent by the automated Pepper CX notification system.` : undefined,
-      }),
-    };
+    return buildDigest(admin, ev, input);
   }
 
   if (!input.dealId) return null;
@@ -704,74 +800,7 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
     };
   }
 
-  if (ev === "rgy_alert") {
-    const recips = input.recipients?.length
-      ? input.recipients
-      : await lookupEmailsByNames(admin, dealLeadershipNames(deal));
-    if (recips.length === 0) return null;
-    const status = String(input.payload?.status || "Red").toUpperCase();
-    const dims = Array.isArray(input.payload?.dimensions)
-      ? (input.payload!.dimensions as string[]).join(", ")
-      : String(input.payload?.dimension || "");
-    const rule = await loadRule(admin, "rgy.alert");
-    const tctx: Record<string, string> = {
-      "{deal_label}": label, "{account}": deal.account || "", "{deal_name}": deal.deal_name || "",
-      "{status}": status, "{dimensions}": dims, "{vsd}": deal.vsd || "", "{bopm}": deal.bopm || "",
-    };
-    const sbj = rule?.subject_template?.trim() ? applyTokens(rule.subject_template, tctx) : null;
-    const intro = rule?.body_template?.trim() ? applyTokens(rule.body_template, tctx) : null;
-    return {
-      to: recips,
-      subject: sbj || `RGY ${status === "R" ? "Red" : status === "Y" ? "Yellow" : status} - ${label}`,
-      html: layout({
-        title: `RGY moved to ${status === "R" ? "Red" : status === "Y" ? "Yellow" : status}`,
-        intro: intro || `<b>${escapeHtml(label)}</b> has a new ${escapeHtml(status === "R" ? "Red" : status === "Y" ? "Yellow" : status)} RGY signal. Please review and log the action plan in Pepper CX.`,
-        rows: [
-          ["Account", deal.account || ""],
-          ["Deal", deal.deal_name || ""],
-          ["Dimensions", dims],
-          ["VSD", deal.vsd || ""],
-          ["BOPM", deal.bopm || ""],
-        ],
-        ctaLabel: "Open RGY Health",
-        ctaHref: `${APP_ORIGIN}/rgy`,
-      }),
-    };
-  }
-
-  if (ev === "mbr_reminder") {
-    const recips = input.recipients?.length
-      ? input.recipients
-      : await lookupEmailsByNames(admin, dealLeadershipNames(deal));
-    if (recips.length === 0) return null;
-    const month = String(input.payload?.month || "");
-    const rule = await loadRule(admin, "mbr.missing_prev_month");
-    const tctx: Record<string, string> = {
-      "{deal_label}": label, "{account}": deal.account || "", "{deal_name}": deal.deal_name || "",
-      "{month}": month, "{vsd}": deal.vsd || "", "{bopm}": deal.bopm || "",
-    };
-    const sbj = rule?.subject_template?.trim() ? applyTokens(rule.subject_template, tctx) : null;
-    const intro = rule?.body_template?.trim() ? applyTokens(rule.body_template, tctx) : null;
-    return {
-      to: recips,
-      subject: sbj || `MBR pending - ${label}${month ? ` (${month})` : ""}`,
-      html: layout({
-        title: `MBR pending for ${escapeHtml(label)}`,
-        intro: intro || `The Monthly Business Review for <b>${escapeHtml(label)}</b> is still pending${month ? ` for <b>${escapeHtml(month)}</b>` : ""}. Please schedule and log it in Pepper CX.`,
-        rows: [
-          ["Account", deal.account || ""],
-          ["Deal", deal.deal_name || ""],
-          ["Month", month],
-          ["VSD", deal.vsd || ""],
-          ["BOPM", deal.bopm || ""],
-        ],
-        ctaLabel: "Open MBR Tracker",
-        ctaHref: `${APP_ORIGIN}/mbr`,
-      }),
-    };
-  }
-
-  if (ev === "deal_created" || ev === "deal_unstaffed" || ev === "rgy_stale") {
+  if (ev === "deal_created" || ev === "deal_unstaffed") {
     const rule = await loadRule(admin, EVENT_TO_RULE[ev]);
     if (rule && !rule.enabled) return null;
     const recips = await expandTokens(admin, [...(rule?.to_tokens || []), ...(rule?.extra_to || [])], { deal });
@@ -779,17 +808,14 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
     const titleMap: Record<string, string> = {
       deal_created: `New deal created - ${label}`,
       deal_unstaffed: `Deal awaiting staffing - ${label}`,
-      rgy_stale: `RGY update pending - ${label}`,
     };
     const introMap: Record<string, string> = {
       deal_created: `A new deal <b>${escapeHtml(label)}</b> has been created in Pepper CX.`,
       deal_unstaffed: `<b>${escapeHtml(label)}</b> has been active for 7+ days without a staffing assignment. Please staff the deal.`,
-      rgy_stale: `RGY for <b>${escapeHtml(label)}</b> hasn't been updated in 7+ days. Please log the latest status.`,
     };
     const ctaMap: Record<string, [string, string]> = {
       deal_created: ["Open deal", link],
       deal_unstaffed: ["Open in Staffing", `${APP_ORIGIN}/staffing?tab=staffing&deal=${encodeURIComponent(deal.id)}`],
-      rgy_stale: ["Open RGY Health", `${APP_ORIGIN}/rgy`],
     };
     const tokenCtx: Record<string, string> = {
       "{deal_label}": label,
