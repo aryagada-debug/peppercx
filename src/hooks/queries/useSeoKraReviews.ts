@@ -20,6 +20,8 @@ export interface ReviewRow {
   member_name: string;
   scores: ScoreRow[];
   reviewer_notes: string | null;
+  reviewer_email: string | null;
+  reviewer_name: string | null;
   updated_at: string;
 }
 
@@ -30,7 +32,7 @@ export function useSeoKraReviews(scorecardKey: string, year: number, quarter: nu
     queryFn: async (): Promise<ReviewRow[]> => {
       const { data: reviews } = await supabase
         .from("seo_kra_reviews")
-        .select("id, scorecard_key, member_person_id, member_user_id, member_name, year, quarter, total, area_scores, notes, updated_at")
+        .select("id, scorecard_key, member_person_id, member_user_id, member_name, year, quarter, total, area_scores, notes, reviewer_email, reviewer_name, updated_at")
         .eq("scorecard_key", scorecardKey)
         .eq("year", year)
         .eq("quarter", q);
@@ -55,6 +57,8 @@ export function useSeoKraReviews(scorecardKey: string, year: number, quarter: nu
         weighted_total: r.total,
         area_averages: (r.area_scores as any) || null,
         reviewer_notes: r.notes || "",
+        reviewer_email: r.reviewer_email || null,
+        reviewer_name: r.reviewer_name || null,
         updated_at: r.updated_at,
         scores: byReview.get(r.id) || [],
       }));
@@ -74,6 +78,8 @@ export interface SaveReviewInput {
   area_averages: Record<string, number>;
   reviewer_notes: string;
   scores: ScoreRow[];
+  reviewer_email?: string | null;
+  reviewer_name?: string | null;
 }
 
 export function useSaveSeoKraReview() {
@@ -101,6 +107,8 @@ export function useSaveSeoKraReview() {
         total: input.weighted_total,
         area_scores: input.area_averages as any,
         notes: input.reviewer_notes,
+        reviewer_email: input.reviewer_email ?? null,
+        reviewer_name: input.reviewer_name ?? null,
       };
       if (reviewId) {
         const { error } = await supabase.from("seo_kra_reviews").update(payload).eq("id", reviewId);
