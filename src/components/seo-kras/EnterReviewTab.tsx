@@ -236,6 +236,8 @@ export function EnterReviewTab() {
             ))}
           </div>
 
+          <MemberBandwidthCard personId={member.person_id} memberName={member.name} />
+
           {scorecard.areas.map((area, i) => {
             const areaAvg = areaAverages[area.id] || 0;
             const scored = area.kpis.some(k => {
