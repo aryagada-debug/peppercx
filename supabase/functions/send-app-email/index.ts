@@ -916,6 +916,96 @@ Deno.serve(async (req) => {
       if (!eventKey || !/@/.test(to)) return json({ error: "eventKey_and_to_required" }, 400);
       const rule = await loadRule(admin, eventKey);
       if (!rule) return json({ error: "rule_not_found" }, 404);
+      // For the three BOPM digest rules, render the actual production digest
+      // template with a rich sample payload so the preview matches what real
+      // recipients receive (branded header, banner, full table, CTA, footer).
+      const DIGEST_EVENT_BY_RULE: Record<string, string> = {
+        "mbr.reminder_bopm_digest": "mbr_bopm_digest",
+        "rgy.reminder_bopm_digest": "rgy_bopm_digest",
+        "nps.reminder_bopm_digest": "nps_bopm_digest",
+      };
+      const digestEvent = DIGEST_EVENT_BY_RULE[rule.event_key];
+      if (digestEvent) {
+        const now = new Date();
+        const prev = new Date(now.getUTCFullYear(), now.getUTCMonth() - 1, 1);
+        const mbrMonth = prev.toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+        const currentMonth = now.toLocaleString("en-US", { month: "long", timeZone: "UTC" });
+        const weekLabel = `Week of ${now.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}`;
+        const samplePayload: Record<string, unknown> = {
+          bopm_name: "Rishabh Agarwal",
+          vsd_name: "Neema Jayadas",
+        };
+        if (digestEvent === "mbr_bopm_digest") {
+          Object.assign(samplePayload, {
+            mbr_month: mbrMonth,
+            current_month: currentMonth,
+            days_remaining: "7",
+            reminder_ordinal: "second",
+            rows: [
+              { account: "Zo Beauty", deal: "SEO/GEO + Content Mandate", month: mbrMonth },
+              { account: "Pidilite", deal: "Content Retainer - FY25", month: mbrMonth },
+              { account: "Cream City Mortgage", deal: "SEO Retainer", month: mbrMonth },
+              { account: "Lifescan (OneTouch)", deal: "Content + SEO Mandate", month: mbrMonth },
+            ],
+          });
+        } else if (digestEvent === "rgy_bopm_digest") {
+          const daysAgo = (n: number) => {
+            const d = new Date(Date.now() - n * 86400000);
+            return `${d.toISOString().slice(0, 10)} (${n}d ago)`;
+          };
+          Object.assign(samplePayload, {
+            week_label: weekLabel,
+            rows: [
+              { account: "Zo Beauty", deal: "SEO/GEO + Content Mandate", rgy: "R", last_updated: daysAgo(12) },
+              { account: "Pidilite", deal: "Content Retainer - FY25", rgy: "Y", last_updated: daysAgo(9) },
+              { account: "Cream City Mortgage", deal: "SEO Retainer", rgy: "R", last_updated: daysAgo(21) },
+              { account: "Lifescan (OneTouch)", deal: "Content + SEO Mandate", rgy: "Y", last_updated: "Never" },
+            ],
+          });
+        } else {
+          const isoDaysAgo = (n: number) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+          const rows = [
+            { account: "Zo Beauty", poc_name: "Aakash Mehta", poc_email: "aakash@zobeauty.com", sent_date: isoDaysAgo(11), days_outstanding: "11" },
+            { account: "Zo Beauty", poc_name: "Priya Shah", poc_email: "priya@zobeauty.com", sent_date: isoDaysAgo(11), days_outstanding: "11" },
+            { account: "Pidilite", poc_name: "Rahul Nair", poc_email: "rahul.nair@pidilite.com", sent_date: isoDaysAgo(6), days_outstanding: "6" },
+            { account: "Cream City Mortgage", poc_name: "Kevin O'Connor", poc_email: "kevin@creamcity.com", sent_date: isoDaysAgo(9), days_outstanding: "9" },
+            { account: "Lifescan (OneTouch)", poc_name: "Meera Iyer", poc_email: "meera@onetouch.com", sent_date: isoDaysAgo(4), days_outstanding: "4" },
+          ];
+          Object.assign(samplePayload, {
+            poc_count: rows.length,
+            account_count: 4,
+            rows,
+          });
+        }
+        const built = await buildDigest(admin, digestEvent, {
+          event: digestEvent,
+          recipients: [to],
+          payload: samplePayload,
+        } as SendInput);
+        if (!built) return json({ error: "digest_render_failed" }, 500);
+        const testSubject = `[TEST] ${built.subject}`;
+        try {
+          const { token, email: fromEmail } = await getCentralToken(admin);
+          if (!fromEmail) return json({ error: "central_mailbox_missing_email" }, 412);
+          const raw = buildRaw({ to: [to], subject: testSubject, html: built.html, from: fromEmail });
+          const send = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ raw }),
+          });
+          const data = await send.json();
+          if (!send.ok) return json({ error: data?.error?.message || "gmail_send_failed" }, 500);
+          await admin.from("email_send_log").insert([{
+            event: `test:${rule.event_key}`, deal_id: null, recipient_email: to,
+            subject: testSubject, status: "sent", gmail_message_id: data.id as string, error: null,
+            triggered_by: user.id, payload: { test: true, digest: digestEvent },
+          }]);
+          return json({ ok: true, id: data.id });
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          return json({ error: msg }, msg === "central_mailbox_not_connected" ? 412 : 500);
+        }
+      }
       const sampleCtx: Record<string, string> = {
         "{deal_label}": "Zo Beauty - SEO/GEO + Content Mandate",
         "{account}": "Zo Beauty",
