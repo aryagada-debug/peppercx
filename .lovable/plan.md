@@ -1,69 +1,64 @@
 
-## Goal
+## 1. Add the SEO Ops scorecard
 
-Add a new admin-only page **SEO KRAs** under the Operations sidebar section that lets admins run quarterly KRA reviews for SEO Growth Leads and see a dashboard of results. Skip Team Setup — the team is auto-derived from existing SEO capability members. Architected so a second scorecard (SEO Ops) can be plugged in later without refactoring.
+New file `src/components/seo-kras/scorecards/seoOps.ts` mirroring the Growth Lead structure with 4 areas and 17 KPIs from your table:
 
-## What we build
+- **Outcome-led Growth & Portfolio Performance (30%)** — Organic Traffic & Conversions, Non-brand Traffic & Impressions, GEO Brand Mentions, GEO Domain Prompt Presence, Search Opportunity Experiments.
+- **Client Satisfaction & Retention (20%)** — Client Revenue/Retention/Expansion, CSAT & Client Sentiment, Escalation Resolution.
+- **Pepper Platform Adoption — AI Transformation & Operational Efficiency (25%)** — Proprietary AI Workflows, Atlas Adoption & AI Roadmap, Resource & Time Optimization.
+- **Operational Excellence & Delivery Quality (25%)** — SEO/GEO Reporting Insights, SEO & GEO Strategy Documentation, Content Brief Accuracy & Quality, Technical SEO Audit Quality, SLA & Timely Delivery, SOP & Workflow Improvements.
 
-### 1. Route + navigation
-- New route `/seo-kras` in `src/App.tsx`, lazy-loaded, gated `adminOnly` via `ProtectedRoute` (routeKey `settings` for access).
-- New sidebar item in the **Operations** group of `src/components/layout/AppSidebar.tsx`, visible only to admins (uses the existing `adminOnly` flag pattern already used for Deal Handover / Slack Review).
+Registered in `scorecards/index.ts` with `roleCategoryMatch: /seo operations/i` so the team dropdown auto-loads all SEO Ops people (~30 staff already in the directory). The scorecard picker in both tabs then shows two options: **SEO Growth Lead** and **SEO Ops**.
 
-### 2. Backend (Lovable Cloud)
-One migration adding two tables with full GRANTs + RLS.
+## 2. Colorize the UI
 
-- `seo_kra_reviews`
-  - `id uuid pk`, `scorecard_key text` (default `'growth_lead'`, allows later `'seo_ops'`), `member_user_id uuid` (references `auth.users`), `year int`, `quarter text` (`Q1..Q4`), `reviewer_user_id uuid`, `total numeric`, `area_scores jsonb`, `notes text`, `complete boolean`, `created_at`, `updated_at`.
-  - Unique index on (`scorecard_key`, `member_user_id`, `year`, `quarter`).
-- `seo_kra_scores`
-  - `id uuid pk`, `review_id uuid fk → seo_kra_reviews on delete cascade`, `kpi_id text`, `score int`, `note text`, unique (`review_id`, `kpi_id`).
-- RLS: admins full access via `has_role(auth.uid(), 'admin')`; select-own by `member_user_id = auth.uid()` (so a reviewee can see their own review later — no UI yet).
-- Standard GRANTs (authenticated + service_role) per public-schema rules.
+Currently the page is mostly grey cards on white. Refresh to a more designed look while staying on semantic tokens:
 
-### 3. Frontend
+- **Area color coding.** Assign each area a color family (Growth = indigo, Client = emerald, AI/Platform = violet, Delivery = amber). Used consistently for:
+  - Area header bar with colored left border + soft tinted background.
+  - Area-average KPI tiles (top row) get a matching tinted background and colored numeric.
+  - Dashboard heatmap chips per area use the same family.
+- **Header band.** Replace the plain title block with a subtle gradient banner (primary → primary/70) containing title, subtitle, and the scorecard/year/quarter selectors — pulls the eye to the top and consolidates filter chrome.
+- **Score chips.** Keep the existing R/Y/G tone logic but bump contrast and add a small colored dot so scores read at a glance in dense tables.
+- **KPI rows.** Zebra striping + a colored left rail matching the area color; band-guide line becomes 4 pill chips (10 / 8–9 / 5–7 / <5) with matching R→G gradient so the scoring rubric is visible at a glance.
+- **Weighted Total tile.** Larger, gradient-backed hero tile (colored by score band), with a small progress ring showing % of 10.
+- All colors added as semantic tokens in `index.css` (`--kra-growth`, `--kra-client`, `--kra-ai`, `--kra-delivery`, plus `--kra-score-good/warn/bad`) and mapped in `tailwind.config.ts` so nothing is hardcoded in components.
 
-All UI in a new folder `src/components/seo-kras/` with a single page shell at `src/pages/SEOKRAs.tsx`.
+## 3. Per-person KPI trends over time
 
-Structure (kept small and composable so SEO Ops can be added later by dropping in a second scorecard definition):
+Add a **Trends** section to the Dashboard tab (below the member scorecards table).
 
-- `scorecards/growthLead.ts` — the 4 KRA areas / 18 KPIs / weights / bands from the uploaded HTML, typed as a shared `Scorecard` interface. A `scorecards/index.ts` registry keyed by `scorecard_key` makes adding SEO Ops later a one-file change.
-- `SEOKRAsPage` — top-level tabs: **Enter review**, **Dashboard**. (No Team Setup.)
-- `useSeoTeam.ts` — reads users from the existing `capability_groups` + `capability_memberships` tables, filtering to the SEO capability group (matched by name containing "SEO" and role_category `growth_lead` / applicable to the scorecard). Returns the member list used everywhere.
-- `EnterReviewTab` — reviewer, member, year, quarter selects (member list from `useSeoTeam`). KPI rows show target, definition, band cells, 1–10 score picker, per-KPI note. Sticky weighted-score composer with stacked bar, saves via a single upsert to `seo_kra_reviews` + `seo_kra_scores`.
-- `DashboardTab` — filters (year, quarter, capability lead / all). Stat cards (avg score, reviews completed X/Y, strongest area, focus area), pod averages bar, area breakdown bar, quarterly trend line, member × area heatmap, CSV export. Pods are inferred from `capability_leads` (each capability lead ⇒ pod, members assigned via `capability_memberships`).
-- Reuse existing UI tokens (semantic colors, `Card`, `Tabs`, `Select`, `Button`) — no new colors or fonts. Two font weights (Regular/Medium) per project design system.
+Controls at the top of the section:
+- **Member** picker (defaults to first person with any reviews).
+- **View** toggle: *Area averages* / *Individual KPIs*.
+- **KPI** picker (only shown in Individual KPI mode) — grouped by area, defaulting to the first KPI.
+- **Range**: last 4 / 8 / 12 quarters.
 
-### 4. Data flow
+Chart:
+- Recharts `LineChart` (Recharts is already in the stack per project memory).
+- X-axis: quarter labels (`Q3 2025`, `Q4 2025`, …), sorted chronologically.
+- Y-axis: 0–10 with reference lines at 5 (bad→ok) and 8 (ok→good).
+- One line per selected series, colored by area family. In *Area averages* mode all four areas are drawn; in *Individual KPIs* mode a single KPI line is drawn plus a dashed reference line for the area average.
+- Empty state when the member has fewer than 2 saved reviews: shows the single data point plus a hint to save more reviews to see trend.
 
-- React Query keys added to `src/lib/queryKeys.ts`: `seoKraTeam()`, `seoKraReviews(scorecardKey, year, quarter)`, `seoKraReview(scorecardKey, memberId, year, quarter)`.
-- One query loads the whole quarter for the dashboard; edits invalidate the affected keys.
+Data source:
+- New hook `useSeoKraMemberHistory(scorecardKey, memberPersonId, limitQuarters)` in `src/hooks/queries/useSeoKraReviews.ts`. Reads `seo_kra_reviews` for the member across all year/quarter combinations, joins `seo_kra_scores` for per-KPI values, and returns an ordered series `[{ periodKey, year, quarter, weighted_total, area_averages, kpiScores: Record<kpiKey, number> }]`.
+- No schema changes — everything is already stored per (year, quarter, member).
 
-### 5. Out of scope (per user)
+## 4. Small polish that comes with the color pass
 
-- No Team Setup UI — team comes from the SEO capability group.
-- SEO Ops scorecard: registry stub only, not exposed in UI yet.
+- Selects and tabs get the header band's colored underline for the active tab.
+- Sticky area header inside long tables so column meaning stays visible while scrolling.
+- Score input becomes an inline segmented control-lookalike (still a number input, just wrapped with the colored chip preview to the right showing what band the score falls into).
 
-## Technical notes
+## Files touched
 
-- Scoring math (weighted total = Σ(area_avg × weight)) implemented once in `lib/scoring.ts` so both scorecards share it.
-- Sample data / demo mode from the uploaded HTML omitted (real users only).
-- All amounts stored raw; formatting done at render.
-- No changes to existing routes, roles, or non-admin views.
+- Add: `src/components/seo-kras/scorecards/seoOps.ts`.
+- Add: `src/components/seo-kras/TrendsChart.tsx` (Recharts wrapper).
+- Update: `src/components/seo-kras/scorecards/index.ts` (register SEO Ops + `areaColor` helper).
+- Update: `src/components/seo-kras/EnterReviewTab.tsx` (color pass, gradient header, colored area headers/chips, score-band pill row).
+- Update: `src/components/seo-kras/DashboardTab.tsx` (color pass + mount Trends section).
+- Update: `src/hooks/queries/useSeoKraReviews.ts` (add `useSeoKraMemberHistory`).
+- Update: `src/index.css` and `tailwind.config.ts` (KRA color tokens).
 
-```text
-src/
-  pages/SEOKRAs.tsx
-  components/seo-kras/
-    EnterReviewTab.tsx
-    DashboardTab.tsx
-    KpiRow.tsx
-    ScoreComposer.tsx
-    useSeoTeam.ts
-    useSeoReviews.ts
-    scorecards/
-      types.ts
-      growthLead.ts
-      index.ts
-    lib/scoring.ts
-supabase/migrations/<ts>_seo_kras.sql
-```
+No database migration, no changes to permissions (still admin-only), no changes to unrelated modules.

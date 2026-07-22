@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { scorecards, scorecardByKey } from "./scorecards";
+import { scorecards, scorecardByKey, areaColor, areaToken } from "./scorecards";
 import { useSeoKraTeam } from "@/hooks/queries/useSeoKraTeam";
 import { useSeoKraReviews, useSaveSeoKraReview, type ScoreRow } from "@/hooks/queries/useSeoKraReviews";
 import { computeScores } from "./scoring";
@@ -15,9 +15,9 @@ const YEARS = [new Date().getFullYear() - 1, new Date().getFullYear(), new Date(
 const QUARTERS = [1, 2, 3, 4];
 
 function scoreTone(n: number) {
-  if (n >= 8.5) return "bg-emerald-100 text-emerald-800 border-emerald-200";
-  if (n >= 6.5) return "bg-amber-100 text-amber-800 border-amber-200";
-  if (n > 0) return "bg-red-100 text-red-800 border-red-200";
+  if (n >= 8.5) return "bg-[hsl(var(--kra-score-good)/0.15)] text-[hsl(var(--kra-score-good))] border-[hsl(var(--kra-score-good)/0.4)]";
+  if (n >= 6.5) return "bg-[hsl(var(--kra-score-warn)/0.15)] text-[hsl(var(--kra-score-warn))] border-[hsl(var(--kra-score-warn)/0.4)]";
+  if (n > 0)   return "bg-[hsl(var(--kra-score-bad)/0.15)] text-[hsl(var(--kra-score-bad))] border-[hsl(var(--kra-score-bad)/0.4)]";
   return "bg-muted text-muted-foreground border-border";
 }
 
@@ -165,10 +165,18 @@ export function EnterReviewTab() {
                 )}
               </CardContent>
             </Card>
-            {scorecard.areas.map(a => (
-              <Card key={a.id}>
+            {scorecard.areas.map((a, i) => (
+              <Card
+                key={a.id}
+                className="relative overflow-hidden"
+                style={{
+                  borderColor: areaColor(i, 0.35),
+                  background: `linear-gradient(135deg, hsl(var(${areaToken(i)}) / 0.08), transparent)`,
+                }}
+              >
+                <div className="absolute left-0 top-0 h-full w-1" style={{ background: areaColor(i) }} />
                 <CardContent className="p-4">
-                  <div className="text-xs text-muted-foreground">{a.short} · {Math.round(a.weight * 100)}%</div>
+                  <div className="text-xs font-medium" style={{ color: areaColor(i) }}>{a.short} · {Math.round(a.weight * 100)}%</div>
                   <div className={`mt-1 inline-flex items-baseline gap-1 px-2 py-0.5 rounded border ${scoreTone(areaAverages[a.id] || 0)}`}>
                     <span className="text-xl font-medium">{(areaAverages[a.id] || 0).toFixed(2)}</span>
                     <span className="text-xs">/ 10</span>
@@ -178,11 +186,17 @@ export function EnterReviewTab() {
             ))}
           </div>
 
-          {scorecard.areas.map(area => (
-            <Card key={area.id}>
-              <CardHeader className="py-3">
+          {scorecard.areas.map((area, i) => (
+            <Card key={area.id} className="overflow-hidden" style={{ borderColor: areaColor(i, 0.3) }}>
+              <CardHeader
+                className="py-3"
+                style={{ background: `linear-gradient(90deg, hsl(var(${areaToken(i)}) / 0.12), transparent)` }}
+              >
                 <CardTitle className="text-sm flex items-center justify-between">
-                  <span>{area.name}</span>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="inline-block h-2 w-2 rounded-full" style={{ background: areaColor(i) }} />
+                    <span style={{ color: areaColor(i) }}>{area.name}</span>
+                  </span>
                   <span className="text-xs text-muted-foreground">Weight {Math.round(area.weight * 100)}% · Avg {(areaAverages[area.id] || 0).toFixed(2)}</span>
                 </CardTitle>
               </CardHeader>

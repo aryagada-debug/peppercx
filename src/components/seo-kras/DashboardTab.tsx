@@ -2,17 +2,18 @@ import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { scorecards, scorecardByKey } from "./scorecards";
+import { scorecards, scorecardByKey, areaColor, areaToken } from "./scorecards";
 import { useSeoKraTeam } from "@/hooks/queries/useSeoKraTeam";
 import { useSeoKraReviews } from "@/hooks/queries/useSeoKraReviews";
+import { TrendsChart } from "./TrendsChart";
 
 const YEARS = [new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1];
 const QUARTERS = [1, 2, 3, 4];
 
 function toneClass(n: number) {
-  if (n >= 8.5) return "bg-emerald-500/15 text-emerald-700 border-emerald-200";
-  if (n >= 6.5) return "bg-amber-500/15 text-amber-700 border-amber-200";
-  if (n > 0) return "bg-red-500/15 text-red-700 border-red-200";
+  if (n >= 8.5) return "bg-[hsl(var(--kra-score-good)/0.15)] text-[hsl(var(--kra-score-good))] border-[hsl(var(--kra-score-good)/0.35)]";
+  if (n >= 6.5) return "bg-[hsl(var(--kra-score-warn)/0.15)] text-[hsl(var(--kra-score-warn))] border-[hsl(var(--kra-score-warn)/0.4)]";
+  if (n > 0)   return "bg-[hsl(var(--kra-score-bad)/0.15)] text-[hsl(var(--kra-score-bad))] border-[hsl(var(--kra-score-bad)/0.4)]";
   return "bg-muted text-muted-foreground border-border";
 }
 
@@ -106,16 +107,26 @@ export function DashboardTab() {
         <CardHeader className="py-3"><CardTitle className="text-sm">Area averages</CardTitle></CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            {areaAvgs.map(({ area, avg }) => (
-              <div key={area.id} className={`rounded-md border p-3 ${toneClass(avg)}`}>
-                <div className="text-xs opacity-80">{area.short}</div>
-                <div className="text-xl font-medium mt-1">{avg.toFixed(2)}</div>
-                <div className="text-[10px] opacity-70 mt-0.5">Weight {Math.round(area.weight * 100)}%</div>
+            {areaAvgs.map(({ area, avg }, i) => (
+              <div
+                key={area.id}
+                className="rounded-md border p-3 relative overflow-hidden"
+                style={{
+                  borderColor: areaColor(i, 0.35),
+                  background: `linear-gradient(135deg, hsl(var(${areaToken(i)}) / 0.10), hsl(var(${areaToken(i)}) / 0.02))`,
+                }}
+              >
+                <div className="absolute left-0 top-0 h-full w-1" style={{ background: areaColor(i) }} />
+                <div className="text-xs font-medium" style={{ color: areaColor(i) }}>{area.short}</div>
+                <div className="text-xl font-medium mt-1">{avg.toFixed(2)}<span className="text-xs text-muted-foreground"> / 10</span></div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">Weight {Math.round(area.weight * 100)}%</div>
               </div>
             ))}
           </div>
         </CardContent>
       </Card>
+
+      <TrendsChart scorecard={scorecard} team={team} />
 
       <Card>
         <CardHeader className="py-3"><CardTitle className="text-sm">Member scorecards</CardTitle></CardHeader>
@@ -126,8 +137,13 @@ export function DashboardTab() {
                 <tr>
                   <th className="text-left p-2">Member</th>
                   <th className="text-left p-2">Role</th>
-                  {scorecard.areas.map(a => (
-                    <th key={a.id} className="text-center p-2">{a.short}</th>
+                  {scorecard.areas.map((a, i) => (
+                    <th key={a.id} className="text-center p-2">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: areaColor(i) }} />
+                        {a.short}
+                      </span>
+                    </th>
                   ))}
                   <th className="text-center p-2">Total</th>
                   <th className="text-left p-2">Updated</th>
