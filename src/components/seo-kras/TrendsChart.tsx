@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, ReferenceLine, Legend } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { areaColor, type Scorecard } from "./scorecards";
 import { useSeoKraMemberHistory } from "@/hooks/queries/useSeoKraReviews";
@@ -64,12 +64,12 @@ export function TrendsChart({ scorecard, team }: { scorecard: Scorecard; team: S
                 <SelectTrigger className="h-8 w-72"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {scorecard.areas.map(a => (
-                    <div key={a.id}>
-                      <div className="px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">{a.short}</div>
+                    <SelectGroup key={a.id}>
+                      <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">{a.short}</SelectLabel>
                       {a.kpis.map(k => (
                         <SelectItem key={`${a.id}:${k.id}`} value={`${a.id}:${k.id}`}>{k.name}</SelectItem>
                       ))}
-                    </div>
+                    </SelectGroup>
                   ))}
                 </SelectContent>
               </Select>
