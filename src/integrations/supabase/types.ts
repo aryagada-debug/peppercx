@@ -1815,6 +1815,7 @@ export type Database = {
           member_user_id: string | null
           notes: string
           quarter: string
+          reviewer_email: string | null
           reviewer_name: string
           reviewer_user_id: string | null
           scorecard_key: string
@@ -1832,6 +1833,7 @@ export type Database = {
           member_user_id?: string | null
           notes?: string
           quarter: string
+          reviewer_email?: string | null
           reviewer_name?: string
           reviewer_user_id?: string | null
           scorecard_key?: string
@@ -1849,6 +1851,7 @@ export type Database = {
           member_user_id?: string | null
           notes?: string
           quarter?: string
+          reviewer_email?: string | null
           reviewer_name?: string
           reviewer_user_id?: string | null
           scorecard_key?: string
@@ -3634,6 +3637,7 @@ export type Database = {
         Returns: boolean
       }
       is_leadership_viewer: { Args: { _user_id: string }; Returns: boolean }
+      is_seo_kra_reviewer: { Args: never; Returns: boolean }
       mark_survey_invite: {
         Args: { _state: string; _token: string }
         Returns: undefined

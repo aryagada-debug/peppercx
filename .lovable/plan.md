@@ -1,64 +1,27 @@
+## Goal
+Restrict the SEO KRAs section to admins plus Mayur and Vedanga (identified by their login emails), and record who filled each review.
 
-## 1. Add the SEO Ops scorecard
+## Access control
+- Define an allowlist constant: `SEO_KRA_REVIEWER_EMAILS = ["mayur@peppercontent.io", "vedanga@peppercontent.io"]` (confirm exact addresses on implementation; will match case-insensitively).
+- New hook `useCanAccessSeoKras()` returning true if user is admin OR their auth email is in the allowlist.
+- `src/App.tsx`: replace admin-only guard on `/seo-kras` with the new hook.
+- `src/components/layout/AppSidebar.tsx`: show the "SEO KRAs" link when `useCanAccessSeoKras()` is true (not admin-only).
 
-New file `src/components/seo-kras/scorecards/seoOps.ts` mirroring the Growth Lead structure with 4 areas and 17 KPIs from your table:
+## Reviewer selector on Enter Review tab
+- Add a "Reviewer" dropdown to `src/components/seo-kras/EnterReviewTab.tsx` next to the existing scorecard/year/quarter selects.
+- Options: Mayur, Vedanga (label = display name, value = email). Admins see both plus their own name if outside the allowlist.
+- Default: the current signed-in user's email if it's in the allowlist; otherwise first option.
+- Value is passed to `useSaveSeoKraReview` and persisted on the review row.
 
-- **Outcome-led Growth & Portfolio Performance (30%)** — Organic Traffic & Conversions, Non-brand Traffic & Impressions, GEO Brand Mentions, GEO Domain Prompt Presence, Search Opportunity Experiments.
-- **Client Satisfaction & Retention (20%)** — Client Revenue/Retention/Expansion, CSAT & Client Sentiment, Escalation Resolution.
-- **Pepper Platform Adoption — AI Transformation & Operational Efficiency (25%)** — Proprietary AI Workflows, Atlas Adoption & AI Roadmap, Resource & Time Optimization.
-- **Operational Excellence & Delivery Quality (25%)** — SEO/GEO Reporting Insights, SEO & GEO Strategy Documentation, Content Brief Accuracy & Quality, Technical SEO Audit Quality, SLA & Timely Delivery, SOP & Workflow Improvements.
+## Data model
+- Add `reviewer_email text` (nullable) and `reviewer_name text` (nullable) columns to `public.seo_kra_reviews`.
+- Update `useSeoKraReviews` select + `useSaveSeoKraReview` payload to include these fields.
+- Surface "Reviewed by …" chip on the summary card and (small text) in the Dashboard table row tooltip.
 
-Registered in `scorecards/index.ts` with `roleCategoryMatch: /seo operations/i` so the team dropdown auto-loads all SEO Ops people (~30 staff already in the directory). The scorecard picker in both tabs then shows two options: **SEO Growth Lead** and **SEO Ops**.
+## Out of scope
+- No changes to scoring logic, scorecards, or Dashboard trend charts.
+- No new user_roles entry — allowlist stays in code so it's easy to edit later.
 
-## 2. Colorize the UI
-
-Currently the page is mostly grey cards on white. Refresh to a more designed look while staying on semantic tokens:
-
-- **Area color coding.** Assign each area a color family (Growth = indigo, Client = emerald, AI/Platform = violet, Delivery = amber). Used consistently for:
-  - Area header bar with colored left border + soft tinted background.
-  - Area-average KPI tiles (top row) get a matching tinted background and colored numeric.
-  - Dashboard heatmap chips per area use the same family.
-- **Header band.** Replace the plain title block with a subtle gradient banner (primary → primary/70) containing title, subtitle, and the scorecard/year/quarter selectors — pulls the eye to the top and consolidates filter chrome.
-- **Score chips.** Keep the existing R/Y/G tone logic but bump contrast and add a small colored dot so scores read at a glance in dense tables.
-- **KPI rows.** Zebra striping + a colored left rail matching the area color; band-guide line becomes 4 pill chips (10 / 8–9 / 5–7 / <5) with matching R→G gradient so the scoring rubric is visible at a glance.
-- **Weighted Total tile.** Larger, gradient-backed hero tile (colored by score band), with a small progress ring showing % of 10.
-- All colors added as semantic tokens in `index.css` (`--kra-growth`, `--kra-client`, `--kra-ai`, `--kra-delivery`, plus `--kra-score-good/warn/bad`) and mapped in `tailwind.config.ts` so nothing is hardcoded in components.
-
-## 3. Per-person KPI trends over time
-
-Add a **Trends** section to the Dashboard tab (below the member scorecards table).
-
-Controls at the top of the section:
-- **Member** picker (defaults to first person with any reviews).
-- **View** toggle: *Area averages* / *Individual KPIs*.
-- **KPI** picker (only shown in Individual KPI mode) — grouped by area, defaulting to the first KPI.
-- **Range**: last 4 / 8 / 12 quarters.
-
-Chart:
-- Recharts `LineChart` (Recharts is already in the stack per project memory).
-- X-axis: quarter labels (`Q3 2025`, `Q4 2025`, …), sorted chronologically.
-- Y-axis: 0–10 with reference lines at 5 (bad→ok) and 8 (ok→good).
-- One line per selected series, colored by area family. In *Area averages* mode all four areas are drawn; in *Individual KPIs* mode a single KPI line is drawn plus a dashed reference line for the area average.
-- Empty state when the member has fewer than 2 saved reviews: shows the single data point plus a hint to save more reviews to see trend.
-
-Data source:
-- New hook `useSeoKraMemberHistory(scorecardKey, memberPersonId, limitQuarters)` in `src/hooks/queries/useSeoKraReviews.ts`. Reads `seo_kra_reviews` for the member across all year/quarter combinations, joins `seo_kra_scores` for per-KPI values, and returns an ordered series `[{ periodKey, year, quarter, weighted_total, area_averages, kpiScores: Record<kpiKey, number> }]`.
-- No schema changes — everything is already stored per (year, quarter, member).
-
-## 4. Small polish that comes with the color pass
-
-- Selects and tabs get the header band's colored underline for the active tab.
-- Sticky area header inside long tables so column meaning stays visible while scrolling.
-- Score input becomes an inline segmented control-lookalike (still a number input, just wrapped with the colored chip preview to the right showing what band the score falls into).
-
-## Files touched
-
-- Add: `src/components/seo-kras/scorecards/seoOps.ts`.
-- Add: `src/components/seo-kras/TrendsChart.tsx` (Recharts wrapper).
-- Update: `src/components/seo-kras/scorecards/index.ts` (register SEO Ops + `areaColor` helper).
-- Update: `src/components/seo-kras/EnterReviewTab.tsx` (color pass, gradient header, colored area headers/chips, score-band pill row).
-- Update: `src/components/seo-kras/DashboardTab.tsx` (color pass + mount Trends section).
-- Update: `src/hooks/queries/useSeoKraReviews.ts` (add `useSeoKraMemberHistory`).
-- Update: `src/index.css` and `tailwind.config.ts` (KRA color tokens).
-
-No database migration, no changes to permissions (still admin-only), no changes to unrelated modules.
+## Technical notes
+- Auth email available via `supabase.auth.getUser()` or existing `AuthProvider` context (`useAuth()`).
+- RLS on `seo_kra_reviews` currently restricts writes to admins; will extend policy so allowlisted emails can insert/update/select via a `has_role` OR `auth.jwt() ->> 'email' = ANY(...)` check. Simplest: a SECURITY DEFINER function `public.is_seo_kra_reviewer()` used inside the RLS policy.

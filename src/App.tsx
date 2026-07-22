@@ -129,7 +129,7 @@ function AppRoutes() {
               <Route path="/contacts" element={<ProtectedRoute routeKey="home"><Contacts /></ProtectedRoute>} />
               <Route path="/leadership-interventions" element={<ProtectedRoute routeKey="home"><LeadershipInterventions /></ProtectedRoute>} />
               <Route path="/inbox" element={<ProtectedRoute routeKey="home"><Inbox /></ProtectedRoute>} />
-              <Route path="/seo-kras" element={<ProtectedRoute routeKey="settings" adminOnly><SEOKRAs /></ProtectedRoute>} />
+              <Route path="/seo-kras" element={<ProtectedRoute routeKey="settings" adminOnly allowEmails={["mayur@peppercontent.io","vedanga@peppercontent.io"]}><SEOKRAs /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </GeoFilterProvider>
