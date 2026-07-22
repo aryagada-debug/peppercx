@@ -997,6 +997,14 @@ Deno.serve(async (req) => {
         const finalTo = Array.from(toSet);
         let outTo = finalTo;
         let outCc = cc;
+        // Digest events also accept explicit cc emails via payload.cc_emails.
+        if (inp.event === "mbr_bopm_digest" || inp.event === "rgy_bopm_digest" || inp.event === "nps_bopm_digest") {
+          const extra = Array.isArray((inp.payload as any)?.cc_emails)
+            ? ((inp.payload as any).cc_emails as string[]).filter((e) => /@/.test(e))
+            : [];
+          const ccSet = new Set<string>([...outCc, ...extra]);
+          outCc = Array.from(ccSet).filter((e) => !toSet.has(e));
+        }
         if (STAFFING_EVENTS.has(inp.event)) {
           outTo = stripSuppressed(outTo);
           outCc = stripSuppressed(outCc);
