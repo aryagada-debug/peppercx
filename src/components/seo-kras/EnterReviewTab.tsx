@@ -10,6 +10,9 @@ import { scorecards, scorecardByKey, areaColor, areaToken } from "./scorecards";
 import { useSeoKraTeam } from "@/hooks/queries/useSeoKraTeam";
 import { useSeoKraReviews, useSaveSeoKraReview, type ScoreRow } from "@/hooks/queries/useSeoKraReviews";
 import { computeScores } from "./scoring";
+import { SEO_KRA_REVIEWERS, isSeoKraReviewerEmail } from "@/lib/seoKraAccess";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { useUserRole } from "@/hooks/useUserRole";
 
 const YEARS = [new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1];
 const QUARTERS = [1, 2, 3, 4];
@@ -30,6 +33,23 @@ export function EnterReviewTab() {
   const [memberId, setMemberId] = useState<string>("");
   const [scores, setScores] = useState<Record<string, { score: string; note: string }>>({});
   const [reviewerNotes, setReviewerNotes] = useState("");
+  const { user } = useAuth();
+  const { isAdmin, isActuallyAdmin } = useUserRole();
+  const currentEmail = (user?.email || "").toLowerCase();
+  const reviewerOptions = useMemo(() => {
+    const opts = SEO_KRA_REVIEWERS.map(r => ({ email: r.email.toLowerCase(), name: r.name }));
+    if ((isAdmin || isActuallyAdmin) && currentEmail && !opts.find(o => o.email === currentEmail)) {
+      opts.unshift({ email: currentEmail, name: user?.user_metadata?.full_name || user?.email || "Admin" });
+    }
+    return opts;
+  }, [isAdmin, isActuallyAdmin, currentEmail, user]);
+  const [reviewerEmail, setReviewerEmail] = useState<string>(() =>
+    isSeoKraReviewerEmail(currentEmail) ? currentEmail : reviewerOptions[0]?.email || ""
+  );
+  useEffect(() => {
+    if (!reviewerEmail && reviewerOptions[0]) setReviewerEmail(reviewerOptions[0].email);
+  }, [reviewerOptions, reviewerEmail]);
+  const reviewerName = reviewerOptions.find(o => o.email === reviewerEmail)?.name || "";
 
   const { data: team = [], isLoading: teamLoading } = useSeoKraTeam(scorecardKey);
   const { data: reviews = [] } = useSeoKraReviews(scorecardKey, year, quarter);
@@ -92,6 +112,8 @@ export function EnterReviewTab() {
         area_averages: areaAverages,
         reviewer_notes: reviewerNotes,
         scores: parsedScores.filter(s => s.score != null || (s.note && s.note.length > 0)),
+        reviewer_email: reviewerEmail || null,
+        reviewer_name: reviewerName || null,
       });
       toast.success(`Saved review for ${member.name}`);
     } catch (e: any) {
@@ -103,7 +125,18 @@ export function EnterReviewTab() {
     <div className="space-y-4">
       <Card>
         <CardContent className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground">Reviewer</label>
+              <Select value={reviewerEmail} onValueChange={setReviewerEmail}>
+                <SelectTrigger><SelectValue placeholder="Select reviewer" /></SelectTrigger>
+                <SelectContent>
+                  {reviewerOptions.map(o => (
+                    <SelectItem key={o.email} value={o.email}>{o.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div>
               <label className="text-xs text-muted-foreground">Scorecard</label>
               <Select value={scorecardKey} onValueChange={setScorecardKey}>
@@ -272,6 +305,7 @@ export function EnterReviewTab() {
           <div className="flex items-center justify-end gap-2">
             <div className="text-xs text-muted-foreground mr-auto">
               Reviewing <span className="font-medium text-foreground">{member.name}</span> · {scorecard.label} · Q{quarter} {year}
+              {reviewerName ? <> · by <span className="font-medium text-foreground">{reviewerName}</span></> : null}
             </div>
             <Button onClick={handleSave} disabled={save.isPending}>
               {save.isPending ? "Saving…" : existing ? "Update review" : "Save review"}
