@@ -1811,7 +1811,8 @@ export type Database = {
           created_at: string
           id: string
           member_name: string
-          member_user_id: string
+          member_person_id: string | null
+          member_user_id: string | null
           notes: string
           quarter: string
           reviewer_name: string
@@ -1827,7 +1828,8 @@ export type Database = {
           created_at?: string
           id?: string
           member_name?: string
-          member_user_id: string
+          member_person_id?: string | null
+          member_user_id?: string | null
           notes?: string
           quarter: string
           reviewer_name?: string
@@ -1843,7 +1845,8 @@ export type Database = {
           created_at?: string
           id?: string
           member_name?: string
-          member_user_id?: string
+          member_person_id?: string | null
+          member_user_id?: string | null
           notes?: string
           quarter?: string
           reviewer_name?: string
