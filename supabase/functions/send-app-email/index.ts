@@ -417,6 +417,217 @@ async function expandTokens(
   return Array.from(out);
 }
 
+// ── Branded digest layout (matches Central CX design) ─────────────────────
+const DG_HEADER_BG = "#0C0359";
+const DG_HEADER_ACCENT = "#B7A9EE";
+const DG_PRIMARY = "#5B34DA";
+const DG_PAGE_BG = "#F4F0EA";
+const DG_BORDER = "#ECE7F5";
+const DG_TEXT = "#1E1633";
+const DG_BODY = "#4A4358";
+const DG_MUTED = "#9089A0";
+const DG_RED = "#C0392B";
+const DG_PILL_RED_BG = "#FCE4E1";
+const DG_PILL_YELLOW_BG = "#FDF2C7";
+const DG_PILL_YELLOW_FG = "#8A6D1E";
+
+type DigestBanner = { bg: string; accent: string; icon: string; html: string };
+
+function digestLayout(o: {
+  banner: DigestBanner;
+  greeting: string;
+  intro: string;
+  tableHtml: string;
+  ctaLabel: string;
+  ctaHref: string;
+  ctaHint?: string;
+  footerLine1: string;
+  footerLine2: string;
+}) {
+  return `<!doctype html><html><body style="margin:0;padding:0;background:${DG_PAGE_BG};font-family:'Segoe UI',Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${DG_PAGE_BG};">
+    <tr><td align="center" style="padding:28px 12px;">
+      <table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0" style="width:640px;max-width:640px;background:#FFFFFF;border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(60,40,90,0.06);">
+        <tr><td style="background:${DG_HEADER_BG};padding:22px 32px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+            <td align="left" valign="middle" style="font-size:20px;font-weight:700;color:#FFFFFF;letter-spacing:-0.3px;">pepper</td>
+            <td align="right" valign="middle" style="font-size:12px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:${DG_HEADER_ACCENT};">Central&nbsp;CX</td>
+          </tr></table>
+        </td></tr>
+        <tr><td style="background:${o.banner.bg};padding:16px 32px;">
+          <div style="font-size:14px;line-height:1.55;color:${o.banner.accent};">${o.banner.icon} ${o.banner.html}</div>
+        </td></tr>
+        <tr><td style="padding:28px 32px 8px 32px;">
+          <p style="margin:0 0 12px 0;font-size:15px;line-height:1.5;color:${DG_TEXT};">${o.greeting}</p>
+          <p style="margin:0 0 6px 0;font-size:15px;line-height:1.6;color:${DG_BODY};">${o.intro}</p>
+        </td></tr>
+        <tr><td style="padding:8px 32px 4px 32px;">${o.tableHtml}</td></tr>
+        <tr><td align="center" style="padding:28px 32px 8px 32px;">
+          <a href="${escapeHtml(o.ctaHref)}" target="_blank" style="display:inline-block;padding:14px 36px;font-size:15px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:10px;background:${DG_PRIMARY};">${escapeHtml(o.ctaLabel)}</a>
+        </td></tr>
+        ${o.ctaHint ? `<tr><td align="center" style="padding:0 32px 28px 32px;"><p style="margin:0;font-size:12px;line-height:1.5;color:${DG_MUTED};">${o.ctaHint}</p></td></tr>` : `<tr><td style="padding-bottom:20px;"></td></tr>`}
+        <tr><td style="padding:18px 32px 22px 32px;background:${DG_PAGE_BG};border-top:1px solid ${DG_BORDER};">
+          <p style="margin:0;font-size:12px;line-height:1.55;color:${DG_MUTED};">${o.footerLine1}</p>
+          <p style="margin:6px 0 0 0;font-size:12px;line-height:1.55;color:${DG_MUTED};">${o.footerLine2}</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table></body></html>`;
+}
+
+function digestTable(headers: string[], rows: string[][]): string {
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${DG_BORDER};border-radius:10px;border-collapse:separate;border-spacing:0;font-size:13px;overflow:hidden;">
+      <tr style="background:#F7F3FB;">
+        ${headers.map((h) => `<td style="padding:11px 14px;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:${DG_MUTED};font-weight:600;">${escapeHtml(h)}</td>`).join("")}
+      </tr>
+      ${rows.map((r, i) => `<tr>${r.map((c) => `<td style="padding:14px;color:${DG_TEXT};font-size:14px;vertical-align:top;${i < rows.length - 1 ? `border-top:1px solid ${DG_BORDER};` : `border-top:1px solid ${DG_BORDER};`}">${c}</td>`).join("")}</tr>`).join("")}
+    </table>`;
+}
+
+function pill(text: string, bg: string, fg: string): string {
+  return `<span style="display:inline-block;padding:4px 12px;border-radius:999px;background:${bg};color:${fg};font-size:12px;font-weight:600;">${escapeHtml(text)}</span>`;
+}
+
+async function buildDigest(admin: SupabaseClient, ev: string, input: SendInput): Promise<Built | null> {
+  const to = (input.recipients || []).filter((e) => /@/.test(e));
+  if (to.length === 0) return null;
+  const rule = await loadRule(admin, EVENT_TO_RULE[ev]);
+  if (rule && !rule.enabled) return null;
+  const p = (input.payload || {}) as Record<string, unknown>;
+  const rows = Array.isArray(p.rows) ? (p.rows as Array<Record<string, string>>) : [];
+  if (rows.length === 0) return null;
+  const bopmName = String(p.bopm_name || "").trim();
+  const bopmFirst = bopmName ? bopmName.split(/\s+/)[0] : "there";
+  const vsdName = String(p.vsd_name || "").trim();
+  const greeting = `Hi ${escapeHtml(bopmFirst)},`;
+
+  if (ev === "mbr_bopm_digest") {
+    const mbrMonth = String(p.mbr_month || "");
+    const currentMonth = String(p.current_month || "");
+    const daysRemaining = String(p.days_remaining || "");
+    const ordinal = String(p.reminder_ordinal || "");
+    const banner: DigestBanner = {
+      bg: "#FDF2C7", accent: "#7A5A0D", icon: "⏰",
+      html: `<b>${escapeHtml(daysRemaining)} working days</b> left in ${escapeHtml(currentMonth)} — ${escapeHtml(mbrMonth)} MBRs must be logged before month-end.`,
+    };
+    const intro = `The following <b>${rows.length}</b> account(s) under you don't have their <b>${escapeHtml(mbrMonth)}</b> MBR logged yet. Please update them in CX OS — it takes about two minutes per account.`;
+    const tableRows = rows.map((r) => [
+      `<b>${escapeHtml(r.account || "")}</b>`,
+      escapeHtml(r.deal || ""),
+      escapeHtml(r.month || mbrMonth),
+      pill("Pending", DG_PILL_RED_BG, DG_RED),
+    ]);
+    const tableHtml = digestTable(["Account", "Deal", "MBR Month", "Status"], tableRows);
+    const subject = rule?.subject_template?.trim()
+      ? applyTokens(rule.subject_template, digestCtx(bopmName, vsdName, rows.length, p))
+      : `${daysRemaining} working days left — ${rows.length} MBR(s) pending for ${mbrMonth}`;
+    return {
+      to,
+      subject,
+      html: digestLayout({
+        banner, greeting, intro, tableHtml,
+        ctaLabel: "Log MBRs in CX OS →",
+        ctaHref: `${APP_ORIGIN}/mbr`,
+        ctaHint: "Marked as done already? This email will stop automatically once the status updates.",
+        footerLine1: `This is your ${escapeHtml(ordinal)} reminder — it repeats every 3 working days until the MBR is logged.${vsdName ? ` ${escapeHtml(vsdName)} is copied for visibility.` : ""}`,
+        footerLine2: `Sent by Central CX · centralcx@peppercontent.io · rule: mbr.reminder_bopm_digest`,
+      }),
+    };
+  }
+
+  if (ev === "rgy_bopm_digest") {
+    const weekLabel = String(p.week_label || "");
+    const banner: DigestBanner = {
+      bg: "#EFE9FA", accent: DG_PRIMARY, icon: "🔄",
+      html: `<b>Friday RGY refresh</b> · ${escapeHtml(weekLabel)} — updates made now feed Monday's RGY insight.`,
+    };
+    const intro = `<b>${rows.length}</b> account(s) under you have no RGY entry in the last 7 days. Their status below is the last one logged — please confirm it still holds, or update it if things have moved.`;
+    const tableRows = rows.map((r) => {
+      const rgy = String(r.rgy || "Not set");
+      const rgyPill = rgy === "R" || /red/i.test(rgy)
+        ? pill("Red", DG_PILL_RED_BG, DG_RED)
+        : rgy === "Y" || /yellow/i.test(rgy)
+          ? pill("Yellow", DG_PILL_YELLOW_BG, DG_PILL_YELLOW_FG)
+          : rgy === "G" || /green/i.test(rgy)
+            ? pill("Green", "#DDF3E3", "#1E7B36")
+            : pill(rgy || "Not set", "#EFEAF3", DG_MUTED);
+      const lastRaw = String(r.last_updated || "");
+      const m = lastRaw.match(/^(\S+)\s*\((\d+)d ago\)/);
+      const lastCell = m
+        ? `${escapeHtml(m[1])} · <span style="color:${DG_RED};font-weight:600;">${escapeHtml(m[2])}d ago</span>`
+        : escapeHtml(lastRaw || "Never");
+      return [`<b>${escapeHtml(r.account || "")}</b>`, rgyPill, lastCell];
+    });
+    const tableHtml = digestTable(["Account", "Current RGY", "Last Updated"], tableRows);
+    const subject = rule?.subject_template?.trim()
+      ? applyTokens(rule.subject_template, digestCtx(bopmName, vsdName, rows.length, p))
+      : `RGY refresh: ${rows.length} account(s) not updated this week`;
+    return {
+      to,
+      subject,
+      html: digestLayout({
+        banner, greeting, intro, tableHtml,
+        ctaLabel: "Update RGY in CX OS →",
+        ctaHref: `${APP_ORIGIN}/rgy`,
+        ctaHint: "Even if nothing changed, re-confirming the status keeps your accounts out of this list.",
+        footerLine1: `Sent every Friday, only when one or more of your accounts has no RGY entry in the last 7 days.${vsdName ? ` ${escapeHtml(vsdName)} is copied for visibility.` : ""}`,
+        footerLine2: `Sent by Central CX · centralcx@peppercontent.io · rule: rgy.reminder_bopm_digest`,
+      }),
+    };
+  }
+
+  // nps_bopm_digest
+  const pocCount = String(p.poc_count || rows.length);
+  const accountCount = String(p.account_count || "");
+  const banner: DigestBanner = {
+    bg: "#E4EEFB", accent: "#1F3B8A", icon: "💬",
+    html: `<b>Wednesday NPS check</b> — a personal nudge from you gets far more responses than another automated email to the client.`,
+  };
+  const intro = `<b>${escapeHtml(pocCount)}</b> POC(s) across <b>${escapeHtml(accountCount)}</b> account(s) under you were sent an NPS survey but haven't completed it. Please give them a quick nudge on your next call or over Slack/email.`;
+  const tableRows = rows.map((r) => [
+    `<b>${escapeHtml(r.account || "")}</b>`,
+    `<b>${escapeHtml(r.poc_name || "")}</b>${r.poc_email ? ` <span style="color:${DG_MUTED};">· ${escapeHtml(r.poc_email)}</span>` : ""}`,
+    escapeHtml(r.sent_date || ""),
+    `<span style="color:${DG_RED};font-weight:600;">${escapeHtml(r.days_outstanding || "0")} days</span>`,
+  ]);
+  const tableHtml = digestTable(["Account", "POC", "Invite Sent", "Outstanding"], tableRows);
+  const subject = rule?.subject_template?.trim()
+    ? applyTokens(rule.subject_template, digestCtx(bopmName, vsdName, rows.length, p))
+    : `NPS pending: ${pocCount} POC(s) across ${accountCount} account(s) have not responded`;
+  return {
+    to,
+    subject,
+    html: digestLayout({
+      banner, greeting, intro, tableHtml,
+      ctaLabel: "View NPS tracker →",
+      ctaHref: `${APP_ORIGIN}/pulse-nps`,
+      ctaHint: "Survey links can be resent from the tracker. POCs drop off this list as soon as they respond.",
+      footerLine1: `Sent every Wednesday, only when one or more of your accounts has a pending NPS response.${vsdName ? ` ${escapeHtml(vsdName)} is copied for visibility.` : ""}`,
+      footerLine2: `Sent by Central CX · centralcx@peppercontent.io · rule: nps.reminder_bopm_digest`,
+    }),
+  };
+}
+
+function digestCtx(bopmName: string, vsdName: string, count: number, p: Record<string, unknown>): Record<string, string> {
+  return {
+    "{bopm}": bopmName,
+    "{bopm_name}": bopmName,
+    "{bopm_first_name}": bopmName ? bopmName.split(/\s+/)[0] : "there",
+    "{vsd}": vsdName,
+    "{vsd_name}": vsdName,
+    "{pending_count}": String(count),
+    "{stale_count}": String(count),
+    "{poc_count}": String(p.poc_count || count),
+    "{account_count}": String(p.account_count || ""),
+    "{mbr_month}": String(p.mbr_month || ""),
+    "{current_month}": String(p.current_month || ""),
+    "{days_remaining}": String(p.days_remaining || ""),
+    "{reminder_ordinal}": String(p.reminder_ordinal || ""),
+    "{week_label}": String(p.week_label || ""),
+  };
+}
+
 async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Built | null> {
   const ev = input.event;
 
