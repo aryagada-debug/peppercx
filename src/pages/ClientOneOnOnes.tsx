@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { FileText, Link as LinkIcon, Search, Upload, Loader2, Download } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { PEPPER_BUSINESS_UNITS } from "@/data/staffingData";
 
 type Quarter = "JFM" | "AMJ" | "JAS" | "OND";
@@ -150,6 +151,36 @@ function QuarterCell({
     window.open(data.signedUrl, "_blank");
   }
 
+  async function deleteFathom() {
+    if (!record) { setFathom(""); return; }
+    const { error } = await supabase
+      .from("client_one_on_ones")
+      .update({ fathom_url: null })
+      .eq("id", record.id);
+    if (error) { toast.error(error.message); return; }
+    setFathom("");
+    toast.success("Fathom link removed");
+    onSaved();
+  }
+
+  async function deletePdf() {
+    const path = pdfPath;
+    if (!path) return;
+    try {
+      await supabase.storage.from("client-one-on-ones").remove([path]);
+    } catch {}
+    if (record) {
+      const { error } = await supabase
+        .from("client_one_on_ones")
+        .update({ insights_pdf_path: null })
+        .eq("id", record.id);
+      if (error) { toast.error(error.message); return; }
+    }
+    setPdfPath("");
+    toast.success("PDF removed");
+    onSaved();
+  }
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -195,12 +226,19 @@ function QuarterCell({
             <>
               <div>
                 <label className="text-xs text-muted-foreground">Fathom link</label>
-                <Input
-                  value={fathom}
-                  onChange={(e) => setFathom(e.target.value)}
-                  placeholder="https://fathom.video/..."
-                  className="h-8 text-xs mt-1"
-                />
+                <div className="flex items-center gap-1 mt-1">
+                  <Input
+                    value={fathom}
+                    onChange={(e) => setFathom(e.target.value)}
+                    placeholder="https://fathom.video/..."
+                    className="h-8 text-xs"
+                  />
+                  {(record?.fathom_url || fathom) && (
+                    <Button variant="ghost" size="sm" className="h-8 px-2" onClick={deleteFathom} title="Remove link">
+                      <Trash2 className="h-3 w-3 text-destructive" />
+                    </Button>
+                  )}
+                </div>
               </div>
               <div>
                 <label className="text-xs text-muted-foreground">Insights PDF</label>
@@ -220,14 +258,19 @@ function QuarterCell({
                     />
                   </label>
                   {pdfPath && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 text-xs"
-                      onClick={() => openPdf(pdfPath)}
-                    >
-                      <FileText className="h-3 w-3 mr-1" /> View
-                    </Button>
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 text-xs"
+                        onClick={() => openPdf(pdfPath)}
+                      >
+                        <FileText className="h-3 w-3 mr-1" /> View
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-8 px-2" onClick={deletePdf} title="Remove PDF">
+                        <Trash2 className="h-3 w-3 text-destructive" />
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
@@ -255,6 +298,98 @@ function QuarterCell({
         </div>
       </PopoverContent>
     </Popover>
+  );
+}
+
+async function openPdfPath(path: string) {
+  const { data, error } = await supabase.storage
+    .from("client-one-on-ones")
+    .createSignedUrl(path, 60 * 5);
+  if (error || !data?.signedUrl) { toast.error("Cannot open PDF"); return; }
+  window.open(data.signedUrl, "_blank");
+}
+
+function QuarterCells({
+  deal, quarter, year, record, onSaved,
+}: {
+  deal: { id: string; account: string; dealName: string };
+  quarter: Quarter;
+  year: number;
+  record?: OneOnOne;
+  onSaved: () => void;
+}) {
+  async function clearFathom() {
+    if (!record) return;
+    const { error } = await supabase
+      .from("client_one_on_ones")
+      .update({ fathom_url: null })
+      .eq("id", record.id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Fathom link removed");
+    onSaved();
+  }
+  async function clearPdf() {
+    if (!record?.insights_pdf_path) return;
+    try { await supabase.storage.from("client-one-on-ones").remove([record.insights_pdf_path]); } catch {}
+    const { error } = await supabase
+      .from("client_one_on_ones")
+      .update({ insights_pdf_path: null })
+      .eq("id", record.id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("PDF removed");
+    onSaved();
+  }
+
+  return (
+    <>
+      <td className="py-2 px-2 text-center border-l border-border">
+        <QuarterCell
+          deal={deal}
+          quarter={quarter}
+          year={year}
+          record={record}
+          onSaved={onSaved}
+        />
+      </td>
+      <td className="py-2 px-2 text-center">
+        {record?.fathom_url ? (
+          <div className="inline-flex items-center gap-1">
+            <a
+              href={record.fathom_url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center text-primary hover:underline"
+              title={record.fathom_url}
+            >
+              <LinkIcon className="h-3.5 w-3.5" />
+            </a>
+            <button onClick={clearFathom} title="Remove link" className="text-muted-foreground hover:text-destructive">
+              <Trash2 className="h-3 w-3" />
+            </button>
+          </div>
+        ) : (
+          <span className="text-muted-foreground/50">—</span>
+        )}
+      </td>
+      <td className="py-2 px-2 text-center">
+        {record?.insights_pdf_path ? (
+          <div className="inline-flex items-center gap-1">
+            <button
+              onClick={() => openPdfPath(record.insights_pdf_path!)}
+              className="inline-flex items-center text-primary hover:underline"
+              title="Open PDF"
+            >
+              <FileText className="h-3.5 w-3.5" />
+            </button>
+            <button onClick={clearPdf} title="Remove PDF" className="text-muted-foreground hover:text-destructive">
+              <Trash2 className="h-3 w-3" />
+            </button>
+          </div>
+        ) : (
+          <span className="text-muted-foreground/50">—</span>
+        )}
+      </td>
+    </>
   );
 }
 
@@ -448,36 +583,48 @@ export default function ClientOneOnOnesPage() {
                 <ColHeader label="MRR" colKey="mrr" sortKey="mrr" align="right" numeric {...headerProps} />
                 <ColHeader label="Total revenue" colKey="totalDealValue" sortKey="totalDealValue" align="right" numeric {...headerProps} />
                 {QUARTERS.map(q => (
-                  <th key={q} className="py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium text-center">
+                  <th key={q} colSpan={3} className="py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium text-center border-l border-border">
                     {q}
                   </th>
+                ))}
+              </tr>
+              <tr className="bg-muted/20">
+                <th colSpan={4}></th>
+                {QUARTERS.map(q => (
+                  <Fragment key={q}>
+                    <th className="py-1 px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-normal text-center border-l border-border">Status</th>
+                    <th className="py-1 px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-normal text-center">Fathom</th>
+                    <th className="py-1 px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-normal text-center">PDF</th>
+                  </Fragment>
                 ))}
               </tr>
             </thead>
             <tbody>
               {dealsQ.isLoading || oooQ.isLoading ? (
-                <tr><td colSpan={8} className="text-center py-8 text-muted-foreground">
+                <tr><td colSpan={16} className="text-center py-8 text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin inline mr-2" /> Loading…
                 </td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={8} className="text-center py-8 text-muted-foreground">No deals match the current filters.</td></tr>
+                <tr><td colSpan={16} className="text-center py-8 text-muted-foreground">No deals match the current filters.</td></tr>
               ) : filtered.map(d => (
                 <tr key={d.id} className="border-t border-border hover:bg-muted/30">
                   <td className="py-2 px-3 font-medium">{d.account}</td>
                   <td className="py-2 px-3">{d.dealName}</td>
                   <td className="py-2 px-3 text-right tabular-nums">{d.mrr ? d.mrr.toLocaleString() : "—"}</td>
                   <td className="py-2 px-3 text-right tabular-nums">{d.totalDealValue ? d.totalDealValue.toLocaleString() : "—"}</td>
-                  {QUARTERS.map(q => (
-                    <td key={q} className="py-2 px-3 text-center">
-                      <QuarterCell
+                  {QUARTERS.map(q => {
+                    const rec = byKey.get(`${d.id}:${q}`);
+                    return (
+                      <QuarterCells
+                        key={q}
                         deal={{ id: d.id, account: d.account, dealName: d.dealName }}
                         quarter={q}
                         year={year}
-                        record={byKey.get(`${d.id}:${q}`)}
+                        record={rec}
                         onSaved={invalidate}
                       />
-                    </td>
-                  ))}
+                    );
+                  })}
                 </tr>
               ))}
             </tbody>
