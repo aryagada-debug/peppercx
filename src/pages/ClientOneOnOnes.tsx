@@ -22,6 +22,14 @@ type Quarter = "JFM" | "AMJ" | "JAS" | "OND";
 const QUARTERS: Quarter[] = ["JFM", "AMJ", "JAS", "OND"];
 type Status = "Pending" | "Scheduled" | "Done";
 
+function currentQuarter(d = new Date()): Quarter {
+  const m = d.getMonth();
+  if (m <= 2) return "JFM";
+  if (m <= 5) return "AMJ";
+  if (m <= 8) return "JAS";
+  return "OND";
+}
+
 interface OneOnOne {
   id: string;
   deal_id: string;
@@ -396,6 +404,7 @@ function QuarterCells({
 export default function ClientOneOnOnesPage() {
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear);
+  const [selectedQuarters, setSelectedQuarters] = useState<Quarter[]>([currentQuarter()]);
   const [search, setSearch] = useState("");
   const [vsdFilter, setVsdFilter] = useState<string>("All");
   const [bopmFilter, setBopmFilter] = useState<string>("All");
@@ -428,6 +437,21 @@ export default function ClientOneOnOnesPage() {
   }, [deals, canonVsd]);
 
   const buOptions = PEPPER_BUSINESS_UNITS;
+
+  const visibleQuarters = useMemo<Quarter[]>(
+    () => QUARTERS.filter(q => selectedQuarters.includes(q)),
+    [selectedQuarters],
+  );
+  const qCount = visibleQuarters.length;
+  const colspan = 4 + qCount * 3;
+
+  const toggleQuarter = (q: Quarter) => {
+    setSelectedQuarters(prev => {
+      const has = prev.includes(q);
+      if (has && prev.length === 1) return prev; // keep at least one
+      return has ? prev.filter(x => x !== q) : [...prev, q];
+    });
+  };
 
   const filtered = useMemo(() => {
     let rows = deals.slice();
@@ -490,11 +514,11 @@ export default function ClientOneOnOnesPage() {
 
   function exportCsv() {
     const rows = filtered;
-    const header = ["Client","Deal","MRR","Total revenue", ...QUARTERS.flatMap(q => [`${q} status`, `${q} fathom`, `${q} pdf`, `${q} notes`])];
+    const header = ["Client","Deal","MRR","Total revenue", ...visibleQuarters.flatMap(q => [`${q} status`, `${q} fathom`, `${q} pdf`, `${q} notes`])];
     const lines = [header.join(",")];
     for (const d of rows) {
       const cells: string[] = [d.account || "", d.dealName || "", String(d.mrr ?? ""), String(d.totalDealValue ?? "")];
-      for (const q of QUARTERS) {
+      for (const q of visibleQuarters) {
         const r = byKey.get(`${d.id}:${q}`);
         cells.push(r?.status || "Pending", r?.fathom_url || "", r?.insights_pdf_path ? "yes" : "", (r?.notes || "").replace(/\s+/g, " "));
       }
@@ -524,6 +548,45 @@ export default function ClientOneOnOnesPage() {
                 {yearOptions.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
               </SelectContent>
             </Select>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 text-xs">
+                  Quarters: {selectedQuarters.length === 4 ? "All" : selectedQuarters.join(", ")}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-44 p-2" align="end">
+                <div className="space-y-1">
+                  {QUARTERS.map(q => {
+                    const checked = selectedQuarters.includes(q);
+                    return (
+                      <label key={q} className="flex items-center gap-2 text-xs px-2 py-1 rounded hover:bg-muted cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleQuarter(q)}
+                          className="h-3.5 w-3.5"
+                        />
+                        <span>{q}</span>
+                      </label>
+                    );
+                  })}
+                  <div className="flex justify-between pt-1 border-t border-border mt-1">
+                    <button
+                      className="text-[11px] text-muted-foreground hover:text-foreground"
+                      onClick={() => setSelectedQuarters([currentQuarter()])}
+                    >
+                      Current
+                    </button>
+                    <button
+                      className="text-[11px] text-muted-foreground hover:text-foreground"
+                      onClick={() => setSelectedQuarters([...QUARTERS])}
+                    >
+                      Select all
+                    </button>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
             <Button variant="outline" size="sm" onClick={exportCsv}>
               <Download className="h-3 w-3 mr-1" /> CSV
             </Button>
@@ -582,7 +645,7 @@ export default function ClientOneOnOnesPage() {
                 <ColHeader label="Deal" colKey="dealName" sortKey="dealName" {...headerProps} />
                 <ColHeader label="MRR" colKey="mrr" sortKey="mrr" align="right" numeric {...headerProps} />
                 <ColHeader label="Total revenue" colKey="totalDealValue" sortKey="totalDealValue" align="right" numeric {...headerProps} />
-                {QUARTERS.map(q => (
+                {visibleQuarters.map(q => (
                   <th key={q} colSpan={3} className="py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium text-center border-l border-border">
                     {q}
                   </th>
@@ -590,7 +653,7 @@ export default function ClientOneOnOnesPage() {
               </tr>
               <tr className="bg-muted/20">
                 <th colSpan={4}></th>
-                {QUARTERS.map(q => (
+                {visibleQuarters.map(q => (
                   <Fragment key={q}>
                     <th className="py-1 px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-normal text-center border-l border-border">Status</th>
                     <th className="py-1 px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-normal text-center">Fathom</th>
@@ -601,18 +664,18 @@ export default function ClientOneOnOnesPage() {
             </thead>
             <tbody>
               {dealsQ.isLoading || oooQ.isLoading ? (
-                <tr><td colSpan={16} className="text-center py-8 text-muted-foreground">
+                <tr><td colSpan={colspan} className="text-center py-8 text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin inline mr-2" /> Loading…
                 </td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={16} className="text-center py-8 text-muted-foreground">No deals match the current filters.</td></tr>
+                <tr><td colSpan={colspan} className="text-center py-8 text-muted-foreground">No deals match the current filters.</td></tr>
               ) : filtered.map(d => (
                 <tr key={d.id} className="border-t border-border hover:bg-muted/30">
                   <td className="py-2 px-3 font-medium">{d.account}</td>
                   <td className="py-2 px-3">{d.dealName}</td>
                   <td className="py-2 px-3 text-right tabular-nums">{d.mrr ? d.mrr.toLocaleString() : "—"}</td>
                   <td className="py-2 px-3 text-right tabular-nums">{d.totalDealValue ? d.totalDealValue.toLocaleString() : "—"}</td>
-                  {QUARTERS.map(q => {
+                  {visibleQuarters.map(q => {
                     const rec = byKey.get(`${d.id}:${q}`);
                     return (
                       <QuarterCells
