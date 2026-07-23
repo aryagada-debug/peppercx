@@ -42,9 +42,36 @@ interface OneOnOne {
 }
 
 const STATUS_STYLES: Record<Status, string> = {
-  Pending: "bg-muted text-muted-foreground",
-  Scheduled: "bg-warning/15 text-warning-foreground border border-warning/40",
-  Done: "bg-positive/15 text-positive-foreground border border-positive/40",
+  Pending: "bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
+  Scheduled: "bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-900/40 dark:text-amber-200 dark:border-amber-700",
+  Done: "bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-200 dark:border-emerald-700",
+};
+
+const QUARTER_STYLES: Record<Quarter, { header: string; sub: string; cell: string; accent: string }> = {
+  JFM: {
+    header: "bg-sky-100/70 text-sky-900 dark:bg-sky-900/30 dark:text-sky-200 border-b-2 border-sky-400",
+    sub: "bg-sky-50/60 text-sky-800 dark:bg-sky-900/20 dark:text-sky-300",
+    cell: "bg-sky-50/30 dark:bg-sky-950/20",
+    accent: "text-sky-600 dark:text-sky-400",
+  },
+  AMJ: {
+    header: "bg-emerald-100/70 text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-200 border-b-2 border-emerald-400",
+    sub: "bg-emerald-50/60 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300",
+    cell: "bg-emerald-50/30 dark:bg-emerald-950/20",
+    accent: "text-emerald-600 dark:text-emerald-400",
+  },
+  JAS: {
+    header: "bg-amber-100/70 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200 border-b-2 border-amber-400",
+    sub: "bg-amber-50/60 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300",
+    cell: "bg-amber-50/30 dark:bg-amber-950/20",
+    accent: "text-amber-600 dark:text-amber-400",
+  },
+  OND: {
+    header: "bg-violet-100/70 text-violet-900 dark:bg-violet-900/30 dark:text-violet-200 border-b-2 border-violet-400",
+    sub: "bg-violet-50/60 text-violet-800 dark:bg-violet-900/20 dark:text-violet-300",
+    cell: "bg-violet-50/30 dark:bg-violet-950/20",
+    accent: "text-violet-600 dark:text-violet-400",
+  },
 };
 
 const ACTIVE_STATUSES = new Set([
