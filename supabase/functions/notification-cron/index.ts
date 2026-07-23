@@ -107,17 +107,25 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
+    const body = await req.json().catch(() => ({})) as {
+      only?: "mbr" | "rgy" | "nps";
+      bypass_schedule?: boolean;
+      bypass_dedupe?: boolean;
+    };
+    const only = body.only;
+    const bypassSchedule = !!body.bypass_schedule;
+    const bypassDedupe = !!body.bypass_dedupe;
     const summary: Record<string, number> = {};
     const now = new Date();
     const weekday = now.getUTCDay(); // 0=Sun..6=Sat
     const weekKey = isoWeekKey(now);
 
     // ── T1: mbr.reminder_bopm_digest (working-day slots) ─────────────
-    {
+    if (!only || only === "mbr") {
       const wdr = workingDaysRemaining(now);
       const SLOTS = new Set([10, 7, 4, 1]);
       const isWorking = weekday >= 1 && weekday <= 5;
-      if (isWorking && SLOTS.has(wdr)) {
+      if (bypassSchedule || (isWorking && SLOTS.has(wdr))) {
         const prev = new Date(now.getUTCFullYear(), now.getUTCMonth() - 1, 1);
         const ym = `${prev.getUTCFullYear()}-${String(prev.getUTCMonth() + 1).padStart(2, "0")}`;
         const monthLabel = prev.toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
@@ -141,14 +149,16 @@ Deno.serve(async (req) => {
         );
         const pendingDeals = dealsArr.filter((d: any) => !done.has(d.id));
         const buckets = await groupByBopm(admin, pendingDeals);
-        const ordinal = { 10: "first", 7: "second", 4: "third", 1: "final" }[wdr] || "";
+        const ordinal = { 10: "first", 7: "second", 4: "third", 1: "final" }[wdr] || "manual";
         const events: any[] = [];
         for (const b of buckets as any[]) {
-          const dedupe = `mbr_digest:${b.bopmEmail.toLowerCase()}:${ym}:${wdr}`;
-          const { error } = await admin.from("notification_dispatch_log").insert({
-            event_key: "mbr.reminder_bopm_digest", dedupe_key: dedupe, deal_id: null,
-          });
-          if (error) continue;
+          if (!bypassDedupe) {
+            const dedupe = `mbr_digest:${b.bopmEmail.toLowerCase()}:${ym}:${wdr}`;
+            const { error } = await admin.from("notification_dispatch_log").insert({
+              event_key: "mbr.reminder_bopm_digest", dedupe_key: dedupe, deal_id: null,
+            });
+            if (error) continue;
+          }
           events.push({
             event: "mbr_bopm_digest",
             recipients: [b.bopmEmail],
@@ -177,7 +187,7 @@ Deno.serve(async (req) => {
     }
 
     // ── T2: rgy.reminder_bopm_digest (Friday) ────────────────────────
-    if (weekday === 5) {
+    if ((!only || only === "rgy") && (bypassSchedule || weekday === 5)) {
       const { data: deals } = await admin
         .from("staffing_deals")
         .select("id, account, deal_name, vsd, principal_bopm, senior_bopm, bopm, deal_status")
@@ -202,11 +212,13 @@ Deno.serve(async (req) => {
       const weekLabel = `Week of ${now.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}`;
       const events: any[] = [];
       for (const b of buckets as any[]) {
-        const dedupe = `rgy_digest:${b.bopmEmail.toLowerCase()}:${weekKey}`;
-        const { error } = await admin.from("notification_dispatch_log").insert({
-          event_key: "rgy.reminder_bopm_digest", dedupe_key: dedupe, deal_id: null,
-        });
-        if (error) continue;
+        if (!bypassDedupe) {
+          const dedupe = `rgy_digest:${b.bopmEmail.toLowerCase()}:${weekKey}`;
+          const { error } = await admin.from("notification_dispatch_log").insert({
+            event_key: "rgy.reminder_bopm_digest", dedupe_key: dedupe, deal_id: null,
+          });
+          if (error) continue;
+        }
         events.push({
           event: "rgy_bopm_digest",
           recipients: [b.bopmEmail],
@@ -231,12 +243,12 @@ Deno.serve(async (req) => {
       }
       summary.rgy_bopm_digest = events.length;
       await invokeEmail(events);
-    } else {
+    } else if (!only || only === "rgy") {
       summary.rgy_bopm_digest = 0;
     }
 
     // ── T3: nps.reminder_bopm_digest (Wednesday) ─────────────────────
-    if (weekday === 3) {
+    if ((!only || only === "nps") && (bypassSchedule || weekday === 3)) {
       const { data: invites } = await admin
         .from("survey_invites")
         .select("id, deal_id, recipient_name, recipient_email, sent_at, completed_at, email_status")
@@ -276,11 +288,13 @@ Deno.serve(async (req) => {
             }
           }
           if (rows.length === 0) continue;
-          const dedupe = `nps_digest:${b.bopmEmail.toLowerCase()}:${weekKey}`;
-          const { error } = await admin.from("notification_dispatch_log").insert({
-            event_key: "nps.reminder_bopm_digest", dedupe_key: dedupe, deal_id: null,
-          });
-          if (error) continue;
+          if (!bypassDedupe) {
+            const dedupe = `nps_digest:${b.bopmEmail.toLowerCase()}:${weekKey}`;
+            const { error } = await admin.from("notification_dispatch_log").insert({
+              event_key: "nps.reminder_bopm_digest", dedupe_key: dedupe, deal_id: null,
+            });
+            if (error) continue;
+          }
           events.push({
             event: "nps_bopm_digest",
             recipients: [b.bopmEmail],
@@ -299,12 +313,12 @@ Deno.serve(async (req) => {
       } else {
         summary.nps_bopm_digest = 0;
       }
-    } else {
+    } else if (!only || only === "nps") {
       summary.nps_bopm_digest = 0;
     }
 
     // ── Rule 5: deal.unstaffed_7d ───────────────────────────────
-    {
+    if (!only) {
       const { data: deals } = await admin
         .from("staffing_deals")
         .select("id, deal_status, created_at")

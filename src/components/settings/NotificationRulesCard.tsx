@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
-import { Bell, Loader2, Save, Trash2 } from "lucide-react";
+import { Bell, Loader2, Save, Send, Trash2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -42,6 +42,7 @@ export function NotificationRulesCard() {
   const [testTo, setTestTo] = useState<Record<string, string>>({});
   const [testingKey, setTestingKey] = useState<string | null>(null);
   const [deletingKey, setDeletingKey] = useState<string | null>(null);
+  const [triggeringKey, setTriggeringKey] = useState<string | null>(null);
 
   const load = async () => {
     const [r, l] = await Promise.all([
@@ -97,6 +98,27 @@ export function NotificationRulesCard() {
       return;
     }
     toast.success(`Test sent to ${to}`);
+  };
+
+  const DIGEST_MAP: Record<string, "mbr" | "rgy" | "nps"> = {
+    "mbr.reminder_bopm_digest": "mbr",
+    "rgy.reminder_bopm_digest": "rgy",
+    "nps.reminder_bopm_digest": "nps",
+  };
+
+  const triggerNow = async (rule: RuleRow) => {
+    const only = DIGEST_MAP[rule.event_key];
+    if (!only) { toast.error("On-demand trigger is only available for BOPM digest rules."); return; }
+    if (!confirm(`Send "${rule.display_name}" now to all configured BOPM recipients? This will send real emails.`)) return;
+    setTriggeringKey(rule.event_key);
+    const { data, error } = await supabase.functions.invoke("notification-cron", {
+      body: { only, bypass_schedule: true, bypass_dedupe: true },
+    });
+    setTriggeringKey(null);
+    if (error) { toast.error(error.message); return; }
+    const summary = (data as { summary?: Record<string, number> } | null)?.summary || {};
+    const count = summary[`${only}_bopm_digest`] ?? 0;
+    toast.success(count ? `Sent ${count} email${count === 1 ? "" : "s"}` : "No recipients matched current data");
   };
 
   const saveLeads = async (lead: CapLead) => {
@@ -182,6 +204,17 @@ export function NotificationRulesCard() {
                   {testingKey === r.event_key ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
                   Send test
                 </Button>
+                {DIGEST_MAP[r.event_key] && (
+                  <Button
+                    size="sm"
+                    onClick={() => triggerNow(r)}
+                    disabled={disabled || !r.enabled || triggeringKey === r.event_key}
+                    title={!r.enabled ? "Enable the rule to trigger it" : "Send this digest now to all configured recipients"}
+                  >
+                    {triggeringKey === r.event_key ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Send className="h-3 w-3 mr-1" />}
+                    Send now
+                  </Button>
+                )}
               </div>
               <Button size="sm" variant="outline" onClick={() => saveRule(r)} disabled={disabled || savingKey === r.event_key}>
                 {savingKey === r.event_key ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Save className="h-3 w-3 mr-1" />}
