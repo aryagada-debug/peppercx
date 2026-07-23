@@ -377,7 +377,7 @@ function QuarterCells({
 
   return (
     <>
-      <td className="py-2 px-2 text-center border-l border-border">
+      <td className={cn("py-2 px-2 text-center border-l border-border", QUARTER_STYLES[quarter].cell)}>
         <QuarterCell
           deal={deal}
           quarter={quarter}
@@ -386,42 +386,52 @@ function QuarterCells({
           onSaved={onSaved}
         />
       </td>
-      <td className="py-2 px-2 text-center">
+      <td className={cn("py-2 px-3 text-center min-w-[140px]", QUARTER_STYLES[quarter].cell)}>
         {record?.fathom_url ? (
-          <div className="inline-flex items-center gap-1">
+          <div className="inline-flex items-center gap-1.5">
             <a
               href={record.fathom_url}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center text-primary hover:underline"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-white/70 dark:bg-slate-900/40 border border-border hover:border-primary hover:text-primary text-[11px] font-medium transition-colors"
               title={record.fathom_url}
             >
-              <LinkIcon className="h-3.5 w-3.5" />
+              <LinkIcon className="h-3 w-3" />
+              Open
             </a>
-            <button onClick={clearFathom} title="Remove link" className="text-muted-foreground hover:text-destructive">
+            <button
+              onClick={clearFathom}
+              title="Remove link"
+              className="h-6 w-6 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+            >
               <Trash2 className="h-3 w-3" />
             </button>
           </div>
         ) : (
-          <span className="text-muted-foreground/50">—</span>
+          <span className="text-muted-foreground/40 text-[11px]">No link</span>
         )}
       </td>
-      <td className="py-2 px-2 text-center">
+      <td className={cn("py-2 px-3 text-center min-w-[140px]", QUARTER_STYLES[quarter].cell)}>
         {record?.insights_pdf_path ? (
-          <div className="inline-flex items-center gap-1">
+          <div className="inline-flex items-center gap-1.5">
             <button
               onClick={() => openPdfPath(record.insights_pdf_path!)}
-              className="inline-flex items-center text-primary hover:underline"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-white/70 dark:bg-slate-900/40 border border-border hover:border-primary hover:text-primary text-[11px] font-medium transition-colors"
               title="Open PDF"
             >
-              <FileText className="h-3.5 w-3.5" />
+              <FileText className="h-3 w-3" />
+              View
             </button>
-            <button onClick={clearPdf} title="Remove PDF" className="text-muted-foreground hover:text-destructive">
+            <button
+              onClick={clearPdf}
+              title="Remove PDF"
+              className="h-6 w-6 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+            >
               <Trash2 className="h-3 w-3" />
             </button>
           </div>
         ) : (
-          <span className="text-muted-foreground/50">—</span>
+          <span className="text-muted-foreground/40 text-[11px]">No PDF</span>
         )}
       </td>
     </>
