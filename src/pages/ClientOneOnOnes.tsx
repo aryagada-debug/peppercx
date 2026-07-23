@@ -301,6 +301,98 @@ function QuarterCell({
   );
 }
 
+async function openPdfPath(path: string) {
+  const { data, error } = await supabase.storage
+    .from("client-one-on-ones")
+    .createSignedUrl(path, 60 * 5);
+  if (error || !data?.signedUrl) { toast.error("Cannot open PDF"); return; }
+  window.open(data.signedUrl, "_blank");
+}
+
+function QuarterCells({
+  deal, quarter, year, record, onSaved,
+}: {
+  deal: { id: string; account: string; dealName: string };
+  quarter: Quarter;
+  year: number;
+  record?: OneOnOne;
+  onSaved: () => void;
+}) {
+  async function clearFathom() {
+    if (!record) return;
+    const { error } = await supabase
+      .from("client_one_on_ones")
+      .update({ fathom_url: null })
+      .eq("id", record.id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Fathom link removed");
+    onSaved();
+  }
+  async function clearPdf() {
+    if (!record?.insights_pdf_path) return;
+    try { await supabase.storage.from("client-one-on-ones").remove([record.insights_pdf_path]); } catch {}
+    const { error } = await supabase
+      .from("client_one_on_ones")
+      .update({ insights_pdf_path: null })
+      .eq("id", record.id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("PDF removed");
+    onSaved();
+  }
+
+  return (
+    <>
+      <td className="py-2 px-2 text-center border-l border-border">
+        <QuarterCell
+          deal={deal}
+          quarter={quarter}
+          year={year}
+          record={record}
+          onSaved={onSaved}
+        />
+      </td>
+      <td className="py-2 px-2 text-center">
+        {record?.fathom_url ? (
+          <div className="inline-flex items-center gap-1">
+            <a
+              href={record.fathom_url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center text-primary hover:underline"
+              title={record.fathom_url}
+            >
+              <LinkIcon className="h-3.5 w-3.5" />
+            </a>
+            <button onClick={clearFathom} title="Remove link" className="text-muted-foreground hover:text-destructive">
+              <Trash2 className="h-3 w-3" />
+            </button>
+          </div>
+        ) : (
+          <span className="text-muted-foreground/50">—</span>
+        )}
+      </td>
+      <td className="py-2 px-2 text-center">
+        {record?.insights_pdf_path ? (
+          <div className="inline-flex items-center gap-1">
+            <button
+              onClick={() => openPdfPath(record.insights_pdf_path!)}
+              className="inline-flex items-center text-primary hover:underline"
+              title="Open PDF"
+            >
+              <FileText className="h-3.5 w-3.5" />
+            </button>
+            <button onClick={clearPdf} title="Remove PDF" className="text-muted-foreground hover:text-destructive">
+              <Trash2 className="h-3 w-3" />
+            </button>
+          </div>
+        ) : (
+          <span className="text-muted-foreground/50">—</span>
+        )}
+      </td>
+    </>
+  );
+}
+
 export default function ClientOneOnOnesPage() {
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear);
