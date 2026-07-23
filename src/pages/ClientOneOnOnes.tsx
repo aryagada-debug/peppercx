@@ -42,9 +42,36 @@ interface OneOnOne {
 }
 
 const STATUS_STYLES: Record<Status, string> = {
-  Pending: "bg-muted text-muted-foreground",
-  Scheduled: "bg-warning/15 text-warning-foreground border border-warning/40",
-  Done: "bg-positive/15 text-positive-foreground border border-positive/40",
+  Pending: "bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
+  Scheduled: "bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-900/40 dark:text-amber-200 dark:border-amber-700",
+  Done: "bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-200 dark:border-emerald-700",
+};
+
+const QUARTER_STYLES: Record<Quarter, { header: string; sub: string; cell: string; accent: string }> = {
+  JFM: {
+    header: "bg-sky-100/70 text-sky-900 dark:bg-sky-900/30 dark:text-sky-200 border-b-2 border-sky-400",
+    sub: "bg-sky-50/60 text-sky-800 dark:bg-sky-900/20 dark:text-sky-300",
+    cell: "bg-sky-50/30 dark:bg-sky-950/20",
+    accent: "text-sky-600 dark:text-sky-400",
+  },
+  AMJ: {
+    header: "bg-emerald-100/70 text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-200 border-b-2 border-emerald-400",
+    sub: "bg-emerald-50/60 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300",
+    cell: "bg-emerald-50/30 dark:bg-emerald-950/20",
+    accent: "text-emerald-600 dark:text-emerald-400",
+  },
+  JAS: {
+    header: "bg-amber-100/70 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200 border-b-2 border-amber-400",
+    sub: "bg-amber-50/60 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300",
+    cell: "bg-amber-50/30 dark:bg-amber-950/20",
+    accent: "text-amber-600 dark:text-amber-400",
+  },
+  OND: {
+    header: "bg-violet-100/70 text-violet-900 dark:bg-violet-900/30 dark:text-violet-200 border-b-2 border-violet-400",
+    sub: "bg-violet-50/60 text-violet-800 dark:bg-violet-900/20 dark:text-violet-300",
+    cell: "bg-violet-50/30 dark:bg-violet-950/20",
+    accent: "text-violet-600 dark:text-violet-400",
+  },
 };
 
 const ACTIVE_STATUSES = new Set([
@@ -350,7 +377,7 @@ function QuarterCells({
 
   return (
     <>
-      <td className="py-2 px-2 text-center border-l border-border">
+      <td className={cn("py-2 px-2 text-center border-l border-border", QUARTER_STYLES[quarter].cell)}>
         <QuarterCell
           deal={deal}
           quarter={quarter}
@@ -359,42 +386,52 @@ function QuarterCells({
           onSaved={onSaved}
         />
       </td>
-      <td className="py-2 px-2 text-center">
+      <td className={cn("py-2 px-3 text-center min-w-[140px]", QUARTER_STYLES[quarter].cell)}>
         {record?.fathom_url ? (
-          <div className="inline-flex items-center gap-1">
+          <div className="inline-flex items-center gap-1.5">
             <a
               href={record.fathom_url}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center text-primary hover:underline"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-white/70 dark:bg-slate-900/40 border border-border hover:border-primary hover:text-primary text-[11px] font-medium transition-colors"
               title={record.fathom_url}
             >
-              <LinkIcon className="h-3.5 w-3.5" />
+              <LinkIcon className="h-3 w-3" />
+              Open
             </a>
-            <button onClick={clearFathom} title="Remove link" className="text-muted-foreground hover:text-destructive">
+            <button
+              onClick={clearFathom}
+              title="Remove link"
+              className="h-6 w-6 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+            >
               <Trash2 className="h-3 w-3" />
             </button>
           </div>
         ) : (
-          <span className="text-muted-foreground/50">—</span>
+          <span className="text-muted-foreground/40 text-[11px]">No link</span>
         )}
       </td>
-      <td className="py-2 px-2 text-center">
+      <td className={cn("py-2 px-3 text-center min-w-[140px]", QUARTER_STYLES[quarter].cell)}>
         {record?.insights_pdf_path ? (
-          <div className="inline-flex items-center gap-1">
+          <div className="inline-flex items-center gap-1.5">
             <button
               onClick={() => openPdfPath(record.insights_pdf_path!)}
-              className="inline-flex items-center text-primary hover:underline"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-white/70 dark:bg-slate-900/40 border border-border hover:border-primary hover:text-primary text-[11px] font-medium transition-colors"
               title="Open PDF"
             >
-              <FileText className="h-3.5 w-3.5" />
+              <FileText className="h-3 w-3" />
+              View
             </button>
-            <button onClick={clearPdf} title="Remove PDF" className="text-muted-foreground hover:text-destructive">
+            <button
+              onClick={clearPdf}
+              title="Remove PDF"
+              className="h-6 w-6 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+            >
               <Trash2 className="h-3 w-3" />
             </button>
           </div>
         ) : (
-          <span className="text-muted-foreground/50">—</span>
+          <span className="text-muted-foreground/40 text-[11px]">No PDF</span>
         )}
       </td>
     </>
@@ -646,18 +683,25 @@ export default function ClientOneOnOnesPage() {
                 <ColHeader label="MRR" colKey="mrr" sortKey="mrr" align="right" numeric {...headerProps} />
                 <ColHeader label="Total revenue" colKey="totalDealValue" sortKey="totalDealValue" align="right" numeric {...headerProps} />
                 {visibleQuarters.map(q => (
-                  <th key={q} colSpan={3} className="py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium text-center border-l border-border">
-                    {q}
+                  <th
+                    key={q}
+                    colSpan={3}
+                    className={cn(
+                      "py-2 px-3 text-[11px] uppercase tracking-wider font-semibold text-center border-l border-border",
+                      QUARTER_STYLES[q].header,
+                    )}
+                  >
+                    {q} {year}
                   </th>
                 ))}
               </tr>
-              <tr className="bg-muted/20">
+              <tr>
                 <th colSpan={4}></th>
                 {visibleQuarters.map(q => (
                   <Fragment key={q}>
-                    <th className="py-1 px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-normal text-center border-l border-border">Status</th>
-                    <th className="py-1 px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-normal text-center">Fathom</th>
-                    <th className="py-1 px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-normal text-center">PDF</th>
+                    <th className={cn("py-1.5 px-2 text-[10px] uppercase tracking-wider font-medium text-center border-l border-border", QUARTER_STYLES[q].sub)}>Status</th>
+                    <th className={cn("py-1.5 px-3 text-[10px] uppercase tracking-wider font-medium text-center min-w-[140px]", QUARTER_STYLES[q].sub)}>Fathom link</th>
+                    <th className={cn("py-1.5 px-3 text-[10px] uppercase tracking-wider font-medium text-center min-w-[140px]", QUARTER_STYLES[q].sub)}>Insights PDF</th>
                   </Fragment>
                 ))}
               </tr>
