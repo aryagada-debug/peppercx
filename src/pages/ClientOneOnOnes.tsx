@@ -491,36 +491,48 @@ export default function ClientOneOnOnesPage() {
                 <ColHeader label="MRR" colKey="mrr" sortKey="mrr" align="right" numeric {...headerProps} />
                 <ColHeader label="Total revenue" colKey="totalDealValue" sortKey="totalDealValue" align="right" numeric {...headerProps} />
                 {QUARTERS.map(q => (
-                  <th key={q} className="py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium text-center">
+                  <th key={q} colSpan={3} className="py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium text-center border-l border-border">
                     {q}
                   </th>
+                ))}
+              </tr>
+              <tr className="bg-muted/20">
+                <th colSpan={4}></th>
+                {QUARTERS.map(q => (
+                  <>
+                    <th key={`${q}-s`} className="py-1 px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-normal text-center border-l border-border">Status</th>
+                    <th key={`${q}-f`} className="py-1 px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-normal text-center">Fathom</th>
+                    <th key={`${q}-p`} className="py-1 px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-normal text-center">PDF</th>
+                  </>
                 ))}
               </tr>
             </thead>
             <tbody>
               {dealsQ.isLoading || oooQ.isLoading ? (
-                <tr><td colSpan={8} className="text-center py-8 text-muted-foreground">
+                <tr><td colSpan={16} className="text-center py-8 text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin inline mr-2" /> Loading…
                 </td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={8} className="text-center py-8 text-muted-foreground">No deals match the current filters.</td></tr>
+                <tr><td colSpan={16} className="text-center py-8 text-muted-foreground">No deals match the current filters.</td></tr>
               ) : filtered.map(d => (
                 <tr key={d.id} className="border-t border-border hover:bg-muted/30">
                   <td className="py-2 px-3 font-medium">{d.account}</td>
                   <td className="py-2 px-3">{d.dealName}</td>
                   <td className="py-2 px-3 text-right tabular-nums">{d.mrr ? d.mrr.toLocaleString() : "—"}</td>
                   <td className="py-2 px-3 text-right tabular-nums">{d.totalDealValue ? d.totalDealValue.toLocaleString() : "—"}</td>
-                  {QUARTERS.map(q => (
-                    <td key={q} className="py-2 px-3 text-center">
-                      <QuarterCell
+                  {QUARTERS.map(q => {
+                    const rec = byKey.get(`${d.id}:${q}`);
+                    return (
+                      <QuarterCells
+                        key={q}
                         deal={{ id: d.id, account: d.account, dealName: d.dealName }}
                         quarter={q}
                         year={year}
-                        record={byKey.get(`${d.id}:${q}`)}
+                        record={rec}
                         onSaved={invalidate}
                       />
-                    </td>
-                  ))}
+                    );
+                  })}
                 </tr>
               ))}
             </tbody>
