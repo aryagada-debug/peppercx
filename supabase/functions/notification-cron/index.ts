@@ -19,18 +19,20 @@ const json = (b: unknown, s = 200) =>
 const ACTIVE_STATUSES = ["Active Deal", "New Deal in SLA/PO", "Deal Disputed", "Deal in Renewal Process"];
 const APP_ORIGIN = Deno.env.get("APP_ORIGIN") || "https://peppercx.lovable.app";
 
-async function invokeEmail(events: Array<Record<string, unknown>>) {
+async function invokeEmail(events: Array<Record<string, unknown>>, authHeader?: string) {
   if (events.length === 0) return;
+  const auth = authHeader && authHeader.startsWith("Bearer ") ? authHeader : `Bearer ${SERVICE_ROLE}`;
   const res = await fetch(`${SUPABASE_URL}/functions/v1/send-app-email`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${SERVICE_ROLE}`,
+      Authorization: auth,
       "Content-Type": "application/json",
       apikey: SERVICE_ROLE,
     },
     body: JSON.stringify({ action: "send", events }),
   });
-  await res.text(); // ignore
+  const txt = await res.text();
+  if (!res.ok) console.warn("[notification-cron] send-app-email failed", res.status, txt.slice(0, 300));
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -107,6 +109,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
+    const callerAuth = req.headers.get("Authorization") || undefined;
     const body = await req.json().catch(() => ({})) as {
       only?: "mbr" | "rgy" | "nps";
       bypass_schedule?: boolean;
