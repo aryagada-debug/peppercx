@@ -683,18 +683,25 @@ export default function ClientOneOnOnesPage() {
                 <ColHeader label="MRR" colKey="mrr" sortKey="mrr" align="right" numeric {...headerProps} />
                 <ColHeader label="Total revenue" colKey="totalDealValue" sortKey="totalDealValue" align="right" numeric {...headerProps} />
                 {visibleQuarters.map(q => (
-                  <th key={q} colSpan={3} className="py-2 px-3 text-[11px] uppercase tracking-wider text-muted-foreground font-medium text-center border-l border-border">
-                    {q}
+                  <th
+                    key={q}
+                    colSpan={3}
+                    className={cn(
+                      "py-2 px-3 text-[11px] uppercase tracking-wider font-semibold text-center border-l border-border",
+                      QUARTER_STYLES[q].header,
+                    )}
+                  >
+                    {q} {year}
                   </th>
                 ))}
               </tr>
-              <tr className="bg-muted/20">
+              <tr>
                 <th colSpan={4}></th>
                 {visibleQuarters.map(q => (
                   <Fragment key={q}>
-                    <th className="py-1 px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-normal text-center border-l border-border">Status</th>
-                    <th className="py-1 px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-normal text-center">Fathom</th>
-                    <th className="py-1 px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-normal text-center">PDF</th>
+                    <th className={cn("py-1.5 px-2 text-[10px] uppercase tracking-wider font-medium text-center border-l border-border", QUARTER_STYLES[q].sub)}>Status</th>
+                    <th className={cn("py-1.5 px-3 text-[10px] uppercase tracking-wider font-medium text-center min-w-[140px]", QUARTER_STYLES[q].sub)}>Fathom link</th>
+                    <th className={cn("py-1.5 px-3 text-[10px] uppercase tracking-wider font-medium text-center min-w-[140px]", QUARTER_STYLES[q].sub)}>Insights PDF</th>
                   </Fragment>
                 ))}
               </tr>
