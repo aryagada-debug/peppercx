@@ -151,6 +151,36 @@ function QuarterCell({
     window.open(data.signedUrl, "_blank");
   }
 
+  async function deleteFathom() {
+    if (!record) { setFathom(""); return; }
+    const { error } = await supabase
+      .from("client_one_on_ones")
+      .update({ fathom_url: null })
+      .eq("id", record.id);
+    if (error) { toast.error(error.message); return; }
+    setFathom("");
+    toast.success("Fathom link removed");
+    onSaved();
+  }
+
+  async function deletePdf() {
+    const path = pdfPath;
+    if (!path) return;
+    try {
+      await supabase.storage.from("client-one-on-ones").remove([path]);
+    } catch {}
+    if (record) {
+      const { error } = await supabase
+        .from("client_one_on_ones")
+        .update({ insights_pdf_path: null })
+        .eq("id", record.id);
+      if (error) { toast.error(error.message); return; }
+    }
+    setPdfPath("");
+    toast.success("PDF removed");
+    onSaved();
+  }
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -196,12 +226,19 @@ function QuarterCell({
             <>
               <div>
                 <label className="text-xs text-muted-foreground">Fathom link</label>
-                <Input
-                  value={fathom}
-                  onChange={(e) => setFathom(e.target.value)}
-                  placeholder="https://fathom.video/..."
-                  className="h-8 text-xs mt-1"
-                />
+                <div className="flex items-center gap-1 mt-1">
+                  <Input
+                    value={fathom}
+                    onChange={(e) => setFathom(e.target.value)}
+                    placeholder="https://fathom.video/..."
+                    className="h-8 text-xs"
+                  />
+                  {(record?.fathom_url || fathom) && (
+                    <Button variant="ghost" size="sm" className="h-8 px-2" onClick={deleteFathom} title="Remove link">
+                      <Trash2 className="h-3 w-3 text-destructive" />
+                    </Button>
+                  )}
+                </div>
               </div>
               <div>
                 <label className="text-xs text-muted-foreground">Insights PDF</label>
@@ -221,14 +258,19 @@ function QuarterCell({
                     />
                   </label>
                   {pdfPath && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 text-xs"
-                      onClick={() => openPdf(pdfPath)}
-                    >
-                      <FileText className="h-3 w-3 mr-1" /> View
-                    </Button>
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 text-xs"
+                        onClick={() => openPdf(pdfPath)}
+                      >
+                        <FileText className="h-3 w-3 mr-1" /> View
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-8 px-2" onClick={deletePdf} title="Remove PDF">
+                        <Trash2 className="h-3 w-3 text-destructive" />
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
