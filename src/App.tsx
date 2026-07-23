@@ -49,6 +49,7 @@ const PublicSurvey = lazy(() => import("./pages/PublicSurvey"));
 const SurveyForm = lazy(() => import("./pages/SurveyForm"));
 const PublicHandover = lazy(() => import("./pages/PublicHandover"));
 const SEOKRAs = lazy(() => import("./pages/SEOKRAs"));
+const ClientOneOnOnes = lazy(() => import("./pages/ClientOneOnOnes"));
 
 // Mounts the one-shot seeder under the auth provider so it can read the
 // session and only fire when staffing_people is empty.
@@ -130,6 +131,7 @@ function AppRoutes() {
               <Route path="/leadership-interventions" element={<ProtectedRoute routeKey="home"><LeadershipInterventions /></ProtectedRoute>} />
               <Route path="/inbox" element={<ProtectedRoute routeKey="home"><Inbox /></ProtectedRoute>} />
               <Route path="/seo-kras" element={<ProtectedRoute routeKey="settings" adminOnly allowEmails={["mayur@peppercontent.io","vedanga@peppercontent.io"]}><SEOKRAs /></ProtectedRoute>} />
+              <Route path="/client-one-on-ones" element={<ProtectedRoute routeKey="settings" adminOnly><ClientOneOnOnes /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </GeoFilterProvider>

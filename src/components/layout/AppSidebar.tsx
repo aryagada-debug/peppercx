@@ -6,7 +6,7 @@ import {
   ChevronDown, Home, ChevronsLeft, ChevronsRight,
   Trash2, AlertTriangle, Mail, Sparkles,
   ClipboardCheck, MessagesSquare,
-  BarChart3,
+  BarChart3, MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
@@ -37,6 +37,7 @@ const routePrefetch: Record<string, () => Promise<unknown>> = {
   "/deal-handover": () => import("@/pages/DealHandover"),
   "/slack-review": () => import("@/pages/SlackReview"),
   "/seo-kras": () => import("@/pages/SEOKRAs"),
+  "/client-one-on-ones": () => import("@/pages/ClientOneOnOnes"),
 };
 const prefetched = new Set<string>();
 const prefetchRoute = (to: string) => {
@@ -63,6 +64,7 @@ const navSections = [
       { to: "/staffing", icon: UserCheck, label: "Staffing & Capacity", routeKey: "staffing" },
       { to: "/people-ops", icon: Users, label: "People Ops", routeKey: "people-ops" },
       { to: "/seo-kras", icon: BarChart3, label: "SEO KRAs", routeKey: "settings", adminOnly: true },
+      { to: "/client-one-on-ones", icon: MessageCircle, label: "Client 1-1s", routeKey: "settings", adminOnly: true },
     ],
   },
   {
