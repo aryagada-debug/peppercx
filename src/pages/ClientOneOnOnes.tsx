@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -591,11 +591,11 @@ export default function ClientOneOnOnesPage() {
               <tr className="bg-muted/20">
                 <th colSpan={4}></th>
                 {QUARTERS.map(q => (
-                  <React.Fragment key={q}>
+                  <Fragment key={q}>
                     <th className="py-1 px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-normal text-center border-l border-border">Status</th>
                     <th className="py-1 px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-normal text-center">Fathom</th>
                     <th className="py-1 px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-normal text-center">PDF</th>
-                  </React.Fragment>
+                  </Fragment>
                 ))}
               </tr>
             </thead>
