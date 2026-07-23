@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { FileText, Link as LinkIcon, Search, Upload, Loader2, Download } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { PEPPER_BUSINESS_UNITS } from "@/data/staffingData";
 
 type Quarter = "JFM" | "AMJ" | "JAS" | "OND";
