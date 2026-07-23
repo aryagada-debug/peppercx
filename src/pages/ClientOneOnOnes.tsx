@@ -591,11 +591,11 @@ export default function ClientOneOnOnesPage() {
               <tr className="bg-muted/20">
                 <th colSpan={4}></th>
                 {QUARTERS.map(q => (
-                  <>
-                    <th key={`${q}-s`} className="py-1 px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-normal text-center border-l border-border">Status</th>
-                    <th key={`${q}-f`} className="py-1 px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-normal text-center">Fathom</th>
-                    <th key={`${q}-p`} className="py-1 px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-normal text-center">PDF</th>
-                  </>
+                  <React.Fragment key={q}>
+                    <th className="py-1 px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-normal text-center border-l border-border">Status</th>
+                    <th className="py-1 px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-normal text-center">Fathom</th>
+                    <th className="py-1 px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-normal text-center">PDF</th>
+                  </React.Fragment>
                 ))}
               </tr>
             </thead>
