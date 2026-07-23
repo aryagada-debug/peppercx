@@ -183,7 +183,7 @@ Deno.serve(async (req) => {
           });
         }
         summary.mbr_bopm_digest = events.length;
-        await invokeEmail(events);
+        await invokeEmail(events, callerAuth);
       } else {
         summary.mbr_bopm_digest = 0;
       }
@@ -245,7 +245,7 @@ Deno.serve(async (req) => {
         });
       }
       summary.rgy_bopm_digest = events.length;
-      await invokeEmail(events);
+      await invokeEmail(events, callerAuth);
     } else if (!only || only === "rgy") {
       summary.rgy_bopm_digest = 0;
     }
@@ -312,7 +312,7 @@ Deno.serve(async (req) => {
           });
         }
         summary.nps_bopm_digest = events.length;
-        await invokeEmail(events);
+        await invokeEmail(events, callerAuth);
       } else {
         summary.nps_bopm_digest = 0;
       }
@@ -349,7 +349,7 @@ Deno.serve(async (req) => {
           if (!error) events.push({ event: "deal_unstaffed", dealId: id });
         }
         summary.deal_unstaffed = events.length;
-        await invokeEmail(events);
+        await invokeEmail(events, callerAuth);
       }
     }
 
