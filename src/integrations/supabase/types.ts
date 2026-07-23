@@ -206,6 +206,48 @@ export type Database = {
           },
         ]
       }
+      client_one_on_ones: {
+        Row: {
+          created_at: string
+          deal_id: string
+          fathom_url: string | null
+          id: string
+          insights_pdf_path: string | null
+          notes: string | null
+          quarter: string
+          status: string
+          updated_at: string
+          updated_by: string | null
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          deal_id: string
+          fathom_url?: string | null
+          id?: string
+          insights_pdf_path?: string | null
+          notes?: string | null
+          quarter: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          year: number
+        }
+        Update: {
+          created_at?: string
+          deal_id?: string
+          fathom_url?: string | null
+          id?: string
+          insights_pdf_path?: string | null
+          notes?: string | null
+          quarter?: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          year?: number
+        }
+        Relationships: []
+      }
       clients: {
         Row: {
           account_status: string
