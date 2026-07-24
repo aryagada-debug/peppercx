@@ -1,57 +1,45 @@
-## Client 1-1s tracker
+# MBR Flags — Cleaner Insights + Standardized Not-Done / Not-Required Flags
 
-New admin-only Operations tab to track quarterly client 1-1 calls per deal, with per-quarter status, Fathom link, insights PDF upload, and notes.
+## Problem
+Today's Flags tab (in `src/pages/MBRTracker.tsx`, `flagInsights` memo + rendered table) shows each detected flag as a **60/120-char raw slice of the notes** around the matched keyword. Result: fragmented mid-sentence excerpts like *"HNI, salaried professional). Intent: Improve relevance…"* that read as noise, not insight.
 
-### 1. Database (migration)
+Also, flags today only fire for **Done** MBRs (keyword scan) and one aggregate case ("MBR not held" for 3 straight misses). There is no first-class flag surface for **Not Done** or **Not Required** statuses, so deals that skip / defer / mark as N/A don't show up in the flags view in a standard way.
 
-New table `public.client_one_on_ones`:
-- `id` uuid PK
-- `deal_id` text (references `staffing_deals.id`)
-- `quarter` text — one of `JFM`, `AMJ`, `JAS`, `OND`
-- `year` int — calendar year of the quarter
-- `status` text default `Pending` — `Pending` | `Scheduled` | `Done`
-- `fathom_url` text
-- `insights_pdf_path` text — path in `client-one-on-ones` storage bucket
-- `notes` text
-- `created_at`, `updated_at`, `updated_by` uuid
-- Unique `(deal_id, quarter, year)`
+## Goals
+1. Every flag row shows a **clean, sentence-level insight** — not a raw excerpt.
+2. Add **standardized flags** for `Not Done` and `Not Required` MBRs across all retainer deals, with clear meaning and severity.
+3. No changes to existing MBR data, table view, or logging drawer — Flags tab only.
 
-Grants + RLS: admin-only read/write via `has_role(auth.uid(), 'admin')`. `service_role` full access. Standard `updated_at` trigger.
+## Changes
 
-New private storage bucket `client-one-on-ones` for the insights PDFs, with storage.objects policies restricted to admin role.
+### 1. Insight text instead of raw snippets (keyword-detected flags)
+Rework `scan()` inside `flagInsights` so each detected flag stores a **clean insight**, not a keyword-window slice.
 
-### 2. Route + navigation
+- Split the MBR text (`aiSummary + notes + transcript`) into sentences via a simple splitter (`/(?<=[.!?])\s+/`), then trim leading bullet markers (`*`, `-`, `1.`) and section labels (`**Risks:**`, `Discussion Notes:`).
+- For each keyword hit, pick the **full sentence** containing the match (or up to 2 sentences if the first is <40 chars), capped at ~180 chars with an ellipsis.
+- Prefer sentences from `aiSummary` over `notes` over `transcript` when the same keyword appears in multiple sources — the AI summary is already condensed.
+- Drop obvious noise sentences: those that are only headers (end with `:`), pure lists of numbers, or shorter than 25 chars.
 
-- Add `/client-one-on-ones` route in `src/App.tsx`, admin-only via `ProtectedRoute adminOnly`.
-- Add sidebar link "Client 1-1s" under Operations in `src/components/layout/AppSidebar.tsx` with `adminOnly: true`.
-- New page `src/pages/ClientOneOnOnes.tsx`.
+Rendered row becomes:
+`[Churn risk]  Client hinted at re-evaluating vendors in Q3 if content quality doesn't improve.`
 
-### 3. Page UI
+### 2. Standardized Not Done / Not Required flags
+Extend `flagInsights` with a second pass over `entriesByMonth` for **the current month and the immediately previous month** (retainer deals only, matching today's scope):
 
-Table with one row per deal (all active deals from `staffing_deals`, joined to `client_one_on_ones` rows by deal + current year).
+- **`Not Done` in current month** → severity `yellow`, type **"MBR skipped this month"**, detail = `Reason: <reason || "no reason logged">. Next scheduled: <scheduledDate || "not set">.`
+- **`Not Done` in current AND previous month** → escalates to severity `red`, type **"MBR skipped 2 months in a row"** (replaces the yellow one for that deal).
+- **`Not Required` in current month** → severity `info`, type **"MBR marked not required"**, detail = `Reason: <reason || "—">. Reconfirm next quarter.`
+- **`Not Required` 3+ consecutive months** → severity `yellow`, type **"Prolonged 'Not Required' status"**, detail = `Marked not required for N consecutive months — reconfirm relationship health.`
 
-Columns:
-- Client name
-- Deal name
-- MRR
-- Total revenue (`total_deal_value`)
-- Quarter cells: **JFM**, **AMJ**, **JAS**, **OND** — each cell shows a status pill (Pending/Scheduled/Done) that opens a popover/drawer to edit that quarter's record: status dropdown, Fathom URL input, PDF upload (visible when status=Done), notes textarea. Saves inline.
-- When a quarter is `Done`, the cell surfaces small icons/links for Fathom and PDF; PDF opens via signed URL from the private bucket.
+These use the `MbrEntry` fields already loaded (`status`, `reason`/`notes`, `scheduledDate`, `weekStart`) — no new queries. Existing "MBR not held (3 misses)" logic is kept but deduped against the new 2-in-a-row red flag (only the higher-severity one shows per deal).
 
-Reuse existing patterns:
-- Filters mirroring Clients & Deals page (VSD, BOPM, deal type, business unit, deal status, search) — extract from `src/pages/Clients.tsx` conventions.
-- Sortable column headers using `ColHeader`.
-- Global text search box.
-- Year selector (default = current calendar year) so admins can look at prior years.
+### 3. Header / count updates
+The KPI tiles (Critical / Watch / Opportunity) already bucket by severity, so the new flags flow through automatically. No layout changes.
 
-### 4. Data hooks
+## Non-goals
+- No changes to the Table, Insights, Compliance, or Reminders tabs.
+- No AI/gateway call — the "insight" is deterministic sentence extraction from text the app already has (including `ai_summary` if the user ran the summarizer).
+- No schema changes.
 
-- `useClientOneOnOnes(year)` — fetch all rows for the year keyed by `${deal_id}:${quarter}`.
-- Mutation hook: upsert quarter record; on PDF upload, upload to storage first, then persist path.
-- Signed URL helper for viewing uploaded PDFs.
-
-### Technical notes
-
-- No changes to existing Clients & Deals code; filter logic is duplicated locally on this page (kept small) to avoid coupling.
-- Default row for a deal/quarter with no DB row = `Pending` (implicit; no insert until user edits).
-- PDF upload accepts `application/pdf` only, max ~20MB, filename normalized `deal_id/YEAR-QUARTER.pdf`.
+## Files touched
+- `src/pages/MBRTracker.tsx` — only the `flagInsights` `useMemo` and the flag row rendering (title/detail formatting). Roughly ~80 lines changed, no new files.
