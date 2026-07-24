@@ -692,18 +692,48 @@ export default function MBRTracker() {
       { re: /\b(case\s*study|testimonial|reference|advocate)\b/i, label: "Advocacy opportunity" },
     ];
 
-    const scan = (text: string, deal: MBRDeal, weekStart?: string) => {
-      if (!text) return;
+    // Split into clean sentences. Prefer AI summary bullets over raw notes/transcript
+    // so the flag detail reads as an insight, not a mid-paragraph excerpt.
+    const cleanSentence = (s: string) =>
+      s
+        .replace(/^\s*[\*\-•]+\s*/, "")            // leading bullet markers
+        .replace(/^\s*\d+[.)]\s*/, "")             // leading "1." / "1)"
+        .replace(/\*\*([^*]+)\*\*\s*:?\s*/g, "$1: ") // "**Title:**" -> "Title:"
+        .replace(/\s+/g, " ")
+        .trim();
+    const toSentences = (raw: string): string[] => {
+      if (!raw) return [];
+      return raw
+        .split(/\r?\n+|(?<=[.!?])\s+(?=[A-Z0-9"'\*\-])/)
+        .map(cleanSentence)
+        .filter((s) => s.length >= 25 && !/:\s*$/.test(s) && !/^[\d\s.,%\-]+$/.test(s));
+    };
+    const pickInsight = (sentences: string[], re: RegExp): string | null => {
+      const idx = sentences.findIndex((s) => re.test(s));
+      if (idx === -1) return null;
+      let out = sentences[idx];
+      if (out.length < 40 && sentences[idx + 1]) out = `${out} ${sentences[idx + 1]}`;
+      if (out.length > 200) out = `${out.slice(0, 197).trimEnd()}…`;
+      return out;
+    };
+    const scan = (e: { aiSummary?: string | null; notes?: string | null; transcript?: string | null }, deal: MBRDeal, weekStart?: string) => {
+      const sources: string[] = [e.aiSummary || "", e.notes || "", e.transcript || ""];
+      const sentenceSets = sources.map(toSentences);
+      const combined = sources.join(" \n ");
+      if (!combined.trim()) return;
       const seen = new Set<string>();
       const tag = (rules: typeof RED_KEYWORDS, severity: Flag["severity"]) => {
         for (const { re, label } of rules) {
-          const m = text.match(re);
-          if (m && !seen.has(label)) {
-            seen.add(label);
-            const idx = m.index ?? 0;
-            const snippet = text.slice(Math.max(0, idx - 60), Math.min(text.length, idx + 120)).replace(/\s+/g, " ").trim();
-            flags.push({ deal, severity, type: label, detail: snippet, weekStart });
-          }
+          if (seen.has(label)) continue;
+          if (!re.test(combined)) continue;
+          const detail =
+            pickInsight(sentenceSets[0], re) ||
+            pickInsight(sentenceSets[1], re) ||
+            pickInsight(sentenceSets[2], re) ||
+            "";
+          if (!detail) continue;
+          seen.add(label);
+          flags.push({ deal, severity, type: label, detail, weekStart });
         }
       };
       tag(RED_KEYWORDS, "red");
@@ -718,21 +748,81 @@ export default function MBRTracker() {
         if (!deal) return;
         if (!isRetainerDeal(deal)) return; // non-retainers are never flagged
         if (e.status !== "Done") return;
-        const text = [e.aiSummary, e.notes, e.transcript].filter(Boolean).join(" \n ");
-        scan(text, deal, e.weekStart);
+        scan(e, deal, e.weekStart);
         if (e.sentiment === "Red") {
+          const firstSentence = toSentences(e.aiSummary || e.notes || "")[0] || "";
           flags.push({
             deal, severity: "red", type: "Red sentiment recorded",
-            detail: (e.aiSummary || e.notes || "").slice(0, 220),
+            detail: firstSentence || "Sentiment logged as Red — review latest MBR notes.",
             weekStart: e.weekStart,
           });
         }
       });
     });
 
+    // ===== Standardized Not Done / Not Required flags (per deal) =====
+    const sortedAll = [...availableMonths].sort();
+    const currentMonth = sortedAll[sortedAll.length - 1];
+    const prevMonth = sortedAll[sortedAll.length - 2];
+    const skippedDeals = new Set<string>();
+    for (const id of filteredIds) {
+      const deal = dealsById.get(id);
+      if (!deal) continue;
+      if (!isRetainerDeal(deal)) continue;
+
+      const curEntry = currentMonth ? entriesByMonth.get(currentMonth)?.get(id) : undefined;
+      const prevEntry = prevMonth ? entriesByMonth.get(prevMonth)?.get(id) : undefined;
+
+      // Not Done escalation
+      if (curEntry?.status === "Not Done") {
+        const reason = (curEntry.notes || "").trim();
+        const next = curEntry.scheduledDate || "not set";
+        if (prevEntry?.status === "Not Done") {
+          skippedDeals.add(id);
+          flags.push({
+            deal, severity: "red", type: "MBR skipped 2 months in a row",
+            detail: `Not Done in ${prevMonth} and ${currentMonth}. Reason: ${reason || "no reason logged"}. Next scheduled: ${next}.`,
+            weekStart: curEntry.weekStart,
+          });
+        } else {
+          flags.push({
+            deal, severity: "yellow", type: "MBR skipped this month",
+            detail: `Reason: ${reason || "no reason logged"}. Next scheduled: ${next}.`,
+            weekStart: curEntry.weekStart,
+          });
+        }
+      }
+
+      // Not Required — current month + prolonged streak
+      if (curEntry?.status === "Not Required") {
+        // count trailing consecutive Not Required months
+        let streak = 0;
+        for (let i = sortedAll.length - 1; i >= 0; i--) {
+          const st = entriesByMonth.get(sortedAll[i])?.get(id)?.status;
+          if (st === "Not Required") streak++;
+          else break;
+        }
+        const reason = (curEntry.notes || "").trim() || "—";
+        if (streak >= 3) {
+          flags.push({
+            deal, severity: "yellow", type: "Prolonged 'Not Required' status",
+            detail: `Marked Not Required for ${streak} consecutive months — reconfirm relationship health.`,
+            weekStart: curEntry.weekStart,
+          });
+        } else {
+          flags.push({
+            deal, severity: "info", type: "MBR marked not required",
+            detail: `Reason: ${reason}. Reconfirm next quarter.`,
+            weekStart: curEntry.weekStart,
+          });
+        }
+      }
+    }
+
     const sortedMonths = [...availableMonths].sort();
     const last3 = sortedMonths.slice(-3);
     for (const id of filteredIds) {
+      if (skippedDeals.has(id)) continue; // already flagged red as "skipped 2 months in a row"
       const deal = dealsById.get(id);
       if (!deal) continue;
       if (!isRetainerDeal(deal)) continue; // mandatory MBR only for retainers
