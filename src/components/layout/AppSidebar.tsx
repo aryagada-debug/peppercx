@@ -38,6 +38,7 @@ const routePrefetch: Record<string, () => Promise<unknown>> = {
   "/slack-review": () => import("@/pages/SlackReview"),
   "/seo-kras": () => import("@/pages/SEOKRAs"),
   "/client-one-on-ones": () => import("@/pages/ClientOneOnOnes"),
+  "/portfolio-update": () => import("@/pages/PortfolioUpdate"),
 };
 const prefetched = new Set<string>();
 const prefetchRoute = (to: string) => {
@@ -65,6 +66,7 @@ const navSections = [
       { to: "/people-ops", icon: Users, label: "People Ops", routeKey: "people-ops" },
       { to: "/seo-kras", icon: BarChart3, label: "SEO KRAs", routeKey: "settings", adminOnly: true },
       { to: "/client-one-on-ones", icon: MessageCircle, label: "Client 1-1s", routeKey: "settings", adminOnly: true },
+      { to: "/portfolio-update", icon: FileText, label: "Portfolio Update", routeKey: "settings", adminOnly: true },
     ],
   },
   {
