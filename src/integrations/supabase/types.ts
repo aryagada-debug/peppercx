@@ -1559,6 +1559,66 @@ export type Database = {
         }
         Relationships: []
       }
+      portfolio_updates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          deal_id: string
+          id: string
+          metrics: Json
+          month: string
+          narrative: Json
+          rgy_status: string
+          submitted_by: string
+          tab: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          deal_id: string
+          id?: string
+          metrics?: Json
+          month: string
+          narrative?: Json
+          rgy_status?: string
+          submitted_by?: string
+          tab: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          deal_id?: string
+          id?: string
+          metrics?: Json
+          month?: string
+          narrative?: Json
+          rgy_status?: string
+          submitted_by?: string
+          tab?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portfolio_updates_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals_unified"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portfolio_updates_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "staffing_deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
