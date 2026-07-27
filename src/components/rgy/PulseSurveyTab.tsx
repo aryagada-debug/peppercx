@@ -924,6 +924,15 @@ export default function PulseSurveyTab({
                   <SelectItem value="__new__">➕ New campaign…</SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={sendMode} onValueChange={(v) => setSendMode(v as any)}>
+                <SelectTrigger className="h-8 w-[180px] text-xs">
+                  <SelectValue placeholder="Send mode" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="in_app">Pepper survey link</SelectItem>
+                  <SelectItem value="google_form">Google Form</SelectItem>
+                </SelectContent>
+              </Select>
               <Button
               size="sm"
               onClick={() => sendMut.mutate()}
@@ -931,7 +940,7 @@ export default function PulseSurveyTab({
               className="h-8 gap-1.5"
             >
               {sendMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-              Send surveys
+              {sendMode === "google_form" ? "Send Google Form" : "Send surveys"}
               </Button>
             </div>
           </div>
