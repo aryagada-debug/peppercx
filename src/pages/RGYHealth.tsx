@@ -1766,11 +1766,42 @@ export default function RGYHealth() {
                           worst === "Y" ? "bg-warning/10 hover:bg-warning/15" :
                           worst === "G" ? "bg-positive/10 hover:bg-positive/15" :
                           "";
+                        const hasIssueContent = !!((deal.rgy_issue_details || "").trim() || (deal.rgy_action_plan || "").trim());
+                        const isExpanded = expandedIssues.has(deal.id);
+                        const visibleColCount =
+                          (isColVisible("account") ? 1 : 0) +
+                          (isColVisible("deal_name") ? 1 : 0) +
+                          (isColVisible("deal_id") ? 1 : 0) +
+                          (isColVisible("deal_status") ? 1 : 0) +
+                          1 /* Mark RGY */ +
+                          (isColVisible("overall_rgy") ? 1 : 0) +
+                          DIMENSIONS.filter(d => isColVisible(d.key)).length +
+                          (isAdminPersona && isColVisible("updated_at") ? 1 : 0) +
+                          (isAdminPersona && isColVisible("updated_by") ? 1 : 0);
+                        const nonGreenDims = DIMENSIONS
+                          .map(d => ({ key: d.key, label: d.label, val: (deal[d.key as keyof DealWithRGY] as string) || "" }))
+                          .filter(d => d.val === "R" || d.val === "Y");
                         return (
-                          <tr key={deal.id} className={cn("border-b border-border/50 transition-colors", rowTint || "hover:bg-accent/10")}>
+                          <React.Fragment key={deal.id}>
+                          <tr className={cn("border-b border-border/50 transition-colors", rowTint || "hover:bg-accent/10")}>
                             {isColVisible("account") && (
                               <td className="py-2 px-3">
-                                <span className="text-xs font-medium text-foreground truncate max-w-[140px] block" title={deal.account}>{deal.account}</span>
+                                <div className="flex items-center gap-1.5">
+                                  {hasIssueContent ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleIssueExpanded(deal.id)}
+                                      className="h-4 w-4 shrink-0 inline-flex items-center justify-center rounded hover:bg-accent/60 text-muted-foreground"
+                                      aria-label={isExpanded ? "Hide issue" : "Show issue"}
+                                      title={isExpanded ? "Hide issue" : "Show issue"}
+                                    >
+                                      {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                                    </button>
+                                  ) : (
+                                    <span className="h-4 w-4 shrink-0" />
+                                  )}
+                                  <span className="text-xs font-medium text-foreground truncate max-w-[140px] block" title={deal.account}>{deal.account}</span>
+                                </div>
                               </td>
                             )}
                             {isColVisible("deal_name") && (
@@ -1943,6 +1974,66 @@ export default function RGYHealth() {
                               </td>
                             )}
                           </tr>
+                          {isExpanded && hasIssueContent && (
+                            <tr className={cn("border-b border-border/50", rowTint)}>
+                              <td colSpan={visibleColCount} className="p-0">
+                                <div className="bg-secondary/40 border-t border-border/60 px-4 py-3">
+                                  <div className="flex items-start justify-between gap-3 mb-2">
+                                    <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-muted-foreground">
+                                      <span className="font-semibold text-foreground/80">Logged Issue</span>
+                                      {deal.rgy_issue_date && (
+                                        <span>· {format(new Date(deal.rgy_issue_date), "dd MMM yyyy")}</span>
+                                      )}
+                                      {deal.rgy_updated_by_name && (
+                                        <span>· by {deal.rgy_updated_by_name}</span>
+                                      )}
+                                    </div>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-6 text-[10px]"
+                                      onClick={() => setCombinedIssuesDeal(deal)}
+                                      disabled={!canEditRgy}
+                                    >
+                                      Edit issue
+                                    </Button>
+                                  </div>
+                                  {nonGreenDims.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mb-2">
+                                      {nonGreenDims.map(d => (
+                                        <Badge
+                                          key={d.key}
+                                          variant="outline"
+                                          className={cn(
+                                            "text-[10px] px-1.5 py-0 font-medium border",
+                                            d.val === "R" && "bg-destructive/15 text-destructive border-destructive/30",
+                                            d.val === "Y" && "bg-warning/15 text-warning border-warning/30",
+                                          )}
+                                        >
+                                          {d.label} · {d.val}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  )}
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {(deal.rgy_issue_details || "").trim() && (
+                                      <div>
+                                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Issue</div>
+                                        <p className="text-xs text-foreground whitespace-pre-wrap leading-snug">{deal.rgy_issue_details}</p>
+                                      </div>
+                                    )}
+                                    {(deal.rgy_action_plan || "").trim() && (
+                                      <div>
+                                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Action Plan</div>
+                                        <p className="text-xs text-foreground whitespace-pre-wrap leading-snug">{deal.rgy_action_plan}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                          </React.Fragment>
                         );
                       })}
                     </tbody>
