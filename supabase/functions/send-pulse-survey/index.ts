@@ -41,6 +41,31 @@ function surveyLinkFor(_req: Request, token: string): string {
   return `${PUBLIC_SURVEY_BASE}/survey/${token}`;
 }
 
+// Build a prefilled Google Form URL that embeds our tracking token in the
+// configured hidden entry field. Accepts either a full `form_url` (edit or
+// view URL) or a raw `form_id`.
+function buildGoogleFormLink(
+  cfg: { form_url: string; form_id: string; tracking_entry_id: string },
+  token: string,
+): string {
+  const raw = (cfg.form_url || "").trim();
+  const id = (cfg.form_id || "").trim();
+  let base = "";
+  if (raw) {
+    // Normalize any Google Form URL to the /viewform endpoint.
+    base = raw.replace(/\/edit(\?.*)?$/, "/viewform").replace(/\/formResponse(\?.*)?$/, "/viewform");
+    if (!/\/viewform$/.test(base) && !base.includes("/viewform?")) {
+      base = base.replace(/\/?$/, "/viewform");
+    }
+  } else if (id) {
+    base = `https://docs.google.com/forms/d/e/${id}/viewform`;
+  }
+  if (!base) return "";
+  const entry = cfg.tracking_entry_id.replace(/^entry\.?/, "");
+  const sep = base.includes("?") ? "&" : "?";
+  return `${base}${sep}usp=pp_url&entry.${entry}=${encodeURIComponent(token)}`;
+}
+
 function publicErrorMessage(error: unknown): string {
   const msg = error instanceof Error ? error.message : String(error || "unknown_error");
   if (msg === "central_mailbox_not_connected") return "central_mailbox_not_connected";
