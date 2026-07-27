@@ -299,6 +299,71 @@ function CentralMailboxCard() {
 // Tiny indirection so we don't have to import useCallback twice in this file.
 function useCallbackish<T extends (...args: any[]) => any>(fn: T) { return fn; }
 
+// ── People panel (admin) ───────────────────────────────────────────────────
+function PeoplePanel() {
+  const { people, assignments, deals, loading } = useStaffingQueries();
+  const { addPerson, updatePerson, deletePerson } = useStaffingMutations();
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
+
+  if (loading) {
+    return (
+      <div className="rounded-xl border border-border bg-card p-8 text-center">
+        <p className="text-sm text-muted-foreground">Loading people…</p>
+      </div>
+    );
+  }
+
+  const handleDelete = async () => {
+    if (!confirmDelete) return;
+    try {
+      await deletePerson(confirmDelete.id);
+      toast.success(`${confirmDelete.name} removed`);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to delete");
+    } finally {
+      setConfirmDelete(null);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <h2 className="text-base font-semibold text-foreground">People directory</h2>
+        <p className="text-xs text-muted-foreground mt-1">
+          Manage the reporting hierarchy, roles and capacity for everyone on the team. Changes here flow to Staffing, People Ops and every hierarchy-scoped view.
+        </p>
+      </div>
+      <PeopleReportingTable
+        people={people}
+        assignments={assignments}
+        deals={deals}
+        onAdd={addPerson}
+        onUpdate={updatePerson}
+        onRequestDelete={(p) => setConfirmDelete({ id: p.id, name: p.name })}
+      />
+      <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {confirmDelete?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Removes the person from the directory. Their staffing assignments will be unlinked. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
 // MBR reminders are now sent by the mbr.reminder_bopm_digest cron rule.
 
 // ── Staffing Exports panel ─────────────────────────────────────────────────
