@@ -61,6 +61,20 @@ function safeKeys(obj: Record<string, unknown>): string[] {
   return Object.keys(obj).slice(0, 60);
 }
 
+function collectTokenCandidates(answers: Record<string, unknown>): string[] {
+  const out: string[] = [];
+  const add = (v: unknown) => {
+    if (Array.isArray(v)) {
+      v.forEach(add);
+      return;
+    }
+    const s = String(v || "").trim();
+    if (/^[a-f0-9]{24,128}$/i.test(s)) out.push(s);
+  };
+  Object.values(answers).forEach(add);
+  return Array.from(new Set(out)).slice(0, 10);
+}
+
 function num(v: unknown, min: number, max: number): number | null {
   const n = typeof v === "string" ? Number(v) : (typeof v === "number" ? v : NaN);
   if (!Number.isFinite(n)) return null;
@@ -114,12 +128,30 @@ Deno.serve(async (req) => {
     }
 
     const tokenRaw = hasValue(body.token) ? body.token : pickMapped(body, answers, fieldMap, "tracking_token");
-    const token = String(firstValue(tokenRaw) || "").trim();
+    let token = String(firstValue(tokenRaw) || "").trim();
+    let tokenSource = hasValue(body.token) ? "top_level" : (fieldMap.tracking_token ? "field_map" : "none");
+    const candidates = !token ? collectTokenCandidates(answers) : [];
+    if (!token && candidates.length) {
+      for (const candidate of candidates) {
+        const { data: found, error: candidateErr } = await admin
+          .from("survey_invites")
+          .select("token")
+          .eq("token", candidate)
+          .maybeSingle();
+        if (candidateErr) throw candidateErr;
+        if (found?.token) {
+          token = found.token as string;
+          tokenSource = "answer_scan";
+          break;
+        }
+      }
+    }
     if (!token || token.length < 12) {
       console.warn("pulse_google_form_webhook_invalid_token", {
         request_id: requestId,
         has_top_level_token: hasValue(body.token),
         tracking_token_map: fieldMap.tracking_token || null,
+        token_candidates: candidates.length,
         answer_keys: safeKeys(answers),
       });
       return json({
@@ -128,6 +160,7 @@ Deno.serve(async (req) => {
         diagnostic: "Apps Script reached the webhook, but it did not send a valid tracking token. Map field_map.tracking_token to the exact Google Form question title, or send token as a top-level field.",
         request_id: requestId,
         expected_tracking_question: fieldMap.tracking_token || null,
+        token_candidates: candidates.length,
         answer_keys: safeKeys(answers),
       }, 400);
     }
@@ -175,6 +208,7 @@ Deno.serve(async (req) => {
         request_id: requestId,
         inviteId: invite.id,
         token_ok: true,
+        token_source: tokenSource,
         would_write_response: true,
         parsed: { nps, csat, has_comment: !!comment },
         missing_mapped: missingMapped,
@@ -193,7 +227,7 @@ Deno.serve(async (req) => {
       respondent_company: invite.account_snapshot || null,
       source: "google_form",
       submitted_at: now,
-      payload: { comment, answers, raw: body, diagnostics: { request_id: requestId, missing_mapped: missingMapped } },
+      payload: { comment, answers, raw: body, diagnostics: { request_id: requestId, missing_mapped: missingMapped, token_source: tokenSource } },
     });
     if (insErr) throw insErr;
 
