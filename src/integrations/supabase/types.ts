@@ -1718,6 +1718,39 @@ export type Database = {
         }
         Relationships: []
       }
+      pulse_google_form_config: {
+        Row: {
+          field_map: Json
+          form_id: string
+          form_url: string
+          id: string
+          tracking_entry_id: string
+          updated_at: string
+          updated_by: string | null
+          webhook_secret: string
+        }
+        Insert: {
+          field_map?: Json
+          form_id?: string
+          form_url?: string
+          id?: string
+          tracking_entry_id?: string
+          updated_at?: string
+          updated_by?: string | null
+          webhook_secret?: string
+        }
+        Update: {
+          field_map?: Json
+          form_id?: string
+          form_url?: string
+          id?: string
+          tracking_entry_id?: string
+          updated_at?: string
+          updated_by?: string | null
+          webhook_secret?: string
+        }
+        Relationships: []
+      }
       pulse_survey_config: {
         Row: {
           config: Json
@@ -3035,6 +3068,7 @@ export type Database = {
           senior_bopm: string
           sent_at: string | null
           sent_by: string | null
+          source: string
           stakeholder_id: string | null
           token: string
           updated_at: string
@@ -3060,6 +3094,7 @@ export type Database = {
           senior_bopm?: string
           sent_at?: string | null
           sent_by?: string | null
+          source?: string
           stakeholder_id?: string | null
           token: string
           updated_at?: string
@@ -3085,6 +3120,7 @@ export type Database = {
           senior_bopm?: string
           sent_at?: string | null
           sent_by?: string | null
+          source?: string
           stakeholder_id?: string | null
           token?: string
           updated_at?: string
@@ -3145,6 +3181,7 @@ export type Database = {
           respondent_email: string | null
           respondent_name: string | null
           respondent_role: string | null
+          source: string
           submitted_at: string
           wants_followup: string | null
         }
@@ -3171,6 +3208,7 @@ export type Database = {
           respondent_email?: string | null
           respondent_name?: string | null
           respondent_role?: string | null
+          source?: string
           submitted_at?: string
           wants_followup?: string | null
         }
@@ -3197,6 +3235,7 @@ export type Database = {
           respondent_email?: string | null
           respondent_name?: string | null
           respondent_role?: string | null
+          source?: string
           submitted_at?: string
           wants_followup?: string | null
         }
