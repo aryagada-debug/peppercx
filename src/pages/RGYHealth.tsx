@@ -1755,6 +1755,7 @@ export default function RGYHealth() {
                           <ColHeader
                             label="Overall RGY"
                             colKey="overall_rgy"
+                            sortKey="overall_rgy"
                             align="center"
                             sortState={{sortKey, sortDir}}
                             onSort={toggleSort}
