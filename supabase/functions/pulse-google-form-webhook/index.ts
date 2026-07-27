@@ -54,6 +54,15 @@ Deno.serve(async (req) => {
     const provided = String(body.secret || req.headers.get("x-webhook-secret") || "").trim();
     if (provided !== secret) return json({ error: "invalid_secret" }, 401);
 
+    const fieldMap = (cfg?.field_map && typeof cfg.field_map === "object")
+      ? cfg.field_map as Record<string, string>
+      : {};
+
+    // Diagnostic mode: allow a synthetic ping that only validates auth+config.
+    if (body.ping === true) {
+      return json({ ok: true, ping: true, has_field_map: Object.keys(fieldMap).length > 0 });
+    }
+
     const token = String(body.token || "").trim();
     if (!token || token.length < 12) return json({ error: "invalid_token" }, 400);
 
@@ -70,9 +79,28 @@ Deno.serve(async (req) => {
     }
 
     const answers = (body.answers && typeof body.answers === "object") ? body.answers as Record<string, unknown> : {};
-    const nps = num(body.nps, 0, 10);
-    const csat = num(body.csat, 1, 5);
-    const comment = body.comment != null ? String(body.comment).slice(0, 4000) : null;
+
+    // Prefer top-level fields, else fall back to answers[fieldMap[key]].
+    const pick = (key: "nps" | "csat" | "comment"): unknown => {
+      if (body[key] != null && body[key] !== "") return body[key];
+      const label = fieldMap[key];
+      if (label && answers[label] != null) return answers[label];
+      return null;
+    };
+    const nps = num(pick("nps"), 0, 10);
+    const csat = num(pick("csat"), 1, 5);
+    const commentRaw = pick("comment");
+    const comment = commentRaw != null ? String(commentRaw).slice(0, 4000) : null;
+
+    // Structured warning when a mapping was configured but the field is missing.
+    const missingMapped: string[] = [];
+    for (const key of ["nps", "csat", "comment"] as const) {
+      const label = fieldMap[key];
+      if (label && (answers[label] == null || answers[label] === "")) missingMapped.push(key);
+    }
+    if (missingMapped.length) {
+      console.warn("missing_mapped_field", { invite_id: invite.id, missing: missingMapped, answer_keys: Object.keys(answers) });
+    }
 
     const { error: insErr } = await admin.from("survey_responses").insert({
       invite_id: invite.id,
@@ -95,9 +123,10 @@ Deno.serve(async (req) => {
       })
       .eq("id", invite.id);
 
-    return json({ ok: true, inviteId: invite.id });
+    return json({ ok: true, inviteId: invite.id, missing_mapped: missingMapped });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    console.error("pulse-google-form-webhook error", msg);
     return json({ error: msg }, 500);
   }
 });
