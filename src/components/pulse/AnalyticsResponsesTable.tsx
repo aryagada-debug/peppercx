@@ -47,8 +47,6 @@ function fmtDate(v: string | null | undefined) {
 
 function deriveStatus(inv: InviteRow): { key: StatusKey; label: string } {
   if (inv.completed_at) return { key: "completed", label: "Completed" };
-  if (inv.source === "google_form" && inv.sent_at) return { key: "sent", label: "Awaiting sync" };
-  if (inv.opened_at) return { key: "opened", label: "Opened" };
   const es = (inv.email_status || "").toLowerCase();
   if (es === "failed" || es === "bounced" || es === "error") {
     // Gmail throttle/quota errors are transient — the message is typically
@@ -63,6 +61,8 @@ function deriveStatus(inv: InviteRow): { key: StatusKey; label: string } {
     if (isThrottle && inv.sent_at) return { key: "sent", label: "Sent" };
     return { key: "failed", label: "Failed" };
   }
+  if (inv.source === "google_form" && inv.sent_at) return { key: "sent", label: "Awaiting sync" };
+  if (inv.opened_at) return { key: "opened", label: "Opened" };
   if (inv.sent_at) return { key: "sent", label: "Sent" };
   return { key: "pending", label: "Pending" };
 }
