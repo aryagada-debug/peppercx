@@ -41,6 +41,31 @@ function surveyLinkFor(_req: Request, token: string): string {
   return `${PUBLIC_SURVEY_BASE}/survey/${token}`;
 }
 
+// Build a prefilled Google Form URL that embeds our tracking token in the
+// configured hidden entry field. Accepts either a full `form_url` (edit or
+// view URL) or a raw `form_id`.
+function buildGoogleFormLink(
+  cfg: { form_url: string; form_id: string; tracking_entry_id: string },
+  token: string,
+): string {
+  const raw = (cfg.form_url || "").trim();
+  const id = (cfg.form_id || "").trim();
+  let base = "";
+  if (raw) {
+    // Normalize any Google Form URL to the /viewform endpoint.
+    base = raw.replace(/\/edit(\?.*)?$/, "/viewform").replace(/\/formResponse(\?.*)?$/, "/viewform");
+    if (!/\/viewform$/.test(base) && !base.includes("/viewform?")) {
+      base = base.replace(/\/?$/, "/viewform");
+    }
+  } else if (id) {
+    base = `https://docs.google.com/forms/d/e/${id}/viewform`;
+  }
+  if (!base) return "";
+  const entry = cfg.tracking_entry_id.replace(/^entry\.?/, "");
+  const sep = base.includes("?") ? "&" : "?";
+  return `${base}${sep}usp=pp_url&entry.${entry}=${encodeURIComponent(token)}`;
+}
+
 function publicErrorMessage(error: unknown): string {
   const msg = error instanceof Error ? error.message : String(error || "unknown_error");
   if (msg === "central_mailbox_not_connected") return "central_mailbox_not_connected";
@@ -295,6 +320,7 @@ type SendBody = {
   excludeCcNames?: string[];
   campaignId?: string | null;
   ccAnirudh?: boolean;
+  mode?: "in_app" | "google_form";
 };
 
 const ANIRUDH_CC = "anirudh@peppercontent.io";
@@ -308,6 +334,24 @@ Deno.serve(async (req) => {
     if (!body.dealId) return json({ error: "missing_deal" }, 400);
     const recipients = (body.recipients || []).filter(r => r.email && /@/.test(r.email));
     if (recipients.length === 0) return json({ error: "no_recipients" }, 400);
+    const mode: "in_app" | "google_form" = body.mode === "google_form" ? "google_form" : "in_app";
+
+    // If Google Form mode, load config up-front so we can build prefilled URLs.
+    let googleForm: { form_url: string; form_id: string; tracking_entry_id: string } | null = null;
+    if (mode === "google_form") {
+      const { data: cfg } = await admin
+        .from("pulse_google_form_config")
+        .select("form_url, form_id, tracking_entry_id")
+        .eq("id", "default")
+        .maybeSingle();
+      const formUrl = (cfg?.form_url || "").trim();
+      const formId = (cfg?.form_id || "").trim();
+      const trackingEntry = (cfg?.tracking_entry_id || "").trim();
+      if ((!formUrl && !formId) || !trackingEntry) {
+        return json({ error: "google_form_not_configured" }, 400);
+      }
+      googleForm = { form_url: formUrl, form_id: formId, tracking_entry_id: trackingEntry };
+    }
 
     // Visibility check.
     const { data: vis } = await admin.rpc("visible_deal_ids_for_user", { _user_id: user.id });
@@ -392,7 +436,9 @@ Deno.serve(async (req) => {
 
     for (const rcp of recipients) {
       const inviteToken = randomToken();
-      const link = surveyLinkFor(req, inviteToken);
+      const link = mode === "google_form" && googleForm
+        ? buildGoogleFormLink(googleForm, inviteToken)
+        : surveyLinkFor(req, inviteToken);
       const inviteRow = {
         token: inviteToken,
         deal_id: deal.id,
@@ -409,6 +455,7 @@ Deno.serve(async (req) => {
         sent_by: user.id,
         email_status: "pending" as const,
         campaign_id: campaignId,
+        source: mode,
       };
       const { data: inserted, error: insErr } = await admin
         .from("survey_invites").insert(inviteRow).select("id").single();

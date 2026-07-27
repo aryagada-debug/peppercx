@@ -1,86 +1,56 @@
-# Portfolio Update Framework — filled file + in-app page
 
-## Part A — Filled xlsx (delivered now as artifact)
+## Goal
+Send NPS via your Google Form (https://forms.gle/xeV7YXrsB9gL8vgTA) while guaranteeing every submission maps back to the correct deal + recipient, using a unique token per invite and an Apps Script webhook on submit.
 
-Populate the uploaded workbook for the current reporting month (Nov-2026), one row per relevant deal per tab. All-open scope = deal_status in Active Deal, New Deal in SLA/PO, Deal Disputed, Deal in Renewal Process. Preserve purple header row and yellow example row; write real data starting row 4.
+## How mapping works
+1. You add one short-answer question to the Google Form titled **"Tracking ID"** (or similar). Recipients see a prefilled, read-only-looking value.
+2. For each POC we generate a unique token (already how `survey_invites.token` works) and build a prefilled Form URL:
+   `https://docs.google.com/forms/d/e/<FORM_ID>/viewform?usp=pp_url&entry.<TRACKING_ENTRY_ID>=<TOKEN>`
+3. Recipient submits. An Apps Script bound to the form fires on submit and POSTs the response to a new public edge function, which looks up the token in `survey_invites` and writes a `survey_responses` row tied to the correct `deal_id`.
 
-Per-tab row selection and column fills:
+## Changes
 
-**VSD tab** — one row per open deal (grouped by VSD).
-- Month = Nov-2026
-- Deal / Client = "{deal_name} / {account}"
-- Submitted By (VSD) = deal.vsd
-- RGY Status = overall RGY from latest `deal_rgy_weekly` (worst-of across dimensions → Red/Yellow/Green; blank if none)
-- NPS (latest) = latest `survey_responses.nps` for that deal
-- CSAT (latest) = latest `survey_responses.csat_avg` for that deal
-- Remaining KPI + narrative columns left blank (owner fills)
+### 1. Settings — Google Form config (admin only)
+In `src/pages/Settings.tsx` (or a small new card), add fields to store:
+- Google Form public URL
+- Form ID (parsed automatically)
+- Tracking entry ID (e.g. `entry.1234567890`)
+- Apps Script shared secret
 
-**US BOPM tab** — deals whose business_unit / geo is US (fallback: any deal where account country/region indicates US; if none reliably tagged, include all open deals owned by BOPMs with US in their profile — will use `staffing_deals.business_unit ILIKE '%US%'` OR `region ILIKE '%US%'`).
-- Submitted By (BOPM) = principal_bopm || senior_bopm || bopm (first non-empty)
-- RGY Status = same rollup
-- MBR Completion (%) = MBRs with status Done in last 3 months ÷ MBRs due in last 3 months from `mbr_entries`
-- Rest blank
+Stored in a new tiny table `public.pulse_google_form_config` (single row) with admin-only RLS. Secret stored server-side; UI shows masked.
 
-**SEO tab** — deals with SEO applicability (`deal_applicability` where capability = SEO, or `capability_line ILIKE '%SEO%'`).
-- Submitted By (SEO Head) = "Mayur" (constant per current org)
-- RGY Status = latest `capability_seo` dimension from `deal_rgy_weekly`
-- Rest blank
+### 2. New send path: "Send via Google Form"
+In `src/components/rgy/PulseSurveyTab.tsx`, add a second primary action alongside the existing "Send survey":
+- **Send Pepper survey** (existing in-app flow — unchanged)
+- **Send Google Form**
 
-**Creative tab** — deals with Creative/Content applicability.
-- Submitted By = "Sneha" (blank if unknown — leave blank rather than guess)
-- RGY Status = latest `capability_creative` dimension from `deal_rgy_weekly`
-- Rest blank
+The Google Form path reuses the same deal/contact selection, unique-contacts toggle, VSD/BOPM filters, and skip-deals-with-no-contacts logic. It creates `survey_invites` rows exactly as today (so Recent Invites, resend, and analytics keep working) but the email CTA points to the prefilled Google Form URL instead of `/survey/<token>`.
 
-Script: openpyxl load → for each tab, run scoped SQL → write rows from row 4 → save to `/mnt/documents/Portfolio_Update_Framework_Filled.xlsx` → emit `<presentation-artifact>`. No formula recalc needed (no formulas added).
+### 3. Edge function updates
+- `supabase/functions/send-pulse-survey/index.ts`: accept `mode: "in_app" | "google_form"`. In `google_form` mode, read the stored Form URL + tracking entry ID and build the prefilled URL per invite; pass it to the email template as the CTA.
+- New public function `supabase/functions/pulse-google-form-webhook/index.ts` (`verify_jwt=false`):
+  - Validates a shared-secret header against the stored secret.
+  - Body: `{ token, submittedAt, answers: {...} }`.
+  - Loads `survey_invites` by token; rejects if missing/expired.
+  - Inserts/updates a `survey_responses` row (deal_id from invite) and marks the invite `completed_at`.
+  - Best-effort: extract NPS/CSAT if the form has recognizable numeric fields (mapped via a small config in the same settings card: which Google field → nps / csat / comment). Everything else stored in `payload` JSON.
 
-## Part B — In-app page
+### 4. Apps Script (one-time, you paste into your form)
+The plan section for you will include a ready-to-paste `onFormSubmit` script that:
+- Reads the "Tracking ID" answer.
+- POSTs `{ token, answers, submittedAt }` with the shared-secret header to the new edge function URL.
+We surface the exact script + webhook URL + secret in the Settings card with a copy button so you paste it into Extensions → Apps Script on the form once.
 
-New route `/portfolio-update` (sidebar under Operations, group "Portfolio Update").
+### 5. Analytics
+No table changes needed — Google Form responses land in the same `survey_responses` table with the correct `deal_id`, so the existing Analytics → Responses table, per-deal drill-ins, unique-contacts filter, resend, and PNG export all work unchanged. Rows from Google will show a small "Google Form" badge (new `source` value on the invite/response).
 
-Access:
-- VSD tab: visible to admin + users whose person role matches VSD
-- US BOPM tab: admin + BOPMs on US deals
-- SEO tab: admin + SEO capability leads (Mayur / Vedanga / SEO group heads)
-- Creative tab: admin + Creative capability leads
-- Non-admins see only tabs they own; admins see all four
-
-UI:
-- Tabs component (VSD / US BOPM / SEO / Creative) with same column set as xlsx
-- Month selector (defaults to current month)
-- Rows auto-seeded from same queries as Part A on first open of a month, one row per relevant deal for the signed-in owner
-- Editable cells for narrative + KPI columns; RGY/NPS/CSAT/MBR% cells are read-only (auto-computed, refresh on load)
-- "Export to Excel" button reuses the same fill logic → downloads xlsx matching template layout
-- Save writes to new table `portfolio_updates`
-
-Data model — new migration:
-```
-portfolio_updates (
-  id uuid pk,
-  month date not null,             -- first of month
-  tab text not null,               -- vsd | us_bopm | seo | creative
-  deal_id text not null references staffing_deals(id) on delete cascade,
-  submitted_by text,
-  rgy_status text,                 -- snapshot at save
-  metrics jsonb default '{}',      -- nps, csat, mbr_pct, traffic_delta, etc.
-  narrative jsonb default '{}',    -- exec_summary, achievements, risks, support, priorities
-  created_by uuid, updated_by uuid,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now(),
-  unique (month, tab, deal_id)
-)
-```
-Grants: SELECT/INSERT/UPDATE/DELETE to authenticated + ALL to service_role. RLS: user can read/write rows for deals in `visible_deal_ids_for_user(auth.uid())`; admins read/write all.
-
-## Files
-
-- `/mnt/documents/Portfolio_Update_Framework_Filled.xlsx` (artifact)
-- New migration for `portfolio_updates`
-- `src/pages/PortfolioUpdate.tsx`
-- `src/components/portfolio/{VsdTab,UsBopmTab,SeoTab,CreativeTab,ExportButton}.tsx`
-- Shared `src/hooks/queries/usePortfolioRows.ts` (computes seed rows + merges saved edits)
-- Route + sidebar entry in `src/App.tsx`, `src/components/layout/AppSidebar.tsx`
+## Technical details
+- New table: `pulse_google_form_config` (single row, id fixed) — form_url, form_id, tracking_entry_id, secret_hash, field_map jsonb, updated_at. Admin-only RLS.
+- Column addition: `survey_invites.source text default 'in_app'` and `survey_responses.source text default 'in_app'` to distinguish channels.
+- Reuse existing `survey_invites.token` — no new token scheme.
+- Webhook is anonymous (Apps Script can't hold Supabase JWT); auth via shared secret header + token existence check.
+- No changes to the existing in-app survey flow (`/survey/<token>` still works for the "Send Pepper survey" button).
 
 ## Out of scope
-- Notifications / reminders for submitters
-- Historical backfill beyond current month
-- Approval workflow
+- Auto-cloning forms per deal.
+- Polling the Google Sheet (we use the on-submit webhook instead).

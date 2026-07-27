@@ -174,6 +174,113 @@ function NotificationsPanel() {
       </div>
       <CentralMailboxCard />
       <NotificationRulesCard />
+      <PulseGoogleFormCard />
+    </div>
+  );
+}
+
+// ── Pulse Google Form config card ─────────────────────────────────────────
+function PulseGoogleFormCard() {
+  const { isActuallyAdmin } = useUserRole();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [formUrl, setFormUrl] = useState("");
+  const [formId, setFormId] = useState("");
+  const [entryId, setEntryId] = useState("");
+  const [webhookSecret, setWebhookSecret] = useState("");
+
+  useEffect(() => {
+    if (!isActuallyAdmin) { setLoading(false); return; }
+    (async () => {
+      const { data } = await supabase
+        .from("pulse_google_form_config" as any)
+        .select("form_url, form_id, tracking_entry_id, webhook_secret")
+        .eq("id", "default")
+        .maybeSingle();
+      const row = data as any;
+      if (row) {
+        setFormUrl(row.form_url || "");
+        setFormId(row.form_id || "");
+        setEntryId(row.tracking_entry_id || "");
+        setWebhookSecret(row.webhook_secret || "");
+      }
+      setLoading(false);
+    })();
+  }, [isActuallyAdmin]);
+
+  if (!isActuallyAdmin) return null;
+
+  const save = async () => {
+    setSaving(true);
+    const { error } = await supabase
+      .from("pulse_google_form_config" as any)
+      .upsert({
+        id: "default",
+        form_url: formUrl.trim(),
+        form_id: formId.trim(),
+        tracking_entry_id: entryId.trim().replace(/^entry\.?/, ""),
+        webhook_secret: webhookSecret.trim(),
+      });
+    setSaving(false);
+    if (error) toast.error(error.message);
+    else toast.success("Google Form settings saved");
+  };
+
+  const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL as string;
+  const webhookUrl = `${supabaseUrl}/functions/v1/pulse-google-form-webhook`;
+
+  return (
+    <div className="border-t border-border pt-4 space-y-3">
+      <div>
+        <h3 className="text-sm font-semibold text-foreground">Pulse Google Form</h3>
+        <p className="text-[11px] text-muted-foreground mt-1">
+          When Pulse is sent in "Google Form" mode, every recipient gets a prefilled link so their submission is mapped back to the correct deal. Add a short-answer question on your form (e.g. "Tracking token"), then paste its <span className="font-mono">entry.XXXXX</span> id below.
+        </p>
+      </div>
+      {loading ? (
+        <p className="text-xs text-muted-foreground">Loading…</p>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="text-xs space-y-1">
+            <span className="text-muted-foreground">Google Form URL (viewform)</span>
+            <input value={formUrl} onChange={(e) => setFormUrl(e.target.value)}
+              placeholder="https://docs.google.com/forms/d/e/…/viewform"
+              className="w-full h-8 px-2 rounded border border-border bg-card text-xs" />
+          </label>
+          <label className="text-xs space-y-1">
+            <span className="text-muted-foreground">Form ID (optional if URL set)</span>
+            <input value={formId} onChange={(e) => setFormId(e.target.value)}
+              placeholder="1FAIpQLSc…"
+              className="w-full h-8 px-2 rounded border border-border bg-card text-xs" />
+          </label>
+          <label className="text-xs space-y-1">
+            <span className="text-muted-foreground">Tracking entry ID</span>
+            <input value={entryId} onChange={(e) => setEntryId(e.target.value)}
+              placeholder="entry.1234567890"
+              className="w-full h-8 px-2 rounded border border-border bg-card text-xs" />
+          </label>
+          <label className="text-xs space-y-1">
+            <span className="text-muted-foreground">Webhook shared secret</span>
+            <input value={webhookSecret} onChange={(e) => setWebhookSecret(e.target.value)}
+              placeholder="paste a long random string"
+              className="w-full h-8 px-2 rounded border border-border bg-card text-xs font-mono" />
+          </label>
+          <label className="text-xs space-y-1 sm:col-span-2">
+            <span className="text-muted-foreground">Apps Script webhook URL</span>
+            <input value={webhookUrl} readOnly
+              className="w-full h-8 px-2 rounded border border-border bg-secondary/40 text-xs font-mono" />
+            <span className="block text-[11px] text-muted-foreground">
+              In your form's Apps Script, POST each submission to this URL as JSON with fields <span className="font-mono">{"{ secret, token, nps, csat, comment, answers }"}</span>. <span className="font-mono">token</span> = the answer to the tracking-token question.
+            </span>
+          </label>
+        </div>
+      )}
+      <div>
+        <button onClick={save} disabled={saving || loading}
+          className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50">
+          {saving ? "Saving…" : "Save Google Form settings"}
+        </button>
+      </div>
     </div>
   );
 }

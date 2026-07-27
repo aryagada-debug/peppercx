@@ -144,6 +144,7 @@ export default function PulseSurveyTab({
   const [newCampaignDesc, setNewCampaignDesc] = useState("");
   const [ccAnirudh, setCcAnirudh] = useState<boolean>(true);
   const [uniqueOnly, setUniqueOnly] = useState<boolean>(false);
+  const [sendMode, setSendMode] = useState<"in_app" | "google_form">("in_app");
 
   const { data: campaigns = [] } = useQuery({
     queryKey: ["pulse-campaigns"],
@@ -570,6 +571,7 @@ export default function PulseSurveyTab({
           excludeCcNames: removedCc[d.deal_id] || [],
           campaignId: campaignId !== "none" ? campaignId : null,
           ccAnirudh,
+          mode: sendMode,
         };
         calls.push(
           supabase.functions.invoke("send-pulse-survey", { body }).then(({ data, error }) => {
@@ -922,6 +924,15 @@ export default function PulseSurveyTab({
                   <SelectItem value="__new__">➕ New campaign…</SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={sendMode} onValueChange={(v) => setSendMode(v as any)}>
+                <SelectTrigger className="h-8 w-[180px] text-xs">
+                  <SelectValue placeholder="Send mode" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="in_app">Pepper survey link</SelectItem>
+                  <SelectItem value="google_form">Google Form</SelectItem>
+                </SelectContent>
+              </Select>
               <Button
               size="sm"
               onClick={() => sendMut.mutate()}
@@ -929,7 +940,7 @@ export default function PulseSurveyTab({
               className="h-8 gap-1.5"
             >
               {sendMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-              Send surveys
+              {sendMode === "google_form" ? "Send Google Form" : "Send surveys"}
               </Button>
             </div>
           </div>
