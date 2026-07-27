@@ -962,11 +962,11 @@ Deno.serve(async (req) => {
             .in("deal_id", myIds)
             .gte("week_start", `${ym}-01`)
             .lt("week_start", nextMonthStart);
-          const done = new Set<string>(
-            (entries || []).filter((e: any) => ["Done", "Not Required"].includes(e.status)).map((e: any) => e.deal_id),
+          const pendingIds = new Set<string>(
+            (entries || []).filter((e: any) => e.status === "Pending").map((e: any) => e.deal_id),
           );
           realRows = myDeals
-            .filter((d: any) => !done.has(d.id))
+            .filter((d: any) => pendingIds.has(d.id))
             .map((d: any) => ({
               account: d.account || "",
               deal: d.deal_name || "",

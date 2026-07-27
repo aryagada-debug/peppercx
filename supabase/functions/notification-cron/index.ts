@@ -147,10 +147,10 @@ Deno.serve(async (req) => {
           .in("deal_id", ids)
           .gte("week_start", thisMonthStart)
           .lt("week_start", nextMonthStart);
-        const done = new Set<string>(
-          (entries || []).filter((e: any) => ["Done", "Not Required"].includes(e.status)).map((e: any) => e.deal_id),
+        const pendingIds = new Set<string>(
+          (entries || []).filter((e: any) => e.status === "Pending").map((e: any) => e.deal_id),
         );
-        const pendingDeals = dealsArr.filter((d: any) => !done.has(d.id));
+        const pendingDeals = dealsArr.filter((d: any) => pendingIds.has(d.id));
         const buckets = await groupByBopm(admin, pendingDeals);
         const ordinal = "final";
         const events: any[] = [];
