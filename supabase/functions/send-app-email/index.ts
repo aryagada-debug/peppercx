@@ -928,25 +928,112 @@ Deno.serve(async (req) => {
       if (digestEvent) {
         const now = new Date();
         const prev = new Date(now.getUTCFullYear(), now.getUTCMonth() - 1, 1);
-        const mbrMonth = prev.toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+        // Digests now check the CURRENT month for MBR; keep the label current too.
+        const mbrMonth = now.toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
         const currentMonth = now.toLocaleString("en-US", { month: "long", timeZone: "UTC" });
         const weekLabel = `Week of ${now.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}`;
+        const lastDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate();
+        const daysRemainingNow = String(Math.max(0, lastDay - now.getUTCDate()));
+
+        // Resolve real applicable rows for the sample BOPM (Rishabh Agarwal).
+        const SAMPLE_BOPM = "Rishabh Agarwal";
+        const ACTIVE_STATUSES = ["Active Deal", "New Deal in SLA/PO", "Deal Disputed", "Deal in Renewal Process"];
+        const splitNames = (v: string | null | undefined) =>
+          String(v || "").split(/[,/]/).map((s) => s.trim().toLowerCase()).filter((s) => s.length > 1);
+        const targetLc = SAMPLE_BOPM.toLowerCase();
+        const { data: allDeals } = await admin
+          .from("staffing_deals")
+          .select("id, account, deal_name, vsd, principal_bopm, senior_bopm, bopm, deal_status")
+          .in("deal_status", ACTIVE_STATUSES);
+        const myDeals = (allDeals || []).filter((d: any) => {
+          const names = [...splitNames(d.bopm), ...splitNames(d.senior_bopm), ...splitNames(d.principal_bopm)];
+          return names.includes(targetLc);
+        });
+        const myIds = myDeals.map((d: any) => d.id);
+
+        let realRows: Array<Record<string, string>> = [];
+        if (digestEvent === "mbr_bopm_digest" && myIds.length) {
+          const ym = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+          const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+          const nextMonthStart = `${nextMonth.getUTCFullYear()}-${String(nextMonth.getUTCMonth() + 1).padStart(2, "0")}-01`;
+          const { data: entries } = await admin
+            .from("mbr_entries")
+            .select("deal_id, status, week_start")
+            .in("deal_id", myIds)
+            .gte("week_start", `${ym}-01`)
+            .lt("week_start", nextMonthStart);
+          const done = new Set<string>(
+            (entries || []).filter((e: any) => ["Done", "Not Required"].includes(e.status)).map((e: any) => e.deal_id),
+          );
+          realRows = myDeals
+            .filter((d: any) => !done.has(d.id))
+            .map((d: any) => ({
+              account: d.account || "",
+              deal: d.deal_name || "",
+              month: mbrMonth,
+              link: `${APP_ORIGIN}/mbr?deal=${encodeURIComponent(d.id)}`,
+            }));
+        } else if (digestEvent === "rgy_bopm_digest" && myIds.length) {
+          const cutoffIso = new Date(Date.now() - 7 * 86400 * 1000).toISOString().slice(0, 10);
+          const { data: rgyRows } = await admin
+            .from("deal_rgy_weekly")
+            .select("deal_id, week_start")
+            .in("deal_id", myIds)
+            .order("week_start", { ascending: false });
+          const latest = new Map<string, string>();
+          for (const r of (rgyRows || []) as any[]) {
+            if (!latest.has(r.deal_id)) latest.set(r.deal_id, r.week_start);
+          }
+          realRows = myDeals
+            .filter((d: any) => {
+              const ws = latest.get(d.id);
+              return !ws || ws < cutoffIso;
+            })
+            .map((d: any) => ({
+              account: d.account || "",
+              deal: d.deal_name || "",
+              rgy: "-",
+              last_updated: latest.get(d.id) || "Never",
+            }));
+        } else if (digestEvent === "nps_bopm_digest" && myIds.length) {
+          const { data: invites } = await admin
+            .from("survey_invites")
+            .select("deal_id, recipient_name, recipient_email, sent_at, completed_at, account_snapshot")
+            .in("deal_id", myIds)
+            .not("sent_at", "is", null)
+            .is("completed_at", null);
+          const dealById = new Map(myDeals.map((d: any) => [d.id, d]));
+          realRows = (invites || []).map((i: any) => {
+            const d: any = dealById.get(i.deal_id) || {};
+            const sent = i.sent_at ? new Date(i.sent_at) : null;
+            const daysOut = sent ? Math.floor((Date.now() - sent.getTime()) / 86400000) : 0;
+            return {
+              account: d.account || i.account_snapshot || "",
+              poc_name: i.recipient_name || "",
+              poc_email: i.recipient_email || "",
+              sent_date: sent ? sent.toISOString().slice(0, 10) : "",
+              days_outstanding: String(daysOut),
+            };
+          });
+        }
+
         const samplePayload: Record<string, unknown> = {
-          bopm_name: "Rishabh Agarwal",
+          bopm_name: SAMPLE_BOPM,
           vsd_name: "",
         };
+        const usingSample = realRows.length === 0;
         if (digestEvent === "mbr_bopm_digest") {
           Object.assign(samplePayload, {
             mbr_month: mbrMonth,
             current_month: currentMonth,
-            days_remaining: "7",
+            days_remaining: daysRemainingNow,
             reminder_ordinal: "second",
-            rows: [
+            rows: usingSample ? [
               { account: "Zo Beauty", deal: "SEO/GEO + Content Mandate", month: mbrMonth },
               { account: "Pidilite", deal: "Content Retainer - FY25", month: mbrMonth },
               { account: "Cream City Mortgage", deal: "SEO Retainer", month: mbrMonth },
               { account: "Lifescan (OneTouch)", deal: "Content + SEO Mandate", month: mbrMonth },
-            ],
+            ] : realRows,
           });
         } else if (digestEvent === "rgy_bopm_digest") {
           const daysAgo = (n: number) => {
@@ -955,25 +1042,27 @@ Deno.serve(async (req) => {
           };
           Object.assign(samplePayload, {
             week_label: weekLabel,
-            rows: [
+            rows: usingSample ? [
               { account: "Zo Beauty", deal: "SEO/GEO + Content Mandate", rgy: "R", last_updated: daysAgo(12) },
               { account: "Pidilite", deal: "Content Retainer - FY25", rgy: "Y", last_updated: daysAgo(9) },
               { account: "Cream City Mortgage", deal: "SEO Retainer", rgy: "R", last_updated: daysAgo(21) },
               { account: "Lifescan (OneTouch)", deal: "Content + SEO Mandate", rgy: "Y", last_updated: "Never" },
-            ],
+            ] : realRows,
           });
         } else {
           const isoDaysAgo = (n: number) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
-          const rows = [
+          const sampleRows = [
             { account: "Zo Beauty", poc_name: "Aakash Mehta", poc_email: "aakash@zobeauty.com", sent_date: isoDaysAgo(11), days_outstanding: "11" },
             { account: "Zo Beauty", poc_name: "Priya Shah", poc_email: "priya@zobeauty.com", sent_date: isoDaysAgo(11), days_outstanding: "11" },
             { account: "Pidilite", poc_name: "Rahul Nair", poc_email: "rahul.nair@pidilite.com", sent_date: isoDaysAgo(6), days_outstanding: "6" },
             { account: "Cream City Mortgage", poc_name: "Kevin O'Connor", poc_email: "kevin@creamcity.com", sent_date: isoDaysAgo(9), days_outstanding: "9" },
             { account: "Lifescan (OneTouch)", poc_name: "Meera Iyer", poc_email: "meera@onetouch.com", sent_date: isoDaysAgo(4), days_outstanding: "4" },
           ];
+          const rows = usingSample ? sampleRows : realRows;
+          const accountCount = new Set(rows.map((r: any) => r.account)).size;
           Object.assign(samplePayload, {
             poc_count: rows.length,
-            account_count: 4,
+            account_count: accountCount,
             rows,
           });
         }
@@ -983,7 +1072,7 @@ Deno.serve(async (req) => {
           payload: samplePayload,
         } as SendInput);
         if (!built) return json({ error: "digest_render_failed" }, 500);
-        const testSubject = `[TEST] ${built.subject}`;
+        const testSubject = `[TEST${usingSample ? " · sample data" : ""}] ${built.subject}`;
         try {
           const { token, email: fromEmail } = await getCentralToken(admin);
           if (!fromEmail) return json({ error: "central_mailbox_missing_email" }, 412);
