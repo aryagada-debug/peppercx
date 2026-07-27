@@ -53,6 +53,7 @@ export type ResponseRow = {
   respondent_name: string | null;
   respondent_email: string | null;
   payload: any;
+  source: string | null;
 };
 
 export type CapabilityRow = {
@@ -139,7 +140,7 @@ export function usePulseAnalyticsData(filters: AnalyticsFilters, enabled: boolea
     queryFn: async () => {
       let q = supabase
         .from("survey_responses")
-        .select("id, invite_id, deal_id, submitted_at, nps, csat_avg, ces, renew, mood, churn_risk, respondent_name, respondent_email, payload")
+        .select("id, invite_id, deal_id, submitted_at, nps, csat_avg, ces, renew, mood, churn_risk, respondent_name, respondent_email, payload, source")
         .order("submitted_at", { ascending: false })
         .limit(5000);
       if (filters.startDate) q = q.gte("submitted_at", filters.startDate);

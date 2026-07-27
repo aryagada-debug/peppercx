@@ -34,6 +34,7 @@ type Row = {
   payload: any | null;
   has_response: boolean;
   duplicates: number;
+  source: string | null;
 };
 
 function fmtDate(v: string | null | undefined) {
@@ -145,6 +146,7 @@ export function AnalyticsResponsesTable({
         payload: r?.payload ?? null,
         has_response: !!r,
         duplicates: 0,
+        source: r?.source ?? null,
       };
     });
   }, [invites, responses]);
@@ -311,6 +313,7 @@ export function AnalyticsResponsesTable({
                 <Th onClick={() => toggleSort("completed_at")}>Completed</Th>
                 <Th onClick={() => toggleSort("respondent")}>Respondent</Th>
                 <Th onClick={() => toggleSort("campaign")}>Campaign</Th>
+                <Th>Source</Th>
                 <Th onClick={() => toggleSort("nps")} className="text-right">NPS</Th>
                 <Th onClick={() => toggleSort("csat")} className="text-right">CSAT</Th>
                 <Th>Response</Th>
@@ -373,6 +376,20 @@ export function AnalyticsResponsesTable({
                   <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{fmtDate(r.completed_at)}</td>
                   <td className="px-3 py-2 max-w-[180px] truncate" title={r.respondent}>{r.respondent || "—"}</td>
                   <td className="px-3 py-2 max-w-[160px] truncate" title={r.campaign}>{r.campaign || "—"}</td>
+                  <td className="px-3 py-2">
+                    {r.has_response ? (
+                      <span className={cn(
+                        "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] border font-medium",
+                        r.source === "google_form"
+                          ? "bg-violet-100 text-violet-700 border-violet-200"
+                          : "bg-secondary text-muted-foreground border-border",
+                      )}>
+                        {r.source === "google_form" ? "Google Form" : "App"}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-right">{r.nps ?? "—"}</td>
                   <td className="px-3 py-2 text-right">{r.csat ?? "—"}</td>
                   <td className="px-3 py-2">
@@ -404,7 +421,7 @@ export function AnalyticsResponsesTable({
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={12} className="px-3 py-8 text-center text-muted-foreground">No invites for current filters.</td></tr>
+                <tr><td colSpan={13} className="px-3 py-8 text-center text-muted-foreground">No invites for current filters.</td></tr>
               )}
             </tbody>
           </table>

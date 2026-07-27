@@ -184,17 +184,19 @@ function PulseGoogleFormCard() {
   const { isActuallyAdmin } = useUserRole();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [formUrl, setFormUrl] = useState("");
   const [formId, setFormId] = useState("");
   const [entryId, setEntryId] = useState("");
   const [webhookSecret, setWebhookSecret] = useState("");
+  const [fieldMapJson, setFieldMapJson] = useState("{}");
 
   useEffect(() => {
     if (!isActuallyAdmin) { setLoading(false); return; }
     (async () => {
       const { data } = await supabase
         .from("pulse_google_form_config" as any)
-        .select("form_url, form_id, tracking_entry_id, webhook_secret")
+        .select("form_url, form_id, tracking_entry_id, webhook_secret, field_map")
         .eq("id", "default")
         .maybeSingle();
       const row = data as any;
@@ -203,6 +205,7 @@ function PulseGoogleFormCard() {
         setFormId(row.form_id || "");
         setEntryId(row.tracking_entry_id || "");
         setWebhookSecret(row.webhook_secret || "");
+        setFieldMapJson(JSON.stringify(row.field_map || {}, null, 2));
       }
       setLoading(false);
     })();
@@ -211,6 +214,14 @@ function PulseGoogleFormCard() {
   if (!isActuallyAdmin) return null;
 
   const save = async () => {
+    let fieldMap: any = {};
+    try {
+      fieldMap = fieldMapJson.trim() ? JSON.parse(fieldMapJson) : {};
+      if (typeof fieldMap !== "object" || Array.isArray(fieldMap)) throw new Error("Must be a JSON object");
+    } catch (e: any) {
+      toast.error(`Field map JSON invalid: ${e?.message || "parse error"}`);
+      return;
+    }
     setSaving(true);
     const { error } = await supabase
       .from("pulse_google_form_config" as any)
@@ -220,6 +231,7 @@ function PulseGoogleFormCard() {
         form_id: formId.trim(),
         tracking_entry_id: entryId.trim().replace(/^entry\.?/, ""),
         webhook_secret: webhookSecret.trim(),
+        field_map: fieldMap,
       });
     setSaving(false);
     if (error) toast.error(error.message);
@@ -228,6 +240,28 @@ function PulseGoogleFormCard() {
 
   const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL as string;
   const webhookUrl = `${supabaseUrl}/functions/v1/pulse-google-form-webhook`;
+
+  const sendTestWebhook = async () => {
+    setTesting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("pulse-google-form-webhook", {
+        body: { secret: webhookSecret.trim(), ping: true },
+      });
+      if (error) throw error;
+      const d = data as any;
+      if (d?.ok) {
+        toast.success(d.has_field_map
+          ? "Webhook reachable — secret OK, field_map configured"
+          : "Webhook reachable — secret OK (field_map empty)");
+      } else {
+        toast.error(`Webhook returned: ${d?.error || "unknown"}`);
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Test failed");
+    } finally {
+      setTesting(false);
+    }
+  };
 
   return (
     <div className="border-t border-border pt-4 space-y-3">
@@ -273,12 +307,26 @@ function PulseGoogleFormCard() {
               In your form's Apps Script, POST each submission to this URL as JSON with fields <span className="font-mono">{"{ secret, token, nps, csat, comment, answers }"}</span>. <span className="font-mono">token</span> = the answer to the tracking-token question.
             </span>
           </label>
+          <label className="text-xs space-y-1 sm:col-span-2">
+            <span className="text-muted-foreground">Field map (JSON) — maps <span className="font-mono">nps/csat/comment</span> to Google Form question titles</span>
+            <textarea value={fieldMapJson} onChange={(e) => setFieldMapJson(e.target.value)}
+              rows={5}
+              placeholder={`{\n  "nps": "How likely are you to recommend Pepper?",\n  "csat": "Overall satisfaction",\n  "comment": "Any other feedback?"\n}`}
+              className="w-full px-2 py-1.5 rounded border border-border bg-card text-xs font-mono" />
+            <span className="block text-[11px] text-muted-foreground">
+              Used as a fallback when the Apps Script POST doesn't include top-level <span className="font-mono">nps/csat/comment</span>. Question titles must match the form exactly.
+            </span>
+          </label>
         </div>
       )}
-      <div>
+      <div className="flex items-center gap-2">
         <button onClick={save} disabled={saving || loading}
           className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50">
           {saving ? "Saving…" : "Save Google Form settings"}
+        </button>
+        <button onClick={sendTestWebhook} disabled={testing || loading || !webhookSecret.trim()}
+          className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-secondary disabled:opacity-50">
+          {testing ? "Testing…" : "Send test webhook"}
         </button>
       </div>
     </div>
