@@ -36,7 +36,11 @@ type Row = {
   duplicates: number;
   source: string | null;
   sync_note: string | null;
+  awaiting_sync: boolean;
+  stuck: boolean;
 };
+
+const STUCK_MS = 48 * 3600 * 1000;
 
 function fmtDate(v: string | null | undefined) {
   if (!v) return "—";
@@ -128,6 +132,19 @@ export function AnalyticsResponsesTable({
     return invites.map((inv) => {
       const r = respByInvite.get(inv.id) || null;
       const status = deriveStatus(inv);
+      const awaiting_sync =
+        inv.source === "google_form" && !!inv.sent_at && !inv.completed_at && !r;
+      const ageMs = inv.sent_at ? Date.now() - new Date(inv.sent_at).getTime() : 0;
+      const stuck = awaiting_sync && ageMs > STUCK_MS;
+      const days = Math.floor(ageMs / 86400000);
+      const baseSync = awaiting_sync
+        ? "Email sent. Waiting for Google Form Apps Script webhook to send the submitted response back."
+        : null;
+      const sync_note = baseSync
+        ? stuck
+          ? `${baseSync} · Sent ${days} day${days === 1 ? "" : "s"} ago — try resending.`
+          : baseSync
+        : null;
       return {
         id: inv.id,
         deal_id: inv.deal_id || "",
@@ -149,9 +166,9 @@ export function AnalyticsResponsesTable({
         has_response: !!r,
         duplicates: 0,
         source: r?.source ?? inv.source ?? null,
-        sync_note: inv.source === "google_form" && !r && inv.sent_at
-          ? "Email sent. Waiting for Google Form Apps Script webhook to send the submitted response back."
-          : null,
+        sync_note,
+        awaiting_sync,
+        stuck,
       };
     });
   }, [invites, responses]);
@@ -201,6 +218,11 @@ export function AnalyticsResponsesTable({
 
   const failedVisibleIds = useMemo(
     () => filtered.filter((r) => r.status === "failed").map((r) => r.id),
+    [filtered],
+  );
+
+  const stuckVisibleIds = useMemo(
+    () => filtered.filter((r) => r.stuck).map((r) => r.id),
     [filtered],
   );
 
@@ -298,6 +320,17 @@ export function AnalyticsResponsesTable({
           >
             {bulkResending ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Send className="h-3.5 w-3.5 mr-1" />}
             Resend failed ({failedVisibleIds.length})
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mr-2"
+            disabled={bulkResending || stuckVisibleIds.length === 0}
+            onClick={() => runResend(stuckVisibleIds, "bulk")}
+            title="Resend Google Form invites that have been awaiting sync for more than 48 hours"
+          >
+            {bulkResending ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Send className="h-3.5 w-3.5 mr-1" />}
+            Resend stuck syncs ({stuckVisibleIds.length})
           </Button>
           <Button variant="outline" size="sm" onClick={exportCsv}>
             <Download className="h-3.5 w-3.5 mr-1" /> Export CSV
@@ -418,12 +451,18 @@ export function AnalyticsResponsesTable({
                       className="h-6 px-2"
                       disabled={r.status === "completed" || resending.has(r.id) || !r.recipient_email}
                       onClick={() => runResend([r.id], "row")}
-                      title={r.status === "completed" ? "Already completed" : "Re-send via Resend"}
+                      title={
+                        r.status === "completed"
+                          ? "Already completed"
+                          : r.awaiting_sync
+                            ? "Resend Google Form invite / retry sync"
+                            : "Re-send via Resend"
+                      }
                     >
                       {resending.has(r.id)
                         ? <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                         : <Send className="h-3 w-3 mr-1" />}
-                      Resend
+                      {r.stuck ? "Retry sync" : "Resend"}
                     </Button>
                   </td>
                 </tr>
