@@ -1,32 +1,34 @@
-Evidence checked:
-- The `pulse-google-form-webhook` function has only boot/shutdown logs and no submission/error logs.
-- Function HTTP logs show no calls to this webhook in the last 48 hours.
-- The Google Form config row is present with a form URL, tracking entry ID, and webhook secret, but `field_map` is empty.
-- Recent Google Form invites were sent, but none have `completed_at` set and no matching Google Form responses exist.
+# Resend stuck Google Form invites
 
-Plan:
-1. Add a clear diagnostics section in Settings → Notifications for the Google Form integration:
-   - Show webhook health/config status.
-   - Add a “Test webhook” action that sends a synthetic request and confirms the backend can write a test-mapped response path without relying on Google Forms.
-   - Show actionable error states: “Apps Script not calling webhook”, “missing token”, “invalid secret”, “field mapping incomplete”.
+## Goal
+Give users a one-click way to re-send the Google Form invite email (and refresh sync state) for invites that have been "Awaiting sync" for too long — plus a bulk action to handle all stuck ones at once.
 
-2. Harden `pulse-google-form-webhook`:
-   - Log every incoming request with safe metadata only.
-   - Accept token from either top-level `token` or mapped Google Form answers.
-   - Use `field_map.tracking_token` as a first-class mapping key, not only `nps`, `csat`, and `comment`.
-   - Return structured diagnostics for missing token / missing mapped fields.
-   - Store raw Google Form answers even if optional score mappings are incomplete, as long as the tracking token maps to a valid invite.
+## What counts as "stuck"
+An invite is `Awaiting sync` when: `source = 'google_form'`, `sent_at` is set, `completed_at` is null, and no `survey_responses` row exists.
+Threshold for "stuck": `sent_at` older than **48 hours**. (Rationale: most respondents open the same or next day; 48h avoids nagging early.)
 
-3. Update Google Form config UI:
-   - Add explicit fields for Tracking Token question, NPS question, CSAT question, and Comment question instead of requiring raw JSON.
-   - Keep the JSON advanced editor available for edge cases.
-   - Generate/copy the Apps Script snippet using the configured webhook endpoint and expected answer keys.
+## UX changes — `src/components/pulse/AnalyticsResponsesTable.tsx`
+1. Extend the row model with an `awaiting_sync` boolean and a `stuck` boolean (age > 48h).
+2. Row-level "Resend" button (existing Resend column):
+   - Already enabled for `failed`. Also enable it for `awaiting_sync` rows.
+   - Tooltip: "Resend Google Form invite" for google_form rows, "Resend failed invite" otherwise.
+3. Sync note text: when stuck, append `" · Sent {N} days ago — try resending."` so users can see age at a glance.
+4. Header bulk action next to "Resend failed":
+   - New "Resend stuck syncs (N)" button. Counts filtered rows where `stuck && awaiting_sync`.
+   - Calls the same `pulse-resend-invite` function.
+5. Toast copy: reuse existing; nothing new backend-side.
 
-4. Add response visibility safeguards:
-   - In Pulse/NPS analytics, surface Google Form invites whose email was sent but no webhook callback has arrived.
-   - Show a reason column/status note so it is clear whether the email was sent, opened, completed, or waiting on Google Form sync.
+## Backend
+`pulse-resend-invite` already accepts `inviteIds[]` and re-sends via the current send path (which respects `source = 'google_form'` and regenerates the prefilled Google Form URL). **No edge function changes.**
 
-5. Validate after implementation:
-   - Send the test webhook from Settings.
-   - Confirm a request appears in webhook logs.
-   - Confirm the invite is marked completed and a `survey_responses` row with `source = google_form` is created for the matching token.
+On resend success the function updates `sent_at`, so the "awaiting sync" clock resets and the row drops out of "stuck" until it ages again — exactly what we want.
+
+## Non-goals
+- No new DB columns, no schema migration.
+- No changes to the webhook or Apps Script flow.
+- No auto-retry cron — user-initiated only, to avoid spamming respondents.
+
+## Technical notes
+- `stuck` computed in the same `useMemo` as `rows`: `awaiting_sync && sent_at && (Date.now() - new Date(sent_at).getTime()) > 48*3600*1000`.
+- Bulk id list mirrors the `failedVisibleIds` pattern.
+- Reuse `runResend(ids, "bulk")` — no new handler.
