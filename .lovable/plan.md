@@ -1,19 +1,24 @@
-## Add collapsible issue rows to the RGY Health Table
+## Change
 
-In `src/pages/RGYHealth.tsx` (Table tab, rows starting ~line 1753), add per-deal expandable rows that reveal the logged RGY issue inline.
+Update the MBR BOPM digest (`mbr.reminder_bopm_digest`) so it:
+1. Checks whether the **current month's** MBR is filled (instead of previous month).
+2. Fires **once** when there are **10 calendar days remaining** in the current month.
 
-### Changes
-1. **Expand state** — add `const [expandedIssues, setExpandedIssues] = useState<Set<string>>(new Set())` with a toggle helper.
-2. **Chevron toggle** — in the Client cell (first visible column), prepend a small chevron button when the deal has any content in `rgy_issue_details` or `rgy_action_plan`. Clicking toggles that deal's id in `expandedIssues`. Deals without an issue show no chevron (no empty toggle).
-3. **Collapsible detail row** — right after each `<tr>` in the map, render a second `<tr>` when the deal is expanded. It uses `colSpan={visibleColCount}` and contains a compact panel showing:
-   - Issue date (formatted) + last updated by
-   - Issue Details (whitespace-pre-wrap)
-   - Action Plan (whitespace-pre-wrap) 
-   - Any non-Green dimensions listed as pills for context
-   - "Edit issue" button that calls `setCombinedIssuesDeal(deal)` (reusing existing dialog)
-4. **Auto-expand on new issue** — after `setCombinedIssuesDeal` saves, no change needed; user can re-open via the same button in the collapsible.
+## Where
 
-### Notes
-- Purely presentational; no schema or query changes.
-- Uses existing tokens (`bg-secondary/30`, `border-border`) and existing `rgy_issue_*` fields already on `DealWithRGY`.
-- The existing per-cell tooltip on RGY dimensions stays as-is.
+`supabase/functions/notification-cron/index.ts`, MBR block (lines ~126-190).
+
+## Edits
+
+- Replace the working-days-remaining slot logic (`SLOTS = {10,7,4,1}`) with a single trigger: calendar days remaining in current month == 10 (i.e. fires on `lastDayOfMonth - 10`).
+- Change the entries query window from `[prevMonthStart, thisMonthStart)` to `[thisMonthStart, nextMonthStart)`.
+- Update `ym`, `monthLabel`, and `mbr_month` payload fields to reference the **current** month.
+- Update dedupe key to `mbr_digest:<bopm>:<currentYM>` (single send per month) so it can't double-fire.
+- Keep `bypass_schedule` / `bypass_dedupe` behavior for the Settings "Send now" button.
+- Keep "Done" and "Not Required" as the completion states.
+
+## Not changing
+
+- Email template, recipients (BOPM to, VSD cc), Anirudh suppression, or the Settings UI.
+- RGY and NPS digests.
+- Existing per-deal MBR reminders in `mbr-reminders` (Slack-only, unrelated).
