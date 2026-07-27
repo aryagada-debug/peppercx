@@ -144,6 +144,7 @@ export default function PulseSurveyTab({
   const [newCampaignDesc, setNewCampaignDesc] = useState("");
   const [ccAnirudh, setCcAnirudh] = useState<boolean>(true);
   const [uniqueOnly, setUniqueOnly] = useState<boolean>(false);
+  const [sendMode, setSendMode] = useState<"in_app" | "google_form">("in_app");
 
   const { data: campaigns = [] } = useQuery({
     queryKey: ["pulse-campaigns"],
@@ -570,6 +571,7 @@ export default function PulseSurveyTab({
           excludeCcNames: removedCc[d.deal_id] || [],
           campaignId: campaignId !== "none" ? campaignId : null,
           ccAnirudh,
+          mode: sendMode,
         };
         calls.push(
           supabase.functions.invoke("send-pulse-survey", { body }).then(({ data, error }) => {
