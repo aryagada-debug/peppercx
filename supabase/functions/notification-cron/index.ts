@@ -125,16 +125,16 @@ Deno.serve(async (req) => {
 
     // ── T1: mbr.reminder_bopm_digest (working-day slots) ─────────────
     if (!only || only === "mbr") {
-      const wdr = workingDaysRemaining(now);
-      const SLOTS = new Set([10, 7, 4, 1]);
-      const isWorking = weekday >= 1 && weekday <= 5;
-      if (bypassSchedule || (isWorking && SLOTS.has(wdr))) {
-        const prev = new Date(now.getUTCFullYear(), now.getUTCMonth() - 1, 1);
-        const ym = `${prev.getUTCFullYear()}-${String(prev.getUTCMonth() + 1).padStart(2, "0")}`;
-        const monthLabel = prev.toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+      // Fire once per month when exactly 10 calendar days remain in the current month.
+      const lastDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate();
+      const daysRemaining = lastDay - now.getUTCDate();
+      if (bypassSchedule || daysRemaining === 10) {
+        const ym = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+        const monthLabel = now.toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
         const currentMonth = now.toLocaleString("en-US", { month: "long", timeZone: "UTC" });
-        const monthStart = `${ym}-01`;
-        const thisMonthStart = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-01`;
+        const thisMonthStart = `${ym}-01`;
+        const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+        const nextMonthStart = `${nextMonth.getUTCFullYear()}-${String(nextMonth.getUTCMonth() + 1).padStart(2, "0")}-01`;
         const { data: deals } = await admin
           .from("staffing_deals")
           .select("id, account, deal_name, vsd, principal_bopm, senior_bopm, bopm, deal_status")
@@ -145,18 +145,18 @@ Deno.serve(async (req) => {
           .from("mbr_entries")
           .select("deal_id, status, week_start")
           .in("deal_id", ids)
-          .gte("week_start", monthStart)
-          .lt("week_start", thisMonthStart);
+          .gte("week_start", thisMonthStart)
+          .lt("week_start", nextMonthStart);
         const done = new Set<string>(
           (entries || []).filter((e: any) => ["Done", "Not Required"].includes(e.status)).map((e: any) => e.deal_id),
         );
         const pendingDeals = dealsArr.filter((d: any) => !done.has(d.id));
         const buckets = await groupByBopm(admin, pendingDeals);
-        const ordinal = { 10: "first", 7: "second", 4: "third", 1: "final" }[wdr] || "manual";
+        const ordinal = "final";
         const events: any[] = [];
         for (const b of buckets as any[]) {
           if (!bypassDedupe) {
-            const dedupe = `mbr_digest:${b.bopmEmail.toLowerCase()}:${ym}:${wdr}`;
+            const dedupe = `mbr_digest:${b.bopmEmail.toLowerCase()}:${ym}`;
             const { error } = await admin.from("notification_dispatch_log").insert({
               event_key: "mbr.reminder_bopm_digest", dedupe_key: dedupe, deal_id: null,
             });
@@ -171,7 +171,7 @@ Deno.serve(async (req) => {
               vsd_name: Array.from(b.vsdNames).join(", "),
               mbr_month: monthLabel,
               current_month: currentMonth,
-              days_remaining: String(wdr),
+              days_remaining: String(daysRemaining),
               reminder_ordinal: ordinal,
               rows: b.deals.map((d: any) => ({
                 account: d.account || "",
