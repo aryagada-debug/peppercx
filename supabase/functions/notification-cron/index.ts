@@ -1,5 +1,5 @@
 // Daily cron: triggers configurable notification rules
-//   - mbr.reminder_bopm_digest  (T-10/7/4/1 working days)
+//   - mbr.reminder_bopm_digest  (10 calendar days before month-end, current-month MBRs)
 //   - rgy.reminder_bopm_digest  (Fridays)
 //   - nps.reminder_bopm_digest  (Wednesdays)
 //   - deal.unstaffed_7d
