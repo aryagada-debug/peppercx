@@ -280,7 +280,7 @@ function PulseGoogleFormCard() {
       if (csatQuestion.trim()) answerPayload[csatQuestion.trim()] = "5";
       if (commentQuestion.trim()) answerPayload[commentQuestion.trim()] = "Diagnostics test only";
       const body = latestInvite?.token
-        ? { secret: webhookSecret.trim(), test: true, answers: answerPayload }
+        ? { secret: webhookSecret.trim(), test: true, token: latestInvite.token, answers: answerPayload }
         : { secret: webhookSecret.trim(), ping: true };
       const { data, error } = await supabase.functions.invoke("pulse-google-form-webhook", { body });
       if (error) throw error;
