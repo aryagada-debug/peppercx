@@ -9,7 +9,7 @@ import { logRGYChange } from "@/lib/rgyHistory";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
-import { Search, AlertTriangle, AlertCircle, CheckCircle2, Activity, Plus, Trash2, Check, X, Calendar, Loader2, Settings2, Info, Circle } from "lucide-react";
+import { Search, AlertTriangle, AlertCircle, CheckCircle2, Activity, Plus, Trash2, Check, X, Calendar, Loader2, Settings2, Info, Circle, ChevronRight, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollToStartButton } from "@/components/ui/ScrollToStartButton";
@@ -771,6 +771,13 @@ export default function RGYHealth() {
   const [markRGYSaving, setMarkRGYSaving] = useState(false);
   // After Mark RGY save: if any dim is Red, open the combined-issues dialog
   const [combinedIssuesDeal, setCombinedIssuesDeal] = useState<DealWithRGY | null>(null);
+  // Expanded issue rows in the Table tab
+  const [expandedIssues, setExpandedIssues] = useState<Set<string>>(new Set());
+  const toggleIssueExpanded = (id: string) => setExpandedIssues(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
 
   // Load every person staffed on the deal so they all appear as assignees
   useEffect(() => {
