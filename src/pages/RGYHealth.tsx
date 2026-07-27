@@ -1343,7 +1343,30 @@ export default function RGYHealth() {
     });
     if (sortKey) {
       const dir = sortDir === "asc" ? 1 : -1;
+      const dimKeys = new Set(DIMENSIONS.map(d => d.key));
+      // R=0, Y=1, G=2, NA=3, Pending/blank=4 → asc puts worst first
+      const rgyRank = (v: string | null | undefined) => {
+        const s = (v ?? "").toString();
+        if (s === "R") return 0;
+        if (s === "Y") return 1;
+        if (s === "G") return 2;
+        if (s === "NA") return 3;
+        return 4;
+      };
       rows = [...rows].sort((a: any, b: any) => {
+        if (sortKey === "overall_rgy") {
+          const dims: Record<string, string | null | undefined> = {};
+          const dimsB: Record<string, string | null | undefined> = {};
+          for (const d of DIMENSIONS) { dims[d.key] = a[d.key]; dimsB[d.key] = b[d.key]; }
+          const sa = computeOverallCustomerScore(dims);
+          const sb = computeOverallCustomerScore(dimsB);
+          const na = sa ?? Number.POSITIVE_INFINITY;
+          const nb = sb ?? Number.POSITIVE_INFINITY;
+          return (na - nb) * dir;
+        }
+        if (dimKeys.has(sortKey)) {
+          return (rgyRank(a[sortKey]) - rgyRank(b[sortKey])) * dir;
+        }
         const av = a[sortKey] ?? ""; const bv = b[sortKey] ?? "";
         if (typeof av === "number" || typeof bv === "number") return ((Number(av) || 0) - (Number(bv) || 0)) * dir;
         return String(av).localeCompare(String(bv)) * dir;
