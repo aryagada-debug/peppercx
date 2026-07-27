@@ -189,7 +189,12 @@ function PulseGoogleFormCard() {
   const [formId, setFormId] = useState("");
   const [entryId, setEntryId] = useState("");
   const [webhookSecret, setWebhookSecret] = useState("");
+  const [trackingQuestion, setTrackingQuestion] = useState("");
+  const [npsQuestion, setNpsQuestion] = useState("");
+  const [csatQuestion, setCsatQuestion] = useState("");
+  const [commentQuestion, setCommentQuestion] = useState("");
   const [fieldMapJson, setFieldMapJson] = useState("{}");
+  const [lastTest, setLastTest] = useState<{ ok: boolean; message: string; requestId?: string } | null>(null);
 
   useEffect(() => {
     if (!isActuallyAdmin) { setLoading(false); return; }
@@ -201,11 +206,16 @@ function PulseGoogleFormCard() {
         .maybeSingle();
       const row = data as any;
       if (row) {
+        const map = (row.field_map || {}) as Record<string, string>;
         setFormUrl(row.form_url || "");
         setFormId(row.form_id || "");
         setEntryId(row.tracking_entry_id || "");
         setWebhookSecret(row.webhook_secret || "");
-        setFieldMapJson(JSON.stringify(row.field_map || {}, null, 2));
+        setTrackingQuestion(map.tracking_token || "");
+        setNpsQuestion(map.nps || "");
+        setCsatQuestion(map.csat || "");
+        setCommentQuestion(map.comment || "");
+        setFieldMapJson(JSON.stringify(map, null, 2));
       }
       setLoading(false);
     })();
@@ -222,6 +232,13 @@ function PulseGoogleFormCard() {
       toast.error(`Field map JSON invalid: ${e?.message || "parse error"}`);
       return;
     }
+    fieldMap = {
+      ...fieldMap,
+      ...(trackingQuestion.trim() ? { tracking_token: trackingQuestion.trim() } : {}),
+      ...(npsQuestion.trim() ? { nps: npsQuestion.trim() } : {}),
+      ...(csatQuestion.trim() ? { csat: csatQuestion.trim() } : {}),
+      ...(commentQuestion.trim() ? { comment: commentQuestion.trim() } : {}),
+    };
     setSaving(true);
     const { error } = await supabase
       .from("pulse_google_form_config" as any)
@@ -235,33 +252,78 @@ function PulseGoogleFormCard() {
       });
     setSaving(false);
     if (error) toast.error(error.message);
-    else toast.success("Google Form settings saved");
+    else {
+      setFieldMapJson(JSON.stringify(fieldMap, null, 2));
+      toast.success("Google Form settings saved");
+    }
   };
 
   const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL as string;
   const webhookUrl = `${supabaseUrl}/functions/v1/pulse-google-form-webhook`;
 
   const sendTestWebhook = async () => {
+    setLastTest(null);
     setTesting(true);
     try {
-      const { data, error } = await supabase.functions.invoke("pulse-google-form-webhook", {
-        body: { secret: webhookSecret.trim(), ping: true },
-      });
+      const { data: latestInvite, error: inviteError } = await supabase
+        .from("survey_invites")
+        .select("token, recipient_email, deal_name_snapshot")
+        .eq("source", "google_form")
+        .is("completed_at", null)
+        .order("sent_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (inviteError) throw inviteError;
+      const answerPayload: Record<string, string> = {};
+      if (latestInvite?.token && trackingQuestion.trim()) answerPayload[trackingQuestion.trim()] = latestInvite.token;
+      if (npsQuestion.trim()) answerPayload[npsQuestion.trim()] = "9";
+      if (csatQuestion.trim()) answerPayload[csatQuestion.trim()] = "5";
+      if (commentQuestion.trim()) answerPayload[commentQuestion.trim()] = "Diagnostics test only";
+      const body = latestInvite?.token
+        ? { secret: webhookSecret.trim(), test: true, answers: answerPayload }
+        : { secret: webhookSecret.trim(), ping: true };
+      const { data, error } = await supabase.functions.invoke("pulse-google-form-webhook", { body });
       if (error) throw error;
       const d = data as any;
-      if (d?.ok) {
-        toast.success(d.has_field_map
-          ? "Webhook reachable — secret OK, field_map configured"
-          : "Webhook reachable — secret OK (field_map empty)");
+      if (d?.ok && d?.test) {
+        const msg = `Webhook reachable — token mapping works for ${latestInvite?.recipient_email || "latest invite"}`;
+        setLastTest({ ok: true, message: msg, requestId: d.request_id });
+        toast.success(msg);
+      } else if (d?.ok) {
+        const msg = d.has_field_map
+          ? "Webhook reachable — secret OK, no open Google Form invite found to test token mapping"
+          : "Webhook reachable — secret OK, but field mapping is empty";
+        setLastTest({ ok: true, message: msg, requestId: d.request_id });
+        toast.success(msg);
       } else {
-        toast.error(`Webhook returned: ${d?.error || "unknown"}`);
+        const msg = d?.diagnostic || d?.error || "unknown";
+        setLastTest({ ok: false, message: msg, requestId: d?.request_id });
+        toast.error(`Webhook returned: ${msg}`);
       }
     } catch (e: any) {
-      toast.error(e?.message || "Test failed");
+      const msg = e?.message || "Test failed";
+      setLastTest({ ok: false, message: msg });
+      toast.error(msg);
     } finally {
       setTesting(false);
     }
   };
+
+  const scriptSnippet = `const WEBHOOK_URL = '${webhookUrl}';
+const WEBHOOK_SECRET = '${webhookSecret ? "PASTE_THE_SAME_SECRET_HERE" : "PASTE_WEBHOOK_SECRET_HERE"}';
+
+function onFormSubmit(e) {
+  const answers = {};
+  for (const itemResponse of e.response.getItemResponses()) {
+    answers[itemResponse.getItem().getTitle()] = itemResponse.getResponse();
+  }
+  UrlFetchApp.fetch(WEBHOOK_URL, {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify({ secret: WEBHOOK_SECRET, answers }),
+    muteHttpExceptions: true,
+  });
+}`;
 
   return (
     <div className="border-t border-border pt-4 space-y-3">
@@ -275,6 +337,17 @@ function PulseGoogleFormCard() {
         <p className="text-xs text-muted-foreground">Loading…</p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
+          <div className="sm:col-span-2 rounded-md border border-border bg-secondary/30 px-3 py-2">
+            <p className="text-xs font-medium text-foreground">Diagnostics</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              The backend has not received a Google Form callback until this test or Apps Script sends one. If the test works but real submissions don't appear, the Google Form trigger is not installed or is using the wrong script/secret.
+            </p>
+            {lastTest && (
+              <p className={cn("mt-2 text-[11px]", lastTest.ok ? "text-positive" : "text-destructive")}>
+                {lastTest.message}{lastTest.requestId ? ` · Request ${lastTest.requestId.slice(0, 8)}` : ""}
+              </p>
+            )}
+          </div>
           <label className="text-xs space-y-1">
             <span className="text-muted-foreground">Google Form URL (viewform)</span>
             <input value={formUrl} onChange={(e) => setFormUrl(e.target.value)}
@@ -307,15 +380,44 @@ function PulseGoogleFormCard() {
               In your form's Apps Script, POST each submission to this URL as JSON with fields <span className="font-mono">{"{ secret, token, nps, csat, comment, answers }"}</span>. <span className="font-mono">token</span> = the answer to the tracking-token question.
             </span>
           </label>
+          <label className="text-xs space-y-1">
+            <span className="text-muted-foreground">Tracking token question title</span>
+            <input value={trackingQuestion} onChange={(e) => setTrackingQuestion(e.target.value)}
+              placeholder="Tracking token"
+              className="w-full h-8 px-2 rounded border border-border bg-card text-xs" />
+          </label>
+          <label className="text-xs space-y-1">
+            <span className="text-muted-foreground">NPS question title</span>
+            <input value={npsQuestion} onChange={(e) => setNpsQuestion(e.target.value)}
+              placeholder="How likely are you to recommend Pepper?"
+              className="w-full h-8 px-2 rounded border border-border bg-card text-xs" />
+          </label>
+          <label className="text-xs space-y-1">
+            <span className="text-muted-foreground">CSAT question title</span>
+            <input value={csatQuestion} onChange={(e) => setCsatQuestion(e.target.value)}
+              placeholder="Overall satisfaction"
+              className="w-full h-8 px-2 rounded border border-border bg-card text-xs" />
+          </label>
+          <label className="text-xs space-y-1">
+            <span className="text-muted-foreground">Comment question title</span>
+            <input value={commentQuestion} onChange={(e) => setCommentQuestion(e.target.value)}
+              placeholder="Any other feedback?"
+              className="w-full h-8 px-2 rounded border border-border bg-card text-xs" />
+          </label>
           <label className="text-xs space-y-1 sm:col-span-2">
-            <span className="text-muted-foreground">Field map (JSON) — maps <span className="font-mono">nps/csat/comment</span> to Google Form question titles</span>
+            <span className="text-muted-foreground">Advanced field map (JSON)</span>
             <textarea value={fieldMapJson} onChange={(e) => setFieldMapJson(e.target.value)}
               rows={5}
-              placeholder={`{\n  "nps": "How likely are you to recommend Pepper?",\n  "csat": "Overall satisfaction",\n  "comment": "Any other feedback?"\n}`}
+              placeholder={`{\n  "tracking_token": "Tracking token",\n  "nps": "How likely are you to recommend Pepper?",\n  "csat": "Overall satisfaction",\n  "comment": "Any other feedback?"\n}`}
               className="w-full px-2 py-1.5 rounded border border-border bg-card text-xs font-mono" />
             <span className="block text-[11px] text-muted-foreground">
-              Used as a fallback when the Apps Script POST doesn't include top-level <span className="font-mono">nps/csat/comment</span>. Question titles must match the form exactly.
+              Question titles must match the Google Form exactly. The explicit fields above are saved into this JSON.
             </span>
+          </label>
+          <label className="text-xs space-y-1 sm:col-span-2">
+            <span className="text-muted-foreground">Apps Script snippet</span>
+            <textarea value={scriptSnippet} readOnly rows={11}
+              className="w-full px-2 py-1.5 rounded border border-border bg-secondary/40 text-xs font-mono" />
           </label>
         </div>
       )}

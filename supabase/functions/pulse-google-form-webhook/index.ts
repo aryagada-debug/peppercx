@@ -29,6 +29,52 @@ function json(body: unknown, status = 200) {
   });
 }
 
+type FieldMap = Record<string, string>;
+
+function asRecord(v: unknown): Record<string, unknown> {
+  return v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : {};
+}
+
+function hasValue(v: unknown): boolean {
+  if (v == null) return false;
+  if (Array.isArray(v)) return v.length > 0;
+  return String(v).trim() !== "";
+}
+
+function firstValue(v: unknown): unknown {
+  return Array.isArray(v) ? v[0] : v;
+}
+
+function pickMapped(
+  body: Record<string, unknown>,
+  answers: Record<string, unknown>,
+  fieldMap: FieldMap,
+  key: string,
+): unknown {
+  if (hasValue(body[key])) return body[key];
+  const label = fieldMap[key];
+  if (label && hasValue(answers[label])) return answers[label];
+  return null;
+}
+
+function safeKeys(obj: Record<string, unknown>): string[] {
+  return Object.keys(obj).slice(0, 60);
+}
+
+function collectTokenCandidates(answers: Record<string, unknown>): string[] {
+  const out: string[] = [];
+  const add = (v: unknown) => {
+    if (Array.isArray(v)) {
+      v.forEach(add);
+      return;
+    }
+    const s = String(v || "").trim();
+    if (/^[a-f0-9]{24,128}$/i.test(s)) out.push(s);
+  };
+  Object.values(answers).forEach(add);
+  return Array.from(new Set(out)).slice(0, 10);
+}
+
 function num(v: unknown, min: number, max: number): number | null {
   const n = typeof v === "string" ? Number(v) : (typeof v === "number" ? v : NaN);
   if (!Number.isFinite(n)) return null;
@@ -40,9 +86,20 @@ function num(v: unknown, min: number, max: number): number | null {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
+  const requestId = crypto.randomUUID();
   try {
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
+    const answers = asRecord(body.answers);
+
+    console.info("pulse_google_form_webhook_request", {
+      request_id: requestId,
+      has_token: hasValue(body.token),
+      has_answers: Object.keys(answers).length > 0,
+      answer_keys: safeKeys(answers),
+      is_ping: body.ping === true,
+      is_test: body.test === true,
+    });
 
     const { data: cfg } = await admin
       .from("pulse_google_form_config")
@@ -55,16 +112,58 @@ Deno.serve(async (req) => {
     if (provided !== secret) return json({ error: "invalid_secret" }, 401);
 
     const fieldMap = (cfg?.field_map && typeof cfg.field_map === "object")
-      ? cfg.field_map as Record<string, string>
+      ? cfg.field_map as FieldMap
       : {};
 
     // Diagnostic mode: allow a synthetic ping that only validates auth+config.
     if (body.ping === true) {
-      return json({ ok: true, ping: true, has_field_map: Object.keys(fieldMap).length > 0 });
+      return json({
+        ok: true,
+        ping: true,
+        request_id: requestId,
+        has_field_map: Object.keys(fieldMap).length > 0,
+        has_tracking_token_map: !!fieldMap.tracking_token,
+        mapped_fields: Object.keys(fieldMap),
+      });
     }
 
-    const token = String(body.token || "").trim();
-    if (!token || token.length < 12) return json({ error: "invalid_token" }, 400);
+    const tokenRaw = hasValue(body.token) ? body.token : pickMapped(body, answers, fieldMap, "tracking_token");
+    let token = String(firstValue(tokenRaw) || "").trim();
+    let tokenSource = hasValue(body.token) ? "top_level" : (fieldMap.tracking_token ? "field_map" : "none");
+    const candidates = !token ? collectTokenCandidates(answers) : [];
+    if (!token && candidates.length) {
+      for (const candidate of candidates) {
+        const { data: found, error: candidateErr } = await admin
+          .from("survey_invites")
+          .select("token")
+          .eq("token", candidate)
+          .maybeSingle();
+        if (candidateErr) throw candidateErr;
+        if (found?.token) {
+          token = found.token as string;
+          tokenSource = "answer_scan";
+          break;
+        }
+      }
+    }
+    if (!token || token.length < 12) {
+      console.warn("pulse_google_form_webhook_invalid_token", {
+        request_id: requestId,
+        has_top_level_token: hasValue(body.token),
+        tracking_token_map: fieldMap.tracking_token || null,
+        token_candidates: candidates.length,
+        answer_keys: safeKeys(answers),
+      });
+      return json({
+        ok: false,
+        error: "invalid_token",
+        diagnostic: "Apps Script reached the webhook, but it did not send a valid tracking token. Map field_map.tracking_token to the exact Google Form question title, or send token as a top-level field.",
+        request_id: requestId,
+        expected_tracking_question: fieldMap.tracking_token || null,
+        token_candidates: candidates.length,
+        answer_keys: safeKeys(answers),
+      }, 400);
+    }
 
     const { data: invite, error: invErr } = await admin
       .from("survey_invites")
@@ -72,35 +171,51 @@ Deno.serve(async (req) => {
       .eq("token", token)
       .maybeSingle();
     if (invErr) throw invErr;
-    if (!invite) return json({ error: "invite_not_found" }, 404);
-
-    if (invite.completed_at) {
-      return json({ ok: true, already: true, inviteId: invite.id });
+    if (!invite) {
+      console.warn("pulse_google_form_webhook_invite_not_found", { request_id: requestId, token_preview: `${token.slice(0, 8)}…` });
+      return json({ ok: false, error: "invite_not_found", request_id: requestId }, 404);
     }
 
-    const answers = (body.answers && typeof body.answers === "object") ? body.answers as Record<string, unknown> : {};
+    if (invite.completed_at) {
+      return json({ ok: true, already: true, inviteId: invite.id, request_id: requestId });
+    }
 
     // Prefer top-level fields, else fall back to answers[fieldMap[key]].
-    const pick = (key: "nps" | "csat" | "comment"): unknown => {
-      if (body[key] != null && body[key] !== "") return body[key];
-      const label = fieldMap[key];
-      if (label && answers[label] != null) return answers[label];
-      return null;
-    };
-    const nps = num(pick("nps"), 0, 10);
-    const csat = num(pick("csat"), 1, 5);
-    const commentRaw = pick("comment");
+    const nps = num(firstValue(pickMapped(body, answers, fieldMap, "nps")), 0, 10);
+    const csat = num(firstValue(pickMapped(body, answers, fieldMap, "csat")), 1, 5);
+    const commentRaw = firstValue(pickMapped(body, answers, fieldMap, "comment"));
     const comment = commentRaw != null ? String(commentRaw).slice(0, 4000) : null;
 
     // Structured warning when a mapping was configured but the field is missing.
     const missingMapped: string[] = [];
-    for (const key of ["nps", "csat", "comment"] as const) {
+    for (const key of ["tracking_token", "nps", "csat", "comment"] as const) {
       const label = fieldMap[key];
-      if (label && (answers[label] == null || answers[label] === "")) missingMapped.push(key);
+      if (label && !hasValue(answers[label]) && !hasValue(body[key])) missingMapped.push(key);
     }
     if (missingMapped.length) {
-      console.warn("missing_mapped_field", { invite_id: invite.id, missing: missingMapped, answer_keys: Object.keys(answers) });
+      console.warn("pulse_google_form_webhook_missing_mapped_field", {
+        request_id: requestId,
+        invite_id: invite.id,
+        missing: missingMapped,
+        answer_keys: safeKeys(answers),
+      });
     }
+
+    if (body.test === true) {
+      return json({
+        ok: true,
+        test: true,
+        request_id: requestId,
+        inviteId: invite.id,
+        token_ok: true,
+        token_source: tokenSource,
+        would_write_response: true,
+        parsed: { nps, csat, has_comment: !!comment },
+        missing_mapped: missingMapped,
+      });
+    }
+
+    const now = new Date().toISOString();
 
     const { error: insErr } = await admin.from("survey_responses").insert({
       invite_id: invite.id,
@@ -111,22 +226,25 @@ Deno.serve(async (req) => {
       respondent_email: invite.recipient_email || null,
       respondent_company: invite.account_snapshot || null,
       source: "google_form",
-      payload: { comment, answers, raw: body },
+      submitted_at: now,
+      payload: { comment, answers, raw: body, diagnostics: { request_id: requestId, missing_mapped: missingMapped, token_source: tokenSource } },
     });
     if (insErr) throw insErr;
 
     await admin
       .from("survey_invites")
       .update({
-        completed_at: new Date().toISOString(),
-        opened_at: new Date().toISOString(),
+        completed_at: now,
+        opened_at: now,
+        updated_at: now,
       })
       .eq("id", invite.id);
 
-    return json({ ok: true, inviteId: invite.id, missing_mapped: missingMapped });
+    console.info("pulse_google_form_webhook_recorded", { request_id: requestId, invite_id: invite.id, missing: missingMapped });
+    return json({ ok: true, inviteId: invite.id, request_id: requestId, missing_mapped: missingMapped });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error("pulse-google-form-webhook error", msg);
-    return json({ error: msg }, 500);
+    console.error("pulse_google_form_webhook_error", { request_id: requestId, error: msg });
+    return json({ ok: false, error: msg, request_id: requestId }, 500);
   }
 });

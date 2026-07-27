@@ -1,42 +1,32 @@
-# Why responses aren't syncing
+Evidence checked:
+- The `pulse-google-form-webhook` function has only boot/shutdown logs and no submission/error logs.
+- Function HTTP logs show no calls to this webhook in the last 48 hours.
+- The Google Form config row is present with a form URL, tracking entry ID, and webhook secret, but `field_map` is empty.
+- Recent Google Form invites were sent, but none have `completed_at` set and no matching Google Form responses exist.
 
-The `pulse-google-form-webhook` edge function has **zero invocation logs** — the Google Form is never calling it. Combined with the current config state:
+Plan:
+1. Add a clear diagnostics section in Settings → Notifications for the Google Form integration:
+   - Show webhook health/config status.
+   - Add a “Test webhook” action that sends a synthetic request and confirms the backend can write a test-mapped response path without relying on Google Forms.
+   - Show actionable error states: “Apps Script not calling webhook”, “missing token”, “invalid secret”, “field mapping incomplete”.
 
-- `form_id`: empty
-- `field_map`: `{}` (empty)
-- `webhook_secret`: set
-- `tracking_entry_id`: `1412326792`
+2. Harden `pulse-google-form-webhook`:
+   - Log every incoming request with safe metadata only.
+   - Accept token from either top-level `token` or mapped Google Form answers.
+   - Use `field_map.tracking_token` as a first-class mapping key, not only `nps`, `csat`, and `comment`.
+   - Return structured diagnostics for missing token / missing mapped fields.
+   - Store raw Google Form answers even if optional score mappings are incomplete, as long as the tracking token maps to a valid invite.
 
-…this points to one root cause: the Apps Script "on form submit" trigger is not installed on your Google Form. No trigger = no POST = no response ever reaches Pepper OS.
+3. Update Google Form config UI:
+   - Add explicit fields for Tracking Token question, NPS question, CSAT question, and Comment question instead of requiring raw JSON.
+   - Keep the JSON advanced editor available for edge cases.
+   - Generate/copy the Apps Script snippet using the configured webhook endpoint and expected answer keys.
 
-# Fix (three steps)
+4. Add response visibility safeguards:
+   - In Pulse/NPS analytics, surface Google Form invites whose email was sent but no webhook callback has arrived.
+   - Show a reason column/status note so it is clear whether the email was sent, opened, completed, or waiting on Google Form sync.
 
-### 1. Finish the config in Settings → Notifications → "Pulse/NPS · Google Form"
-- Fill **Form ID** (the string between `/d/e/` and `/viewform` in your form URL — for the current URL that's `1FAIpQLScoBY5IInv54OsTW-I5M81LicgKAg-bmg8z0kgSMSn0HudWsg`).
-- Fill **field_map** so the webhook can pull `nps`, `csat`, `comment` out of the answers. Example based on your form's question titles:
-  ```json
-  {
-    "nps": "How likely are you to recommend Pepper?",
-    "csat": "Overall satisfaction",
-    "comment": "Any other feedback?"
-  }
-  ```
-  (Exact strings must match the Google Form question titles.)
-
-### 2. Install the Apps Script on the form
-In the Google Form editor: three-dot menu → **Script editor** → paste the snippet already provided in Settings (it reads the hidden `entry.1412326792` token and POSTs to `pulse-google-form-webhook` with the webhook secret). Save, then Triggers → **Add Trigger** → event source *From form*, event type *On form submit*.
-
-### 3. Verify end-to-end
-- Submit one test response from the invite email.
-- Check `pulse-google-form-webhook` logs — a POST should appear.
-- Confirm the invite row flips to **Completed** in Pulse/NPS → Analytics → Responses, with the answers in the drill-in.
-
-# Code changes I'll make in build mode
-
-To reduce silent failures next time:
-
-1. **`supabase/functions/pulse-google-form-webhook/index.ts`** — when `field_map` is populated but a submitted `answers` payload doesn't contain the mapped question titles, log a structured warning (`missing_mapped_field`) instead of silently storing `null` NPS/CSAT. Also accept the mapped keys as a fallback source for `nps`/`csat`/`comment` when the top-level fields aren't sent by the Apps Script.
-2. **Settings → Notifications Google Form card** — add a "Send test webhook" button that POSTs a synthetic payload with the configured secret, so you can confirm the endpoint + secret are reachable without submitting a real form.
-3. **Analytics → Responses table** — add a small "source" column (App vs Google Form) so the two channels are distinguishable at a glance and it's obvious when Google Form syncing has stopped.
-
-No changes to how Pepper-native surveys work.
+5. Validate after implementation:
+   - Send the test webhook from Settings.
+   - Confirm a request appears in webhook logs.
+   - Confirm the invite is marked completed and a `survey_responses` row with `source = google_form` is created for the matching token.

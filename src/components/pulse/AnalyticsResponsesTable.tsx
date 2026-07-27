@@ -35,6 +35,7 @@ type Row = {
   has_response: boolean;
   duplicates: number;
   source: string | null;
+  sync_note: string | null;
 };
 
 function fmtDate(v: string | null | undefined) {
@@ -46,7 +47,6 @@ function fmtDate(v: string | null | undefined) {
 
 function deriveStatus(inv: InviteRow): { key: StatusKey; label: string } {
   if (inv.completed_at) return { key: "completed", label: "Completed" };
-  if (inv.opened_at) return { key: "opened", label: "Opened" };
   const es = (inv.email_status || "").toLowerCase();
   if (es === "failed" || es === "bounced" || es === "error") {
     // Gmail throttle/quota errors are transient — the message is typically
@@ -61,6 +61,8 @@ function deriveStatus(inv: InviteRow): { key: StatusKey; label: string } {
     if (isThrottle && inv.sent_at) return { key: "sent", label: "Sent" };
     return { key: "failed", label: "Failed" };
   }
+  if (inv.source === "google_form" && inv.sent_at) return { key: "sent", label: "Awaiting sync" };
+  if (inv.opened_at) return { key: "opened", label: "Opened" };
   if (inv.sent_at) return { key: "sent", label: "Sent" };
   return { key: "pending", label: "Pending" };
 }
@@ -146,7 +148,10 @@ export function AnalyticsResponsesTable({
         payload: r?.payload ?? null,
         has_response: !!r,
         duplicates: 0,
-        source: r?.source ?? null,
+        source: r?.source ?? inv.source ?? null,
+        sync_note: inv.source === "google_form" && !r && inv.sent_at
+          ? "Email sent. Waiting for Google Form Apps Script webhook to send the submitted response back."
+          : null,
       };
     });
   }, [invites, responses]);
@@ -156,7 +161,7 @@ export function AnalyticsResponsesTable({
     let xs = rows;
     if (f) {
       xs = xs.filter((r) =>
-        [r.deal_id, r.deal_name, r.account, r.recipient_name, r.recipient_email, r.respondent, r.campaign, r.status_label]
+        [r.deal_id, r.deal_name, r.account, r.recipient_name, r.recipient_email, r.respondent, r.campaign, r.status_label, r.sync_note]
           .some((v) => (v || "").toLowerCase().includes(f)),
       );
     }
@@ -363,12 +368,15 @@ export function AnalyticsResponsesTable({
                         </TooltipContent>
                       </Tooltip>
                     ) : (
-                      <span className={cn(
-                        "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] border font-medium",
-                        STATUS_STYLES[r.status],
-                      )}>
-                        {r.status_label}
-                      </span>
+                      <div className="space-y-1">
+                        <span className={cn(
+                          "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] border font-medium",
+                          STATUS_STYLES[r.status],
+                        )}>
+                          {r.status_label}
+                        </span>
+                        {r.sync_note && <div className="max-w-[180px] text-[10px] leading-tight text-muted-foreground">{r.sync_note}</div>}
+                      </div>
                     )}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{fmtDate(r.sent_at)}</td>
