@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const tokenRaw = pickMapped(body, answers, fieldMap, "tracking_token");
+    const tokenRaw = hasValue(body.token) ? body.token : pickMapped(body, answers, fieldMap, "tracking_token");
     const token = String(firstValue(tokenRaw) || "").trim();
     if (!token || token.length < 12) {
       console.warn("pulse_google_form_webhook_invalid_token", {
