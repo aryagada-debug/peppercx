@@ -16,10 +16,18 @@ import { Loader2, Download, Mail, CheckCircle2, AlertCircle, Send } from "lucide
 import { getCentralMailboxStatus, setCentralMailbox, sendCentralTest, sendAppEmail } from "@/lib/appEmail";
 import { NotificationRulesCard } from "@/components/settings/NotificationRulesCard";
 import { connectGmail, useGmailStatus } from "@/hooks/useGmail";
+import { PeopleReportingTable } from "@/components/settings/PeopleReportingTable";
+import { useStaffingQueries } from "@/hooks/queries/useStaffingQueries";
+import { useStaffingMutations } from "@/hooks/queries/useStaffingMutations";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const tabs = [
   "Users & Roles",
   "Access Controls",
+  "People",
   "Usage",
   "Targets",
   "Notifications",
@@ -68,6 +76,16 @@ export default function SettingsPage() {
         {activeTab === "Access Controls" && (
           isActuallyAdmin ? (
             <AccessControlsTab />
+          ) : (
+            <div className="rounded-xl border border-border bg-card p-8 text-center">
+              <p className="text-sm text-muted-foreground">Admin access required.</p>
+            </div>
+          )
+        )}
+
+        {activeTab === "People" && (
+          isActuallyAdmin ? (
+            <PeoplePanel />
           ) : (
             <div className="rounded-xl border border-border bg-card p-8 text-center">
               <p className="text-sm text-muted-foreground">Admin access required.</p>
