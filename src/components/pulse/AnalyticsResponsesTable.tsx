@@ -512,7 +512,7 @@ export function AnalyticsResponsesTable({
             <div ref={responseRef} className="bg-white p-4 rounded-md">
               {drillRow && (
                 drillRow.source === "google_form"
-                  ? <GoogleFormResponseView payload={drillRow.payload} nps={drillRow.nps ?? null} csat={drillRow.csat_avg ?? null} />
+                  ? <GoogleFormResponseView payload={drillRow.payload} nps={drillRow.nps ?? null} csat={drillRow.csat ?? null} />
                   : <SurveyResponseView payload={drillRow.payload} />
               )}
             </div>
