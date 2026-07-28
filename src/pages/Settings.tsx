@@ -187,9 +187,8 @@ function PulseGoogleFormCard() {
   const [testing, setTesting] = useState(false);
   const [formUrl, setFormUrl] = useState("");
   const [formId, setFormId] = useState("");
-  const [entryId, setEntryId] = useState("");
   const [webhookSecret, setWebhookSecret] = useState("");
-  const [trackingQuestion, setTrackingQuestion] = useState("");
+  const [emailQuestion, setEmailQuestion] = useState("Email");
   const [npsQuestion, setNpsQuestion] = useState("");
   const [csatQuestion, setCsatQuestion] = useState("");
   const [commentQuestion, setCommentQuestion] = useState("");
@@ -201,7 +200,7 @@ function PulseGoogleFormCard() {
     (async () => {
       const { data } = await supabase
         .from("pulse_google_form_config" as any)
-        .select("form_url, form_id, tracking_entry_id, webhook_secret, field_map")
+        .select("form_url, form_id, webhook_secret, field_map, email_question_title")
         .eq("id", "default")
         .maybeSingle();
       const row = data as any;
@@ -209,9 +208,8 @@ function PulseGoogleFormCard() {
         const map = (row.field_map || {}) as Record<string, string>;
         setFormUrl(row.form_url || "");
         setFormId(row.form_id || "");
-        setEntryId(row.tracking_entry_id || "");
         setWebhookSecret(row.webhook_secret || "");
-        setTrackingQuestion(map.tracking_token || "");
+        setEmailQuestion(row.email_question_title || map.email || "Email");
         setNpsQuestion(map.nps || "");
         setCsatQuestion(map.csat || "");
         setCommentQuestion(map.comment || "");
@@ -234,11 +232,12 @@ function PulseGoogleFormCard() {
     }
     fieldMap = {
       ...fieldMap,
-      ...(trackingQuestion.trim() ? { tracking_token: trackingQuestion.trim() } : {}),
+      ...(emailQuestion.trim() ? { email: emailQuestion.trim() } : {}),
       ...(npsQuestion.trim() ? { nps: npsQuestion.trim() } : {}),
       ...(csatQuestion.trim() ? { csat: csatQuestion.trim() } : {}),
       ...(commentQuestion.trim() ? { comment: commentQuestion.trim() } : {}),
     };
+    delete fieldMap.tracking_token;
     setSaving(true);
     const { error } = await supabase
       .from("pulse_google_form_config" as any)
@@ -246,8 +245,8 @@ function PulseGoogleFormCard() {
         id: "default",
         form_url: formUrl.trim(),
         form_id: formId.trim(),
-        tracking_entry_id: entryId.trim().replace(/^entry\.?/, ""),
         webhook_secret: webhookSecret.trim(),
+        email_question_title: emailQuestion.trim() || "Email",
         field_map: fieldMap,
       });
     setSaving(false);
@@ -267,7 +266,7 @@ function PulseGoogleFormCard() {
     try {
       const { data: latestInvite, error: inviteError } = await supabase
         .from("survey_invites")
-        .select("token, recipient_email, deal_name_snapshot")
+        .select("recipient_email, deal_name_snapshot")
         .eq("source", "google_form")
         .is("completed_at", null)
         .order("sent_at", { ascending: false })
@@ -275,23 +274,23 @@ function PulseGoogleFormCard() {
         .maybeSingle();
       if (inviteError) throw inviteError;
       const answerPayload: Record<string, string> = {};
-      if (latestInvite?.token && trackingQuestion.trim()) answerPayload[trackingQuestion.trim()] = latestInvite.token;
+      if (latestInvite?.recipient_email && emailQuestion.trim()) answerPayload[emailQuestion.trim()] = latestInvite.recipient_email;
       if (npsQuestion.trim()) answerPayload[npsQuestion.trim()] = "9";
       if (csatQuestion.trim()) answerPayload[csatQuestion.trim()] = "5";
       if (commentQuestion.trim()) answerPayload[commentQuestion.trim()] = "Diagnostics test only";
-      const body = latestInvite?.token
-        ? { secret: webhookSecret.trim(), test: true, token: latestInvite.token, answers: answerPayload }
+      const body = latestInvite?.recipient_email
+        ? { secret: webhookSecret.trim(), test: true, answers: answerPayload }
         : { secret: webhookSecret.trim(), ping: true };
       const { data, error } = await supabase.functions.invoke("pulse-google-form-webhook", { body });
       if (error) throw error;
       const d = data as any;
       if (d?.ok && d?.test) {
-        const msg = `Webhook reachable — token mapping works for ${latestInvite?.recipient_email || "latest invite"}`;
+        const msg = `Webhook reachable — email mapping works for ${latestInvite?.recipient_email || "latest invite"}`;
         setLastTest({ ok: true, message: msg, requestId: d.request_id });
         toast.success(msg);
       } else if (d?.ok) {
         const msg = d.has_field_map
-          ? "Webhook reachable — secret OK, no open Google Form invite found to test token mapping"
+          ? "Webhook reachable — secret OK, no open Google Form invite found to test email mapping"
           : "Webhook reachable — secret OK, but field mapping is empty";
         setLastTest({ ok: true, message: msg, requestId: d.request_id });
         toast.success(msg);
@@ -330,7 +329,7 @@ function onFormSubmit(e) {
       <div>
         <h3 className="text-sm font-semibold text-foreground">Pulse Google Form</h3>
         <p className="text-[11px] text-muted-foreground mt-1">
-          When Pulse is sent in "Google Form" mode, every recipient gets a prefilled link so their submission is mapped back to the correct deal. Add a short-answer question on your form (e.g. "Tracking token"), then paste its <span className="font-mono">entry.XXXXX</span> id below.
+          When Pulse is sent in "Google Form" mode, each response is mapped back by the respondent's email address. Keep an email question in the form and make its title match below.
         </p>
       </div>
       {loading ? (
@@ -361,9 +360,9 @@ function onFormSubmit(e) {
               className="w-full h-8 px-2 rounded border border-border bg-card text-xs" />
           </label>
           <label className="text-xs space-y-1">
-            <span className="text-muted-foreground">Tracking entry ID</span>
-            <input value={entryId} onChange={(e) => setEntryId(e.target.value)}
-              placeholder="entry.1234567890"
+            <span className="text-muted-foreground">Email question title</span>
+            <input value={emailQuestion} onChange={(e) => setEmailQuestion(e.target.value)}
+              placeholder="Email"
               className="w-full h-8 px-2 rounded border border-border bg-card text-xs" />
           </label>
           <label className="text-xs space-y-1">
@@ -377,14 +376,8 @@ function onFormSubmit(e) {
             <input value={webhookUrl} readOnly
               className="w-full h-8 px-2 rounded border border-border bg-secondary/40 text-xs font-mono" />
             <span className="block text-[11px] text-muted-foreground">
-              In your form's Apps Script, POST each submission to this URL as JSON with fields <span className="font-mono">{"{ secret, token, nps, csat, comment, answers }"}</span>. <span className="font-mono">token</span> = the answer to the tracking-token question.
+              In your form's Apps Script, POST each submission to this URL as JSON with fields <span className="font-mono">{"{ secret, answers }"}</span>. The answers map must include the email question title above.
             </span>
-          </label>
-          <label className="text-xs space-y-1">
-            <span className="text-muted-foreground">Tracking token question title</span>
-            <input value={trackingQuestion} onChange={(e) => setTrackingQuestion(e.target.value)}
-              placeholder="Tracking token"
-              className="w-full h-8 px-2 rounded border border-border bg-card text-xs" />
           </label>
           <label className="text-xs space-y-1">
             <span className="text-muted-foreground">NPS question title</span>
@@ -408,7 +401,7 @@ function onFormSubmit(e) {
             <span className="text-muted-foreground">Advanced field map (JSON)</span>
             <textarea value={fieldMapJson} onChange={(e) => setFieldMapJson(e.target.value)}
               rows={5}
-              placeholder={`{\n  "tracking_token": "Tracking token",\n  "nps": "How likely are you to recommend Pepper?",\n  "csat": "Overall satisfaction",\n  "comment": "Any other feedback?"\n}`}
+              placeholder={`{\n  "email": "Email",\n  "nps": "How likely are you to recommend Pepper?",\n  "csat": "Overall satisfaction",\n  "comment": "Any other feedback?"\n}`}
               className="w-full px-2 py-1.5 rounded border border-border bg-card text-xs font-mono" />
             <span className="block text-[11px] text-muted-foreground">
               Question titles must match the Google Form exactly. The explicit fields above are saved into this JSON.

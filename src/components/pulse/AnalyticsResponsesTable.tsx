@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUpDown, Download, Eye, Send, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { toPng } from "html-to-image";
+import { useUserRole } from "@/hooks/useUserRole";
 
 type StatusKey = "completed" | "opened" | "sent" | "failed" | "pending";
 
@@ -65,7 +66,7 @@ function deriveStatus(inv: InviteRow): { key: StatusKey; label: string } {
     if (isThrottle && inv.sent_at) return { key: "sent", label: "Sent" };
     return { key: "failed", label: "Failed" };
   }
-  if (inv.source === "google_form" && inv.sent_at) return { key: "sent", label: "Awaiting sync" };
+  if (inv.source === "google_form" && inv.sent_at) return { key: "sent", label: "Awaiting form submit" };
   if (inv.opened_at) return { key: "opened", label: "Opened" };
   if (inv.sent_at) return { key: "sent", label: "Sent" };
   return { key: "pending", label: "Pending" };
@@ -99,8 +100,19 @@ export function AnalyticsResponsesTable({
   const [bulkResending, setBulkResending] = useState(false);
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { isActuallyAdmin } = useUserRole();
   const responseRef = useRef<HTMLDivElement | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [unmatchedCount, setUnmatchedCount] = useState(0);
+
+  useEffect(() => {
+    if (!isActuallyAdmin) return;
+    supabase
+      .from("pulse_unmatched_submissions" as any)
+      .select("id", { count: "exact", head: true })
+      .is("resolved_at", null)
+      .then(({ count }) => setUnmatchedCount(count || 0));
+  }, [isActuallyAdmin, invites.length, responses.length]);
 
   const downloadPng = async () => {
     if (!responseRef.current || !drillRow) return;
@@ -138,7 +150,7 @@ export function AnalyticsResponsesTable({
       const stuck = awaiting_sync && ageMs > STUCK_MS;
       const days = Math.floor(ageMs / 86400000);
       const baseSync = awaiting_sync
-        ? "Email sent. Waiting for Google Form Apps Script webhook to send the submitted response back."
+        ? "Email sent. Waiting for the Google Form submission to sync back by email."
         : null;
       const sync_note = baseSync
         ? stuck
@@ -338,6 +350,12 @@ export function AnalyticsResponsesTable({
         </div>
       </div>
 
+      {unmatchedCount > 0 && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          {unmatchedCount} Google Form submission{unmatchedCount === 1 ? "" : "s"} reached the app but could not be matched to an open invite. Check the email question title and pending invite email.
+        </div>
+      )}
+
       <div className="rounded-lg border border-border overflow-hidden w-full">
         <div className="overflow-x-auto">
           <table className="w-full text-xs min-w-[1200px]">
@@ -418,7 +436,7 @@ export function AnalyticsResponsesTable({
                   <td className="px-3 py-2 max-w-[180px] truncate" title={r.respondent}>{r.respondent || "—"}</td>
                   <td className="px-3 py-2 max-w-[160px] truncate" title={r.campaign}>{r.campaign || "—"}</td>
                   <td className="px-3 py-2">
-                    {r.has_response ? (
+                    {r.source ? (
                       <span className={cn(
                         "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] border font-medium",
                         r.source === "google_form"
