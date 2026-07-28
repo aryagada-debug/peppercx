@@ -1720,6 +1720,7 @@ export type Database = {
       }
       pulse_google_form_config: {
         Row: {
+          email_question_title: string | null
           field_map: Json
           form_id: string
           form_url: string
@@ -1730,6 +1731,7 @@ export type Database = {
           webhook_secret: string
         }
         Insert: {
+          email_question_title?: string | null
           field_map?: Json
           form_id?: string
           form_url?: string
@@ -1740,6 +1742,7 @@ export type Database = {
           webhook_secret?: string
         }
         Update: {
+          email_question_title?: string | null
           field_map?: Json
           form_id?: string
           form_url?: string
@@ -1778,6 +1781,36 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
           version?: number
+        }
+        Relationships: []
+      }
+      pulse_unmatched_submissions: {
+        Row: {
+          created_at: string
+          id: string
+          raw_payload: Json
+          resolved_at: string | null
+          resolved_invite_id: string | null
+          source: string
+          submitted_email: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          raw_payload?: Json
+          resolved_at?: string | null
+          resolved_invite_id?: string | null
+          source?: string
+          submitted_email?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          raw_payload?: Json
+          resolved_at?: string | null
+          resolved_invite_id?: string | null
+          source?: string
+          submitted_email?: string | null
         }
         Relationships: []
       }
