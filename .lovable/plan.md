@@ -1,29 +1,42 @@
-## What I verified
-- The app’s Pulse Google Form config points to the correct Google Form and expects the email question title `Email`.
-- There is currently 1 pending Google Form invite and 0 Google Form responses recorded in the app.
-- The webhook function for this app has no recent logs, and there are 0 unmatched submissions, which means the live Google Form submit flow is still not reaching this app’s webhook.
-- The saved field map still contains a legacy `tracking_token` mapping to `Which company are you with?`, which can cause old/test payloads to fail with `invalid_token` if the deployed webhook/config path still falls back to token matching.
+## Goal
 
-## Plan
-1. **Harden the webhook behavior**
-   - Make email-based matching the only required mapping path for Google Form submissions.
-   - Remove dependence on `tracking_token` for normal submissions.
-   - If an email is present but no matching pending invite exists, log the submission into `pulse_unmatched_submissions` instead of failing silently.
+When a Pulse response has `source = "google_form"`, the drill-in view should display the answers as they were captured from the Creative Pulse Google Form (11 sections, exact question wording), instead of trying to shoehorn them into the in-app SurveyWizard layout.
 
-2. **Clean up the Google Form config**
-   - Remove the stale `tracking_token` field map from the default config.
-   - Keep `email_question_title = Email` and retain NPS/CSAT/comment mappings.
+## What to build
 
-3. **Add a safe backfill/sync path**
-   - Add or expose a “sync from Google Sheet / pasted responses” admin action only if the webhook still has historical submissions that never reached the app.
-   - For each row, match by respondent email to the latest pending Google Form invite and mark it completed.
-   - Unmatched rows should be visible for manual review instead of disappearing.
+1. **New component** `src/components/pulse/GoogleFormResponseView.tsx`
+   - Reads `payload.answers` (the object keyed by Google Form question titles that the webhook already stores) plus `payload.raw` / `payload.comment` as fallbacks.
+   - Renders sections matching the form:
+     1. Respondent (company, role, email) — from `answers["Which company are you with?"]`, `answers["Which best describes your role on this retainer?"]`, `answers["Email"]`.
+     2. Outcomes — success criteria (multi), measurable impact, on-brand consistency, craft rating, single-win verbatim.
+     3. Your experience — 7 sub-ratings on 1–5 (with N/A), rendered as star rows like the current SurveyResponseView, plus the free-text "got right / could do better" verbatim.
+     4. Looking ahead — renewal likelihood.
+     5. Change-your-mind verbatim.
+     6. Growth — where retainer could do more.
+     7. Recommendation — NPS 0–10 with category pill (Promoter/Passive/Detractor), reusing `npsCategory` from `@/lib/pulseSurvey`.
+     8. Main reason / what would need to change (verbatim).
+     9. Holding back from wholehearted yes (verbatim).
+     10. Value most / quote (verbatim).
+     11. Overall feeling — mood/scale.
+   - Handles missing answers gracefully (renders "—").
+   - Includes a small "Unmapped answers" collapsible at the bottom that lists any keys in `answers` we didn't explicitly render, so nothing is lost if Google Form question wording changes.
+   - Reuses existing `Section`, `QA`, `Pill`, `Quote`, `ScaleBar`, `Empty` styling (extract into a shared helper file or duplicate the small primitives inside the new component — whichever keeps the diff small).
 
-4. **Improve the UI status clarity**
-   - In Pulse/NPS analytics, show Google Form invites as `Awaiting form submit` only when no webhook/submission has arrived.
-   - Show unmatched submission diagnostics separately so admins can see whether the issue is “not submitted,” “not received,” or “received but not matched.”
+2. **Route by source** in `src/components/pulse/AnalyticsResponsesTable.tsx`
+   - In the drill-in `Dialog` body (around line 512), branch:
+     - `drillRow.source === "google_form"` → `<GoogleFormResponseView payload={drillRow.payload} />`
+     - otherwise → existing `<SurveyResponseView payload={drillRow.payload} />`.
+   - Also pass `nps` / `csat_avg` from `drillRow` into the Google Form view so the header can show them even if `answers` parsing misses the NPS numeric.
 
-5. **Validate end-to-end**
-   - Test the webhook with an `answers.Email` payload matching the pending invite.
-   - Confirm a `survey_responses` row is created with `source = google_form` and the invite is marked completed.
-   - Confirm the response appears in the Pulse/NPS Analytics → Responses table.
+3. **PNG download** — the existing "Download PNG" action already snapshots the dialog body, so it will automatically capture whichever view is rendered. No changes needed there.
+
+## Non-goals
+
+- No changes to the webhook, database, or in-app SurveyResponseView.
+- No changes to Send/Analytics tabs beyond the drill-in dialog body.
+- No new fields on `survey_responses`.
+
+## Technical notes
+
+- The webhook stores `payload = { comment, answers, raw, diagnostics }` where `answers` is `Record<questionTitle, string | string[]>`. Match on the exact titles from the shared form; fall back to `payload.raw.answers` if `payload.answers` is missing on older rows.
+- Experience sub-ratings are captured as a grid in Google Forms; they typically arrive as either a nested object or as separate `answers` keys of the form `"How are we doing on each of these? [Quality of the creative output — …]"`. The new view will look for both shapes and normalize before rendering star rows.
