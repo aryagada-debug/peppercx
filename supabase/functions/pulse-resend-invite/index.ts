@@ -27,6 +27,18 @@ function escapeHtml(s: string) {
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
+function buildGoogleFormLink(cfg: { form_url: string; form_id: string } | null): string {
+  if (!cfg) return "";
+  const raw = (cfg.form_url || "").trim();
+  const id = (cfg.form_id || "").trim();
+  if (raw) {
+    let base = raw.replace(/\/edit(\?.*)?$/, "/viewform").replace(/\/formResponse(\?.*)?$/, "/viewform");
+    if (!/\/viewform$/.test(base) && !base.includes("/viewform?")) base = base.replace(/\/?$/, "/viewform");
+    return base;
+  }
+  return id ? `https://docs.google.com/forms/d/e/${id}/viewform` : "";
+}
+
 async function getCaller(req: Request, admin: SupabaseClient) {
   const auth = req.headers.get("Authorization") || "";
   if (!auth.startsWith("Bearer ")) throw new Error("unauthorized");
@@ -88,9 +100,19 @@ Deno.serve(async (req) => {
 
     const { data: invites, error: invErr } = await admin
       .from("survey_invites")
-      .select("id, token, deal_id, recipient_name, recipient_email, account_snapshot, deal_name_snapshot, cc_emails")
+      .select("id, token, deal_id, recipient_name, recipient_email, account_snapshot, deal_name_snapshot, cc_emails, source")
       .in("id", ids);
     if (invErr) throw invErr;
+
+    let googleForm: { form_url: string; form_id: string } | null = null;
+    if ((invites || []).some((x: any) => x.source === "google_form")) {
+      const { data: cfg } = await admin
+        .from("pulse_google_form_config")
+        .select("form_url, form_id")
+        .eq("id", "default")
+        .maybeSingle();
+      googleForm = { form_url: cfg?.form_url || "", form_id: cfg?.form_id || "" };
+    }
 
     const results: Array<{ inviteId: string; ok: boolean; error?: string }> = [];
     for (const id of ids) {
@@ -100,7 +122,10 @@ Deno.serve(async (req) => {
       const email = (inv.recipient_email || "").trim();
       if (!email || !/@/.test(email)) { results.push({ inviteId: id, ok: false, error: "invalid_recipient_email" }); continue; }
 
-      const link = `${PUBLIC_SURVEY_BASE}/survey/${inv.token}`;
+      const link = inv.source === "google_form"
+        ? buildGoogleFormLink(googleForm)
+        : `${PUBLIC_SURVEY_BASE}/survey/${inv.token}`;
+      if (!link) { results.push({ inviteId: id, ok: false, error: "google_form_not_configured" }); continue; }
       const html = buildHtml({
         recipientName: inv.recipient_name || "",
         account: inv.account_snapshot || "",
