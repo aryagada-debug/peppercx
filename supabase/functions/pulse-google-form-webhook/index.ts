@@ -1,21 +1,11 @@
 // Public endpoint called by a Google Apps Script "on form submit" trigger.
-// The script posts each submission as JSON; we look up the invite by its
-// tracking token, then record a survey_responses row and mark the invite
-// as completed.
-//
-// Expected POST body:
-// {
-//   "secret": "<shared secret from pulse_google_form_config.webhook_secret>",
-//   "token": "<value the respondent's browser sent for the hidden entry>",
-//   "nps": 8,               // optional number 0..10
-//   "csat": 4,              // optional number 1..5
-//   "comment": "…",         // optional free text
-//   "answers": { ... }      // full raw {question: answer} map (stored on payload)
-// }
+// The script posts each submission as JSON; we match the respondent email to
+// the latest open Google Form invite, then record a survey_responses row and
+// mark the invite as completed. Legacy token matching remains as a fallback.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -45,6 +35,12 @@ function firstValue(v: unknown): unknown {
   return Array.isArray(v) ? v[0] : v;
 }
 
+function text(v: unknown): string {
+  const first = firstValue(v);
+  if (first == null) return "";
+  return String(first).trim();
+}
+
 function pickMapped(
   body: Record<string, unknown>,
   answers: Record<string, unknown>,
@@ -59,6 +55,25 @@ function pickMapped(
 
 function safeKeys(obj: Record<string, unknown>): string[] {
   return Object.keys(obj).slice(0, 60);
+}
+
+function normalizeEmail(v: unknown): string {
+  const m = text(v).toLowerCase().match(/[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+/i);
+  return (m?.[0] || "").trim().toLowerCase();
+}
+
+function collectEmailCandidates(answers: Record<string, unknown>): string[] {
+  const out: string[] = [];
+  const add = (v: unknown) => {
+    if (Array.isArray(v)) {
+      v.forEach(add);
+      return;
+    }
+    const email = normalizeEmail(v);
+    if (email) out.push(email);
+  };
+  Object.values(answers).forEach(add);
+  return Array.from(new Set(out)).slice(0, 10);
 }
 
 function collectTokenCandidates(answers: Record<string, unknown>): string[] {
@@ -76,11 +91,28 @@ function collectTokenCandidates(answers: Record<string, unknown>): string[] {
 }
 
 function num(v: unknown, min: number, max: number): number | null {
-  const n = typeof v === "string" ? Number(v) : (typeof v === "number" ? v : NaN);
+  const raw = text(v);
+  if (!raw || /^n\/?a$/i.test(raw)) return null;
+  const n = typeof v === "number" ? v : Number(raw.match(/-?\d+(?:\.\d+)?/)?.[0] ?? NaN);
   if (!Number.isFinite(n)) return null;
   const r = Math.round(n);
   if (r < min || r > max) return null;
   return r;
+}
+
+async function logUnmatched(
+  admin: ReturnType<typeof createClient>,
+  submittedEmail: string | null,
+  rawPayload: Record<string, unknown>,
+  requestId: string,
+  reason: string,
+) {
+  const { error } = await admin.from("pulse_unmatched_submissions").insert({
+    submitted_email: submittedEmail,
+    source: "google_form",
+    raw_payload: { ...rawPayload, diagnostics: { request_id: requestId, reason } },
+  });
+  if (error) console.warn("pulse_google_form_webhook_unmatched_log_failed", { request_id: requestId, error: error.message });
 }
 
 Deno.serve(async (req) => {
@@ -94,7 +126,6 @@ Deno.serve(async (req) => {
 
     console.info("pulse_google_form_webhook_request", {
       request_id: requestId,
-      has_token: hasValue(body.token),
       has_answers: Object.keys(answers).length > 0,
       answer_keys: safeKeys(answers),
       is_ping: body.ping === true,
@@ -103,7 +134,7 @@ Deno.serve(async (req) => {
 
     const { data: cfg } = await admin
       .from("pulse_google_form_config")
-      .select("webhook_secret, field_map")
+      .select("webhook_secret, field_map, email_question_title")
       .eq("id", "default")
       .maybeSingle();
     const secret = (cfg?.webhook_secret || "").trim();
@@ -114,6 +145,7 @@ Deno.serve(async (req) => {
     const fieldMap = (cfg?.field_map && typeof cfg.field_map === "object")
       ? cfg.field_map as FieldMap
       : {};
+    const emailQuestionTitle = String(cfg?.email_question_title || fieldMap.email || "Email").trim();
 
     // Diagnostic mode: allow a synthetic ping that only validates auth+config.
     if (body.ping === true) {
@@ -122,62 +154,83 @@ Deno.serve(async (req) => {
         ping: true,
         request_id: requestId,
         has_field_map: Object.keys(fieldMap).length > 0,
-        has_tracking_token_map: !!fieldMap.tracking_token,
+        email_question_title: emailQuestionTitle,
         mapped_fields: Object.keys(fieldMap),
       });
     }
 
+    const emailCandidates = [
+      normalizeEmail(body.email),
+      normalizeEmail(pickMapped(body, answers, fieldMap, "email")),
+      normalizeEmail(emailQuestionTitle ? answers[emailQuestionTitle] : null),
+      ...collectEmailCandidates(answers),
+    ].filter(Boolean);
+    const submittedEmail = Array.from(new Set(emailCandidates))[0] || "";
+
+    let matchSource = submittedEmail ? "email" : "none";
+    let invite: any = null;
+    if (submittedEmail) {
+      const since = new Date(Date.now() - 60 * 24 * 3600 * 1000).toISOString();
+      const { data, error } = await admin
+        .from("survey_invites")
+        .select("id, deal_id, recipient_name, recipient_email, account_snapshot, completed_at, sent_at")
+        .eq("source", "google_form")
+        .ilike("recipient_email", submittedEmail)
+        .is("completed_at", null)
+        .gte("sent_at", since)
+        .order("sent_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      invite = data;
+    }
+
     const tokenRaw = hasValue(body.token) ? body.token : pickMapped(body, answers, fieldMap, "tracking_token");
     let token = String(firstValue(tokenRaw) || "").trim();
-    let tokenSource = hasValue(body.token) ? "top_level" : (fieldMap.tracking_token ? "field_map" : "none");
-    const candidates = !token ? collectTokenCandidates(answers) : [];
-    if (!token && candidates.length) {
-      for (const candidate of candidates) {
-        const { data: found, error: candidateErr } = await admin
-          .from("survey_invites")
-          .select("token")
-          .eq("token", candidate)
-          .maybeSingle();
-        if (candidateErr) throw candidateErr;
-        if (found?.token) {
-          token = found.token as string;
-          tokenSource = "answer_scan";
-          break;
-        }
-      }
+    const tokenCandidates = !invite && !token ? collectTokenCandidates(answers) : [];
+    if (!invite && !token && tokenCandidates.length) token = tokenCandidates[0];
+    if (!invite && token && token.length >= 12) {
+      const { data, error } = await admin
+        .from("survey_invites")
+        .select("id, deal_id, recipient_name, recipient_email, account_snapshot, completed_at, sent_at")
+        .eq("token", token)
+        .maybeSingle();
+      if (error) throw error;
+      invite = data;
+      if (invite) matchSource = "legacy_token";
     }
-    if (!token || token.length < 12) {
-      console.warn("pulse_google_form_webhook_invalid_token", {
+
+    if (!submittedEmail && !invite) {
+      await logUnmatched(admin, null, { body, answers, answer_keys: safeKeys(answers) }, requestId, "missing_email");
+      console.warn("pulse_google_form_webhook_missing_email", {
         request_id: requestId,
-        has_top_level_token: hasValue(body.token),
-        tracking_token_map: fieldMap.tracking_token || null,
-        token_candidates: candidates.length,
+        email_question_title: emailQuestionTitle,
         answer_keys: safeKeys(answers),
       });
       return json({
         ok: false,
-        error: "invalid_token",
-        diagnostic: "Apps Script reached the webhook, but it did not send a valid tracking token. Map field_map.tracking_token to the exact Google Form question title, or send token as a top-level field.",
+        error: "missing_email",
+        diagnostic: "Apps Script reached the webhook, but the submitted answers did not include a valid respondent email. Make sure the Google Form question title matches the Email question title in Settings.",
         request_id: requestId,
-        expected_tracking_question: fieldMap.tracking_token || null,
-        token_candidates: candidates.length,
+        expected_email_question: emailQuestionTitle,
         answer_keys: safeKeys(answers),
       }, 400);
     }
 
-    const { data: invite, error: invErr } = await admin
-      .from("survey_invites")
-      .select("id, deal_id, recipient_name, recipient_email, account_snapshot, completed_at")
-      .eq("token", token)
-      .maybeSingle();
-    if (invErr) throw invErr;
     if (!invite) {
-      console.warn("pulse_google_form_webhook_invite_not_found", { request_id: requestId, token_preview: `${token.slice(0, 8)}…` });
-      return json({ ok: false, error: "invite_not_found", request_id: requestId }, 404);
+      await logUnmatched(admin, submittedEmail || null, { body, answers, answer_keys: safeKeys(answers) }, requestId, "no_matching_open_invite");
+      console.warn("pulse_google_form_webhook_no_matching_invite", { request_id: requestId, submitted_email: submittedEmail });
+      return json({
+        ok: false,
+        error: "no_matching_open_invite",
+        diagnostic: "Submission received, but no pending Google Form invite was found for this email in the last 60 days. It has been saved under unmatched submissions for admin review.",
+        request_id: requestId,
+        submitted_email: submittedEmail,
+      }, 202);
     }
 
     if (invite.completed_at) {
-      return json({ ok: true, already: true, inviteId: invite.id, request_id: requestId });
+      return json({ ok: true, already: true, inviteId: invite.id, request_id: requestId, match_source: matchSource });
     }
 
     // Prefer top-level fields, else fall back to answers[fieldMap[key]].
@@ -188,7 +241,7 @@ Deno.serve(async (req) => {
 
     // Structured warning when a mapping was configured but the field is missing.
     const missingMapped: string[] = [];
-    for (const key of ["tracking_token", "nps", "csat", "comment"] as const) {
+    for (const key of ["email", "nps", "csat", "comment"] as const) {
       const label = fieldMap[key];
       if (label && !hasValue(answers[label]) && !hasValue(body[key])) missingMapped.push(key);
     }
@@ -207,8 +260,9 @@ Deno.serve(async (req) => {
         test: true,
         request_id: requestId,
         inviteId: invite.id,
-        token_ok: true,
-        token_source: tokenSource,
+        email_ok: !!submittedEmail,
+        submitted_email: submittedEmail || invite.recipient_email,
+        match_source: matchSource,
         would_write_response: true,
         parsed: { nps, csat, has_comment: !!comment },
         missing_mapped: missingMapped,
@@ -223,11 +277,11 @@ Deno.serve(async (req) => {
       nps,
       csat_avg: csat,
       respondent_name: invite.recipient_name || null,
-      respondent_email: invite.recipient_email || null,
+      respondent_email: submittedEmail || invite.recipient_email || null,
       respondent_company: invite.account_snapshot || null,
       source: "google_form",
       submitted_at: now,
-      payload: { comment, answers, raw: body, diagnostics: { request_id: requestId, missing_mapped: missingMapped, token_source: tokenSource } },
+      payload: { comment, answers, raw: body, diagnostics: { request_id: requestId, missing_mapped: missingMapped, match_source: matchSource, submitted_email: submittedEmail } },
     });
     if (insErr) throw insErr;
 
@@ -240,8 +294,8 @@ Deno.serve(async (req) => {
       })
       .eq("id", invite.id);
 
-    console.info("pulse_google_form_webhook_recorded", { request_id: requestId, invite_id: invite.id, missing: missingMapped });
-    return json({ ok: true, inviteId: invite.id, request_id: requestId, missing_mapped: missingMapped });
+    console.info("pulse_google_form_webhook_recorded", { request_id: requestId, invite_id: invite.id, match_source: matchSource, missing: missingMapped });
+    return json({ ok: true, inviteId: invite.id, request_id: requestId, match_source: matchSource, missing_mapped: missingMapped });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("pulse_google_form_webhook_error", { request_id: requestId, error: msg });
