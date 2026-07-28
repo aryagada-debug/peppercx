@@ -111,11 +111,39 @@ const CSAT_DIMENSIONS = [
 ] as const;
 
 function parseCsatMatrix(v: unknown): { perDimension: Record<string, number | null>; avg: number | null; display: string | null } {
-  const arr: unknown[] = Array.isArray(v) ? v : v == null || v === "" ? [] : [v];
+  // Normalize to a 7-slot array indexed by CSAT_DIMENSIONS order.
+  let slots: unknown[] = [];
+  let cur: unknown = v;
+  // Unwrap single-element nested arrays: [["1","2",...]] -> ["1","2",...]
+  while (Array.isArray(cur) && cur.length === 1 && Array.isArray(cur[0])) {
+    cur = cur[0];
+  }
+  if (Array.isArray(cur)) {
+    slots = cur.slice(0, CSAT_DIMENSIONS.length);
+  } else if (cur && typeof cur === "object") {
+    const obj = cur as Record<string, unknown>;
+    slots = CSAT_DIMENSIONS.map((dim, i) => {
+      if (dim in obj) return obj[dim];
+      if (String(i) in obj) return obj[String(i)];
+      // Loose title match (case/whitespace-insensitive)
+      const normDim = dim.toLowerCase().replace(/\s+/g, " ").trim();
+      for (const [k, val] of Object.entries(obj)) {
+        if (k.toLowerCase().replace(/\s+/g, " ").trim() === normDim) return val;
+      }
+      return undefined;
+    });
+  } else if (typeof cur === "string" && /[,\n;|]/.test(cur)) {
+    slots = cur.split(/[,\n;|]+/).map((s) => s.trim()).slice(0, CSAT_DIMENSIONS.length);
+  } else if (cur == null || cur === "") {
+    slots = [];
+  } else {
+    slots = [cur];
+  }
+
   const perDimension: Record<string, number | null> = {};
   const scores: number[] = [];
   CSAT_DIMENSIONS.forEach((dim, i) => {
-    const parsed = num(arr[i], 1, 5);
+    const parsed = num(slots[i], 1, 5);
     perDimension[dim] = parsed;
     if (parsed != null) scores.push(parsed);
   });
@@ -262,6 +290,19 @@ Deno.serve(async (req) => {
     const csatRaw = pickMapped(body, answers, fieldMap, "csat");
     const csatMatrix = parseCsatMatrix(csatRaw);
     const csat = csatMatrix.avg;
+    try {
+      const rawSample = typeof csatRaw === "string"
+        ? csatRaw.slice(0, 200)
+        : JSON.stringify(csatRaw)?.slice(0, 300);
+      console.info("pulse_google_form_webhook_csat_parsed", {
+        request_id: requestId,
+        raw_type: Array.isArray(csatRaw) ? "array" : csatRaw === null ? "null" : typeof csatRaw,
+        raw_sample: rawSample,
+        perDimension: csatMatrix.perDimension,
+        avg: csatMatrix.avg,
+        display: csatMatrix.display,
+      });
+    } catch (_) { /* ignore log errors */ }
     const commentRaw = firstValue(pickMapped(body, answers, fieldMap, "comment"));
     const comment = commentRaw != null ? String(commentRaw).slice(0, 4000) : null;
 
