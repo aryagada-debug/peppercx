@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { InviteRow, ResponseRow } from "./useAnalyticsData";
 import { SurveyResponseView } from "./SurveyResponseView";
+import { GoogleFormResponseView } from "./GoogleFormResponseView";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -509,7 +510,11 @@ export function AnalyticsResponsesTable({
           </DialogHeader>
           <div className="px-6 py-5 overflow-y-auto bg-secondary/30">
             <div ref={responseRef} className="bg-white p-4 rounded-md">
-              {drillRow && <SurveyResponseView payload={drillRow.payload} />}
+              {drillRow && (
+                drillRow.source === "google_form"
+                  ? <GoogleFormResponseView payload={drillRow.payload} nps={drillRow.nps ?? null} csat={drillRow.csat_avg ?? null} />
+                  : <SurveyResponseView payload={drillRow.payload} />
+              )}
             </div>
           </div>
         </DialogContent>
