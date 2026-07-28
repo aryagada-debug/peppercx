@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { forwardRef, useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { npsCategory } from "@/lib/pulseSurvey";
 
@@ -12,14 +12,15 @@ function Section({ eyebrow, title, children }: { eyebrow?: string; title: string
     </section>
   );
 }
-function QA({ q, children }: { q: string; children: React.ReactNode }) {
+const QA = forwardRef<HTMLDivElement, { q: string; children: React.ReactNode }>(({ q, children }, ref) => {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-[1fr_1.2fr] gap-2 md:gap-4 text-xs">
+    <div ref={ref} className="grid grid-cols-1 md:grid-cols-[1fr_1.2fr] gap-2 md:gap-4 text-xs">
       <div className="text-muted-foreground">{q}</div>
       <div className="text-foreground font-medium break-words">{children}</div>
     </div>
   );
-}
+});
+QA.displayName = "QA";
 function Empty() { return <span className="text-muted-foreground italic font-normal">—</span>; }
 function Pill({ children, tone = "muted" }: { children: React.ReactNode; tone?: "muted" | "good" | "warn" | "bad" | "brand" }) {
   const cls =
@@ -100,27 +101,108 @@ const EXPERIENCE_ROWS: { key: string; label: string; tokens: string[] }[] = [
   { key: "strategic", label: "Feeling like a strategic partner", tokens: ["strategic", "partner"] },
 ];
 
-function extractExperienceRatings(answers: Record<string, unknown>): Record<string, number | null> {
+const EXPERIENCE_GRID_QUESTIONS = [
+  "How are we doing on each of these?",
+  "How are we doing on each of these",
+  "Rate how we're doing where it counts. Mark N/A for anything that doesn't apply to you.",
+  "Rate how we’re doing where it counts. Mark N/A for anything that doesn’t apply to you.",
+];
+
+function emptyExperienceRatings(): Record<string, number | null> {
   const out: Record<string, number | null> = {};
-  // Case A: nested object under a single key.
-  const bundleKey = findKey(answers, [
-    "How are we doing on each of these?",
-    "How are we doing on each of these",
-  ]);
-  const bundle = bundleKey ? answers[bundleKey] : null;
-  if (bundle && typeof bundle === "object" && !Array.isArray(bundle)) {
-    const b = bundle as Record<string, unknown>;
-    for (const row of EXPERIENCE_ROWS) {
-      const k = Object.keys(b).find((kk) => {
-        const lk = kk.toLowerCase();
-        return row.tokens.every((t) => lk.includes(t));
-      });
-      out[row.key] = k ? toNum(b[k], 1, 5) : null;
+  EXPERIENCE_ROWS.forEach((row) => { out[row.key] = null; });
+  return out;
+}
+
+function mapExperienceObject(obj: Record<string, unknown>): Record<string, number | null> {
+  const out = emptyExperienceRatings();
+  for (const row of EXPERIENCE_ROWS) {
+    const labelMatch = obj[row.label];
+    if (labelMatch !== undefined) {
+      out[row.key] = toNum(labelMatch, 1, 5);
+      continue;
     }
+    const k = Object.keys(obj).find((kk) => {
+      const lk = kk.toLowerCase();
+      return row.tokens.every((t) => lk.includes(t));
+    });
+    out[row.key] = k ? toNum(obj[k], 1, 5) : null;
+  }
+  return out;
+}
+
+function parseExperienceBundle(v: unknown): Record<string, number | null> | null {
+  let cur = v;
+  while (Array.isArray(cur) && cur.length === 1 && Array.isArray(cur[0])) {
+    cur = cur[0];
+  }
+
+  if (Array.isArray(cur)) {
+    const out = emptyExperienceRatings();
+    EXPERIENCE_ROWS.forEach((row, index) => {
+      out[row.key] = toNum(cur[index], 1, 5);
+    });
     return out;
   }
+
+  if (cur && typeof cur === "object") {
+    const obj = cur as Record<string, unknown>;
+    const numericKeys = EXPERIENCE_ROWS.every((_, index) => String(index) in obj);
+    if (numericKeys) {
+      const out = emptyExperienceRatings();
+      EXPERIENCE_ROWS.forEach((row, index) => {
+        out[row.key] = toNum(obj[String(index)], 1, 5);
+      });
+      return out;
+    }
+    return mapExperienceObject(obj);
+  }
+
+  if (typeof cur === "string") {
+    const raw = cur.trim();
+    if (!raw) return emptyExperienceRatings();
+
+    if (raw.startsWith("[") && raw.endsWith("]")) {
+      try {
+        const parsed = JSON.parse(raw);
+        const parsedBundle = parseExperienceBundle(parsed);
+        if (parsedBundle) return parsedBundle;
+      } catch (_) {
+        // Fall back to delimiter parsing below.
+      }
+    }
+
+    const slots = /[,;\n|]/.test(raw)
+      ? raw.split(/[,;\n|]+/).map((s) => s.trim())
+      : [raw];
+    const out = emptyExperienceRatings();
+    EXPERIENCE_ROWS.forEach((row, index) => {
+      out[row.key] = toNum(slots[index], 1, 5);
+    });
+    return out;
+  }
+
+  return null;
+}
+
+function hasAnyExperienceValue(ratings: Record<string, number | null>): boolean {
+  return Object.values(ratings).some((value) => typeof value === "number");
+}
+
+function extractExperienceRatings(answers: Record<string, unknown>, payload?: any): Record<string, number | null> {
+  const storedDimensions = payload?.csat_dimensions ?? payload?.raw?.csat_dimensions;
+  const stored = parseExperienceBundle(storedDimensions);
+  if (stored && hasAnyExperienceValue(stored)) return stored;
+
+  // Case A: nested object under a single key.
+  const bundleKey = findKey(answers, EXPERIENCE_GRID_QUESTIONS);
+  const bundle = bundleKey ? answers[bundleKey] : null;
+  const parsedBundle = parseExperienceBundle(bundle);
+  if (parsedBundle && hasAnyExperienceValue(parsedBundle)) return parsedBundle;
+
   // Case B: separate keys like "How are we doing... [Quality of the creative output — ...]"
   const keys = Object.keys(answers || {});
+  const out = emptyExperienceRatings();
   for (const row of EXPERIENCE_ROWS) {
     const hit = keys.find((k) => {
       const lk = k.toLowerCase();
@@ -177,7 +259,7 @@ export function GoogleFormResponseView({
   const craft = toText(pick(answers, ["How would you rate the craft of the creative work we deliver?"]));
   const singleWin = toText(pick(answers, ["The single creative outcome that would make this retainer an undeniable win?"]));
 
-  const expRatings = extractExperienceRatings(answers);
+  const expRatings = extractExperienceRatings(answers, payload);
   const expComment = toText(pick(answers, ["Anything specific we got really right, or could do better?"]));
 
   const renewal = toText(pick(answers, ["If the retainer renewal were today, how likely are you to continue with Pepper?"]));
