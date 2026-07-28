@@ -188,6 +188,7 @@ function PulseGoogleFormCard() {
   const [formUrl, setFormUrl] = useState("");
   const [formId, setFormId] = useState("");
   const [webhookSecret, setWebhookSecret] = useState("");
+  const [customWebhookUrl, setCustomWebhookUrl] = useState("");
   const [emailQuestion, setEmailQuestion] = useState("Email");
   const [npsQuestion, setNpsQuestion] = useState("");
   const [csatQuestion, setCsatQuestion] = useState("");
@@ -200,7 +201,7 @@ function PulseGoogleFormCard() {
     (async () => {
       const { data } = await supabase
         .from("pulse_google_form_config" as any)
-        .select("form_url, form_id, webhook_secret, field_map, email_question_title")
+        .select("form_url, form_id, webhook_secret, field_map, email_question_title, webhook_url")
         .eq("id", "default")
         .maybeSingle();
       const row = data as any;
@@ -209,6 +210,7 @@ function PulseGoogleFormCard() {
         setFormUrl(row.form_url || "");
         setFormId(row.form_id || "");
         setWebhookSecret(row.webhook_secret || "");
+        setCustomWebhookUrl(row.webhook_url || "");
         setEmailQuestion(row.email_question_title || map.email || "Email");
         setNpsQuestion(map.nps || "");
         setCsatQuestion(map.csat || "");
@@ -246,6 +248,7 @@ function PulseGoogleFormCard() {
         form_url: formUrl.trim(),
         form_id: formId.trim(),
         webhook_secret: webhookSecret.trim(),
+        webhook_url: customWebhookUrl.trim() || null,
         email_question_title: emailQuestion.trim() || "Email",
         field_map: fieldMap,
       });
@@ -258,7 +261,8 @@ function PulseGoogleFormCard() {
   };
 
   const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL as string;
-  const webhookUrl = `${supabaseUrl}/functions/v1/pulse-google-form-webhook`;
+  const defaultWebhookUrl = `${supabaseUrl}/functions/v1/pulse-google-form-webhook`;
+  const webhookUrl = customWebhookUrl.trim() || defaultWebhookUrl;
 
   const sendTestWebhook = async () => {
     setLastTest(null);
@@ -373,10 +377,14 @@ function onFormSubmit(e) {
           </label>
           <label className="text-xs space-y-1 sm:col-span-2">
             <span className="text-muted-foreground">Apps Script webhook URL</span>
-            <input value={webhookUrl} readOnly
-              className="w-full h-8 px-2 rounded border border-border bg-secondary/40 text-xs font-mono" />
+            <input
+              value={customWebhookUrl}
+              onChange={(e) => setCustomWebhookUrl(e.target.value)}
+              placeholder={defaultWebhookUrl}
+              className="w-full h-8 px-2 rounded border border-border bg-card text-xs font-mono"
+            />
             <span className="block text-[11px] text-muted-foreground">
-              In your form's Apps Script, POST each submission to this URL as JSON with fields <span className="font-mono">{"{ secret, answers }"}</span>. The answers map must include the email question title above.
+              Leave blank to use this app's built-in webhook (<span className="font-mono">{defaultWebhookUrl}</span>). Override with a custom endpoint if your Apps Script posts elsewhere. Current value used in the snippet below: <span className="font-mono">{webhookUrl}</span>.
             </span>
           </label>
           <label className="text-xs space-y-1">

@@ -1729,6 +1729,7 @@ export type Database = {
           updated_at: string
           updated_by: string | null
           webhook_secret: string
+          webhook_url: string | null
         }
         Insert: {
           email_question_title?: string | null
@@ -1740,6 +1741,7 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
           webhook_secret?: string
+          webhook_url?: string | null
         }
         Update: {
           email_question_title?: string | null
@@ -1751,6 +1753,7 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
           webhook_secret?: string
+          webhook_url?: string | null
         }
         Relationships: []
       }

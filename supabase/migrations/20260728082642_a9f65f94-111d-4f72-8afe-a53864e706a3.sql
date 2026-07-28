@@ -1,0 +1,1 @@
+ALTER TABLE public.pulse_google_form_config ADD COLUMN IF NOT EXISTS webhook_url text;
