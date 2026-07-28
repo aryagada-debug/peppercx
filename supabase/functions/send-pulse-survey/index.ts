@@ -41,13 +41,9 @@ function surveyLinkFor(_req: Request, token: string): string {
   return `${PUBLIC_SURVEY_BASE}/survey/${token}`;
 }
 
-// Build a prefilled Google Form URL that embeds our tracking token in the
-// configured hidden entry field. Accepts either a full `form_url` (edit or
-// view URL) or a raw `form_id`.
-function buildGoogleFormLink(
-  cfg: { form_url: string; form_id: string; tracking_entry_id: string },
-  token: string,
-): string {
+// Build the configured Google Form URL. Mapping is done by respondent email in
+// the webhook, so no tracking token is exposed to the customer.
+function buildGoogleFormLink(cfg: { form_url: string; form_id: string }): string {
   const raw = (cfg.form_url || "").trim();
   const id = (cfg.form_id || "").trim();
   let base = "";
@@ -60,10 +56,7 @@ function buildGoogleFormLink(
   } else if (id) {
     base = `https://docs.google.com/forms/d/e/${id}/viewform`;
   }
-  if (!base) return "";
-  const entry = cfg.tracking_entry_id.replace(/^entry\.?/, "");
-  const sep = base.includes("?") ? "&" : "?";
-  return `${base}${sep}usp=pp_url&entry.${entry}=${encodeURIComponent(token)}`;
+  return base;
 }
 
 function publicErrorMessage(error: unknown): string {
@@ -336,21 +329,20 @@ Deno.serve(async (req) => {
     if (recipients.length === 0) return json({ error: "no_recipients" }, 400);
     const mode: "in_app" | "google_form" = body.mode === "google_form" ? "google_form" : "in_app";
 
-    // If Google Form mode, load config up-front so we can build prefilled URLs.
-    let googleForm: { form_url: string; form_id: string; tracking_entry_id: string } | null = null;
+    // If Google Form mode, load config up-front so we can build form URLs.
+    let googleForm: { form_url: string; form_id: string } | null = null;
     if (mode === "google_form") {
       const { data: cfg } = await admin
         .from("pulse_google_form_config")
-        .select("form_url, form_id, tracking_entry_id")
+        .select("form_url, form_id")
         .eq("id", "default")
         .maybeSingle();
       const formUrl = (cfg?.form_url || "").trim();
       const formId = (cfg?.form_id || "").trim();
-      const trackingEntry = (cfg?.tracking_entry_id || "").trim();
-      if ((!formUrl && !formId) || !trackingEntry) {
+      if (!formUrl && !formId) {
         return json({ error: "google_form_not_configured" }, 400);
       }
-      googleForm = { form_url: formUrl, form_id: formId, tracking_entry_id: trackingEntry };
+      googleForm = { form_url: formUrl, form_id: formId };
     }
 
     // Visibility check.
@@ -437,7 +429,7 @@ Deno.serve(async (req) => {
     for (const rcp of recipients) {
       const inviteToken = randomToken();
       const link = mode === "google_form" && googleForm
-        ? buildGoogleFormLink(googleForm, inviteToken)
+        ? buildGoogleFormLink(googleForm)
         : surveyLinkFor(req, inviteToken);
       const inviteRow = {
         token: inviteToken,
