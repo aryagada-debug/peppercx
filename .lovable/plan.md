@@ -1,34 +1,29 @@
-# Resend stuck Google Form invites
-
 ## Goal
-Give users a one-click way to re-send the Google Form invite email (and refresh sync state) for invites that have been "Awaiting sync" for too long — plus a bulk action to handle all stuck ones at once.
+Make Google Form responses show up in the app.
 
-## What counts as "stuck"
-An invite is `Awaiting sync` when: `source = 'google_form'`, `sent_at` is set, `completed_at` is null, and no `survey_responses` row exists.
-Threshold for "stuck": `sent_at` older than **48 hours**. (Rationale: most respondents open the same or next day; 48h avoids nagging early.)
+## Root cause
+The Apps Script attached to your form is POSTing to `https://pvchgfndmojcuvhfsvoj.supabase.co/functions/v1/NPS-creative-form`. That URL is on a **different backend project** and a **function name that does not exist in this app**. Our webhook has received 0 hits (0 unmatched submissions, 0 completed google_form invites), which confirms nothing is reaching us. The Pulse Google Form config in this app is otherwise correct (form URL saved, `Email` question mapped for email-based matching).
 
-## UX changes — `src/components/pulse/AnalyticsResponsesTable.tsx`
-1. Extend the row model with an `awaiting_sync` boolean and a `stuck` boolean (age > 48h).
-2. Row-level "Resend" button (existing Resend column):
-   - Already enabled for `failed`. Also enable it for `awaiting_sync` rows.
-   - Tooltip: "Resend Google Form invite" for google_form rows, "Resend failed invite" otherwise.
-3. Sync note text: when stuck, append `" · Sent {N} days ago — try resending."` so users can see age at a glance.
-4. Header bulk action next to "Resend failed":
-   - New "Resend stuck syncs (N)" button. Counts filtered rows where `stuck && awaiting_sync`.
-   - Calls the same `pulse-resend-invite` function.
-5. Toast copy: reuse existing; nothing new backend-side.
-
-## Backend
-`pulse-resend-invite` already accepts `inviteIds[]` and re-sends via the current send path (which respects `source = 'google_form'` and regenerates the prefilled Google Form URL). **No edge function changes.**
-
-On resend success the function updates `sent_at`, so the "awaiting sync" clock resets and the row drops out of "stuck" until it ages again — exactly what we want.
+## Fix (no code changes needed — configuration only)
+1. **Get the correct webhook URL + shared secret from the app.** In this app, go to **Settings → Notifications → Pulse Google Form**. The "Apps Script snippet" panel there shows the exact webhook URL for *this* project and the shared secret to send in the `secret` field. Copy both.
+2. **Update the Apps Script bound to the Google Form** (`1FAIpQLScoBY5IInv54OsTW-I5M81LicgKAg-bmg8z0kgSMSn0HudWsg`):
+   - Replace the current endpoint string with the URL from step 1.
+   - Confirm the payload sent on submit is `{ secret, answers }` where `answers` is a map of question title → response (the snippet in Settings already does this).
+   - Save, then **Deploy → Manage deployments → New deployment → Web app**, "Execute as: Me", "Who has access: Anyone". Copy the new deployment URL (Apps Script side) — this is only needed if you're using an intermediate web-app; the trigger itself is `onFormSubmit`.
+   - In the Apps Script editor: **Triggers → Add trigger →** function `onFormSubmit`, event source "From form", event type "On form submit". Authorize when prompted.
+3. **Verify the email question title matches exactly.** Config currently expects `Email`. Your form's first question is `Email` — good. Leave as is.
+4. **Send a test end-to-end:**
+   - In Settings → Notifications → Pulse Google Form, click **Send test webhook**. Expect `ok:true` and a new row in "Recent activity".
+   - Then submit the live Google Form as `arya.gada@peppercontent.io` (the recipient of the existing pending invite `a05eb7ec…`). Within a few seconds, the invite should flip to **Completed** on `/pulse-nps/analytics`.
+5. **If a real submission still doesn't arrive:**
+   - Open the Apps Script editor → **Executions**. If `onFormSubmit` isn't listed, the trigger never fired → recreate it (step 2).
+   - If it fired but errored, the log will show the HTTP status from our webhook. 401 = wrong/missing `secret`. 400 `invalid_email` = the answers map didn't include the `Email` field (fix the question title or the snippet's answer extraction).
+   - Any submission that reaches the webhook but can't be matched will appear in `pulse_unmatched_submissions` (visible to admins) — that's the diagnostic surface.
 
 ## Non-goals
-- No new DB columns, no schema migration.
-- No changes to the webhook or Apps Script flow.
-- No auto-retry cron — user-initiated only, to avoid spamming respondents.
+- No schema changes.
+- No edge function changes — email-based matching is already deployed and correct.
+- No changes to the Google Form itself.
 
-## Technical notes
-- `stuck` computed in the same `useMemo` as `rows`: `awaiting_sync && sent_at && (Date.now() - new Date(sent_at).getTime()) > 48*3600*1000`.
-- Bulk id list mirrors the `failedVisibleIds` pattern.
-- Reuse `runResend(ids, "bulk")` — no new handler.
+## Deliverable of this plan
+A short in-chat walkthrough with the two values the user must paste into Apps Script (webhook URL + shared secret) sourced from **Settings → Notifications → Pulse Google Form**, plus the trigger-setup checklist above. No file edits.
