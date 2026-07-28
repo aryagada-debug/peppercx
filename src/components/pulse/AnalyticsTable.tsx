@@ -192,7 +192,11 @@ export function AnalyticsTable({
   };
 
   const chartData = useMemo(() =>
-    filtered.filter(r => r.nps != null).slice(0, 15).map(r => ({ name: r.label.slice(0, 24), nps: r.nps })),
+    filtered.map(r => ({
+      name: r.label.slice(0, 24),
+      nps: r.nps ?? 0,
+      hasResponse: r.nps != null,
+    })),
     [filtered]);
 
   const drillRow = drillKey ? filtered.find(r => r.key === drillKey) : null;
@@ -234,6 +238,24 @@ export function AnalyticsTable({
               <Tooltip />
               <ReferenceLine y={0} stroke="hsl(var(--foreground))" strokeOpacity={0.5} />
               <Bar dataKey="nps" fill="hsl(var(--primary))" radius={[3, 3, 0, 0]}>
+                <LabelList
+                  dataKey="nps"
+                  position="top"
+                  content={(props: any) => {
+                    const { x, y, width, index } = props;
+                    const d = chartData[index];
+                    if (!d) return null;
+                    const v = d.nps;
+                    const isNeg = v < 0;
+                    const cx = x + width / 2;
+                    const ty = isNeg ? y + 12 : y - 4;
+                    return (
+                      <text x={cx} y={ty} textAnchor="middle" fontSize={10} fontWeight={600} fill="hsl(var(--foreground))">
+                        {d.hasResponse ? v : 0}
+                      </text>
+                    );
+                  }}
+                />
                 <LabelList
                   dataKey="name"
                   content={(props: any) => {
