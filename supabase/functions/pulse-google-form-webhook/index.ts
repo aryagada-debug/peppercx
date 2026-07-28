@@ -100,6 +100,30 @@ function num(v: unknown, min: number, max: number): number | null {
   return r;
 }
 
+const CSAT_DIMENSIONS = [
+  "Quality of the creative output",
+  "Briefing & kickoff process",
+  "Revisions & feedback handling",
+  "Turnaround & delivery",
+  "Communication & updates",
+  "Ease of day-to-day collaboration",
+  "Feeling like a strategic partner",
+] as const;
+
+function parseCsatMatrix(v: unknown): { perDimension: Record<string, number | null>; avg: number | null; display: string | null } {
+  const arr: unknown[] = Array.isArray(v) ? v : v == null || v === "" ? [] : [v];
+  const perDimension: Record<string, number | null> = {};
+  const scores: number[] = [];
+  CSAT_DIMENSIONS.forEach((dim, i) => {
+    const parsed = num(arr[i], 1, 5);
+    perDimension[dim] = parsed;
+    if (parsed != null) scores.push(parsed);
+  });
+  const avg = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
+  const display = avg == null ? null : `${avg.toFixed(1)}/5`;
+  return { perDimension, avg, display };
+}
+
 async function logUnmatched(
   admin: ReturnType<typeof createClient>,
   submittedEmail: string | null,
@@ -235,7 +259,9 @@ Deno.serve(async (req) => {
 
     // Prefer top-level fields, else fall back to answers[fieldMap[key]].
     const nps = num(firstValue(pickMapped(body, answers, fieldMap, "nps")), 0, 10);
-    const csat = num(firstValue(pickMapped(body, answers, fieldMap, "csat")), 1, 5);
+    const csatRaw = pickMapped(body, answers, fieldMap, "csat");
+    const csatMatrix = parseCsatMatrix(csatRaw);
+    const csat = csatMatrix.avg;
     const commentRaw = firstValue(pickMapped(body, answers, fieldMap, "comment"));
     const comment = commentRaw != null ? String(commentRaw).slice(0, 4000) : null;
 
@@ -264,7 +290,7 @@ Deno.serve(async (req) => {
         submitted_email: submittedEmail || invite.recipient_email,
         match_source: matchSource,
         would_write_response: true,
-        parsed: { nps, csat, has_comment: !!comment },
+        parsed: { nps, csat, csat_display: csatMatrix.display, csat_dimensions: csatMatrix.perDimension, has_comment: !!comment },
         missing_mapped: missingMapped,
       });
     }
@@ -281,7 +307,14 @@ Deno.serve(async (req) => {
       respondent_company: invite.account_snapshot || null,
       source: "google_form",
       submitted_at: now,
-      payload: { comment, answers, raw: body, diagnostics: { request_id: requestId, missing_mapped: missingMapped, match_source: matchSource, submitted_email: submittedEmail } },
+      payload: {
+        comment,
+        answers,
+        raw: body,
+        csat_dimensions: csatMatrix.perDimension,
+        csat_display: csatMatrix.display,
+        diagnostics: { request_id: requestId, missing_mapped: missingMapped, match_source: matchSource, submitted_email: submittedEmail },
+      },
     });
     if (insErr) throw insErr;
 
