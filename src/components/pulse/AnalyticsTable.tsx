@@ -196,6 +196,7 @@ export function AnalyticsTable({
       name: r.label.slice(0, 24),
       nps: r.nps ?? 0,
       hasResponse: r.nps != null,
+      count: r.promoters + r.passives + r.detractors,
     })),
     [filtered]);
 
@@ -251,7 +252,7 @@ export function AnalyticsTable({
                     const ty = isNeg ? y + 12 : y - 4;
                     return (
                       <text x={cx} y={ty} textAnchor="middle" fontSize={10} fontWeight={600} fill="hsl(var(--foreground))">
-                        {d.hasResponse ? v : 0}
+                        {d.count}
                       </text>
                     );
                   }}
