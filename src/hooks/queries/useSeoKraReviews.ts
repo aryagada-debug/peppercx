@@ -26,7 +26,7 @@ export interface ReviewRow {
 }
 
 export function useSeoKraReviews(scorecardKey: string, year: number, quarter: number) {
-  const q = String(quarter);
+  const q = `Q${quarter}`;
   return useQuery({
     queryKey: ["seo-kra-reviews", scorecardKey, year, quarter],
     queryFn: async (): Promise<ReviewRow[]> => {
@@ -53,7 +53,7 @@ export function useSeoKraReviews(scorecardKey: string, year: number, quarter: nu
         member_user_id: r.member_user_id,
         member_name: r.member_name || "",
         year: r.year,
-        quarter: r.quarter,
+        quarter: String(r.quarter).replace(/^Q/i, ""),
         weighted_total: r.total,
         area_averages: (r.area_scores as any) || null,
         reviewer_notes: r.notes || "",
@@ -86,7 +86,7 @@ export function useSaveSeoKraReview() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: SaveReviewInput) => {
-      const q = String(input.quarter);
+      const q = `Q${input.quarter}`;
       const { data: existing } = await supabase
         .from("seo_kra_reviews")
         .select("id")
@@ -175,10 +175,10 @@ export function useSeoKraMemberHistory(scorecardKey: string, memberPersonId: str
         byReview.set(s.review_id, m);
       });
       const points: HistoryPoint[] = list.map(r => ({
-        periodKey: `${r.year}-Q${r.quarter}`,
+        periodKey: `${r.year}-Q${String(r.quarter).replace(/^Q/i, "")}`,
         year: r.year,
-        quarter: Number(r.quarter),
-        label: `Q${r.quarter} ${String(r.year).slice(-2)}`,
+        quarter: Number(String(r.quarter).replace(/^Q/i, "")),
+        label: `Q${String(r.quarter).replace(/^Q/i, "")} ${String(r.year).slice(-2)}`,
         weighted_total: r.total,
         area_averages: (r.area_scores as any) || {},
         kpiScores: byReview.get(r.id) || {},
