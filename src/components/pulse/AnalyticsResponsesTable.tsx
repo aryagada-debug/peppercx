@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUpDown, Download, Eye, Send, Loader2, AlertCircle } from "lucide-react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowUpDown, Download, Eye, Send, Loader2, AlertCircle, ChevronRight, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { InviteRow, ResponseRow } from "./useAnalyticsData";
@@ -85,6 +85,23 @@ const STATUS_RANK: Record<StatusKey, number> = {
   completed: 4, opened: 3, sent: 2, failed: 1, pending: 0,
 };
 
+type DealSortKey = "deal_name" | "invites" | "received" | "rate" | "nps" | "csat" | "last_sent";
+
+type DealGroup = {
+  key: string;
+  deal_id: string;
+  deal_name: string;
+  account: string;
+  rows: Row[];
+  invites: number;
+  received: number;
+  rate: number;
+  nps: number | null;
+  csat: number | null;
+  last_sent: number | null;
+  last_completed: number | null;
+};
+
 export function AnalyticsResponsesTable({
   invites,
   responses,
@@ -97,6 +114,10 @@ export function AnalyticsResponsesTable({
   const [filter, setFilter] = useState("");
   const [drillRow, setDrillRow] = useState<Row | null>(null);
   const [uniqueContacts, setUniqueContacts] = useState(false);
+  const [layout, setLayout] = useState<"deal" | "flat">("deal");
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [dealSortKey, setDealSortKey] = useState<DealSortKey>("received");
+  const [dealSortDir, setDealSortDir] = useState<"asc" | "desc">("desc");
   const [resending, setResending] = useState<Set<string>>(new Set());
   const [bulkResending, setBulkResending] = useState(false);
   const { toast } = useToast();
@@ -234,6 +255,58 @@ export function AnalyticsResponsesTable({
     [filtered],
   );
 
+  const dealGroups = useMemo<DealGroup[]>(() => {
+    const map = new Map<string, Row[]>();
+    filtered.forEach((r) => {
+      const key = r.deal_id || r.deal_name || "—";
+      const arr = map.get(key) || [];
+      arr.push(r);
+      map.set(key, arr);
+    });
+    const groups = Array.from(map.entries()).map(([key, rows]) => {
+      const received = rows.filter((r) => r.has_response).length;
+      const npsVals = rows.map((r) => r.nps).filter((v): v is number => typeof v === "number");
+      const csatVals = rows.map((r) => r.csat).filter((v): v is number => typeof v === "number");
+      const ts = (v: string | null) => (v ? new Date(v).getTime() : null);
+      const maxOf = (xs: (number | null)[]) => {
+        const ok = xs.filter((x): x is number => typeof x === "number");
+        return ok.length ? Math.max(...ok) : null;
+      };
+      return {
+        key,
+        deal_id: rows[0].deal_id,
+        deal_name: rows[0].deal_name || rows[0].account || "—",
+        account: rows[0].account,
+        rows,
+        invites: rows.length,
+        received,
+        rate: rows.length ? received / rows.length : 0,
+        nps: npsVals.length ? npsVals.reduce((a, b) => a + b, 0) / npsVals.length : null,
+        csat: csatVals.length ? csatVals.reduce((a, b) => a + b, 0) / csatVals.length : null,
+        last_sent: maxOf(rows.map((r) => ts(r.sent_at))),
+        last_completed: maxOf(rows.map((r) => ts(r.completed_at))),
+      };
+    });
+    return groups.sort((a, b) => {
+      const av = (a as any)[dealSortKey];
+      const bv = (b as any)[dealSortKey];
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      if (typeof av === "number" && typeof bv === "number") return dealSortDir === "asc" ? av - bv : bv - av;
+      return dealSortDir === "asc"
+        ? String(av).localeCompare(String(bv))
+        : String(bv).localeCompare(String(av));
+    });
+  }, [filtered, dealSortKey, dealSortDir]);
+
+  const toggleDealSort = (k: DealSortKey) => {
+    if (dealSortKey === k) setDealSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setDealSortKey(k); setDealSortDir("desc"); }
+  };
+
+  const allExpanded = dealGroups.length > 0 && dealGroups.every((g) => expanded.has(g.key));
+
   const stuckVisibleIds = useMemo(
     () => filtered.filter((r) => r.stuck).map((r) => r.id),
     [filtered],
@@ -283,6 +356,28 @@ export function AnalyticsResponsesTable({
   };
 
   const exportCsv = () => {
+    if (layout === "deal") {
+      const headers = ["Deal ID","Deal name","Account","Invites","Responses received","Response rate %","Avg NPS","Avg CSAT","Last sent","Last completed"];
+      const out = dealGroups.map((g) => [
+        g.deal_id, g.deal_name, g.account, g.invites, g.received,
+        Math.round(g.rate * 100),
+        g.nps != null ? g.nps.toFixed(1) : "",
+        g.csat != null ? g.csat.toFixed(1) : "",
+        g.last_sent ? new Date(g.last_sent).toISOString() : "",
+        g.last_completed ? new Date(g.last_completed).toISOString() : "",
+      ]);
+      const csv = [headers, ...out]
+        .map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
+        .join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `pulse-deal-responses.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
     const headers = [
       "Deal ID","Deal name","Account","Recipient name","Recipient email",
       "Status","Sent","Opened","Completed","Respondent","Campaign","NPS","CSAT",
@@ -312,13 +407,35 @@ export function AnalyticsResponsesTable({
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
+        <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
+          {([{ k: "deal", l: "Deal-wise" }, { k: "flat", l: "Flat" }] as { k: "deal" | "flat"; l: string }[]).map((m) => (
+            <button
+              key={m.k}
+              onClick={() => setLayout(m.k)}
+              className={cn("px-2.5 py-1 rounded-md text-[11px] font-medium",
+                layout === m.k ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
+            >
+              {m.l}
+            </button>
+          ))}
+        </div>
         <input
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder="Filter deal, account, recipient, respondent…"
           className="h-8 px-3 rounded-md border border-border bg-card text-xs w-80"
         />
-        <div className="text-xs text-muted-foreground">{filtered.length} invites</div>
+        <div className="text-xs text-muted-foreground">
+          {layout === "deal" ? `${dealGroups.length} deals · ${filtered.length} invites` : `${filtered.length} invites`}
+        </div>
+        {layout === "deal" && dealGroups.length > 0 && (
+          <button
+            onClick={() => setExpanded(allExpanded ? new Set() : new Set(dealGroups.map((g) => g.key)))}
+            className="text-[11px] text-muted-foreground underline hover:text-foreground"
+          >
+            {allExpanded ? "Collapse all" : "Expand all"}
+          </button>
+        )}
         <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none ml-2">
           <Checkbox checked={uniqueContacts} onCheckedChange={(v) => setUniqueContacts(!!v)} />
           Unique contacts
@@ -357,6 +474,109 @@ export function AnalyticsResponsesTable({
         </div>
       )}
 
+      {layout === "deal" && (
+      <div className="rounded-lg border border-border overflow-hidden w-full">
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs min-w-[900px]">
+            <thead className="bg-secondary">
+              <tr className="text-left">
+                <Th onClick={() => toggleDealSort("deal_name")}>Deal</Th>
+                <Th onClick={() => toggleDealSort("invites")} className="text-right">POCs</Th>
+                <Th onClick={() => toggleDealSort("received")} className="text-center">Responses</Th>
+                <Th onClick={() => toggleDealSort("rate")} className="text-right">Rate</Th>
+                <Th onClick={() => toggleDealSort("nps")} className="text-right">Avg NPS</Th>
+                <Th onClick={() => toggleDealSort("csat")} className="text-right">Avg CSAT</Th>
+                <Th onClick={() => toggleDealSort("last_sent")}>Last sent</Th>
+                <Th>Last completed</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {dealGroups.map((g) => {
+                const open = expanded.has(g.key);
+                const tone = g.received === 0
+                  ? "bg-secondary text-muted-foreground border-border"
+                  : g.received >= g.invites
+                    ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                    : "bg-amber-100 text-amber-700 border-amber-200";
+                return (
+                  <Fragment key={g.key}>
+                    <tr
+                      className="border-t border-border hover:bg-secondary/50 cursor-pointer"
+                      onClick={() => setExpanded((s) => {
+                        const n = new Set(s);
+                        n.has(g.key) ? n.delete(g.key) : n.add(g.key);
+                        return n;
+                      })}
+                    >
+                      <td className="px-3 py-2 max-w-[320px]">
+                        <div className="flex items-start gap-1.5">
+                          {open ? <ChevronDown className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />}
+                          <div className="min-w-0">
+                            <div className="font-medium text-foreground truncate" title={g.deal_name}>{g.deal_name}</div>
+                            <div className="text-[10px] text-muted-foreground truncate">
+                              {g.account}{g.deal_id ? ` · ${g.deal_id}` : ""}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-right text-muted-foreground">{g.invites}</td>
+                      <td className="px-3 py-2 text-center">
+                        <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] border font-medium", tone)}>
+                          {g.received}/{g.invites} {g.received === 0 ? "· none" : ""}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-right text-muted-foreground">{Math.round(g.rate * 100)}%</td>
+                      <td className="px-3 py-2 text-right">{g.nps != null ? g.nps.toFixed(1) : "—"}</td>
+                      <td className="px-3 py-2 text-right">{g.csat != null ? g.csat.toFixed(1) : "—"}</td>
+                      <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{g.last_sent ? fmtDate(new Date(g.last_sent).toISOString()) : "—"}</td>
+                      <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{g.last_completed ? fmtDate(new Date(g.last_completed).toISOString()) : "—"}</td>
+                    </tr>
+                    {open && (
+                      <tr key={`${g.key}-exp`} className="bg-secondary/20">
+                        <td colSpan={8} className="px-3 py-2">
+                          <div className="overflow-x-auto rounded-md border border-border bg-card">
+                            <table className="w-full text-xs min-w-[1000px]">
+                              <thead className="bg-secondary/60">
+                                <tr className="text-left">
+                                  <Th>Recipient</Th>
+                                  <Th>Status</Th>
+                                  <Th>Sent</Th>
+                                  <Th>Opened</Th>
+                                  <Th>Completed</Th>
+                                  <Th>Respondent</Th>
+                                  <Th>Campaign</Th>
+                                  <Th>Source</Th>
+                                  <Th className="text-right">NPS</Th>
+                                  <Th className="text-right">CSAT</Th>
+                                  <Th>Response</Th>
+                                  <Th>Resend</Th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {g.rows.map((r) => (
+                                  <tr key={r.id} className="border-t border-border hover:bg-secondary/50">
+                                    <PocCells r={r} resending={resending} runResend={runResend} onView={setDrillRow} />
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+              {dealGroups.length === 0 && (
+                <tr><td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">No invites for current filters.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      )}
+
+      {layout === "flat" && (
       <div className="rounded-lg border border-border overflow-hidden w-full">
         <div className="overflow-x-auto">
           <table className="w-full text-xs min-w-[1200px]">
@@ -390,100 +610,7 @@ export function AnalyticsResponsesTable({
                       </div>
                     )}
                   </td>
-                  <td className="px-3 py-2 max-w-[220px]">
-                    <div className="text-foreground truncate" title={r.recipient_name}>
-                      {r.recipient_name || "—"}
-                      {r.duplicates > 0 && (
-                        <span className="ml-1 text-[10px] text-muted-foreground">+{r.duplicates}</span>
-                      )}
-                    </div>
-                    {r.recipient_email && (
-                      <div className="text-[10px] text-muted-foreground truncate" title={r.recipient_email}>
-                        {r.recipient_email}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-3 py-2">
-                    {r.status === "failed" && r.error ? (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className={cn(
-                            "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border font-medium cursor-help",
-                            STATUS_STYLES[r.status],
-                          )}>
-                            {r.status_label}
-                            <AlertCircle className="h-2.5 w-2.5" />
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="max-w-xs text-[11px]">
-                          {r.error}
-                        </TooltipContent>
-                      </Tooltip>
-                    ) : (
-                      <div className="space-y-1">
-                        <span className={cn(
-                          "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] border font-medium",
-                          STATUS_STYLES[r.status],
-                        )}>
-                          {r.status_label}
-                        </span>
-                        {r.sync_note && <div className="max-w-[180px] text-[10px] leading-tight text-muted-foreground">{r.sync_note}</div>}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{fmtDate(r.sent_at)}</td>
-                  <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{fmtDate(r.opened_at)}</td>
-                  <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{fmtDate(r.completed_at)}</td>
-                  <td className="px-3 py-2 max-w-[180px] truncate" title={r.respondent}>{r.respondent || "—"}</td>
-                  <td className="px-3 py-2 max-w-[160px] truncate" title={r.campaign}>{r.campaign || "—"}</td>
-                  <td className="px-3 py-2">
-                    {r.source ? (
-                      <span className={cn(
-                        "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] border font-medium",
-                        r.source === "google_form"
-                          ? "bg-violet-100 text-violet-700 border-violet-200"
-                          : "bg-secondary text-muted-foreground border-border",
-                      )}>
-                        {r.source === "google_form" ? "Google Form" : "App"}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 text-right">{r.nps ?? "—"}</td>
-                  <td className="px-3 py-2 text-right">{r.csat ?? "—"}</td>
-                  <td className="px-3 py-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2"
-                      disabled={!r.has_response}
-                      onClick={() => r.has_response && setDrillRow(r)}
-                    >
-                      <Eye className="h-3 w-3 mr-1" /> View
-                    </Button>
-                  </td>
-                  <td className="px-3 py-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2"
-                      disabled={r.status === "completed" || resending.has(r.id) || !r.recipient_email}
-                      onClick={() => runResend([r.id], "row")}
-                      title={
-                        r.status === "completed"
-                          ? "Already completed"
-                          : r.awaiting_sync
-                            ? "Resend Google Form invite / retry sync"
-                            : "Re-send via Resend"
-                      }
-                    >
-                      {resending.has(r.id)
-                        ? <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                        : <Send className="h-3 w-3 mr-1" />}
-                      {r.stuck ? "Retry sync" : "Resend"}
-                    </Button>
-                  </td>
+                  <PocCells r={r} resending={resending} runResend={runResend} onView={setDrillRow} />
                 </tr>
               ))}
               {filtered.length === 0 && (
@@ -493,6 +620,7 @@ export function AnalyticsResponsesTable({
           </table>
         </div>
       </div>
+      )}
 
       <Dialog open={!!drillRow} onOpenChange={(o) => !o && setDrillRow(null)}>
         <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-hidden p-0 flex flex-col">
@@ -534,5 +662,107 @@ function Th({ children, onClick, className = "" }: { children: any; onClick?: ()
         {onClick && <ArrowUpDown className="h-3 w-3 opacity-50" />}
       </span>
     </th>
+  );
+}
+
+function PocCells({
+  r, resending, runResend, onView,
+}: {
+  r: Row;
+  resending: Set<string>;
+  runResend: (ids: string[], scope: "row" | "bulk") => void;
+  onView: (r: Row) => void;
+}) {
+  return (
+    <>
+      <td className="px-3 py-2 max-w-[220px]">
+        <div className="text-foreground truncate" title={r.recipient_name}>
+          {r.recipient_name || "—"}
+          {r.duplicates > 0 && <span className="ml-1 text-[10px] text-muted-foreground">+{r.duplicates}</span>}
+        </div>
+        {r.recipient_email && (
+          <div className="text-[10px] text-muted-foreground truncate" title={r.recipient_email}>{r.recipient_email}</div>
+        )}
+      </td>
+      <td className="px-3 py-2">
+        {r.status === "failed" && r.error ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className={cn(
+                "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border font-medium cursor-help",
+                STATUS_STYLES[r.status],
+              )}>
+                {r.status_label}
+                <AlertCircle className="h-2.5 w-2.5" />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-xs text-[11px]">{r.error}</TooltipContent>
+          </Tooltip>
+        ) : (
+          <div className="space-y-1">
+            <span className={cn(
+              "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] border font-medium",
+              STATUS_STYLES[r.status],
+            )}>
+              {r.status_label}
+            </span>
+            {r.sync_note && <div className="max-w-[180px] text-[10px] leading-tight text-muted-foreground">{r.sync_note}</div>}
+          </div>
+        )}
+      </td>
+      <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{fmtDate(r.sent_at)}</td>
+      <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{fmtDate(r.opened_at)}</td>
+      <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{fmtDate(r.completed_at)}</td>
+      <td className="px-3 py-2 max-w-[180px] truncate" title={r.respondent}>{r.respondent || "—"}</td>
+      <td className="px-3 py-2 max-w-[160px] truncate" title={r.campaign}>{r.campaign || "—"}</td>
+      <td className="px-3 py-2">
+        {r.source ? (
+          <span className={cn(
+            "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] border font-medium",
+            r.source === "google_form"
+              ? "bg-violet-100 text-violet-700 border-violet-200"
+              : "bg-secondary text-muted-foreground border-border",
+          )}>
+            {r.source === "google_form" ? "Google Form" : "App"}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        )}
+      </td>
+      <td className="px-3 py-2 text-right">{r.nps ?? "—"}</td>
+      <td className="px-3 py-2 text-right">{r.csat ?? "—"}</td>
+      <td className="px-3 py-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 px-2"
+          disabled={!r.has_response}
+          onClick={() => r.has_response && onView(r)}
+        >
+          <Eye className="h-3 w-3 mr-1" /> View
+        </Button>
+      </td>
+      <td className="px-3 py-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 px-2"
+          disabled={r.status === "completed" || resending.has(r.id) || !r.recipient_email}
+          onClick={() => runResend([r.id], "row")}
+          title={
+            r.status === "completed"
+              ? "Already completed"
+              : r.awaiting_sync
+                ? "Resend Google Form invite / retry sync"
+                : "Re-send via Resend"
+          }
+        >
+          {resending.has(r.id)
+            ? <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+            : <Send className="h-3 w-3 mr-1" />}
+          {r.stuck ? "Retry sync" : "Resend"}
+        </Button>
+      </td>
+    </>
   );
 }
