@@ -474,6 +474,110 @@ export function AnalyticsResponsesTable({
         </div>
       )}
 
+      {layout === "deal" && (
+      <div className="rounded-lg border border-border overflow-hidden w-full">
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs min-w-[900px]">
+            <thead className="bg-secondary">
+              <tr className="text-left">
+                <Th onClick={() => toggleDealSort("deal_name")}>Deal</Th>
+                <Th onClick={() => toggleDealSort("invites")} className="text-right">POCs</Th>
+                <Th onClick={() => toggleDealSort("received")} className="text-center">Responses</Th>
+                <Th onClick={() => toggleDealSort("rate")} className="text-right">Rate</Th>
+                <Th onClick={() => toggleDealSort("nps")} className="text-right">Avg NPS</Th>
+                <Th onClick={() => toggleDealSort("csat")} className="text-right">Avg CSAT</Th>
+                <Th onClick={() => toggleDealSort("last_sent")}>Last sent</Th>
+                <Th>Last completed</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {dealGroups.map((g) => {
+                const open = expanded.has(g.key);
+                const tone = g.received === 0
+                  ? "bg-secondary text-muted-foreground border-border"
+                  : g.received >= g.invites
+                    ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                    : "bg-amber-100 text-amber-700 border-amber-200";
+                return (
+                  <>
+                    <tr
+                      key={g.key}
+                      className="border-t border-border hover:bg-secondary/50 cursor-pointer"
+                      onClick={() => setExpanded((s) => {
+                        const n = new Set(s);
+                        n.has(g.key) ? n.delete(g.key) : n.add(g.key);
+                        return n;
+                      })}
+                    >
+                      <td className="px-3 py-2 max-w-[320px]">
+                        <div className="flex items-start gap-1.5">
+                          {open ? <ChevronDown className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />}
+                          <div className="min-w-0">
+                            <div className="font-medium text-foreground truncate" title={g.deal_name}>{g.deal_name}</div>
+                            <div className="text-[10px] text-muted-foreground truncate">
+                              {g.account}{g.deal_id ? ` · ${g.deal_id}` : ""}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-right text-muted-foreground">{g.invites}</td>
+                      <td className="px-3 py-2 text-center">
+                        <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] border font-medium", tone)}>
+                          {g.received}/{g.invites} {g.received === 0 ? "· none" : ""}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-right text-muted-foreground">{Math.round(g.rate * 100)}%</td>
+                      <td className="px-3 py-2 text-right">{g.nps != null ? g.nps.toFixed(1) : "—"}</td>
+                      <td className="px-3 py-2 text-right">{g.csat != null ? g.csat.toFixed(1) : "—"}</td>
+                      <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{g.last_sent ? fmtDate(new Date(g.last_sent).toISOString()) : "—"}</td>
+                      <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{g.last_completed ? fmtDate(new Date(g.last_completed).toISOString()) : "—"}</td>
+                    </tr>
+                    {open && (
+                      <tr key={`${g.key}-exp`} className="bg-secondary/20">
+                        <td colSpan={8} className="px-3 py-2">
+                          <div className="overflow-x-auto rounded-md border border-border bg-card">
+                            <table className="w-full text-xs min-w-[1000px]">
+                              <thead className="bg-secondary/60">
+                                <tr className="text-left">
+                                  <Th>Recipient</Th>
+                                  <Th>Status</Th>
+                                  <Th>Sent</Th>
+                                  <Th>Opened</Th>
+                                  <Th>Completed</Th>
+                                  <Th>Respondent</Th>
+                                  <Th>Campaign</Th>
+                                  <Th>Source</Th>
+                                  <Th className="text-right">NPS</Th>
+                                  <Th className="text-right">CSAT</Th>
+                                  <Th>Response</Th>
+                                  <Th>Resend</Th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {g.rows.map((r) => (
+                                  <tr key={r.id} className="border-t border-border hover:bg-secondary/50">
+                                    <PocCells r={r} resending={resending} runResend={runResend} onView={setDrillRow} />
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                );
+              })}
+              {dealGroups.length === 0 && (
+                <tr><td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">No invites for current filters.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      )}
+
+      {layout === "flat" && (
       <div className="rounded-lg border border-border overflow-hidden w-full">
         <div className="overflow-x-auto">
           <table className="w-full text-xs min-w-[1200px]">
