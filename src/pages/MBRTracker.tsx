@@ -1569,7 +1569,13 @@ export default function MBRTracker() {
                                   )} title={!retainer ? "Non-retainer — MBR not mandatory" : undefined}>{!retainer && status === "Not Required" ? "N/R" : status}</span>
                                 </td>
                                 <td className="py-2 px-3 text-center">{sentimentDot(entry?.sentiment ?? null)}</td>
-                                <td className="py-2 px-3 text-xs text-muted-foreground whitespace-nowrap">{entry?.scheduledDate || "—"}</td>
+                                <td className="py-2 px-3 text-xs text-muted-foreground whitespace-nowrap">
+                                  {entry?.scheduledDate ? entry.scheduledDate : (
+                                    carriedScheduledMap.get(deal.id)
+                                      ? <span className="italic opacity-70" title="Next MBR date carried forward from a previous month">{carriedScheduledMap.get(deal.id)}</span>
+                                      : "—"
+                                  )}
+                                </td>
                                 <td className="py-2 px-3 text-center">
                                   <div className="flex items-center gap-1 justify-center">
                                     {entry?.anirudhAdded ? <span className="text-positive font-bold text-[10px]">A</span> : null}
