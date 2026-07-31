@@ -407,13 +407,35 @@ export function AnalyticsResponsesTable({
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
+        <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
+          {([{ k: "deal", l: "Deal-wise" }, { k: "flat", l: "Flat" }] as { k: "deal" | "flat"; l: string }[]).map((m) => (
+            <button
+              key={m.k}
+              onClick={() => setLayout(m.k)}
+              className={cn("px-2.5 py-1 rounded-md text-[11px] font-medium",
+                layout === m.k ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
+            >
+              {m.l}
+            </button>
+          ))}
+        </div>
         <input
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder="Filter deal, account, recipient, respondent…"
           className="h-8 px-3 rounded-md border border-border bg-card text-xs w-80"
         />
-        <div className="text-xs text-muted-foreground">{filtered.length} invites</div>
+        <div className="text-xs text-muted-foreground">
+          {layout === "deal" ? `${dealGroups.length} deals · ${filtered.length} invites` : `${filtered.length} invites`}
+        </div>
+        {layout === "deal" && dealGroups.length > 0 && (
+          <button
+            onClick={() => setExpanded(allExpanded ? new Set() : new Set(dealGroups.map((g) => g.key)))}
+            className="text-[11px] text-muted-foreground underline hover:text-foreground"
+          >
+            {allExpanded ? "Collapse all" : "Expand all"}
+          </button>
+        )}
         <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none ml-2">
           <Checkbox checked={uniqueContacts} onCheckedChange={(v) => setUniqueContacts(!!v)} />
           Unique contacts
