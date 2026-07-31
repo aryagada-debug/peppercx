@@ -97,6 +97,10 @@ export function AnalyticsResponsesTable({
   const [filter, setFilter] = useState("");
   const [drillRow, setDrillRow] = useState<Row | null>(null);
   const [uniqueContacts, setUniqueContacts] = useState(false);
+  const [layout, setLayout] = useState<"deal" | "flat">("deal");
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [dealSortKey, setDealSortKey] = useState<DealSortKey>("received");
+  const [dealSortDir, setDealSortDir] = useState<"asc" | "desc">("desc");
   const [resending, setResending] = useState<Set<string>>(new Set());
   const [bulkResending, setBulkResending] = useState(false);
   const { toast } = useToast();
