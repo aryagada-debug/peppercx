@@ -303,6 +303,20 @@ export default function MBRTracker() {
   // Use monthEntryMap for current view instead of entryMap
   const activeEntryMap = viewMode === "current" ? monthEntryMap : entryMap;
 
+  // Carried-forward next MBR date: latest scheduled_date recorded in a month
+  // at or before the selected month, used when the selected month has none.
+  const carriedScheduledMap = useMemo(() => {
+    const m = new Map<string, string>();
+    if (!selectedMonth) return m;
+    for (const e of entries) {
+      if (!e.scheduledDate || !e.weekStart) continue;
+      if (e.weekStart.slice(0, 7) > selectedMonth) continue;
+      const prev = m.get(e.dealId);
+      if (!prev || e.scheduledDate > prev) m.set(e.dealId, e.scheduledDate);
+    }
+    return m;
+  }, [entries, selectedMonth]);
+
   // Filter deals
   const filteredDeals = useMemo(() => {
     let d = deals;
