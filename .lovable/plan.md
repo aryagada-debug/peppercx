@@ -1,22 +1,27 @@
-## Plan
+## Goal
 
-1. **Use the stored parsed CSAT first**
-   - Update the Google Form response viewer to read `payload.csat_dimensions` before trying to re-parse `payload.answers`.
-   - This matches what the webhook already stores after parsing the fixed-order Google Form array.
+In Pulse/NPS → Analytics → Responses, show a deal-level table (responses received or not) where each deal row expands into the existing per-POC (recipient) rows.
 
-2. **Add fixed-order array parsing in the viewer**
-   - If the response still only has raw answers, parse the answer under either:
-     - `How are we doing on each of these?`
-     - `Rate how we're doing where it counts. Mark N/A for anything that doesn't apply to you.`
-   - Map array index `0..6` to the seven experience dimensions.
-   - Convert `"1".."5"` to numbers and treat `"N/A"` as `null`.
+## What to build
 
-3. **Preserve fallback behavior**
-   - Keep the existing object/key-based parsing so older or differently shaped responses still render.
-   - Keep the overall Experience pill using the average of non-null dimension scores, falling back to the stored CSAT when needed.
+In `src/components/pulse/AnalyticsResponsesTable.tsx`:
 
-4. **Clean up the console warning**
-   - Convert the local `QA` component to `forwardRef` so the dialog no longer emits the React ref warning shown in console logs.
+1. **Layout toggle** next to the existing filter input: `Deal-wise` (new, default) / `Flat` (current table). Everything else — filter box, unique-contacts checkbox, resend buttons, CSV export, response drill-in dialog — stays as-is and keeps working in both modes.
+2. **Deal-wise grouping**: group the already-filtered rows by `deal_id` (fall back to deal name when blank). Each deal parent row shows:
+  - Deal name + deal ID, account
+  - Responses badge: `received / sent` (e.g. `2/5`) with a colour cue — green when all responded, amber when partial, grey/red when zero
+  - Invites count, Avg NPS and Avg CSAT across that deal's completed responses (blank when none)
+  - Latest sent / latest completed date
+  - Chevron to expand/collapse
+3. **Collapsible per-POC block**: expanding a deal renders the current per-recipient columns (Recipient, Status, Sent, Opened, Completed, Respondent, Campaign, Source, NPS, CSAT, View response, Resend) as a nested sub-table, reusing the existing status chips, tooltips, View dialog and resend handlers — no duplicated logic.
+4. **Sorting in deal mode** on the deal-level columns: deal name, invites, responses received, response rate, avg NPS, avg CSAT, last sent. Flat mode keeps its current sorting.
+5. **Expand/collapse all** control, and deals default to collapsed.
+6. **CSV export** in deal mode exports the deal-level summary; flat mode keeps the current per-invite export.  
+  
+The unique only filter should be applicable show unique POCs  
+The current layout should not change this is in addition to it
 
-5. **Verify**
-   - Run a focused check with a sample payload like `["1","2","3","4","5","N/A","5"]` and confirm the section renders `1,2,3,4,5,N/A,5` with Experience `3.3/5`.
+## Notes
+
+- Purely presentational — no data-fetch, scoping, or RLS changes, so VSD/BOPM visibility stays exactly as today.
+- No new columns or backend work required; all fields come from the existing `invites`/`responses` props.
