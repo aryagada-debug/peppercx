@@ -255,6 +255,58 @@ export function AnalyticsResponsesTable({
     [filtered],
   );
 
+  const dealGroups = useMemo<DealGroup[]>(() => {
+    const map = new Map<string, Row[]>();
+    filtered.forEach((r) => {
+      const key = r.deal_id || r.deal_name || "—";
+      const arr = map.get(key) || [];
+      arr.push(r);
+      map.set(key, arr);
+    });
+    const groups = Array.from(map.entries()).map(([key, rows]) => {
+      const received = rows.filter((r) => r.has_response).length;
+      const npsVals = rows.map((r) => r.nps).filter((v): v is number => typeof v === "number");
+      const csatVals = rows.map((r) => r.csat).filter((v): v is number => typeof v === "number");
+      const ts = (v: string | null) => (v ? new Date(v).getTime() : null);
+      const maxOf = (xs: (number | null)[]) => {
+        const ok = xs.filter((x): x is number => typeof x === "number");
+        return ok.length ? Math.max(...ok) : null;
+      };
+      return {
+        key,
+        deal_id: rows[0].deal_id,
+        deal_name: rows[0].deal_name || rows[0].account || "—",
+        account: rows[0].account,
+        rows,
+        invites: rows.length,
+        received,
+        rate: rows.length ? received / rows.length : 0,
+        nps: npsVals.length ? npsVals.reduce((a, b) => a + b, 0) / npsVals.length : null,
+        csat: csatVals.length ? csatVals.reduce((a, b) => a + b, 0) / csatVals.length : null,
+        last_sent: maxOf(rows.map((r) => ts(r.sent_at))),
+        last_completed: maxOf(rows.map((r) => ts(r.completed_at))),
+      };
+    });
+    return groups.sort((a, b) => {
+      const av = (a as any)[dealSortKey];
+      const bv = (b as any)[dealSortKey];
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      if (typeof av === "number" && typeof bv === "number") return dealSortDir === "asc" ? av - bv : bv - av;
+      return dealSortDir === "asc"
+        ? String(av).localeCompare(String(bv))
+        : String(bv).localeCompare(String(av));
+    });
+  }, [filtered, dealSortKey, dealSortDir]);
+
+  const toggleDealSort = (k: DealSortKey) => {
+    if (dealSortKey === k) setDealSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setDealSortKey(k); setDealSortDir("desc"); }
+  };
+
+  const allExpanded = dealGroups.length > 0 && dealGroups.every((g) => expanded.has(g.key));
+
   const stuckVisibleIds = useMemo(
     () => filtered.filter((r) => r.stuck).map((r) => r.id),
     [filtered],
