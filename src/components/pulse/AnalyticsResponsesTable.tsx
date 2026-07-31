@@ -356,6 +356,28 @@ export function AnalyticsResponsesTable({
   };
 
   const exportCsv = () => {
+    if (layout === "deal") {
+      const headers = ["Deal ID","Deal name","Account","Invites","Responses received","Response rate %","Avg NPS","Avg CSAT","Last sent","Last completed"];
+      const out = dealGroups.map((g) => [
+        g.deal_id, g.deal_name, g.account, g.invites, g.received,
+        Math.round(g.rate * 100),
+        g.nps != null ? g.nps.toFixed(1) : "",
+        g.csat != null ? g.csat.toFixed(1) : "",
+        g.last_sent ? new Date(g.last_sent).toISOString() : "",
+        g.last_completed ? new Date(g.last_completed).toISOString() : "",
+      ]);
+      const csv = [headers, ...out]
+        .map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
+        .join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `pulse-deal-responses.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
     const headers = [
       "Deal ID","Deal name","Account","Recipient name","Recipient email",
       "Status","Sent","Opened","Completed","Respondent","Campaign","NPS","CSAT",
