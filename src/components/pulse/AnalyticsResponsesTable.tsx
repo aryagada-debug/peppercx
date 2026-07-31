@@ -611,100 +611,7 @@ export function AnalyticsResponsesTable({
                       </div>
                     )}
                   </td>
-                  <td className="px-3 py-2 max-w-[220px]">
-                    <div className="text-foreground truncate" title={r.recipient_name}>
-                      {r.recipient_name || "—"}
-                      {r.duplicates > 0 && (
-                        <span className="ml-1 text-[10px] text-muted-foreground">+{r.duplicates}</span>
-                      )}
-                    </div>
-                    {r.recipient_email && (
-                      <div className="text-[10px] text-muted-foreground truncate" title={r.recipient_email}>
-                        {r.recipient_email}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-3 py-2">
-                    {r.status === "failed" && r.error ? (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className={cn(
-                            "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border font-medium cursor-help",
-                            STATUS_STYLES[r.status],
-                          )}>
-                            {r.status_label}
-                            <AlertCircle className="h-2.5 w-2.5" />
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="max-w-xs text-[11px]">
-                          {r.error}
-                        </TooltipContent>
-                      </Tooltip>
-                    ) : (
-                      <div className="space-y-1">
-                        <span className={cn(
-                          "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] border font-medium",
-                          STATUS_STYLES[r.status],
-                        )}>
-                          {r.status_label}
-                        </span>
-                        {r.sync_note && <div className="max-w-[180px] text-[10px] leading-tight text-muted-foreground">{r.sync_note}</div>}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{fmtDate(r.sent_at)}</td>
-                  <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{fmtDate(r.opened_at)}</td>
-                  <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{fmtDate(r.completed_at)}</td>
-                  <td className="px-3 py-2 max-w-[180px] truncate" title={r.respondent}>{r.respondent || "—"}</td>
-                  <td className="px-3 py-2 max-w-[160px] truncate" title={r.campaign}>{r.campaign || "—"}</td>
-                  <td className="px-3 py-2">
-                    {r.source ? (
-                      <span className={cn(
-                        "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] border font-medium",
-                        r.source === "google_form"
-                          ? "bg-violet-100 text-violet-700 border-violet-200"
-                          : "bg-secondary text-muted-foreground border-border",
-                      )}>
-                        {r.source === "google_form" ? "Google Form" : "App"}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 text-right">{r.nps ?? "—"}</td>
-                  <td className="px-3 py-2 text-right">{r.csat ?? "—"}</td>
-                  <td className="px-3 py-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2"
-                      disabled={!r.has_response}
-                      onClick={() => r.has_response && setDrillRow(r)}
-                    >
-                      <Eye className="h-3 w-3 mr-1" /> View
-                    </Button>
-                  </td>
-                  <td className="px-3 py-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2"
-                      disabled={r.status === "completed" || resending.has(r.id) || !r.recipient_email}
-                      onClick={() => runResend([r.id], "row")}
-                      title={
-                        r.status === "completed"
-                          ? "Already completed"
-                          : r.awaiting_sync
-                            ? "Resend Google Form invite / retry sync"
-                            : "Re-send via Resend"
-                      }
-                    >
-                      {resending.has(r.id)
-                        ? <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                        : <Send className="h-3 w-3 mr-1" />}
-                      {r.stuck ? "Retry sync" : "Resend"}
-                    </Button>
-                  </td>
+                  <PocCells r={r} resending={resending} runResend={runResend} onView={setDrillRow} />
                 </tr>
               ))}
               {filtered.length === 0 && (
@@ -714,6 +621,7 @@ export function AnalyticsResponsesTable({
           </table>
         </div>
       </div>
+      )}
 
       <Dialog open={!!drillRow} onOpenChange={(o) => !o && setDrillRow(null)}>
         <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-hidden p-0 flex flex-col">
