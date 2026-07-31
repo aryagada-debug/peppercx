@@ -137,6 +137,7 @@ export function AppSidebar() {
       items: section.items.filter(item => {
         if (item.to === "/seo-kras") {
           if (!canSeoKra) return false;
+          return true;
         } else if ((item as any).adminOnly && !(isAdmin || isActuallyAdmin)) {
           return false;
         }
