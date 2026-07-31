@@ -3,10 +3,14 @@ import { useUserRole } from "@/hooks/useUserRole";
 
 export const SEO_KRA_REVIEWERS: { email: string; name: string }[] = [
   { email: "mayur@peppercontent.io", name: "Mayur" },
+  { email: "mayur.varade@peppercontent.io", name: "Mayur Varade" },
   { email: "vedanga@peppercontent.io", name: "Vedanga" },
+  { email: "vedanga.bandyopadhyay@peppercontent.io", name: "Vedanga Bandyopadhyay" },
 ];
 
 const REVIEWER_EMAIL_SET = new Set(SEO_KRA_REVIEWERS.map(r => r.email.toLowerCase()));
+
+export const SEO_KRA_REVIEWER_EMAILS = SEO_KRA_REVIEWERS.map(r => r.email);
 
 export function isSeoKraReviewerEmail(email: string | null | undefined) {
   return !!email && REVIEWER_EMAIL_SET.has(email.toLowerCase());
