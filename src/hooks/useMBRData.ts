@@ -76,12 +76,23 @@ export interface VSDSummary {
   scheduledCount: number;
 }
 
+/** Parse a `yyyy-MM-dd` string as LOCAL midnight (never UTC). */
+export function parseLocalDate(s: string): Date {
+  const [y, m, d] = String(s).slice(0, 10).split("-").map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+}
+
+/** Format a Date as `yyyy-MM-dd` using LOCAL calendar parts. */
+export function fmtLocalDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function getMonday(d: Date): string {
-  const date = new Date(d);
+  const date = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const day = date.getDay();
   const diff = date.getDate() - day + (day === 0 ? -6 : 1);
   date.setDate(diff);
-  return date.toISOString().split("T")[0];
+  return fmtLocalDate(date);
 }
 
 export function getWeekOptions(): { value: string; label: string }[] {
@@ -254,7 +265,7 @@ export function useMBRData() {
       mbrDate?: string | null; // yyyy-MM-dd — date the MBR was conducted; drives which week/month the entry belongs to
       anirudhJoining?: boolean;
     }) => {
-      const weekStart = params.mbrDate ? getMonday(new Date(params.mbrDate)) : getMonday(new Date());
+      const weekStart = params.mbrDate ? getMonday(parseLocalDate(params.mbrDate)) : getMonday(new Date());
       const row: any = {
         deal_id: params.dealId,
         week_start: weekStart,
@@ -315,17 +326,52 @@ export function useMBRData() {
       // If an MBR was scheduled (or marked done) for the current month,
       // auto-close any open "Schedule MBR" auto-task for this deal.
       try {
-        const sd = params.scheduledDate || (params.status === "Done" ? new Date().toISOString().slice(0, 10) : null);
+        const sd = params.scheduledDate || (params.status === "Done" ? fmtLocalDate(new Date()) : null);
         if (sd) {
-          const d = new Date(sd);
+          const d = parseLocalDate(sd);
           const now = new Date();
-          if (d.getUTCFullYear() === now.getUTCFullYear() && d.getUTCMonth() === now.getUTCMonth()) {
+          if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) {
             await (supabase.from("deal_tasks") as any)
               .update({ stage: "Done" })
               .eq("deal_id", params.dealId)
               .eq("phase", "MBR")
               .neq("stage", "Done")
               .ilike("title", "Schedule MBR%");
+          }
+        }
+      } catch (_) { /* non-fatal */ }
+
+      // Carry the next MBR date forward: if the scheduled date falls in a later
+      // month than the conducted MBR, seed a Pending placeholder row in that
+      // month so the tracker shows it when the month selector moves forward.
+      try {
+        if (params.scheduledDate) {
+          const sched = parseLocalDate(params.scheduledDate);
+          const schedMonth = params.scheduledDate.slice(0, 7);
+          const baseMonth = weekStart.slice(0, 7);
+          const schedWeek = getMonday(sched);
+          if (schedMonth > baseMonth && schedWeek !== weekStart) {
+            const { data: existingNext } = await (supabase.from("mbr_entries") as any)
+              .select("id, scheduled_date")
+              .eq("deal_id", params.dealId)
+              .eq("week_start", schedWeek)
+              .maybeSingle();
+            if (!existingNext) {
+              await (supabase.from("mbr_entries") as any).upsert(
+                {
+                  deal_id: params.dealId,
+                  week_start: schedWeek,
+                  status: "Pending",
+                  scheduled_date: params.scheduledDate,
+                  updated_by: params.updatedBy || "",
+                },
+                { onConflict: "deal_id,week_start" },
+              );
+            } else if (!existingNext.scheduled_date) {
+              await (supabase.from("mbr_entries") as any)
+                .update({ scheduled_date: params.scheduledDate })
+                .eq("id", existingNext.id);
+            }
           }
         }
       } catch (_) { /* non-fatal */ }

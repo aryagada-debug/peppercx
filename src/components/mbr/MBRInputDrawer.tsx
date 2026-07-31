@@ -18,6 +18,7 @@ import { useGoogleCalendar } from "@/hooks/useGoogleCalendar";
 import { CalendarConnectButton } from "@/components/calendar/CalendarConnectButton";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { syncMbrToCalendar } from "@/lib/mbrCalendarSync";
+import { parseLocalDate } from "@/hooks/useMBRData";
 
 interface ActionItem {
   task: string;
@@ -88,7 +89,7 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
   const [aiSummary, setAiSummary] = useState(existingEntry?.aiSummary || "");
   const [actionItems, setActionItems] = useState<ActionItem[]>(existingEntry?.actionItems || []);
   const [scheduledDate, setScheduledDate] = useState<Date | undefined>(
-    existingEntry?.scheduledDate ? new Date(existingEntry.scheduledDate) : undefined
+    existingEntry?.scheduledDate ? parseLocalDate(existingEntry.scheduledDate) : undefined
   );
   const [anirudhAdded, setAnirudhAdded] = useState(existingEntry?.anirudhAdded || false);
   const [anirudhJoining, setAnirudhJoining] = useState(existingEntry?.anirudhJoining || false);
@@ -97,9 +98,9 @@ export function MBRInputDrawer({ open, onClose, deal, existingEntry, selectedWee
   const [mbrPptLink, setMbrPptLink] = useState(existingEntry?.mbrPptLink || "");
   const [mbrDate, setMbrDate] = useState<Date | undefined>(
     existingEntry?.weekStart
-      ? new Date(existingEntry.weekStart)
+      ? parseLocalDate(existingEntry.weekStart)
       : selectedWeek
-      ? new Date(selectedWeek)
+      ? parseLocalDate(selectedWeek)
       : new Date()
   );
   const [scheduledTime, setScheduledTime] = useState("11:00");

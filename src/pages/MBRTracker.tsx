@@ -303,6 +303,20 @@ export default function MBRTracker() {
   // Use monthEntryMap for current view instead of entryMap
   const activeEntryMap = viewMode === "current" ? monthEntryMap : entryMap;
 
+  // Carried-forward next MBR date: latest scheduled_date recorded in a month
+  // at or before the selected month, used when the selected month has none.
+  const carriedScheduledMap = useMemo(() => {
+    const m = new Map<string, string>();
+    if (!selectedMonth) return m;
+    for (const e of entries) {
+      if (!e.scheduledDate || !e.weekStart) continue;
+      if (e.weekStart.slice(0, 7) > selectedMonth) continue;
+      const prev = m.get(e.dealId);
+      if (!prev || e.scheduledDate > prev) m.set(e.dealId, e.scheduledDate);
+    }
+    return m;
+  }, [entries, selectedMonth]);
+
   // Filter deals
   const filteredDeals = useMemo(() => {
     let d = deals;
@@ -1555,7 +1569,13 @@ export default function MBRTracker() {
                                   )} title={!retainer ? "Non-retainer — MBR not mandatory" : undefined}>{!retainer && status === "Not Required" ? "N/R" : status}</span>
                                 </td>
                                 <td className="py-2 px-3 text-center">{sentimentDot(entry?.sentiment ?? null)}</td>
-                                <td className="py-2 px-3 text-xs text-muted-foreground whitespace-nowrap">{entry?.scheduledDate || "—"}</td>
+                                <td className="py-2 px-3 text-xs text-muted-foreground whitespace-nowrap">
+                                  {entry?.scheduledDate ? entry.scheduledDate : (
+                                    carriedScheduledMap.get(deal.id)
+                                      ? <span className="italic opacity-70" title="Next MBR date carried forward from a previous month">{carriedScheduledMap.get(deal.id)}</span>
+                                      : "—"
+                                  )}
+                                </td>
                                 <td className="py-2 px-3 text-center">
                                   <div className="flex items-center gap-1 justify-center">
                                     {entry?.anirudhAdded ? <span className="text-positive font-bold text-[10px]">A</span> : null}
