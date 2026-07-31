@@ -33,7 +33,7 @@ export function ProtectedRoute({ children, routeKey, adminOnly, allowEmails }: P
   }
 
   // Route-level visibility check
-  if (routeKey && !isAdmin && !visibleRoutes.has(routeKey)) {
+  if (routeKey && !isAdmin && !emailAllowed && !visibleRoutes.has(routeKey)) {
     return <Navigate to="/clients" replace />;
   }
 
