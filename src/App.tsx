@@ -5,6 +5,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/components/auth/AuthProvider";
+import { SEO_KRA_REVIEWER_EMAILS } from "@/lib/seoKraAccess";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { UserRoleProvider } from "@/hooks/useUserRole";
 import { CurrencyProvider } from "@/contexts/CurrencyContext";
@@ -131,7 +132,7 @@ function AppRoutes() {
               <Route path="/contacts" element={<ProtectedRoute routeKey="home"><Contacts /></ProtectedRoute>} />
               <Route path="/leadership-interventions" element={<ProtectedRoute routeKey="home"><LeadershipInterventions /></ProtectedRoute>} />
               <Route path="/inbox" element={<ProtectedRoute routeKey="home"><Inbox /></ProtectedRoute>} />
-              <Route path="/seo-kras" element={<ProtectedRoute routeKey="settings" adminOnly allowEmails={["mayur@peppercontent.io","vedanga@peppercontent.io"]}><SEOKRAs /></ProtectedRoute>} />
+              <Route path="/seo-kras" element={<ProtectedRoute routeKey="settings" adminOnly allowEmails={SEO_KRA_REVIEWER_EMAILS}><SEOKRAs /></ProtectedRoute>} />
               <Route path="/client-one-on-ones" element={<ProtectedRoute routeKey="settings" adminOnly><ClientOneOnOnes /></ProtectedRoute>} />
               <Route path="/portfolio-update" element={<ProtectedRoute routeKey="settings" adminOnly><PortfolioUpdate /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
