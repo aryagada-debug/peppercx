@@ -499,9 +499,8 @@ export function AnalyticsResponsesTable({
                     ? "bg-emerald-100 text-emerald-700 border-emerald-200"
                     : "bg-amber-100 text-amber-700 border-amber-200";
                 return (
-                  <>
+                  <Fragment key={g.key}>
                     <tr
-                      key={g.key}
                       className="border-t border-border hover:bg-secondary/50 cursor-pointer"
                       onClick={() => setExpanded((s) => {
                         const n = new Set(s);
@@ -565,7 +564,7 @@ export function AnalyticsResponsesTable({
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
               {dealGroups.length === 0 && (
