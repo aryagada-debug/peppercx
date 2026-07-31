@@ -85,6 +85,23 @@ const STATUS_RANK: Record<StatusKey, number> = {
   completed: 4, opened: 3, sent: 2, failed: 1, pending: 0,
 };
 
+type DealSortKey = "deal_name" | "invites" | "received" | "rate" | "nps" | "csat" | "last_sent";
+
+type DealGroup = {
+  key: string;
+  deal_id: string;
+  deal_name: string;
+  account: string;
+  rows: Row[];
+  invites: number;
+  received: number;
+  rate: number;
+  nps: number | null;
+  csat: number | null;
+  last_sent: number | null;
+  last_completed: number | null;
+};
+
 export function AnalyticsResponsesTable({
   invites,
   responses,
