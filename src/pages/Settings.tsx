@@ -13,7 +13,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Download, Mail, CheckCircle2, AlertCircle, Send } from "lucide-react";
-import { getCentralMailboxStatus, setCentralMailbox, sendCentralTest, sendAppEmail } from "@/lib/appEmail";
+import { getCentralMailboxStatus, setCentralMailbox, sendCentralTest, sendAppEmail, checkCentralMailbox } from "@/lib/appEmail";
 import { NotificationRulesCard } from "@/components/settings/NotificationRulesCard";
 import { CreatorCompassSyncCard } from "@/components/settings/CreatorCompassSyncCard";
 import { connectGmail, useGmailStatus } from "@/hooks/useGmail";
@@ -449,9 +449,14 @@ function CentralMailboxCard() {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [authFailures, setAuthFailures] = useState(0);
+  const [tokenBad, setTokenBad] = useState<string | null>(null);
 
   const reload = useCallbackish(async () => {
     try { setCentral(await getCentralMailboxStatus()); } catch { /* ignore */ }
+    try {
+      const check = await checkCentralMailbox();
+      setTokenBad(check.ok ? null : (check.reason || "central_mailbox_unavailable"));
+    } catch { /* ignore */ }
     try {
       const since = new Date(Date.now() - 14 * 24 * 3600 * 1000).toISOString();
       const { count } = await supabase
@@ -529,12 +534,12 @@ function CentralMailboxCard() {
 
       {loading ? (
         <p className="text-xs text-muted-foreground">Checking…</p>
-      ) : authFailures > 0 ? (
+      ) : tokenBad || authFailures > 0 ? (
         <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 flex items-start gap-2">
           <AlertCircle className="h-3.5 w-3.5 text-destructive mt-0.5" />
           <span className="text-xs text-foreground">
-            Central mailbox disconnected — emails are not sending.{" "}
-            {authFailures} notification{authFailures === 1 ? "" : "s"} failed in the last 14 days.
+            Central mailbox {tokenBad === "central_mailbox_reauth_required" ? "sign-in has expired" : "is not usable"} — emails are not sending.
+            {authFailures > 0 && ` ${authFailures} notification${authFailures === 1 ? "" : "s"} failed in the last 14 days.`}{" "}
             Sign in as <span className="font-mono">centralcx@peppercontent.io</span> below and click
             "Use this account as central sender" to reconnect.
           </span>

@@ -1036,6 +1036,8 @@ Deno.serve(async (req) => {
     }
 
     if (action === "set_central") {
+      // Verify the target account can actually mint an access token before we
+      // promote it — otherwise we silently swap in another dead mailbox.
       const targetUserId = (body as { userId?: string }).userId || user.id;
       // Make sure that user has a gmail_connections row.
       const { data: row } = await admin
@@ -1051,7 +1053,21 @@ Deno.serve(async (req) => {
         .update({ is_central: true })
         .eq("user_id", targetUserId);
       if (upErr) throw upErr;
+      try {
+        await getCentralToken(admin);
+      } catch (e) {
+        return json({ ok: true, warning: (e as Error).message });
+      }
       return json({ ok: true });
+    }
+
+    if (action === "central_check") {
+      try {
+        const { email } = await getCentralToken(admin);
+        return json({ ok: true, googleEmail: email });
+      } catch (e) {
+        return json({ ok: false, reason: (e as Error).message });
+      }
     }
 
     if (action === "send_test_rule") {
