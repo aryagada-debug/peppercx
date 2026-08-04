@@ -906,6 +906,7 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
           ["MRR", fmtMoney(deal.mrr)],
           ["Total deal value", fmtMoney(deal.total_deal_value)],
           ["Duration", deal.duration ? `${deal.duration} months` : ""],
+          ["Start date", deal.start_date || ""],
           ["Business unit", deal.pepper_business_unit || deal.business_unit || ""],
           ["VSD", deal.vsd || ""],
           ["Locked by", lockedBy],
