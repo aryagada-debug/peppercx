@@ -988,6 +988,31 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
 }
 
 // ── Server ─────────────────────────────────────────────────────────────────
+/** Record a failed attempt per event when the central mailbox is unavailable. */
+async function logMailboxFailure(
+  admin: SupabaseClient,
+  inputs: SendInput[],
+  userId: string,
+  reason: string,
+) {
+  try {
+    const rows = inputs.map((inp) => ({
+      event: inp.event,
+      deal_id: inp.dealId || null,
+      recipient_email: (inp.recipients || [])[0] || "(unresolved)",
+      subject: `[not sent] ${inp.event}`,
+      status: "failed",
+      gmail_message_id: null,
+      error: reason,
+      triggered_by: userId,
+      payload: inp.payload || null,
+    }));
+    if (rows.length) await admin.from("email_send_log").insert(rows);
+  } catch (e) {
+    console.error("[send-app-email] failed to log mailbox failure", e);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
