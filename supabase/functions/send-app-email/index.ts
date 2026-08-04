@@ -1099,7 +1099,7 @@ Deno.serve(async (req) => {
           return json({ ok: true, id: data.id });
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
-          return json({ error: msg }, msg === "central_mailbox_not_connected" ? 412 : 500);
+          return json({ error: msg }, msg === "central_mailbox_not_connected" || msg === "central_mailbox_reauth_required" ? 412 : 500);
         }
       }
       const sampleCtx: Record<string, string> = {
@@ -1154,7 +1154,7 @@ Deno.serve(async (req) => {
         return json({ ok: true, id: data.id });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        return json({ error: msg }, msg === "central_mailbox_not_connected" ? 412 : 500);
+        return json({ error: msg }, msg === "central_mailbox_not_connected" || msg === "central_mailbox_reauth_required" ? 412 : 500);
       }
     }
 
@@ -1171,7 +1171,11 @@ Deno.serve(async (req) => {
       fromEmail = c.email;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      if (msg === "central_mailbox_not_connected" || msg === "gmail_oauth_not_configured") {
+      if (
+        msg === "central_mailbox_not_connected" ||
+        msg === "central_mailbox_reauth_required" ||
+        msg === "gmail_oauth_not_configured"
+      ) {
         // Soft no-op: notifications are optional; don't break user flows.
         return json({ ok: true, skipped: true, reason: msg, results: [] });
       }
@@ -1262,7 +1266,11 @@ Deno.serve(async (req) => {
     return json({ ok: true, results });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    const status = msg === "unauthorized" ? 401 : msg === "central_mailbox_not_connected" ? 412 : 500;
+    const status = msg === "unauthorized"
+      ? 401
+      : msg === "central_mailbox_not_connected" || msg === "central_mailbox_reauth_required"
+      ? 412
+      : 500;
     return json({ error: msg }, status);
   }
 });
