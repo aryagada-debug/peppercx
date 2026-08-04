@@ -3818,6 +3818,7 @@ export type Database = {
         Args: { _d: Database["public"]["Tables"]["staffing_deals"]["Row"] }
         Returns: Json
       }
+      enqueue_full_sync_backfill: { Args: never; Returns: number }
       get_home_personal_todos: {
         Args: never
         Returns: {
