@@ -271,13 +271,13 @@ type DealRow = {
   vsd: string | null; principal_bopm: string | null; senior_bopm: string | null; bopm: string | null;
   capability_line?: string | null; business_unit?: string | null; geo?: string | null;
   deal_type?: string | null; mrr?: number | null; total_deal_value?: number | null;
-  pepper_business_unit?: string | null; duration?: string | null;
+  pepper_business_unit?: string | null; duration?: string | null; start_date?: string | null;
 };
 
 async function loadDeal(admin: SupabaseClient, dealId: string): Promise<DealRow | null> {
   const { data } = await admin
     .from("staffing_deals")
-    .select("id, account, deal_name, vsd, principal_bopm, senior_bopm, bopm, capability_line, business_unit, geo, deal_type, mrr, total_deal_value, pepper_business_unit, duration")
+    .select("id, account, deal_name, vsd, principal_bopm, senior_bopm, bopm, capability_line, business_unit, geo, deal_type, mrr, total_deal_value, pepper_business_unit, duration, start_date")
     .eq("id", dealId)
     .maybeSingle();
   return (data as DealRow) || null;
