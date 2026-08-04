@@ -505,7 +505,7 @@ function CentralMailboxCard() {
     setSaving(true);
     try {
       const res = await setCentralMailbox();
-      if (res?.warning) toast.warning(`Set, but Gmail rejected it: ${res.warning}`);
+      if (res?.warning) throw new Error("This Gmail authorization has expired. Use ‘Reconnect central Gmail’ to authorize it again.");
       else toast.success("Central mailbox set");
       await reload();
     } catch (e: any) {
@@ -579,7 +579,7 @@ function CentralMailboxCard() {
             You're signed into Gmail as <span className="font-mono">{gmailStatus.googleEmail}</span>
           </span>
         )}
-        {gmailStatus.connected && (
+        {gmailStatus.connected && !(tokenBad === "central_mailbox_reauth_required" && isCurrentUserCentral) && (
           <button onClick={handleSetCentral} disabled={saving} className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent/20 disabled:opacity-50">
             {saving
               ? "Saving…"
