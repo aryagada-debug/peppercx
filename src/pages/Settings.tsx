@@ -496,8 +496,9 @@ function CentralMailboxCard() {
   const handleSetCentral = async () => {
     setSaving(true);
     try {
-      await setCentralMailbox();
-      toast.success("Central mailbox set");
+      const res = await setCentralMailbox();
+      if (res?.warning) toast.warning(`Set, but Gmail rejected it: ${res.warning}`);
+      else toast.success("Central mailbox set");
       await reload();
     } catch (e: any) {
       toast.error(e?.message || "Couldn't set central mailbox");
