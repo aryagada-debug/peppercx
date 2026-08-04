@@ -448,9 +448,25 @@ function CentralMailboxCard() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [authFailures, setAuthFailures] = useState(0);
 
   const reload = useCallbackish(async () => {
     try { setCentral(await getCentralMailboxStatus()); } catch { /* ignore */ }
+    try {
+      const since = new Date(Date.now() - 14 * 24 * 3600 * 1000).toISOString();
+      const { count } = await supabase
+        .from("email_send_log")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "failed")
+        .gte("created_at", since)
+        .in("error", [
+          "central_mailbox_reauth_required",
+          "central_mailbox_not_connected",
+          "central_mailbox_missing_email",
+          "gmail_oauth_not_configured",
+        ]);
+      setAuthFailures(count || 0);
+    } catch { /* ignore */ }
     setLoading(false);
   });
 
@@ -513,6 +529,16 @@ function CentralMailboxCard() {
 
       {loading ? (
         <p className="text-xs text-muted-foreground">Checking…</p>
+      ) : authFailures > 0 ? (
+        <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 flex items-start gap-2">
+          <AlertCircle className="h-3.5 w-3.5 text-destructive mt-0.5" />
+          <span className="text-xs text-foreground">
+            Central mailbox disconnected — emails are not sending.{" "}
+            {authFailures} notification{authFailures === 1 ? "" : "s"} failed in the last 14 days.
+            Sign in as <span className="font-mono">centralcx@peppercontent.io</span> below and click
+            "Use this account as central sender" to reconnect.
+          </span>
+        </div>
       ) : central.connected ? (
         <div className="rounded-md border border-border bg-secondary/30 px-3 py-2 flex items-center gap-2">
           <CheckCircle2 className="h-3.5 w-3.5 text-positive" />
