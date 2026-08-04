@@ -1288,13 +1288,15 @@ Deno.serve(async (req) => {
         msg === "central_mailbox_reauth_required" ||
         msg === "gmail_oauth_not_configured"
       ) {
-        // Soft no-op: notifications are optional; don't break user flows.
-        return json({ ok: true, skipped: true, reason: msg, results: [] });
+        // Don't break user flows, but never fail silently: record the attempt.
+        await logMailboxFailure(admin, inputs, user.id, msg);
+        return json({ ok: false, skipped: true, reason: msg, results: [] });
       }
       throw e;
     }
     if (!fromEmail) {
-      return json({ ok: true, skipped: true, reason: "central_mailbox_missing_email", results: [] });
+      await logMailboxFailure(admin, inputs, user.id, "central_mailbox_missing_email");
+      return json({ ok: false, skipped: true, reason: "central_mailbox_missing_email", results: [] });
     }
 
     const results: Array<Record<string, unknown>> = [];
