@@ -66,7 +66,16 @@ export async function setCentralMailbox() {
   if (data && typeof data === "object" && "error" in (data as object)) {
     throw new Error((data as { error: string }).error);
   }
-  return data as { ok: true };
+  return data as { ok: true; warning?: string };
+}
+
+/** Live check: can the central mailbox actually mint a Gmail access token? */
+export async function checkCentralMailbox() {
+  const { data, error } = await supabase.functions.invoke("send-app-email", {
+    body: { action: "central_check" },
+  });
+  if (error) throw error;
+  return data as { ok: boolean; reason?: string; googleEmail?: string | null };
 }
 
 export async function sendCentralTest(toEmail: string) {
