@@ -74,7 +74,14 @@ async function getCentralToken(admin: SupabaseClient) {
     body: params.toString(),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data?.error_description || data?.error || "token_refresh_failed");
+  if (!res.ok) {
+    const raw = `${data?.error ?? ""} ${data?.error_description ?? ""}`.toLowerCase();
+    if (raw.includes("invalid_grant") || raw.includes("expired or revoked")) {
+      // Refresh token is dead — the central mailbox must be reconnected.
+      throw new Error("central_mailbox_reauth_required");
+    }
+    throw new Error(data?.error_description || data?.error || "token_refresh_failed");
+  }
   const newExpires = new Date(Date.now() + Math.max(60, data.expires_in - 60) * 1000).toISOString();
   await admin
     .from("gmail_connections")
@@ -1092,7 +1099,7 @@ Deno.serve(async (req) => {
           return json({ ok: true, id: data.id });
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
-          return json({ error: msg }, msg === "central_mailbox_not_connected" ? 412 : 500);
+          return json({ error: msg }, msg === "central_mailbox_not_connected" || msg === "central_mailbox_reauth_required" ? 412 : 500);
         }
       }
       const sampleCtx: Record<string, string> = {
@@ -1147,7 +1154,7 @@ Deno.serve(async (req) => {
         return json({ ok: true, id: data.id });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        return json({ error: msg }, msg === "central_mailbox_not_connected" ? 412 : 500);
+        return json({ error: msg }, msg === "central_mailbox_not_connected" || msg === "central_mailbox_reauth_required" ? 412 : 500);
       }
     }
 
@@ -1164,7 +1171,11 @@ Deno.serve(async (req) => {
       fromEmail = c.email;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      if (msg === "central_mailbox_not_connected" || msg === "gmail_oauth_not_configured") {
+      if (
+        msg === "central_mailbox_not_connected" ||
+        msg === "central_mailbox_reauth_required" ||
+        msg === "gmail_oauth_not_configured"
+      ) {
         // Soft no-op: notifications are optional; don't break user flows.
         return json({ ok: true, skipped: true, reason: msg, results: [] });
       }
@@ -1255,7 +1266,11 @@ Deno.serve(async (req) => {
     return json({ ok: true, results });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    const status = msg === "unauthorized" ? 401 : msg === "central_mailbox_not_connected" ? 412 : 500;
+    const status = msg === "unauthorized"
+      ? 401
+      : msg === "central_mailbox_not_connected" || msg === "central_mailbox_reauth_required"
+      ? 412
+      : 500;
     return json({ error: msg }, status);
   }
 });
