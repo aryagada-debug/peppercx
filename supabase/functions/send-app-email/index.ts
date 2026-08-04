@@ -293,6 +293,7 @@ async function loadPerson(admin: SupabaseClient, personId: string) {
 }
 
 async function lookupEmailsByNames(admin: SupabaseClient, names: string[]) {
+  // (see below for staffed-team loader)
   const clean = Array.from(
     new Set(
       names
