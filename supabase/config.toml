@@ -20,3 +20,5 @@ verify_jwt = false
 
 [functions.handover-submit]
 verify_jwt = false
+[functions.creator-compass-sync]
+verify_jwt = false
