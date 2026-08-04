@@ -15,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { Loader2, Download, Mail, CheckCircle2, AlertCircle, Send } from "lucide-react";
 import { getCentralMailboxStatus, setCentralMailbox, sendCentralTest, sendAppEmail } from "@/lib/appEmail";
 import { NotificationRulesCard } from "@/components/settings/NotificationRulesCard";
+import { CreatorCompassSyncCard } from "@/components/settings/CreatorCompassSyncCard";
 import { connectGmail, useGmailStatus } from "@/hooks/useGmail";
 import { PeopleReportingTable } from "@/components/settings/PeopleReportingTable";
 import { useStaffingQueries } from "@/hooks/queries/useStaffingQueries";
@@ -175,6 +176,7 @@ function NotificationsPanel() {
       <CentralMailboxCard />
       <NotificationRulesCard />
       <PulseGoogleFormCard />
+      <CreatorCompassSyncCard />
     </div>
   );
 }
