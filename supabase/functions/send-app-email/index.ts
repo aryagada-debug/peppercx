@@ -293,6 +293,38 @@ async function loadPerson(admin: SupabaseClient, personId: string) {
 }
 
 async function lookupEmailsByNames(admin: SupabaseClient, names: string[]) {
+  return await _lookupEmailsByNames(admin, names);
+}
+
+type TeamMember = { name: string; email: string | null; role: string; pct: number };
+
+/** Every active assignment on a deal, with person name/email. */
+async function loadStaffedTeam(admin: SupabaseClient, dealId: string): Promise<TeamMember[]> {
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: rows } = await admin
+    .from("staffing_assignments")
+    .select("person_id, role_key, allocation_pct, end_date")
+    .eq("staffing_deal_id", dealId);
+  const list = ((rows || []) as Array<{ person_id: string; role_key: string; allocation_pct: number; end_date: string | null }>)
+    .filter((r) => Number(r.allocation_pct) > 0 && (!r.end_date || r.end_date >= today));
+  if (list.length === 0) return [];
+  const ids = Array.from(new Set(list.map((r) => r.person_id)));
+  const { data: people } = await admin
+    .from("staffing_people")
+    .select("id, name, email")
+    .in("id", ids);
+  const byId = new Map(
+    ((people || []) as Array<{ id: string; name: string; email: string | null }>).map((p) => [p.id, p]),
+  );
+  return list.map((r) => ({
+    name: byId.get(r.person_id)?.name || r.person_id,
+    email: byId.get(r.person_id)?.email || null,
+    role: String(r.role_key || "").replace(/_/g, " "),
+    pct: Number(r.allocation_pct) || 0,
+  })).sort((a, b) => b.pct - a.pct);
+}
+
+async function _lookupEmailsByNames(admin: SupabaseClient, names: string[]) {
   const clean = Array.from(
     new Set(
       names
