@@ -9,6 +9,7 @@ import { useTableSubscription, mappedListPatcher } from "@/lib/realtime";
 import { dbToDeal, dealToDb, STAFFING_DEALS_SELECT } from "@/lib/dbMappers";
 import type { Deal } from "@/data/staffingData";
 import { softDelete } from "@/lib/trash";
+import { sendAppEmail } from "@/lib/appEmail";
 
 const PAGE_SIZE = 1000;
 
@@ -52,6 +53,8 @@ export function useDealMutations() {
     },
     onSuccess: (deal) => {
       qc.setQueryData<Deal[]>(key, (prev) => (prev ? [...prev, deal] : [deal]));
+      // Deal-created notification fires from every creation path, not just the wizard.
+      sendAppEmail({ event: "deal_created", dealId: deal.id });
     },
   });
 
