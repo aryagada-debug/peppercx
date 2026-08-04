@@ -27,7 +27,7 @@ interface CapLead {
   leads: string[];
 }
 
-const TOKEN_HINTS = ["{vsd}", "{principal_bopm}", "{senior_bopm}", "{bopm}", "{capability_lead}", "{assignee}", "{assignee_manager}"];
+const TOKEN_HINTS = ["{vsd}", "{principal_bopm}", "{senior_bopm}", "{bopm}", "{capability_lead}", "{assignee}", "{assignee_manager}", "{staffed_team}"];
 
 function splitCsv(v: string): string[] {
   return v.split(",").map((s) => s.trim()).filter(Boolean);
