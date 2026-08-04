@@ -845,10 +845,6 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
     };
   }
 
-  if (ev === "deal_created" || ev === "deal_unstaffed") {
-    // handled below
-  }
-
   if (ev === "staffing_locked") {
     const rule = await loadRule(admin, "staffing.locked");
     if (rule && !rule.enabled) return null;
