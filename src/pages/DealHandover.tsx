@@ -177,6 +177,10 @@ export default function DealHandover() {
     const updated = { ...(data as any), contacts: Array.isArray((data as any).contacts) ? (data as any).contacts : [] } as HandoverRow;
     setRows((rs) => rs.map((r) => (r.id === row.id ? updated : r)));
     setOpen(updated);
+    // Handover just auto-created the deal → fire the standard deal.created notification.
+    if (updated.status === "created" && row.status !== "created" && updated.created_deal_id) {
+      sendAppEmail({ event: "deal_created", dealId: updated.created_deal_id });
+    }
     // Notify next-in-line
     const nextRecipients: string[] = [];
     if (patch.deal_id !== undefined || patch.deal_name !== undefined) nextRecipients.push("anirudh@peppercontent.io");
