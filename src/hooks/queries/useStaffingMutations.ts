@@ -506,6 +506,18 @@ export function useStaffingMutations() {
         );
       }
       toast.success(lock ? "Staffing locked" : "Staffing unlocked");
+      // One team-wide email per lock action (never on unlock).
+      if (lock) {
+        const row = (data || {}) as { staffing_locked_at?: string; staffing_locked_by_name?: string };
+        sendAppEmail({
+          event: "staffing_locked",
+          dealId,
+          payload: {
+            lockedAt: row.staffing_locked_at || new Date().toISOString(),
+            lockedByName: row.staffing_locked_by_name || "",
+          },
+        });
+      }
     },
     [patch, qc],
   );

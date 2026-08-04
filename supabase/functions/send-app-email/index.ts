@@ -271,13 +271,13 @@ type DealRow = {
   vsd: string | null; principal_bopm: string | null; senior_bopm: string | null; bopm: string | null;
   capability_line?: string | null; business_unit?: string | null; geo?: string | null;
   deal_type?: string | null; mrr?: number | null; total_deal_value?: number | null;
-  pepper_business_unit?: string | null; duration?: string | null;
+  pepper_business_unit?: string | null; duration?: string | null; start_date?: string | null;
 };
 
 async function loadDeal(admin: SupabaseClient, dealId: string): Promise<DealRow | null> {
   const { data } = await admin
     .from("staffing_deals")
-    .select("id, account, deal_name, vsd, principal_bopm, senior_bopm, bopm, capability_line, business_unit, geo, deal_type, mrr, total_deal_value, pepper_business_unit, duration")
+    .select("id, account, deal_name, vsd, principal_bopm, senior_bopm, bopm, capability_line, business_unit, geo, deal_type, mrr, total_deal_value, pepper_business_unit, duration, start_date")
     .eq("id", dealId)
     .maybeSingle();
   return (data as DealRow) || null;
@@ -293,6 +293,38 @@ async function loadPerson(admin: SupabaseClient, personId: string) {
 }
 
 async function lookupEmailsByNames(admin: SupabaseClient, names: string[]) {
+  return await _lookupEmailsByNames(admin, names);
+}
+
+type TeamMember = { name: string; email: string | null; role: string; pct: number };
+
+/** Every active assignment on a deal, with person name/email. */
+async function loadStaffedTeam(admin: SupabaseClient, dealId: string): Promise<TeamMember[]> {
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: rows } = await admin
+    .from("staffing_assignments")
+    .select("person_id, role_key, allocation_pct, end_date")
+    .eq("staffing_deal_id", dealId);
+  const list = ((rows || []) as Array<{ person_id: string; role_key: string; allocation_pct: number; end_date: string | null }>)
+    .filter((r) => Number(r.allocation_pct) > 0 && (!r.end_date || r.end_date >= today));
+  if (list.length === 0) return [];
+  const ids = Array.from(new Set(list.map((r) => r.person_id)));
+  const { data: people } = await admin
+    .from("staffing_people")
+    .select("id, name, email")
+    .in("id", ids);
+  const byId = new Map(
+    ((people || []) as Array<{ id: string; name: string; email: string | null }>).map((p) => [p.id, p]),
+  );
+  return list.map((r) => ({
+    name: byId.get(r.person_id)?.name || r.person_id,
+    email: byId.get(r.person_id)?.email || null,
+    role: String(r.role_key || "").replace(/_/g, " "),
+    pct: Number(r.allocation_pct) || 0,
+  })).sort((a, b) => b.pct - a.pct);
+}
+
+async function _lookupEmailsByNames(admin: SupabaseClient, names: string[]) {
   const clean = Array.from(
     new Set(
       names
@@ -351,6 +383,7 @@ const EVENT_TO_RULE: Record<string, string> = {
   staffed: "assignment.created",
   staffing_changed: "assignment.created",
   staffing_removed: "assignment.created",
+  staffing_locked: "staffing.locked",
   handover_received: "handover.received",
   deal_created: "deal.created",
   deal_unstaffed: "deal.unstaffed_7d",
@@ -409,6 +442,11 @@ async function expandTokens(
     const t = tok.trim();
     if (!t) continue;
     if (t === "{assignee}" && ctx.personEmail) out.add(ctx.personEmail);
+    else if (t === "{staffed_team}" && ctx.deal) {
+      (await loadStaffedTeam(admin, ctx.deal.id)).forEach((m) => {
+        if (m.email && /@/.test(m.email)) out.add(m.email);
+      });
+    }
     else if (t === "{assignee_manager}" && ctx.personId) {
       (await emailForAssigneeManager(admin, ctx.personId)).forEach((e) => out.add(e));
     } else if (t === "{capability_lead}" && ctx.deal) {
@@ -807,6 +845,80 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
     };
   }
 
+  if (ev === "staffing_locked") {
+    const rule = await loadRule(admin, "staffing.locked");
+    if (rule && !rule.enabled) return null;
+    const team = await loadStaffedTeam(admin, deal.id);
+    const tokens = rule?.to_tokens?.length ? rule.to_tokens : ["{staffed_team}"];
+    const recips = await expandTokens(admin, [...tokens, ...(rule?.extra_to || [])], { deal });
+    if (recips.length === 0) return null;
+    const lockedBy = String(input.payload?.lockedByName || "").trim();
+    const lockedAt = String(input.payload?.lockedAt || new Date().toISOString());
+    let lockedAtLabel = lockedAt;
+    try {
+      lockedAtLabel = new Date(lockedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+    } catch { /* keep raw */ }
+    const tctx: Record<string, string> = {
+      "{deal_label}": label,
+      "{account}": deal.account || "",
+      "{deal_name}": deal.deal_name || "",
+      "{vsd}": deal.vsd || "",
+      "{bopm}": deal.bopm || "",
+      "{locked_by}": lockedBy,
+      "{locked_at}": lockedAtLabel,
+      "{deal_type}": deal.deal_type || "",
+      "{mrr}": fmtMoney(deal.mrr),
+      "{total_deal_value}": fmtMoney(deal.total_deal_value),
+      "{duration}": deal.duration ? `${deal.duration} months` : "",
+    };
+    const teamHtml = team.length
+      ? `<div style="margin-top:18px;padding-top:12px;border-top:1px solid ${BRAND_BORDER};">
+          <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_MUTED};margin-bottom:6px;">Staffed team</div>
+          <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="font-size:13px;">
+            <tr style="color:${BRAND_MUTED};font-size:11px;text-transform:uppercase;">
+              <td style="padding:4px 6px 4px 0;">Name</td>
+              <td style="padding:4px 6px;">Role</td>
+              <td style="padding:4px 0 4px 6px;">Allocation</td>
+            </tr>
+            ${team.map((m) => `
+              <tr style="border-top:1px solid ${BRAND_BORDER};">
+                <td style="padding:6px 6px 6px 0;">${escapeHtml(m.name)}</td>
+                <td style="padding:6px;">${escapeHtml(m.role)}</td>
+                <td style="padding:6px 0 6px 6px;">${escapeHtml(`${m.pct}%`)}</td>
+              </tr>`).join("")}
+          </table>
+        </div>`
+      : "";
+    return {
+      to: recips,
+      subject: rule?.subject_template?.trim()
+        ? applyTokens(rule.subject_template, tctx)
+        : `Staffing locked - ${label}`,
+      html: layout({
+        title: `Staffing locked - ${escapeHtml(label)}`,
+        intro: rule?.body_template?.trim()
+          ? applyTokens(rule.body_template, tctx)
+          : `Staffing for <b>${escapeHtml(label)}</b> has been locked${lockedBy ? ` by <b>${escapeHtml(lockedBy)}</b>` : ""}. You are part of the staffed team on this deal - please review your allocation below.`,
+        rows: [
+          ["Client", deal.account || ""],
+          ["Deal name", deal.deal_name || ""],
+          ["Deal type", deal.deal_type || ""],
+          ["MRR", fmtMoney(deal.mrr)],
+          ["Total deal value", fmtMoney(deal.total_deal_value)],
+          ["Duration", deal.duration ? `${deal.duration} months` : ""],
+          ["Start date", deal.start_date || ""],
+          ["Business unit", deal.pepper_business_unit || deal.business_unit || ""],
+          ["VSD", deal.vsd || ""],
+          ["Locked by", lockedBy],
+          ["Locked at", lockedAtLabel],
+        ],
+        ctaLabel: "Open deal in Pepper CX",
+        ctaHref: link,
+        extraHtml: teamHtml,
+      }),
+    };
+  }
+
   if (ev === "deal_created" || ev === "deal_unstaffed") {
     const rule = await loadRule(admin, EVENT_TO_RULE[ev]);
     if (rule && !rule.enabled) return null;
@@ -876,6 +988,31 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
 }
 
 // ── Server ─────────────────────────────────────────────────────────────────
+/** Record a failed attempt per event when the central mailbox is unavailable. */
+async function logMailboxFailure(
+  admin: SupabaseClient,
+  inputs: SendInput[],
+  userId: string,
+  reason: string,
+) {
+  try {
+    const rows = inputs.map((inp) => ({
+      event: inp.event,
+      deal_id: inp.dealId || null,
+      recipient_email: (inp.recipients || [])[0] || "(unresolved)",
+      subject: `[not sent] ${inp.event}`,
+      status: "failed",
+      gmail_message_id: null,
+      error: reason,
+      triggered_by: userId,
+      payload: inp.payload || null,
+    }));
+    if (rows.length) await admin.from("email_send_log").insert(rows);
+  } catch (e) {
+    console.error("[send-app-email] failed to log mailbox failure", e);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
@@ -1176,13 +1313,15 @@ Deno.serve(async (req) => {
         msg === "central_mailbox_reauth_required" ||
         msg === "gmail_oauth_not_configured"
       ) {
-        // Soft no-op: notifications are optional; don't break user flows.
-        return json({ ok: true, skipped: true, reason: msg, results: [] });
+        // Don't break user flows, but never fail silently: record the attempt.
+        await logMailboxFailure(admin, inputs, user.id, msg);
+        return json({ ok: false, skipped: true, reason: msg, results: [] });
       }
       throw e;
     }
     if (!fromEmail) {
-      return json({ ok: true, skipped: true, reason: "central_mailbox_missing_email", results: [] });
+      await logMailboxFailure(admin, inputs, user.id, "central_mailbox_missing_email");
+      return json({ ok: false, skipped: true, reason: "central_mailbox_missing_email", results: [] });
     }
 
     const results: Array<Record<string, unknown>> = [];

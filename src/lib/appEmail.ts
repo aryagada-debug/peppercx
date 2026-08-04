@@ -1,9 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export type AppEmailEvent =
   | "staffed"
   | "staffing_changed"
   | "staffing_removed"
+  | "staffing_locked"
   | "deal_created"
   | "deal_unstaffed"
   | "handover_received"
@@ -17,9 +19,16 @@ export interface AppEmailInput {
   payload?: Record<string, unknown>;
 }
 
+const MAILBOX_REASONS = new Set([
+  "central_mailbox_not_connected",
+  "central_mailbox_reauth_required",
+  "central_mailbox_missing_email",
+  "gmail_oauth_not_configured",
+]);
+
 /**
- * Best-effort: never throws to caller. Fire-and-log so UI flows continue
- * when the central mailbox is unavailable or a notification fails.
+ * Best-effort: never throws to caller. UI flows continue when the central
+ * mailbox is unavailable, but the failure is surfaced instead of silent.
  */
 export function sendAppEmail(input: AppEmailInput | AppEmailInput[]) {
   const events = Array.isArray(input) ? input : [input];
@@ -27,8 +36,15 @@ export function sendAppEmail(input: AppEmailInput | AppEmailInput[]) {
     .invoke("send-app-email", { body: { action: "send", events } })
     .then(({ data, error }) => {
       if (error) console.warn("[send-app-email] failed", error.message);
-      else if (data && typeof data === "object" && "error" in (data as object)) {
-        console.warn("[send-app-email]", (data as { error?: string }).error);
+      const d = data as { error?: string; reason?: string } | null;
+      const reason = d?.reason || d?.error;
+      if (reason) {
+        console.warn("[send-app-email]", reason);
+        if (MAILBOX_REASONS.has(reason)) {
+          toast.error("Email not sent - central mailbox is disconnected", {
+            description: "Reconnect it in Settings → Notifications.",
+          });
+        }
       }
     })
     .catch((e) => console.warn("[send-app-email] threw", e));
