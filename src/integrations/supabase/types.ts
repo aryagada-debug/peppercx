@@ -3299,6 +3299,51 @@ export type Database = {
           },
         ]
       }
+      sync_outbox: {
+        Row: {
+          attempts: number
+          created_at: string
+          entity: string
+          entity_id: string
+          id: string
+          last_error: string | null
+          op: string
+          payload: Json
+          processed_at: string | null
+          status: string
+          target: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          entity: string
+          entity_id: string
+          id?: string
+          last_error?: string | null
+          op: string
+          payload?: Json
+          processed_at?: string | null
+          status?: string
+          target?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          entity?: string
+          entity_id?: string
+          id?: string
+          last_error?: string | null
+          op?: string
+          payload?: Json
+          processed_at?: string | null
+          status?: string
+          target?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       task_templates: {
         Row: {
           created_at: string
@@ -3768,6 +3813,10 @@ export type Database = {
       _recompute_deal_bopm_field: {
         Args: { _deal_id: string; _role_key: string }
         Returns: undefined
+      }
+      _sync_deal_payload: {
+        Args: { _d: Database["public"]["Tables"]["staffing_deals"]["Row"] }
+        Returns: Json
       }
       get_home_personal_todos: {
         Args: never
