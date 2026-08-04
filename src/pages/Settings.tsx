@@ -496,8 +496,9 @@ function CentralMailboxCard() {
   const handleSetCentral = async () => {
     setSaving(true);
     try {
-      await setCentralMailbox();
-      toast.success("Central mailbox set");
+      const res = await setCentralMailbox();
+      if (res?.warning) toast.warning(`Set, but Gmail rejected it: ${res.warning}`);
+      else toast.success("Central mailbox set");
       await reload();
     } catch (e: any) {
       toast.error(e?.message || "Couldn't set central mailbox");
@@ -566,15 +567,24 @@ function CentralMailboxCard() {
             You're signed into Gmail as <span className="font-mono">{gmailStatus.googleEmail}</span>
           </span>
         )}
-        {gmailStatus.connected && !isCurrentUserCentral && (
+        {gmailStatus.connected && (
           <button onClick={handleSetCentral} disabled={saving} className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent/20 disabled:opacity-50">
-            {saving ? "Saving…" : "Use this account as central sender"}
+            {saving
+              ? "Saving…"
+              : isCurrentUserCentral
+                ? "Re-apply this account as central sender"
+                : "Use this account as central sender"}
           </button>
         )}
         {gmailStatus.connected && (
           <button onClick={handleConnect} className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent/20">
             Switch Gmail account
           </button>
+        )}
+        {!gmailStatus.connected && (
+          <span className="text-[11px] text-muted-foreground self-center">
+            Connect Gmail first — the "Use this account as central sender" button appears once this browser session has a Gmail connection.
+          </span>
         )}
         {central.connected && (
           <button onClick={handleTest} disabled={testing} className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs text-foreground hover:bg-accent/20 disabled:opacity-50">
