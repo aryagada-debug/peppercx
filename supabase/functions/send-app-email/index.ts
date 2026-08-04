@@ -410,6 +410,11 @@ async function expandTokens(
     const t = tok.trim();
     if (!t) continue;
     if (t === "{assignee}" && ctx.personEmail) out.add(ctx.personEmail);
+    else if (t === "{staffed_team}" && ctx.deal) {
+      (await loadStaffedTeam(admin, ctx.deal.id)).forEach((m) => {
+        if (m.email && /@/.test(m.email)) out.add(m.email);
+      });
+    }
     else if (t === "{assignee_manager}" && ctx.personId) {
       (await emailForAssigneeManager(admin, ctx.personId)).forEach((e) => out.add(e));
     } else if (t === "{capability_lead}" && ctx.deal) {
