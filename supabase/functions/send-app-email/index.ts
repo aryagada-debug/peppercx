@@ -351,6 +351,7 @@ const EVENT_TO_RULE: Record<string, string> = {
   staffed: "assignment.created",
   staffing_changed: "assignment.created",
   staffing_removed: "assignment.created",
+  staffing_locked: "staffing.locked",
   handover_received: "handover.received",
   deal_created: "deal.created",
   deal_unstaffed: "deal.unstaffed_7d",
