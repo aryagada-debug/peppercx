@@ -74,7 +74,14 @@ async function getCentralToken(admin: SupabaseClient) {
     body: params.toString(),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data?.error_description || data?.error || "token_refresh_failed");
+  if (!res.ok) {
+    const raw = `${data?.error ?? ""} ${data?.error_description ?? ""}`.toLowerCase();
+    if (raw.includes("invalid_grant") || raw.includes("expired or revoked")) {
+      // Refresh token is dead — the central mailbox must be reconnected.
+      throw new Error("central_mailbox_reauth_required");
+    }
+    throw new Error(data?.error_description || data?.error || "token_refresh_failed");
+  }
   const newExpires = new Date(Date.now() + Math.max(60, data.expires_in - 60) * 1000).toISOString();
   await admin
     .from("gmail_connections")
