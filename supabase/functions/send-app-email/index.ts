@@ -846,6 +846,83 @@ async function buildEmail(admin: SupabaseClient, input: SendInput): Promise<Buil
   }
 
   if (ev === "deal_created" || ev === "deal_unstaffed") {
+    // handled below
+  }
+
+  if (ev === "staffing_locked") {
+    const rule = await loadRule(admin, "staffing.locked");
+    if (rule && !rule.enabled) return null;
+    const team = await loadStaffedTeam(admin, deal.id);
+    const tokens = rule?.to_tokens?.length ? rule.to_tokens : ["{staffed_team}"];
+    const recips = await expandTokens(admin, [...tokens, ...(rule?.extra_to || [])], { deal });
+    if (recips.length === 0) return null;
+    const lockedBy = String(input.payload?.lockedByName || "").trim();
+    const lockedAt = String(input.payload?.lockedAt || new Date().toISOString());
+    let lockedAtLabel = lockedAt;
+    try {
+      lockedAtLabel = new Date(lockedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+    } catch { /* keep raw */ }
+    const tctx: Record<string, string> = {
+      "{deal_label}": label,
+      "{account}": deal.account || "",
+      "{deal_name}": deal.deal_name || "",
+      "{vsd}": deal.vsd || "",
+      "{bopm}": deal.bopm || "",
+      "{locked_by}": lockedBy,
+      "{locked_at}": lockedAtLabel,
+      "{deal_type}": deal.deal_type || "",
+      "{mrr}": fmtMoney(deal.mrr),
+      "{total_deal_value}": fmtMoney(deal.total_deal_value),
+      "{duration}": deal.duration ? `${deal.duration} months` : "",
+    };
+    const teamHtml = team.length
+      ? `<div style="margin-top:18px;padding-top:12px;border-top:1px solid ${BRAND_BORDER};">
+          <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_MUTED};margin-bottom:6px;">Staffed team</div>
+          <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="font-size:13px;">
+            <tr style="color:${BRAND_MUTED};font-size:11px;text-transform:uppercase;">
+              <td style="padding:4px 6px 4px 0;">Name</td>
+              <td style="padding:4px 6px;">Role</td>
+              <td style="padding:4px 0 4px 6px;">Allocation</td>
+            </tr>
+            ${team.map((m) => `
+              <tr style="border-top:1px solid ${BRAND_BORDER};">
+                <td style="padding:6px 6px 6px 0;">${escapeHtml(m.name)}</td>
+                <td style="padding:6px;">${escapeHtml(m.role)}</td>
+                <td style="padding:6px 0 6px 6px;">${escapeHtml(`${m.pct}%`)}</td>
+              </tr>`).join("")}
+          </table>
+        </div>`
+      : "";
+    return {
+      to: recips,
+      subject: rule?.subject_template?.trim()
+        ? applyTokens(rule.subject_template, tctx)
+        : `Staffing locked - ${label}`,
+      html: layout({
+        title: `Staffing locked - ${escapeHtml(label)}`,
+        intro: rule?.body_template?.trim()
+          ? applyTokens(rule.body_template, tctx)
+          : `Staffing for <b>${escapeHtml(label)}</b> has been locked${lockedBy ? ` by <b>${escapeHtml(lockedBy)}</b>` : ""}. You are part of the staffed team on this deal - please review your allocation below.`,
+        rows: [
+          ["Client", deal.account || ""],
+          ["Deal name", deal.deal_name || ""],
+          ["Deal type", deal.deal_type || ""],
+          ["MRR", fmtMoney(deal.mrr)],
+          ["Total deal value", fmtMoney(deal.total_deal_value)],
+          ["Duration", deal.duration ? `${deal.duration} months` : ""],
+          ["Business unit", deal.pepper_business_unit || deal.business_unit || ""],
+          ["VSD", deal.vsd || ""],
+          ["Locked by", lockedBy],
+          ["Locked at", lockedAtLabel],
+        ],
+        ctaLabel: "Open deal in Pepper CX",
+        ctaHref: link,
+        extraHtml: teamHtml,
+      }),
+    };
+  }
+
+  if (ev === "deal_created" || ev === "deal_unstaffed") {
     const rule = await loadRule(admin, EVENT_TO_RULE[ev]);
     if (rule && !rule.enabled) return null;
     const recips = await expandTokens(admin, [...(rule?.to_tokens || []), ...(rule?.extra_to || [])], { deal });
