@@ -49,12 +49,13 @@ export function useGmailStatus() {
   return { status, loading, refresh };
 }
 
-export async function connectGmail(redirectTo?: string) {
+export async function connectGmail(redirectTo?: string, makeCentral = false) {
   const origin = window.location.origin;
   const data = await invoke<{ authorizationUrl: string }>("gmail-oauth", {
     action: "init",
     redirectUri: `${origin}/gmail/callback`,
     redirectTo: redirectTo || `${origin}/inbox`,
+    makeCentral,
   });
   window.location.href = data.authorizationUrl;
 }

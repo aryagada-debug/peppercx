@@ -493,6 +493,14 @@ function CentralMailboxCard() {
     }
   };
 
+  const handleReconnectCentral = async () => {
+    try {
+      await connectGmail(`${window.location.origin}/settings?tab=notifications`, true);
+    } catch (e: any) {
+      toast.error(e?.message || "Couldn't reconnect the central Gmail account");
+    }
+  };
+
   const handleSetCentral = async () => {
     setSaving(true);
     try {
@@ -541,8 +549,7 @@ function CentralMailboxCard() {
           <span className="text-xs text-foreground">
             Central mailbox {tokenBad === "central_mailbox_reauth_required" ? "sign-in has expired" : "is not usable"} — emails are not sending.
             {authFailures > 0 && ` ${authFailures} notification${authFailures === 1 ? "" : "s"} failed in the last 14 days.`}{" "}
-            Sign in as <span className="font-mono">centralcx@peppercontent.io</span> below and click
-            "Use this account as central sender" to reconnect.
+            Reconnect <span className="font-mono">centralcx@peppercontent.io</span> below to replace the revoked Google authorization.
           </span>
         </div>
       ) : central.connected ? (
@@ -558,8 +565,13 @@ function CentralMailboxCard() {
       )}
 
       <div className="flex flex-wrap gap-2">
+        {tokenBad === "central_mailbox_reauth_required" && (
+          <button onClick={handleReconnectCentral} className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90">
+            Reconnect central Gmail
+          </button>
+        )}
         {!gmailStatus.connected ? (
-          <button onClick={handleConnect} className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90">
+          <button onClick={handleConnect} className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent/20">
             Connect Gmail (sign in as centralcx)
           </button>
         ) : (
@@ -578,7 +590,7 @@ function CentralMailboxCard() {
         )}
         {gmailStatus.connected && (
           <button onClick={handleConnect} className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent/20">
-            Switch Gmail account
+            Connect a different Gmail account
           </button>
         )}
         {!gmailStatus.connected && (

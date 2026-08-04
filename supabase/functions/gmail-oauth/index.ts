@@ -54,7 +54,7 @@ async function verifyState(state: string) {
   if (expected !== sig) throw new Error("invalid_state_signature");
   const parsed = JSON.parse(b64urlDecode(payload));
   if (!parsed.exp || Number(parsed.exp) < Date.now()) throw new Error("state_expired");
-  return parsed as { userId: string; redirectTo: string; exp: number };
+  return parsed as { userId: string; redirectTo: string; makeCentral?: boolean; exp: number };
 }
 
 function isAllowedOrigin(url: URL) {
@@ -119,7 +119,8 @@ Deno.serve(async (req) => {
     if (action === "init") {
       const redirectUri = parseCallbackUrl(body.redirectUri);
       const redirectTo = parseRedirectTo(body.redirectTo, redirectUri.origin);
-      const state = await signState({ userId: user.id, redirectTo, exp: Date.now() + 10 * 60_000 });
+      const makeCentral = body.makeCentral === true;
+      const state = await signState({ userId: user.id, redirectTo, makeCentral, exp: Date.now() + 10 * 60_000 });
       const params = new URLSearchParams({
         client_id: creds.clientId,
         redirect_uri: redirectUri.toString(),
@@ -169,6 +170,15 @@ Deno.serve(async (req) => {
         scopes: tokenData.scope || SCOPES,
       }, { onConflict: "user_id" });
       if (upErr) throw upErr;
+
+      if (verified.makeCentral) {
+        await admin.from("gmail_connections").update({ is_central: false }).eq("is_central", true);
+        const { error: centralErr } = await admin
+          .from("gmail_connections")
+          .update({ is_central: true })
+          .eq("user_id", user.id);
+        if (centralErr) throw centralErr;
+      }
       return json({ ok: true, redirectTo: verified.redirectTo });
     }
 
