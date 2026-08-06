@@ -67,18 +67,263 @@ var list_deals_default = defineTool2({
   }
 });
 
+// src/lib/mcp/tools/list-tables.ts
+import { defineTool as defineTool3 } from "npm:@lovable.dev/mcp-js@0.22.2";
+import { z as z2 } from "npm:zod@^3.25.76";
+
+// src/lib/mcp/supabase.ts
+import { createClient as createClient2 } from "npm:@supabase/supabase-js@^2.99.3";
+function runtimeEnv(name) {
+  const runtime = globalThis;
+  return runtime.Deno?.env?.get?.(name) ?? runtime.process?.env?.[name];
+}
+function configuredEnv(names) {
+  for (const name of names) {
+    const value = runtimeEnv(name)?.trim();
+    if (value) return value;
+  }
+  return void 0;
+}
+function supabaseProjectUrl() {
+  const url = configuredEnv(["SUPABASE_URL", "VITE_SUPABASE_URL"]);
+  if (!url) throw new Error("SUPABASE_URL (or VITE_SUPABASE_URL) is required");
+  return url;
+}
+function supabasePublishableKey() {
+  const direct = configuredEnv(["SUPABASE_PUBLISHABLE_KEY", "VITE_SUPABASE_PUBLISHABLE_KEY"]);
+  if (direct) return direct;
+  const keyset = runtimeEnv("SUPABASE_PUBLISHABLE_KEYS");
+  if (keyset) {
+    try {
+      const parsed = JSON.parse(keyset);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        const keys = parsed;
+        const key = [keys.default, ...Object.values(keys)].find((v) => typeof v === "string" && v.trim().startsWith("sb_publishable_"))?.trim();
+        if (key) return key;
+      }
+    } catch {
+    }
+  }
+  const legacy = configuredEnv(["SUPABASE_ANON_KEY", "VITE_SUPABASE_ANON_KEY"]);
+  if (legacy) return legacy;
+  throw new Error("SUPABASE_PUBLISHABLE_KEY, SUPABASE_PUBLISHABLE_KEYS, or SUPABASE_ANON_KEY is required");
+}
+function supabaseForUser2(ctx) {
+  const token = ctx.getToken();
+  if (!token) throw new Error("supabaseForUser requires a verified OAuth token");
+  return createClient2(supabaseProjectUrl(), supabasePublishableKey(), {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
+}
+
+// src/lib/mcp/schema.ts
+async function fetchSchema(ctx) {
+  const supabase = supabaseForUser2(ctx);
+  const { data, error } = await supabase.rpc("mcp_list_tables");
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+function groupByTable(rows) {
+  const out = {};
+  for (const r of rows) (out[r.table_name] ??= []).push(r);
+  return out;
+}
+async function resolveTable(ctx, table) {
+  const rows = await fetchSchema(ctx);
+  const cols = rows.filter((r) => r.table_name === table).map((r) => r.column_name);
+  if (cols.length === 0) {
+    const known = Array.from(new Set(rows.map((r) => r.table_name))).sort();
+    throw new Error(`Unknown table "${table}". Available tables: ${known.join(", ")}`);
+  }
+  return cols;
+}
+function applyFilters(query, filters, columns) {
+  for (const f of filters ?? []) {
+    if (!columns.includes(f.column)) {
+      throw new Error(`Unknown column "${f.column}". Available columns: ${columns.join(", ")}`);
+    }
+    const v = f.value ?? "";
+    switch (f.op) {
+      case "eq":
+        query = query.eq(f.column, v);
+        break;
+      case "neq":
+        query = query.neq(f.column, v);
+        break;
+      case "gt":
+        query = query.gt(f.column, v);
+        break;
+      case "gte":
+        query = query.gte(f.column, v);
+        break;
+      case "lt":
+        query = query.lt(f.column, v);
+        break;
+      case "lte":
+        query = query.lte(f.column, v);
+        break;
+      case "contains":
+        query = query.ilike(f.column, `%${v}%`);
+        break;
+      case "in":
+        query = query.in(f.column, v.split(",").map((s) => s.trim()).filter(Boolean));
+        break;
+      case "is_null":
+        query = query.is(f.column, null);
+        break;
+      case "not_null":
+        query = query.not(f.column, "is", null);
+        break;
+    }
+  }
+  return query;
+}
+
+// src/lib/mcp/tools/list-tables.ts
+var list_tables_default = defineTool3({
+  name: "list_tables",
+  title: "List tables",
+  description: "List every table in the app's database with its columns and column types, so you can discover the schema before querying. Structure only \u2014 returns no row data.",
+  inputSchema: {
+    table: z2.string().trim().max(120).optional().describe("Optional: return columns for just this one table")
+  },
+  annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+  handler: async ({ table }, ctx) => {
+    if (!ctx.isAuthenticated()) {
+      return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
+    }
+    try {
+      const rows = await fetchSchema(ctx);
+      const filtered = table ? rows.filter((r) => r.table_name === table) : rows;
+      if (table && filtered.length === 0) {
+        const known = Array.from(new Set(rows.map((r) => r.table_name))).sort();
+        return {
+          content: [{ type: "text", text: `Unknown table "${table}". Available tables: ${known.join(", ")}` }],
+          isError: true
+        };
+      }
+      const grouped = groupByTable(filtered);
+      const tables = Object.entries(grouped).map(([name, cols]) => ({
+        table: name,
+        columns: cols.map((c) => ({ name: c.column_name, type: c.data_type, nullable: c.is_nullable }))
+      }));
+      return {
+        content: [{ type: "text", text: JSON.stringify(tables, null, 2) }],
+        structuredContent: { tables }
+      };
+    } catch (e) {
+      return { content: [{ type: "text", text: e.message }], isError: true };
+    }
+  }
+});
+
+// src/lib/mcp/tools/query-table.ts
+import { defineTool as defineTool4 } from "npm:@lovable.dev/mcp-js@0.22.2";
+import { z as z3 } from "npm:zod@^3.25.76";
+var filterSchema = z3.object({
+  column: z3.string().trim().min(1).max(120),
+  op: z3.enum(["eq", "neq", "gt", "gte", "lt", "lte", "contains", "in", "is_null", "not_null"]),
+  value: z3.string().max(500).optional().describe("Comparison value. For `in`, a comma-separated list. Omit for null checks.")
+});
+var query_table_default = defineTool4({
+  name: "query_table",
+  title: "Query table",
+  description: "Read rows from one table in the app's database. Supports column selection, filters, ordering and a row limit. Read-only; results are restricted to what the signed-in user is allowed to see. Call `list_tables` first to discover tables and columns.",
+  inputSchema: {
+    table: z3.string().trim().min(1).max(120).describe("Table name, e.g. staffing_deals"),
+    columns: z3.array(z3.string().trim().min(1).max(120)).max(60).optional().describe("Columns to return (default: all)"),
+    filters: z3.array(filterSchema).max(10).optional().describe("Filters combined with AND"),
+    order_by: z3.string().trim().max(120).optional().describe("Column to sort by"),
+    descending: z3.boolean().optional().describe("Sort descending (default false)"),
+    limit: z3.number().int().min(1).max(1e3).optional().describe("Max rows to return (default 100, max 1000)"),
+    offset: z3.number().int().min(0).max(1e5).optional().describe("Rows to skip, for paging")
+  },
+  annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+  handler: async ({ table, columns, filters, order_by, descending, limit, offset }, ctx) => {
+    if (!ctx.isAuthenticated()) {
+      return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
+    }
+    try {
+      const available = await resolveTable(ctx, table);
+      for (const c of columns ?? []) {
+        if (!available.includes(c)) {
+          throw new Error(`Unknown column "${c}" on ${table}. Available columns: ${available.join(", ")}`);
+        }
+      }
+      if (order_by && !available.includes(order_by)) {
+        throw new Error(`Unknown column "${order_by}" on ${table}. Available columns: ${available.join(", ")}`);
+      }
+      const supabase = supabaseForUser2(ctx);
+      const take = limit ?? 100;
+      const from = offset ?? 0;
+      let query = supabase.from(table).select((columns ?? ["*"]).join(","));
+      query = applyFilters(query, filters, available);
+      if (order_by) query = query.order(order_by, { ascending: !descending });
+      query = query.range(from, from + take - 1);
+      const { data, error } = await query;
+      if (error) throw new Error(error.message);
+      const rows = data ?? [];
+      return {
+        content: [{ type: "text", text: JSON.stringify(rows, null, 2) }],
+        structuredContent: { table, row_count: rows.length, rows }
+      };
+    } catch (e) {
+      return { content: [{ type: "text", text: e.message }], isError: true };
+    }
+  }
+});
+
+// src/lib/mcp/tools/count-rows.ts
+import { defineTool as defineTool5 } from "npm:@lovable.dev/mcp-js@0.22.2";
+import { z as z4 } from "npm:zod@^3.25.76";
+var filterSchema2 = z4.object({
+  column: z4.string().trim().min(1).max(120),
+  op: z4.enum(["eq", "neq", "gt", "gte", "lt", "lte", "contains", "in", "is_null", "not_null"]),
+  value: z4.string().max(500).optional()
+});
+var count_rows_default = defineTool5({
+  name: "count_rows",
+  title: "Count rows",
+  description: "Count rows in one table, with the same filters as `query_table`. Useful for sizing a result before reading it. Counts only rows the signed-in user is allowed to see.",
+  inputSchema: {
+    table: z4.string().trim().min(1).max(120).describe("Table name"),
+    filters: z4.array(filterSchema2).max(10).optional().describe("Filters combined with AND")
+  },
+  annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+  handler: async ({ table, filters }, ctx) => {
+    if (!ctx.isAuthenticated()) {
+      return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
+    }
+    try {
+      const available = await resolveTable(ctx, table);
+      const supabase = supabaseForUser2(ctx);
+      let query = supabase.from(table).select("*", { count: "exact", head: true });
+      query = applyFilters(query, filters, available);
+      const { count, error } = await query;
+      if (error) throw new Error(error.message);
+      return {
+        content: [{ type: "text", text: JSON.stringify({ table, count: count ?? 0 }) }],
+        structuredContent: { table, count: count ?? 0 }
+      };
+    } catch (e) {
+      return { content: [{ type: "text", text: e.message }], isError: true };
+    }
+  }
+});
+
 // src/lib/mcp/index.ts
 var projectRef = "gdklfxqbocvoxcfthysy";
 var mcp_default = defineMcp({
   name: "cx-os-mcp",
   title: "CX OS",
   version: "0.1.0",
-  instructions: "Tools for CX OS. Use `whoami` to confirm the connection and `list_deals` to read the signed-in user's accessible deals (RLS-enforced).",
+  instructions: "Read-only access to the CX OS database. Start with `list_tables` to discover tables and columns, then use `query_table` to read rows and `count_rows` to size a result before reading it. `list_deals` is a shortcut for the deals table and `whoami` confirms the connection. Every result is limited to what the signed-in user is allowed to see.",
   auth: auth.oauth.issuer({
     issuer: `https://${projectRef}.supabase.co/auth/v1`,
     acceptedAudiences: "authenticated"
   }),
-  tools: [whoami_default, list_deals_default]
+  tools: [whoami_default, list_deals_default, list_tables_default, query_table_default, count_rows_default]
 });
 
 // lovable-mcp-supabase-entry.ts

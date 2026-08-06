@@ -60,6 +60,193 @@
           "$schema": "http://json-schema.org/draft-07/schema#"
         },
         "outputSchema": null
+      },
+      {
+        "name": "list_tables",
+        "title": "List tables",
+        "description": "List every table in the app's database with its columns and column types, so you can discover the schema before querying. Structure only — returns no row data.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "table": {
+              "type": "string",
+              "maxLength": 120,
+              "description": "Optional: return columns for just this one table"
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "query_table",
+        "title": "Query table",
+        "description": "Read rows from one table in the app's database. Supports column selection, filters, ordering and a row limit. Read-only; results are restricted to what the signed-in user is allowed to see. Call `list_tables` first to discover tables and columns.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "table": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120,
+              "description": "Table name, e.g. staffing_deals"
+            },
+            "columns": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "maxItems": 60,
+              "description": "Columns to return (default: all)"
+            },
+            "filters": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "column": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "op": {
+                    "type": "string",
+                    "enum": [
+                      "eq",
+                      "neq",
+                      "gt",
+                      "gte",
+                      "lt",
+                      "lte",
+                      "contains",
+                      "in",
+                      "is_null",
+                      "not_null"
+                    ]
+                  },
+                  "value": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "description": "Comparison value. For `in`, a comma-separated list. Omit for null checks."
+                  }
+                },
+                "required": [
+                  "column",
+                  "op"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 10,
+              "description": "Filters combined with AND"
+            },
+            "order_by": {
+              "type": "string",
+              "maxLength": 120,
+              "description": "Column to sort by"
+            },
+            "descending": {
+              "type": "boolean",
+              "description": "Sort descending (default false)"
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "description": "Max rows to return (default 100, max 1000)"
+            },
+            "offset": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000,
+              "description": "Rows to skip, for paging"
+            }
+          },
+          "required": [
+            "table"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "count_rows",
+        "title": "Count rows",
+        "description": "Count rows in one table, with the same filters as `query_table`. Useful for sizing a result before reading it. Counts only rows the signed-in user is allowed to see.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "table": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120,
+              "description": "Table name"
+            },
+            "filters": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "column": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "op": {
+                    "type": "string",
+                    "enum": [
+                      "eq",
+                      "neq",
+                      "gt",
+                      "gte",
+                      "lt",
+                      "lte",
+                      "contains",
+                      "in",
+                      "is_null",
+                      "not_null"
+                    ]
+                  },
+                  "value": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "column",
+                  "op"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 10,
+              "description": "Filters combined with AND"
+            }
+          },
+          "required": [
+            "table"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
       }
     ]
   }
