@@ -13,7 +13,7 @@ Make every survey question available as its own column in the Pulse/NPS Analytic
   - **Growth** — where the retainer could do more
   - **Recommendation** — main reason / holding back / value most (verbatims)
   - **Overall** — mood / how you feel about working with Pepper
-- Group headers have "All / None" toggles; a "Reset to default" restores today's column set.
+- Group headers have "All / None" toggles; a "Reset to default" restores today's column set. - it should also support multi select
 - Defaults stay as they are now, so nothing changes until you enable question columns.
 - Your selection is remembered (saved locally per user).
 - Question columns are sortable and included in the CSV export exactly as shown.
