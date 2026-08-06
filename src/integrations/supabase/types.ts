@@ -3869,6 +3869,16 @@ export type Database = {
         Args: { _state: string; _token: string }
         Returns: undefined
       }
+      mcp_list_tables: {
+        Args: never
+        Returns: {
+          column_name: string
+          data_type: string
+          is_nullable: boolean
+          ordinal_position: number
+          table_name: string
+        }[]
+      }
       normalize_staffing_role_key: {
         Args: { _role_key: string }
         Returns: string
