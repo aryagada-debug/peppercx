@@ -473,6 +473,7 @@ export function AnalyticsResponsesTable({
           <Checkbox checked={uniqueContacts} onCheckedChange={(v) => setUniqueContacts(!!v)} />
           Unique contacts
         </label>
+        <ColumnPicker visible={visibleCols} onChange={updateVisible} />
         <div className="ml-auto">
           <Button
             variant="outline"
