@@ -620,17 +620,21 @@ export function AnalyticsResponsesTable({
           <table className="w-full text-xs min-w-[1200px]">
             <thead className="bg-secondary">
               <tr className="text-left">
-                <Th onClick={() => toggleSort("deal_name")}>Deal</Th>
-                <Th onClick={() => toggleSort("recipient_name")}>Recipient</Th>
-                <Th onClick={() => toggleSort("status")}>Status</Th>
-                <Th onClick={() => toggleSort("sent_at")}>Sent</Th>
-                <Th onClick={() => toggleSort("opened_at")}>Opened</Th>
-                <Th onClick={() => toggleSort("completed_at")}>Completed</Th>
-                <Th onClick={() => toggleSort("respondent")}>Respondent</Th>
-                <Th onClick={() => toggleSort("campaign")}>Campaign</Th>
-                <Th>Source</Th>
-                <Th onClick={() => toggleSort("nps")} className="text-right">NPS</Th>
-                <Th onClick={() => toggleSort("csat")} className="text-right">CSAT</Th>
+                {show("deal") && <Th onClick={() => toggleSort("deal_name")}>Deal</Th>}
+                {show("recipient") && <Th onClick={() => toggleSort("recipient_name")}>Recipient</Th>}
+                {show("status") && <Th onClick={() => toggleSort("status")}>Status</Th>}
+                {show("sent") && <Th onClick={() => toggleSort("sent_at")}>Sent</Th>}
+                {show("opened") && <Th onClick={() => toggleSort("opened_at")}>Opened</Th>}
+                {show("completed") && <Th onClick={() => toggleSort("completed_at")}>Completed</Th>}
+                {show("respondent") && <Th onClick={() => toggleSort("respondent")}>Respondent</Th>}
+                {show("campaign") && <Th onClick={() => toggleSort("campaign")}>Campaign</Th>}
+                {show("source") && <Th>Source</Th>}
+                {show("nps") && <Th onClick={() => toggleSort("nps")} className="text-right">NPS</Th>}
+                {show("nps_category") && <Th>NPS category</Th>}
+                {show("csat") && <Th onClick={() => toggleSort("csat")} className="text-right">CSAT</Th>}
+                {activeQuestionCols.map((c) => (
+                  <Th key={c.id} onClick={() => toggleSort(c.id)} className={c.align === "right" ? "text-right" : ""}>{c.label}</Th>
+                ))}
                 <Th>Response</Th>
                 <Th>Resend</Th>
               </tr>
@@ -638,6 +642,7 @@ export function AnalyticsResponsesTable({
             <tbody>
               {filtered.map((r) => (
                 <tr key={r.id} className="border-t border-border hover:bg-secondary/50">
+                  {show("deal") && (
                   <td className="px-3 py-2 max-w-[260px]">
                     <div className="font-medium text-foreground truncate" title={r.deal_name}>
                       {r.deal_name || "—"}
@@ -648,11 +653,12 @@ export function AnalyticsResponsesTable({
                       </div>
                     )}
                   </td>
-                  <PocCells r={r} resending={resending} runResend={runResend} onView={setDrillRow} />
+                  )}
+                  <PocCells r={r} resending={resending} runResend={runResend} onView={setDrillRow} show={show} questionCols={activeQuestionCols} />
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={13} className="px-3 py-8 text-center text-muted-foreground">No invites for current filters.</td></tr>
+                <tr><td colSpan={flatColCount} className="px-3 py-8 text-center text-muted-foreground">No invites for current filters.</td></tr>
               )}
             </tbody>
           </table>
