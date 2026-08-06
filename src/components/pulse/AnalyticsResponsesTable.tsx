@@ -400,19 +400,30 @@ export function AnalyticsResponsesTable({
       URL.revokeObjectURL(url);
       return;
     }
+    const baseCsv: { id: string; header: string; get: (r: Row) => any }[] = [
+      { id: "deal", header: "Deal ID", get: (r) => r.deal_id },
+      { id: "deal", header: "Deal name", get: (r) => r.deal_name },
+      { id: "deal", header: "Account", get: (r) => r.account },
+      { id: "recipient", header: "Recipient name", get: (r) => r.recipient_name },
+      { id: "recipient", header: "Recipient email", get: (r) => r.recipient_email },
+      { id: "status", header: "Status", get: (r) => r.status_label },
+      { id: "sent", header: "Sent", get: (r) => (r.sent_at ? new Date(r.sent_at).toISOString() : "") },
+      { id: "opened", header: "Opened", get: (r) => (r.opened_at ? new Date(r.opened_at).toISOString() : "") },
+      { id: "completed", header: "Completed", get: (r) => (r.completed_at ? new Date(r.completed_at).toISOString() : "") },
+      { id: "respondent", header: "Respondent", get: (r) => r.respondent },
+      { id: "campaign", header: "Campaign", get: (r) => r.campaign },
+      { id: "source", header: "Source", get: (r) => (r.source === "google_form" ? "Google Form" : r.source ? "App" : "") },
+      { id: "nps", header: "NPS", get: (r) => r.nps ?? "" },
+      { id: "nps_category", header: "NPS category", get: (r) => npsCategoryOf(r.nps) },
+      { id: "csat", header: "CSAT avg", get: (r) => r.csat ?? "" },
+    ].filter((c) => visibleCols.has(c.id));
     const headers = [
-      "Deal ID","Deal name","Account","Recipient name","Recipient email",
-      "Status","Sent","Opened","Completed","Respondent","Campaign","NPS","CSAT",
+      ...baseCsv.map((c) => c.header),
+      ...activeQuestionCols.map((c) => c.label),
     ];
     const out = filtered.map((r) => [
-      r.deal_id, r.deal_name, r.account,
-      r.recipient_name, r.recipient_email,
-      r.status_label,
-      r.sent_at ? new Date(r.sent_at).toISOString() : "",
-      r.opened_at ? new Date(r.opened_at).toISOString() : "",
-      r.completed_at ? new Date(r.completed_at).toISOString() : "",
-      r.respondent, r.campaign,
-      r.nps ?? "", r.csat ?? "",
+      ...baseCsv.map((c) => c.get(r) ?? ""),
+      ...activeQuestionCols.map((c) => c.accessor(r as any) ?? ""),
     ]);
     const csv = [headers, ...out]
       .map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
