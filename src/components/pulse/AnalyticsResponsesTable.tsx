@@ -237,8 +237,9 @@ export function AnalyticsResponsesTable({
       });
     }
     xs = [...xs].sort((a, b) => {
-      let av: any = (a as any)[sortKey];
-      let bv: any = (b as any)[sortKey];
+      const qcol = QUESTION_COLUMN_MAP.get(sortKey);
+      let av: any = qcol ? qcol.accessor(a as any) : (a as any)[sortKey];
+      let bv: any = qcol ? qcol.accessor(b as any) : (b as any)[sortKey];
       if (sortKey === "status") {
         av = STATUS_RANK[a.status];
         bv = STATUS_RANK[b.status];
@@ -255,6 +256,21 @@ export function AnalyticsResponsesTable({
     });
     return xs;
   }, [rows, filter, sortKey, sortDir, uniqueContacts]);
+
+  const activeQuestionCols = useMemo(
+    () => QUESTION_COLUMNS.filter((c) => visibleCols.has(c.id)),
+    [visibleCols],
+  );
+  const show = (id: string) => visibleCols.has(id);
+  const flatColCount = useMemo(
+    () => BASE_COLUMNS.filter((c) => visibleCols.has(c.id)).length + activeQuestionCols.length + 2,
+    [visibleCols, activeQuestionCols],
+  );
+
+  const updateVisible = (next: Set<string>) => {
+    setVisibleCols(next);
+    saveVisibleColumns(next);
+  };
 
   const failedVisibleIds = useMemo(
     () => filtered.filter((r) => r.status === "failed").map((r) => r.id),
@@ -353,7 +369,7 @@ export function AnalyticsResponsesTable({
     }
   };
 
-  const toggleSort = (k: keyof Row) => {
+  const toggleSort = (k: string) => {
     if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else {
       setSortKey(k);
