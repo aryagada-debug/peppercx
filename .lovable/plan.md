@@ -1,20 +1,35 @@
-# Admin check + MBR data export
+# Give Claude read access to the app's database
 
-## Admin status
-`arya.gada@peppercontent.io` **is already an admin** — the account exists and holds the `admin` role. No change needed.
+## The constraint
+This app runs on Lovable Cloud. Direct database credentials — the connection string, database password, and service-role key — are not exposed and cannot be handed out. So there is no "paste these Supabase details into Claude" path.
 
-## MBR data export
-The MBR tracker data lives in `mbr_entries` (240 rows, months 2026-04 through 2026-09). I can produce a downloadable CSV containing one row per deal per month:
+What is possible, and equivalent in practice: extend the agent integration this app already has (`CX OS` MCP server) with generic, read-only database tools. Claude connects once, signs in as you, and can then read any table — with your row-level access rules applied automatically.
 
-- Deal ID, account, deal name, VSD, Principal/Senior/BOPM
-- Month bucket (`week_start`) and month label
-- Status, mode, sentiment
-- Scheduled date, input recorded at
-- Notes, AI summary, Fathom link, MBR PPT link
-- Action items, Anirudh added/joining flags
-- Updated by, created/updated timestamps
+## What gets built
 
-Sorted newest month first, then by account. Delivered as a downloadable file (`mbr_entries_export.csv`).
+New read-only tools on the existing MCP server:
+
+- `list_tables` — returns every readable table with its columns and types, so Claude can discover the schema itself.
+- `query_table` — reads rows from one table with optional column selection, filters (equals / contains / greater / less / in), ordering, and a row limit (max 1000). Read-only by construction; no writes, no raw SQL.
+- `count_rows` — row count for a table with the same filters, so Claude can size a result before pulling it.
+- Existing `whoami` and `list_deals` stay as-is.
+
+Every call runs through the signed-in user's session, so Claude sees exactly what that user sees in the app — nothing more.
+
+## Connecting Claude
+Once deployed, add the server in Claude (Settings → Connectors → Add custom connector) using the app's MCP endpoint:
+
+```text
+https://peppercx.lovable.app/functions/v1/mcp
+```
+
+Claude opens a sign-in window; you log in with your app account and approve. Since your account is an admin, Claude will then be able to read the full dataset.
 
 ## Technical notes
-Read-only export via a single SQL query joining `mbr_entries` to `staffing_deals`; written to the documents area and surfaced as a download artifact. No schema, code, or role changes.
+- Tools live in `src/lib/mcp/tools/` and are registered in `src/lib/mcp/index.ts`, following the existing `list-deals.ts` pattern (user-scoped Supabase client built from the request token).
+- Filters map to PostgREST operators (`eq`, `ilike`, `gt`, `lt`, `in`) — no string-concatenated SQL, and table/column names validated against the schema before use.
+- Schema discovery uses a read-only SQL-definer function returning table and column metadata for the `public` schema.
+- All tools are marked `readOnlyHint: true`; no insert, update, or delete surface is added.
+
+## Alternative if you truly need raw SQL
+If Claude must run arbitrary SQL rather than table reads, that requires a dedicated read-only database role and a connection string — which Lovable Cloud does not expose. The route there would be moving to your own Supabase project, which is a larger migration. Say the word and I'll plan that separately.
