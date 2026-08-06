@@ -572,16 +572,20 @@ export function AnalyticsResponsesTable({
                             <table className="w-full text-xs min-w-[1000px]">
                               <thead className="bg-secondary/60">
                                 <tr className="text-left">
-                                  <Th>Recipient</Th>
-                                  <Th>Status</Th>
-                                  <Th>Sent</Th>
-                                  <Th>Opened</Th>
-                                  <Th>Completed</Th>
-                                  <Th>Respondent</Th>
-                                  <Th>Campaign</Th>
-                                  <Th>Source</Th>
-                                  <Th className="text-right">NPS</Th>
-                                  <Th className="text-right">CSAT</Th>
+                                  {show("recipient") && <Th>Recipient</Th>}
+                                  {show("status") && <Th>Status</Th>}
+                                  {show("sent") && <Th>Sent</Th>}
+                                  {show("opened") && <Th>Opened</Th>}
+                                  {show("completed") && <Th>Completed</Th>}
+                                  {show("respondent") && <Th>Respondent</Th>}
+                                  {show("campaign") && <Th>Campaign</Th>}
+                                  {show("source") && <Th>Source</Th>}
+                                  {show("nps") && <Th className="text-right">NPS</Th>}
+                                  {show("nps_category") && <Th>NPS category</Th>}
+                                  {show("csat") && <Th className="text-right">CSAT</Th>}
+                                  {activeQuestionCols.map((c) => (
+                                    <Th key={c.id} className={c.align === "right" ? "text-right" : ""}>{c.label}</Th>
+                                  ))}
                                   <Th>Response</Th>
                                   <Th>Resend</Th>
                                 </tr>
@@ -589,7 +593,7 @@ export function AnalyticsResponsesTable({
                               <tbody>
                                 {g.rows.map((r) => (
                                   <tr key={r.id} className="border-t border-border hover:bg-secondary/50">
-                                    <PocCells r={r} resending={resending} runResend={runResend} onView={setDrillRow} />
+                                    <PocCells r={r} resending={resending} runResend={runResend} onView={setDrillRow} show={show} questionCols={activeQuestionCols} />
                                   </tr>
                                 ))}
                               </tbody>
