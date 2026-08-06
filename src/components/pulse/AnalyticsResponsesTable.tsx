@@ -13,6 +13,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { toPng } from "html-to-image";
 import { useUserRole } from "@/hooks/useUserRole";
+import { ColumnPicker } from "./ColumnPicker";
+import {
+  QUESTION_COLUMNS, QUESTION_COLUMN_MAP, QuestionColumn,
+  loadVisibleColumns, saveVisibleColumns, npsCategoryOf, BASE_COLUMNS,
+} from "./responseColumns";
 
 type StatusKey = "completed" | "opened" | "sent" | "failed" | "pending";
 
@@ -109,8 +114,9 @@ export function AnalyticsResponsesTable({
   invites: InviteRow[];
   responses: ResponseRow[];
 }) {
-  const [sortKey, setSortKey] = useState<keyof Row>("sent_at");
+  const [sortKey, setSortKey] = useState<string>("sent_at");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [visibleCols, setVisibleCols] = useState<Set<string>>(() => loadVisibleColumns());
   const [filter, setFilter] = useState("");
   const [drillRow, setDrillRow] = useState<Row | null>(null);
   const [uniqueContacts, setUniqueContacts] = useState(false);
@@ -231,8 +237,9 @@ export function AnalyticsResponsesTable({
       });
     }
     xs = [...xs].sort((a, b) => {
-      let av: any = (a as any)[sortKey];
-      let bv: any = (b as any)[sortKey];
+      const qcol = QUESTION_COLUMN_MAP.get(sortKey);
+      let av: any = qcol ? qcol.accessor(a as any) : (a as any)[sortKey];
+      let bv: any = qcol ? qcol.accessor(b as any) : (b as any)[sortKey];
       if (sortKey === "status") {
         av = STATUS_RANK[a.status];
         bv = STATUS_RANK[b.status];
@@ -249,6 +256,21 @@ export function AnalyticsResponsesTable({
     });
     return xs;
   }, [rows, filter, sortKey, sortDir, uniqueContacts]);
+
+  const activeQuestionCols = useMemo(
+    () => QUESTION_COLUMNS.filter((c) => visibleCols.has(c.id)),
+    [visibleCols],
+  );
+  const show = (id: string) => visibleCols.has(id);
+  const flatColCount = useMemo(
+    () => BASE_COLUMNS.filter((c) => visibleCols.has(c.id)).length + activeQuestionCols.length + 2,
+    [visibleCols, activeQuestionCols],
+  );
+
+  const updateVisible = (next: Set<string>) => {
+    setVisibleCols(next);
+    saveVisibleColumns(next);
+  };
 
   const failedVisibleIds = useMemo(
     () => filtered.filter((r) => r.status === "failed").map((r) => r.id),
@@ -347,7 +369,7 @@ export function AnalyticsResponsesTable({
     }
   };
 
-  const toggleSort = (k: keyof Row) => {
+  const toggleSort = (k: string) => {
     if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else {
       setSortKey(k);
@@ -378,19 +400,30 @@ export function AnalyticsResponsesTable({
       URL.revokeObjectURL(url);
       return;
     }
+    const baseCsv: { id: string; header: string; get: (r: Row) => any }[] = [
+      { id: "deal", header: "Deal ID", get: (r) => r.deal_id },
+      { id: "deal", header: "Deal name", get: (r) => r.deal_name },
+      { id: "deal", header: "Account", get: (r) => r.account },
+      { id: "recipient", header: "Recipient name", get: (r) => r.recipient_name },
+      { id: "recipient", header: "Recipient email", get: (r) => r.recipient_email },
+      { id: "status", header: "Status", get: (r) => r.status_label },
+      { id: "sent", header: "Sent", get: (r) => (r.sent_at ? new Date(r.sent_at).toISOString() : "") },
+      { id: "opened", header: "Opened", get: (r) => (r.opened_at ? new Date(r.opened_at).toISOString() : "") },
+      { id: "completed", header: "Completed", get: (r) => (r.completed_at ? new Date(r.completed_at).toISOString() : "") },
+      { id: "respondent", header: "Respondent", get: (r) => r.respondent },
+      { id: "campaign", header: "Campaign", get: (r) => r.campaign },
+      { id: "source", header: "Source", get: (r) => (r.source === "google_form" ? "Google Form" : r.source ? "App" : "") },
+      { id: "nps", header: "NPS", get: (r) => r.nps ?? "" },
+      { id: "nps_category", header: "NPS category", get: (r) => npsCategoryOf(r.nps) },
+      { id: "csat", header: "CSAT avg", get: (r) => r.csat ?? "" },
+    ].filter((c) => visibleCols.has(c.id));
     const headers = [
-      "Deal ID","Deal name","Account","Recipient name","Recipient email",
-      "Status","Sent","Opened","Completed","Respondent","Campaign","NPS","CSAT",
+      ...baseCsv.map((c) => c.header),
+      ...activeQuestionCols.map((c) => c.label),
     ];
     const out = filtered.map((r) => [
-      r.deal_id, r.deal_name, r.account,
-      r.recipient_name, r.recipient_email,
-      r.status_label,
-      r.sent_at ? new Date(r.sent_at).toISOString() : "",
-      r.opened_at ? new Date(r.opened_at).toISOString() : "",
-      r.completed_at ? new Date(r.completed_at).toISOString() : "",
-      r.respondent, r.campaign,
-      r.nps ?? "", r.csat ?? "",
+      ...baseCsv.map((c) => c.get(r) ?? ""),
+      ...activeQuestionCols.map((c) => c.accessor(r as any) ?? ""),
     ]);
     const csv = [headers, ...out]
       .map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
@@ -440,6 +473,7 @@ export function AnalyticsResponsesTable({
           <Checkbox checked={uniqueContacts} onCheckedChange={(v) => setUniqueContacts(!!v)} />
           Unique contacts
         </label>
+        <ColumnPicker visible={visibleCols} onChange={updateVisible} />
         <div className="ml-auto">
           <Button
             variant="outline"
@@ -538,16 +572,20 @@ export function AnalyticsResponsesTable({
                             <table className="w-full text-xs min-w-[1000px]">
                               <thead className="bg-secondary/60">
                                 <tr className="text-left">
-                                  <Th>Recipient</Th>
-                                  <Th>Status</Th>
-                                  <Th>Sent</Th>
-                                  <Th>Opened</Th>
-                                  <Th>Completed</Th>
-                                  <Th>Respondent</Th>
-                                  <Th>Campaign</Th>
-                                  <Th>Source</Th>
-                                  <Th className="text-right">NPS</Th>
-                                  <Th className="text-right">CSAT</Th>
+                                  {show("recipient") && <Th>Recipient</Th>}
+                                  {show("status") && <Th>Status</Th>}
+                                  {show("sent") && <Th>Sent</Th>}
+                                  {show("opened") && <Th>Opened</Th>}
+                                  {show("completed") && <Th>Completed</Th>}
+                                  {show("respondent") && <Th>Respondent</Th>}
+                                  {show("campaign") && <Th>Campaign</Th>}
+                                  {show("source") && <Th>Source</Th>}
+                                  {show("nps") && <Th className="text-right">NPS</Th>}
+                                  {show("nps_category") && <Th>NPS category</Th>}
+                                  {show("csat") && <Th className="text-right">CSAT</Th>}
+                                  {activeQuestionCols.map((c) => (
+                                    <Th key={c.id} className={c.align === "right" ? "text-right" : ""}>{c.label}</Th>
+                                  ))}
                                   <Th>Response</Th>
                                   <Th>Resend</Th>
                                 </tr>
@@ -555,7 +593,7 @@ export function AnalyticsResponsesTable({
                               <tbody>
                                 {g.rows.map((r) => (
                                   <tr key={r.id} className="border-t border-border hover:bg-secondary/50">
-                                    <PocCells r={r} resending={resending} runResend={runResend} onView={setDrillRow} />
+                                    <PocCells r={r} resending={resending} runResend={runResend} onView={setDrillRow} show={show} questionCols={activeQuestionCols} />
                                   </tr>
                                 ))}
                               </tbody>
@@ -582,17 +620,21 @@ export function AnalyticsResponsesTable({
           <table className="w-full text-xs min-w-[1200px]">
             <thead className="bg-secondary">
               <tr className="text-left">
-                <Th onClick={() => toggleSort("deal_name")}>Deal</Th>
-                <Th onClick={() => toggleSort("recipient_name")}>Recipient</Th>
-                <Th onClick={() => toggleSort("status")}>Status</Th>
-                <Th onClick={() => toggleSort("sent_at")}>Sent</Th>
-                <Th onClick={() => toggleSort("opened_at")}>Opened</Th>
-                <Th onClick={() => toggleSort("completed_at")}>Completed</Th>
-                <Th onClick={() => toggleSort("respondent")}>Respondent</Th>
-                <Th onClick={() => toggleSort("campaign")}>Campaign</Th>
-                <Th>Source</Th>
-                <Th onClick={() => toggleSort("nps")} className="text-right">NPS</Th>
-                <Th onClick={() => toggleSort("csat")} className="text-right">CSAT</Th>
+                {show("deal") && <Th onClick={() => toggleSort("deal_name")}>Deal</Th>}
+                {show("recipient") && <Th onClick={() => toggleSort("recipient_name")}>Recipient</Th>}
+                {show("status") && <Th onClick={() => toggleSort("status")}>Status</Th>}
+                {show("sent") && <Th onClick={() => toggleSort("sent_at")}>Sent</Th>}
+                {show("opened") && <Th onClick={() => toggleSort("opened_at")}>Opened</Th>}
+                {show("completed") && <Th onClick={() => toggleSort("completed_at")}>Completed</Th>}
+                {show("respondent") && <Th onClick={() => toggleSort("respondent")}>Respondent</Th>}
+                {show("campaign") && <Th onClick={() => toggleSort("campaign")}>Campaign</Th>}
+                {show("source") && <Th>Source</Th>}
+                {show("nps") && <Th onClick={() => toggleSort("nps")} className="text-right">NPS</Th>}
+                {show("nps_category") && <Th>NPS category</Th>}
+                {show("csat") && <Th onClick={() => toggleSort("csat")} className="text-right">CSAT</Th>}
+                {activeQuestionCols.map((c) => (
+                  <Th key={c.id} onClick={() => toggleSort(c.id)} className={c.align === "right" ? "text-right" : ""}>{c.label}</Th>
+                ))}
                 <Th>Response</Th>
                 <Th>Resend</Th>
               </tr>
@@ -600,6 +642,7 @@ export function AnalyticsResponsesTable({
             <tbody>
               {filtered.map((r) => (
                 <tr key={r.id} className="border-t border-border hover:bg-secondary/50">
+                  {show("deal") && (
                   <td className="px-3 py-2 max-w-[260px]">
                     <div className="font-medium text-foreground truncate" title={r.deal_name}>
                       {r.deal_name || "—"}
@@ -610,11 +653,12 @@ export function AnalyticsResponsesTable({
                       </div>
                     )}
                   </td>
-                  <PocCells r={r} resending={resending} runResend={runResend} onView={setDrillRow} />
+                  )}
+                  <PocCells r={r} resending={resending} runResend={runResend} onView={setDrillRow} show={show} questionCols={activeQuestionCols} />
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={13} className="px-3 py-8 text-center text-muted-foreground">No invites for current filters.</td></tr>
+                <tr><td colSpan={flatColCount} className="px-3 py-8 text-center text-muted-foreground">No invites for current filters.</td></tr>
               )}
             </tbody>
           </table>
@@ -666,15 +710,18 @@ function Th({ children, onClick, className = "" }: { children: any; onClick?: ()
 }
 
 function PocCells({
-  r, resending, runResend, onView,
+  r, resending, runResend, onView, show, questionCols,
 }: {
   r: Row;
   resending: Set<string>;
   runResend: (ids: string[], scope: "row" | "bulk") => void;
   onView: (r: Row) => void;
+  show: (id: string) => boolean;
+  questionCols: QuestionColumn[];
 }) {
   return (
     <>
+      {show("recipient") && (
       <td className="px-3 py-2 max-w-[220px]">
         <div className="text-foreground truncate" title={r.recipient_name}>
           {r.recipient_name || "—"}
@@ -684,6 +731,8 @@ function PocCells({
           <div className="text-[10px] text-muted-foreground truncate" title={r.recipient_email}>{r.recipient_email}</div>
         )}
       </td>
+      )}
+      {show("status") && (
       <td className="px-3 py-2">
         {r.status === "failed" && r.error ? (
           <Tooltip>
@@ -710,11 +759,13 @@ function PocCells({
           </div>
         )}
       </td>
-      <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{fmtDate(r.sent_at)}</td>
-      <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{fmtDate(r.opened_at)}</td>
-      <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{fmtDate(r.completed_at)}</td>
-      <td className="px-3 py-2 max-w-[180px] truncate" title={r.respondent}>{r.respondent || "—"}</td>
-      <td className="px-3 py-2 max-w-[160px] truncate" title={r.campaign}>{r.campaign || "—"}</td>
+      )}
+      {show("sent") && <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{fmtDate(r.sent_at)}</td>}
+      {show("opened") && <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{fmtDate(r.opened_at)}</td>}
+      {show("completed") && <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{fmtDate(r.completed_at)}</td>}
+      {show("respondent") && <td className="px-3 py-2 max-w-[180px] truncate" title={r.respondent}>{r.respondent || "—"}</td>}
+      {show("campaign") && <td className="px-3 py-2 max-w-[160px] truncate" title={r.campaign}>{r.campaign || "—"}</td>}
+      {show("source") && (
       <td className="px-3 py-2">
         {r.source ? (
           <span className={cn(
@@ -729,8 +780,26 @@ function PocCells({
           <span className="text-muted-foreground">—</span>
         )}
       </td>
-      <td className="px-3 py-2 text-right">{r.nps ?? "—"}</td>
-      <td className="px-3 py-2 text-right">{r.csat ?? "—"}</td>
+      )}
+      {show("nps") && <td className="px-3 py-2 text-right">{r.nps ?? "—"}</td>}
+      {show("nps_category") && <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{npsCategoryOf(r.nps) || "—"}</td>}
+      {show("csat") && <td className="px-3 py-2 text-right">{r.csat ?? "—"}</td>}
+      {questionCols.map((c) => {
+        const v = c.accessor(r as any);
+        const text = v == null || v === "" ? "" : String(v);
+        return (
+          <td
+            key={c.id}
+            title={text || undefined}
+            className={cn(
+              "px-3 py-2 max-w-[220px] truncate",
+              c.align === "right" ? "text-right tabular-nums" : "",
+            )}
+          >
+            {text || <span className="text-muted-foreground">—</span>}
+          </td>
+        );
+      })}
       <td className="px-3 py-2">
         <Button
           variant="ghost"
