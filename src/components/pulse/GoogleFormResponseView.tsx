@@ -47,17 +47,17 @@ function Stars({ value }: { value: number | null }) {
 }
 
 // ---- Helpers ----
-function firstVal(v: unknown): unknown { return Array.isArray(v) ? v[0] : v; }
-function toText(v: unknown): string {
+export function firstVal(v: unknown): unknown { return Array.isArray(v) ? v[0] : v; }
+export function toText(v: unknown): string {
   const f = firstVal(v);
   return f == null ? "" : String(f).trim();
 }
-function toArray(v: unknown): string[] {
+export function toArray(v: unknown): string[] {
   if (v == null) return [];
   if (Array.isArray(v)) return v.map((x) => String(x).trim()).filter(Boolean);
   return String(v).split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean);
 }
-function toNum(v: unknown, min: number, max: number): number | null {
+export function toNum(v: unknown, min: number, max: number): number | null {
   const raw = toText(v);
   if (!raw || /^n\/?a$/i.test(raw)) return null;
   const n = typeof v === "number" ? v : Number(raw.match(/-?\d+(?:\.\d+)?/)?.[0] ?? NaN);
@@ -68,7 +68,7 @@ function toNum(v: unknown, min: number, max: number): number | null {
 }
 
 // Find a key in answers by trying exact match, then case-insensitive contains-all-of tokens.
-function findKey(answers: Record<string, unknown>, needles: string[]): string | null {
+export function findKey(answers: Record<string, unknown>, needles: string[]): string | null {
   const keys = Object.keys(answers || {});
   for (const n of needles) if (n in answers) return n;
   const lowerKeys = keys.map((k) => [k, k.toLowerCase()] as const);
@@ -85,13 +85,13 @@ function findKey(answers: Record<string, unknown>, needles: string[]): string | 
   }
   return null;
 }
-function pick(answers: Record<string, unknown>, needles: string[]): unknown {
+export function pick(answers: Record<string, unknown>, needles: string[]): unknown {
   const k = findKey(answers, needles);
   return k ? answers[k] : null;
 }
 
 // Experience grid rows to extract from the "How are we doing on each of these?" block.
-const EXPERIENCE_ROWS: { key: string; label: string; tokens: string[] }[] = [
+export const EXPERIENCE_ROWS: { key: string; label: string; tokens: string[] }[] = [
   { key: "quality", label: "Quality of the creative output", tokens: ["quality", "creative", "output"] },
   { key: "briefing", label: "Briefing & kickoff process", tokens: ["briefing", "kickoff"] },
   { key: "revisions", label: "Revisions & feedback handling", tokens: ["revision", "feedback"] },
@@ -189,7 +189,7 @@ function hasAnyExperienceValue(ratings: Record<string, number | null>): boolean 
   return Object.values(ratings).some((value) => typeof value === "number");
 }
 
-function extractExperienceRatings(answers: Record<string, unknown>, payload?: any): Record<string, number | null> {
+export function extractExperienceRatings(answers: Record<string, unknown>, payload?: any): Record<string, number | null> {
   const storedDimensions = payload?.csat_dimensions ?? payload?.raw?.csat_dimensions;
   const stored = parseExperienceBundle(storedDimensions);
   if (stored && hasAnyExperienceValue(stored)) return stored;
