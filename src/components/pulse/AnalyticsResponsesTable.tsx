@@ -710,15 +710,18 @@ function Th({ children, onClick, className = "" }: { children: any; onClick?: ()
 }
 
 function PocCells({
-  r, resending, runResend, onView,
+  r, resending, runResend, onView, show, questionCols,
 }: {
   r: Row;
   resending: Set<string>;
   runResend: (ids: string[], scope: "row" | "bulk") => void;
   onView: (r: Row) => void;
+  show: (id: string) => boolean;
+  questionCols: QuestionColumn[];
 }) {
   return (
     <>
+      {show("recipient") && (
       <td className="px-3 py-2 max-w-[220px]">
         <div className="text-foreground truncate" title={r.recipient_name}>
           {r.recipient_name || "—"}
@@ -728,6 +731,8 @@ function PocCells({
           <div className="text-[10px] text-muted-foreground truncate" title={r.recipient_email}>{r.recipient_email}</div>
         )}
       </td>
+      )}
+      {show("status") && (
       <td className="px-3 py-2">
         {r.status === "failed" && r.error ? (
           <Tooltip>
@@ -754,11 +759,13 @@ function PocCells({
           </div>
         )}
       </td>
-      <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{fmtDate(r.sent_at)}</td>
-      <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{fmtDate(r.opened_at)}</td>
-      <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{fmtDate(r.completed_at)}</td>
-      <td className="px-3 py-2 max-w-[180px] truncate" title={r.respondent}>{r.respondent || "—"}</td>
-      <td className="px-3 py-2 max-w-[160px] truncate" title={r.campaign}>{r.campaign || "—"}</td>
+      )}
+      {show("sent") && <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{fmtDate(r.sent_at)}</td>}
+      {show("opened") && <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{fmtDate(r.opened_at)}</td>}
+      {show("completed") && <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{fmtDate(r.completed_at)}</td>}
+      {show("respondent") && <td className="px-3 py-2 max-w-[180px] truncate" title={r.respondent}>{r.respondent || "—"}</td>}
+      {show("campaign") && <td className="px-3 py-2 max-w-[160px] truncate" title={r.campaign}>{r.campaign || "—"}</td>}
+      {show("source") && (
       <td className="px-3 py-2">
         {r.source ? (
           <span className={cn(
@@ -773,8 +780,26 @@ function PocCells({
           <span className="text-muted-foreground">—</span>
         )}
       </td>
-      <td className="px-3 py-2 text-right">{r.nps ?? "—"}</td>
-      <td className="px-3 py-2 text-right">{r.csat ?? "—"}</td>
+      )}
+      {show("nps") && <td className="px-3 py-2 text-right">{r.nps ?? "—"}</td>}
+      {show("nps_category") && <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{npsCategoryOf(r.nps) || "—"}</td>}
+      {show("csat") && <td className="px-3 py-2 text-right">{r.csat ?? "—"}</td>}
+      {questionCols.map((c) => {
+        const v = c.accessor(r as any);
+        const text = v == null || v === "" ? "" : String(v);
+        return (
+          <td
+            key={c.id}
+            title={text || undefined}
+            className={cn(
+              "px-3 py-2 max-w-[220px] truncate",
+              c.align === "right" ? "text-right tabular-nums" : "",
+            )}
+          >
+            {text || <span className="text-muted-foreground">—</span>}
+          </td>
+        );
+      })}
       <td className="px-3 py-2">
         <Button
           variant="ghost"
