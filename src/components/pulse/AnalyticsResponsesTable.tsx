@@ -13,6 +13,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { toPng } from "html-to-image";
 import { useUserRole } from "@/hooks/useUserRole";
+import { ColumnPicker } from "./ColumnPicker";
+import {
+  QUESTION_COLUMNS, QUESTION_COLUMN_MAP, QuestionColumn,
+  loadVisibleColumns, saveVisibleColumns, npsCategoryOf, BASE_COLUMNS,
+} from "./responseColumns";
 
 type StatusKey = "completed" | "opened" | "sent" | "failed" | "pending";
 
@@ -109,8 +114,9 @@ export function AnalyticsResponsesTable({
   invites: InviteRow[];
   responses: ResponseRow[];
 }) {
-  const [sortKey, setSortKey] = useState<keyof Row>("sent_at");
+  const [sortKey, setSortKey] = useState<string>("sent_at");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [visibleCols, setVisibleCols] = useState<Set<string>>(() => loadVisibleColumns());
   const [filter, setFilter] = useState("");
   const [drillRow, setDrillRow] = useState<Row | null>(null);
   const [uniqueContacts, setUniqueContacts] = useState(false);
