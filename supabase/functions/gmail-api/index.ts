@@ -69,9 +69,10 @@ async function getAccessToken(admin: SupabaseClient, userId: string) {
     }
     throw new Error(String(data?.error_description ?? data?.error ?? "token_refresh_failed"));
   }
-  const newExpires = new Date(Date.now() + Math.max(60, data.expires_in - 60) * 1000).toISOString();
+  const expiresIn = Number(data.expires_in) || 3600;
+  const newExpires = new Date(Date.now() + Math.max(60, expiresIn - 60) * 1000).toISOString();
   await admin.from("gmail_connections").update({
-    access_token: data.access_token, expires_at: newExpires,
+    access_token: data.access_token as string, expires_at: newExpires,
   }).eq("user_id", userId);
   return { token: data.access_token as string, email: conn.google_email as string | null };
 }
