@@ -46,6 +46,8 @@ async function getAccessToken(admin: SupabaseClient, userId: string) {
     return { token: conn.access_token as string, email: conn.google_email as string | null };
   }
 
+  if (!conn.refresh_token) throw new Error("gmail_reauth_required");
+
   const creds = getCreds();
   const params = new URLSearchParams({
     client_id: creds.clientId,
@@ -56,8 +58,17 @@ async function getAccessToken(admin: SupabaseClient, userId: string) {
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: params.toString(),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data?.error_description || data?.error || "token_refresh_failed");
+  const rawBody = await res.text();
+  let data: Record<string, unknown> = {};
+  try { data = JSON.parse(rawBody); } catch { /* non-JSON body */ }
+  if (!res.ok) {
+    console.error("[gmail-api] token refresh failed", res.status, rawBody);
+    const code = String(data?.error ?? "");
+    if (code === "invalid_grant" || code === "invalid_request" || res.status === 400 || res.status === 401) {
+      throw new Error("gmail_reauth_required");
+    }
+    throw new Error(String(data?.error_description ?? data?.error ?? "token_refresh_failed"));
+  }
   const newExpires = new Date(Date.now() + Math.max(60, data.expires_in - 60) * 1000).toISOString();
   await admin.from("gmail_connections").update({
     access_token: data.access_token, expires_at: newExpires,
@@ -200,7 +211,12 @@ Deno.serve(async (req) => {
     return json({ error: "unknown_action" }, 400);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    const status = message === "unauthorized" ? 401 : message === "gmail_not_connected" ? 412 : 500;
+    console.error("[gmail-api] error", message);
+    const status = message === "unauthorized"
+      ? 401
+      : (message === "gmail_not_connected" || message === "gmail_reauth_required")
+        ? 412
+        : 500;
     return json({ error: message }, status);
   }
 });
