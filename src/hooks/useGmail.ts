@@ -22,7 +22,17 @@ export type GmailMessage = GmailMessageSummary & {
 
 async function invoke<T = unknown>(fn: "gmail-oauth" | "gmail-api", body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke(fn, { body });
-  if (error) throw error;
+  if (error) {
+    let detail = "";
+    try {
+      const ctx = (error as { context?: Response }).context;
+      if (ctx) detail = await ctx.clone().text();
+    } catch { /* ignore */ }
+    if (detail.includes("gmail_reauth_required") || detail.includes("gmail_not_connected")) {
+      throw new Error("Your Gmail access expired. Please reconnect your Gmail account.");
+    }
+    throw new Error(detail ? `${error.message}: ${detail}` : error.message);
+  }
   if (data && typeof data === "object" && "error" in (data as object) && (data as { error?: string }).error) {
     throw new Error((data as { error: string }).error);
   }
